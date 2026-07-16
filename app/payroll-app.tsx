@@ -1,96 +1,342 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-type Employee = {
-  id: string;
-  name: string;
-  rank: string;
-  hours: number;
-  gross: number;
-  status: "Ready" | "Review" | "Not started";
+type Category = "shift" | "drill" | "workDetail" | "callback" | "actingOfficer" | "holiday" | "dpw";
+type PayScale = { id: string; label: string; regularRate: number; overtimeRate: number; holidayRate: number };
+type Employee = PayScale & { id: string; name: string; payScaleId: string; rank: string; active: number };
+type Entry = { id?: string; employeeId: string; workDate: string; category: Category; hours: number };
+type PayrollData = {
+  period: { startDate: string; endDate: string; status: "draft" | "reviewed" | "finalized" };
+  employees: Employee[];
+  entries: Entry[];
+  payScales: PayScale[];
+  settings: { overtimeThreshold: number; actingOfficerPremium: number; dpwMultiplier: number };
 };
 
-const previewEmployees: Employee[] = [
-  { id: "wyant-robert", name: "Robert Wyant", rank: "Lieutenant", hours: 48, gross: 1789.92, status: "Ready" },
-  { id: "espino-leonardo", name: "Leonardo Espino", rank: "Firefighter", hours: 43, gross: 946, status: "Review" },
-  { id: "odowd-jon", name: "Jon O’Dowd", rank: "Chief", hours: 31.5, gross: 976.5, status: "Ready" },
-  { id: "boulden-jamal", name: "Jamal Boulden", rank: "Firefighter", hours: 25, gross: 550, status: "Ready" },
-  { id: "white-danny", name: "Danny White", rank: "Lieutenant", hours: 2, gross: 49.72, status: "Ready" },
+const navItems = ["Payroll", "Timesheets", "Employees", "Rates & Rules"] as const;
+const categoryColumns: Array<{ key: Category; short: string; label: string }> = [
+  { key: "shift", short: "Shift", label: "Shift" },
+  { key: "drill", short: "Drill", label: "Drill" },
+  { key: "workDetail", short: "Detail", label: "Work Detail" },
+  { key: "callback", short: "Callback", label: "Call Back" },
+  { key: "actingOfficer", short: "AO", label: "Acting Officer" },
+  { key: "holiday", short: "Holiday", label: "Holiday" },
+  { key: "dpw", short: "DPW", label: "DPW Assignment" },
 ];
 
-const navItems = ["Payroll", "Timesheets", "Employees", "Rates & Rules"];
+function isoDate(year: number, month: number, day: number) {
+  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function currentPeriodStart() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const day = today.getDate();
+  if (day >= 26) return isoDate(year, month, 26);
+  if (day >= 11) return isoDate(year, month, 11);
+  const previous = new Date(year, month - 1, 26);
+  return isoDate(previous.getFullYear(), previous.getMonth(), 26);
+}
+
+function shiftPeriod(start: string, direction: -1 | 1) {
+  const date = new Date(`${start}T12:00:00`);
+  const day = date.getDate();
+  if (direction === 1) {
+    if (day === 11) return isoDate(date.getFullYear(), date.getMonth(), 26);
+    const next = new Date(date.getFullYear(), date.getMonth() + 1, 11);
+    return isoDate(next.getFullYear(), next.getMonth(), 11);
+  }
+  if (day === 26) return isoDate(date.getFullYear(), date.getMonth(), 11);
+  const previous = new Date(date.getFullYear(), date.getMonth() - 1, 26);
+  return isoDate(previous.getFullYear(), previous.getMonth(), 26);
+}
+
+function listDates(start: string, end: string) {
+  const dates: string[] = [];
+  const cursor = new Date(`${start}T12:00:00`);
+  const finish = new Date(`${end}T12:00:00`);
+  while (cursor <= finish) {
+    dates.push(isoDate(cursor.getFullYear(), cursor.getMonth(), cursor.getDate()));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return dates;
+}
+
+function periodLabel(start: string, end: string) {
+  const a = new Date(`${start}T12:00:00`);
+  const b = new Date(`${end}T12:00:00`);
+  const monthA = a.toLocaleDateString("en-US", { month: "long" });
+  const monthB = b.toLocaleDateString("en-US", { month: "long" });
+  return a.getMonth() === b.getMonth()
+    ? `${monthA} ${a.getDate()}–${b.getDate()}, ${b.getFullYear()}`
+    : `${monthA} ${a.getDate()}–${monthB} ${b.getDate()}, ${b.getFullYear()}`;
+}
+
+function dayLabel(value: string) {
+  return new Date(`${value}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+
+function displayName(value: string) {
+  const [last, first] = value.split(",").map((part) => part.trim());
+  return first ? `${first} ${last}` : value;
+}
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
 }
 
-function Icon({ name }: { name: "people" | "clock" | "document" | "warning" | "search" | "filter" | "export" }) {
-  const symbols = { people: "👥", clock: "◷", document: "▤", warning: "!", search: "⌕", filter: "▽", export: "⇧" };
+function safeNumber(value: string | number) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function Icon({ name }: { name: "people" | "clock" | "document" | "warning" | "search" | "filter" | "export" | "back" | "next" | "save" }) {
+  const symbols = { people: "👥", clock: "◷", document: "▤", warning: "!", search: "⌕", filter: "▽", export: "⇧", back: "‹", next: "›", save: "✓" };
   return <span aria-hidden="true">{symbols[name]}</span>;
 }
 
 export default function PayrollApp() {
-  const [activeNav, setActiveNav] = useState("Payroll");
+  const [activeNav, setActiveNav] = useState<(typeof navItems)[number]>("Payroll");
+  const [periodStart, setPeriodStart] = useState(currentPeriodStart);
+  const [data, setData] = useState<PayrollData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const filtered = useMemo(
-    () => previewEmployees.filter((employee) => employee.name.toLowerCase().includes(search.toLowerCase())),
-    [search],
-  );
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
+  const [savingCells, setSavingCells] = useState<Set<string>>(new Set());
+  const [toast, setToast] = useState("");
+  const [rulesDraft, setRulesDraft] = useState<PayrollData["settings"] | null>(null);
+  const [scaleDraft, setScaleDraft] = useState<PayScale[]>([]);
+  const [newEmployee, setNewEmployee] = useState({ name: "", payScaleId: "firefighter" });
+
+  const loadPayroll = useCallback(async (start: string) => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/payroll?period=${start}`);
+      const payload = await response.json() as PayrollData & { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Unable to load payroll");
+      setData(payload);
+      setRulesDraft(payload.settings);
+      setScaleDraft(payload.payScales);
+      setSelectedEmployeeId((current) => current || payload.employees[0]?.id || "");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to load payroll");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void loadPayroll(periodStart); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadPayroll, periodStart]);
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(""), 2600);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  const entryValue = useCallback((employeeId: string, workDate: string, category: Category) => {
+    return data?.entries.find((entry) => entry.employeeId === employeeId && entry.workDate === workDate && entry.category === category)?.hours ?? 0;
+  }, [data]);
+
+  const summaryFor = useCallback((employee: Employee) => {
+    if (!data) return { hours: 0, regularHours: 0, overtimeHours: 0, holidayHours: 0, actingHours: 0, dpwHours: 0, gross: 0, status: "Not started" as const, issues: [] as string[] };
+    const employeeEntries = data.entries.filter((entry) => entry.employeeId === employee.id);
+    const total = (category: Category) => employeeEntries.filter((entry) => entry.category === category).reduce((sum, entry) => sum + entry.hours, 0);
+    const baseHours = total("shift") + total("drill") + total("workDetail") + total("callback");
+    const overtimeHours = Math.max(baseHours - data.settings.overtimeThreshold, 0);
+    const regularHours = Math.max(baseHours - overtimeHours, 0);
+    const holidayHours = total("holiday");
+    const actingHours = total("actingOfficer");
+    const dpwHours = total("dpw");
+    const gross = regularHours * employee.regularRate + overtimeHours * employee.overtimeRate + holidayHours * employee.holidayRate + actingHours * data.settings.actingOfficerPremium + dpwHours * employee.regularRate * data.settings.dpwMultiplier;
+    const issues: string[] = [];
+    for (const date of listDates(data.period.startDate, data.period.endDate)) {
+      const dayHours = employeeEntries.filter((entry) => entry.workDate === date && entry.category !== "actingOfficer").reduce((sum, entry) => sum + entry.hours, 0);
+      const dayActing = employeeEntries.filter((entry) => entry.workDate === date && entry.category === "actingOfficer").reduce((sum, entry) => sum + entry.hours, 0);
+      if (dayHours > 24) issues.push(`${dayLabel(date)} has ${dayHours} paid hours`);
+      if (dayActing > dayHours && dayActing > 0) issues.push(`${dayLabel(date)} acting-officer hours exceed worked hours`);
+    }
+    const hours = baseHours + holidayHours + dpwHours;
+    const status = employeeEntries.length === 0 ? "Not started" as const : issues.length ? "Review" as const : "Ready" as const;
+    return { hours, regularHours, overtimeHours, holidayHours, actingHours, dpwHours, gross, status, issues };
+  }, [data]);
+
+  const employeeSummaries = useMemo(() => (data?.employees ?? []).map((employee) => ({ employee, ...summaryFor(employee) })), [data, summaryFor]);
+  const reviewCount = employeeSummaries.filter((row) => row.status === "Review").length;
+  const readyCount = employeeSummaries.filter((row) => row.status === "Ready").length;
+  const grossPayroll = employeeSummaries.reduce((sum, row) => sum + row.gross, 0);
+  const selectedEmployee = data?.employees.find((employee) => employee.id === selectedEmployeeId) ?? data?.employees[0];
+  const selectedSummary = selectedEmployee ? summaryFor(selectedEmployee) : null;
+
+  const filteredRows = useMemo(() => employeeSummaries.filter((row) => {
+    const matchesSearch = row.employee.name.toLowerCase().includes(search.toLowerCase()) || row.employee.rank.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === "all" || row.status.toLowerCase().replace(" ", "-") === statusFilter;
+    return matchesSearch && matchesStatus;
+  }), [employeeSummaries, search, statusFilter]);
+
+  async function post(payload: Record<string, unknown>) {
+    const response = await fetch("/api/payroll", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+    const result = await response.json() as { error?: string };
+    if (!response.ok) throw new Error(result.error || "Unable to save");
+    return result;
+  }
+
+  function changeEntry(employeeId: string, workDate: string, category: Category, hours: number) {
+    setData((current) => {
+      if (!current) return current;
+      const remaining = current.entries.filter((entry) => !(entry.employeeId === employeeId && entry.workDate === workDate && entry.category === category));
+      return { ...current, entries: hours > 0 ? [...remaining, { employeeId, workDate, category, hours }] : remaining };
+    });
+  }
+
+  async function saveEntry(employeeId: string, workDate: string, category: Category, hours: number) {
+    const cell = `${employeeId}-${workDate}-${category}`;
+    setSavingCells((current) => new Set(current).add(cell));
+    try {
+      await post({ action: "saveEntry", periodStart, employeeId, workDate, category, hours });
+      setToast("Hours saved");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to save hours");
+    } finally {
+      setSavingCells((current) => { const next = new Set(current); next.delete(cell); return next; });
+    }
+  }
+
+  function openTimesheet(employeeId?: string) {
+    if (employeeId) setSelectedEmployeeId(employeeId);
+    setActiveNav("Timesheets");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function exportCsv() {
+    if (!data) return;
+    const rows = [["Employee", "Rank", "Regular Hours", "OT Hours", "Holiday Hours", "Acting Officer Hours", "DPW Hours", "Gross Pay", "Status"]];
+    employeeSummaries.forEach((row) => rows.push([displayName(row.employee.name), row.employee.rank, row.regularHours.toFixed(2), row.overtimeHours.toFixed(2), row.holidayHours.toFixed(2), row.actingHours.toFixed(2), row.dpwHours.toFixed(2), row.gross.toFixed(2), row.status]));
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `Stickney-Payroll-${data.period.startDate}-to-${data.period.endDate}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setToast("Payroll exported");
+  }
+
+  async function setPeriodStatus(status: PayrollData["period"]["status"]) {
+    await post({ action: "setPeriodStatus", periodStart, status });
+    setData((current) => current ? { ...current, period: { ...current.period, status } } : current);
+    setToast(status === "finalized" ? "Payroll finalized" : "Status updated");
+  }
+
+  async function saveRules() {
+    if (!rulesDraft) return;
+    try {
+      await post({ action: "saveRules", ...rulesDraft, payScales: scaleDraft });
+      await loadPayroll(periodStart);
+      setToast("Rates and rules saved");
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to save rules"); }
+  }
+
+  async function addEmployee(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      await post({ action: "saveEmployee", ...newEmployee });
+      setNewEmployee({ name: "", payScaleId: "firefighter" });
+      await loadPayroll(periodStart);
+      setToast("Employee added");
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to add employee"); }
+  }
+
+  const statusLabel = data?.period.status ? data.period.status[0].toUpperCase() + data.period.status.slice(1) : "Draft";
 
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div className="brand">
-          <span className="brand-mark"><span>◆</span></span>
-          <span>Stickney Payroll Manager</span>
-        </div>
+        <button className="brand" onClick={() => setActiveNav("Payroll")}><span className="brand-mark"><span>◆</span></span><span>Stickney Payroll Manager</span></button>
         <nav aria-label="Primary navigation">
-          {navItems.map((item) => (
-            <button key={item} className={activeNav === item ? "nav-active" : ""} onClick={() => setActiveNav(item)}>{item}</button>
-          ))}
+          {navItems.map((item) => <button key={item} className={activeNav === item ? "nav-active" : ""} onClick={() => setActiveNav(item)}>{item}</button>)}
         </nav>
         <div className="profile"><span className="avatar">BW</span><span>Bob Wyant</span><span aria-hidden="true">⌄</span></div>
       </header>
 
       <section className="workspace">
-        <div className="period-row">
-          <div>
-            <p className="eyebrow">Current pay period</p>
-            <div className="title-line"><h1>July 11–25, 2026</h1><span className="period-badge">▣ Draft</span></div>
+        {error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={() => { setError(""); void loadPayroll(periodStart); }}>Retry</button></div>}
+        {toast && <div className="toast" role="status"><Icon name="save" /> {toast}</div>}
+        {loading && !data ? <div className="loading-card">Loading your payroll…</div> : data && <>
+          <div className="period-row">
+            <div>
+              <p className="eyebrow">{activeNav === "Payroll" ? "Current pay period" : activeNav}</p>
+              <div className="title-line">
+                <button className="period-arrow" aria-label="Previous pay period" onClick={() => setPeriodStart(shiftPeriod(periodStart, -1))}><Icon name="back" /></button>
+                <h1>{periodLabel(data.period.startDate, data.period.endDate)}</h1>
+                <button className="period-arrow" aria-label="Next pay period" onClick={() => setPeriodStart(shiftPeriod(periodStart, 1))}><Icon name="next" /></button>
+                <span className={`period-badge ${data.period.status}`}>▣ {statusLabel}</span>
+              </div>
+            </div>
+            {activeNav === "Payroll" && <button className="primary-action" onClick={() => openTimesheet()}><span>◷</span> Enter Hours</button>}
+            {activeNav === "Timesheets" && <button className="primary-action secondary-red" onClick={() => setActiveNav("Payroll")}>Review Payroll</button>}
           </div>
-          <button className="primary-action" onClick={() => setActiveNav("Timesheets")}><span>◷</span> Enter Hours</button>
-        </div>
 
-        <section className="kpi-grid" aria-label="Payroll summary">
-          <article className="kpi-card"><span className="kpi-icon blue"><Icon name="people" /></span><div><strong>43</strong><span>Active Employees</span></div></article>
-          <article className="kpi-card"><span className="kpi-icon blue"><Icon name="clock" /></span><div><strong>106 <small>hr</small></strong><span>OT Threshold</span></div></article>
-          <article className="kpi-card"><span className="kpi-icon blue"><Icon name="document" /></span><div><strong>Draft</strong><span>Pay Period Status</span></div></article>
-          <article className="kpi-card alert"><span className="kpi-icon red"><Icon name="warning" /></span><div><strong>3</strong><span>Need Review</span></div></article>
-        </section>
+          {activeNav === "Payroll" && <>
+            <section className="kpi-grid" aria-label="Payroll summary">
+              <article className="kpi-card"><span className="kpi-icon blue"><Icon name="people" /></span><div><strong>{data.employees.length}</strong><span>Active Employees</span></div></article>
+              <article className="kpi-card"><span className="kpi-icon blue"><Icon name="clock" /></span><div><strong>{data.settings.overtimeThreshold} <small>hr</small></strong><span>OT Threshold</span></div></article>
+              <article className="kpi-card"><span className="kpi-icon blue"><Icon name="document" /></span><div><strong>{formatMoney(grossPayroll)}</strong><span>Calculated Gross</span></div></article>
+              <article className="kpi-card alert"><span className="kpi-icon red"><Icon name="warning" /></span><div><strong>{reviewCount}</strong><span>Need Review</span></div></article>
+            </section>
+            <section className="payroll-panel">
+              <div className="toolbar">
+                <label className="search-box"><Icon name="search" /><span className="sr-only">Search employees</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search employees…" /></label>
+                <div className="toolbar-actions">
+                  <label className="select-button"><Icon name="filter" /><span className="sr-only">Filter status</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">All statuses</option><option value="ready">Ready</option><option value="review">Needs review</option><option value="not-started">Not started</option></select></label>
+                  <button onClick={exportCsv}><Icon name="export" /> Export CSV</button>
+                </div>
+              </div>
+              <div className="table-wrap payroll-table">
+                <table><thead><tr><th>Employee</th><th>Rank</th><th className="number">Hours</th><th className="number">Gross Pay</th><th>Status</th></tr></thead><tbody>
+                  {filteredRows.map((row) => <tr key={row.employee.id} onClick={() => openTimesheet(row.employee.id)}>
+                    <td><span className="person-icon">♙</span><strong>{displayName(row.employee.name)}</strong></td><td>{row.employee.rank}</td><td className="number tabular">{row.hours.toFixed(1)} hrs</td><td className="number tabular">{formatMoney(row.gross)}</td><td><span className={`status-pill ${row.status.toLowerCase().replace(" ", "-")}`}>{row.status === "Ready" ? "✓" : row.status === "Review" ? "◷" : "–"} {row.status}</span></td>
+                  </tr>)}
+                </tbody></table>
+              </div>
+              <div className="review-bar"><span><strong>{readyCount}</strong> ready · <strong>{reviewCount}</strong> need review · <strong>{data.employees.length - readyCount - reviewCount}</strong> not started</span><div><button className="quiet-button" onClick={() => void setPeriodStatus("reviewed")}>Mark Reviewed</button><button className="finalize-button" disabled={reviewCount > 0} onClick={() => void setPeriodStatus("finalized")}>Finalize Payroll</button></div></div>
+            </section>
+          </>}
 
-        <section className="payroll-panel">
-          <div className="toolbar">
-            <label className="search-box"><Icon name="search" /><span className="sr-only">Search employees</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search employees…" /></label>
-            <div className="toolbar-actions"><button><Icon name="filter" /> Filter <span>⌄</span></button><button><Icon name="export" /> Export <span>⌄</span></button></div>
-          </div>
-          <div className="table-wrap">
-            <table>
-              <thead><tr><th>Employee</th><th>Rank</th><th className="number">Hours</th><th className="number">Gross Pay</th><th>Status</th></tr></thead>
-              <tbody>
-                {filtered.map((employee) => (
-                  <tr key={employee.id}>
-                    <td><span className="person-icon">♙</span><strong>{employee.name}</strong></td>
-                    <td>{employee.rank}</td>
-                    <td className="number tabular">{employee.hours.toFixed(1)} hrs</td>
-                    <td className="number tabular">{formatMoney(employee.gross)}</td>
-                    <td><span className={`status-pill ${employee.status.toLowerCase().replace(" ", "-")}`}>{employee.status === "Ready" ? "✓" : employee.status === "Review" ? "◷" : "–"} {employee.status}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+          {activeNav === "Timesheets" && selectedEmployee && selectedSummary && <section className="content-card timesheet-card">
+            <div className="section-header"><div><label htmlFor="employee-select">Employee</label><select id="employee-select" value={selectedEmployee.id} onChange={(event) => setSelectedEmployeeId(event.target.value)}>{data.employees.map((employee) => <option value={employee.id} key={employee.id}>{displayName(employee.name)} — {employee.rank}</option>)}</select></div><span className={`status-pill ${selectedSummary.status.toLowerCase().replace(" ", "-")}`}>{selectedSummary.status}</span></div>
+            <div className="mini-summary"><div><span>Paid hours</span><strong>{selectedSummary.hours.toFixed(1)}</strong></div><div><span>Overtime</span><strong>{selectedSummary.overtimeHours.toFixed(1)}</strong></div><div><span>Holiday</span><strong>{selectedSummary.holidayHours.toFixed(1)}</strong></div><div><span>Gross pay</span><strong>{formatMoney(selectedSummary.gross)}</strong></div></div>
+            {selectedSummary.issues.length > 0 && <div className="validation-box"><strong>Check these entries</strong>{selectedSummary.issues.map((issue) => <span key={issue}>• {issue}</span>)}</div>}
+            <div className="entry-grid-wrap"><table className="entry-grid"><thead><tr><th>Date</th>{categoryColumns.map((column) => <th key={column.key} title={column.label}>{column.short}</th>)}<th>Total</th></tr></thead><tbody>
+              {listDates(data.period.startDate, data.period.endDate).map((date) => {
+                const rowTotal = categoryColumns.filter((column) => column.key !== "actingOfficer").reduce((sum, column) => sum + entryValue(selectedEmployee.id, date, column.key), 0);
+                return <tr key={date}><td>{dayLabel(date)}</td>{categoryColumns.map((column) => {
+                  const cell = `${selectedEmployee.id}-${date}-${column.key}`;
+                  const value = entryValue(selectedEmployee.id, date, column.key);
+                  return <td key={column.key}><input aria-label={`${column.label} hours for ${dayLabel(date)}`} type="number" min="0" max="48" step="0.25" value={value || ""} className={savingCells.has(cell) ? "saving" : ""} onChange={(event) => changeEntry(selectedEmployee.id, date, column.key, safeNumber(event.target.value))} onBlur={(event) => void saveEntry(selectedEmployee.id, date, column.key, safeNumber(event.target.value))} /></td>;
+                })}<td className={rowTotal > 24 ? "row-warning" : ""}>{rowTotal.toFixed(1)}</td></tr>;
+              })}
+            </tbody><tfoot><tr><td>Period totals</td>{categoryColumns.map((column) => <td key={column.key}>{data.entries.filter((entry) => entry.employeeId === selectedEmployee.id && entry.category === column.key).reduce((sum, entry) => sum + entry.hours, 0).toFixed(1)}</td>)}<td>{selectedSummary.hours.toFixed(1)}</td></tr></tfoot></table></div>
+            <p className="helper-note">Acting Officer hours add the configured premium only. DPW hours use the configured DPW multiplier. Entries save when you leave a field.</p>
+          </section>}
+
+          {activeNav === "Employees" && <section className="content-card">
+            <div className="section-header"><div><h2>Employee roster</h2><p>Built from the Employee Info sheet in your workbook.</p></div><span className="count-badge">{data.employees.length} active</span></div>
+            <form className="add-employee" onSubmit={(event) => void addEmployee(event)}><label><span>Employee name</span><input required placeholder="Last, First" value={newEmployee.name} onChange={(event) => setNewEmployee((current) => ({ ...current, name: event.target.value }))} /></label><label><span>Pay scale</span><select value={newEmployee.payScaleId} onChange={(event) => setNewEmployee((current) => ({ ...current, payScaleId: event.target.value }))}>{data.payScales.map((scale) => <option value={scale.id} key={scale.id}>{scale.label}</option>)}</select></label><button className="primary-action compact" type="submit">Add Employee</button></form>
+            <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Pay Scale</th><th className="number">Regular</th><th className="number">Overtime</th><th className="number">Holiday</th></tr></thead><tbody>{data.employees.map((employee) => <tr key={employee.id}><td><span className="person-icon">♙</span><strong>{displayName(employee.name)}</strong></td><td>{employee.rank}</td><td className="number">{formatMoney(employee.regularRate)}</td><td className="number">{formatMoney(employee.overtimeRate)}</td><td className="number">{formatMoney(employee.holidayRate)}</td></tr>)}</tbody></table></div>
+          </section>}
+
+          {activeNav === "Rates & Rules" && rulesDraft && <section className="settings-layout">
+            <article className="content-card rules-card"><div className="section-header"><div><h2>Payroll rules</h2><p>These replace the formulas that caused broken references.</p></div></div><div className="settings-grid"><label><span>Overtime threshold</span><div className="input-unit"><input type="number" min="0" step="1" value={rulesDraft.overtimeThreshold} onChange={(event) => setRulesDraft({ ...rulesDraft, overtimeThreshold: safeNumber(event.target.value) })} /><b>hours</b></div></label><label><span>Acting Officer premium</span><div className="input-unit"><b>$</b><input type="number" min="0" step="0.01" value={rulesDraft.actingOfficerPremium} onChange={(event) => setRulesDraft({ ...rulesDraft, actingOfficerPremium: safeNumber(event.target.value) })} /><b>/ hr</b></div></label><label><span>DPW multiplier</span><div className="input-unit"><input type="number" min="1" step="0.05" value={rulesDraft.dpwMultiplier} onChange={(event) => setRulesDraft({ ...rulesDraft, dpwMultiplier: safeNumber(event.target.value) })} /><b>× rate</b></div></label></div></article>
+            <article className="content-card"><div className="section-header"><div><h2>Pay rates</h2><p>Current format from the completed June 26–July 10 payroll.</p></div></div><div className="rate-list"><div className="rate-head"><span>Pay scale</span><span>Regular</span><span>Overtime</span><span>Holiday</span></div>{scaleDraft.map((scale, index) => <div className="rate-row" key={scale.id}><strong>{scale.label}</strong>{(["regularRate", "overtimeRate", "holidayRate"] as const).map((field) => <label key={field}><span className="sr-only">{scale.label} {field}</span><b>$</b><input type="number" min="0" step="0.01" value={scale[field]} onChange={(event) => setScaleDraft((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: safeNumber(event.target.value) } : item))} /></label>)}</div>)}</div><button className="primary-action save-rules" onClick={() => void saveRules()}>Save Rates & Rules</button></article>
+          </section>}
+        </>}
       </section>
     </main>
   );
