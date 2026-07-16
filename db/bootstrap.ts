@@ -1,5 +1,3 @@
-import { env } from "cloudflare:workers";
-
 const payScales = [
   ["deputy-chief-1", "Chief — O'Dowd", 31, 46.5, 46.5, 1],
   ["deputy-chief-2", "Chief — Babinec", 27.22, 40.83, 40.83, 2],
@@ -58,6 +56,7 @@ const employeeSeed = [
 let ready = false;
 
 export async function ensureDatabase() {
+  const { env } = await import("cloudflare:workers");
   if (ready) return env.DB;
   const db = env.DB;
   await db.batch([
