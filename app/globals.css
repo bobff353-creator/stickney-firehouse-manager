@@ -301,9 +301,15 @@ td strong { font-size: 16px; }
   .shift-card { padding: 16px 12px; }
   .staff-labels, .staff-row { grid-template-columns: 78px minmax(108px, 1fr) 36px 78px; gap: 5px; }
   .staff-row select { font-size: 12px; padding: 0 5px; }
-  .call-row { padding: 14px 42px 14px 12px; grid-template-columns: 32px 1fr; }
-  .call-number { grid-row: span 2; }
-  .call-address { grid-column: auto; }
+  .call-row { padding: 58px 14px 16px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px 10px; }
+  .call-number { position: absolute; top: 14px; left: 14px; width: 34px; height: 34px; }
+  .remove-call { top: 15px; right: 14px; transform: none; }
+  .call-report, .call-units, .call-address, .call-type { grid-column: 1 / -1; }
+  .call-time-out { grid-column: 1; }
+  .call-time-in { grid-column: 2; }
+  .time-now { min-width: 0; }
+  .time-now input { min-width: 0; padding: 0 7px; }
+  .time-now button { min-width: 52px; padding: 0 8px; }
   .logbook-savebar { bottom: 8px; align-items: stretch; flex-direction: column; }
   .logbook-savebar .primary-action { min-height: 50px; }
   .handoff-backdrop { padding: 0; place-items: stretch; }
