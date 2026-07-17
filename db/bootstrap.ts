@@ -77,12 +77,41 @@ export async function ensureDatabase() {
     db.prepare("CREATE INDEX IF NOT EXISTS log_calls_date_sort_idx ON daily_log_calls(log_date, sort_order)"),
     db.prepare("CREATE TABLE IF NOT EXISTS daily_log_approvals (id TEXT PRIMARY KEY NOT NULL, log_date TEXT NOT NULL REFERENCES daily_logs(log_date), shift_key TEXT NOT NULL, sign_in_officer_id TEXT REFERENCES employees(id), sign_in_at TEXT, sign_in_equipment TEXT NOT NULL DEFAULT '{}', sign_in_note TEXT NOT NULL DEFAULT '', reviewed_notes INTEGER NOT NULL DEFAULT 0, sign_out_officer_id TEXT REFERENCES employees(id), sign_out_at TEXT, sign_out_equipment TEXT NOT NULL DEFAULT '{}', sign_out_note TEXT NOT NULL DEFAULT '')"),
     db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS log_approval_date_shift_idx ON daily_log_approvals(log_date, shift_key)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS important_phone_numbers (id TEXT PRIMARY KEY NOT NULL, category TEXT NOT NULL, name TEXT NOT NULL, emergency_number TEXT NOT NULL DEFAULT '', non_emergency_number TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', sort_order INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS important_phone_category_sort_idx ON important_phone_numbers(category, sort_order)"),
   ]);
   try { await db.prepare("ALTER TABLE daily_log_staffing ADD COLUMN acting_officer INTEGER NOT NULL DEFAULT 0").run(); } catch { /* Column already exists after migration. */ }
 
   await db.prepare("INSERT OR IGNORE INTO payroll_settings (id, overtime_threshold, acting_officer_premium, dpw_multiplier) VALUES (1, 106, 1, 1.5)").run();
   await db.batch(payScales.map((scale) => db.prepare("INSERT OR IGNORE INTO pay_scales (id, label, regular_rate, overtime_rate, holiday_rate, sort_order) VALUES (?, ?, ?, ?, ?, ?)").bind(...scale)));
   await db.batch(employeeSeed.map((employee, index) => db.prepare("INSERT OR IGNORE INTO employees (id, name, pay_scale_id, active, sort_order) VALUES (?, ?, ?, 1, ?)").bind(employee[0], employee[1], employee[2], index + 1)));
+  const phoneSeed = [
+    ["fire-berwyn", "fire", "Berwyn Fire Department", "911", "(708) 484-1644", "", 1],
+    ["fire-cicero", "fire", "Cicero Fire Department", "911", "(708) 652-2130", "", 2],
+    ["fire-forest-park", "fire", "Forest Park Fire Department", "911", "(708) 366-2425", "", 3],
+    ["fire-lyons", "fire", "Lyons Fire Department", "911", "(708) 447-2700", "", 4],
+    ["fire-oak-park", "fire", "Oak Park Fire Department", "911", "(708) 445-3300", "", 5],
+    ["fire-river-forest", "fire", "River Forest Fire Department", "911", "(708) 366-7129", "", 6],
+    ["fire-forest-view", "fire", "Forest View Fire Department", "911", "(708) 458-1180", "", 7],
+    ["fire-la-grange", "fire", "La Grange Fire Department", "911", "(708) 579-2337", "", 8],
+    ["fire-countryside", "fire", "Countryside Fire Department", "911", "(708) 354-2500", "", 9],
+    ["fire-hinsdale", "fire", "Hinsdale Fire Department", "911", "(630) 789-7070", "", 10],
+    ["fire-brookfield", "fire", "Brookfield Fire Department", "911", "(708) 485-8131", "", 11],
+    ["hospital-macneal", "hospital", "MacNeal Hospital", "", "(708) 783-9100", "", 1],
+    ["hospital-loretto", "hospital", "Loretto Hospital", "", "(773) 626-4300", "", 2],
+    ["hospital-lagrange", "hospital", "UChicago Medicine AdventHealth La Grange", "", "(708) 245-9000", "", 3],
+    ["hospital-oak-park", "hospital", "Rush Oak Park Hospital", "", "(708) 383-9300", "", 4],
+    ["hospital-hines", "hospital", "Hines VA Hospital", "", "(708) 202-8387", "", 5],
+    ["hospital-loyola", "hospital", "Loyola University Medical Center", "", "(888) 584-7888", "", 6],
+    ["hospital-madden", "hospital", "Madden Mental Health Center", "", "(708) 338-7400", "", 7],
+    ["hospital-christ", "hospital", "Advocate Christ Medical Center", "", "(708) 684-8000", "", 8],
+    ["misc-mwrd", "misc", "MWRD", "", "(312) 751-5600", "", 1],
+    ["misc-ipa", "misc", "I.P.A.", "", "(708) 345-9780", "", 2],
+    ["misc-police", "misc", "Police", "911", "(708) 366-7125", "", 3],
+    ["misc-dpw", "misc", "DPW", "", "(708) 749-3313", "", 4],
+    ["misc-cook-dispatch", "misc", "Cook County Dispatch", "", "(708) 974-7721", "", 5],
+  ] as const;
+  await db.batch(phoneSeed.map((row) => db.prepare("INSERT OR IGNORE INTO important_phone_numbers (id, category, name, emergency_number, non_emergency_number, notes, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(...row)));
   ready = true;
   return db;
 }

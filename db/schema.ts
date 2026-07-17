@@ -112,3 +112,14 @@ export const dailyLogApprovals = sqliteTable("daily_log_approvals", {
   signOutEquipment: text("sign_out_equipment").notNull().default("{}"),
   signOutNote: text("sign_out_note").notNull().default(""),
 }, (table) => [uniqueIndex("log_approval_date_shift_idx").on(table.logDate, table.shiftKey)]);
+
+export const importantPhoneNumbers = sqliteTable("important_phone_numbers", {
+  id: text("id").primaryKey(),
+  category: text("category").notNull(),
+  name: text("name").notNull(),
+  emergencyNumber: text("emergency_number").notNull().default(""),
+  nonEmergencyNumber: text("non_emergency_number").notNull().default(""),
+  notes: text("notes").notNull().default(""),
+  sortOrder: integer("sort_order").notNull().default(0),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [index("important_phone_category_sort_idx").on(table.category, table.sortOrder)]);
