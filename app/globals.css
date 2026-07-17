@@ -188,13 +188,18 @@ td strong { font-size: 16px; }
 .shift-title h3 { margin: 3px 0 0; color: var(--navy-deep); font-size: 21px; }
 .shift-title button, .add-call { min-height: 40px; padding: 0 14px; border: 1px solid #8ea1b1; border-radius: 7px; background: #f7fafc; color: var(--navy); font-weight: 850; }
 .shift-title button { width: 42px; padding: 0; font-size: 22px; }
-.staff-labels, .staff-row { display: grid; grid-template-columns: minmax(90px, .85fr) minmax(150px, 1.4fr) minmax(90px, .85fr); gap: 8px; }
+.staff-labels, .staff-row { display: grid; grid-template-columns: minmax(86px, .8fr) minmax(135px, 1.35fr) 42px minmax(86px, .8fr); gap: 8px; }
 .staff-labels { margin: 0 2px 6px; color: var(--slate); font-size: 11px; font-weight: 850; text-transform: uppercase; }
 .staff-labels span:nth-child(2) { padding-left: 3px; }
+.staff-labels span:nth-child(3) { text-align: center; }
 .staff-rows { display: grid; gap: 8px; }
 .staff-row { position: relative; }
 .staff-row select { width: 100%; min-width: 0; height: 44px; padding: 0 8px; border: 1px solid #bcc7cf; border-radius: 6px; background: white; color: var(--ink); font-size: 13px; }
 .staff-row select:nth-child(2) { font-weight: 700; }
+.staff-row.ao-row { margin: 2px -4px; padding: 4px; border: 1px solid #d9ad57; border-radius: 8px; background: #fff8e8; }
+.ao-check { height: 44px; border: 1px solid #d5dde3; border-radius: 6px; color: #9ba8b2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; font-size: 9px; font-weight: 900; visibility: hidden; }
+.ao-check.visible { border-color: #bf9138; background: #fff5dc; color: #785313; visibility: visible; }
+.ao-check input { width: 17px; height: 17px; margin: 0; accent-color: #b27613; }
 .remove-row { position: absolute; z-index: 2; top: -7px; right: -8px; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: #6c7985; color: white; line-height: 1; }
 .officer-actions { margin-top: 16px; padding-top: 14px; border-top: 1px solid #dce3e8; display: flex; justify-content: space-between; gap: 8px; }
 .officer-actions button { min-height: 40px; padding: 0 11px; border: 1px solid #879dab; border-radius: 7px; background: white; color: var(--navy); font-size: 12px; font-weight: 850; }
@@ -294,7 +299,7 @@ td strong { font-size: 16px; }
   .logbook-heading, .log-date-actions { align-items: stretch; flex-direction: column; }
   .locked-banner { align-items: stretch; flex-direction: column; }
   .shift-card { padding: 16px 12px; }
-  .staff-labels, .staff-row { grid-template-columns: 88px minmax(125px, 1fr) 88px; }
+  .staff-labels, .staff-row { grid-template-columns: 78px minmax(108px, 1fr) 36px 78px; gap: 5px; }
   .staff-row select { font-size: 12px; padding: 0 5px; }
   .call-row { padding: 14px 42px 14px 12px; grid-template-columns: 32px 1fr; }
   .call-number { grid-row: span 2; }

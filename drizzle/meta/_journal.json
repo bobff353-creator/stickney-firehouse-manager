@@ -29,6 +29,13 @@
       "when": 1784315280841,
       "tag": "0003_abnormal_firebird",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1784317398766,
+      "tag": "0004_wooden_thunderball",
+      "breakpoints": true
     }
   ]
 }

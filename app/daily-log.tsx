@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-type LogEmployee = { id: string; name: string; startDate?: string | null; endDate?: string | null };
-type StaffingRow = { id: string; shiftKey: string; employeeId: string; timeIn: string; timeOut: string };
+type LogEmployee = { id: string; name: string; rank: string; startDate?: string | null; endDate?: string | null };
+type StaffingRow = { id: string; shiftKey: string; employeeId: string; timeIn: string; timeOut: string; actingOfficer: boolean };
 type CallRow = { id: string; reportNumber: string; timeOut: string; timeIn: string; respondingUnits: string; address: string; callType: string };
 type Approval = { shiftKey: string; signInOfficerId?: string; signInAt?: string; signOutOfficerId?: string; signOutAt?: string; signOutNote?: string };
 type RecentNote = { logDate: string; note: string };
@@ -33,9 +33,11 @@ const cleanEquipment = () => Object.fromEntries(equipmentItems.map((item) => [it
 function localDate() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 function nowTime() { const d = new Date(); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; }
 function clientId() { return `row-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`; }
-function blankStaff(shiftKey: string, timeIn: string, timeOut: string): StaffingRow { return { id: clientId(), shiftKey, employeeId: "", timeIn, timeOut }; }
+function blankStaff(shiftKey: string, timeIn: string, timeOut: string, actingOfficer = false): StaffingRow { return { id: clientId(), shiftKey, employeeId: "", timeIn, timeOut, actingOfficer }; }
 function blankCall(): CallRow { return { id: clientId(), reportNumber: "", timeOut: "", timeIn: "", respondingUnits: "", address: "", callType: "EMS" }; }
 function displayName(value: string) { const [last, first] = value.split(",").map((part) => part.trim()); return first ? `${first} ${last}` : value; }
+function isOfficer(employee?: LogEmployee) { return Boolean(employee && /chief|captain|lieutenant/i.test(employee.rank)); }
+function shiftMinutes(value: string, shiftKey: string) { const [hours, minutes] = value.split(":").map(Number); const total = hours * 60 + minutes; return shiftKey === "overnight" && total <= 360 ? total + 1440 : total; }
 
 export default function DailyLog({ employees }: { employees: LogEmployee[] }) {
   const [logDate, setLogDate] = useState(localDate);
@@ -66,7 +68,7 @@ export default function DailyLog({ employees }: { employees: LogEmployee[] }) {
     try {
       const response = await fetch(`/api/logbook?date=${date}`); const data = await response.json() as LogPayload;
       if (!response.ok) throw new Error(data.error || "Unable to load log");
-      const rows = [...data.staffing];
+      const rows = data.staffing.map((row) => ({ ...row, actingOfficer: Boolean(row.actingOfficer) }));
       for (const shift of shiftSections) for (let i = rows.filter((row) => row.shiftKey === shift.key).length; i < 4; i += 1) rows.push(blankStaff(shift.key, shift.defaultIn, shift.defaultOut));
       setStaffing(rows); setCalls(data.calls.length ? data.calls : Array.from({ length: 4 }, blankCall)); setShiftNotes(data.log?.shiftNotes ?? "");
       setAddresses(data.addresses ?? []); setApprovals(data.approvals ?? []); setRecentNotes(data.recentNotes ?? []);
@@ -94,6 +96,42 @@ export default function DailyLog({ employees }: { employees: LogEmployee[] }) {
   const activeEmployees = useMemo(() => employees.filter((employee) => (!employee.startDate || employee.startDate <= logDate) && (!employee.endDate || employee.endDate >= logDate)), [employees, logDate]);
   const markDirty = () => { if (loaded.current) setDirty(true); };
   function updateStaff(id: string, patch: Partial<StaffingRow>) { setStaffing((rows) => rows.map((row) => row.id === id ? { ...row, ...patch } : row)); markDirty(); }
+  function selectStaffEmployee(id: string, employeeId: string) {
+    setStaffing((current) => {
+      const rows = current.map((row) => row.id === id ? { ...row, employeeId } : { ...row });
+      const target = rows.find((row) => row.id === id);
+      if (!target || !employeeId) return rows;
+      if (target.actingOfficer && isOfficer(activeEmployees.find((employee) => employee.id === employeeId))) target.actingOfficer = false;
+      const targetStart = shiftMinutes(target.timeIn, target.shiftKey), targetEnd = shiftMinutes(target.timeOut, target.shiftKey);
+      for (const other of rows) {
+        if (other.id === id || other.employeeId !== employeeId) continue;
+        const otherStart = shiftMinutes(other.timeIn, other.shiftKey), otherEnd = shiftMinutes(other.timeOut, other.shiftKey);
+        if (otherStart <= targetStart && targetStart < otherEnd) other.timeOut = target.timeIn;
+        else if (targetStart <= otherStart && otherStart < targetEnd) target.timeOut = other.timeIn;
+      }
+      return rows;
+    });
+    markDirty();
+  }
+  function setStaffTimeOut(id: string, timeOut: string) {
+    setStaffing((current) => {
+      const rows = current.map((row) => row.id === id ? { ...row, timeOut } : { ...row });
+      const target = rows.find((row) => row.id === id);
+      if (!target || !isOfficer(activeEmployees.find((employee) => employee.id === target.employeeId))) return rows;
+      const shift = shiftSections.find((item) => item.key === target.shiftKey);
+      if (!shift) return rows;
+      const early = shiftMinutes(timeOut, target.shiftKey) > shiftMinutes(target.timeIn, target.shiftKey) && shiftMinutes(timeOut, target.shiftKey) < shiftMinutes(shift.defaultOut, target.shiftKey);
+      const existingAo = rows.find((row) => row.shiftKey === target.shiftKey && row.actingOfficer && row.id !== target.id);
+      if (early) {
+        const coveredByOfficer = rows.some((row) => row.id !== target.id && row.shiftKey === target.shiftKey && isOfficer(activeEmployees.find((employee) => employee.id === row.employeeId)) && shiftMinutes(row.timeIn, row.shiftKey) <= shiftMinutes(timeOut, target.shiftKey) && shiftMinutes(row.timeOut, row.shiftKey) >= shiftMinutes(shift.defaultOut, row.shiftKey));
+        if (coveredByOfficer && existingAo) existingAo.actingOfficer = false;
+        else if (!coveredByOfficer && existingAo) { existingAo.timeIn = timeOut; existingAo.timeOut = shift.defaultOut; }
+        else if (!coveredByOfficer) rows.push(blankStaff(target.shiftKey, timeOut, shift.defaultOut, true));
+      } else if (existingAo) existingAo.actingOfficer = false;
+      return rows;
+    });
+    markDirty();
+  }
   function updateCall(id: string, patch: Partial<CallRow>) { setCalls((rows) => rows.map((row) => row.id === id ? { ...row, ...patch } : row)); markDirty(); }
   function openHandoff(shiftKey: string, shiftTitle: string, mode: "in" | "out") { setHandoff({ shiftKey, shiftTitle, mode }); setOfficerId(""); setEquipment(cleanEquipment()); setHandoffNote(""); setReviewedNotes(recentNotes.length === 0); setAcceptedNotes(false); }
   async function submitHandoff() {
@@ -120,7 +158,7 @@ export default function DailyLog({ employees }: { employees: LogEmployee[] }) {
     <fieldset className="logbook-fields" disabled={readOnly}>
       <div className="shift-card-grid">{shiftSections.map((shift) => { const rows = staffing.filter((row) => row.shiftKey === shift.key); const approval = approvals.find((item) => item.shiftKey === shift.key); return <article className="content-card shift-card" key={shift.key}>
         <div className="shift-title"><div><span>Staffing</span><h3>{shift.title}</h3></div><button aria-label={`Add person to ${shift.title}`} onClick={() => { setStaffing((current) => [...current, blankStaff(shift.key, shift.defaultIn, shift.defaultOut)]); markDirty(); }}>＋</button></div>
-        <div className="staff-labels"><span>In</span><span>Employee</span><span>Out</span></div><div className="staff-rows">{rows.map((row) => <div className="staff-row" key={row.id}><select aria-label="Time in" value={row.timeIn} onChange={(event) => updateStaff(row.id, { timeIn: event.target.value })}>{timeOptions.map((time) => <option key={time.value} value={time.value}>{time.label}</option>)}</select><select aria-label="Employee name" value={row.employeeId} onChange={(event) => updateStaff(row.id, { employeeId: event.target.value })}><option value="">Select employee…</option>{activeEmployees.map((employee) => <option key={employee.id} value={employee.id}>{displayName(employee.name)}</option>)}</select><select aria-label="Time out" value={row.timeOut} onChange={(event) => updateStaff(row.id, { timeOut: event.target.value })}>{timeOptions.map((time) => <option key={time.value} value={time.value}>{time.label}</option>)}</select>{rows.length > 4 && <button className="remove-row" aria-label="Remove staffing row" onClick={() => { setStaffing((current) => current.filter((item) => item.id !== row.id)); markDirty(); }}>×</button>}</div>)}</div>
+        <div className="staff-labels"><span>In</span><span>Employee</span><span>AO</span><span>Out</span></div><div className="staff-rows">{rows.map((row) => { const employee = activeEmployees.find((item) => item.id === row.employeeId); return <div className={row.actingOfficer ? "staff-row ao-row" : "staff-row"} key={row.id}><select aria-label="Time in" value={row.timeIn} onChange={(event) => updateStaff(row.id, { timeIn: event.target.value })}>{timeOptions.map((time) => <option key={time.value} value={time.value}>{time.label}</option>)}</select><select aria-label="Employee name" value={row.employeeId} onChange={(event) => selectStaffEmployee(row.id, event.target.value)}><option value="">Select employee…</option>{activeEmployees.map((item) => <option key={item.id} value={item.id}>{displayName(item.name)}</option>)}</select><label className={row.actingOfficer ? "ao-check visible" : "ao-check"} title="Acting Officer"><input aria-label={`Acting Officer for ${employee ? displayName(employee.name) : "replacement"}`} type="checkbox" checked={row.actingOfficer} disabled /><span>AO</span></label><select aria-label="Time out" value={row.timeOut} onChange={(event) => setStaffTimeOut(row.id, event.target.value)}>{timeOptions.map((time) => <option key={time.value} value={time.value}>{time.label}</option>)}</select>{rows.length > 4 && <button className="remove-row" aria-label="Remove staffing row" onClick={() => { setStaffing((current) => current.filter((item) => item.id !== row.id)); markDirty(); }}>×</button>}</div>; })}</div>
         <div className="officer-actions"><button className={approval?.signInAt ? "approved" : ""} onClick={() => openHandoff(shift.key, shift.title, "in")}>{approval?.signInAt ? "✓ Officer Signed In" : "Officer Sign In"}</button><button className={approval?.signOutAt ? "approved" : ""} disabled={!approval?.signInAt} onClick={() => openHandoff(shift.key, shift.title, "out")}>{approval?.signOutAt ? "✓ Shift Approved" : "Officer Sign Out"}</button></div>
       </article>; })}</div>
 

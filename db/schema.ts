@@ -82,6 +82,7 @@ export const dailyLogStaffing = sqliteTable("daily_log_staffing", {
   employeeId: text("employee_id").references(() => employees.id),
   timeIn: text("time_in").notNull().default(""),
   timeOut: text("time_out").notNull().default(""),
+  actingOfficer: integer("acting_officer", { mode: "boolean" }).notNull().default(false),
   sortOrder: integer("sort_order").notNull().default(0),
 }, (table) => [index("log_staffing_date_shift_idx").on(table.logDate, table.shiftKey, table.sortOrder)]);
 

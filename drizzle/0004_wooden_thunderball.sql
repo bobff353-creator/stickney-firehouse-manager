@@ -1,0 +1,1 @@
+ALTER TABLE `daily_log_staffing` ADD `acting_officer` integer DEFAULT false NOT NULL;

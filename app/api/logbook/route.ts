@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     await db.prepare("UPDATE daily_logs SET locked = 1, admin_unlocked = 0 WHERE log_date < ?").bind(today).run();
     const [log, staffing, calls, addresses, approvals, recentNotes] = await Promise.all([
       db.prepare("SELECT log_date AS logDate, shift_notes AS shiftNotes, CASE WHEN log_date < ? THEN 1 ELSE locked END AS locked, admin_unlocked AS adminUnlocked, updated_at AS updatedAt FROM daily_logs WHERE log_date = ?").bind(today, date).first(),
-      db.prepare("SELECT id, shift_key AS shiftKey, employee_id AS employeeId, time_in AS timeIn, time_out AS timeOut, sort_order AS sortOrder FROM daily_log_staffing WHERE log_date = ? ORDER BY shift_key, sort_order").bind(date).all(),
+      db.prepare("SELECT id, shift_key AS shiftKey, employee_id AS employeeId, time_in AS timeIn, time_out AS timeOut, acting_officer AS actingOfficer, sort_order AS sortOrder FROM daily_log_staffing WHERE log_date = ? ORDER BY shift_key, sort_order").bind(date).all(),
       db.prepare("SELECT id, report_number AS reportNumber, time_out AS timeOut, time_in AS timeIn, responding_units AS respondingUnits, address, call_type AS callType, sort_order AS sortOrder FROM daily_log_calls WHERE log_date = ? ORDER BY sort_order").bind(date).all(),
       db.prepare("SELECT DISTINCT address FROM daily_log_calls WHERE address <> '' ORDER BY rowid DESC LIMIT 50").all(),
       db.prepare("SELECT shift_key AS shiftKey, sign_in_officer_id AS signInOfficerId, sign_in_at AS signInAt, sign_in_equipment AS signInEquipment, sign_in_note AS signInNote, reviewed_notes AS reviewedNotes, sign_out_officer_id AS signOutOfficerId, sign_out_at AS signOutAt, sign_out_equipment AS signOutEquipment, sign_out_note AS signOutNote FROM daily_log_approvals WHERE log_date = ?").bind(date).all(),
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
     for (const [index, row] of staffing.entries()) {
       const shiftKey = String(row.shiftKey ?? "");
       if (!shifts.includes(shiftKey)) continue;
-      await db.prepare("INSERT INTO daily_log_staffing (id, log_date, shift_key, employee_id, time_in, time_out, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(String(row.id || crypto.randomUUID()), date, shiftKey, String(row.employeeId ?? "") || null, String(row.timeIn ?? ""), String(row.timeOut ?? ""), index).run();
+      await db.prepare("INSERT INTO daily_log_staffing (id, log_date, shift_key, employee_id, time_in, time_out, acting_officer, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").bind(String(row.id || crypto.randomUUID()), date, shiftKey, String(row.employeeId ?? "") || null, String(row.timeIn ?? ""), String(row.timeOut ?? ""), row.actingOfficer ? 1 : 0, index).run();
     }
     for (const [index, row] of calls.entries()) {
       const callType = String(row.callType ?? "EMS");
