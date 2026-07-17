@@ -268,6 +268,11 @@ export default function PayrollApp() {
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to save rules"); }
   }
 
+  function changeBaseRate(index: number, value: number) {
+    const calculated = Math.round(value * 1.5 * 100) / 100;
+    setScaleDraft((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, regularRate: value, overtimeRate: calculated, holidayRate: calculated } : item));
+  }
+
   function editEmployee(employee?: Employee) {
     if (!employee) {
       setEmployeeDraft(emptyEmployee);
@@ -408,7 +413,7 @@ export default function PayrollApp() {
 
           {activeNav === "Rates & Rules" && rulesDraft && <section className="settings-layout">
             <article className="content-card rules-card"><div className="section-header"><div><h2>Payroll rules</h2><p>These replace the formulas that caused broken references.</p></div></div><div className="settings-grid"><label><span>Overtime threshold</span><div className="input-unit"><input type="number" min="0" step="1" value={rulesDraft.overtimeThreshold} onChange={(event) => setRulesDraft({ ...rulesDraft, overtimeThreshold: safeNumber(event.target.value) })} /><b>hours</b></div></label><label><span>Acting Officer premium</span><div className="input-unit"><b>$</b><input type="number" min="0" step="0.01" value={rulesDraft.actingOfficerPremium} onChange={(event) => setRulesDraft({ ...rulesDraft, actingOfficerPremium: safeNumber(event.target.value) })} /><b>/ hr</b></div></label><label><span>DPW multiplier</span><div className="input-unit"><input type="number" min="1" step="0.05" value={rulesDraft.dpwMultiplier} onChange={(event) => setRulesDraft({ ...rulesDraft, dpwMultiplier: safeNumber(event.target.value) })} /><b>× rate</b></div></label></div></article>
-            <article className="content-card"><div className="section-header"><div><h2>Pay rates</h2><p>Current format from the completed June 26–July 10 payroll.</p></div></div><div className="rate-list"><div className="rate-head"><span>Pay scale</span><span>Regular</span><span>Overtime</span><span>Holiday</span></div>{scaleDraft.map((scale, index) => <div className="rate-row" key={scale.id}><strong>{scale.label}</strong>{(["regularRate", "overtimeRate", "holidayRate"] as const).map((field) => <label key={field}><span className="sr-only">{scale.label} {field}</span><b>$</b><input type="number" min="0" step="0.01" value={scale[field]} onChange={(event) => setScaleDraft((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: safeNumber(event.target.value) } : item))} /></label>)}</div>)}</div><button className="primary-action save-rules" onClick={() => void saveRules()}>Save Rates & Rules</button></article>
+            <article className="content-card"><div className="section-header"><div><h2>Pay rates</h2><p>Enter the Straight Time / Normal Rate. Overtime and Holiday automatically calculate at 1.5×.</p></div></div><div className="rate-list"><div className="rate-head"><span>Pay scale</span><span>Straight Time / Normal</span><span>Overtime · 1.5×</span><span>Holiday · 1.5×</span></div>{scaleDraft.map((scale, index) => <div className="rate-row" key={scale.id}><strong>{scale.label}</strong><label><span className="mobile-rate-label">Straight Time / Normal</span><b>$</b><input aria-label={`${scale.label} Straight Time / Normal Rate`} type="number" min="0" step="0.01" value={scale.regularRate} onChange={(event) => changeBaseRate(index, safeNumber(event.target.value))} /></label><label className="calculated-rate"><span className="mobile-rate-label">Overtime · 1.5×</span><b>$</b><input aria-label={`${scale.label} Overtime Rate`} readOnly value={scale.overtimeRate.toFixed(2)} /><em>Auto</em></label><label className="calculated-rate"><span className="mobile-rate-label">Holiday · 1.5×</span><b>$</b><input aria-label={`${scale.label} Holiday Rate`} readOnly value={scale.holidayRate.toFixed(2)} /><em>Auto</em></label></div>)}</div><button className="primary-action save-rules" onClick={() => void saveRules()}>Save Rates & Rules</button></article>
           </section>}
         </>}
       </section>

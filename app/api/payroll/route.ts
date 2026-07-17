@@ -83,7 +83,9 @@ export async function POST(request: Request) {
       await db.prepare("UPDATE payroll_settings SET overtime_threshold = ?, acting_officer_premium = ?, dpw_multiplier = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1").bind(overtimeThreshold, actingOfficerPremium, dpwMultiplier).run();
       const scales = Array.isArray(payload.payScales) ? payload.payScales as Array<Record<string, unknown>> : [];
       for (const scale of scales) {
-        await db.prepare("UPDATE pay_scales SET regular_rate = ?, overtime_rate = ?, holiday_rate = ? WHERE id = ?").bind(Number(scale.regularRate), Number(scale.overtimeRate), Number(scale.holidayRate), String(scale.id)).run();
+        const regularRate = Number(scale.regularRate);
+        const premiumRate = Math.round(regularRate * 1.5 * 100) / 100;
+        await db.prepare("UPDATE pay_scales SET regular_rate = ?, overtime_rate = ?, holiday_rate = ? WHERE id = ?").bind(regularRate, premiumRate, premiumRate, String(scale.id)).run();
       }
       return Response.json({ ok: true });
     }

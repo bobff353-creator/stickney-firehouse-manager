@@ -157,6 +157,10 @@ td strong { font-size: 16px; }
 .rate-row label { height: 43px; padding: 0 10px; border: 1px solid #c4cdd5; border-radius: 6px; display: flex; align-items: center; gap: 5px; }
 .rate-row label b { color: var(--slate); }
 .rate-row input { min-width: 0; width: 100%; border: 0; outline: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.rate-row .calculated-rate { background: #f1f6f8; border-color: #d3dde3; }
+.rate-row .calculated-rate input { color: #39556c; background: transparent; }
+.rate-row .calculated-rate em { padding: 3px 6px; border-radius: 999px; background: #dfeaf0; color: #416176; font-size: 9px; font-style: normal; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }
+.mobile-rate-label { display: none; }
 .save-rules { margin-top: 22px; }
 
 /* Daily logbook */
@@ -285,6 +289,7 @@ td strong { font-size: 16px; }
   .employee-profile-form fieldset { padding: 16px 12px; }
   .rate-head { display: none; }
   .rate-row { grid-template-columns: 1fr; padding: 16px; }
+  .mobile-rate-label { display: block; flex: 1; color: #40566b; font-size: 12px; font-weight: 800; }
   .toast { right: 16px; left: 16px; bottom: 16px; justify-content: center; }
   .logbook-heading, .log-date-actions { align-items: stretch; flex-direction: column; }
   .locked-banner { align-items: stretch; flex-direction: column; }
