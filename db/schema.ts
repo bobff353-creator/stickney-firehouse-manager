@@ -70,6 +70,8 @@ export const timeEntries = sqliteTable("time_entries", {
 export const dailyLogs = sqliteTable("daily_logs", {
   logDate: text("log_date").primaryKey(),
   shiftNotes: text("shift_notes").notNull().default(""),
+  locked: integer("locked", { mode: "boolean" }).notNull().default(false),
+  adminUnlocked: integer("admin_unlocked", { mode: "boolean" }).notNull().default(false),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
@@ -94,3 +96,18 @@ export const dailyLogCalls = sqliteTable("daily_log_calls", {
   callType: text("call_type").notNull().default("EMS"),
   sortOrder: integer("sort_order").notNull().default(0),
 }, (table) => [index("log_calls_date_sort_idx").on(table.logDate, table.sortOrder)]);
+
+export const dailyLogApprovals = sqliteTable("daily_log_approvals", {
+  id: text("id").primaryKey(),
+  logDate: text("log_date").notNull().references(() => dailyLogs.logDate),
+  shiftKey: text("shift_key").notNull(),
+  signInOfficerId: text("sign_in_officer_id").references(() => employees.id),
+  signInAt: text("sign_in_at"),
+  signInEquipment: text("sign_in_equipment").notNull().default("{}"),
+  signInNote: text("sign_in_note").notNull().default(""),
+  reviewedNotes: integer("reviewed_notes", { mode: "boolean" }).notNull().default(false),
+  signOutOfficerId: text("sign_out_officer_id").references(() => employees.id),
+  signOutAt: text("sign_out_at"),
+  signOutEquipment: text("sign_out_equipment").notNull().default("{}"),
+  signOutNote: text("sign_out_note").notNull().default(""),
+}, (table) => [uniqueIndex("log_approval_date_shift_idx").on(table.logDate, table.shiftKey)]);
