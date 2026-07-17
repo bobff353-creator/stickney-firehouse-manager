@@ -86,17 +86,17 @@ export async function ensureDatabase() {
   await db.batch(payScales.map((scale) => db.prepare("INSERT OR IGNORE INTO pay_scales (id, label, regular_rate, overtime_rate, holiday_rate, sort_order) VALUES (?, ?, ?, ?, ?, ?)").bind(...scale)));
   await db.batch(employeeSeed.map((employee, index) => db.prepare("INSERT OR IGNORE INTO employees (id, name, pay_scale_id, active, sort_order) VALUES (?, ?, ?, 1, ?)").bind(employee[0], employee[1], employee[2], index + 1)));
   const phoneSeed = [
-    ["fire-berwyn", "fire", "Berwyn Fire Department", "911", "(708) 484-1644", "", 1],
-    ["fire-cicero", "fire", "Cicero Fire Department", "911", "(708) 652-2130", "", 2],
-    ["fire-forest-park", "fire", "Forest Park Fire Department", "911", "(708) 366-2425", "", 3],
-    ["fire-lyons", "fire", "Lyons Fire Department", "911", "(708) 447-2700", "", 4],
-    ["fire-oak-park", "fire", "Oak Park Fire Department", "911", "(708) 445-3300", "", 5],
-    ["fire-river-forest", "fire", "River Forest Fire Department", "911", "(708) 366-7129", "", 6],
-    ["fire-forest-view", "fire", "Forest View Fire Department", "911", "(708) 458-1180", "", 7],
-    ["fire-la-grange", "fire", "La Grange Fire Department", "911", "(708) 579-2337", "", 8],
-    ["fire-countryside", "fire", "Countryside Fire Department", "911", "(708) 354-2500", "", 9],
-    ["fire-hinsdale", "fire", "Hinsdale Fire Department", "911", "(630) 789-7070", "", 10],
-    ["fire-brookfield", "fire", "Brookfield Fire Department", "911", "(708) 485-8131", "", 11],
+    ["fire-berwyn", "fire", "Berwyn Fire Department", "", "(708) 484-1644", "", 1],
+    ["fire-cicero", "fire", "Cicero Fire Department", "", "(708) 652-2130", "", 2],
+    ["fire-forest-park", "fire", "Forest Park Fire Department", "", "(708) 366-2425", "", 3],
+    ["fire-lyons", "fire", "Lyons Fire Department", "", "(708) 447-2700", "", 4],
+    ["fire-oak-park", "fire", "Oak Park Fire Department", "", "(708) 445-3300", "", 5],
+    ["fire-river-forest", "fire", "River Forest Fire Department", "", "(708) 366-7129", "", 6],
+    ["fire-forest-view", "fire", "Forest View Fire Department", "", "(708) 458-1180", "", 7],
+    ["fire-la-grange", "fire", "La Grange Fire Department", "", "(708) 579-2337", "", 8],
+    ["fire-countryside", "fire", "Countryside Fire Department", "", "(708) 354-2500", "", 9],
+    ["fire-hinsdale", "fire", "Hinsdale Fire Department", "", "(630) 789-7070", "", 10],
+    ["fire-brookfield", "fire", "Brookfield Fire Department", "", "(708) 485-8131", "", 11],
     ["hospital-macneal", "hospital", "MacNeal Hospital", "", "(708) 783-9100", "", 1],
     ["hospital-loretto", "hospital", "Loretto Hospital", "", "(773) 626-4300", "", 2],
     ["hospital-lagrange", "hospital", "UChicago Medicine AdventHealth La Grange", "", "(708) 245-9000", "", 3],
@@ -107,11 +107,13 @@ export async function ensureDatabase() {
     ["hospital-christ", "hospital", "Advocate Christ Medical Center", "", "(708) 684-8000", "", 8],
     ["misc-mwrd", "misc", "MWRD", "", "(312) 751-5600", "", 1],
     ["misc-ipa", "misc", "I.P.A.", "", "(708) 345-9780", "", 2],
-    ["misc-police", "misc", "Police", "911", "(708) 366-7125", "", 3],
+    ["misc-police", "misc", "Police", "", "(708) 366-7125", "", 3],
     ["misc-dpw", "misc", "DPW", "", "(708) 749-3313", "", 4],
-    ["misc-cook-dispatch", "misc", "Cook County Dispatch", "", "(708) 974-7721", "", 5],
+    ["misc-cook-dispatch", "misc", "Cicero Consolidated Dispatch", "", "(708) 974-7721", "", 5],
   ] as const;
   await db.batch(phoneSeed.map((row) => db.prepare("INSERT OR IGNORE INTO important_phone_numbers (id, category, name, emergency_number, non_emergency_number, notes, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(...row)));
+  await db.prepare("UPDATE important_phone_numbers SET name = 'Cicero Consolidated Dispatch', emergency_number = '', updated_at = CURRENT_TIMESTAMP WHERE id = 'misc-cook-dispatch'").run();
+  await db.prepare("UPDATE important_phone_numbers SET emergency_number = '', updated_at = CURRENT_TIMESTAMP WHERE emergency_number = '911'").run();
   ready = true;
   return db;
 }
