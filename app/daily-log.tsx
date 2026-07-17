@@ -39,7 +39,7 @@ function displayName(value: string) { const [last, first] = value.split(",").map
 function isOfficer(employee?: LogEmployee) { return Boolean(employee && /chief|captain|lieutenant/i.test(employee.rank)); }
 function shiftMinutes(value: string, shiftKey: string) { const [hours, minutes] = value.split(":").map(Number); const total = hours * 60 + minutes; return shiftKey === "overnight" && total <= 360 ? total + 1440 : total; }
 
-export default function DailyLog({ employees }: { employees: LogEmployee[] }) {
+export default function DailyLog({ employees, onPayrollSynced }: { employees: LogEmployee[]; onPayrollSynced?: () => void }) {
   const [logDate, setLogDate] = useState(localDate);
   const [staffing, setStaffing] = useState<StaffingRow[]>([]);
   const [calls, setCalls] = useState<CallRow[]>([]);
@@ -86,11 +86,11 @@ export default function DailyLog({ employees }: { employees: LogEmployee[] }) {
     setSaving(true); if (!silent) setMessage("");
     try {
       const response = await fetch("/api/logbook", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ logDate, staffing: staffing.filter((row) => row.employeeId), calls: calls.filter((row) => Object.entries(row).some(([key, value]) => key !== "id" && value && value !== "EMS")), shiftNotes }) });
-      const result = await response.json() as { error?: string }; if (!response.ok) throw new Error(result.error || "Unable to save log");
-      setDirty(false); setMessage(silent ? "All changes saved" : "Daily log saved");
+      const result = await response.json() as { error?: string; payrollEmployeesUpdated?: number }; if (!response.ok) throw new Error(result.error || "Unable to save log");
+      setDirty(false); setMessage(silent ? "All changes saved · Timesheets updated" : "Daily log and timesheets saved"); onPayrollSynced?.();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to save log"); }
     finally { setSaving(false); }
-  }, [calls, logDate, readOnly, shiftNotes, staffing]);
+  }, [calls, logDate, onPayrollSynced, readOnly, shiftNotes, staffing]);
   useEffect(() => { if (!dirty || readOnly) return; const timer = window.setTimeout(() => { void saveLog(true); }, 900); return () => window.clearTimeout(timer); }, [dirty, readOnly, saveLog]);
 
   const activeEmployees = useMemo(() => employees.filter((employee) => (!employee.startDate || employee.startDate <= logDate) && (!employee.endDate || employee.endDate >= logDate)), [employees, logDate]);

@@ -374,7 +374,7 @@ export default function PayrollApp() {
             <p className="helper-note">Acting Officer hours add the configured premium only. DPW hours use the configured DPW multiplier. Entries save when you leave a field.</p>
           </section>}
 
-          {activeNav === "Daily Log" && <DailyLog employees={data.employees} />}
+          {activeNav === "Daily Log" && <DailyLog employees={data.employees} onPayrollSynced={() => { void loadPayroll(periodStart); }} />}
 
           {activeNav === "Employees" && <section className="employee-page">
             {profileOpen && <form className="content-card employee-profile-form" onSubmit={(event) => void saveEmployeeProfile(event)}>

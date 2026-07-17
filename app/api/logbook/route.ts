@@ -11,6 +11,27 @@ function chicagoDate() {
   const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
   return `${part("year")}-${part("month")}-${part("day")}`;
 }
+function payrollPeriodStart(date: string) {
+  const parsed = new Date(`${date}T12:00:00Z`);
+  const day = parsed.getUTCDate();
+  if (day >= 26) return `${parsed.getUTCFullYear()}-${String(parsed.getUTCMonth() + 1).padStart(2, "0")}-26`;
+  if (day >= 11) return `${parsed.getUTCFullYear()}-${String(parsed.getUTCMonth() + 1).padStart(2, "0")}-11`;
+  parsed.setUTCMonth(parsed.getUTCMonth() - 1);
+  return `${parsed.getUTCFullYear()}-${String(parsed.getUTCMonth() + 1).padStart(2, "0")}-26`;
+}
+function payrollPeriodEnd(start: string) {
+  const parsed = new Date(`${start}T12:00:00Z`);
+  if (parsed.getUTCDate() === 11) parsed.setUTCDate(25);
+  else { parsed.setUTCMonth(parsed.getUTCMonth() + 1); parsed.setUTCDate(10); }
+  return parsed.toISOString().slice(0, 10);
+}
+function workedHours(timeIn: string, timeOut: string) {
+  const minutes = (value: string) => { const [hours, mins] = value.split(":").map(Number); return hours * 60 + mins; };
+  const start = minutes(timeIn), rawEnd = minutes(timeOut);
+  if (!Number.isFinite(start) || !Number.isFinite(rawEnd) || start === rawEnd) return 0;
+  const end = rawEnd < start ? rawEnd + 1440 : rawEnd;
+  return Math.max(0, Math.round(((end - start) / 60) * 100) / 100);
+}
 
 export async function GET(request: Request) {
   try {
@@ -78,7 +99,24 @@ export async function POST(request: Request) {
       const callType = String(row.callType ?? "EMS");
       await db.prepare("INSERT INTO daily_log_calls (id, log_date, report_number, time_out, time_in, responding_units, address, call_type, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(String(row.id || crypto.randomUUID()), date, String(row.reportNumber ?? ""), String(row.timeOut ?? ""), String(row.timeIn ?? ""), String(row.respondingUnits ?? ""), String(row.address ?? ""), callTypes.includes(callType) ? callType : "Special", index).run();
     }
-    return Response.json({ ok: true });
+    const totals = new Map<string, { shift: number; actingOfficer: number }>();
+    for (const row of staffing) {
+      const employeeId = String(row.employeeId ?? "");
+      const hours = workedHours(String(row.timeIn ?? ""), String(row.timeOut ?? ""));
+      if (!employeeId || hours <= 0) continue;
+      const current = totals.get(employeeId) ?? { shift: 0, actingOfficer: 0 };
+      current.shift += hours;
+      if (row.actingOfficer) current.actingOfficer += hours;
+      totals.set(employeeId, current);
+    }
+    const periodStart = payrollPeriodStart(date), periodEnd = payrollPeriodEnd(periodStart);
+    await db.prepare("INSERT OR IGNORE INTO pay_periods (start_date, end_date, status) VALUES (?, ?, 'draft')").bind(periodStart, periodEnd).run();
+    await db.prepare("DELETE FROM time_entries WHERE work_date = ? AND category IN ('shift', 'actingOfficer')").bind(date).run();
+    for (const [employeeId, hours] of totals) {
+      if (hours.shift > 0) await db.prepare("INSERT INTO time_entries (id, employee_id, period_start, work_date, category, hours, updated_at) VALUES (?, ?, ?, ?, 'shift', ?, CURRENT_TIMESTAMP)").bind(crypto.randomUUID(), employeeId, periodStart, date, Math.round(hours.shift * 100) / 100).run();
+      if (hours.actingOfficer > 0) await db.prepare("INSERT INTO time_entries (id, employee_id, period_start, work_date, category, hours, updated_at) VALUES (?, ?, ?, ?, 'actingOfficer', ?, CURRENT_TIMESTAMP)").bind(crypto.randomUUID(), employeeId, periodStart, date, Math.round(hours.actingOfficer * 100) / 100).run();
+    }
+    return Response.json({ ok: true, payrollEmployeesUpdated: totals.size, periodStart });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Unable to save daily log" }, { status: 500 });
   }
