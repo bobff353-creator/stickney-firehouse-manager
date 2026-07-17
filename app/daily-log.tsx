@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { holidayForDate } from "./holidays";
 
 type LogEmployee = { id: string; name: string; rank: string; startDate?: string | null; endDate?: string | null };
 type StaffingRow = { id: string; shiftKey: string; employeeId: string; timeIn: string; timeOut: string; actingOfficer: boolean };
@@ -62,6 +63,7 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
   const loaded = useRef(false);
   const currentDay = useRef(localDate());
   const readOnly = locked && !adminUnlocked;
+  const holiday = useMemo(() => holidayForDate(logDate), [logDate]);
 
   const loadLog = useCallback(async (date: string) => {
     setLoading(true); setMessage(""); loaded.current = false;
@@ -172,6 +174,7 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
   if (loading) return <section className="content-card log-loading">Loading daily log…</section>;
   return <section className="logbook-page">
     <div className="logbook-heading"><div><p className="eyebrow">Stickney Fire Department</p><h2>Daily Logbook</h2><p>Automatically saved staffing, responses, equipment checks, and officer handoffs.</p></div><div className="log-date-actions"><label><span>Log date</span><input type="date" value={logDate} onChange={(event) => setLogDate(event.target.value)} /></label><div className={`autosave-state ${dirty ? "pending" : ""}`}>{saving ? "Saving…" : dirty ? "Save pending" : "✓ Auto-saved"}</div></div></div>
+    {holiday && <div className="holiday-log-banner"><div className="holiday-star">★</div><div><span>Department Holiday</span><strong>{holiday.name}</strong><p>{holiday.overnightOnly ? "Holiday pay applies to the 6:00 PM–6:00 AM section only." : "Eligible hours worked today automatically receive the configured holiday rate."}</p></div></div>}
     {readOnly && <div className="locked-banner"><div><strong>🔒 Daily log locked</strong><span>Logs lock automatically after midnight. Editing requires administrator approval.</span></div><button onClick={() => void adminUnlock()}>Admin Unlock</button></div>}
     {adminUnlocked && locked && <div className="admin-banner">Administrator editing is enabled for this locked log.</div>}
     {message && <div className={message.includes("saved") || message.includes("approved") || message.includes("granted") ? "log-message success" : "log-message"}>{message}</div>}

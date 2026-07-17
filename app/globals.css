@@ -181,6 +181,12 @@ td strong { font-size: 16px; }
 .logbook-fields:disabled { opacity: .76; }
 .log-message { padding: 12px 15px; border: 1px solid #d99c9c; border-radius: 8px; background: #fff1f1; color: #8c2424; font-weight: 750; }
 .log-message.success { border-color: #8fc2a2; background: #eef8f1; color: var(--green); }
+.holiday-log-banner { padding: 17px 20px; border: 1px solid #d0a84d; border-radius: 10px; background: linear-gradient(115deg, #fff8dc, #fffdf3); color: #6d4b08; display: flex; align-items: center; gap: 15px; box-shadow: 0 4px 14px rgba(130,91,17,.08); }
+.holiday-star { flex: 0 0 auto; width: 48px; height: 48px; border-radius: 50%; background: #bd851b; color: white; display: grid; place-items: center; font-size: 23px; }
+.holiday-log-banner div:last-child { display: flex; flex-direction: column; gap: 2px; }
+.holiday-log-banner span { font-size: 11px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+.holiday-log-banner strong { color: #513808; font-size: 23px; }
+.holiday-log-banner p { margin: 2px 0 0; font-size: 13px; }
 .shift-card-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: start; }
 .shift-card { padding: 20px; }
 .shift-title { margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
@@ -249,6 +255,38 @@ td strong { font-size: 16px; }
 .handoff-note textarea { padding: 11px; border: 1px solid #aab7c2; border-radius: 7px; font: inherit; resize: vertical; }
 .handoff-footer { margin-top: 22px; display: flex; justify-content: flex-end; gap: 10px; }
 
+/* Holiday policy */
+.holiday-policy-page { display: grid; gap: 22px; }
+.policy-hero { padding: 30px; border-radius: 12px; background: linear-gradient(120deg, var(--navy-deep), #1c4a70); color: white; display: flex; justify-content: space-between; align-items: center; gap: 28px; box-shadow: 0 10px 28px rgba(16,40,61,.18); }
+.policy-hero .eyebrow { color: #b9d2e5; }
+.policy-hero h2 { margin: 0; font-size: clamp(34px, 4vw, 50px); letter-spacing: -.04em; }
+.policy-hero p:last-child { margin: 9px 0 0; color: #dce9f2; }
+.policy-limit { min-width: 220px; padding: 16px 20px; border: 1px solid rgba(255,255,255,.35); border-radius: 10px; background: rgba(255,255,255,.09); display: flex; align-items: center; gap: 14px; }
+.policy-limit strong { font-size: 43px; line-height: 1; }
+.policy-limit span { font-size: 13px; font-weight: 750; line-height: 1.35; }
+.policy-layout { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, .7fr); gap: 22px; align-items: start; }
+.policy-main { display: grid; gap: 0; }
+.policy-section { padding: 18px 0; border-bottom: 1px solid #dce3e8; display: grid; grid-template-columns: 42px 1fr; gap: 16px; }
+.policy-section:first-child { padding-top: 0; }
+.policy-section:last-child { padding-bottom: 0; border-bottom: 0; }
+.policy-step { width: 38px; height: 38px; border-radius: 50%; background: #e8f0f6; color: #214c70; display: grid; place-items: center; font-weight: 900; }
+.policy-section h3, .policy-pay h3 { margin: 0; color: var(--navy-deep); font-size: 19px; }
+.policy-section p { margin: 5px 0 0; color: #526579; line-height: 1.55; }
+.policy-pay { position: sticky; top: 20px; }
+.pay-rule { padding: 16px 0; border-bottom: 1px solid #dce3e8; display: flex; flex-direction: column; gap: 4px; }
+.pay-rule span { color: var(--slate); font-size: 12px; font-weight: 850; text-transform: uppercase; letter-spacing: .05em; }
+.pay-rule strong { color: var(--navy); }
+.pay-rule.dpw { margin: 16px -10px -8px; padding: 16px; border: 1px solid #d9b869; border-radius: 8px; background: #fff8e7; }
+.pay-rule.dpw p { margin: 4px 0 0; color: #6f541b; font-size: 13px; line-height: 1.45; }
+.holiday-calendar .section-header { margin-bottom: 18px; }
+.holiday-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.holiday-item { min-height: 72px; padding: 11px 13px; border: 1px solid #d9e1e7; border-radius: 8px; background: #fafcfd; display: flex; align-items: center; gap: 12px; }
+.holiday-item time { flex: 0 0 auto; width: 50px; color: #a33b32; font-size: 12px; font-weight: 900; text-align: center; text-transform: uppercase; }
+.holiday-item div { display: flex; flex-direction: column; gap: 3px; }
+.holiday-item strong { color: var(--navy-deep); font-size: 14px; }
+.holiday-item span { color: var(--slate); font-size: 11px; font-weight: 750; }
+.policy-source-note { margin: -5px 4px 0; color: var(--slate); font-size: 12px; }
+
 @media (max-width: 1050px) {
   .topbar { grid-template-columns: 1fr auto; }
   .topbar nav { order: 3; grid-column: 1 / -1; min-height: 52px; overflow-x: auto; justify-content: center; }
@@ -260,6 +298,9 @@ td strong { font-size: 16px; }
   .shift-card-grid { grid-template-columns: 1fr; }
   .call-row { grid-template-columns: 34px repeat(3, minmax(0, 1fr)); }
   .call-address { grid-column: span 2; }
+  .policy-layout { grid-template-columns: 1fr; }
+  .policy-pay { position: static; }
+  .holiday-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 680px) {
@@ -318,6 +359,11 @@ td strong { font-size: 16px; }
   .equipment-row > input { grid-column: auto; }
   .handoff-footer { align-items: stretch; flex-direction: column-reverse; }
   .handoff-footer button { width: 100%; justify-content: center; }
+  .holiday-log-banner { align-items: flex-start; padding: 15px; }
+  .holiday-star { width: 40px; height: 40px; font-size: 19px; }
+  .policy-hero { padding: 24px 18px; align-items: stretch; flex-direction: column; }
+  .policy-limit { min-width: 0; }
+  .holiday-grid { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {

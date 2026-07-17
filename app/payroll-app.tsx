@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import DailyLog from "./daily-log";
+import HolidayPolicy from "./holiday-policy";
 
 type Category = "shift" | "drill" | "workDetail" | "callback" | "actingOfficer" | "holiday" | "dpw";
 type PayScale = { id: string; label: string; regularRate: number; overtimeRate: number; holidayRate: number };
@@ -27,7 +28,7 @@ type PayrollData = {
   settings: { overtimeThreshold: number; actingOfficerPremium: number; dpwMultiplier: number };
 };
 
-const navItems = ["Payroll", "Daily Log", "Timesheets", "Employees", "Rates & Rules"] as const;
+const navItems = ["Payroll", "Daily Log", "Timesheets", "Employees", "Holiday Policy", "Rates & Rules"] as const;
 const emptyEmployee: EmployeeForm = {
   name: "", payScaleId: "firefighter", employeeNumber: "", startDate: "", endDate: "", dateOfBirth: "",
   phone: "", email: "", addressLine1: "", city: "", state: "IL", postalCode: "", employmentType: "Part-time",
@@ -317,7 +318,7 @@ export default function PayrollApp() {
         {error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={() => { setError(""); void loadPayroll(periodStart); }}>Retry</button></div>}
         {toast && <div className="toast" role="status"><Icon name="save" /> {toast}</div>}
         {loading && !data ? <div className="loading-card">Loading your payroll…</div> : data && <>
-          {activeNav !== "Daily Log" && <div className="period-row">
+          {activeNav !== "Daily Log" && activeNav !== "Holiday Policy" && <div className="period-row">
             <div>
               <p className="eyebrow">{activeNav === "Payroll" ? "Current pay period" : activeNav}</p>
               <div className="title-line">
@@ -375,6 +376,8 @@ export default function PayrollApp() {
           </section>}
 
           {activeNav === "Daily Log" && <DailyLog employees={data.employees} onPayrollSynced={() => { void loadPayroll(periodStart); }} />}
+
+          {activeNav === "Holiday Policy" && <HolidayPolicy />}
 
           {activeNav === "Employees" && <section className="employee-page">
             {profileOpen && <form className="content-card employee-profile-form" onSubmit={(event) => void saveEmployeeProfile(event)}>
