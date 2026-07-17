@@ -4,7 +4,19 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Category = "shift" | "drill" | "workDetail" | "callback" | "actingOfficer" | "holiday" | "dpw";
 type PayScale = { id: string; label: string; regularRate: number; overtimeRate: number; holidayRate: number };
-type Employee = PayScale & { id: string; name: string; payScaleId: string; rank: string; active: number };
+type Employee = PayScale & {
+  id: string; name: string; payScaleId: string; rank: string; active: number;
+  employeeNumber?: string | null; startDate?: string | null; endDate?: string | null; dateOfBirth?: string | null;
+  phone?: string | null; email?: string | null; addressLine1?: string | null; city?: string | null;
+  state?: string | null; postalCode?: string | null; employmentType?: string | null;
+  emergencyName?: string | null; emergencyRelationship?: string | null; emergencyPhone?: string | null; notes?: string | null;
+};
+type EmployeeForm = {
+  id?: string; name: string; payScaleId: string; employeeNumber: string; startDate: string; endDate: string;
+  dateOfBirth: string; phone: string; email: string; addressLine1: string; city: string; state: string;
+  postalCode: string; employmentType: string; emergencyName: string; emergencyRelationship: string;
+  emergencyPhone: string; notes: string;
+};
 type Entry = { id?: string; employeeId: string; workDate: string; category: Category; hours: number };
 type PayrollData = {
   period: { startDate: string; endDate: string; status: "draft" | "reviewed" | "finalized" };
@@ -15,6 +27,11 @@ type PayrollData = {
 };
 
 const navItems = ["Payroll", "Timesheets", "Employees", "Rates & Rules"] as const;
+const emptyEmployee: EmployeeForm = {
+  name: "", payScaleId: "firefighter", employeeNumber: "", startDate: "", endDate: "", dateOfBirth: "",
+  phone: "", email: "", addressLine1: "", city: "", state: "IL", postalCode: "", employmentType: "Part-time",
+  emergencyName: "", emergencyRelationship: "", emergencyPhone: "", notes: "",
+};
 const categoryColumns: Array<{ key: Category; short: string; label: string }> = [
   { key: "shift", short: "Shift", label: "Shift" },
   { key: "drill", short: "Drill", label: "Drill" },
@@ -110,7 +127,8 @@ export default function PayrollApp() {
   const [toast, setToast] = useState("");
   const [rulesDraft, setRulesDraft] = useState<PayrollData["settings"] | null>(null);
   const [scaleDraft, setScaleDraft] = useState<PayScale[]>([]);
-  const [newEmployee, setNewEmployee] = useState({ name: "", payScaleId: "firefighter" });
+  const [employeeDraft, setEmployeeDraft] = useState<EmployeeForm>(emptyEmployee);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   const loadPayroll = useCallback(async (start: string) => {
     setLoading(true);
@@ -167,11 +185,17 @@ export default function PayrollApp() {
     return { hours, regularHours, overtimeHours, holidayHours, actingHours, dpwHours, gross, status, issues };
   }, [data]);
 
-  const employeeSummaries = useMemo(() => (data?.employees ?? []).map((employee) => ({ employee, ...summaryFor(employee) })), [data, summaryFor]);
+  const payrollEmployees = useMemo(() => (data?.employees ?? []).filter((employee) => {
+    if (!data) return false;
+    const started = !employee.startDate || employee.startDate <= data.period.endDate;
+    const notEnded = !employee.endDate || employee.endDate >= data.period.startDate;
+    return started && notEnded;
+  }), [data]);
+  const employeeSummaries = useMemo(() => payrollEmployees.map((employee) => ({ employee, ...summaryFor(employee) })), [payrollEmployees, summaryFor]);
   const reviewCount = employeeSummaries.filter((row) => row.status === "Review").length;
   const readyCount = employeeSummaries.filter((row) => row.status === "Ready").length;
   const grossPayroll = employeeSummaries.reduce((sum, row) => sum + row.gross, 0);
-  const selectedEmployee = data?.employees.find((employee) => employee.id === selectedEmployeeId) ?? data?.employees[0];
+  const selectedEmployee = payrollEmployees.find((employee) => employee.id === selectedEmployeeId) ?? payrollEmployees[0];
   const selectedSummary = selectedEmployee ? summaryFor(selectedEmployee) : null;
 
   const filteredRows = useMemo(() => employeeSummaries.filter((row) => {
@@ -243,14 +267,32 @@ export default function PayrollApp() {
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to save rules"); }
   }
 
-  async function addEmployee(event: React.FormEvent) {
+  function editEmployee(employee?: Employee) {
+    if (!employee) {
+      setEmployeeDraft(emptyEmployee);
+    } else {
+      setEmployeeDraft({
+        id: employee.id, name: employee.name, payScaleId: employee.payScaleId, employeeNumber: employee.employeeNumber ?? "",
+        startDate: employee.startDate ?? "", endDate: employee.endDate ?? "", dateOfBirth: employee.dateOfBirth ?? "",
+        phone: employee.phone ?? "", email: employee.email ?? "", addressLine1: employee.addressLine1 ?? "",
+        city: employee.city ?? "", state: employee.state ?? "IL", postalCode: employee.postalCode ?? "",
+        employmentType: employee.employmentType ?? "Part-time", emergencyName: employee.emergencyName ?? "",
+        emergencyRelationship: employee.emergencyRelationship ?? "", emergencyPhone: employee.emergencyPhone ?? "", notes: employee.notes ?? "",
+      });
+    }
+    setProfileOpen(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function saveEmployeeProfile(event: React.FormEvent) {
     event.preventDefault();
     try {
-      await post({ action: "saveEmployee", ...newEmployee });
-      setNewEmployee({ name: "", payScaleId: "firefighter" });
+      await post({ action: "saveEmployee", ...employeeDraft });
+      setEmployeeDraft(emptyEmployee);
+      setProfileOpen(false);
       await loadPayroll(periodStart);
-      setToast("Employee added");
-    } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to add employee"); }
+      setToast(employeeDraft.id ? "Employee information updated" : "Employee added");
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to save employee"); }
   }
 
   const statusLabel = data?.period.status ? data.period.status[0].toUpperCase() + data.period.status.slice(1) : "Draft";
@@ -285,7 +327,7 @@ export default function PayrollApp() {
 
           {activeNav === "Payroll" && <>
             <section className="kpi-grid" aria-label="Payroll summary">
-              <article className="kpi-card"><span className="kpi-icon blue"><Icon name="people" /></span><div><strong>{data.employees.length}</strong><span>Active Employees</span></div></article>
+              <article className="kpi-card"><span className="kpi-icon blue"><Icon name="people" /></span><div><strong>{payrollEmployees.length}</strong><span>On This Payroll</span></div></article>
               <article className="kpi-card"><span className="kpi-icon blue"><Icon name="clock" /></span><div><strong>{data.settings.overtimeThreshold} <small>hr</small></strong><span>OT Threshold</span></div></article>
               <article className="kpi-card"><span className="kpi-icon blue"><Icon name="document" /></span><div><strong>{formatMoney(grossPayroll)}</strong><span>Calculated Gross</span></div></article>
               <article className="kpi-card alert"><span className="kpi-icon red"><Icon name="warning" /></span><div><strong>{reviewCount}</strong><span>Need Review</span></div></article>
@@ -305,12 +347,12 @@ export default function PayrollApp() {
                   </tr>)}
                 </tbody></table>
               </div>
-              <div className="review-bar"><span><strong>{readyCount}</strong> ready · <strong>{reviewCount}</strong> need review · <strong>{data.employees.length - readyCount - reviewCount}</strong> not started</span><div><button className="quiet-button" onClick={() => void setPeriodStatus("reviewed")}>Mark Reviewed</button><button className="finalize-button" disabled={reviewCount > 0} onClick={() => void setPeriodStatus("finalized")}>Finalize Payroll</button></div></div>
+              <div className="review-bar"><span><strong>{readyCount}</strong> ready · <strong>{reviewCount}</strong> need review · <strong>{payrollEmployees.length - readyCount - reviewCount}</strong> not started</span><div><button className="quiet-button" onClick={() => void setPeriodStatus("reviewed")}>Mark Reviewed</button><button className="finalize-button" disabled={reviewCount > 0} onClick={() => void setPeriodStatus("finalized")}>Finalize Payroll</button></div></div>
             </section>
           </>}
 
           {activeNav === "Timesheets" && selectedEmployee && selectedSummary && <section className="content-card timesheet-card">
-            <div className="section-header"><div><label htmlFor="employee-select">Employee</label><select id="employee-select" value={selectedEmployee.id} onChange={(event) => setSelectedEmployeeId(event.target.value)}>{data.employees.map((employee) => <option value={employee.id} key={employee.id}>{displayName(employee.name)} — {employee.rank}</option>)}</select></div><span className={`status-pill ${selectedSummary.status.toLowerCase().replace(" ", "-")}`}>{selectedSummary.status}</span></div>
+            <div className="section-header"><div><label htmlFor="employee-select">Employee</label><select id="employee-select" value={selectedEmployee.id} onChange={(event) => setSelectedEmployeeId(event.target.value)}>{payrollEmployees.map((employee) => <option value={employee.id} key={employee.id}>{displayName(employee.name)} — {employee.rank}</option>)}</select></div><span className={`status-pill ${selectedSummary.status.toLowerCase().replace(" ", "-")}`}>{selectedSummary.status}</span></div>
             <div className="mini-summary"><div><span>Paid hours</span><strong>{selectedSummary.hours.toFixed(1)}</strong></div><div><span>Overtime</span><strong>{selectedSummary.overtimeHours.toFixed(1)}</strong></div><div><span>Holiday</span><strong>{selectedSummary.holidayHours.toFixed(1)}</strong></div><div><span>Gross pay</span><strong>{formatMoney(selectedSummary.gross)}</strong></div></div>
             {selectedSummary.issues.length > 0 && <div className="validation-box"><strong>Check these entries</strong>{selectedSummary.issues.map((issue) => <span key={issue}>• {issue}</span>)}</div>}
             <div className="entry-grid-wrap"><table className="entry-grid"><thead><tr><th>Date</th>{categoryColumns.map((column) => <th key={column.key} title={column.label}>{column.short}</th>)}<th>Total</th></tr></thead><tbody>
@@ -326,10 +368,39 @@ export default function PayrollApp() {
             <p className="helper-note">Acting Officer hours add the configured premium only. DPW hours use the configured DPW multiplier. Entries save when you leave a field.</p>
           </section>}
 
-          {activeNav === "Employees" && <section className="content-card">
-            <div className="section-header"><div><h2>Employee roster</h2><p>Built from the Employee Info sheet in your workbook.</p></div><span className="count-badge">{data.employees.length} active</span></div>
-            <form className="add-employee" onSubmit={(event) => void addEmployee(event)}><label><span>Employee name</span><input required placeholder="Last, First" value={newEmployee.name} onChange={(event) => setNewEmployee((current) => ({ ...current, name: event.target.value }))} /></label><label><span>Pay scale</span><select value={newEmployee.payScaleId} onChange={(event) => setNewEmployee((current) => ({ ...current, payScaleId: event.target.value }))}>{data.payScales.map((scale) => <option value={scale.id} key={scale.id}>{scale.label}</option>)}</select></label><button className="primary-action compact" type="submit">Add Employee</button></form>
-            <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Pay Scale</th><th className="number">Regular</th><th className="number">Overtime</th><th className="number">Holiday</th></tr></thead><tbody>{data.employees.map((employee) => <tr key={employee.id}><td><span className="person-icon">♙</span><strong>{displayName(employee.name)}</strong></td><td>{employee.rank}</td><td className="number">{formatMoney(employee.regularRate)}</td><td className="number">{formatMoney(employee.overtimeRate)}</td><td className="number">{formatMoney(employee.holidayRate)}</td></tr>)}</tbody></table></div>
+          {activeNav === "Employees" && <section className="employee-page">
+            {profileOpen && <form className="content-card employee-profile-form" onSubmit={(event) => void saveEmployeeProfile(event)}>
+              <div className="section-header"><div><h2>{employeeDraft.id ? `Edit ${displayName(employeeDraft.name)}` : "Add employee"}</h2><p>Personnel, payroll eligibility, and emergency contact information.</p></div><div className="employee-form-actions">{employeeDraft.id && <button type="button" className="quiet-button" onClick={() => editEmployee()}>New Employee</button>}<button className="primary-action compact" type="submit">{employeeDraft.id ? "Save Changes" : "Add Employee"}</button></div></div>
+              <fieldset><legend>Employment</legend><div className="employee-fields three-col">
+                <label><span>Employee name *</span><input required placeholder="Last, First" value={employeeDraft.name} onChange={(event) => setEmployeeDraft((current) => ({ ...current, name: event.target.value }))} /></label>
+                <label><span>Employee number</span><input placeholder="Example: 1203-17" value={employeeDraft.employeeNumber} onChange={(event) => setEmployeeDraft((current) => ({ ...current, employeeNumber: event.target.value }))} /></label>
+                <label><span>Employment type</span><select value={employeeDraft.employmentType} onChange={(event) => setEmployeeDraft((current) => ({ ...current, employmentType: event.target.value }))}><option>Part-time</option><option>Full-time</option><option>Paid-on-call</option><option>Temporary</option><option>Contract</option></select></label>
+                <label><span>Pay scale *</span><select value={employeeDraft.payScaleId} onChange={(event) => setEmployeeDraft((current) => ({ ...current, payScaleId: event.target.value }))}>{data.payScales.map((scale) => <option value={scale.id} key={scale.id}>{scale.label}</option>)}</select></label>
+                <label><span>Start date</span><input type="date" value={employeeDraft.startDate} onChange={(event) => setEmployeeDraft((current) => ({ ...current, startDate: event.target.value }))} /></label>
+                <label><span>Last day of work</span><input type="date" value={employeeDraft.endDate} min={employeeDraft.startDate || undefined} onChange={(event) => setEmployeeDraft((current) => ({ ...current, endDate: event.target.value }))} /></label>
+              </div><p className="field-help">The employee appears on payroll beginning with their start date. After their last day, they are automatically removed from future payrolls while all history stays saved.</p></fieldset>
+              <fieldset><legend>Contact & personal information</legend><div className="employee-fields three-col">
+                <label><span>Date of birth</span><input type="date" value={employeeDraft.dateOfBirth} onChange={(event) => setEmployeeDraft((current) => ({ ...current, dateOfBirth: event.target.value }))} /></label>
+                <label><span>Phone number</span><input type="tel" placeholder="(708) 555-0123" value={employeeDraft.phone} onChange={(event) => setEmployeeDraft((current) => ({ ...current, phone: event.target.value }))} /></label>
+                <label><span>Email</span><input type="email" placeholder="name@example.com" value={employeeDraft.email} onChange={(event) => setEmployeeDraft((current) => ({ ...current, email: event.target.value }))} /></label>
+                <label className="span-two"><span>Home address</span><input placeholder="Street address" value={employeeDraft.addressLine1} onChange={(event) => setEmployeeDraft((current) => ({ ...current, addressLine1: event.target.value }))} /></label>
+                <label><span>City</span><input value={employeeDraft.city} onChange={(event) => setEmployeeDraft((current) => ({ ...current, city: event.target.value }))} /></label>
+                <label><span>State</span><input maxLength={2} value={employeeDraft.state} onChange={(event) => setEmployeeDraft((current) => ({ ...current, state: event.target.value.toUpperCase() }))} /></label>
+                <label><span>ZIP code</span><input inputMode="numeric" value={employeeDraft.postalCode} onChange={(event) => setEmployeeDraft((current) => ({ ...current, postalCode: event.target.value }))} /></label>
+              </div></fieldset>
+              <fieldset><legend>Emergency contact</legend><div className="employee-fields three-col">
+                <label><span>Contact name</span><input value={employeeDraft.emergencyName} onChange={(event) => setEmployeeDraft((current) => ({ ...current, emergencyName: event.target.value }))} /></label>
+                <label><span>Relationship</span><input placeholder="Spouse, parent, friend…" value={employeeDraft.emergencyRelationship} onChange={(event) => setEmployeeDraft((current) => ({ ...current, emergencyRelationship: event.target.value }))} /></label>
+                <label><span>Emergency phone</span><input type="tel" value={employeeDraft.emergencyPhone} onChange={(event) => setEmployeeDraft((current) => ({ ...current, emergencyPhone: event.target.value }))} /></label>
+              </div></fieldset>
+              <fieldset><legend>Administrative notes</legend><label className="notes-field"><span>Internal notes</span><textarea rows={3} placeholder="Restrictions, payroll notes, rehire eligibility, or other important information" value={employeeDraft.notes} onChange={(event) => setEmployeeDraft((current) => ({ ...current, notes: event.target.value }))} /></label></fieldset>
+            </form>}
+            <section className="content-card employee-roster-card"><div className="section-header"><div><h2>Employee roster</h2><p>Ended employees remain here for payroll history and can be updated or rehired.</p></div><div className="employee-form-actions"><span className="count-badge">{data.employees.length} records</span><button type="button" className="primary-action compact" onClick={() => editEmployee()}>Add Employee</button></div></div>
+              <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Employee #</th><th>Pay Scale</th><th>Phone</th><th>Start</th><th>Last Day</th><th>Status</th><th></th></tr></thead><tbody>{data.employees.map((employee) => {
+                const payrollStatus = employee.startDate && employee.startDate > data.period.endDate ? "Scheduled" : employee.endDate && employee.endDate < data.period.startDate ? "Ended" : "Active";
+                return <tr key={employee.id}><td><span className="person-icon">♙</span><strong>{displayName(employee.name)}</strong></td><td>{employee.employeeNumber || "—"}</td><td>{employee.rank}</td><td>{employee.phone || "—"}</td><td>{employee.startDate || "—"}</td><td>{employee.endDate || "—"}</td><td><span className={`employment-status ${payrollStatus.toLowerCase()}`}>{payrollStatus}</span></td><td><button className="edit-employee" onClick={() => editEmployee(employee)}>Edit</button></td></tr>;
+              })}</tbody></table></div>
+            </section>
           </section>}
 
           {activeNav === "Rates & Rules" && rulesDraft && <section className="settings-layout">

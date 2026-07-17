@@ -19,6 +19,26 @@ export const employees = sqliteTable("employees", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [index("employees_active_sort_idx").on(table.active, table.sortOrder)]);
 
+export const employeeProfiles = sqliteTable("employee_profiles", {
+  employeeId: text("employee_id").primaryKey().references(() => employees.id),
+  employeeNumber: text("employee_number"),
+  startDate: text("start_date"),
+  endDate: text("end_date"),
+  dateOfBirth: text("date_of_birth"),
+  phone: text("phone"),
+  email: text("email"),
+  addressLine1: text("address_line_1"),
+  city: text("city"),
+  state: text("state"),
+  postalCode: text("postal_code"),
+  employmentType: text("employment_type").notNull().default("Part-time"),
+  emergencyName: text("emergency_name"),
+  emergencyRelationship: text("emergency_relationship"),
+  emergencyPhone: text("emergency_phone"),
+  notes: text("notes"),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [uniqueIndex("employee_profiles_number_idx").on(table.employeeNumber)]);
+
 export const payrollSettings = sqliteTable("payroll_settings", {
   id: integer("id").primaryKey(),
   overtimeThreshold: real("overtime_threshold").notNull().default(106),

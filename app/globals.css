@@ -125,6 +125,26 @@ td strong { font-size: 16px; }
 .add-employee { margin: 0 0 24px; padding: 18px; border: 1px solid #dce3e8; border-radius: 8px; background: #f8fafb; display: grid; grid-template-columns: 1fr 1fr auto; gap: 16px; }
 .add-employee label span { color: #40566b; font-size: 13px; font-weight: 800; }
 .add-employee input, .add-employee select { min-width: 0; width: 100%; }
+.employee-page { display: grid; gap: 22px; }
+.employee-profile-form fieldset { margin: 0 0 22px; padding: 20px; border: 1px solid #d9e1e7; border-radius: 9px; background: #fbfcfc; }
+.employee-profile-form fieldset:last-of-type { margin-bottom: 0; }
+.employee-profile-form legend { padding: 0 8px; color: var(--navy); font-size: 15px; font-weight: 850; }
+.employee-form-actions { display: flex; gap: 10px; align-items: center; }
+.employee-fields { display: grid; gap: 16px; }
+.employee-fields.three-col { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.employee-fields label, .notes-field { display: flex; flex-direction: column; gap: 7px; color: #40566b; font-size: 13px; font-weight: 800; }
+.employee-fields input, .employee-fields select, .notes-field textarea { width: 100%; min-height: 46px; padding: 0 12px; border: 1px solid #aab7c2; border-radius: 7px; background: white; color: var(--ink); font: inherit; font-weight: 550; }
+.notes-field textarea { min-height: 88px; padding: 11px 12px; resize: vertical; }
+.employee-fields input:focus, .employee-fields select:focus, .notes-field textarea:focus { border-color: #4f7da5; outline: 3px solid #d9e8f4; }
+.employee-fields .span-two { grid-column: span 2; }
+.field-help { margin: 14px 0 0; padding: 11px 13px; border-left: 4px solid #5a85a8; background: #edf5fa; color: #36526b; font-size: 13px; line-height: 1.5; }
+.employee-roster-card table { min-width: 1120px; }
+.employment-status { min-width: 82px; padding: 6px 10px; border-radius: 999px; display: inline-flex; justify-content: center; font-size: 12px; font-weight: 800; }
+.employment-status.active { color: var(--green); background: #eaf6ee; }
+.employment-status.scheduled { color: #355f84; background: #eaf2f8; }
+.employment-status.ended { color: #6f7780; background: #eceff1; }
+.edit-employee { min-height: 36px; padding: 0 13px; border: 1px solid #8fa2b2; border-radius: 6px; background: white; color: var(--navy); font-weight: 800; }
+.edit-employee:hover { background: #edf4f8; }
 .settings-layout { display: grid; gap: 22px; }
 .settings-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
 .input-unit { min-height: 52px; padding: 0 13px; border: 1px solid #aab7c2; border-radius: 7px; background: white; display: flex; align-items: center; gap: 8px; }
@@ -146,6 +166,7 @@ td strong { font-size: 16px; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .mini-summary { grid-template-columns: repeat(2, 1fr); }
   .settings-grid { grid-template-columns: 1fr; }
+  .employee-fields.three-col { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 680px) {
@@ -173,6 +194,11 @@ td strong { font-size: 16px; }
   .section-header select { width: 100%; min-width: 0; }
   .mini-summary { grid-template-columns: 1fr 1fr; }
   .add-employee { grid-template-columns: 1fr; }
+  .employee-fields.three-col { grid-template-columns: 1fr; }
+  .employee-fields .span-two { grid-column: auto; }
+  .employee-form-actions { align-items: stretch; flex-direction: column-reverse; }
+  .employee-form-actions button { width: 100%; justify-content: center; }
+  .employee-profile-form fieldset { padding: 16px 12px; }
   .rate-head { display: none; }
   .rate-row { grid-template-columns: 1fr; padding: 16px; }
   .toast { right: 16px; left: 16px; bottom: 16px; justify-content: center; }
