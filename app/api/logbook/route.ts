@@ -115,10 +115,20 @@ export async function POST(request: Request) {
     }
     const periodStart = payrollPeriodStart(date), periodEnd = payrollPeriodEnd(periodStart);
     await db.prepare("INSERT OR IGNORE INTO pay_periods (start_date, end_date, status) VALUES (?, ?, 'draft')").bind(periodStart, periodEnd).run();
-    const dpwRows = await db.prepare("SELECT employee_id AS employeeId, SUM(hours) AS hours FROM time_entries WHERE work_date = ? AND category = 'dpw' GROUP BY employee_id").bind(date).all();
+    const [dpwRows, dpwEmployeeRows] = await Promise.all([
+      db.prepare("SELECT employee_id AS employeeId, SUM(hours) AS hours FROM time_entries WHERE work_date = ? AND category = 'dpw' GROUP BY employee_id").bind(date).all(),
+      db.prepare("SELECT employee_id AS employeeId FROM employee_profiles WHERE is_dpw = 1").all(),
+    ]);
     const dpwByEmployee = new Map(dpwRows.results.map((row) => [String((row as { employeeId: string }).employeeId), Number((row as { hours: number }).hours)]));
+    const dpwEmployees = new Set(dpwEmployeeRows.results.map((row) => String((row as { employeeId: string }).employeeId)));
     await db.prepare("DELETE FROM time_entries WHERE work_date = ? AND category IN ('shift', 'holiday', 'actingOfficer')").bind(date).run();
     for (const [employeeId, hours] of totals) {
+      if (dpwEmployees.has(employeeId)) {
+        const dpwHours = Math.round((hours.shift + hours.holiday) * 100) / 100;
+        await db.prepare("DELETE FROM time_entries WHERE employee_id = ? AND work_date = ? AND category = 'dpw'").bind(employeeId, date).run();
+        if (dpwHours > 0) await db.prepare("INSERT INTO time_entries (id, employee_id, period_start, work_date, category, hours, updated_at) VALUES (?, ?, ?, ?, 'dpw', ?, CURRENT_TIMESTAMP)").bind(crypto.randomUUID(), employeeId, periodStart, date, dpwHours).run();
+        continue;
+      }
       let dpwHours = dpwByEmployee.get(employeeId) ?? 0;
       const holidayHours = Math.max(0, hours.holiday - dpwHours); dpwHours = Math.max(0, dpwHours - hours.holiday);
       const shiftHours = Math.max(0, hours.shift - dpwHours);

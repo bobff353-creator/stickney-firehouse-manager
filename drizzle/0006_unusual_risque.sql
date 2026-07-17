@@ -1,0 +1,1 @@
+ALTER TABLE `employee_profiles` ADD `is_dpw` integer DEFAULT false NOT NULL;
