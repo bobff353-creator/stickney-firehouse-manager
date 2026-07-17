@@ -66,3 +66,31 @@ export const timeEntries = sqliteTable("time_entries", {
   uniqueIndex("entry_employee_date_category_idx").on(table.employeeId, table.workDate, table.category),
   index("entry_period_employee_idx").on(table.periodStart, table.employeeId),
 ]);
+
+export const dailyLogs = sqliteTable("daily_logs", {
+  logDate: text("log_date").primaryKey(),
+  shiftNotes: text("shift_notes").notNull().default(""),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const dailyLogStaffing = sqliteTable("daily_log_staffing", {
+  id: text("id").primaryKey(),
+  logDate: text("log_date").notNull().references(() => dailyLogs.logDate),
+  shiftKey: text("shift_key").notNull(),
+  employeeId: text("employee_id").references(() => employees.id),
+  timeIn: text("time_in").notNull().default(""),
+  timeOut: text("time_out").notNull().default(""),
+  sortOrder: integer("sort_order").notNull().default(0),
+}, (table) => [index("log_staffing_date_shift_idx").on(table.logDate, table.shiftKey, table.sortOrder)]);
+
+export const dailyLogCalls = sqliteTable("daily_log_calls", {
+  id: text("id").primaryKey(),
+  logDate: text("log_date").notNull().references(() => dailyLogs.logDate),
+  reportNumber: text("report_number").notNull().default(""),
+  timeOut: text("time_out").notNull().default(""),
+  timeIn: text("time_in").notNull().default(""),
+  respondingUnits: text("responding_units").notNull().default(""),
+  address: text("address").notNull().default(""),
+  callType: text("call_type").notNull().default("EMS"),
+  sortOrder: integer("sort_order").notNull().default(0),
+}, (table) => [index("log_calls_date_sort_idx").on(table.logDate, table.sortOrder)]);

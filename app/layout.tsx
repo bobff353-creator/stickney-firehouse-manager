@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Starter Project",
-  description: "A clean starting point for building your site.",
+  title: "Stickney FD Manager",
+  description: "Stickney Fire Department payroll and daily logbook manager.",
   other: {
     "codex-preview": "development",
   },
