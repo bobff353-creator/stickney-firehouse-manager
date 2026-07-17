@@ -95,40 +95,60 @@ export default function DailyLog({ employees }: { employees: LogEmployee[] }) {
 
   const activeEmployees = useMemo(() => employees.filter((employee) => (!employee.startDate || employee.startDate <= logDate) && (!employee.endDate || employee.endDate >= logDate)), [employees, logDate]);
   const markDirty = () => { if (loaded.current) setDirty(true); };
-  function updateStaff(id: string, patch: Partial<StaffingRow>) { setStaffing((rows) => rows.map((row) => row.id === id ? { ...row, ...patch } : row)); markDirty(); }
+  function clockValue(total: number) { const normalized = total % 1440; return `${String(Math.floor(normalized / 60)).padStart(2, "0")}:${String(normalized % 60).padStart(2, "0")}`; }
+  function reconcileActingOfficer(input: StaffingRow[], shiftKey: string) {
+    let rows = input.map((row) => ({ ...row }));
+    const shift = shiftSections.find((item) => item.key === shiftKey);
+    if (!shift) return rows;
+    const staffed = rows.filter((row) => row.shiftKey === shiftKey && row.employeeId && !row.actingOfficer);
+    if (staffed.length === 0) return rows;
+    const start = shiftMinutes(shift.defaultIn, shiftKey), end = shiftMinutes(shift.defaultOut, shiftKey);
+    const officerCoverage = staffed.filter((row) => isOfficer(activeEmployees.find((employee) => employee.id === row.employeeId))).map((row) => ({ start: Math.max(start, shiftMinutes(row.timeIn, shiftKey)), end: Math.min(end, shiftMinutes(row.timeOut, shiftKey)) })).filter((range) => range.end > range.start).sort((a, b) => a.start - b.start);
+    const gaps: Array<{ start: number; end: number }> = [];
+    let cursor = start;
+    for (const coverage of officerCoverage) { if (coverage.start > cursor) gaps.push({ start: cursor, end: coverage.start }); cursor = Math.max(cursor, coverage.end); }
+    if (cursor < end) gaps.push({ start: cursor, end });
+    const existing = rows.find((row) => row.shiftKey === shiftKey && row.actingOfficer);
+    rows.filter((row) => row.shiftKey === shiftKey && row.actingOfficer && row.id !== existing?.id).forEach((row) => { row.actingOfficer = false; });
+    if (gaps.length === 0) {
+      if (existing?.employeeId) existing.actingOfficer = false;
+      else if (existing) rows = rows.filter((row) => row.id !== existing.id);
+      return rows;
+    }
+    const gap = gaps[0];
+    if (existing) { existing.timeIn = clockValue(gap.start); existing.timeOut = clockValue(gap.end); }
+    else rows.push(blankStaff(shiftKey, clockValue(gap.start), clockValue(gap.end), true));
+    return rows;
+  }
   function selectStaffEmployee(id: string, employeeId: string) {
     setStaffing((current) => {
-      const rows = current.map((row) => row.id === id ? { ...row, employeeId } : { ...row });
+      let rows = current.map((row) => row.id === id ? { ...row, employeeId } : { ...row });
       const target = rows.find((row) => row.id === id);
-      if (!target || !employeeId) return rows;
+      if (!target) return rows;
       if (target.actingOfficer && isOfficer(activeEmployees.find((employee) => employee.id === employeeId))) target.actingOfficer = false;
-      const targetStart = shiftMinutes(target.timeIn, target.shiftKey), targetEnd = shiftMinutes(target.timeOut, target.shiftKey);
-      for (const other of rows) {
-        if (other.id === id || other.employeeId !== employeeId) continue;
-        const otherStart = shiftMinutes(other.timeIn, other.shiftKey), otherEnd = shiftMinutes(other.timeOut, other.shiftKey);
-        if (otherStart <= targetStart && targetStart < otherEnd) other.timeOut = target.timeIn;
-        else if (targetStart <= otherStart && otherStart < targetEnd) target.timeOut = other.timeIn;
+      if (employeeId) {
+        const targetStart = shiftMinutes(target.timeIn, target.shiftKey), targetEnd = shiftMinutes(target.timeOut, target.shiftKey);
+        for (const other of rows) {
+          if (other.id === id || other.employeeId !== employeeId) continue;
+          const otherStart = shiftMinutes(other.timeIn, other.shiftKey), otherEnd = shiftMinutes(other.timeOut, other.shiftKey);
+          if (otherStart <= targetStart && targetStart < otherEnd) other.timeOut = target.timeIn;
+          else if (targetStart <= otherStart && otherStart < targetEnd) target.timeOut = other.timeIn;
+        }
       }
+      rows = reconcileActingOfficer(rows, target.shiftKey);
       return rows;
     });
+    markDirty();
+  }
+  function setStaffTimeIn(id: string, timeIn: string) {
+    setStaffing((current) => { const rows = current.map((row) => row.id === id ? { ...row, timeIn } : { ...row }); const target = rows.find((row) => row.id === id); return target ? reconcileActingOfficer(rows, target.shiftKey) : rows; });
     markDirty();
   }
   function setStaffTimeOut(id: string, timeOut: string) {
     setStaffing((current) => {
       const rows = current.map((row) => row.id === id ? { ...row, timeOut } : { ...row });
       const target = rows.find((row) => row.id === id);
-      if (!target || !isOfficer(activeEmployees.find((employee) => employee.id === target.employeeId))) return rows;
-      const shift = shiftSections.find((item) => item.key === target.shiftKey);
-      if (!shift) return rows;
-      const early = shiftMinutes(timeOut, target.shiftKey) > shiftMinutes(target.timeIn, target.shiftKey) && shiftMinutes(timeOut, target.shiftKey) < shiftMinutes(shift.defaultOut, target.shiftKey);
-      const existingAo = rows.find((row) => row.shiftKey === target.shiftKey && row.actingOfficer && row.id !== target.id);
-      if (early) {
-        const coveredByOfficer = rows.some((row) => row.id !== target.id && row.shiftKey === target.shiftKey && isOfficer(activeEmployees.find((employee) => employee.id === row.employeeId)) && shiftMinutes(row.timeIn, row.shiftKey) <= shiftMinutes(timeOut, target.shiftKey) && shiftMinutes(row.timeOut, row.shiftKey) >= shiftMinutes(shift.defaultOut, row.shiftKey));
-        if (coveredByOfficer && existingAo) existingAo.actingOfficer = false;
-        else if (!coveredByOfficer && existingAo) { existingAo.timeIn = timeOut; existingAo.timeOut = shift.defaultOut; }
-        else if (!coveredByOfficer) rows.push(blankStaff(target.shiftKey, timeOut, shift.defaultOut, true));
-      } else if (existingAo) existingAo.actingOfficer = false;
-      return rows;
+      return target ? reconcileActingOfficer(rows, target.shiftKey) : rows;
     });
     markDirty();
   }
@@ -158,7 +178,7 @@ export default function DailyLog({ employees }: { employees: LogEmployee[] }) {
     <fieldset className="logbook-fields" disabled={readOnly}>
       <div className="shift-card-grid">{shiftSections.map((shift) => { const rows = staffing.filter((row) => row.shiftKey === shift.key); const approval = approvals.find((item) => item.shiftKey === shift.key); return <article className="content-card shift-card" key={shift.key}>
         <div className="shift-title"><div><span>Staffing</span><h3>{shift.title}</h3></div><button aria-label={`Add person to ${shift.title}`} onClick={() => { setStaffing((current) => [...current, blankStaff(shift.key, shift.defaultIn, shift.defaultOut)]); markDirty(); }}>＋</button></div>
-        <div className="staff-labels"><span>In</span><span>Employee</span><span>AO</span><span>Out</span></div><div className="staff-rows">{rows.map((row) => { const employee = activeEmployees.find((item) => item.id === row.employeeId); return <div className={row.actingOfficer ? "staff-row ao-row" : "staff-row"} key={row.id}><select aria-label="Time in" value={row.timeIn} onChange={(event) => updateStaff(row.id, { timeIn: event.target.value })}>{timeOptions.map((time) => <option key={time.value} value={time.value}>{time.label}</option>)}</select><select aria-label="Employee name" value={row.employeeId} onChange={(event) => selectStaffEmployee(row.id, event.target.value)}><option value="">Select employee…</option>{activeEmployees.map((item) => <option key={item.id} value={item.id}>{displayName(item.name)}</option>)}</select><label className={row.actingOfficer ? "ao-check visible" : "ao-check"} title="Acting Officer"><input aria-label={`Acting Officer for ${employee ? displayName(employee.name) : "replacement"}`} type="checkbox" checked={row.actingOfficer} disabled /><span>AO</span></label><select aria-label="Time out" value={row.timeOut} onChange={(event) => setStaffTimeOut(row.id, event.target.value)}>{timeOptions.map((time) => <option key={time.value} value={time.value}>{time.label}</option>)}</select>{rows.length > 4 && <button className="remove-row" aria-label="Remove staffing row" onClick={() => { setStaffing((current) => current.filter((item) => item.id !== row.id)); markDirty(); }}>×</button>}</div>; })}</div>
+        <div className="staff-labels"><span>In</span><span>Employee</span><span>AO</span><span>Out</span></div><div className="staff-rows">{rows.map((row) => { const employee = activeEmployees.find((item) => item.id === row.employeeId); return <div className={row.actingOfficer ? "staff-row ao-row" : "staff-row"} key={row.id}><select aria-label="Time in" value={row.timeIn} onChange={(event) => setStaffTimeIn(row.id, event.target.value)}>{timeOptions.map((time) => <option key={time.value} value={time.value}>{time.label}</option>)}</select><select aria-label="Employee name" value={row.employeeId} onChange={(event) => selectStaffEmployee(row.id, event.target.value)}><option value="">Select employee…</option>{activeEmployees.map((item) => <option key={item.id} value={item.id}>{displayName(item.name)}</option>)}</select><label className={row.actingOfficer ? "ao-check visible" : "ao-check"} title="Acting Officer"><input aria-label={`Acting Officer for ${employee ? displayName(employee.name) : "replacement"}`} type="checkbox" checked={row.actingOfficer} disabled /><span>AO</span></label><select aria-label="Time out" value={row.timeOut} onChange={(event) => setStaffTimeOut(row.id, event.target.value)}>{timeOptions.map((time) => <option key={time.value} value={time.value}>{time.label}</option>)}</select>{rows.length > 4 && <button className="remove-row" aria-label="Remove staffing row" onClick={() => { setStaffing((current) => current.filter((item) => item.id !== row.id)); markDirty(); }}>×</button>}</div>; })}</div>
         <div className="officer-actions"><button className={approval?.signInAt ? "approved" : ""} onClick={() => openHandoff(shift.key, shift.title, "in")}>{approval?.signInAt ? "✓ Officer Signed In" : "Officer Sign In"}</button><button className={approval?.signOutAt ? "approved" : ""} disabled={!approval?.signInAt} onClick={() => openHandoff(shift.key, shift.title, "out")}>{approval?.signOutAt ? "✓ Shift Approved" : "Officer Sign Out"}</button></div>
       </article>; })}</div>
 
