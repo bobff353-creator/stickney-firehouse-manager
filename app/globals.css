@@ -232,6 +232,32 @@ td strong { font-size: 16px; }
 .driver-key b { margin-right: 4px; }
 .contact-source-note { margin: 0; color: var(--slate); font-size: 12px; text-align: center; }
 
+/* Policies and Box Cards */
+.resource-page { display: grid; gap: 22px; }
+.resource-heading { padding: 8px 0 4px; display: flex; justify-content: space-between; align-items: end; gap: 24px; }
+.resource-heading h1 { color: var(--navy-deep); }
+.resource-heading p:last-child { margin: 12px 0 0; color: var(--slate); }
+.resource-search { min-height: 58px; padding: 0 18px; border: 1px solid #9aabb8; border-radius: 9px; background: white; display: flex; align-items: center; gap: 12px; color: var(--navy); font-size: 24px; }
+.resource-search input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 16px; }
+.resource-form { border-color: #8fb4d2; }
+.resource-form-grid { margin-bottom: 18px; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 15px; }
+.resource-form-grid label { display: flex; flex-direction: column; gap: 7px; color: #40566b; font-size: 12px; font-weight: 850; }
+.resource-form-grid input, .resource-form-grid textarea { width: 100%; min-height: 46px; padding: 0 11px; border: 1px solid #aab7c2; border-radius: 7px; background: white; color: var(--ink); font: inherit; }
+.resource-form-grid textarea { padding: 11px; resize: vertical; line-height: 1.5; }
+.resource-form-grid .resource-title { grid-column: span 2; }
+.resource-form-grid .resource-wide { grid-column: span 2; }
+.resource-form-grid .resource-body { grid-column: 1 / -1; }
+.resource-list { display: grid; gap: 14px; }
+.resource-record { padding: 24px; }
+.resource-record-head { margin-bottom: 18px; display: flex; justify-content: space-between; align-items: start; gap: 18px; }
+.resource-record-head span { color: #9a3d36; font-size: 11px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.resource-record-head h2 { margin: 5px 0 0; color: var(--navy-deep); font-size: 25px; }
+.resource-record-head time, .resource-record-head p { margin: 6px 0 0; color: var(--slate); font-size: 12px; }
+.resource-copy { color: #354c61; line-height: 1.65; white-space: pre-wrap; }
+.access-note { margin-bottom: 16px; padding: 13px 15px; border: 1px solid #d8b968; border-radius: 8px; background: #fff8e5; color: #604a17; }
+.access-note p { margin: 4px 0 0; white-space: pre-wrap; }
+.resource-empty { color: var(--slate); text-align: center; }
+
 /* Daily logbook */
 .logbook-page { display: grid; gap: 22px; }
 .logbook-heading { padding: 3px 0 8px; display: flex; justify-content: space-between; align-items: end; gap: 28px; }
@@ -446,6 +472,10 @@ td strong { font-size: 16px; }
   .contact-page-heading { align-items: flex-start; flex-direction: column; }
   .contact-list-card { margin: 0 -2px; }
   .driver-key { justify-content: flex-start; gap: 10px 18px; }
+  .resource-heading { align-items: stretch; flex-direction: column; }
+  .resource-form-grid { grid-template-columns: 1fr; }
+  .resource-form-grid .resource-title, .resource-form-grid .resource-wide, .resource-form-grid .resource-body { grid-column: auto; }
+  .resource-record-head { align-items: stretch; flex-direction: column; }
 }
 
 @media (prefers-reduced-motion: reduce) {

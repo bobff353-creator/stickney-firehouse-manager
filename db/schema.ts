@@ -126,3 +126,23 @@ export const importantPhoneNumbers = sqliteTable("important_phone_numbers", {
   sortOrder: integer("sort_order").notNull().default(0),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [index("important_phone_category_sort_idx").on(table.category, table.sortOrder)]);
+
+export const policies = sqliteTable("policies", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  policyNumber: text("policy_number").notNull().default(""),
+  category: text("category").notNull().default("General"),
+  effectiveDate: text("effective_date").notNull().default(""),
+  body: text("body").notNull().default(""),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [index("policies_title_idx").on(table.title)]);
+
+export const boxCards = sqliteTable("box_cards", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  address: text("address").notNull().default(""),
+  boxNumber: text("box_number").notNull().default(""),
+  accessNotes: text("access_notes").notNull().default(""),
+  details: text("details").notNull().default(""),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [index("box_cards_title_idx").on(table.title)]);
