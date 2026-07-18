@@ -1,0 +1,14 @@
+{
+  "name": "Stickney Fire Department Operations Portal",
+  "short_name": "SFD Operations",
+  "description": "Official Stickney Fire Department operations, staffing, logbook, and payroll portal.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f2e45",
+  "theme_color": "#0f2e45",
+  "icons": [
+    { "src": "/stickney-fd-patch.jpg", "sizes": "any", "type": "image/jpeg", "purpose": "any maskable" }
+  ]
+}

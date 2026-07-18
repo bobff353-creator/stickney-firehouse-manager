@@ -13,6 +13,7 @@ import { RecordCredibility, type Revision } from "./record-credibility";
 import OperationsBoard from "./operations-board";
 import ActivityTimeline from "./activity-timeline";
 import SmartAlerts from "./smart-alerts";
+import PwaInstall from "./pwa-install";
 
 type Category = "shift" | "drill" | "workDetail" | "callback" | "actingOfficer" | "holiday" | "dpw";
 type PayScale = { id: string; label: string; regularRate: number; overtimeRate: number; holidayRate: number };
@@ -416,6 +417,7 @@ export default function PayrollApp() {
 
   return (
     <main className="app-shell">
+      <PwaInstall />
       <aside className="desktop-sidebar">
         <button className="sidebar-brand" onClick={() => navigate("Dashboard")} aria-label="Stickney Fire Department Operations Portal home"><Image className="brand-patch" src="/stickney-fd-patch.jpg" alt="" width={64} height={64} priority /><span><strong>Stickney Fire Department</strong><small>Operations Portal</small></span></button>
         <nav className="sidebar-nav" aria-label="Primary navigation"><button className={activeNav === "Dashboard" ? "current" : ""} onClick={() => navigate("Dashboard")}><Icon name="home"/><span>Dashboard</span></button>{data?.viewer.isAdmin ? adminNavGroups.map((group) => <section key={group.label}><h2>{group.label}</h2>{group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><Icon name={navIcons[item.page]}/><span>{item.label}</span></button>)}</section>) : <section><h2>My Portal</h2>{visibleNav.filter((item) => item !== "Dashboard").map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => navigate(item)}><Icon name={navIcons[item]}/><span>{item}</span></button>)}</section>}</nav>

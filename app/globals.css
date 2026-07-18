@@ -82,6 +82,8 @@ button { cursor: pointer; }
 .alerts-clear > span { width: 42px; height: 42px; margin-bottom: 9px; border-radius: 50%; background: #e4f3e9; color: #277149; display: grid; place-items: center; font-size: 20px; font-weight: 900; }
 .alerts-clear p, .alert-error { color: #6f808b; font-size: 11px; }
 .alert-error { padding: 20px; }
+.install-app-button { position: fixed; z-index: 70; right: 18px; bottom: 18px; min-height: 48px; padding: 0 16px; border: 1px solid #efc15c; border-radius: 999px; background: #173f5f; color: white; box-shadow: 0 10px 28px rgba(11,31,46,.28); display: flex; align-items: center; gap: 8px; font-weight: 850; cursor: pointer; }
+.install-app-button span { width: 25px; height: 25px; border-radius: 50%; background: #f0b93f; color: #173f5f; display: grid; place-items: center; font-size: 17px; }
 .profile { min-height: 46px; padding: 0 8px 0 4px; border-left: 1px solid #dce2e6; display: flex; align-items: center; gap: 9px; white-space: nowrap; }
 .avatar { width: 38px; height: 38px; border-radius: 50%; background: #e5eef4; color: #214d6e; display: grid; place-items: center; font-size: 11px; font-weight: 900; }
 .profile-copy { display: flex; flex-direction: column; gap: 2px; }
@@ -720,6 +722,10 @@ td strong { font-size: 16px; }
 
 @media (max-width: 680px) {
   .topbar { min-height: 72px; padding: 0 13px; gap: 7px; }
+  button, select, input:not([type="checkbox"]):not([type="radio"]) { min-height: 48px; }
+  textarea { min-height: 108px; font-size: 16px; }
+  select, input, textarea { font-size: 16px; }
+  .install-app-button { right: 12px; bottom: 12px; min-height: 52px; }
   .mobile-brand { margin-right: auto; }
   .mobile-brand img { width: 42px; height: 42px; }
   .mobile-brand strong { max-width: 132px; font-size: 14px; }
@@ -848,6 +854,14 @@ td strong { font-size: 16px; }
   .payroll-table td:last-child, .employee-roster-card td:last-child, .contact-table td:last-child { border-bottom: 0; }
   .payroll-table .status-pill, .employee-roster-card .employment-status, .employee-roster-card .edit-employee, .contact-table .employee-call-link { justify-self: end; }
   .employee-roster-card .section-header { padding: 4px; }
+}
+
+@media (min-width: 681px) and (max-width: 1100px) and (pointer: coarse) {
+  button, select, input:not([type="checkbox"]):not([type="radio"]) { min-height: 50px; }
+  .sidebar-nav button { min-height: 50px; }
+  .staff-row { min-height: 58px; }
+  .staff-row select, .time-now input, .time-now button { min-height: 52px; font-size: 16px; }
+  .officer-actions button, .add-call { min-height: 54px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

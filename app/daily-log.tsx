@@ -12,6 +12,8 @@ type Approval = { shiftKey: string; signInOfficerId?: string; signInAt?: string;
 type RecentNote = { logDate: string; note: string };
 type LogPayload = { log: { shiftNotes: string; locked: number; adminUnlocked: number; createdBy?: string; createdAt?: string; updatedBy?: string; updatedAt: string; lockedBy?: string; lockedAt?: string; revisions?: Revision[] }; staffing: StaffingRow[]; calls: CallRow[]; approvals: Approval[]; recentNotes: RecentNote[]; addresses: string[]; error?: string };
 type Handoff = { shiftKey: string; shiftTitle: string; mode: "in" | "out" };
+type OfflineDraft = { savedAt: string; logDate: string; staffing: StaffingRow[]; calls: CallRow[]; shiftNotes: string };
+const draftKey = (date: string) => `sfd-daily-log-draft:${date}`;
 
 const shiftSections = [
   { key: "morning", title: "6:00 AM – Noon", defaultIn: "06:00", defaultOut: "12:00" },
@@ -77,16 +79,21 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
     try {
       const response = await fetch(`/api/logbook?date=${date}`); const data = await response.json() as LogPayload;
       if (!response.ok) throw new Error(data.error || "Unable to load log");
-      const rows = data.staffing.map((row) => ({ ...row, actingOfficer: Boolean(row.actingOfficer) }));
+      const stored = window.localStorage.getItem(draftKey(date));
+      const draft = stored ? JSON.parse(stored) as OfflineDraft : null;
+      const serverTime = data.log?.updatedAt ? new Date(data.log.updatedAt).getTime() : 0;
+      const restore = Boolean(draft && new Date(draft.savedAt).getTime() > serverTime);
+      const rows = (restore ? draft!.staffing : data.staffing).map((row) => ({ ...row, actingOfficer: Boolean(row.actingOfficer) }));
       for (const shift of shiftSections) for (let i = rows.filter((row) => row.shiftKey === shift.key).length; i < 4; i += 1) rows.push(blankStaff(shift.key, shift.defaultIn, shift.defaultOut));
-      const callRows = [...data.calls]; while (callRows.length < 2) callRows.push(blankCall());
-      setStaffing(rows); setCalls(callRows); setShiftNotes(data.log?.shiftNotes ?? "");
+      const callRows = [...(restore ? draft!.calls : data.calls)]; while (callRows.length < 2) callRows.push(blankCall());
+      setStaffing(rows); setCalls(callRows); setShiftNotes(restore ? draft!.shiftNotes : data.log?.shiftNotes ?? "");
       setLogAudit(data.log ?? null);
       setAddresses(data.addresses ?? []); setApprovals(data.approvals ?? []); setRecentNotes(data.recentNotes ?? []);
-      setLocked(Boolean(data.log?.locked)); setAdminUnlocked(Boolean(data.log?.adminUnlocked)); setDirty(false);
+      setLocked(Boolean(data.log?.locked)); setAdminUnlocked(Boolean(data.log?.adminUnlocked)); setDirty(restore);
+      if (restore) setMessage("Unsaved work restored from this device");
       setLastSynced(data.log?.updatedAt ? new Date(data.log.updatedAt) : new Date());
       window.setTimeout(() => { loaded.current = true; }, 0);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to load log"); }
+    } catch (error) { const stored = window.localStorage.getItem(draftKey(date)); if (stored) { const draft = JSON.parse(stored) as OfflineDraft; const rows = [...draft.staffing]; for (const shift of shiftSections) for (let i = rows.filter((row) => row.shiftKey === shift.key).length; i < 4; i += 1) rows.push(blankStaff(shift.key, shift.defaultIn, shift.defaultOut)); const callRows = [...draft.calls]; while (callRows.length < 2) callRows.push(blankCall()); setStaffing(rows); setCalls(callRows); setShiftNotes(draft.shiftNotes); setDirty(true); setMessage("Offline draft restored · changes will sync when connected"); window.setTimeout(() => { loaded.current = true; }, 0); } else setMessage(error instanceof Error ? error.message : "Unable to load log"); }
     finally { setLoading(false); }
   }, []);
 
@@ -98,13 +105,18 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
     if (!loaded.current || readOnly) return;
     setSaving(true); if (!silent) setMessage("");
     try {
-      const response = await fetch("/api/logbook", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ logDate, staffing: staffing.filter((row) => row.employeeId), calls: calls.filter((row) => Object.entries(row).some(([key, value]) => key !== "id" && value && value !== "EMS")), shiftNotes }) });
+      const payload = { logDate, staffing: staffing.filter((row) => row.employeeId), calls: calls.filter((row) => Object.entries(row).some(([key, value]) => key !== "id" && value && value !== "EMS")), shiftNotes };
+      window.localStorage.setItem(draftKey(logDate), JSON.stringify({ ...payload, savedAt: new Date().toISOString() }));
+      if (!window.navigator.onLine) { setMessage("Saved on this device · waiting to sync"); return; }
+      const response = await fetch("/api/logbook", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
       const result = await response.json() as { error?: string; payrollEmployeesUpdated?: number }; if (!response.ok) throw new Error(result.error || "Unable to save log");
-      setDirty(false); setLastSynced(new Date()); setMessage(silent ? "All changes saved · Timesheets updated" : "Daily log and timesheets saved"); onPayrollSynced?.();
+      window.localStorage.removeItem(draftKey(logDate)); setDirty(false); setLastSynced(new Date()); setMessage(silent ? "All changes saved · Timesheets updated" : "Daily log and timesheets saved"); onPayrollSynced?.();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to save log"); }
     finally { setSaving(false); }
   }, [calls, logDate, onPayrollSynced, readOnly, shiftNotes, staffing]);
   useEffect(() => { if (!dirty || readOnly) return; const timer = window.setTimeout(() => { void saveLog(true); }, 900); return () => window.clearTimeout(timer); }, [dirty, readOnly, saveLog]);
+  useEffect(() => { if (!dirty || readOnly) return; window.localStorage.setItem(draftKey(logDate), JSON.stringify({ savedAt: new Date().toISOString(), logDate, staffing: staffing.filter((row) => row.employeeId), calls, shiftNotes })); }, [calls, dirty, logDate, readOnly, shiftNotes, staffing]);
+  useEffect(() => { if (!isOnline || !dirty || readOnly) return; const timer = window.setTimeout(() => void saveLog(true), 250); return () => window.clearTimeout(timer); }, [dirty, isOnline, readOnly, saveLog]);
 
   const activeEmployees = useMemo(() => employees.filter((employee) => (!employee.startDate || employee.startDate <= logDate) && (!employee.endDate || employee.endDate >= logDate)), [employees, logDate]);
   const markDirty = () => { if (loaded.current) setDirty(true); };
