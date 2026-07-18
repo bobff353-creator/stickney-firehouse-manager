@@ -75,14 +75,16 @@ button { cursor: pointer; }
 .workspace { grid-column: 2; grid-row: 2; width: min(1480px, 100%); margin: 0 auto; padding: 38px clamp(22px, 3vw, 54px) 60px; }
 .portal-footer { grid-column: 2; grid-row: 3; padding: 25px clamp(22px, 3vw, 54px) 20px; border-top: 1px solid #ccd5db; background: #eef1f2; color: #40566b; display: grid; grid-template-columns: minmax(280px, 1fr) auto; align-items: center; gap: 18px 30px; }
 .footer-identity { display: flex; align-items: center; gap: 12px; }
-.footer-identity img { width: 48px; height: 48px; border: 1px solid #c4aa7e; border-radius: 50%; background: white; object-fit: cover; }
+.footer-identity img { width: 56px; height: 56px; border: 1px solid #c4aa7e; border-radius: 50%; background: white; object-fit: cover; }
 .footer-identity div { display: flex; flex-direction: column; gap: 3px; }
 .footer-identity strong { color: var(--navy-deep); font-size: 15px; }
 .footer-identity span { font-size: 12px; }
+.footer-identity a { width: fit-content; color: #315c78; font-size: 12px; font-weight: 750; text-decoration: none; }
+.footer-identity a:hover { text-decoration: underline; }
 .footer-links { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .footer-links button { min-height: 38px; padding: 0 12px; border: 1px solid #a9b7c1; border-radius: 6px; background: white; color: var(--navy); font-size: 12px; font-weight: 800; }
 .footer-links button:hover { border-color: #6688a1; background: #f7fbfd; }
-.portal-version { padding: 7px 10px; border-radius: 999px; background: #dde5e9; color: #526677; font-size: 10px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
+.footer-links .portal-version { min-height: 34px; padding: 0 11px; border-color: #bcc8cf; border-radius: 999px; background: #dde5e9; color: #526677; font-size: 10px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
 .portal-footer > p { grid-column: 1 / -1; margin: 0; padding-top: 14px; border-top: 1px solid #d5dde1; color: #70808c; font-size: 11px; text-align: center; }
 .period-row { display: flex; justify-content: space-between; align-items: end; gap: 32px; margin-bottom: 30px; }
 .eyebrow { margin: 0 0 8px; color: var(--slate); font-size: 14px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
