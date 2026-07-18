@@ -32,6 +32,7 @@ type PayrollData = {
   settings: { overtimeThreshold: number; actingOfficerPremium: number; dpwMultiplier: number };
   viewer: { email: string; isAdmin: boolean; employeeId: string | null; displayName: string };
 };
+type GlobalSearchItem = { id: string; type: "Employee" | "Contact" | "Policy" | "Box Card" | "Important Number"; title: string; detail: string; page: NavItem };
 
 type NavItem = "Dashboard" | "Payroll" | "Daily Log" | "Timesheets" | "My Timesheet" | "Employees" | "Employee Contacts" | "Policies" | "Box Cards" | "Holiday Policy" | "Phone Numbers" | "Rates & Rules";
 const adminNavItems: NavItem[] = ["Dashboard", "Payroll", "Daily Log", "Timesheets", "Employees", "Employee Contacts", "Policies", "Box Cards", "Holiday Policy", "Phone Numbers", "Rates & Rules"];
@@ -148,6 +149,10 @@ export default function PayrollApp() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openNavGroup, setOpenNavGroup] = useState<string | null>(null);
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [globalSearch, setGlobalSearch] = useState("");
+  const [sharedSearchItems, setSharedSearchItems] = useState<GlobalSearchItem[]>([]);
+  const [globalSearchLoading, setGlobalSearchLoading] = useState(false);
 
   const loadPayroll = useCallback(async (start: string) => {
     setLoading(true);
@@ -177,6 +182,26 @@ export default function PayrollApp() {
     const timer = window.setTimeout(() => setToast(""), 2600);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  const openGlobalSearch = useCallback(async () => {
+    setGlobalSearchOpen(true);
+    if (sharedSearchItems.length || globalSearchLoading) return;
+    setGlobalSearchLoading(true);
+    try {
+      const [policiesResponse, boxCardsResponse, numbersResponse] = await Promise.all([
+        fetch("/api/resources?type=policy"), fetch("/api/resources?type=boxCard"), fetch("/api/phone-numbers"),
+      ]);
+      const [policies, boxCards, numbers] = await Promise.all([policiesResponse.json(), boxCardsResponse.json(), numbersResponse.json()]) as [
+        { items?: Array<Record<string, string>> }, { items?: Array<Record<string, string>> }, { numbers?: Array<Record<string, string>> },
+      ];
+      setSharedSearchItems([
+        ...(policies.items ?? []).map((item) => ({ id: `policy-${item.id}`, type: "Policy" as const, title: item.title, detail: [item.policyNumber, item.category, item.body].filter(Boolean).join(" · "), page: "Policies" as const })),
+        ...(boxCards.items ?? []).map((item) => ({ id: `box-${item.id}`, type: "Box Card" as const, title: item.title, detail: [item.boxNumber, item.address, item.accessNotes, item.details].filter(Boolean).join(" · "), page: "Box Cards" as const })),
+        ...(numbers.numbers ?? []).map((item) => ({ id: `phone-${item.id}`, type: "Important Number" as const, title: item.name, detail: [item.emergencyNumber, item.nonEmergencyNumber, item.notes].filter(Boolean).join(" · "), page: "Phone Numbers" as const })),
+      ]);
+    } catch { setSharedSearchItems([]); }
+    finally { setGlobalSearchLoading(false); }
+  }, [globalSearchLoading, sharedSearchItems.length]);
 
   const entryValue = useCallback((employeeId: string, workDate: string, category: Category) => {
     return data?.entries.find((entry) => entry.employeeId === employeeId && entry.workDate === workDate && entry.category === category)?.hours ?? 0;
@@ -223,6 +248,16 @@ export default function PayrollApp() {
     const matchesStatus = statusFilter === "all" || row.status.toLowerCase().replace(" ", "-") === statusFilter;
     return matchesSearch && matchesStatus;
   }), [employeeSummaries, search, statusFilter]);
+
+  const globalSearchResults = useMemo(() => {
+    const employeeItems: GlobalSearchItem[] = (data?.employees ?? []).flatMap((employee) => [
+      ...(data?.viewer.isAdmin ? [{ id: `employee-${employee.id}`, type: "Employee" as const, title: displayName(employee.name), detail: [employee.rank, employee.employeeNumber, employee.driverStatus].filter(Boolean).join(" · "), page: "Employees" as const }] : []),
+      { id: `contact-${employee.id}`, type: "Contact" as const, title: displayName(employee.name), detail: [employee.phone, employee.rank, employee.driverStatus].filter(Boolean).join(" · "), page: "Employee Contacts" as const },
+    ]);
+    const term = globalSearch.trim().toLowerCase();
+    if (!term) return [];
+    return [...employeeItems, ...sharedSearchItems].filter((item) => `${item.type} ${item.title} ${item.detail}`.toLowerCase().includes(term)).slice(0, 30);
+  }, [data?.employees, data?.viewer, globalSearch, sharedSearchItems]);
 
   async function post(payload: Record<string, unknown>) {
     const response = await fetch("/api/payroll", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
@@ -322,7 +357,7 @@ export default function PayrollApp() {
 
   const statusLabel = data?.period.status ? data.period.status[0].toUpperCase() + data.period.status.slice(1) : "Draft";
   const visibleNav = data?.viewer.isAdmin ? adminNavItems : employeeNavItems;
-  function navigate(page: NavItem) { setActiveNav(page); setMobileMenuOpen(false); setOpenNavGroup(null); window.scrollTo({ top: 0, behavior: "smooth" }); }
+  function navigate(page: NavItem) { setActiveNav(page); setMobileMenuOpen(false); setOpenNavGroup(null); setGlobalSearchOpen(false); setGlobalSearch(""); window.scrollTo({ top: 0, behavior: "smooth" }); }
 
   return (
     <main className="app-shell">
@@ -332,10 +367,13 @@ export default function PayrollApp() {
           <button className={activeNav === "Dashboard" ? "nav-active" : ""} onClick={() => navigate("Dashboard")}><span className="nav-icon" aria-hidden="true">⌂</span>Dashboard</button>
           {data?.viewer.isAdmin ? adminNavGroups.map((group) => <div className={`nav-group ${group.items.some((item) => item.page === activeNav) ? "group-active" : ""}`} key={group.label}><button aria-expanded={openNavGroup === group.label} onClick={() => setOpenNavGroup((current) => current === group.label ? null : group.label)}><span className="nav-icon" aria-hidden="true">{group.icon}</span>{group.label}<span className="nav-caret">⌄</span></button>{openNavGroup === group.label && <div className="nav-dropdown">{group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><span aria-hidden="true">{navIcons[item.page]}</span><span>{item.label}</span></button>)}</div>}</div>) : visibleNav.filter((item) => item !== "Dashboard").map((item) => <button key={item} className={activeNav === item ? "nav-active" : ""} onClick={() => navigate(item)}><span className="nav-icon" aria-hidden="true">{navIcons[item]}</span>{item}</button>)}
         </nav>
+        <button className="global-search-trigger" onClick={() => void openGlobalSearch()} aria-label="Search all records"><span aria-hidden="true">⌕</span><span>Search</span></button>
         <button className="mobile-menu-toggle" aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen((current) => !current)}><span aria-hidden="true">{mobileMenuOpen ? "×" : "☰"}</span><span>Menu</span></button>
         <div className="profile"><span className="avatar">{data?.viewer.displayName.split(/[ ,]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span><span>{data ? displayName(data.viewer.displayName) : "Signed in"}</span><span aria-hidden="true">⌄</span></div>
         {mobileMenuOpen && <nav id="mobile-navigation" className="mobile-nav-panel" aria-label="Mobile navigation"><button className={activeNav === "Dashboard" ? "current" : ""} onClick={() => navigate("Dashboard")}><span aria-hidden="true">⌂</span>Dashboard</button>{data?.viewer.isAdmin ? adminNavGroups.map((group) => <section key={group.label}><h2><span aria-hidden="true">{group.icon}</span>{group.label}</h2>{group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><span aria-hidden="true">{navIcons[item.page]}</span>{item.label}</button>)}</section>) : visibleNav.filter((item) => item !== "Dashboard").map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => navigate(item)}><span aria-hidden="true">{navIcons[item]}</span>{item}</button>)}</nav>}
       </header>
+
+      {globalSearchOpen && <div className="global-search-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setGlobalSearchOpen(false); }}><section className="global-search-dialog" role="dialog" aria-modal="true" aria-labelledby="global-search-title"><div className="global-search-head"><div><p className="eyebrow">Department-wide search</p><h2 id="global-search-title">Find anything</h2></div><button aria-label="Close search" onClick={() => setGlobalSearchOpen(false)}>×</button></div><label className="global-search-input"><span aria-hidden="true">⌕</span><input autoFocus value={globalSearch} onChange={(event) => setGlobalSearch(event.target.value)} placeholder="Search employees, contacts, policies, Box Cards, or important numbers…" /></label><div className="global-search-results">{globalSearchLoading ? <div className="global-search-empty">Loading shared information…</div> : !globalSearch.trim() ? <div className="global-search-empty">Start typing a name, address, policy, card number, or phone number.</div> : globalSearchResults.length ? globalSearchResults.map((item) => <button key={item.id} onClick={() => navigate(item.page)}><span className={`search-type ${item.type.toLowerCase().replace(" ", "-")}`}>{item.type}</span><strong>{item.title}</strong><small>{item.detail || `Open ${item.page}`}</small><b aria-hidden="true">›</b></button>) : <div className="global-search-empty">No results found for “{globalSearch}”.</div>}</div></section></div>}
 
       <section className="workspace">
         {error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={() => { setError(""); void loadPayroll(periodStart); }}>Retry</button></div>}
@@ -351,11 +389,12 @@ export default function PayrollApp() {
                 <span className={`period-badge ${data.period.status}`}>▣ {statusLabel}</span>
               </div>
             </div>
-            {activeNav === "Payroll" && <button className="primary-action" onClick={() => openTimesheet()}><span>◷</span> Enter Hours</button>}
+            {activeNav === "Payroll" && <button className="primary-action" onClick={() => openTimesheet()}><span>{data.period.status === "finalized" ? "▤" : "◷"}</span> {data.period.status === "finalized" ? "View Timesheets" : "Enter Hours"}</button>}
             {activeNav === "Timesheets" && data.viewer.isAdmin && <button className="primary-action secondary-red" onClick={() => setActiveNav("Payroll")}>Review Payroll</button>}
           </div>}
 
-          {activeNav === "Payroll" && <>
+          {activeNav === "Payroll" && <div className={data.period.status === "finalized" ? "record-finalized" : "record-editable"}>
+            {data.period.status === "finalized" && <div className="record-state-banner finalized"><span className="state-lock" aria-hidden="true">✓</span><div><strong>Finalized payroll · Read only</strong><span>This pay period is closed. Hours and payroll totals can no longer be changed.</span></div></div>}
             <section className="kpi-grid" aria-label="Payroll summary">
               <article className="kpi-card"><span className="kpi-icon blue"><Icon name="people" /></span><div><strong>{payrollEmployees.length}</strong><span>On This Payroll</span></div></article>
               <article className="kpi-card"><span className="kpi-icon blue"><Icon name="clock" /></span><div><strong>{data.settings.overtimeThreshold} <small>hr</small></strong><span>OT Threshold</span></div></article>
@@ -373,17 +412,17 @@ export default function PayrollApp() {
               <div className="table-wrap payroll-table">
                 <table><thead><tr><th>Employee</th><th>Rank</th><th className="number">Hours</th><th className="number">Gross Pay</th><th>Status</th></tr></thead><tbody>
                   {filteredRows.map((row) => <tr key={row.employee.id} onClick={() => openTimesheet(row.employee.id)}>
-                    <td><span className="person-icon">♙</span><strong>{displayName(row.employee.name)}</strong></td><td>{row.employee.rank}</td><td className="number tabular">{row.hours.toFixed(1)} hrs</td><td className="number tabular">{formatMoney(row.gross)}</td><td><span className={`status-pill ${row.status.toLowerCase().replace(" ", "-")}`}>{row.status === "Ready" ? "✓" : row.status === "Review" ? "◷" : "–"} {row.status}</span></td>
+                    <td data-label="Employee"><span className="person-icon">♙</span><strong>{displayName(row.employee.name)}</strong></td><td data-label="Rank">{row.employee.rank}</td><td data-label="Hours" className="number tabular">{row.hours.toFixed(1)} hrs</td><td data-label="Gross Pay" className="number tabular">{formatMoney(row.gross)}</td><td data-label="Status"><span className={`status-pill ${row.status.toLowerCase().replace(" ", "-")}`}>{row.status === "Ready" ? "✓" : row.status === "Review" ? "◷" : "–"} {row.status}</span></td>
                   </tr>)}
                 </tbody></table>
               </div>
-              <div className="review-bar"><span><strong>{readyCount}</strong> ready · <strong>{reviewCount}</strong> need review · <strong>{payrollEmployees.length - readyCount - reviewCount}</strong> not started</span><div><button className="quiet-button" onClick={() => void setPeriodStatus("reviewed")}>Mark Reviewed</button><button className="finalize-button" disabled={reviewCount > 0} onClick={() => void setPeriodStatus("finalized")}>Finalize Payroll</button></div></div>
+              <div className="review-bar"><span><strong>{readyCount}</strong> ready · <strong>{reviewCount}</strong> need review · <strong>{payrollEmployees.length - readyCount - reviewCount}</strong> not started</span><div>{data.period.status !== "finalized" ? <><button className="quiet-button" onClick={() => void setPeriodStatus("reviewed")}>Mark Reviewed</button><button className="finalize-button" disabled={reviewCount > 0} onClick={() => void setPeriodStatus("finalized")}>Finalize Payroll</button></> : <span className="closed-confirmation">✓ Payroll closed</span>}</div></div>
             </section>
-          </>}
+          </div>}
 
           {activeNav === "Dashboard" && <RoleDashboard data={{ viewer: data.viewer, employees: data.employees, entries: data.entries, period: data.period, grossPayroll, reviewCount, employeeGross: selectedSummary?.gross ?? 0 }} onNavigate={(page) => setActiveNav(page)} />}
 
-          {(activeNav === "Timesheets" || activeNav === "My Timesheet") && selectedEmployee && selectedSummary && <section className="content-card timesheet-card">
+          {(activeNav === "Timesheets" || activeNav === "My Timesheet") && selectedEmployee && selectedSummary && <div className={data.period.status === "finalized" ? "record-finalized" : "record-editable"}>{data.period.status === "finalized" && <div className="record-state-banner finalized"><span className="state-lock" aria-hidden="true">🔒</span><div><strong>Finalized timesheet · Read only</strong><span>This timesheet belongs to a closed payroll period.</span></div></div>}<section className="content-card timesheet-card">
             <div className="section-header"><div>{data.viewer.isAdmin ? <><label htmlFor="employee-select">Employee</label><select id="employee-select" value={selectedEmployee.id} onChange={(event) => setSelectedEmployeeId(event.target.value)}>{payrollEmployees.map((employee) => <option value={employee.id} key={employee.id}>{displayName(employee.name)} — {employee.rank}</option>)}</select></> : <><p className="eyebrow">My timesheet</p><h2>{displayName(selectedEmployee.name)}</h2><p>{selectedEmployee.rank} · Read only</p></>}</div><span className={`status-pill ${selectedSummary.status.toLowerCase().replace(" ", "-")}`}>{selectedSummary.status}</span></div>
             <div className="mini-summary"><div><span>Paid hours</span><strong>{selectedSummary.hours.toFixed(1)}</strong></div><div><span>Overtime</span><strong>{selectedSummary.overtimeHours.toFixed(1)}</strong></div><div><span>Holiday</span><strong>{selectedSummary.holidayHours.toFixed(1)}</strong></div><div><span>Gross pay</span><strong>{formatMoney(selectedSummary.gross)}</strong></div></div>
             {selectedSummary.issues.length > 0 && <div className="validation-box"><strong>Check these entries</strong>{selectedSummary.issues.map((issue) => <span key={issue}>• {issue}</span>)}</div>}
@@ -393,12 +432,13 @@ export default function PayrollApp() {
                 return <tr key={date}><td>{dayLabel(date)}</td>{categoryColumns.map((column) => {
                   const cell = `${selectedEmployee.id}-${date}-${column.key}`;
                   const value = entryValue(selectedEmployee.id, date, column.key);
-                  return <td key={column.key}><input aria-label={`${column.label} hours for ${dayLabel(date)}`} type="number" min="0" max="48" step="0.25" value={value || ""} readOnly={!data.viewer.isAdmin} className={`${savingCells.has(cell) ? "saving" : ""}${data.viewer.isAdmin ? "" : " timesheet-readonly"}`} onChange={(event) => { if (data.viewer.isAdmin) changeEntry(selectedEmployee.id, date, column.key, safeNumber(event.target.value)); }} onBlur={(event) => { if (data.viewer.isAdmin) void saveEntry(selectedEmployee.id, date, column.key, safeNumber(event.target.value)); }} /></td>;
+                  const canEditEntry = data.viewer.isAdmin && data.period.status !== "finalized";
+                  return <td key={column.key}><input aria-label={`${column.label} hours for ${dayLabel(date)}`} type="number" min="0" max="48" step="0.25" value={value || ""} readOnly={!canEditEntry} className={`${savingCells.has(cell) ? "saving" : ""}${canEditEntry ? "" : " timesheet-readonly"}`} onChange={(event) => { if (canEditEntry) changeEntry(selectedEmployee.id, date, column.key, safeNumber(event.target.value)); }} onBlur={(event) => { if (canEditEntry) void saveEntry(selectedEmployee.id, date, column.key, safeNumber(event.target.value)); }} /></td>;
                 })}<td className={rowTotal > 24 ? "row-warning" : ""}>{rowTotal.toFixed(1)}</td></tr>;
               })}
             </tbody><tfoot><tr><td>Period totals</td>{categoryColumns.map((column) => <td key={column.key}>{data.entries.filter((entry) => entry.employeeId === selectedEmployee.id && entry.category === column.key).reduce((sum, entry) => sum + entry.hours, 0).toFixed(1)}</td>)}<td>{selectedSummary.hours.toFixed(1)}</td></tr></tfoot></table></div>
-            <p className="helper-note">{data.viewer.isAdmin ? "Acting Officer hours add the configured premium only. DPW hours use the configured DPW multiplier. Entries save when you leave a field." : "This timesheet is read only. Contact an administrator if an entry needs to be corrected."}</p>
-          </section>}
+            <p className="helper-note">{data.period.status === "finalized" ? "This finalized timesheet is read only. Reopening a closed payroll period requires a separate administrator workflow." : data.viewer.isAdmin ? "Acting Officer hours add the configured premium only. DPW hours use the configured DPW multiplier. Entries save when you leave a field." : "This timesheet is read only. Contact an administrator if an entry needs to be corrected."}</p>
+          </section></div>}
 
           {activeNav === "Daily Log" && <DailyLog employees={data.employees} onPayrollSynced={() => { void loadPayroll(periodStart); }} />}
 
@@ -446,7 +486,7 @@ export default function PayrollApp() {
             <section className="content-card employee-roster-card"><div className="section-header"><div><h2>Employee roster</h2><p>Ended employees remain here for payroll history and can be updated or rehired.</p></div><div className="employee-form-actions"><span className="count-badge">{data.employees.length} records</span><button type="button" className="primary-action compact" onClick={() => editEmployee()}>Add Employee</button></div></div>
               <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Employee #</th><th>Pay Scale</th><th>Driver</th><th>Phone</th><th>Start</th><th>Last Day</th><th>Status</th><th></th></tr></thead><tbody>{data.employees.map((employee) => {
                 const payrollStatus = employee.startDate && employee.startDate > data.period.endDate ? "Scheduled" : employee.endDate && employee.endDate < data.period.startDate ? "Ended" : "Active";
-                return <tr key={employee.id}><td><span className="person-icon">♙</span><strong>{displayName(employee.name)}</strong></td><td>{employee.employeeNumber || "—"}</td><td>{employee.rank}</td><td>{employee.driverStatus || "—"}</td><td>{employee.phone || "—"}</td><td>{employee.startDate || "—"}</td><td>{employee.endDate || "—"}</td><td><span className={`employment-status ${payrollStatus.toLowerCase()}`}>{payrollStatus}</span></td><td><button className="edit-employee" onClick={() => editEmployee(employee)}>Edit</button></td></tr>;
+                return <tr key={employee.id}><td data-label="Employee"><span className="person-icon">♙</span><strong>{displayName(employee.name)}</strong></td><td data-label="Employee #">{employee.employeeNumber || "—"}</td><td data-label="Pay Scale">{employee.rank}</td><td data-label="Driver">{employee.driverStatus || "—"}</td><td data-label="Phone">{employee.phone || "—"}</td><td data-label="Start">{employee.startDate || "—"}</td><td data-label="Last Day">{employee.endDate || "—"}</td><td data-label="Status"><span className={`employment-status ${payrollStatus.toLowerCase()}`}>{payrollStatus}</span></td><td data-label="Actions"><button className="edit-employee" onClick={() => editEmployee(employee)}>Edit</button></td></tr>;
               })}</tbody></table></div>
             </section>
           </section>}

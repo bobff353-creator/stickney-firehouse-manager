@@ -32,11 +32,11 @@ export default function EmployeeContacts({ employees }: { employees: ContactEmpl
       <div className="table-wrap contact-table-wrap"><table className="contact-table">
         <thead><tr><th>Rank</th><th>Name</th><th>Employment</th><th>Driver Status</th><th>Cell Number</th></tr></thead>
         <tbody>{alphabetical.map((employee) => <tr key={employee.id}>
-          <td><strong>{employee.rank}</strong></td>
-          <td>{displayName(employee.name)}</td>
-          <td>{employee.isDpw ? "DPW" : employee.employmentType || ""}</td>
-          <td>{employee.driverStatus || ""}</td>
-          <td>{employee.phone ? <a className="employee-call-link" href={phoneHref(employee.phone)}>{employee.phone}</a> : ""}</td>
+          <td data-label="Rank"><strong>{employee.rank}</strong></td>
+          <td data-label="Name">{displayName(employee.name)}</td>
+          <td data-label="Employment">{employee.isDpw ? "DPW" : employee.employmentType || ""}</td>
+          <td data-label="Driver Status">{employee.driverStatus || ""}</td>
+          <td data-label="Cell Number">{employee.phone ? <a className="employee-call-link" href={phoneHref(employee.phone)}>{employee.phone}</a> : ""}</td>
         </tr>)}</tbody>
       </table></div>
       <div className="driver-key"><strong>Driver Status Key</strong><span><b>C</b> Cleared</span><span><b>A</b> Ambulance Only</span><span><b>NC</b> Not Cleared</span></div>
