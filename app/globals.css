@@ -143,7 +143,7 @@ td strong { font-size: 16px; }
 .dpw-employee-check strong { font-size: 14px; }
 .dpw-employee-check small { font-size: 11px; font-weight: 650; line-height: 1.4; }
 .field-help { margin: 14px 0 0; padding: 11px 13px; border-left: 4px solid #5a85a8; background: #edf5fa; color: #36526b; font-size: 13px; line-height: 1.5; }
-.employee-roster-card table { min-width: 1120px; }
+.employee-roster-card table { min-width: 1280px; }
 .employment-status { min-width: 82px; padding: 6px 10px; border-radius: 999px; display: inline-flex; justify-content: center; font-size: 12px; font-weight: 800; }
 .employment-status.active { color: var(--green); background: #eaf6ee; }
 .employment-status.scheduled { color: #355f84; background: #eaf2f8; }

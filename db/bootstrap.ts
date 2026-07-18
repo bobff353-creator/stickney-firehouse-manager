@@ -63,7 +63,7 @@ export async function ensureDatabase() {
     db.prepare("CREATE TABLE IF NOT EXISTS pay_scales (id TEXT PRIMARY KEY NOT NULL, label TEXT NOT NULL, regular_rate REAL NOT NULL, overtime_rate REAL NOT NULL, holiday_rate REAL NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0)"),
     db.prepare("CREATE TABLE IF NOT EXISTS employees (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, pay_scale_id TEXT NOT NULL REFERENCES pay_scales(id), active INTEGER NOT NULL DEFAULT 1, sort_order INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE INDEX IF NOT EXISTS employees_active_sort_idx ON employees(active, sort_order)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS employee_profiles (employee_id TEXT PRIMARY KEY NOT NULL REFERENCES employees(id), employee_number TEXT, start_date TEXT, end_date TEXT, date_of_birth TEXT, phone TEXT, email TEXT, address_line_1 TEXT, city TEXT, state TEXT, postal_code TEXT, employment_type TEXT NOT NULL DEFAULT 'Part-time', is_dpw INTEGER NOT NULL DEFAULT 0, emergency_name TEXT, emergency_relationship TEXT, emergency_phone TEXT, notes TEXT, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS employee_profiles (employee_id TEXT PRIMARY KEY NOT NULL REFERENCES employees(id), employee_number TEXT, start_date TEXT, end_date TEXT, date_of_birth TEXT, phone TEXT, email TEXT, address_line_1 TEXT, city TEXT, state TEXT, postal_code TEXT, employment_type TEXT NOT NULL DEFAULT 'Part-time', is_dpw INTEGER NOT NULL DEFAULT 0, driver_status TEXT NOT NULL DEFAULT '', emergency_name TEXT, emergency_relationship TEXT, emergency_phone TEXT, notes TEXT, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS employee_profiles_number_idx ON employee_profiles(employee_number)"),
     db.prepare("CREATE TABLE IF NOT EXISTS payroll_settings (id INTEGER PRIMARY KEY NOT NULL, overtime_threshold REAL NOT NULL DEFAULT 106, acting_officer_premium REAL NOT NULL DEFAULT 1, dpw_multiplier REAL NOT NULL DEFAULT 1.5, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE TABLE IF NOT EXISTS pay_periods (start_date TEXT PRIMARY KEY NOT NULL, end_date TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
@@ -82,10 +82,46 @@ export async function ensureDatabase() {
   ]);
   try { await db.prepare("ALTER TABLE daily_log_staffing ADD COLUMN acting_officer INTEGER NOT NULL DEFAULT 0").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE employee_profiles ADD COLUMN is_dpw INTEGER NOT NULL DEFAULT 0").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE employee_profiles ADD COLUMN driver_status TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
 
   await db.prepare("INSERT OR IGNORE INTO payroll_settings (id, overtime_threshold, acting_officer_premium, dpw_multiplier) VALUES (1, 106, 1, 1.5)").run();
   await db.batch(payScales.map((scale) => db.prepare("INSERT OR IGNORE INTO pay_scales (id, label, regular_rate, overtime_rate, holiday_rate, sort_order) VALUES (?, ?, ?, ?, ?, ?)").bind(...scale)));
   await db.batch(employeeSeed.map((employee, index) => db.prepare("INSERT OR IGNORE INTO employees (id, name, pay_scale_id, active, sort_order) VALUES (?, ?, ?, 1, ?)").bind(employee[0], employee[1], employee[2], index + 1)));
+  const rosterImport = [
+    ["aguinaga-hugo", "(708) 543-3980", "Cleared", 0],
+    ["boulden-jamal", "(773) 213-3598", "Ambulance Only", 0],
+    ["brunslik-reid", "(708) 431-4546", "Ambulance Only", 0],
+    ["collier-joshua", "(224) 238-6603", "Cleared", 0],
+    ["corsini-mark", "", "Cleared", 0],
+    ["czech-doug", "(708) 207-8790", "Cleared", 1],
+    ["delgatto-eric", "(708) 679-1496", "Cleared", 0],
+    ["durkop-christopher", "(630) 767-3540", "Ambulance Only", 0],
+    ["eagle-deandre", "", "Cleared", 0],
+    ["espino-leonardo", "(708) 770-9334", "Ambulance Only", 0],
+    ["focht-eric", "(630) 746-2034", "Cleared", 0],
+    ["focht-garrett", "(630) 470-2497", "Cleared", 0],
+    ["jarom-ethan", "(708) 837-4448", "Cleared", 0],
+    ["keane-matthew", "(708) 990-4568", "Cleared", 0],
+    ["kummer-hunter", "", "Cleared", 0],
+    ["lopez-joseph", "(708) 979-0668", "Cleared", 0],
+    ["lukas-colin", "(708) 218-6210", "Not Cleared", 0],
+    ["maldonado-franklin", "", "Cleared", 0],
+    ["mulford-kyle", "(815) 931-2824", "Ambulance Only", 0],
+    ["ramey-bivian", "", "Ambulance Only", 0],
+    ["raygoza-dainel", "", "Not Cleared", 0],
+    ["rodriguze-mark", "(773) 986-1363", "Not Cleared", 0],
+    ["solano-evan", "(773) 499-3541", "Ambulance Only", 0],
+    ["szafarczyk-anthony", "(312) 206-4773", "Not Cleared", 0],
+    ["tarnowski-joshua", "(708) 446-5799", "Cleared", 0],
+    ["taylor-cherelle", "(773) 563-3494", "Ambulance Only", 0],
+    ["valdez-david", "(708) 307-4625", "Not Cleared", 0],
+    ["vuelvas-eduardo", "", "Ambulance Only", 0],
+    ["williams-joshua", "(773) 792-5600", "Cleared", 0],
+  ] as const;
+  for (const [employeeId, phone, driverStatus, isDpw] of rosterImport) {
+    await db.prepare("INSERT OR IGNORE INTO employee_profiles (employee_id) VALUES (?)").bind(employeeId).run();
+    await db.prepare("UPDATE employee_profiles SET phone = CASE WHEN (phone IS NULL OR phone = '') AND ? <> '' THEN ? ELSE phone END, driver_status = CASE WHEN driver_status = '' THEN ? ELSE driver_status END, is_dpw = CASE WHEN ? = 1 AND driver_status = '' THEN 1 ELSE is_dpw END, updated_at = CURRENT_TIMESTAMP WHERE employee_id = ?").bind(phone, phone, driverStatus, isDpw, employeeId).run();
+  }
   const phoneSeed = [
     ["fire-berwyn", "fire", "Berwyn Fire Department", "", "(708) 484-1644", "", 1],
     ["fire-cicero", "fire", "Cicero Fire Department", "", "(708) 652-2130", "", 2],

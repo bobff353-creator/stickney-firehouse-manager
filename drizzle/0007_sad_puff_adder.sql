@@ -1,0 +1,1 @@
+ALTER TABLE `employee_profiles` ADD `driver_status` text DEFAULT '' NOT NULL;

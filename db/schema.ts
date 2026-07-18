@@ -33,6 +33,7 @@ export const employeeProfiles = sqliteTable("employee_profiles", {
   postalCode: text("postal_code"),
   employmentType: text("employment_type").notNull().default("Part-time"),
   isDpw: integer("is_dpw", { mode: "boolean" }).notNull().default(false),
+  driverStatus: text("driver_status").notNull().default(""),
   emergencyName: text("emergency_name"),
   emergencyRelationship: text("emergency_relationship"),
   emergencyPhone: text("emergency_phone"),

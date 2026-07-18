@@ -11,13 +11,13 @@ type Employee = PayScale & {
   id: string; name: string; payScaleId: string; rank: string; active: number;
   employeeNumber?: string | null; startDate?: string | null; endDate?: string | null; dateOfBirth?: string | null;
   phone?: string | null; email?: string | null; addressLine1?: string | null; city?: string | null;
-  state?: string | null; postalCode?: string | null; employmentType?: string | null; isDpw?: number | boolean;
+  state?: string | null; postalCode?: string | null; employmentType?: string | null; isDpw?: number | boolean; driverStatus?: string | null;
   emergencyName?: string | null; emergencyRelationship?: string | null; emergencyPhone?: string | null; notes?: string | null;
 };
 type EmployeeForm = {
   id?: string; name: string; payScaleId: string; employeeNumber: string; startDate: string; endDate: string;
   dateOfBirth: string; phone: string; email: string; addressLine1: string; city: string; state: string;
-  postalCode: string; employmentType: string; isDpw: boolean; emergencyName: string; emergencyRelationship: string;
+  postalCode: string; employmentType: string; isDpw: boolean; driverStatus: string; emergencyName: string; emergencyRelationship: string;
   emergencyPhone: string; notes: string;
 };
 type Entry = { id?: string; employeeId: string; workDate: string; category: Category; hours: number };
@@ -32,7 +32,7 @@ type PayrollData = {
 const navItems = ["Payroll", "Daily Log", "Timesheets", "Employees", "Holiday Policy", "Phone Numbers", "Rates & Rules"] as const;
 const emptyEmployee: EmployeeForm = {
   name: "", payScaleId: "firefighter", employeeNumber: "", startDate: "", endDate: "", dateOfBirth: "",
-  phone: "", email: "", addressLine1: "", city: "", state: "IL", postalCode: "", employmentType: "Part-time", isDpw: false,
+  phone: "", email: "", addressLine1: "", city: "", state: "IL", postalCode: "", employmentType: "Part-time", isDpw: false, driverStatus: "",
   emergencyName: "", emergencyRelationship: "", emergencyPhone: "", notes: "",
 };
 const categoryColumns: Array<{ key: Category; short: string; label: string }> = [
@@ -284,7 +284,7 @@ export default function PayrollApp() {
         startDate: employee.startDate ?? "", endDate: employee.endDate ?? "", dateOfBirth: employee.dateOfBirth ?? "",
         phone: employee.phone ?? "", email: employee.email ?? "", addressLine1: employee.addressLine1 ?? "",
         city: employee.city ?? "", state: employee.state ?? "IL", postalCode: employee.postalCode ?? "",
-        employmentType: employee.employmentType ?? "Part-time", isDpw: Boolean(employee.isDpw), emergencyName: employee.emergencyName ?? "",
+        employmentType: employee.employmentType ?? "Part-time", isDpw: Boolean(employee.isDpw), driverStatus: employee.driverStatus ?? "", emergencyName: employee.emergencyName ?? "",
         emergencyRelationship: employee.emergencyRelationship ?? "", emergencyPhone: employee.emergencyPhone ?? "", notes: employee.notes ?? "",
       });
     }
@@ -389,6 +389,7 @@ export default function PayrollApp() {
                 <label><span>Employee name *</span><input required placeholder="Last, First" value={employeeDraft.name} onChange={(event) => setEmployeeDraft((current) => ({ ...current, name: event.target.value }))} /></label>
                 <label><span>Employee number</span><input placeholder="Example: 1203-17" value={employeeDraft.employeeNumber} onChange={(event) => setEmployeeDraft((current) => ({ ...current, employeeNumber: event.target.value }))} /></label>
                 <label><span>Employment type</span><select value={employeeDraft.employmentType} onChange={(event) => setEmployeeDraft((current) => ({ ...current, employmentType: event.target.value }))}><option>Part-time</option><option>Full-time</option><option>Paid-on-call</option><option>Temporary</option><option>Contract</option></select></label>
+                <label><span>Driver status</span><select value={employeeDraft.driverStatus} onChange={(event) => setEmployeeDraft((current) => ({ ...current, driverStatus: event.target.value }))}><option value="">Not entered</option><option>Cleared</option><option>Ambulance Only</option><option>Not Cleared</option></select></label>
                 <label className="dpw-employee-check"><input type="checkbox" checked={employeeDraft.isDpw} onChange={(event) => setEmployeeDraft((current) => ({ ...current, isDpw: event.target.checked }))} /><span><strong>DPW employee</strong><small>Daily Log hours go to the DPW column. No holiday or overtime increase; Acting Officer pay still applies when selected.</small></span></label>
                 <label><span>Pay scale *</span><select value={employeeDraft.payScaleId} onChange={(event) => setEmployeeDraft((current) => ({ ...current, payScaleId: event.target.value }))}>{data.payScales.map((scale) => <option value={scale.id} key={scale.id}>{scale.label}</option>)}</select></label>
                 <label><span>Start date</span><input type="date" value={employeeDraft.startDate} onChange={(event) => setEmployeeDraft((current) => ({ ...current, startDate: event.target.value }))} /></label>
@@ -411,9 +412,9 @@ export default function PayrollApp() {
               <fieldset><legend>Administrative notes</legend><label className="notes-field"><span>Internal notes</span><textarea rows={3} placeholder="Restrictions, payroll notes, rehire eligibility, or other important information" value={employeeDraft.notes} onChange={(event) => setEmployeeDraft((current) => ({ ...current, notes: event.target.value }))} /></label></fieldset>
             </form>}
             <section className="content-card employee-roster-card"><div className="section-header"><div><h2>Employee roster</h2><p>Ended employees remain here for payroll history and can be updated or rehired.</p></div><div className="employee-form-actions"><span className="count-badge">{data.employees.length} records</span><button type="button" className="primary-action compact" onClick={() => editEmployee()}>Add Employee</button></div></div>
-              <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Employee #</th><th>Pay Scale</th><th>Phone</th><th>Start</th><th>Last Day</th><th>Status</th><th></th></tr></thead><tbody>{data.employees.map((employee) => {
+              <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Employee #</th><th>Pay Scale</th><th>Driver</th><th>Phone</th><th>Start</th><th>Last Day</th><th>Status</th><th></th></tr></thead><tbody>{data.employees.map((employee) => {
                 const payrollStatus = employee.startDate && employee.startDate > data.period.endDate ? "Scheduled" : employee.endDate && employee.endDate < data.period.startDate ? "Ended" : "Active";
-                return <tr key={employee.id}><td><span className="person-icon">♙</span><strong>{displayName(employee.name)}</strong></td><td>{employee.employeeNumber || "—"}</td><td>{employee.rank}</td><td>{employee.phone || "—"}</td><td>{employee.startDate || "—"}</td><td>{employee.endDate || "—"}</td><td><span className={`employment-status ${payrollStatus.toLowerCase()}`}>{payrollStatus}</span></td><td><button className="edit-employee" onClick={() => editEmployee(employee)}>Edit</button></td></tr>;
+                return <tr key={employee.id}><td><span className="person-icon">♙</span><strong>{displayName(employee.name)}</strong></td><td>{employee.employeeNumber || "—"}</td><td>{employee.rank}</td><td>{employee.driverStatus || "—"}</td><td>{employee.phone || "—"}</td><td>{employee.startDate || "—"}</td><td>{employee.endDate || "—"}</td><td><span className={`employment-status ${payrollStatus.toLowerCase()}`}>{payrollStatus}</span></td><td><button className="edit-employee" onClick={() => editEmployee(employee)}>Edit</button></td></tr>;
               })}</tbody></table></div>
             </section>
           </section>}
