@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     const type = resourceType(request);
     const canEdit = await isAdmin(request, db);
     const rows = type === "policy"
-      ? await db.prepare("SELECT id, title, policy_number AS policyNumber, category, effective_date AS effectiveDate, body, status, created_by AS createdBy, COALESCE(created_at, updated_at) AS createdAt, updated_by AS updatedBy, updated_at AS updatedAt FROM policies ORDER BY title COLLATE NOCASE").all()
+      ? await db.prepare("SELECT id, title, policy_number AS policyNumber, category, effective_date AS effectiveDate, body, status, created_by AS createdBy, COALESCE(created_at, updated_at) AS createdAt, updated_by AS updatedBy, updated_at AS updatedAt FROM policies ORDER BY CAST(policy_number AS INTEGER), title COLLATE NOCASE").all()
       : await db.prepare("SELECT id, title, address, box_number AS boxNumber, access_notes AS accessNotes, details, status, created_by AS createdBy, COALESCE(created_at, updated_at) AS createdAt, updated_by AS updatedBy, updated_at AS updatedAt FROM box_cards ORDER BY title COLLATE NOCASE").all();
     const revisions = await db.prepare("SELECT record_id AS recordId, revision_number AS revisionNumber, action, summary, actor, changed_at AS changedAt FROM record_revisions WHERE record_type = ? ORDER BY revision_number DESC").bind(type).all();
     const byRecord = new Map<string, unknown[]>();

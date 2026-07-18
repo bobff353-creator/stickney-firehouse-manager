@@ -151,6 +151,12 @@ export const policies = sqliteTable("policies", {
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [index("policies_title_idx").on(table.title)]);
 
+export const systemMeta = sqliteTable("system_meta", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const boxCards = sqliteTable("box_cards", {
   id: text("id").primaryKey(),
   title: text("title").notNull(),
