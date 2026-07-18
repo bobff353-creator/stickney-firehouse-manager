@@ -125,8 +125,10 @@ export async function POST(request: Request) {
     for (const [employeeId, hours] of totals) {
       if (dpwEmployees.has(employeeId)) {
         const dpwHours = Math.round((hours.shift + hours.holiday) * 100) / 100;
+        const actingOfficerHours = Math.round(hours.actingOfficer * 100) / 100;
         await db.prepare("DELETE FROM time_entries WHERE employee_id = ? AND work_date = ? AND category = 'dpw'").bind(employeeId, date).run();
         if (dpwHours > 0) await db.prepare("INSERT INTO time_entries (id, employee_id, period_start, work_date, category, hours, updated_at) VALUES (?, ?, ?, ?, 'dpw', ?, CURRENT_TIMESTAMP)").bind(crypto.randomUUID(), employeeId, periodStart, date, dpwHours).run();
+        if (actingOfficerHours > 0) await db.prepare("INSERT INTO time_entries (id, employee_id, period_start, work_date, category, hours, updated_at) VALUES (?, ?, ?, ?, 'actingOfficer', ?, CURRENT_TIMESTAMP)").bind(crypto.randomUUID(), employeeId, periodStart, date, actingOfficerHours).run();
         continue;
       }
       let dpwHours = dpwByEmployee.get(employeeId) ?? 0;
