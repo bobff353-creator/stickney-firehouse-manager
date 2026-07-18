@@ -1,0 +1,1 @@
+ALTER TABLE `employee_profiles` ADD `is_admin` integer DEFAULT false NOT NULL;

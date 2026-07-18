@@ -12,13 +12,13 @@ type Employee = PayScale & {
   id: string; name: string; payScaleId: string; rank: string; active: number;
   employeeNumber?: string | null; startDate?: string | null; endDate?: string | null; dateOfBirth?: string | null;
   phone?: string | null; email?: string | null; addressLine1?: string | null; city?: string | null;
-  state?: string | null; postalCode?: string | null; employmentType?: string | null; isDpw?: number | boolean; driverStatus?: string | null;
+  state?: string | null; postalCode?: string | null; employmentType?: string | null; isDpw?: number | boolean; driverStatus?: string | null; isAdmin?: number | boolean;
   emergencyName?: string | null; emergencyRelationship?: string | null; emergencyPhone?: string | null; notes?: string | null;
 };
 type EmployeeForm = {
   id?: string; name: string; payScaleId: string; employeeNumber: string; startDate: string; endDate: string;
   dateOfBirth: string; phone: string; email: string; addressLine1: string; city: string; state: string;
-  postalCode: string; employmentType: string; isDpw: boolean; driverStatus: string; emergencyName: string; emergencyRelationship: string;
+  postalCode: string; employmentType: string; isDpw: boolean; driverStatus: string; isAdmin: boolean; emergencyName: string; emergencyRelationship: string;
   emergencyPhone: string; notes: string;
 };
 type Entry = { id?: string; employeeId: string; workDate: string; category: Category; hours: number };
@@ -28,12 +28,15 @@ type PayrollData = {
   entries: Entry[];
   payScales: PayScale[];
   settings: { overtimeThreshold: number; actingOfficerPremium: number; dpwMultiplier: number };
+  viewer: { email: string; isAdmin: boolean; employeeId: string | null; displayName: string };
 };
 
-const navItems = ["Payroll", "Daily Log", "Timesheets", "Employees", "Employee Contacts", "Holiday Policy", "Phone Numbers", "Rates & Rules"] as const;
+type NavItem = "Payroll" | "Daily Log" | "Timesheets" | "My Timesheet" | "Employees" | "Employee Contacts" | "Holiday Policy" | "Phone Numbers" | "Rates & Rules";
+const adminNavItems: NavItem[] = ["Payroll", "Daily Log", "Timesheets", "Employees", "Employee Contacts", "Holiday Policy", "Phone Numbers", "Rates & Rules"];
+const employeeNavItems: NavItem[] = ["My Timesheet"];
 const emptyEmployee: EmployeeForm = {
   name: "", payScaleId: "firefighter", employeeNumber: "", startDate: "", endDate: "", dateOfBirth: "",
-  phone: "", email: "", addressLine1: "", city: "", state: "IL", postalCode: "", employmentType: "Part-time", isDpw: false, driverStatus: "",
+  phone: "", email: "", addressLine1: "", city: "", state: "IL", postalCode: "", employmentType: "Part-time", isDpw: false, driverStatus: "", isAdmin: false,
   emergencyName: "", emergencyRelationship: "", emergencyPhone: "", notes: "",
 };
 const categoryColumns: Array<{ key: Category; short: string; label: string }> = [
@@ -119,7 +122,7 @@ function Icon({ name }: { name: "people" | "clock" | "document" | "warning" | "s
 }
 
 export default function PayrollApp() {
-  const [activeNav, setActiveNav] = useState<(typeof navItems)[number]>("Payroll");
+  const [activeNav, setActiveNav] = useState<NavItem>("Payroll");
   const [periodStart, setPeriodStart] = useState(currentPeriodStart);
   const [data, setData] = useState<PayrollData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -145,6 +148,7 @@ export default function PayrollApp() {
       setRulesDraft(payload.settings);
       setScaleDraft(payload.payScales);
       setSelectedEmployeeId((current) => current || payload.employees[0]?.id || "");
+      setActiveNav((current) => payload.viewer.isAdmin ? (current === "My Timesheet" ? "Payroll" : current) : "My Timesheet");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to load payroll");
     } finally {
@@ -285,7 +289,7 @@ export default function PayrollApp() {
         startDate: employee.startDate ?? "", endDate: employee.endDate ?? "", dateOfBirth: employee.dateOfBirth ?? "",
         phone: employee.phone ?? "", email: employee.email ?? "", addressLine1: employee.addressLine1 ?? "",
         city: employee.city ?? "", state: employee.state ?? "IL", postalCode: employee.postalCode ?? "",
-        employmentType: employee.employmentType ?? "Part-time", isDpw: Boolean(employee.isDpw), driverStatus: employee.driverStatus ?? "", emergencyName: employee.emergencyName ?? "",
+        employmentType: employee.employmentType ?? "Part-time", isDpw: Boolean(employee.isDpw), driverStatus: employee.driverStatus ?? "", isAdmin: Boolean(employee.isAdmin), emergencyName: employee.emergencyName ?? "",
         emergencyRelationship: employee.emergencyRelationship ?? "", emergencyPhone: employee.emergencyPhone ?? "", notes: employee.notes ?? "",
       });
     }
@@ -305,15 +309,16 @@ export default function PayrollApp() {
   }
 
   const statusLabel = data?.period.status ? data.period.status[0].toUpperCase() + data.period.status.slice(1) : "Draft";
+  const visibleNav = data?.viewer.isAdmin ? adminNavItems : employeeNavItems;
 
   return (
     <main className="app-shell">
       <header className="topbar">
-        <button className="brand" onClick={() => setActiveNav("Payroll")}><span className="brand-mark"><span>◆</span></span><span>Stickney FD Manager</span></button>
+        <button className="brand" onClick={() => setActiveNav(data?.viewer.isAdmin ? "Payroll" : "My Timesheet")}><span className="brand-mark"><span>◆</span></span><span>Stickney FD Manager</span></button>
         <nav aria-label="Primary navigation">
-          {navItems.map((item) => <button key={item} className={activeNav === item ? "nav-active" : ""} onClick={() => setActiveNav(item)}>{item}</button>)}
+          {visibleNav.map((item) => <button key={item} className={activeNav === item ? "nav-active" : ""} onClick={() => setActiveNav(item)}>{item}</button>)}
         </nav>
-        <div className="profile"><span className="avatar">BW</span><span>Bob Wyant</span><span aria-hidden="true">⌄</span></div>
+        <div className="profile"><span className="avatar">{data?.viewer.displayName.split(/[ ,]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span><span>{data ? displayName(data.viewer.displayName) : "Signed in"}</span><span aria-hidden="true">⌄</span></div>
       </header>
 
       <section className="workspace">
@@ -331,7 +336,7 @@ export default function PayrollApp() {
               </div>
             </div>
             {activeNav === "Payroll" && <button className="primary-action" onClick={() => openTimesheet()}><span>◷</span> Enter Hours</button>}
-            {activeNav === "Timesheets" && <button className="primary-action secondary-red" onClick={() => setActiveNav("Payroll")}>Review Payroll</button>}
+            {activeNav === "Timesheets" && data.viewer.isAdmin && <button className="primary-action secondary-red" onClick={() => setActiveNav("Payroll")}>Review Payroll</button>}
           </div>}
 
           {activeNav === "Payroll" && <>
@@ -360,8 +365,8 @@ export default function PayrollApp() {
             </section>
           </>}
 
-          {activeNav === "Timesheets" && selectedEmployee && selectedSummary && <section className="content-card timesheet-card">
-            <div className="section-header"><div><label htmlFor="employee-select">Employee</label><select id="employee-select" value={selectedEmployee.id} onChange={(event) => setSelectedEmployeeId(event.target.value)}>{payrollEmployees.map((employee) => <option value={employee.id} key={employee.id}>{displayName(employee.name)} — {employee.rank}</option>)}</select></div><span className={`status-pill ${selectedSummary.status.toLowerCase().replace(" ", "-")}`}>{selectedSummary.status}</span></div>
+          {(activeNav === "Timesheets" || activeNav === "My Timesheet") && selectedEmployee && selectedSummary && <section className="content-card timesheet-card">
+            <div className="section-header"><div>{data.viewer.isAdmin ? <><label htmlFor="employee-select">Employee</label><select id="employee-select" value={selectedEmployee.id} onChange={(event) => setSelectedEmployeeId(event.target.value)}>{payrollEmployees.map((employee) => <option value={employee.id} key={employee.id}>{displayName(employee.name)} — {employee.rank}</option>)}</select></> : <><p className="eyebrow">My timesheet</p><h2>{displayName(selectedEmployee.name)}</h2><p>{selectedEmployee.rank} · Read only</p></>}</div><span className={`status-pill ${selectedSummary.status.toLowerCase().replace(" ", "-")}`}>{selectedSummary.status}</span></div>
             <div className="mini-summary"><div><span>Paid hours</span><strong>{selectedSummary.hours.toFixed(1)}</strong></div><div><span>Overtime</span><strong>{selectedSummary.overtimeHours.toFixed(1)}</strong></div><div><span>Holiday</span><strong>{selectedSummary.holidayHours.toFixed(1)}</strong></div><div><span>Gross pay</span><strong>{formatMoney(selectedSummary.gross)}</strong></div></div>
             {selectedSummary.issues.length > 0 && <div className="validation-box"><strong>Check these entries</strong>{selectedSummary.issues.map((issue) => <span key={issue}>• {issue}</span>)}</div>}
             <div className="entry-grid-wrap"><table className="entry-grid"><thead><tr><th>Date</th>{categoryColumns.map((column) => <th key={column.key} title={column.label}>{column.short}</th>)}<th>Total</th></tr></thead><tbody>
@@ -370,11 +375,11 @@ export default function PayrollApp() {
                 return <tr key={date}><td>{dayLabel(date)}</td>{categoryColumns.map((column) => {
                   const cell = `${selectedEmployee.id}-${date}-${column.key}`;
                   const value = entryValue(selectedEmployee.id, date, column.key);
-                  return <td key={column.key}><input aria-label={`${column.label} hours for ${dayLabel(date)}`} type="number" min="0" max="48" step="0.25" value={value || ""} className={savingCells.has(cell) ? "saving" : ""} onChange={(event) => changeEntry(selectedEmployee.id, date, column.key, safeNumber(event.target.value))} onBlur={(event) => void saveEntry(selectedEmployee.id, date, column.key, safeNumber(event.target.value))} /></td>;
+                  return <td key={column.key}><input aria-label={`${column.label} hours for ${dayLabel(date)}`} type="number" min="0" max="48" step="0.25" value={value || ""} readOnly={!data.viewer.isAdmin} className={`${savingCells.has(cell) ? "saving" : ""}${data.viewer.isAdmin ? "" : " timesheet-readonly"}`} onChange={(event) => { if (data.viewer.isAdmin) changeEntry(selectedEmployee.id, date, column.key, safeNumber(event.target.value)); }} onBlur={(event) => { if (data.viewer.isAdmin) void saveEntry(selectedEmployee.id, date, column.key, safeNumber(event.target.value)); }} /></td>;
                 })}<td className={rowTotal > 24 ? "row-warning" : ""}>{rowTotal.toFixed(1)}</td></tr>;
               })}
             </tbody><tfoot><tr><td>Period totals</td>{categoryColumns.map((column) => <td key={column.key}>{data.entries.filter((entry) => entry.employeeId === selectedEmployee.id && entry.category === column.key).reduce((sum, entry) => sum + entry.hours, 0).toFixed(1)}</td>)}<td>{selectedSummary.hours.toFixed(1)}</td></tr></tfoot></table></div>
-            <p className="helper-note">Acting Officer hours add the configured premium only. DPW hours use the configured DPW multiplier. Entries save when you leave a field.</p>
+            <p className="helper-note">{data.viewer.isAdmin ? "Acting Officer hours add the configured premium only. DPW hours use the configured DPW multiplier. Entries save when you leave a field." : "This timesheet is read only. Contact an administrator if an entry needs to be corrected."}</p>
           </section>}
 
           {activeNav === "Daily Log" && <DailyLog employees={data.employees} onPayrollSynced={() => { void loadPayroll(periodStart); }} />}
@@ -394,6 +399,7 @@ export default function PayrollApp() {
                 <label><span>Employment type</span><select value={employeeDraft.employmentType} onChange={(event) => setEmployeeDraft((current) => ({ ...current, employmentType: event.target.value }))}><option>Part-time</option><option>Full-time</option><option>Paid-on-call</option><option>Temporary</option><option>Contract</option></select></label>
                 <label><span>Driver status</span><select value={employeeDraft.driverStatus} onChange={(event) => setEmployeeDraft((current) => ({ ...current, driverStatus: event.target.value }))}><option value="">Not entered</option><option>Cleared</option><option>Ambulance Only</option><option>Not Cleared</option></select></label>
                 <label className="dpw-employee-check"><input type="checkbox" checked={employeeDraft.isDpw} onChange={(event) => setEmployeeDraft((current) => ({ ...current, isDpw: event.target.checked }))} /><span><strong>DPW employee</strong><small>Daily Log hours go to the DPW column. No holiday or overtime increase; Acting Officer pay still applies when selected.</small></span></label>
+                <label className="admin-employee-check"><input type="checkbox" checked={employeeDraft.isAdmin} onChange={(event) => setEmployeeDraft((current) => ({ ...current, isAdmin: event.target.checked }))} /><span><strong>Administrative privileges</strong><small>Can access payroll, every timesheet, employee records, and rates and rules.</small></span></label>
                 <label><span>Pay scale *</span><select value={employeeDraft.payScaleId} onChange={(event) => setEmployeeDraft((current) => ({ ...current, payScaleId: event.target.value }))}>{data.payScales.map((scale) => <option value={scale.id} key={scale.id}>{scale.label}</option>)}</select></label>
                 <label><span>Start date</span><input type="date" value={employeeDraft.startDate} onChange={(event) => setEmployeeDraft((current) => ({ ...current, startDate: event.target.value }))} /></label>
                 <label><span>Last day of work</span><input type="date" value={employeeDraft.endDate} min={employeeDraft.startDate || undefined} onChange={(event) => setEmployeeDraft((current) => ({ ...current, endDate: event.target.value }))} /></label>
@@ -401,7 +407,7 @@ export default function PayrollApp() {
               <fieldset><legend>Contact & personal information</legend><div className="employee-fields three-col">
                 <label><span>Date of birth</span><input type="date" value={employeeDraft.dateOfBirth} onChange={(event) => setEmployeeDraft((current) => ({ ...current, dateOfBirth: event.target.value }))} /></label>
                 <label><span>Phone number</span><input type="tel" placeholder="(708) 555-0123" value={employeeDraft.phone} onChange={(event) => setEmployeeDraft((current) => ({ ...current, phone: event.target.value }))} /></label>
-                <label><span>Email</span><input type="email" placeholder="name@example.com" value={employeeDraft.email} onChange={(event) => setEmployeeDraft((current) => ({ ...current, email: event.target.value }))} /></label>
+                <label><span>Login email</span><input type="email" placeholder="name@example.com" value={employeeDraft.email} onChange={(event) => setEmployeeDraft((current) => ({ ...current, email: event.target.value }))} /><small className="input-help">Must match the employee’s ChatGPT login email to show their timesheet.</small></label>
                 <label className="span-two"><span>Home address</span><input placeholder="Street address" value={employeeDraft.addressLine1} onChange={(event) => setEmployeeDraft((current) => ({ ...current, addressLine1: event.target.value }))} /></label>
                 <label><span>City</span><input value={employeeDraft.city} onChange={(event) => setEmployeeDraft((current) => ({ ...current, city: event.target.value }))} /></label>
                 <label><span>State</span><input maxLength={2} value={employeeDraft.state} onChange={(event) => setEmployeeDraft((current) => ({ ...current, state: event.target.value.toUpperCase() }))} /></label>
