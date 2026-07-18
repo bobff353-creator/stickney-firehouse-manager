@@ -4,59 +4,49 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Employee = { id: string; name: string; rank: string; phone?: string | null; email?: string | null; driverStatus?: string | null };
 type Entry = { employeeId: string; category: string; hours: number };
-type DashboardData = {
-  viewer: { isAdmin: boolean; displayName: string; employeeId: string | null };
-  employees: Employee[];
-  entries: Entry[];
-  period: { startDate: string; endDate: string; status: string };
-  grossPayroll: number;
-  reviewCount: number;
-  employeeGross: number;
-};
-type LogSnapshot = { staffing: Array<{ employeeId?: string }>; calls: unknown[]; approvals: Array<{ signInAt?: string; signOutAt?: string; signInEquipment?: string; signOutEquipment?: string }> };
+type DashboardData = { viewer: { isAdmin: boolean; displayName: string; employeeId: string | null }; employees: Employee[]; entries: Entry[]; period: { startDate: string; endDate: string; status: string }; grossPayroll: number; reviewCount: number; employeeGross: number };
+type Briefing = { asOf: string; currentShift: string; priorShift: string; onDuty: Array<{ employeeId: string; name: string; rank: string; timeIn: string; timeOut: string; actingOfficer: number }>; officerInCharge: string | null; staffing: { filled: number; required: number; complete: boolean }; equipmentIssues: Array<{ item: string; status: string; detail: string }>; approvals: { logs: number; payroll: number }; previousShift: { officer: string | null; note: string; calls: Array<{ reportNumber: string; timeOut: string; respondingUnits: string; address: string; callType: string }> } };
 
-function displayName(value: string) {
-  const [last, first] = value.split(",").map((part) => part.trim());
-  return first ? `${first} ${last}` : value;
-}
+function displayName(value: string) { const [last, first] = value.split(",").map((part) => part.trim()); return first ? `${first} ${last}` : value; }
+function shiftLabel(value: string) { return value === "morning" ? "6:00 AM – Noon" : value === "afternoon" ? "Noon – 6:00 PM" : "6:00 PM – 6:00 AM"; }
 function money(value: number) { return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value); }
-function chicagoDate() {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
-  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")}`;
-}
 
 export default function RoleDashboard({ data, onNavigate }: { data: DashboardData; onNavigate: (page: "Payroll" | "Daily Log" | "My Timesheet" | "Employees" | "Policies" | "Box Cards") => void }) {
-  const [log, setLog] = useState<LogSnapshot | null>(null);
+  const [briefing, setBriefing] = useState<Briefing | null>(null);
+  const [briefingError, setBriefingError] = useState("");
   const [resourceCounts, setResourceCounts] = useState({ policies: 0, boxCards: 0 });
   const ownEmployee = data.employees.find((employee) => employee.id === data.viewer.employeeId) ?? data.employees[0];
   const rank = ownEmployee?.rank.toLowerCase() ?? "";
   const isOfficer = !data.viewer.isAdmin && ["chief", "captain", "lieutenant"].some((title) => rank.includes(title));
   const role = data.viewer.isAdmin ? "Administrator" : isOfficer ? "Officer" : "Employee";
 
-  const loadSupportingData = useCallback(async () => {
-    const requests: Promise<void>[] = [fetch("/api/resources?type=policy").then(async (response) => { const result = await response.json() as { items?: unknown[] }; setResourceCounts((current) => ({ ...current, policies: result.items?.length ?? 0 })); }), fetch("/api/resources?type=boxCard").then(async (response) => { const result = await response.json() as { items?: unknown[] }; setResourceCounts((current) => ({ ...current, boxCards: result.items?.length ?? 0 })); })];
-    if (data.viewer.isAdmin || isOfficer) requests.push(fetch(`/api/logbook?date=${chicagoDate()}`).then(async (response) => { if (response.ok) setLog(await response.json() as LogSnapshot); }));
-    await Promise.all(requests);
-  }, [data.viewer.isAdmin, isOfficer]);
-  useEffect(() => { const timer = window.setTimeout(() => { void loadSupportingData(); }, 0); return () => window.clearTimeout(timer); }, [loadSupportingData]);
+  const load = useCallback(async () => {
+    setBriefingError("");
+    const [brief, policies, cards] = await Promise.all([fetch("/api/dashboard"), fetch("/api/resources?type=policy"), fetch("/api/resources?type=boxCard")]);
+    const briefData = await brief.json() as Briefing & { error?: string };
+    if (brief.ok) setBriefing(briefData); else setBriefingError(briefData.error || "Operational briefing unavailable");
+    const policyData = await policies.json() as { items?: unknown[] }, cardData = await cards.json() as { items?: unknown[] };
+    setResourceCounts({ policies: policyData.items?.length ?? 0, boxCards: cardData.items?.length ?? 0 });
+  }, []);
+  useEffect(() => { const initial = window.setTimeout(() => void load(), 0); const timer = window.setInterval(() => void load(), 60000); return () => { window.clearTimeout(initial); window.clearInterval(timer); }; }, [load]);
 
   const ownHours = useMemo(() => data.entries.filter((entry) => entry.employeeId === ownEmployee?.id && entry.category !== "actingOfficer").reduce((sum, entry) => sum + entry.hours, 0), [data.entries, ownEmployee?.id]);
-  const missingProfiles = data.employees.filter((employee) => !employee.email || !employee.phone || !employee.driverStatus);
-  const staffingCount = log?.staffing.filter((row) => row.employeeId).length ?? 0;
-  const approvalCount = log?.approvals.reduce((sum, approval) => sum + (approval.signInAt ? 1 : 0) + (approval.signOutAt ? 1 : 0), 0) ?? 0;
-  const equipmentIssues = log?.approvals.reduce((sum, approval) => sum + [approval.signInEquipment, approval.signOutEquipment].filter((value) => value && /(missing|out.of.service|oos)/i.test(value)).length, 0) ?? 0;
+  const pending = (briefing?.approvals.logs ?? 0) + (data.viewer.isAdmin ? briefing?.approvals.payroll ?? 0 : 0);
 
   return <section className="role-dashboard">
-    <div className="dashboard-welcome"><div><p className="eyebrow">{role} dashboard</p><h1>Welcome, {displayName(data.viewer.displayName)}</h1><p>{data.viewer.isAdmin ? "Payroll, personnel, and department operations at a glance." : isOfficer ? "Today’s staffing, handoffs, equipment, and your current pay period." : "Your current pay period and department resources."}</p></div><span className={`role-badge ${role.toLowerCase()}`}>{role}</span></div>
+    <div className="dashboard-welcome"><div><p className="eyebrow">{role} dashboard</p><h1>Department status</h1><p>Live operational briefing for {displayName(data.viewer.displayName)}.</p></div><div className="dashboard-live"><i/><strong>Live</strong><small>{briefing ? `Updated ${new Date(briefing.asOf).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "Updating…"}</small></div></div>
+    {briefingError && <div className="error-banner"><span>{briefingError}</span><button onClick={() => void load()}>Retry</button></div>}
 
-    {data.viewer.isAdmin ? <>
-      <div className="dashboard-metrics"><article><span>Payroll status</span><strong>{data.period.status}</strong><small>{data.period.startDate} – {data.period.endDate}</small></article><article><span>Calculated gross</span><strong>{money(data.grossPayroll)}</strong><small>{data.employees.length} employees</small></article><article className={data.reviewCount ? "metric-warning" : ""}><span>Need payroll review</span><strong>{data.reviewCount}</strong><small>{data.reviewCount ? "Open exceptions" : "No exceptions"}</small></article><article className={missingProfiles.length ? "metric-warning" : ""}><span>Incomplete profiles</span><strong>{missingProfiles.length}</strong><small>Missing email, phone, or driver status</small></article></div>
-      <div className="dashboard-columns"><section className="content-card dashboard-panel"><div className="dashboard-panel-head"><div><h2>Today’s operations</h2><p>{chicagoDate()}</p></div><button onClick={() => onNavigate("Daily Log")}>Open Daily Log</button></div><div className="dashboard-stat-list"><div><span>Personnel listed</span><strong>{staffingCount}</strong></div><div><span>Calls recorded</span><strong>{log?.calls.length ?? 0}</strong></div><div><span>Handoff approvals</span><strong>{approvalCount} / 6</strong></div><div className={equipmentIssues ? "attention" : ""}><span>Equipment issues</span><strong>{equipmentIssues}</strong></div></div></section><section className="content-card dashboard-panel"><div className="dashboard-panel-head"><div><h2>Action required</h2><p>Items needing administrator attention</p></div></div>{missingProfiles.length || data.reviewCount ? <div className="action-list">{data.reviewCount > 0 && <button onClick={() => onNavigate("Payroll")}><span>Review payroll exceptions</span><strong>{data.reviewCount} →</strong></button>}{missingProfiles.length > 0 && <button onClick={() => onNavigate("Employees")}><span>Complete employee information</span><strong>{missingProfiles.length} →</strong></button>}{approvalCount < 6 && <button onClick={() => onNavigate("Daily Log")}><span>Complete today’s handoffs</span><strong>{6 - approvalCount} →</strong></button>}</div> : <div className="dashboard-clear">✓ Nothing needs attention.</div>}</section></div>
-    </> : <>
-      <div className="dashboard-metrics employee-metrics"><article><span>Pay period hours</span><strong>{ownHours.toFixed(1)}</strong><small>{data.period.startDate} – {data.period.endDate}</small></article><article><span>Calculated pay</span><strong>{money(data.employeeGross)}</strong><small>Current period</small></article><article><span>Policies</span><strong>{resourceCounts.policies}</strong><small>Available to review</small></article><article><span>Box Cards</span><strong>{resourceCounts.boxCards}</strong><small>Available to search</small></article></div>
-      {isOfficer && <section className="content-card officer-today"><div className="dashboard-panel-head"><div><h2>Officer view · Today</h2><p>Shift readiness and handoff status</p></div></div><div className="dashboard-stat-list four"><div><span>Personnel listed</span><strong>{staffingCount}</strong></div><div><span>Calls</span><strong>{log?.calls.length ?? 0}</strong></div><div><span>Handoff approvals</span><strong>{approvalCount} / 6</strong></div><div className={equipmentIssues ? "attention" : ""}><span>Equipment issues</span><strong>{equipmentIssues}</strong></div></div></section>}
-      <section className="dashboard-quick"><h2>Quick access</h2><div><button onClick={() => onNavigate("My Timesheet")}><span>◷</span><strong>My Timesheet</strong><small>Review current hours and pay</small></button><button onClick={() => onNavigate("Policies")}><span>▤</span><strong>Policies</strong><small>Search department policies</small></button><button onClick={() => onNavigate("Box Cards")}><span>⌂</span><strong>Box Cards</strong><small>Find building response information</small></button></div></section>
-    </>}
+    <section className="command-status-grid" aria-label="Current department status">
+      <article className="command-card on-duty"><header><span className="command-icon">●</span><div><small>Who is working now?</small><h2>{briefing?.onDuty.length ?? "—"} on duty</h2></div></header><div className="on-duty-list">{briefing?.onDuty.length ? briefing.onDuty.map((person) => <div key={person.employeeId}><span>{displayName(person.name)}{person.actingOfficer ? <b>AO</b> : null}</span><small>{person.rank} · {person.timeIn}–{person.timeOut}</small></div>) : <p>No current staffing has been entered.</p>}</div><button onClick={() => onNavigate("Daily Log")}>Open Daily Log →</button></article>
+      <article className="command-card oic"><header><span className="command-icon">★</span><div><small>Officer in charge</small><h2>{briefing?.officerInCharge ? displayName(briefing.officerInCharge) : "Not signed in"}</h2></div></header><p>{briefing ? shiftLabel(briefing.currentShift) : "Current shift"}</p>{!briefing?.officerInCharge && <strong className="command-warning">Officer sign-in required</strong>}</article>
+      <article className={`command-card readiness ${briefing?.staffing.complete ? "is-clear" : "needs-attention"}`}><header><span className="command-icon">{briefing?.staffing.complete ? "✓" : "!"}</span><div><small>Staffing readiness</small><h2>{briefing?.staffing.complete ? "Complete" : "Needs attention"}</h2></div></header><div className="staffing-meter"><i style={{ width: `${Math.min(100, ((briefing?.staffing.filled ?? 0) / (briefing?.staffing.required || 4)) * 100)}%` }}/></div><p>{briefing?.staffing.filled ?? 0} of {briefing?.staffing.required ?? 4} positions filled{briefing?.officerInCharge ? " · OIC confirmed" : " · OIC missing"}</p></article>
+      <article className={`command-card equipment ${briefing?.equipmentIssues.length ? "needs-attention" : "is-clear"}`}><header><span className="command-icon">{briefing?.equipmentIssues.length ? "!" : "✓"}</span><div><small>Equipment status</small><h2>{briefing?.equipmentIssues.length ? `${briefing.equipmentIssues.length} issue${briefing.equipmentIssues.length === 1 ? "" : "s"}` : "No issues reported"}</h2></div></header>{briefing?.equipmentIssues.length ? <ul>{briefing.equipmentIssues.map((issue) => <li key={issue.item}><strong>{issue.item}</strong> · {issue.status}{issue.detail ? ` — ${issue.detail}` : ""}</li>)}</ul> : <p>Latest officer check reports equipment present.</p>}</article>
+      <article className={`command-card approvals ${pending ? "needs-attention" : "is-clear"}`}><header><span className="command-icon">{pending || "✓"}</span><div><small>Awaiting approval</small><h2>{pending ? `${pending} open item${pending === 1 ? "" : "s"}` : "All caught up"}</h2></div></header><div className="approval-lines"><button onClick={() => onNavigate("Daily Log")}><span>Log handoffs</span><strong>{briefing?.approvals.logs ?? 0}</strong></button>{data.viewer.isAdmin && <button onClick={() => onNavigate("Payroll")}><span>Payroll periods</span><strong>{briefing?.approvals.payroll ?? 0}</strong></button>}</div></article>
+      <article className="command-card previous-shift"><header><span className="command-icon">↶</span><div><small>Previous shift</small><h2>{briefing ? shiftLabel(briefing.priorShift ?? "") : "Handoff summary"}</h2></div></header><blockquote>{briefing?.previousShift.note || "Loading the previous shift handoff…"}</blockquote><div><span>{briefing?.previousShift.calls.length ?? 0} calls recorded</span>{briefing?.previousShift.officer && <span>OIC: {displayName(briefing.previousShift.officer)}</span>}</div>{briefing?.previousShift.calls.slice(0, 2).map((call, index) => <p className="previous-call" key={`${call.reportNumber}-${index}`}><strong>{call.callType}</strong> {call.timeOut || "Time not entered"} · {call.respondingUnits || "Units not entered"}{call.address ? ` · ${call.address}` : ""}</p>)}</article>
+    </section>
+
+    <div className="dashboard-metrics employee-metrics"><article><span>{data.viewer.isAdmin ? "Payroll status" : "Pay period hours"}</span><strong>{data.viewer.isAdmin ? data.period.status : ownHours.toFixed(1)}</strong><small>{data.period.startDate} – {data.period.endDate}</small></article><article><span>{data.viewer.isAdmin ? "Calculated gross" : "Calculated pay"}</span><strong>{money(data.viewer.isAdmin ? data.grossPayroll : data.employeeGross)}</strong><small>Current period</small></article><article><span>Policies</span><strong>{resourceCounts.policies}</strong><small>Available to review</small></article><article><span>Box Cards</span><strong>{resourceCounts.boxCards}</strong><small>Available to search</small></article></div>
+    <section className="dashboard-quick"><h2>Quick access</h2><div><button onClick={() => onNavigate(data.viewer.isAdmin ? "Payroll" : "My Timesheet")}><span>◷</span><strong>{data.viewer.isAdmin ? "Payroll" : "My Timesheet"}</strong><small>Review current hours and pay</small></button><button onClick={() => onNavigate("Policies")}><span>▤</span><strong>Policies</strong><small>Search department policies</small></button><button onClick={() => onNavigate("Box Cards")}><span>⌂</span><strong>Box Cards</strong><small>Find building response information</small></button></div></section>
   </section>;
 }
