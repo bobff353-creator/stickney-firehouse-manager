@@ -9,6 +9,6 @@
   "background_color": "#0f2e45",
   "theme_color": "#0f2e45",
   "icons": [
-    { "src": "/stickney-fd-patch.jpg", "sizes": "any", "type": "image/jpeg", "purpose": "any maskable" }
+    { "src": "/stickney-fd-patch.jpg?v=2", "sizes": "any", "type": "image/jpeg", "purpose": "any maskable" }
   ]
 }
