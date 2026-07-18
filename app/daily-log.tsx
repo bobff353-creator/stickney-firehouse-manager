@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { holidayForDate } from "./holidays";
 import ConfirmDialog from "./confirm-dialog";
+import { RecordCredibility, type Revision } from "./record-credibility";
 
 type LogEmployee = { id: string; name: string; rank: string; startDate?: string | null; endDate?: string | null };
 type StaffingRow = { id: string; shiftKey: string; employeeId: string; timeIn: string; timeOut: string; actingOfficer: boolean };
 type CallRow = { id: string; reportNumber: string; timeOut: string; timeIn: string; respondingUnits: string; address: string; callType: string };
 type Approval = { shiftKey: string; signInOfficerId?: string; signInAt?: string; signOutOfficerId?: string; signOutAt?: string; signOutNote?: string };
 type RecentNote = { logDate: string; note: string };
-type LogPayload = { log: { shiftNotes: string; locked: number; adminUnlocked: number; updatedAt: string }; staffing: StaffingRow[]; calls: CallRow[]; approvals: Approval[]; recentNotes: RecentNote[]; addresses: string[]; error?: string };
+type LogPayload = { log: { shiftNotes: string; locked: number; adminUnlocked: number; createdBy?: string; createdAt?: string; updatedBy?: string; updatedAt: string; lockedBy?: string; lockedAt?: string; revisions?: Revision[] }; staffing: StaffingRow[]; calls: CallRow[]; approvals: Approval[]; recentNotes: RecentNote[]; addresses: string[]; error?: string };
 type Handoff = { shiftKey: string; shiftTitle: string; mode: "in" | "out" };
 
 const shiftSections = [
@@ -65,6 +66,7 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
   const [unlocking, setUnlocking] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
+  const [logAudit, setLogAudit] = useState<LogPayload["log"] | null>(null);
   const loaded = useRef(false);
   const currentDay = useRef(localDate());
   const readOnly = locked && !adminUnlocked;
@@ -79,6 +81,7 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
       for (const shift of shiftSections) for (let i = rows.filter((row) => row.shiftKey === shift.key).length; i < 4; i += 1) rows.push(blankStaff(shift.key, shift.defaultIn, shift.defaultOut));
       const callRows = [...data.calls]; while (callRows.length < 2) callRows.push(blankCall());
       setStaffing(rows); setCalls(callRows); setShiftNotes(data.log?.shiftNotes ?? "");
+      setLogAudit(data.log ?? null);
       setAddresses(data.addresses ?? []); setApprovals(data.approvals ?? []); setRecentNotes(data.recentNotes ?? []);
       setLocked(Boolean(data.log?.locked)); setAdminUnlocked(Boolean(data.log?.adminUnlocked)); setDirty(false);
       setLastSynced(data.log?.updatedAt ? new Date(data.log.updatedAt) : new Date());
@@ -181,6 +184,7 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
   if (loading) return <section className="daily-log-skeleton" aria-label="Loading daily log" aria-busy="true"><div className="skeleton-heading"><span/><strong/></div><div className="skeleton-shifts"><i/><i/><i/></div><div className="skeleton-log-table"><i/><i/><i/></div></section>;
   return <section className={`logbook-page ${readOnly ? "is-locked" : "is-editable"}`}>
     <div className="logbook-heading standard-page-header"><div><span className="page-icon" aria-hidden="true">▣</span><div><p className="eyebrow">Stickney Fire Department</p><h2>Daily Logbook</h2><p>Automatically saved staffing, responses, equipment checks, and officer handoffs.</p></div></div><div className="log-date-actions"><label><span>Log date</span><input type="date" value={logDate} onChange={(event) => setLogDate(event.target.value)} /></label><div className={`autosave-state ${!isOnline ? "offline" : saving ? "saving" : dirty ? "pending" : "saved"}`}><strong>{!isOnline ? "Offline" : saving ? "Saving…" : dirty ? "Save pending" : "Saved"}</strong><small>Last synced {lastSynced ? lastSynced.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "—"}</small></div></div></div>
+    {logAudit && <RecordCredibility audit={{ recordNumber: `LOG-${logDate.replaceAll("-", "")}`, status: readOnly ? "Locked" : adminUnlocked ? "Unlocked for correction" : "Editable", createdBy: logAudit.createdBy, createdAt: logAudit.createdAt, updatedBy: logAudit.updatedBy, updatedAt: logAudit.updatedAt, closedBy: logAudit.lockedBy, closedAt: logAudit.lockedAt, closedLabel: "Locked", revisions: logAudit.revisions }} />}
     {holiday && <div className="holiday-log-banner"><div className="holiday-star">★</div><div><span>Department Holiday</span><strong>{holiday.name}</strong><p>{holiday.overnightOnly ? "Holiday pay applies to the 6:00 PM–6:00 AM section only." : "Eligible hours worked today automatically receive the configured holiday rate."}</p></div></div>}
     {readOnly && <div className="locked-banner"><div><strong>🔒 Daily log locked</strong><span>Logs lock automatically after midnight. Editing requires administrator approval.</span></div><button onClick={() => setUnlockConfirmOpen(true)}>Admin Unlock</button></div>}
     {adminUnlocked && locked && <div className="admin-banner">Administrator editing is enabled for this locked log.</div>}

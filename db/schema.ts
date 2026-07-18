@@ -54,7 +54,12 @@ export const payPeriods = sqliteTable("pay_periods", {
   startDate: text("start_date").primaryKey(),
   endDate: text("end_date").notNull(),
   status: text("status").notNull().default("draft"),
+  createdBy: text("created_by").notNull().default("System"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedBy: text("updated_by").notNull().default("System"),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  finalizedBy: text("finalized_by"),
+  finalizedAt: text("finalized_at"),
 });
 
 export const timeEntries = sqliteTable("time_entries", {
@@ -75,7 +80,12 @@ export const dailyLogs = sqliteTable("daily_logs", {
   shiftNotes: text("shift_notes").notNull().default(""),
   locked: integer("locked", { mode: "boolean" }).notNull().default(false),
   adminUnlocked: integer("admin_unlocked", { mode: "boolean" }).notNull().default(false),
+  createdBy: text("created_by").notNull().default("System"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedBy: text("updated_by").notNull().default("System"),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  lockedBy: text("locked_by"),
+  lockedAt: text("locked_at"),
 });
 
 export const dailyLogStaffing = sqliteTable("daily_log_staffing", {
@@ -134,6 +144,9 @@ export const policies = sqliteTable("policies", {
   category: text("category").notNull().default("General"),
   effectiveDate: text("effective_date").notNull().default(""),
   body: text("body").notNull().default(""),
+  status: text("status").notNull().default("Active"),
+  createdBy: text("created_by").notNull().default("System"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedBy: text("updated_by").notNull().default(""),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [index("policies_title_idx").on(table.title)]);
@@ -145,6 +158,20 @@ export const boxCards = sqliteTable("box_cards", {
   boxNumber: text("box_number").notNull().default(""),
   accessNotes: text("access_notes").notNull().default(""),
   details: text("details").notNull().default(""),
+  status: text("status").notNull().default("Active"),
+  createdBy: text("created_by").notNull().default("System"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedBy: text("updated_by").notNull().default(""),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [index("box_cards_title_idx").on(table.title)]);
+
+export const recordRevisions = sqliteTable("record_revisions", {
+  id: text("id").primaryKey(),
+  recordType: text("record_type").notNull(),
+  recordId: text("record_id").notNull(),
+  revisionNumber: integer("revision_number").notNull(),
+  action: text("action").notNull(),
+  summary: text("summary").notNull().default(""),
+  actor: text("actor").notNull(),
+  changedAt: text("changed_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [uniqueIndex("record_revision_number_idx").on(table.recordType, table.recordId, table.revisionNumber)]);

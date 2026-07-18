@@ -707,3 +707,41 @@ td strong { font-size: 16px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
 }
+
+.record-credibility { margin: 0 0 20px; border: 1px solid #c9d4dc; border-left: 4px solid #173f5f; border-radius: 10px; background: #fff; box-shadow: 0 3px 12px rgba(16,40,61,.06); overflow: hidden; }
+.record-identity { min-height: 64px; padding: 12px 16px; display: flex; align-items: center; gap: 14px; background: #f5f8fa; border-bottom: 1px solid #dbe3e8; }
+.record-identity > div { margin-right: auto; display: grid; gap: 2px; }
+.record-identity span, .record-metadata span { color: #607487; font-size: 10px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.record-identity strong { color: #153b59; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 15px; letter-spacing: .03em; }
+.record-status { padding: 6px 10px; border-radius: 999px; background: #e1edf5; color: #174d73 !important; letter-spacing: .04em !important; }
+.record-status.finalized, .record-status.locked, .record-status.active { background: #e4f1e8; color: #21623a !important; }
+.record-print { min-height: 38px; padding: 0 13px; border: 1px solid #9fb0bd; border-radius: 7px; background: white; color: #173f5f; font-weight: 800; cursor: pointer; }
+.record-metadata { padding: 14px 16px; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; }
+.record-metadata > div { display: grid; gap: 3px; }
+.record-metadata strong { color: #243e52; font-size: 13px; overflow-wrap: anywhere; }
+.record-metadata small { color: #6a7b89; font-size: 12px; }
+.revision-history { border-top: 1px solid #e0e6ea; }
+.revision-history summary { padding: 12px 16px; color: #284b64; font-size: 13px; font-weight: 850; cursor: pointer; }
+.revision-history summary span { margin-left: 6px; padding: 2px 7px; border-radius: 10px; background: #e5ebef; }
+.revision-history ol { margin: 0; padding: 0 18px 16px 48px; display: grid; gap: 9px; }
+.revision-history li { padding-left: 4px; color: #344d60; }
+.revision-history li strong, .revision-history li span, .revision-history li small { display: block; }
+.revision-history li span, .revision-history p { color: #596f80; font-size: 12px; }
+.revision-history li small { margin-top: 2px; color: #758591; font-size: 11px; }
+.revision-history p { padding: 0 16px 14px; }
+.official-record .record-credibility { margin-top: 22px; margin-bottom: 0; }
+
+@media (max-width: 680px) {
+  .record-identity { align-items: flex-start; flex-wrap: wrap; }
+  .record-identity > div { width: calc(100% - 110px); }
+  .record-print { width: 100%; }
+  .record-metadata { grid-template-columns: 1fr; }
+}
+
+@media print {
+  .sidebar, .topbar, .portal-footer, .no-print, .record-print, .mobile-nav-panel, .confirm-backdrop, .toast { display: none !important; }
+  .app-shell, .app-main, .workspace { display: block !important; width: 100% !important; margin: 0 !important; padding: 0 !important; background: white !important; }
+  .content-card, .record-credibility { break-inside: avoid; box-shadow: none !important; }
+  .record-credibility { border: 1px solid #777; }
+  button, input, select, textarea { color: black !important; }
+}

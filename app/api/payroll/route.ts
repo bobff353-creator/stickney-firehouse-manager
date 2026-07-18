@@ -2,6 +2,7 @@ import { ensureDatabase } from "../../../db/bootstrap";
 
 const categories = ["shift", "drill", "workDetail", "callback", "actingOfficer", "holiday", "dpw"] as const;
 const ownerAdminEmails = ["bobff353@gmail.com"];
+async function addRevision(db: Awaited<ReturnType<typeof ensureDatabase>>, id: string, action: string, summary: string, actor: string) { await db.prepare("INSERT INTO record_revisions (id, record_type, record_id, revision_number, action, summary, actor) SELECT ?, 'payroll', ?, COALESCE(MAX(revision_number), 0) + 1, ?, ?, ? FROM record_revisions WHERE record_type = 'payroll' AND record_id = ?").bind(crypto.randomUUID(), id, action, summary, actor, id).run(); }
 
 async function getViewer(db: Awaited<ReturnType<typeof ensureDatabase>>, request: Request) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
@@ -50,11 +51,12 @@ export async function GET(request: Request) {
       entryQuery,
       scaleQuery,
       db.prepare("SELECT overtime_threshold AS overtimeThreshold, acting_officer_premium AS actingOfficerPremium, dpw_multiplier AS dpwMultiplier FROM payroll_settings WHERE id = 1").first(),
-      db.prepare("SELECT start_date AS startDate, end_date AS endDate, status FROM pay_periods WHERE start_date = ?").bind(start).first(),
+      db.prepare("SELECT start_date AS startDate, end_date AS endDate, status, created_by AS createdBy, COALESCE(created_at, updated_at) AS createdAt, updated_by AS updatedBy, updated_at AS updatedAt, finalized_by AS finalizedBy, finalized_at AS finalizedAt FROM pay_periods WHERE start_date = ?").bind(start).first(),
     ]);
 
+    const revisions = await db.prepare("SELECT revision_number AS revisionNumber, action, summary, actor, changed_at AS changedAt FROM record_revisions WHERE record_type = 'payroll' AND record_id = ? ORDER BY revision_number DESC").bind(start).all();
     return Response.json({
-      period: periodRow,
+      period: { ...(periodRow as object), revisions: revisions.results },
       employees: employeeRows.results,
       entries: entryRows.results,
       payScales: scaleRows.results,
@@ -89,6 +91,8 @@ export async function POST(request: Request) {
       } else {
         await db.prepare("INSERT INTO time_entries (id, employee_id, period_start, work_date, category, hours, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(employee_id, work_date, category) DO UPDATE SET hours = excluded.hours, period_start = excluded.period_start, updated_at = CURRENT_TIMESTAMP").bind(crypto.randomUUID(), employeeId, periodStart, workDate, category, hours).run();
       }
+      await db.prepare("UPDATE pay_periods SET updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE start_date = ?").bind(viewer.displayName, periodStart).run();
+      await addRevision(db, periodStart, "Hours updated", `${workDate} ${category} entry updated`, viewer.displayName);
       return Response.json({ ok: true });
     }
 
@@ -121,7 +125,8 @@ export async function POST(request: Request) {
       const periodStart = cleanStart(String(payload.periodStart ?? ""));
       const status = String(payload.status ?? "draft");
       if (!['draft', 'reviewed', 'finalized'].includes(status)) return Response.json({ error: "Invalid status" }, { status: 400 });
-      await db.prepare("INSERT INTO pay_periods (start_date, end_date, status, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(start_date) DO UPDATE SET status = excluded.status, updated_at = CURRENT_TIMESTAMP").bind(periodStart, periodEnd(periodStart), status).run();
+      await db.prepare("INSERT INTO pay_periods (start_date, end_date, status, created_by, updated_by, updated_at, finalized_by, finalized_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CASE WHEN ? = 'finalized' THEN ? END, CASE WHEN ? = 'finalized' THEN CURRENT_TIMESTAMP END) ON CONFLICT(start_date) DO UPDATE SET status = excluded.status, updated_by = excluded.updated_by, updated_at = CURRENT_TIMESTAMP, finalized_by = CASE WHEN excluded.status = 'finalized' THEN excluded.updated_by ELSE pay_periods.finalized_by END, finalized_at = CASE WHEN excluded.status = 'finalized' THEN CURRENT_TIMESTAMP ELSE pay_periods.finalized_at END").bind(periodStart, periodEnd(periodStart), status, viewer.displayName, viewer.displayName, status, viewer.displayName, status).run();
+      await addRevision(db, periodStart, status === "finalized" ? "Finalized" : "Status changed", `Payroll status changed to ${status}`, viewer.displayName);
       return Response.json({ ok: true });
     }
 

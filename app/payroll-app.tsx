@@ -9,6 +9,7 @@ import EmployeeContacts from "./employee-contacts";
 import { BoxCardsPage, PoliciesPage } from "./resource-pages";
 import RoleDashboard from "./role-dashboard";
 import ConfirmDialog from "./confirm-dialog";
+import { RecordCredibility, type Revision } from "./record-credibility";
 
 type Category = "shift" | "drill" | "workDetail" | "callback" | "actingOfficer" | "holiday" | "dpw";
 type PayScale = { id: string; label: string; regularRate: number; overtimeRate: number; holidayRate: number };
@@ -27,7 +28,7 @@ type EmployeeForm = {
 };
 type Entry = { id?: string; employeeId: string; workDate: string; category: Category; hours: number };
 type PayrollData = {
-  period: { startDate: string; endDate: string; status: "draft" | "reviewed" | "finalized" };
+  period: { startDate: string; endDate: string; status: "draft" | "reviewed" | "finalized"; createdBy?: string; createdAt?: string; updatedBy?: string; updatedAt?: string; finalizedBy?: string; finalizedAt?: string; revisions?: Revision[] };
   employees: Employee[];
   entries: Entry[];
   payScales: PayScale[];
@@ -444,6 +445,8 @@ export default function PayrollApp() {
             {activeNav === "Payroll" && <button className="primary-action" onClick={() => openTimesheet()}><Icon name={data.period.status === "finalized" ? "document" : "clock"}/> {data.period.status === "finalized" ? "View Timesheets" : "Enter Hours"}</button>}
             {activeNav === "Timesheets" && data.viewer.isAdmin && <button className="primary-action secondary-red" onClick={() => setActiveNav("Payroll")}>Review Payroll</button>}
           </div>}
+
+          {(activeNav === "Payroll" || activeNav === "Timesheets" || activeNav === "My Timesheet") && <RecordCredibility audit={{ recordNumber: `PAY-${data.period.startDate.replaceAll("-", "")}`, status: statusLabel, createdBy: data.period.createdBy, createdAt: data.period.createdAt, updatedBy: data.period.updatedBy, updatedAt: data.period.updatedAt, closedBy: data.period.finalizedBy, closedAt: data.period.finalizedAt, revisions: data.period.revisions }} />}
 
           {activeNav === "Payroll" && <div className={data.period.status === "finalized" ? "record-finalized" : "record-editable"}>
             {data.period.status === "finalized" && <div className="record-state-banner finalized"><span className="state-lock" aria-hidden="true">✓</span><div><strong>Finalized payroll · Read only</strong><span>This pay period is closed. Hours and payroll totals can no longer be changed.</span></div></div>}
