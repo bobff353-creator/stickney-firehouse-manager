@@ -34,17 +34,18 @@ type PayrollData = {
   viewer: { email: string; isAdmin: boolean; employeeId: string | null; displayName: string };
 };
 type GlobalSearchItem = { id: string; type: "Employee" | "Contact" | "Policy" | "Box Card" | "Important Number"; title: string; detail: string; page: NavItem };
+type IconName = "home" | "log" | "box" | "users" | "phone" | "payroll" | "clock" | "rates" | "document" | "holiday" | "settings" | "search" | "bell" | "menu" | "close" | "filter" | "export" | "back" | "next" | "save" | "warning" | "chevron";
 
 type NavItem = "Dashboard" | "Payroll" | "Daily Log" | "Timesheets" | "My Timesheet" | "Employees" | "Employee Contacts" | "Policies" | "Box Cards" | "Holiday Policy" | "Phone Numbers" | "Rates & Rules";
 const adminNavItems: NavItem[] = ["Dashboard", "Payroll", "Daily Log", "Timesheets", "Employees", "Employee Contacts", "Policies", "Box Cards", "Holiday Policy", "Phone Numbers", "Rates & Rules"];
 const employeeNavItems: NavItem[] = ["Dashboard", "My Timesheet", "Policies", "Box Cards"];
-const navIcons: Record<NavItem, string> = { Dashboard: "⌂", Payroll: "$", "Daily Log": "▣", Timesheets: "◷", "My Timesheet": "◷", Employees: "♙", "Employee Contacts": "☎", Policies: "▤", "Box Cards": "⌑", "Holiday Policy": "★", "Phone Numbers": "☏", "Rates & Rules": "⚙" };
-const adminNavGroups: Array<{ label: string; icon: string; items: Array<{ label: string; page: NavItem }> }> = [
-  { label: "Operations", icon: "▣", items: [{ label: "Daily Log", page: "Daily Log" }, { label: "Box Cards", page: "Box Cards" }] },
-  { label: "Personnel", icon: "♙", items: [{ label: "Employees", page: "Employees" }, { label: "Contacts", page: "Employee Contacts" }] },
-  { label: "Payroll", icon: "$", items: [{ label: "Payroll", page: "Payroll" }, { label: "Timesheets", page: "Timesheets" }, { label: "Rates", page: "Rates & Rules" }] },
-  { label: "Documents", icon: "▤", items: [{ label: "Policies", page: "Policies" }, { label: "Holiday Policy", page: "Holiday Policy" }] },
-  { label: "Settings", icon: "⚙", items: [{ label: "Important Phone Numbers", page: "Phone Numbers" }] },
+const navIcons: Record<NavItem, IconName> = { Dashboard: "home", Payroll: "payroll", "Daily Log": "log", Timesheets: "clock", "My Timesheet": "clock", Employees: "users", "Employee Contacts": "phone", Policies: "document", "Box Cards": "box", "Holiday Policy": "holiday", "Phone Numbers": "phone", "Rates & Rules": "rates" };
+const adminNavGroups: Array<{ label: string; icon: IconName; items: Array<{ label: string; page: NavItem }> }> = [
+  { label: "Operations", icon: "log", items: [{ label: "Daily Log", page: "Daily Log" }, { label: "Box Cards", page: "Box Cards" }] },
+  { label: "Personnel", icon: "users", items: [{ label: "Employees", page: "Employees" }, { label: "Contacts", page: "Employee Contacts" }] },
+  { label: "Payroll", icon: "payroll", items: [{ label: "Payroll", page: "Payroll" }, { label: "Timesheets", page: "Timesheets" }, { label: "Rates", page: "Rates & Rules" }] },
+  { label: "Documents", icon: "document", items: [{ label: "Policies", page: "Policies" }, { label: "Holiday Policy", page: "Holiday Policy" }] },
+  { label: "Settings", icon: "settings", items: [{ label: "Important Phone Numbers", page: "Phone Numbers" }] },
 ];
 const emptyEmployee: EmployeeForm = {
   name: "", payScaleId: "firefighter", employeeNumber: "", startDate: "", endDate: "", dateOfBirth: "",
@@ -128,9 +129,31 @@ function safeNumber(value: string | number) {
   return Number.isFinite(number) ? number : 0;
 }
 
-function Icon({ name }: { name: "people" | "clock" | "document" | "warning" | "search" | "filter" | "export" | "back" | "next" | "save" }) {
-  const symbols = { people: "👥", clock: "◷", document: "▤", warning: "!", search: "⌕", filter: "▽", export: "⇧", back: "‹", next: "›", save: "✓" };
-  return <span aria-hidden="true">{symbols[name]}</span>;
+function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
+  const common = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  return <svg className="line-icon" aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" {...common}>
+    {name === "home" && <><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10M9 20v-6h6v6"/></>}
+    {name === "log" && <><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3h6v4H9zM9 11h6M9 15h6"/></>}
+    {name === "box" && <><path d="m4 7 8-4 8 4-8 4-8-4Z"/><path d="m4 7 0 10 8 4 8-4V7M12 11v10"/></>}
+    {name === "users" && <><circle cx="9" cy="8" r="3"/><path d="M3.5 20v-2.5A4.5 4.5 0 0 1 8 13h2a4.5 4.5 0 0 1 4.5 4.5V20M16 5.5a3 3 0 0 1 0 5.8M17 13a4 4 0 0 1 3.5 4v3"/></>}
+    {name === "phone" && <path d="M5 3h4l2 5-2.5 1.8a15 15 0 0 0 5.7 5.7L16 13l5 2v4c0 1.1-.9 2-2 2C10.2 21 3 13.8 3 5c0-1.1.9-2 2-2Z"/>}
+    {name === "payroll" && <><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h4M7 13h2M15 9v6M13 11h4M13 15h4"/></>}
+    {name === "clock" && <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>}
+    {name === "rates" && <><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></>}
+    {name === "document" && <><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5M9 12h6M9 16h6"/></>}
+    {name === "holiday" && <><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4"/><circle cx="12" cy="12" r="3"/></>}
+    {name === "settings" && <><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A7 7 0 0 0 15 6.2L14.7 3h-4L10 6.2a7 7 0 0 0-1.5.9l-2.4-1-2 3.4L6.1 11a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.4-1a7 7 0 0 0 1.5.9l.7 3.2h4l.3-3.2a7 7 0 0 0 1.5-.9l2.4 1 2-3.4-2-1.5c.1-.3.1-.7.1-1Z"/></>}
+    {name === "search" && <><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></>}
+    {name === "bell" && <><path d="M6 9a6 6 0 0 1 12 0c0 7 3 7 3 8H3c0-1 3-1 3-8M10 21h4"/></>}
+    {name === "menu" && <path d="M4 7h16M4 12h16M4 17h16"/>}
+    {name === "close" && <path d="m6 6 12 12M18 6 6 18"/>}
+    {name === "filter" && <path d="M4 5h16l-6 7v6l-4 2v-8z"/>}
+    {name === "export" && <><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 14v6h14v-6"/></>}
+    {name === "back" && <path d="m15 5-7 7 7 7"/>}{name === "next" && <path d="m9 5 7 7-7 7"/>}
+    {name === "save" && <path d="m5 12 4 4L19 6"/>}
+    {name === "warning" && <><path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5M12 17h.01"/></>}
+    {name === "chevron" && <path d="m9 7 5 5-5 5"/>}
+  </svg>;
 }
 
 export default function PayrollApp() {
@@ -149,7 +172,6 @@ export default function PayrollApp() {
   const [employeeDraft, setEmployeeDraft] = useState<EmployeeForm>(emptyEmployee);
   const [profileOpen, setProfileOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [openNavGroup, setOpenNavGroup] = useState<string | null>(null);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
   const [sharedSearchItems, setSharedSearchItems] = useState<GlobalSearchItem[]>([]);
@@ -358,23 +380,23 @@ export default function PayrollApp() {
 
   const statusLabel = data?.period.status ? data.period.status[0].toUpperCase() + data.period.status.slice(1) : "Draft";
   const visibleNav = data?.viewer.isAdmin ? adminNavItems : employeeNavItems;
-  function navigate(page: NavItem) { setActiveNav(page); setMobileMenuOpen(false); setOpenNavGroup(null); setGlobalSearchOpen(false); setGlobalSearch(""); window.scrollTo({ top: 0, behavior: "smooth" }); }
+  function navigate(page: NavItem) { setActiveNav(page); setMobileMenuOpen(false); setGlobalSearchOpen(false); setGlobalSearch(""); window.scrollTo({ top: 0, behavior: "smooth" }); }
 
   return (
     <main className="app-shell">
+      <aside className="desktop-sidebar">
+        <button className="sidebar-brand" onClick={() => navigate("Dashboard")} aria-label="Stickney Fire Department Operations Portal home"><Image className="brand-patch" src="/stickney-fd-patch.jpg" alt="" width={64} height={64} priority /><span><strong>Stickney Fire Department</strong><small>Operations Portal</small></span></button>
+        <nav className="sidebar-nav" aria-label="Primary navigation"><button className={activeNav === "Dashboard" ? "current" : ""} onClick={() => navigate("Dashboard")}><Icon name="home"/><span>Dashboard</span></button>{data?.viewer.isAdmin ? adminNavGroups.map((group) => <section key={group.label}><h2>{group.label}</h2>{group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><Icon name={navIcons[item.page]}/><span>{item.label}</span></button>)}</section>) : <section><h2>My Portal</h2>{visibleNav.filter((item) => item !== "Dashboard").map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => navigate(item)}><Icon name={navIcons[item]}/><span>{item}</span></button>)}</section>}</nav>
+        <div className="sidebar-footer"><span className="system-dot"/>System ready<small>Portal v1.0</small></div>
+      </aside>
       <header className="topbar">
-        <button className="brand" onClick={() => navigate("Dashboard")} aria-label="Stickney Fire Department Operations Portal home"><Image className="brand-patch" src="/stickney-fd-patch.jpg" alt="" width={58} height={58} priority /><span className="brand-copy"><strong>Stickney Fire Department</strong><small>Operations Portal</small></span><span className="brand-copy-mobile">SFD Operations Portal</span></button>
-        <nav className="desktop-nav" aria-label="Primary navigation">
-          <button className={activeNav === "Dashboard" ? "nav-active" : ""} onClick={() => navigate("Dashboard")}><span className="nav-icon" aria-hidden="true">⌂</span>Dashboard</button>
-          {data?.viewer.isAdmin ? adminNavGroups.map((group) => <div className={`nav-group ${group.items.some((item) => item.page === activeNav) ? "group-active" : ""}`} key={group.label}><button aria-expanded={openNavGroup === group.label} onClick={() => setOpenNavGroup((current) => current === group.label ? null : group.label)}><span className="nav-icon" aria-hidden="true">{group.icon}</span>{group.label}<span className="nav-caret">⌄</span></button>{openNavGroup === group.label && <div className="nav-dropdown">{group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><span aria-hidden="true">{navIcons[item.page]}</span><span>{item.label}</span></button>)}</div>}</div>) : visibleNav.filter((item) => item !== "Dashboard").map((item) => <button key={item} className={activeNav === item ? "nav-active" : ""} onClick={() => navigate(item)}><span className="nav-icon" aria-hidden="true">{navIcons[item]}</span>{item}</button>)}
-        </nav>
-        <button className="global-search-trigger" onClick={() => void openGlobalSearch()} aria-label="Search all records"><span aria-hidden="true">⌕</span><span>Search</span></button>
-        <button className="mobile-menu-toggle" aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen((current) => !current)}><span aria-hidden="true">{mobileMenuOpen ? "×" : "☰"}</span><span>Menu</span></button>
-        <div className="profile"><span className="avatar">{data?.viewer.displayName.split(/[ ,]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span><span>{data ? displayName(data.viewer.displayName) : "Signed in"}</span><span aria-hidden="true">⌄</span></div>
-        {mobileMenuOpen && <nav id="mobile-navigation" className="mobile-nav-panel" aria-label="Mobile navigation"><button className={activeNav === "Dashboard" ? "current" : ""} onClick={() => navigate("Dashboard")}><span aria-hidden="true">⌂</span>Dashboard</button>{data?.viewer.isAdmin ? adminNavGroups.map((group) => <section key={group.label}><h2><span aria-hidden="true">{group.icon}</span>{group.label}</h2>{group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><span aria-hidden="true">{navIcons[item.page]}</span>{item.label}</button>)}</section>) : visibleNav.filter((item) => item !== "Dashboard").map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => navigate(item)}><span aria-hidden="true">{navIcons[item]}</span>{item}</button>)}</nav>}
+        <button className="mobile-brand" onClick={() => navigate("Dashboard")} aria-label="Operations Portal home"><Image src="/stickney-fd-patch.jpg" alt="" width={44} height={44}/><strong>SFD Operations Portal</strong></button>
+        <div className="topbar-context"><span>Stickney Fire Department</span><strong>{activeNav}</strong></div>
+        <div className="topbar-utilities"><button className="global-search-trigger" onClick={() => void openGlobalSearch()}><Icon name="search"/><span>Search</span><kbd>⌘ K</kbd></button><button className="notification-button" aria-label={`${reviewCount} notifications`} onClick={() => navigate(data?.viewer.isAdmin && reviewCount ? "Payroll" : "Dashboard")}><Icon name="bell"/>{reviewCount > 0 && <span>{reviewCount}</span>}</button><div className="profile"><span className="avatar">{data?.viewer.displayName.split(/[ ,]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span><span className="profile-copy"><strong>{data ? displayName(data.viewer.displayName) : "Signed in"}</strong><small>{data?.viewer.isAdmin ? "Administrator" : "Employee"}</small></span><Icon name="chevron" size={15}/></div><button className="mobile-menu-toggle" aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen((current) => !current)} aria-label="Open navigation"><Icon name={mobileMenuOpen ? "close" : "menu"}/></button></div>
+        {mobileMenuOpen && <nav id="mobile-navigation" className="mobile-nav-panel" aria-label="Mobile navigation"><button className={activeNav === "Dashboard" ? "current" : ""} onClick={() => navigate("Dashboard")}><Icon name="home"/>Dashboard</button>{data?.viewer.isAdmin ? adminNavGroups.map((group) => <section key={group.label}><h2>{group.label}</h2>{group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><Icon name={navIcons[item.page]}/>{item.label}</button>)}</section>) : visibleNav.filter((item) => item !== "Dashboard").map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => navigate(item)}><Icon name={navIcons[item]}/>{item}</button>)}</nav>}
       </header>
 
-      {globalSearchOpen && <div className="global-search-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setGlobalSearchOpen(false); }}><section className="global-search-dialog" role="dialog" aria-modal="true" aria-labelledby="global-search-title"><div className="global-search-head"><div><p className="eyebrow">Department-wide search</p><h2 id="global-search-title">Find anything</h2></div><button aria-label="Close search" onClick={() => setGlobalSearchOpen(false)}>×</button></div><label className="global-search-input"><span aria-hidden="true">⌕</span><input autoFocus value={globalSearch} onChange={(event) => setGlobalSearch(event.target.value)} placeholder="Search employees, contacts, policies, Box Cards, or important numbers…" /></label><div className="global-search-results">{globalSearchLoading ? <div className="global-search-empty">Loading shared information…</div> : !globalSearch.trim() ? <div className="global-search-empty">Start typing a name, address, policy, card number, or phone number.</div> : globalSearchResults.length ? globalSearchResults.map((item) => <button key={item.id} onClick={() => navigate(item.page)}><span className={`search-type ${item.type.toLowerCase().replace(" ", "-")}`}>{item.type}</span><strong>{item.title}</strong><small>{item.detail || `Open ${item.page}`}</small><b aria-hidden="true">›</b></button>) : <div className="global-search-empty">No results found for “{globalSearch}”.</div>}</div></section></div>}
+      {globalSearchOpen && <div className="global-search-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setGlobalSearchOpen(false); }}><section className="global-search-dialog" role="dialog" aria-modal="true" aria-labelledby="global-search-title"><div className="global-search-head"><div><p className="eyebrow">Department-wide search</p><h2 id="global-search-title">Find anything</h2></div><button aria-label="Close search" onClick={() => setGlobalSearchOpen(false)}><Icon name="close"/></button></div><label className="global-search-input"><Icon name="search"/><input autoFocus value={globalSearch} onChange={(event) => setGlobalSearch(event.target.value)} placeholder="Search employees, contacts, policies, Box Cards, or important numbers…" /></label><div className="global-search-results">{globalSearchLoading ? <div className="global-search-empty">Loading shared information…</div> : !globalSearch.trim() ? <div className="global-search-empty">Start typing a name, address, policy, card number, or phone number.</div> : globalSearchResults.length ? globalSearchResults.map((item) => <button key={item.id} onClick={() => navigate(item.page)}><span className={`search-type ${item.type.toLowerCase().replace(" ", "-")}`}>{item.type}</span><strong>{item.title}</strong><small>{item.detail || `Open ${item.page}`}</small><b aria-hidden="true"><Icon name="chevron" size={18}/></b></button>) : <div className="global-search-empty">No results found for “{globalSearch}”.</div>}</div></section></div>}
 
       <section className="workspace">
         {error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={() => { setError(""); void loadPayroll(periodStart); }}>Retry</button></div>}
@@ -387,17 +409,17 @@ export default function PayrollApp() {
                 <button className="period-arrow" aria-label="Previous pay period" onClick={() => setPeriodStart(shiftPeriod(periodStart, -1))}><Icon name="back" /></button>
                 <h1>{periodLabel(data.period.startDate, data.period.endDate)}</h1>
                 <button className="period-arrow" aria-label="Next pay period" onClick={() => setPeriodStart(shiftPeriod(periodStart, 1))}><Icon name="next" /></button>
-                <span className={`period-badge ${data.period.status}`}>▣ {statusLabel}</span>
+                <span className={`period-badge ${data.period.status}`}><Icon name="document" size={16}/> {statusLabel}</span>
               </div>
             </div>
-            {activeNav === "Payroll" && <button className="primary-action" onClick={() => openTimesheet()}><span>{data.period.status === "finalized" ? "▤" : "◷"}</span> {data.period.status === "finalized" ? "View Timesheets" : "Enter Hours"}</button>}
+            {activeNav === "Payroll" && <button className="primary-action" onClick={() => openTimesheet()}><Icon name={data.period.status === "finalized" ? "document" : "clock"}/> {data.period.status === "finalized" ? "View Timesheets" : "Enter Hours"}</button>}
             {activeNav === "Timesheets" && data.viewer.isAdmin && <button className="primary-action secondary-red" onClick={() => setActiveNav("Payroll")}>Review Payroll</button>}
           </div>}
 
           {activeNav === "Payroll" && <div className={data.period.status === "finalized" ? "record-finalized" : "record-editable"}>
             {data.period.status === "finalized" && <div className="record-state-banner finalized"><span className="state-lock" aria-hidden="true">✓</span><div><strong>Finalized payroll · Read only</strong><span>This pay period is closed. Hours and payroll totals can no longer be changed.</span></div></div>}
             <section className="kpi-grid" aria-label="Payroll summary">
-              <article className="kpi-card"><span className="kpi-icon blue"><Icon name="people" /></span><div><strong>{payrollEmployees.length}</strong><span>On This Payroll</span></div></article>
+              <article className="kpi-card"><span className="kpi-icon blue"><Icon name="users" size={28}/></span><div><strong>{payrollEmployees.length}</strong><span>On This Payroll</span></div></article>
               <article className="kpi-card"><span className="kpi-icon blue"><Icon name="clock" /></span><div><strong>{data.settings.overtimeThreshold} <small>hr</small></strong><span>OT Threshold</span></div></article>
               <article className="kpi-card"><span className="kpi-icon blue"><Icon name="document" /></span><div><strong>{formatMoney(grossPayroll)}</strong><span>Calculated Gross</span></div></article>
               <article className="kpi-card alert"><span className="kpi-icon red"><Icon name="warning" /></span><div><strong>{reviewCount}</strong><span>Need Review</span></div></article>
@@ -413,7 +435,7 @@ export default function PayrollApp() {
               <div className="table-wrap payroll-table">
                 <table><thead><tr><th>Employee</th><th>Rank</th><th className="number">Hours</th><th className="number">Gross Pay</th><th>Status</th></tr></thead><tbody>
                   {filteredRows.map((row) => <tr key={row.employee.id} onClick={() => openTimesheet(row.employee.id)}>
-                    <td data-label="Employee"><span className="person-icon">♙</span><strong>{displayName(row.employee.name)}</strong></td><td data-label="Rank">{row.employee.rank}</td><td data-label="Hours" className="number tabular">{row.hours.toFixed(1)} hrs</td><td data-label="Gross Pay" className="number tabular">{formatMoney(row.gross)}</td><td data-label="Status"><span className={`status-pill ${row.status.toLowerCase().replace(" ", "-")}`}>{row.status === "Ready" ? "✓" : row.status === "Review" ? "◷" : "–"} {row.status}</span></td>
+                    <td data-label="Employee"><span className="person-icon"><Icon name="users"/></span><strong>{displayName(row.employee.name)}</strong></td><td data-label="Rank">{row.employee.rank}</td><td data-label="Hours" className="number tabular">{row.hours.toFixed(1)} hrs</td><td data-label="Gross Pay" className="number tabular">{formatMoney(row.gross)}</td><td data-label="Status"><span className={`status-pill ${row.status.toLowerCase().replace(" ", "-")}`}>{row.status === "Ready" ? "✓" : row.status === "Review" ? "◷" : "–"} {row.status}</span></td>
                   </tr>)}
                 </tbody></table>
               </div>
@@ -454,7 +476,7 @@ export default function PayrollApp() {
           {activeNav === "Box Cards" && <BoxCardsPage />}
 
           {activeNav === "Employees" && <section className="employee-page">
-            <div className="standard-page-header"><div><span className="page-icon" aria-hidden="true">♙</span><div><p className="eyebrow">Personnel administration</p><h1>Employees</h1><p>Manage employment, contact, access, driver status, and emergency information.</p></div></div><button type="button" className="primary-action" onClick={() => editEmployee()}>Add Employee</button></div>
+            <div className="standard-page-header"><div><span className="page-icon"><Icon name="users" size={25}/></span><div><p className="eyebrow">Personnel administration</p><h1>Employees</h1><p>Manage employment, contact, access, driver status, and emergency information.</p></div></div><button type="button" className="primary-action" onClick={() => editEmployee()}>Add Employee</button></div>
             {profileOpen && <form className="content-card employee-profile-form" onSubmit={(event) => void saveEmployeeProfile(event)}>
               <div className="section-header"><div><h2>{employeeDraft.id ? `Edit ${displayName(employeeDraft.name)}` : "Add employee"}</h2><p>Personnel, payroll eligibility, and emergency contact information.</p></div><div className="employee-form-actions">{employeeDraft.id && <button type="button" className="quiet-button" onClick={() => editEmployee()}>New Employee</button>}<button className="primary-action compact" type="submit">{employeeDraft.id ? "Save Changes" : "Add Employee"}</button></div></div>
               <fieldset><legend>Employment</legend><div className="employee-fields three-col">
@@ -487,7 +509,7 @@ export default function PayrollApp() {
             <section className="content-card employee-roster-card"><div className="section-header"><div><h2>Employee roster</h2><p>Ended employees remain here for payroll history and can be updated or rehired.</p></div><div className="employee-form-actions"><span className="count-badge">{data.employees.length} records</span><button type="button" className="primary-action compact" onClick={() => editEmployee()}>Add Employee</button></div></div>
               <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Employee #</th><th>Pay Scale</th><th>Driver</th><th>Phone</th><th>Start</th><th>Last Day</th><th>Status</th><th></th></tr></thead><tbody>{data.employees.map((employee) => {
                 const payrollStatus = employee.startDate && employee.startDate > data.period.endDate ? "Scheduled" : employee.endDate && employee.endDate < data.period.startDate ? "Ended" : "Active";
-                return <tr key={employee.id}><td data-label="Employee"><span className="person-icon">♙</span><strong>{displayName(employee.name)}</strong></td><td data-label="Employee #">{employee.employeeNumber || "—"}</td><td data-label="Pay Scale">{employee.rank}</td><td data-label="Driver">{employee.driverStatus || "—"}</td><td data-label="Phone">{employee.phone || "—"}</td><td data-label="Start">{employee.startDate || "—"}</td><td data-label="Last Day">{employee.endDate || "—"}</td><td data-label="Status"><span className={`employment-status ${payrollStatus.toLowerCase()}`}>{payrollStatus}</span></td><td data-label="Actions"><button className="edit-employee" onClick={() => editEmployee(employee)}>Edit</button></td></tr>;
+                return <tr key={employee.id}><td data-label="Employee"><span className="person-icon"><Icon name="users"/></span><strong>{displayName(employee.name)}</strong></td><td data-label="Employee #">{employee.employeeNumber || "—"}</td><td data-label="Pay Scale">{employee.rank}</td><td data-label="Driver">{employee.driverStatus || "—"}</td><td data-label="Phone">{employee.phone || "—"}</td><td data-label="Start">{employee.startDate || "—"}</td><td data-label="Last Day">{employee.endDate || "—"}</td><td data-label="Status"><span className={`employment-status ${payrollStatus.toLowerCase()}`}>{payrollStatus}</span></td><td data-label="Actions"><button className="edit-employee" onClick={() => editEmployee(employee)}>Edit</button></td></tr>;
               })}</tbody></table></div>
             </section>
           </section>}
