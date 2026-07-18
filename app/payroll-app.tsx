@@ -6,6 +6,7 @@ import HolidayPolicy from "./holiday-policy";
 import PhoneNumbers from "./phone-numbers";
 import EmployeeContacts from "./employee-contacts";
 import { BoxCardsPage, PoliciesPage } from "./resource-pages";
+import RoleDashboard from "./role-dashboard";
 
 type Category = "shift" | "drill" | "workDetail" | "callback" | "actingOfficer" | "holiday" | "dpw";
 type PayScale = { id: string; label: string; regularRate: number; overtimeRate: number; holidayRate: number };
@@ -32,9 +33,9 @@ type PayrollData = {
   viewer: { email: string; isAdmin: boolean; employeeId: string | null; displayName: string };
 };
 
-type NavItem = "Payroll" | "Daily Log" | "Timesheets" | "My Timesheet" | "Employees" | "Employee Contacts" | "Policies" | "Box Cards" | "Holiday Policy" | "Phone Numbers" | "Rates & Rules";
-const adminNavItems: NavItem[] = ["Payroll", "Daily Log", "Timesheets", "Employees", "Employee Contacts", "Policies", "Box Cards", "Holiday Policy", "Phone Numbers", "Rates & Rules"];
-const employeeNavItems: NavItem[] = ["My Timesheet", "Policies", "Box Cards"];
+type NavItem = "Dashboard" | "Payroll" | "Daily Log" | "Timesheets" | "My Timesheet" | "Employees" | "Employee Contacts" | "Policies" | "Box Cards" | "Holiday Policy" | "Phone Numbers" | "Rates & Rules";
+const adminNavItems: NavItem[] = ["Dashboard", "Payroll", "Daily Log", "Timesheets", "Employees", "Employee Contacts", "Policies", "Box Cards", "Holiday Policy", "Phone Numbers", "Rates & Rules"];
+const employeeNavItems: NavItem[] = ["Dashboard", "My Timesheet", "Policies", "Box Cards"];
 const emptyEmployee: EmployeeForm = {
   name: "", payScaleId: "firefighter", employeeNumber: "", startDate: "", endDate: "", dateOfBirth: "",
   phone: "", email: "", addressLine1: "", city: "", state: "IL", postalCode: "", employmentType: "Part-time", isDpw: false, driverStatus: "", isAdmin: false,
@@ -123,7 +124,7 @@ function Icon({ name }: { name: "people" | "clock" | "document" | "warning" | "s
 }
 
 export default function PayrollApp() {
-  const [activeNav, setActiveNav] = useState<NavItem>("Payroll");
+  const [activeNav, setActiveNav] = useState<NavItem>("Dashboard");
   const [periodStart, setPeriodStart] = useState(currentPeriodStart);
   const [data, setData] = useState<PayrollData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -149,7 +150,7 @@ export default function PayrollApp() {
       setRulesDraft(payload.settings);
       setScaleDraft(payload.payScales);
       setSelectedEmployeeId((current) => current || payload.employees[0]?.id || "");
-      setActiveNav((current) => payload.viewer.isAdmin ? (current === "My Timesheet" ? "Payroll" : current) : "My Timesheet");
+      setActiveNav((current) => (payload.viewer.isAdmin ? adminNavItems : employeeNavItems).includes(current) ? current : "Dashboard");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to load payroll");
     } finally {
@@ -315,7 +316,7 @@ export default function PayrollApp() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <button className="brand" onClick={() => setActiveNav(data?.viewer.isAdmin ? "Payroll" : "My Timesheet")}><span className="brand-mark"><span>◆</span></span><span>Stickney FD Manager</span></button>
+        <button className="brand" onClick={() => setActiveNav("Dashboard")}><span className="brand-mark"><span>◆</span></span><span>Stickney FD Manager</span></button>
         <nav aria-label="Primary navigation">
           {visibleNav.map((item) => <button key={item} className={activeNav === item ? "nav-active" : ""} onClick={() => setActiveNav(item)}>{item}</button>)}
         </nav>
@@ -326,7 +327,7 @@ export default function PayrollApp() {
         {error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={() => { setError(""); void loadPayroll(periodStart); }}>Retry</button></div>}
         {toast && <div className="toast" role="status"><Icon name="save" /> {toast}</div>}
         {loading && !data ? <div className="loading-card">Loading your payroll…</div> : data && <>
-          {activeNav !== "Daily Log" && activeNav !== "Holiday Policy" && activeNav !== "Phone Numbers" && activeNav !== "Employee Contacts" && activeNav !== "Policies" && activeNav !== "Box Cards" && <div className="period-row">
+          {activeNav !== "Dashboard" && activeNav !== "Daily Log" && activeNav !== "Holiday Policy" && activeNav !== "Phone Numbers" && activeNav !== "Employee Contacts" && activeNav !== "Policies" && activeNav !== "Box Cards" && <div className="period-row">
             <div>
               <p className="eyebrow">{activeNav === "Payroll" ? "Current pay period" : activeNav}</p>
               <div className="title-line">
@@ -365,6 +366,8 @@ export default function PayrollApp() {
               <div className="review-bar"><span><strong>{readyCount}</strong> ready · <strong>{reviewCount}</strong> need review · <strong>{payrollEmployees.length - readyCount - reviewCount}</strong> not started</span><div><button className="quiet-button" onClick={() => void setPeriodStatus("reviewed")}>Mark Reviewed</button><button className="finalize-button" disabled={reviewCount > 0} onClick={() => void setPeriodStatus("finalized")}>Finalize Payroll</button></div></div>
             </section>
           </>}
+
+          {activeNav === "Dashboard" && <RoleDashboard data={{ viewer: data.viewer, employees: data.employees, entries: data.entries, period: data.period, grossPayroll, reviewCount, employeeGross: selectedSummary?.gross ?? 0 }} onNavigate={(page) => setActiveNav(page)} />}
 
           {(activeNav === "Timesheets" || activeNav === "My Timesheet") && selectedEmployee && selectedSummary && <section className="content-card timesheet-card">
             <div className="section-header"><div>{data.viewer.isAdmin ? <><label htmlFor="employee-select">Employee</label><select id="employee-select" value={selectedEmployee.id} onChange={(event) => setSelectedEmployeeId(event.target.value)}>{payrollEmployees.map((employee) => <option value={employee.id} key={employee.id}>{displayName(employee.name)} — {employee.rank}</option>)}</select></> : <><p className="eyebrow">My timesheet</p><h2>{displayName(selectedEmployee.name)}</h2><p>{selectedEmployee.rank} · Read only</p></>}</div><span className={`status-pill ${selectedSummary.status.toLowerCase().replace(" ", "-")}`}>{selectedSummary.status}</span></div>
