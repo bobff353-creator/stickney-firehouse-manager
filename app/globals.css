@@ -429,6 +429,20 @@ td strong { font-size: 16px; }
 .access-note { margin-bottom: 16px; padding: 13px 15px; border: 1px solid #d8b968; border-radius: 8px; background: #fff8e5; color: #604a17; }
 .access-note p { margin: 4px 0 0; white-space: pre-wrap; }
 .resource-empty { color: var(--slate); text-align: center; }
+.policy-library { display: grid; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); gap: 18px; align-items: start; }
+.policy-toc { position: sticky; top: 18px; padding: 0; overflow: hidden; }
+.policy-toc-head { padding: 18px; border-bottom: 1px solid #dbe3e8; background: #f7fafc; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.policy-toc-head h2 { margin: 3px 0 0; color: var(--navy-deep); font-size: 19px; }
+.policy-toc-head strong { min-width: 42px; height: 34px; padding: 0 9px; border-radius: 999px; background: #dceaf3; color: #194c70; display: grid; place-items: center; font-size: 13px; }
+.policy-toc-list { max-height: calc(100vh - 265px); overflow-y: auto; overscroll-behavior: contain; }
+.policy-toc-list button { width: 100%; min-height: 76px; padding: 12px 14px; border: 0; border-bottom: 1px solid #e4e9ed; background: white; color: var(--ink); display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 2px 10px; text-align: left; }
+.policy-toc-list button:last-child { border-bottom: 0; }
+.policy-toc-list button:hover { background: #f1f6f9; }
+.policy-toc-list button.current { background: #e5f0f6; box-shadow: inset 4px 0 0 #1c5a82; }
+.policy-toc-list button > span { grid-row: 1 / 3; align-self: center; color: #9a3d36; font-size: 14px; font-weight: 950; }
+.policy-toc-list button > strong { align-self: end; color: var(--navy-deep); font-size: 13px; line-height: 1.3; }
+.policy-toc-list button > small { align-self: start; color: var(--slate); font-size: 10px; line-height: 1.3; }
+.policy-reader { min-width: 0; }
 
 /* Role dashboards */
 .role-dashboard { display: grid; gap: 24px; }
@@ -751,6 +765,9 @@ td strong { font-size: 16px; }
   .call-row { grid-template-columns: 34px repeat(3, minmax(0, 1fr)); }
   .call-address { grid-column: span 2; }
   .policy-layout { grid-template-columns: 1fr; }
+  .policy-library { grid-template-columns: 1fr; }
+  .policy-toc { position: static; }
+  .policy-toc-list { max-height: 330px; }
   .policy-pay { position: static; }
   .holiday-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .phone-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
