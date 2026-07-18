@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import DailyLog from "./daily-log";
 import HolidayPolicy from "./holiday-policy";
 import PhoneNumbers from "./phone-numbers";
@@ -362,7 +363,7 @@ export default function PayrollApp() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <button className="brand" onClick={() => navigate("Dashboard")}><span className="brand-mark"><span>◆</span></span><span>Stickney FD Manager</span></button>
+        <button className="brand" onClick={() => navigate("Dashboard")} aria-label="Stickney Fire Department Operations Portal home"><Image className="brand-patch" src="/stickney-fd-patch.jpg" alt="" width={58} height={58} priority /><span className="brand-copy"><strong>Stickney Fire Department</strong><small>Operations Portal</small></span><span className="brand-copy-mobile">SFD Operations Portal</span></button>
         <nav className="desktop-nav" aria-label="Primary navigation">
           <button className={activeNav === "Dashboard" ? "nav-active" : ""} onClick={() => navigate("Dashboard")}><span className="nav-icon" aria-hidden="true">⌂</span>Dashboard</button>
           {data?.viewer.isAdmin ? adminNavGroups.map((group) => <div className={`nav-group ${group.items.some((item) => item.page === activeNav) ? "group-active" : ""}`} key={group.label}><button aria-expanded={openNavGroup === group.label} onClick={() => setOpenNavGroup((current) => current === group.label ? null : group.label)}><span className="nav-icon" aria-hidden="true">{group.icon}</span>{group.label}<span className="nav-caret">⌄</span></button>{openNavGroup === group.label && <div className="nav-dropdown">{group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><span aria-hidden="true">{navIcons[item.page]}</span><span>{item.label}</span></button>)}</div>}</div>) : visibleNav.filter((item) => item !== "Dashboard").map((item) => <button key={item} className={activeNav === item ? "nav-active" : ""} onClick={() => navigate(item)}><span className="nav-icon" aria-hidden="true">{navIcons[item]}</span>{item}</button>)}
@@ -497,6 +498,7 @@ export default function PayrollApp() {
           </section>}
         </>}
       </section>
+      <footer className="portal-footer"><div className="footer-identity"><Image src="/stickney-fd-patch.jpg" alt="Stickney Fire Department patch" width={48} height={48} /><div><strong>Stickney Fire Department</strong><span>Operations Portal · Stickney, Illinois</span></div></div><div className="footer-links"><button onClick={() => navigate("Phone Numbers")}>Department Contacts</button><button onClick={() => navigate("Phone Numbers")}>Support</button><span className="portal-version">Portal v1.0</span></div><p>© {new Date().getFullYear()} Stickney Fire Department · Authorized department use</p></footer>
     </main>
   );
 }

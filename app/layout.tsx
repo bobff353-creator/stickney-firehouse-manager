@@ -13,14 +13,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Stickney FD Manager",
-  description: "Stickney Fire Department payroll and daily logbook manager.",
+  title: "Stickney Fire Department Operations Portal",
+  description: "Official operations, staffing, daily logbook, personnel, and payroll portal for the Stickney Fire Department.",
   other: {
     "codex-preview": "development",
   },
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
+    icon: "/stickney-fd-patch.jpg",
+    shortcut: "/stickney-fd-patch.jpg",
   },
 };
 
