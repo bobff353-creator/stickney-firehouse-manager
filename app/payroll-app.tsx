@@ -37,6 +37,13 @@ type NavItem = "Dashboard" | "Payroll" | "Daily Log" | "Timesheets" | "My Timesh
 const adminNavItems: NavItem[] = ["Dashboard", "Payroll", "Daily Log", "Timesheets", "Employees", "Employee Contacts", "Policies", "Box Cards", "Holiday Policy", "Phone Numbers", "Rates & Rules"];
 const employeeNavItems: NavItem[] = ["Dashboard", "My Timesheet", "Policies", "Box Cards"];
 const navIcons: Record<NavItem, string> = { Dashboard: "⌂", Payroll: "$", "Daily Log": "▣", Timesheets: "◷", "My Timesheet": "◷", Employees: "♙", "Employee Contacts": "☎", Policies: "▤", "Box Cards": "⌑", "Holiday Policy": "★", "Phone Numbers": "☏", "Rates & Rules": "⚙" };
+const adminNavGroups: Array<{ label: string; icon: string; items: Array<{ label: string; page: NavItem }> }> = [
+  { label: "Operations", icon: "▣", items: [{ label: "Daily Log", page: "Daily Log" }, { label: "Box Cards", page: "Box Cards" }] },
+  { label: "Personnel", icon: "♙", items: [{ label: "Employees", page: "Employees" }, { label: "Contacts", page: "Employee Contacts" }] },
+  { label: "Payroll", icon: "$", items: [{ label: "Payroll", page: "Payroll" }, { label: "Timesheets", page: "Timesheets" }, { label: "Rates", page: "Rates & Rules" }] },
+  { label: "Documents", icon: "▤", items: [{ label: "Policies", page: "Policies" }, { label: "Holiday Policy", page: "Holiday Policy" }] },
+  { label: "Settings", icon: "⚙", items: [{ label: "Important Phone Numbers", page: "Phone Numbers" }] },
+];
 const emptyEmployee: EmployeeForm = {
   name: "", payScaleId: "firefighter", employeeNumber: "", startDate: "", endDate: "", dateOfBirth: "",
   phone: "", email: "", addressLine1: "", city: "", state: "IL", postalCode: "", employmentType: "Part-time", isDpw: false, driverStatus: "", isAdmin: false,
@@ -139,6 +146,8 @@ export default function PayrollApp() {
   const [scaleDraft, setScaleDraft] = useState<PayScale[]>([]);
   const [employeeDraft, setEmployeeDraft] = useState<EmployeeForm>(emptyEmployee);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [openNavGroup, setOpenNavGroup] = useState<string | null>(null);
 
   const loadPayroll = useCallback(async (start: string) => {
     setLoading(true);
@@ -313,15 +322,19 @@ export default function PayrollApp() {
 
   const statusLabel = data?.period.status ? data.period.status[0].toUpperCase() + data.period.status.slice(1) : "Draft";
   const visibleNav = data?.viewer.isAdmin ? adminNavItems : employeeNavItems;
+  function navigate(page: NavItem) { setActiveNav(page); setMobileMenuOpen(false); setOpenNavGroup(null); window.scrollTo({ top: 0, behavior: "smooth" }); }
 
   return (
     <main className="app-shell">
       <header className="topbar">
-        <button className="brand" onClick={() => setActiveNav("Dashboard")}><span className="brand-mark"><span>◆</span></span><span>Stickney FD Manager</span></button>
-        <nav aria-label="Primary navigation">
-          {visibleNav.map((item) => <button key={item} className={activeNav === item ? "nav-active" : ""} onClick={() => setActiveNav(item)}><span className="nav-icon" aria-hidden="true">{navIcons[item]}</span>{item}</button>)}
+        <button className="brand" onClick={() => navigate("Dashboard")}><span className="brand-mark"><span>◆</span></span><span>Stickney FD Manager</span></button>
+        <nav className="desktop-nav" aria-label="Primary navigation">
+          <button className={activeNav === "Dashboard" ? "nav-active" : ""} onClick={() => navigate("Dashboard")}><span className="nav-icon" aria-hidden="true">⌂</span>Dashboard</button>
+          {data?.viewer.isAdmin ? adminNavGroups.map((group) => <div className={`nav-group ${group.items.some((item) => item.page === activeNav) ? "group-active" : ""}`} key={group.label}><button aria-expanded={openNavGroup === group.label} onClick={() => setOpenNavGroup((current) => current === group.label ? null : group.label)}><span className="nav-icon" aria-hidden="true">{group.icon}</span>{group.label}<span className="nav-caret">⌄</span></button>{openNavGroup === group.label && <div className="nav-dropdown">{group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><span aria-hidden="true">{navIcons[item.page]}</span><span>{item.label}</span></button>)}</div>}</div>) : visibleNav.filter((item) => item !== "Dashboard").map((item) => <button key={item} className={activeNav === item ? "nav-active" : ""} onClick={() => navigate(item)}><span className="nav-icon" aria-hidden="true">{navIcons[item]}</span>{item}</button>)}
         </nav>
+        <button className="mobile-menu-toggle" aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen((current) => !current)}><span aria-hidden="true">{mobileMenuOpen ? "×" : "☰"}</span><span>Menu</span></button>
         <div className="profile"><span className="avatar">{data?.viewer.displayName.split(/[ ,]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span><span>{data ? displayName(data.viewer.displayName) : "Signed in"}</span><span aria-hidden="true">⌄</span></div>
+        {mobileMenuOpen && <nav id="mobile-navigation" className="mobile-nav-panel" aria-label="Mobile navigation"><button className={activeNav === "Dashboard" ? "current" : ""} onClick={() => navigate("Dashboard")}><span aria-hidden="true">⌂</span>Dashboard</button>{data?.viewer.isAdmin ? adminNavGroups.map((group) => <section key={group.label}><h2><span aria-hidden="true">{group.icon}</span>{group.label}</h2>{group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><span aria-hidden="true">{navIcons[item.page]}</span>{item.label}</button>)}</section>) : visibleNav.filter((item) => item !== "Dashboard").map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => navigate(item)}><span aria-hidden="true">{navIcons[item]}</span>{item}</button>)}</nav>}
       </header>
 
       <section className="workspace">
