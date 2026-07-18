@@ -437,6 +437,48 @@ td strong { font-size: 16px; }
 .previous-shift blockquote { margin: 15px 0 12px; padding: 12px 14px; border-left: 3px solid #7d9bb1; background: #f5f8fa; color: #344f63; font-size: 13px; line-height: 1.5; }
 .previous-shift > div:last-of-type { display: flex; gap: 14px; color: #657785; font-size: 11px; font-weight: 750; }
 .previous-call { margin: 8px 0 0 !important; padding-top: 8px; border-top: 1px solid #e3e8eb; }
+.operations-board { margin: -38px calc(clamp(22px, 3vw, 54px) * -1) -60px; min-height: calc(100vh - 72px); padding: 28px clamp(22px,3vw,48px) 48px; background: #0b1822; color: white; }
+.board-header { padding-bottom: 24px; border-bottom: 1px solid #334652; display: flex; justify-content: space-between; align-items: end; gap: 28px; }
+.board-header p { margin: 0 0 5px; color: #f1b84b; font-size: 12px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+.board-header h1 { color: white; font-size: clamp(34px,4vw,56px); }
+.board-header > div > span { margin-top: 8px; color: #aebdc7; display: block; }
+.board-clock { text-align: right; }
+.board-clock strong { font-size: clamp(30px,3.5vw,46px); font-variant-numeric: tabular-nums; display: block; }
+.board-clock > span { color: #aebdc7; font-size: 12px; }
+.board-clock small { margin-top: 8px; color: #8fd6aa; display: block; }
+.board-clock i { width: 8px; height: 8px; margin-right: 5px; border-radius: 50%; background: #45c777; display: inline-block; }
+.board-alert { margin-top: 18px; padding: 12px 14px; border: 1px solid #b86c6c; border-radius: 8px; background: #3d2023; display: flex; justify-content: space-between; }
+.board-summary { margin: 22px 0; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 13px; }
+.board-summary article { min-height: 116px; padding: 17px; border: 1px solid #3a4c58; border-radius: 9px; background: #142632; display: flex; flex-direction: column; }
+.board-summary article > span { color: #9eb0bb; font-size: 10px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.board-summary article > strong { margin-top: 10px; color: white; font-size: clamp(24px,2.6vw,34px); line-height: 1.05; }
+.board-summary article > small { margin-top: auto; padding-top: 8px; color: #9eb0bb; }
+.board-summary article.clear { border-left: 4px solid #44b974; }
+.board-summary article.warning { border-left: 4px solid #e2a93b; }
+.board-summary article.active { border-left: 4px solid #e35b51; background: #2d2023; }
+.board-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 15px; }
+.board-panel { min-height: 290px; border: 1px solid #344753; border-radius: 10px; background: #11232e; overflow: hidden; }
+.board-panel > header { min-height: 58px; padding: 0 18px; border-bottom: 1px solid #344753; background: #172c39; display: flex; justify-content: space-between; align-items: center; }
+.board-panel h2 { margin: 0; color: white; font-size: 19px; }
+.board-panel > header span { color: #9fb0bb; font-size: 11px; font-weight: 800; }
+.board-panel > div { padding: 15px; display: grid; gap: 9px; }
+.board-panel.staffing > div { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.board-panel.staffing article, .board-panel.apparatus article { padding: 12px; border: 1px solid #344854; border-radius: 7px; background: #192f3c; display: grid; gap: 3px; }
+.board-panel.staffing b, .board-panel.apparatus b { color: white; }
+.board-panel.staffing span, .board-panel.staffing time, .board-panel.apparatus span { color: #aebdc7; font-size: 11px; }
+.board-panel.calls article, .board-panel.equipment article { padding: 13px; border-left: 4px solid #e2574c; border-radius: 6px; background: #2b2427; }
+.board-panel.calls article > div { display: flex; justify-content: space-between; }
+.board-panel.calls b { color: #ffb3ad; }
+.board-panel.calls p, .board-panel.equipment p { margin: 6px 0; color: white; }
+.board-panel.calls span, .board-panel.calls strong { color: #b9c5cc; font-size: 11px; }
+.board-panel.apparatus > div { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.board-panel.apparatus article.committed { border-color: #ae5854; background: #322428; }
+.board-panel.apparatus article.committed span { color: #ffaaa4; }
+.board-panel.apparatus article.unknown span { color: #e7bd68; }
+.board-source-note { margin: 0; padding: 0 15px 15px; color: #8fa1ad; font-size: 10px; }
+.board-panel.equipment strong { color: #f2b94e; }
+.board-empty { margin: 0; padding: 28px 12px; color: #aebdc7; text-align: center; grid-column: 1/-1; }
+.board-empty.clear { color: #7bd39b; }
 
 /* Daily logbook */
 .logbook-page { display: grid; gap: 22px; }
@@ -716,6 +758,11 @@ td strong { font-size: 16px; }
   .resource-record-head { align-items: stretch; flex-direction: column; }
   .dashboard-welcome { padding: 23px 18px; align-items: flex-start; flex-direction: column; }
   .dashboard-live { width: 100%; }
+  .operations-board { margin: -26px -16px -42px; padding: 22px 14px 36px; }
+  .board-header { align-items: flex-start; flex-direction: column; }
+  .board-clock { text-align: left; }
+  .board-summary, .board-grid { grid-template-columns: 1fr; }
+  .board-panel.staffing > div, .board-panel.apparatus > div { grid-template-columns: 1fr; }
   .command-status-grid { grid-template-columns: 1fr; }
   .command-card.on-duty, .command-card.previous-shift, .command-card.oic, .command-card.readiness, .command-card.equipment, .command-card.approvals { grid-column: 1; }
   .on-duty-list { grid-template-columns: 1fr; }
