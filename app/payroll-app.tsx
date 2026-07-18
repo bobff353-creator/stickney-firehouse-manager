@@ -36,6 +36,7 @@ type PayrollData = {
 type NavItem = "Dashboard" | "Payroll" | "Daily Log" | "Timesheets" | "My Timesheet" | "Employees" | "Employee Contacts" | "Policies" | "Box Cards" | "Holiday Policy" | "Phone Numbers" | "Rates & Rules";
 const adminNavItems: NavItem[] = ["Dashboard", "Payroll", "Daily Log", "Timesheets", "Employees", "Employee Contacts", "Policies", "Box Cards", "Holiday Policy", "Phone Numbers", "Rates & Rules"];
 const employeeNavItems: NavItem[] = ["Dashboard", "My Timesheet", "Policies", "Box Cards"];
+const navIcons: Record<NavItem, string> = { Dashboard: "⌂", Payroll: "$", "Daily Log": "▣", Timesheets: "◷", "My Timesheet": "◷", Employees: "♙", "Employee Contacts": "☎", Policies: "▤", "Box Cards": "⌑", "Holiday Policy": "★", "Phone Numbers": "☏", "Rates & Rules": "⚙" };
 const emptyEmployee: EmployeeForm = {
   name: "", payScaleId: "firefighter", employeeNumber: "", startDate: "", endDate: "", dateOfBirth: "",
   phone: "", email: "", addressLine1: "", city: "", state: "IL", postalCode: "", employmentType: "Part-time", isDpw: false, driverStatus: "", isAdmin: false,
@@ -318,7 +319,7 @@ export default function PayrollApp() {
       <header className="topbar">
         <button className="brand" onClick={() => setActiveNav("Dashboard")}><span className="brand-mark"><span>◆</span></span><span>Stickney FD Manager</span></button>
         <nav aria-label="Primary navigation">
-          {visibleNav.map((item) => <button key={item} className={activeNav === item ? "nav-active" : ""} onClick={() => setActiveNav(item)}>{item}</button>)}
+          {visibleNav.map((item) => <button key={item} className={activeNav === item ? "nav-active" : ""} onClick={() => setActiveNav(item)}><span className="nav-icon" aria-hidden="true">{navIcons[item]}</span>{item}</button>)}
         </nav>
         <div className="profile"><span className="avatar">{data?.viewer.displayName.split(/[ ,]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span><span>{data ? displayName(data.viewer.displayName) : "Signed in"}</span><span aria-hidden="true">⌄</span></div>
       </header>
@@ -399,6 +400,7 @@ export default function PayrollApp() {
           {activeNav === "Box Cards" && <BoxCardsPage />}
 
           {activeNav === "Employees" && <section className="employee-page">
+            <div className="standard-page-header"><div><span className="page-icon" aria-hidden="true">♙</span><div><p className="eyebrow">Personnel administration</p><h1>Employees</h1><p>Manage employment, contact, access, driver status, and emergency information.</p></div></div><button type="button" className="primary-action" onClick={() => editEmployee()}>Add Employee</button></div>
             {profileOpen && <form className="content-card employee-profile-form" onSubmit={(event) => void saveEmployeeProfile(event)}>
               <div className="section-header"><div><h2>{employeeDraft.id ? `Edit ${displayName(employeeDraft.name)}` : "Add employee"}</h2><p>Personnel, payroll eligibility, and emergency contact information.</p></div><div className="employee-form-actions">{employeeDraft.id && <button type="button" className="quiet-button" onClick={() => editEmployee()}>New Employee</button>}<button className="primary-action compact" type="submit">{employeeDraft.id ? "Save Changes" : "Add Employee"}</button></div></div>
               <fieldset><legend>Employment</legend><div className="employee-fields three-col">

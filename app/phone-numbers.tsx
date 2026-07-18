@@ -42,8 +42,8 @@ export default function PhoneNumbers() {
   }
 
   return <section className="phone-page">
-    <div className="phone-hero">
-      <div><p className="eyebrow">Quick reference directory</p><h1>Important Phone Numbers</h1><p>Tap any listed number to call.</p></div>
+    <div className="phone-hero standard-page-header">
+      <div><span className="page-icon" aria-hidden="true">☏</span><div><p className="eyebrow">Quick reference directory</p><h1>Important Phone Numbers</h1><p>Tap any listed number to call.</p></div></div>
       {canEdit && <button className={editing ? "quiet-button" : "primary-action"} onClick={() => { setEditing((value) => !value); setDraft(null); }}>{editing ? "Done Editing" : "Admin Edit"}</button>}
     </div>
     <label className="phone-search"><span aria-hidden="true">⌕</span><span className="sr-only">Search phone numbers</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search departments, hospitals, or numbers…" /></label>

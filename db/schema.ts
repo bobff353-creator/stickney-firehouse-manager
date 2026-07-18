@@ -134,6 +134,7 @@ export const policies = sqliteTable("policies", {
   category: text("category").notNull().default("General"),
   effectiveDate: text("effective_date").notNull().default(""),
   body: text("body").notNull().default(""),
+  updatedBy: text("updated_by").notNull().default(""),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [index("policies_title_idx").on(table.title)]);
 
@@ -144,5 +145,6 @@ export const boxCards = sqliteTable("box_cards", {
   boxNumber: text("box_number").notNull().default(""),
   accessNotes: text("access_notes").notNull().default(""),
   details: text("details").notNull().default(""),
+  updatedBy: text("updated_by").notNull().default(""),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [index("box_cards_title_idx").on(table.title)]);
