@@ -8,6 +8,7 @@ import PhoneNumbers from "./phone-numbers";
 import EmployeeContacts from "./employee-contacts";
 import { BoxCardsPage, PoliciesPage } from "./resource-pages";
 import RoleDashboard from "./role-dashboard";
+import ConfirmDialog from "./confirm-dialog";
 
 type Category = "shift" | "drill" | "workDetail" | "callback" | "actingOfficer" | "holiday" | "dpw";
 type PayScale = { id: string; label: string; regularRate: number; overtimeRate: number; holidayRate: number };
@@ -156,6 +157,11 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   </svg>;
 }
 
+function PortalSkeleton({ page }: { page: NavItem }) {
+  const tableLike = ["Payroll", "Timesheets", "My Timesheet", "Employees", "Employee Contacts"].includes(page);
+  return <div className="portal-skeleton" aria-label={`Loading ${page}`} aria-busy="true"><div className="skeleton-heading"><span/><strong/></div>{tableLike ? <><div className="skeleton-metrics">{[1,2,3,4].map((item) => <span key={item}/>)}</div><div className="skeleton-table"><i/><i/><i/><i/><i/></div></> : <><div className="skeleton-hero"/><div className="skeleton-cards">{[1,2,3].map((item) => <span key={item}/>)}</div></>}</div>;
+}
+
 export default function PayrollApp() {
   const [activeNav, setActiveNav] = useState<NavItem>("Dashboard");
   const [periodStart, setPeriodStart] = useState(currentPeriodStart);
@@ -176,6 +182,10 @@ export default function PayrollApp() {
   const [globalSearch, setGlobalSearch] = useState("");
   const [sharedSearchItems, setSharedSearchItems] = useState<GlobalSearchItem[]>([]);
   const [globalSearchLoading, setGlobalSearchLoading] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+  const [lastSynced, setLastSynced] = useState<Date | null>(null);
+  const [finalizeConfirmOpen, setFinalizeConfirmOpen] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
 
   const loadPayroll = useCallback(async (start: string) => {
     setLoading(true);
@@ -187,6 +197,7 @@ export default function PayrollApp() {
       setData(payload);
       setRulesDraft(payload.settings);
       setScaleDraft(payload.payScales);
+      setLastSynced(new Date());
       setSelectedEmployeeId((current) => current || payload.employees[0]?.id || "");
       setActiveNav((current) => (payload.viewer.isAdmin ? adminNavItems : employeeNavItems).includes(current) ? current : "Dashboard");
     } catch (caught) {
@@ -194,6 +205,12 @@ export default function PayrollApp() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    const update = () => setIsOnline(window.navigator.onLine);
+    update(); window.addEventListener("online", update); window.addEventListener("offline", update);
+    return () => { window.removeEventListener("online", update); window.removeEventListener("offline", update); };
   }, []);
 
   useEffect(() => {
@@ -302,6 +319,7 @@ export default function PayrollApp() {
     setSavingCells((current) => new Set(current).add(cell));
     try {
       await post({ action: "saveEntry", periodStart, employeeId, workDate, category, hours });
+      setLastSynced(new Date());
       setToast("Hours saved");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to save hours");
@@ -333,7 +351,15 @@ export default function PayrollApp() {
   async function setPeriodStatus(status: PayrollData["period"]["status"]) {
     await post({ action: "setPeriodStatus", periodStart, status });
     setData((current) => current ? { ...current, period: { ...current.period, status } } : current);
+    setLastSynced(new Date());
     setToast(status === "finalized" ? "Payroll finalized" : "Status updated");
+  }
+
+  async function finalizePayroll() {
+    setFinalizing(true);
+    try { await setPeriodStatus("finalized"); setFinalizeConfirmOpen(false); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to finalize payroll"); }
+    finally { setFinalizing(false); }
   }
 
   async function saveRules() {
@@ -379,6 +405,8 @@ export default function PayrollApp() {
   }
 
   const statusLabel = data?.period.status ? data.period.status[0].toUpperCase() + data.period.status.slice(1) : "Draft";
+  const syncLabel = !isOnline ? "Offline" : loading || savingCells.size > 0 ? "Saving" : "Saved";
+  const syncTime = lastSynced?.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) ?? "Not synced";
   const visibleNav = data?.viewer.isAdmin ? adminNavItems : employeeNavItems;
   function navigate(page: NavItem) { setActiveNav(page); setMobileMenuOpen(false); setGlobalSearchOpen(false); setGlobalSearch(""); window.scrollTo({ top: 0, behavior: "smooth" }); }
 
@@ -392,16 +420,17 @@ export default function PayrollApp() {
       <header className="topbar">
         <button className="mobile-brand" onClick={() => navigate("Dashboard")} aria-label="Operations Portal home"><Image src="/stickney-fd-patch.jpg" alt="" width={44} height={44}/><strong>SFD Operations Portal</strong></button>
         <div className="topbar-context"><span>Stickney Fire Department</span><strong>{activeNav}</strong></div>
-        <div className="topbar-utilities"><button className="global-search-trigger" onClick={() => void openGlobalSearch()}><Icon name="search"/><span>Search</span><kbd>⌘ K</kbd></button><button className="notification-button" aria-label={`${reviewCount} notifications`} onClick={() => navigate(data?.viewer.isAdmin && reviewCount ? "Payroll" : "Dashboard")}><Icon name="bell"/>{reviewCount > 0 && <span>{reviewCount}</span>}</button><div className="profile"><span className="avatar">{data?.viewer.displayName.split(/[ ,]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span><span className="profile-copy"><strong>{data ? displayName(data.viewer.displayName) : "Signed in"}</strong><small>{data?.viewer.isAdmin ? "Administrator" : "Employee"}</small></span><Icon name="chevron" size={15}/></div><button className="mobile-menu-toggle" aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen((current) => !current)} aria-label="Open navigation"><Icon name={mobileMenuOpen ? "close" : "menu"}/></button></div>
+        <div className="topbar-utilities"><div className={`sync-indicator ${syncLabel.toLowerCase()}`}><Icon name={syncLabel === "Offline" ? "warning" : "save"} size={16}/><span><strong>{syncLabel}</strong><small>Last synced {syncTime}</small></span></div><button className="global-search-trigger" onClick={() => void openGlobalSearch()}><Icon name="search"/><span>Search</span><kbd>⌘ K</kbd></button><button className="notification-button" aria-label={`${reviewCount} notifications`} onClick={() => navigate(data?.viewer.isAdmin && reviewCount ? "Payroll" : "Dashboard")}><Icon name="bell"/>{reviewCount > 0 && <span>{reviewCount}</span>}</button><div className="profile"><span className="avatar">{data?.viewer.displayName.split(/[ ,]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span><span className="profile-copy"><strong>{data ? displayName(data.viewer.displayName) : "Signed in"}</strong><small>{data?.viewer.isAdmin ? "Administrator" : "Employee"}</small></span><Icon name="chevron" size={15}/></div><button className="mobile-menu-toggle" aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen((current) => !current)} aria-label="Open navigation"><Icon name={mobileMenuOpen ? "close" : "menu"}/></button></div>
         {mobileMenuOpen && <nav id="mobile-navigation" className="mobile-nav-panel" aria-label="Mobile navigation"><button className={activeNav === "Dashboard" ? "current" : ""} onClick={() => navigate("Dashboard")}><Icon name="home"/>Dashboard</button>{data?.viewer.isAdmin ? adminNavGroups.map((group) => <section key={group.label}><h2>{group.label}</h2>{group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><Icon name={navIcons[item.page]}/>{item.label}</button>)}</section>) : visibleNav.filter((item) => item !== "Dashboard").map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => navigate(item)}><Icon name={navIcons[item]}/>{item}</button>)}</nav>}
       </header>
 
       {globalSearchOpen && <div className="global-search-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setGlobalSearchOpen(false); }}><section className="global-search-dialog" role="dialog" aria-modal="true" aria-labelledby="global-search-title"><div className="global-search-head"><div><p className="eyebrow">Department-wide search</p><h2 id="global-search-title">Find anything</h2></div><button aria-label="Close search" onClick={() => setGlobalSearchOpen(false)}><Icon name="close"/></button></div><label className="global-search-input"><Icon name="search"/><input autoFocus value={globalSearch} onChange={(event) => setGlobalSearch(event.target.value)} placeholder="Search employees, contacts, policies, Box Cards, or important numbers…" /></label><div className="global-search-results">{globalSearchLoading ? <div className="global-search-empty">Loading shared information…</div> : !globalSearch.trim() ? <div className="global-search-empty">Start typing a name, address, policy, card number, or phone number.</div> : globalSearchResults.length ? globalSearchResults.map((item) => <button key={item.id} onClick={() => navigate(item.page)}><span className={`search-type ${item.type.toLowerCase().replace(" ", "-")}`}>{item.type}</span><strong>{item.title}</strong><small>{item.detail || `Open ${item.page}`}</small><b aria-hidden="true"><Icon name="chevron" size={18}/></b></button>) : <div className="global-search-empty">No results found for “{globalSearch}”.</div>}</div></section></div>}
+      <ConfirmDialog open={finalizeConfirmOpen} title="Finalize this payroll period?" description={`This will lock payroll for ${data ? periodLabel(data.period.startDate, data.period.endDate) : "the selected period"}. Timesheets will become read only and additional changes will require an administrator workflow.`} confirmLabel="Finalize Payroll" tone="warning" busy={finalizing} onCancel={() => setFinalizeConfirmOpen(false)} onConfirm={() => void finalizePayroll()} />
 
       <section className="workspace">
         {error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={() => { setError(""); void loadPayroll(periodStart); }}>Retry</button></div>}
         {toast && <div className="toast" role="status"><Icon name="save" /> {toast}</div>}
-        {loading && !data ? <div className="loading-card">Loading your payroll…</div> : data && <>
+        {loading && !data ? <PortalSkeleton page={activeNav} /> : data && <>
           {activeNav !== "Dashboard" && activeNav !== "Daily Log" && activeNav !== "Holiday Policy" && activeNav !== "Phone Numbers" && activeNav !== "Employee Contacts" && activeNav !== "Policies" && activeNav !== "Box Cards" && <div className="period-row">
             <div>
               <p className="eyebrow">{activeNav === "Payroll" ? "Current pay period" : activeNav}</p>
@@ -439,7 +468,8 @@ export default function PayrollApp() {
                   </tr>)}
                 </tbody></table>
               </div>
-              <div className="review-bar"><span><strong>{readyCount}</strong> ready · <strong>{reviewCount}</strong> need review · <strong>{payrollEmployees.length - readyCount - reviewCount}</strong> not started</span><div>{data.period.status !== "finalized" ? <><button className="quiet-button" onClick={() => void setPeriodStatus("reviewed")}>Mark Reviewed</button><button className="finalize-button" disabled={reviewCount > 0} onClick={() => void setPeriodStatus("finalized")}>Finalize Payroll</button></> : <span className="closed-confirmation">✓ Payroll closed</span>}</div></div>
+              {filteredRows.length === 0 && <div className="action-empty-state"><Icon name="search" size={28}/><div><strong>No payroll records match</strong><p>Clear the search or status filter to see employees on this payroll.</p></div><button className="quiet-button" onClick={() => { setSearch(""); setStatusFilter("all"); }}>Clear Filters</button></div>}
+              <div className="review-bar"><span><strong>{readyCount}</strong> ready · <strong>{reviewCount}</strong> need review · <strong>{payrollEmployees.length - readyCount - reviewCount}</strong> not started</span><div>{data.period.status !== "finalized" ? <><button className="quiet-button" onClick={() => void setPeriodStatus("reviewed")}>Mark Reviewed</button><button className="finalize-button" disabled={reviewCount > 0} onClick={() => setFinalizeConfirmOpen(true)}>Finalize Payroll</button></> : <span className="closed-confirmation">✓ Payroll closed</span>}</div></div>
             </section>
           </div>}
 
@@ -507,6 +537,7 @@ export default function PayrollApp() {
               <fieldset><legend>Administrative notes</legend><label className="notes-field"><span>Internal notes</span><textarea rows={3} placeholder="Restrictions, payroll notes, rehire eligibility, or other important information" value={employeeDraft.notes} onChange={(event) => setEmployeeDraft((current) => ({ ...current, notes: event.target.value }))} /></label></fieldset>
             </form>}
             <section className="content-card employee-roster-card"><div className="section-header"><div><h2>Employee roster</h2><p>Ended employees remain here for payroll history and can be updated or rehired.</p></div><div className="employee-form-actions"><span className="count-badge">{data.employees.length} records</span><button type="button" className="primary-action compact" onClick={() => editEmployee()}>Add Employee</button></div></div>
+              {data.employees.length === 0 && <div className="action-empty-state"><Icon name="users" size={28}/><div><strong>No employees yet</strong><p>Add the first employee to begin staffing, timesheets, and payroll.</p></div><button className="quiet-button" onClick={() => editEmployee()}>Add Employee</button></div>}
               <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Employee #</th><th>Pay Scale</th><th>Driver</th><th>Phone</th><th>Start</th><th>Last Day</th><th>Status</th><th></th></tr></thead><tbody>{data.employees.map((employee) => {
                 const payrollStatus = employee.startDate && employee.startDate > data.period.endDate ? "Scheduled" : employee.endDate && employee.endDate < data.period.startDate ? "Ended" : "Active";
                 return <tr key={employee.id}><td data-label="Employee"><span className="person-icon"><Icon name="users"/></span><strong>{displayName(employee.name)}</strong></td><td data-label="Employee #">{employee.employeeNumber || "—"}</td><td data-label="Pay Scale">{employee.rank}</td><td data-label="Driver">{employee.driverStatus || "—"}</td><td data-label="Phone">{employee.phone || "—"}</td><td data-label="Start">{employee.startDate || "—"}</td><td data-label="Last Day">{employee.endDate || "—"}</td><td data-label="Status"><span className={`employment-status ${payrollStatus.toLowerCase()}`}>{payrollStatus}</span></td><td data-label="Actions"><button className="edit-employee" onClick={() => editEmployee(employee)}>Edit</button></td></tr>;

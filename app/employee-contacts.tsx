@@ -29,6 +29,7 @@ export default function EmployeeContacts({ employees }: { employees: ContactEmpl
     </div>
     <section className="content-card contact-list-card">
       <div className="contact-list-band">Firefighters &amp; Officers</div>
+      {alphabetical.length === 0 && <div className="action-empty-state"><span aria-hidden="true">☎</span><div><strong>No employee contacts yet</strong><p>Contacts appear automatically after an administrator adds employees and their phone numbers.</p></div><button className="quiet-button" onClick={() => window.location.reload()}>Refresh List</button></div>}
       <div className="table-wrap contact-table-wrap"><table className="contact-table">
         <thead><tr><th>Rank</th><th>Name</th><th>Employment</th><th>Driver Status</th><th>Cell Number</th></tr></thead>
         <tbody>{alphabetical.map((employee) => <tr key={employee.id}>

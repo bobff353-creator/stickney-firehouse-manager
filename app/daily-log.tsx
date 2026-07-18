@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { holidayForDate } from "./holidays";
+import ConfirmDialog from "./confirm-dialog";
 
 type LogEmployee = { id: string; name: string; rank: string; startDate?: string | null; endDate?: string | null };
 type StaffingRow = { id: string; shiftKey: string; employeeId: string; timeIn: string; timeOut: string; actingOfficer: boolean };
@@ -60,6 +61,10 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
   const [handoffNote, setHandoffNote] = useState("");
   const [reviewedNotes, setReviewedNotes] = useState(false);
   const [acceptedNotes, setAcceptedNotes] = useState(false);
+  const [unlockConfirmOpen, setUnlockConfirmOpen] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+  const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const loaded = useRef(false);
   const currentDay = useRef(localDate());
   const readOnly = locked && !adminUnlocked;
@@ -76,6 +81,7 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
       setStaffing(rows); setCalls(callRows); setShiftNotes(data.log?.shiftNotes ?? "");
       setAddresses(data.addresses ?? []); setApprovals(data.approvals ?? []); setRecentNotes(data.recentNotes ?? []);
       setLocked(Boolean(data.log?.locked)); setAdminUnlocked(Boolean(data.log?.adminUnlocked)); setDirty(false);
+      setLastSynced(data.log?.updatedAt ? new Date(data.log.updatedAt) : new Date());
       window.setTimeout(() => { loaded.current = true; }, 0);
     } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to load log"); }
     finally { setLoading(false); }
@@ -83,6 +89,7 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
 
   useEffect(() => { const timer = window.setTimeout(() => { void loadLog(logDate); }, 0); return () => window.clearTimeout(timer); }, [loadLog, logDate]);
   useEffect(() => { const timer = window.setInterval(() => { const today = localDate(); if (today !== currentDay.current) { currentDay.current = today; setLogDate(today); } }, 30000); return () => window.clearInterval(timer); }, []);
+  useEffect(() => { const update = () => setIsOnline(window.navigator.onLine); update(); window.addEventListener("online", update); window.addEventListener("offline", update); return () => { window.removeEventListener("online", update); window.removeEventListener("offline", update); }; }, []);
 
   const saveLog = useCallback(async (silent = false) => {
     if (!loaded.current || readOnly) return;
@@ -90,7 +97,7 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
     try {
       const response = await fetch("/api/logbook", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ logDate, staffing: staffing.filter((row) => row.employeeId), calls: calls.filter((row) => Object.entries(row).some(([key, value]) => key !== "id" && value && value !== "EMS")), shiftNotes }) });
       const result = await response.json() as { error?: string; payrollEmployeesUpdated?: number }; if (!response.ok) throw new Error(result.error || "Unable to save log");
-      setDirty(false); setMessage(silent ? "All changes saved · Timesheets updated" : "Daily log and timesheets saved"); onPayrollSynced?.();
+      setDirty(false); setLastSynced(new Date()); setMessage(silent ? "All changes saved · Timesheets updated" : "Daily log and timesheets saved"); onPayrollSynced?.();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to save log"); }
     finally { setSaving(false); }
   }, [calls, logDate, onPayrollSynced, readOnly, shiftNotes, staffing]);
@@ -169,15 +176,16 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
     const successMessage = handoff.mode === "in" ? "Officer signed in and equipment approved" : "Officer signed out and shift approved";
     setHandoff(null); await loadLog(logDate); setMessage(successMessage);
   }
-  async function adminUnlock() { const response = await fetch("/api/logbook", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "adminUnlock", logDate }) }); if (response.ok) { setAdminUnlocked(true); setMessage("Administrator edit access granted"); } }
+  async function adminUnlock() { setUnlocking(true); const response = await fetch("/api/logbook", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "adminUnlock", logDate }) }); if (response.ok) { setAdminUnlocked(true); setUnlockConfirmOpen(false); setLastSynced(new Date()); setMessage("Administrator edit access granted"); } else setMessage("Unable to unlock this log."); setUnlocking(false); }
 
-  if (loading) return <section className="content-card log-loading">Loading daily log…</section>;
+  if (loading) return <section className="daily-log-skeleton" aria-label="Loading daily log" aria-busy="true"><div className="skeleton-heading"><span/><strong/></div><div className="skeleton-shifts"><i/><i/><i/></div><div className="skeleton-log-table"><i/><i/><i/></div></section>;
   return <section className={`logbook-page ${readOnly ? "is-locked" : "is-editable"}`}>
-    <div className="logbook-heading standard-page-header"><div><span className="page-icon" aria-hidden="true">▣</span><div><p className="eyebrow">Stickney Fire Department</p><h2>Daily Logbook</h2><p>Automatically saved staffing, responses, equipment checks, and officer handoffs.</p></div></div><div className="log-date-actions"><label><span>Log date</span><input type="date" value={logDate} onChange={(event) => setLogDate(event.target.value)} /></label><div className={`autosave-state ${dirty ? "pending" : ""}`}>{saving ? "Saving…" : dirty ? "Save pending" : "✓ Auto-saved"}</div></div></div>
+    <div className="logbook-heading standard-page-header"><div><span className="page-icon" aria-hidden="true">▣</span><div><p className="eyebrow">Stickney Fire Department</p><h2>Daily Logbook</h2><p>Automatically saved staffing, responses, equipment checks, and officer handoffs.</p></div></div><div className="log-date-actions"><label><span>Log date</span><input type="date" value={logDate} onChange={(event) => setLogDate(event.target.value)} /></label><div className={`autosave-state ${!isOnline ? "offline" : saving ? "saving" : dirty ? "pending" : "saved"}`}><strong>{!isOnline ? "Offline" : saving ? "Saving…" : dirty ? "Save pending" : "Saved"}</strong><small>Last synced {lastSynced ? lastSynced.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "—"}</small></div></div></div>
     {holiday && <div className="holiday-log-banner"><div className="holiday-star">★</div><div><span>Department Holiday</span><strong>{holiday.name}</strong><p>{holiday.overnightOnly ? "Holiday pay applies to the 6:00 PM–6:00 AM section only." : "Eligible hours worked today automatically receive the configured holiday rate."}</p></div></div>}
-    {readOnly && <div className="locked-banner"><div><strong>🔒 Daily log locked</strong><span>Logs lock automatically after midnight. Editing requires administrator approval.</span></div><button onClick={() => void adminUnlock()}>Admin Unlock</button></div>}
+    {readOnly && <div className="locked-banner"><div><strong>🔒 Daily log locked</strong><span>Logs lock automatically after midnight. Editing requires administrator approval.</span></div><button onClick={() => setUnlockConfirmOpen(true)}>Admin Unlock</button></div>}
     {adminUnlocked && locked && <div className="admin-banner">Administrator editing is enabled for this locked log.</div>}
     {message && <div className={message.includes("saved") || message.includes("approved") || message.includes("granted") ? "log-message success" : "log-message"}>{message}</div>}
+    <ConfirmDialog open={unlockConfirmOpen} title="Unlock this finalized log?" description={`Administrator editing will be enabled for the ${logDate} daily log. The action will remain visible in the record status.`} confirmLabel="Unlock Log" tone="warning" busy={unlocking} onCancel={() => setUnlockConfirmOpen(false)} onConfirm={() => void adminUnlock()} />
 
     <fieldset className="logbook-fields" disabled={readOnly}>
       <div className="shift-card-grid">{shiftSections.map((shift) => { const rows = staffing.filter((row) => row.shiftKey === shift.key); const approval = approvals.find((item) => item.shiftKey === shift.key); return <article className="content-card shift-card" key={shift.key}>
