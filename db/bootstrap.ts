@@ -58,6 +58,19 @@ const employeeSeed = [
 let ready = false;
 
 const policySeedVersion = "stickney-policy-library-2026-07-18";
+const boxCardSeedVersion = "stickney-box-cards-2026-07-19";
+
+const stickneyBoxCards = [
+  ["sfd-box-300-e", "Structure Fire — East of Ridgeland Avenue", "300-E", "East of Ridgeland Avenue", 1],
+  ["sfd-box-300-w", "Structure Fire — West of Ridgeland Avenue", "300-W", "West of Ridgeland Avenue", 2],
+  ["sfd-box-399", "Ambulance (MCI / ASHER)", "399", "Entire Village", 3],
+  ["sfd-box-1000", "Hazardous Materials", "1000", "Entire Town", 4],
+  ["sfd-box-303-e", "Extrication / Pin-In — East of Ridgeland", "303-E", "East of Ridgeland Avenue", 5],
+  ["sfd-box-303-w", "Extrication / Pin-In — West of Ridgeland", "303-W", "West of Ridgeland Avenue", 6],
+  ["sfd-box-305", "Technical Rescue", "305", "Entire Town", 7],
+  ["sfd-box-301", "Fire Investigators", "301", "Entire Town", 8],
+  ["sfd-box-306", "Divers", "306", "Entire Town", 9],
+] as const;
 
 async function seedPolicies(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
   const marker = await db.prepare("SELECT value FROM system_meta WHERE key = ? LIMIT 1").bind("policy_seed_version").first<{ value: string }>();
@@ -71,6 +84,15 @@ async function seedPolicies(db: Awaited<ReturnType<typeof getDatabaseBinding>>) 
   }
 
   await db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind("policy_seed_version", policySeedVersion).run();
+}
+
+async function seedBoxCards(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
+  const marker = await db.prepare("SELECT value FROM system_meta WHERE key = ? LIMIT 1").bind("box_card_seed_version").first<{ value: string }>();
+  if (marker?.value === boxCardSeedVersion) return;
+  await db.batch(stickneyBoxCards.map((card) => db.prepare(
+    "INSERT INTO box_cards (id, title, address, box_number, access_notes, details, department, document_url, document_page, status, created_by, created_at, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, 'Stickney', '/stickney-box-cards.pdf', ?, 'Active', 'Box card PDF import', CURRENT_TIMESTAMP, 'Box card PDF import', CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET title = excluded.title, address = excluded.address, box_number = excluded.box_number, department = excluded.department, document_url = excluded.document_url, document_page = excluded.document_page, updated_by = excluded.updated_by, updated_at = CURRENT_TIMESTAMP"
+  ).bind(card[0], card[1], card[3], card[2], "Official MABAS Division 11 response card", `Open the original Stickney box card for ${card[1]}.`, card[4])));
+  await db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind("box_card_seed_version", boxCardSeedVersion).run();
 }
 
 async function getDatabaseBinding() {
@@ -104,7 +126,7 @@ export async function ensureDatabase() {
     db.prepare("CREATE TABLE IF NOT EXISTS policies (id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL, policy_number TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT 'General', effective_date TEXT NOT NULL DEFAULT '', body TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'Active', created_by TEXT NOT NULL DEFAULT 'System', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE INDEX IF NOT EXISTS policies_title_idx ON policies(title)"),
     db.prepare("CREATE TABLE IF NOT EXISTS system_meta (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS box_cards (id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL, address TEXT NOT NULL DEFAULT '', box_number TEXT NOT NULL DEFAULT '', access_notes TEXT NOT NULL DEFAULT '', details TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'Active', created_by TEXT NOT NULL DEFAULT 'System', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS box_cards (id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL, address TEXT NOT NULL DEFAULT '', box_number TEXT NOT NULL DEFAULT '', access_notes TEXT NOT NULL DEFAULT '', details TEXT NOT NULL DEFAULT '', department TEXT NOT NULL DEFAULT 'Stickney', document_url TEXT NOT NULL DEFAULT '', document_page INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'Active', created_by TEXT NOT NULL DEFAULT 'System', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE INDEX IF NOT EXISTS box_cards_title_idx ON box_cards(title)"),
     db.prepare("CREATE TABLE IF NOT EXISTS record_revisions (id TEXT PRIMARY KEY NOT NULL, record_type TEXT NOT NULL, record_id TEXT NOT NULL, revision_number INTEGER NOT NULL, action TEXT NOT NULL, summary TEXT NOT NULL DEFAULT '', actor TEXT NOT NULL, changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS record_revision_number_idx ON record_revisions(record_type, record_id, revision_number)"),
@@ -115,6 +137,9 @@ export async function ensureDatabase() {
   try { await db.prepare("ALTER TABLE employee_profiles ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE policies ADD COLUMN updated_by TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE box_cards ADD COLUMN updated_by TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE box_cards ADD COLUMN department TEXT NOT NULL DEFAULT 'Stickney'").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE box_cards ADD COLUMN document_url TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE box_cards ADD COLUMN document_page INTEGER NOT NULL DEFAULT 0").run(); } catch { /* Column already exists after migration. */ }
   for (const sql of [
     "ALTER TABLE pay_periods ADD COLUMN created_by TEXT NOT NULL DEFAULT 'System'", "ALTER TABLE pay_periods ADD COLUMN created_at TEXT", "ALTER TABLE pay_periods ADD COLUMN updated_by TEXT NOT NULL DEFAULT 'System'", "ALTER TABLE pay_periods ADD COLUMN finalized_by TEXT", "ALTER TABLE pay_periods ADD COLUMN finalized_at TEXT",
     "ALTER TABLE daily_logs ADD COLUMN created_by TEXT NOT NULL DEFAULT 'System'", "ALTER TABLE daily_logs ADD COLUMN created_at TEXT", "ALTER TABLE daily_logs ADD COLUMN updated_by TEXT NOT NULL DEFAULT 'System'", "ALTER TABLE daily_logs ADD COLUMN locked_by TEXT", "ALTER TABLE daily_logs ADD COLUMN locked_at TEXT",
@@ -196,6 +221,7 @@ export async function ensureDatabase() {
   await db.prepare("UPDATE important_phone_numbers SET name = 'Cicero Consolidated Dispatch', emergency_number = '', updated_at = CURRENT_TIMESTAMP WHERE id = 'misc-cook-dispatch'").run();
   await db.prepare("UPDATE important_phone_numbers SET emergency_number = '', updated_at = CURRENT_TIMESTAMP WHERE emergency_number = '911'").run();
   await seedPolicies(db);
+  await seedBoxCards(db);
   ready = true;
   return db;
 }

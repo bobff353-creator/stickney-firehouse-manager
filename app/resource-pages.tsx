@@ -13,10 +13,10 @@ type AuditFields = {
 };
 
 type Policy = AuditFields & { id: string; title: string; policyNumber: string; category: string; effectiveDate: string; body: string };
-type BoxCard = AuditFields & { id: string; title: string; address: string; boxNumber: string; accessNotes: string; details: string };
+type BoxCard = AuditFields & { id: string; title: string; address: string; boxNumber: string; accessNotes: string; details: string; department: string; documentUrl?: string; documentPage?: number };
 
 const emptyPolicy: Policy = { id: "", title: "", policyNumber: "", category: "General", effectiveDate: "", body: "" };
-const emptyBoxCard: BoxCard = { id: "", title: "", address: "", boxNumber: "", accessNotes: "", details: "" };
+const emptyBoxCard: BoxCard = { id: "", title: "", address: "", boxNumber: "", accessNotes: "", details: "", department: "Stickney" };
 
 function PolicyRecord({ policy, canEdit, onEdit }: { policy: Policy; canEdit: boolean; onEdit: () => void }) {
   return <article className="content-card resource-record official-record policy-reader">
@@ -61,6 +61,8 @@ function SharedPage({ type }: { type: "policy" | "boxCard" }) {
   const [canEdit, setCanEdit] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedPolicyId, setSelectedPolicyId] = useState("");
+  const [selectedDepartment, setSelectedDepartment] = useState("");
+  const [selectedBoxCardId, setSelectedBoxCardId] = useState("");
   const [draft, setDraft] = useState<Policy | BoxCard | null>(null);
   const [message, setMessage] = useState("");
 
@@ -79,6 +81,10 @@ function SharedPage({ type }: { type: "policy" | "boxCard" }) {
     return query ? items.filter((item) => Object.values(item).join(" ").toLowerCase().includes(query)) : items;
   }, [items, search]);
   const filteredPolicies = isPolicy ? filtered as Policy[] : [];
+  const boxCards = useMemo(() => !isPolicy ? items as BoxCard[] : [], [isPolicy, items]);
+  const departments = useMemo(() => Array.from(new Set(boxCards.map((card) => card.department || "Stickney"))).sort(), [boxCards]);
+  const departmentCards = (filtered as BoxCard[]).filter((card) => (card.department || "Stickney") === selectedDepartment);
+  const selectedBoxCard = departmentCards.find((card) => card.id === selectedBoxCardId);
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
@@ -96,7 +102,7 @@ function SharedPage({ type }: { type: "policy" | "boxCard" }) {
       <div><span className="page-icon" aria-hidden="true">{isPolicy ? "POL" : "BOX"}</span><div><p className="eyebrow">Stickney Fire Department</p><h1>{isPolicy ? "Policies" : "Box Cards"}</h1><p>{isPolicy ? "Choose a policy from the table of contents to read it." : "Search building access, box, and response card information."}</p></div></div>
       {canEdit ? <button className="primary-action" onClick={() => setDraft(isPolicy ? { ...emptyPolicy } : { ...emptyBoxCard })}>+ Add {isPolicy ? "Policy" : "Box Card"}</button> : <span className="read-only-badge">View only</span>}
     </div>
-    <label className="resource-search"><span aria-hidden="true">⌕</span><span className="sr-only">Search {isPolicy ? "policies" : "box cards"}</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Search ${isPolicy ? "by number, title, category, or policy text" : "box cards"}…`} /></label>
+    {(isPolicy || selectedDepartment) && <label className="resource-search"><span aria-hidden="true">⌕</span><span className="sr-only">Search {isPolicy ? "policies" : "box cards"}</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Search ${isPolicy ? "by number, title, category, or policy text" : `${selectedDepartment} by box number, type, or area`}…`} /></label>}
     {message && <div className="phone-message" role="status">{message}</div>}
 
     {draft && <form className="content-card resource-form" onSubmit={(event) => void save(event)}>
@@ -110,6 +116,7 @@ function SharedPage({ type }: { type: "policy" | "boxCard" }) {
       </div>; })() : (() => { const value = draft as BoxCard; return <div className="resource-form-grid">
         <label className="resource-title"><span>Location / building name *</span><input required value={value.title} onChange={(event) => setDraft({ ...value, title: event.target.value })} /></label>
         <label><span>Box or card number</span><input value={value.boxNumber} onChange={(event) => setDraft({ ...value, boxNumber: event.target.value })} /></label>
+        <label><span>Department *</span><input required value={value.department} onChange={(event) => setDraft({ ...value, department: event.target.value })} placeholder="Stickney, Berwyn, Forest View…" /></label>
         <label className="resource-wide"><span>Address</span><input value={value.address} onChange={(event) => setDraft({ ...value, address: event.target.value })} /></label>
         <label className="resource-wide"><span>Access notes</span><textarea rows={4} value={value.accessNotes} onChange={(event) => setDraft({ ...value, accessNotes: event.target.value })} /></label>
         <label className="resource-body"><span>Card details</span><textarea rows={9} value={value.details} onChange={(event) => setDraft({ ...value, details: event.target.value })} /></label>
@@ -119,14 +126,20 @@ function SharedPage({ type }: { type: "policy" | "boxCard" }) {
 
     {isPolicy && filteredPolicies.length > 0 && <PolicyLibrary policies={filteredPolicies} selectedId={selectedPolicyId} onSelect={setSelectedPolicyId} canEdit={canEdit} onEdit={setDraft} />}
 
-    {!isPolicy && <div className="resource-list">{(filtered as BoxCard[]).map((item) => <article className="content-card resource-record official-record" key={item.id}>
-      <div className="resource-record-head"><div><span>Box Card{item.boxNumber ? ` · ${item.boxNumber}` : ""}</span><h2>{item.title}</h2>{item.address && <p>{item.address}</p>}</div>{canEdit && <button className="edit-employee no-print" onClick={() => setDraft({ ...item })}>Edit</button>}</div>
-      {item.accessNotes && <div className="access-note"><strong>Access</strong><p>{item.accessNotes}</p></div>}
-      <div className="resource-copy">{item.details || "No card details have been entered."}</div>
-      <RecordCredibility audit={{ recordNumber: `BOX-${item.boxNumber || item.id.slice(0, 8).toUpperCase()}`, status: item.status || "Active", createdBy: item.createdBy, createdAt: item.createdAt, updatedBy: item.updatedBy, updatedAt: item.updatedAt, revisions: item.revisions }} />
-    </article>)}</div>}
+    {!isPolicy && !selectedDepartment && <div className="box-department-grid">{departments.map((department) => {
+      const count = boxCards.filter((card) => (card.department || "Stickney") === department).length;
+      return <button className="content-card box-department-card" type="button" key={department} onClick={() => { setSelectedDepartment(department); setSelectedBoxCardId(""); setSearch(""); }}><span aria-hidden="true">BOX</span><div><strong>{department}</strong><small>{count} box {count === 1 ? "card" : "cards"}</small></div><b aria-hidden="true">›</b></button>;
+    })}</div>}
 
-    {filtered.length === 0 && <div className="content-card action-empty-state resource-action-empty"><span aria-hidden="true">⌕</span><div><strong>No matching {isPolicy ? "policies" : "Box Cards"}</strong><p>{search ? "Try another search or clear the current search." : canEdit ? `Add the first ${isPolicy ? "policy" : "Box Card"} to make it available to the department.` : "An administrator has not added any records yet."}</p></div>{search ? <button className="quiet-button" onClick={() => setSearch("")}>Clear Search</button> : canEdit ? <button className="quiet-button" onClick={() => setDraft(isPolicy ? { ...emptyPolicy } : { ...emptyBoxCard })}>Add {isPolicy ? "Policy" : "Box Card"}</button> : null}</div>}
+    {!isPolicy && selectedDepartment && <div className="box-card-browser">
+      <div className="box-browser-bar"><button className="quiet-button" type="button" onClick={() => { setSelectedDepartment(""); setSelectedBoxCardId(""); setSearch(""); }}>← All departments</button><div><span className="eyebrow">Department</span><strong>{selectedDepartment}</strong></div><span>{departmentCards.length} cards</span></div>
+      <div className="policy-library box-card-library">
+        <nav className="content-card policy-toc" aria-label={`${selectedDepartment} box cards`}><div className="policy-toc-head"><div><p className="eyebrow">Select a card</p><h2>{selectedDepartment} Box Cards</h2></div><strong>{departmentCards.length}</strong></div><div className="policy-toc-list">{departmentCards.map((item) => <button className={selectedBoxCard?.id === item.id ? "current" : ""} key={item.id} type="button" onClick={() => setSelectedBoxCardId(item.id)}><span>{item.boxNumber || "—"}</span><strong>{item.title}</strong><small>{item.address || "Response card"}</small></button>)}</div></nav>
+        {selectedBoxCard ? <article className="content-card resource-record official-record box-card-viewer"><div className="resource-record-head"><div><span>{selectedDepartment} · Box Card {selectedBoxCard.boxNumber}</span><h2>{selectedBoxCard.title}</h2>{selectedBoxCard.address && <p>{selectedBoxCard.address}</p>}</div><div className="box-card-actions">{selectedBoxCard.documentUrl && <a className="primary-action compact" href={`${selectedBoxCard.documentUrl}#page=${selectedBoxCard.documentPage || 1}`} target="_blank" rel="noreferrer">Open full size</a>}{canEdit && <button className="edit-employee no-print" onClick={() => setDraft({ ...selectedBoxCard })}>Edit</button>}</div></div>{selectedBoxCard.documentUrl ? <iframe className="box-card-pdf" title={`${selectedBoxCard.title} box card`} src={`${selectedBoxCard.documentUrl}#page=${selectedBoxCard.documentPage || 1}&view=FitH`} /> : <><div className="resource-copy">{selectedBoxCard.details || "No card details have been entered."}</div><RecordCredibility audit={{ recordNumber: `BOX-${selectedBoxCard.boxNumber || selectedBoxCard.id.slice(0, 8).toUpperCase()}`, status: selectedBoxCard.status || "Active", createdBy: selectedBoxCard.createdBy, createdAt: selectedBoxCard.createdAt, updatedBy: selectedBoxCard.updatedBy, updatedAt: selectedBoxCard.updatedAt, revisions: selectedBoxCard.revisions }} /></>}</article> : <div className="content-card box-select-prompt"><span aria-hidden="true">BOX</span><div><strong>Select a box card</strong><p>Choose a card from the list to open the official response document.</p></div></div>}
+      </div>
+    </div>}
+
+    {(isPolicy ? filtered.length === 0 : selectedDepartment ? departmentCards.length === 0 : departments.length === 0) && <div className="content-card action-empty-state resource-action-empty"><span aria-hidden="true">⌕</span><div><strong>No matching {isPolicy ? "policies" : "Box Cards"}</strong><p>{search ? "Try another search or clear the current search." : canEdit ? `Add the first ${isPolicy ? "policy" : "Box Card"} to make it available to the department.` : "An administrator has not added any records yet."}</p></div>{search ? <button className="quiet-button" onClick={() => setSearch("")}>Clear Search</button> : canEdit ? <button className="quiet-button" onClick={() => setDraft(isPolicy ? { ...emptyPolicy } : { ...emptyBoxCard })}>Add {isPolicy ? "Policy" : "Box Card"}</button> : null}</div>}
   </section>;
 }
 

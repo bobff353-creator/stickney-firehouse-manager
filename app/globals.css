@@ -443,6 +443,27 @@ td strong { font-size: 16px; }
 .policy-toc-list button > strong { align-self: end; color: var(--navy-deep); font-size: 13px; line-height: 1.3; }
 .policy-toc-list button > small { align-self: start; color: var(--slate); font-size: 10px; line-height: 1.3; }
 .policy-reader { min-width: 0; }
+.box-department-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.box-department-card { min-height: 132px; padding: 22px; border: 1px solid #c9d5dd; background: white; color: var(--navy-deep); display: grid; grid-template-columns: 52px minmax(0, 1fr) 24px; align-items: center; gap: 14px; text-align: left; box-shadow: 0 3px 12px rgba(16,40,61,.06); }
+.box-department-card:hover { border-color: #749bb7; background: #f7fbfd; transform: translateY(-1px); }
+.box-department-card > span { width: 52px; height: 52px; border-radius: 10px; background: #9a3d36; color: white; display: grid; place-items: center; font-size: 12px; font-weight: 950; letter-spacing: .06em; }
+.box-department-card div { display: grid; gap: 5px; }
+.box-department-card strong { font-size: 21px; }
+.box-department-card small { color: var(--slate); font-size: 12px; }
+.box-department-card b { color: #6d8494; font-size: 32px; font-weight: 400; }
+.box-card-browser { display: grid; gap: 16px; }
+.box-browser-bar { min-height: 64px; padding: 10px 14px; border: 1px solid #d2dce3; border-radius: 9px; background: #f7fafc; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 18px; }
+.box-browser-bar > div { display: grid; gap: 2px; }
+.box-browser-bar > div strong { color: var(--navy-deep); font-size: 18px; }
+.box-browser-bar > span { color: var(--slate); font-size: 12px; font-weight: 850; }
+.box-card-viewer { min-width: 0; }
+.box-card-actions { display: flex; align-items: center; gap: 8px; }
+.box-card-actions a { text-decoration: none; }
+.box-card-pdf { width: 100%; height: min(74vh, 880px); min-height: 620px; border: 1px solid #aebbc5; border-radius: 7px; background: #eef2f4; }
+.box-select-prompt { min-height: 360px; padding: 28px; color: var(--slate); display: grid; place-items: center; align-content: center; gap: 14px; text-align: center; }
+.box-select-prompt > span { width: 60px; height: 60px; border-radius: 12px; background: #e4edf3; color: #285a7c; display: grid; place-items: center; font-size: 13px; font-weight: 950; }
+.box-select-prompt strong { color: var(--navy-deep); font-size: 20px; }
+.box-select-prompt p { margin: 6px 0 0; }
 
 /* Role dashboards */
 .role-dashboard { display: grid; gap: 24px; }
@@ -766,6 +787,7 @@ td strong { font-size: 16px; }
   .call-address { grid-column: span 2; }
   .policy-layout { grid-template-columns: 1fr; }
   .policy-library { grid-template-columns: 1fr; }
+  .box-department-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .policy-toc { position: static; }
   .policy-toc-list { max-height: 330px; }
   .policy-pay { position: static; }
@@ -870,6 +892,11 @@ td strong { font-size: 16px; }
   .resource-form-grid { grid-template-columns: 1fr; }
   .resource-form-grid .resource-title, .resource-form-grid .resource-wide, .resource-form-grid .resource-body { grid-column: auto; }
   .resource-record-head { align-items: stretch; flex-direction: column; }
+  .box-department-grid { grid-template-columns: 1fr; }
+  .box-browser-bar { grid-template-columns: 1fr auto; }
+  .box-browser-bar > button { grid-column: 1 / -1; justify-self: start; }
+  .box-card-actions { align-items: stretch; flex-direction: column; }
+  .box-card-pdf { min-height: 520px; height: 68vh; }
   .dashboard-welcome { padding: 23px 18px; align-items: flex-start; flex-direction: column; }
   .dashboard-live { width: 100%; }
   .operations-board { margin: -26px -16px -42px; padding: 22px 14px 36px; }
