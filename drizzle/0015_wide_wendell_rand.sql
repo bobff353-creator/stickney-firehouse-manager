@@ -1,0 +1,1 @@
+ALTER TABLE `box_cards` ADD `layout_data` text DEFAULT '' NOT NULL;
