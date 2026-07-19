@@ -167,6 +167,8 @@ export const boxCards = sqliteTable("box_cards", {
   department: text("department").notNull().default("Stickney"),
   documentUrl: text("document_url").notNull().default(""),
   documentPage: integer("document_page").notNull().default(0),
+  effectiveDate: text("effective_date").notNull().default(""),
+  reviewDate: text("review_date").notNull().default(""),
   status: text("status").notNull().default("Active"),
   createdBy: text("created_by").notNull().default("System"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
