@@ -459,7 +459,8 @@ td strong { font-size: 16px; }
 .box-card-viewer { min-width: 0; }
 .box-card-actions { display: flex; align-items: center; gap: 8px; }
 .box-card-actions a { text-decoration: none; }
-.box-card-pdf { width: 100%; height: min(74vh, 880px); min-height: 620px; border: 1px solid #aebbc5; border-radius: 7px; background: #eef2f4; }
+.box-card-image-wrap { max-height: 76vh; border: 1px solid #aebbc5; border-radius: 7px; background: #e8edf0; overflow: auto; }
+.box-card-image { width: 100%; height: auto; min-width: 760px; display: block; }
 .box-select-prompt { min-height: 360px; padding: 28px; color: var(--slate); display: grid; place-items: center; align-content: center; gap: 14px; text-align: center; }
 .box-select-prompt > span { width: 60px; height: 60px; border-radius: 12px; background: #e4edf3; color: #285a7c; display: grid; place-items: center; font-size: 13px; font-weight: 950; }
 .box-select-prompt strong { color: var(--navy-deep); font-size: 20px; }
@@ -896,7 +897,8 @@ td strong { font-size: 16px; }
   .box-browser-bar { grid-template-columns: 1fr auto; }
   .box-browser-bar > button { grid-column: 1 / -1; justify-self: start; }
   .box-card-actions { align-items: stretch; flex-direction: column; }
-  .box-card-pdf { min-height: 520px; height: 68vh; }
+  .box-card-image-wrap { max-height: 68vh; }
+  .box-card-image { min-width: 680px; }
   .dashboard-welcome { padding: 23px 18px; align-items: flex-start; flex-direction: column; }
   .dashboard-live { width: 100%; }
   .operations-board { margin: -26px -16px -42px; padding: 22px 14px 36px; }
