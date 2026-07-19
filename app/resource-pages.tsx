@@ -83,7 +83,9 @@ function SharedPage({ type }: { type: "policy" | "boxCard" }) {
   const filteredPolicies = isPolicy ? filtered as Policy[] : [];
   const boxCards = useMemo(() => !isPolicy ? items as BoxCard[] : [], [isPolicy, items]);
   const departments = useMemo(() => Array.from(new Set(boxCards.map((card) => card.department || "Stickney"))).sort(), [boxCards]);
-  const departmentCards = (filtered as BoxCard[]).filter((card) => (card.department || "Stickney") === selectedDepartment);
+  const departmentCards = (filtered as BoxCard[])
+    .filter((card) => (card.department || "Stickney") === selectedDepartment)
+    .sort((a, b) => a.boxNumber.localeCompare(b.boxNumber, undefined, { numeric: true, sensitivity: "base" }) || a.title.localeCompare(b.title));
   const selectedBoxCard = departmentCards.find((card) => card.id === selectedBoxCardId);
 
   async function save(event: React.FormEvent) {
