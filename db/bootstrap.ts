@@ -1,5 +1,6 @@
 import policySeed from "./policy-seed.json";
 import { stickneyBoxCards } from "./box-card-seed";
+import regionalBoxCards from "./regional-box-card-seed.json";
 
 const payScales = [
   ["deputy-chief-1", "Chief — O'Dowd", 31, 46.5, 46.5, 1],
@@ -59,7 +60,7 @@ const employeeSeed = [
 let ready = false;
 
 const policySeedVersion = "stickney-policy-library-2026-07-18";
-const boxCardSeedVersion = "stickney-box-cards-structured-2026-07-21";
+const boxCardSeedVersion = "regional-box-cards-structured-2026-07-21-v2";
 
 async function seedPolicies(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
   const marker = await db.prepare("SELECT value FROM system_meta WHERE key = ? LIMIT 1").bind("policy_seed_version").first<{ value: string }>();
@@ -78,9 +79,16 @@ async function seedPolicies(db: Awaited<ReturnType<typeof getDatabaseBinding>>) 
 async function seedBoxCards(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
   const marker = await db.prepare("SELECT value FROM system_meta WHERE key = ? LIMIT 1").bind("box_card_seed_version").first<{ value: string }>();
   if (marker?.value === boxCardSeedVersion) return;
-  await db.batch(stickneyBoxCards.map((card) => db.prepare(
-    "INSERT INTO box_cards (id, title, address, box_number, access_notes, details, department, document_url, document_page, effective_date, review_date, layout_data, status, created_by, created_at, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, 'Stickney', '/stickney-box-cards.pdf', ?, ?, ?, ?, 'Active', 'Box card PDF import', CURRENT_TIMESTAMP, 'Box card PDF import', CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET title = excluded.title, address = excluded.address, box_number = excluded.box_number, access_notes = CASE WHEN box_cards.access_notes = '' OR box_cards.access_notes LIKE 'Official MABAS Division 11 response card.%' THEN excluded.access_notes ELSE box_cards.access_notes END, department = excluded.department, document_url = excluded.document_url, document_page = excluded.document_page, effective_date = excluded.effective_date, review_date = excluded.review_date, layout_data = CASE WHEN box_cards.layout_data = '' THEN excluded.layout_data ELSE box_cards.layout_data END, updated_by = excluded.updated_by, updated_at = CURRENT_TIMESTAMP"
-  ).bind(card.id, card.title, card.address, card.boxNumber, card.accessNotes, "Structured from the attached approved MABAS Division 11 PDF. The original source remains attached below for verification.", card.documentPage, card.effectiveDate, card.reviewDate, JSON.stringify(card.layout))));
+  const boxCards = [
+    ...stickneyBoxCards.map((card) => ({ ...card, department: "Stickney", documentUrl: "/stickney-box-cards.pdf" })),
+    ...regionalBoxCards,
+  ];
+  for (let index = 0; index < boxCards.length; index += 20) {
+    const chunk = boxCards.slice(index, index + 20);
+    await db.batch(chunk.map((card) => db.prepare(
+      "INSERT INTO box_cards (id, title, address, box_number, access_notes, details, department, document_url, document_page, effective_date, review_date, layout_data, status, created_by, created_at, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', 'Box card PDF import', CURRENT_TIMESTAMP, 'Box card PDF import', CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET title = excluded.title, address = excluded.address, box_number = excluded.box_number, access_notes = CASE WHEN box_cards.access_notes = '' OR box_cards.access_notes LIKE 'Official MABAS Division 11 response card.%' THEN excluded.access_notes ELSE box_cards.access_notes END, department = excluded.department, document_url = excluded.document_url, document_page = excluded.document_page, effective_date = excluded.effective_date, review_date = excluded.review_date, layout_data = CASE WHEN box_cards.layout_data = '' THEN excluded.layout_data ELSE box_cards.layout_data END, updated_by = excluded.updated_by, updated_at = CURRENT_TIMESTAMP"
+    ).bind(card.id, card.title, card.address, card.boxNumber, card.accessNotes, "Structured from the attached approved MABAS Division 11 PDF. The original source remains attached below for verification.", card.department, card.documentUrl, card.documentPage, card.effectiveDate, card.reviewDate, JSON.stringify(card.layout))));
+  }
   await db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind("box_card_seed_version", boxCardSeedVersion).run();
 }
 
