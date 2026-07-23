@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { holidayForDate } from "./holidays";
 import ConfirmDialog from "./confirm-dialog";
 import { RecordCredibility, type Revision } from "./record-credibility";
+import { compareEmployeeNames, formatEmployeeName } from "./employee-names";
 
 type LogEmployee = { id: string; name: string; rank: string; startDate?: string | null; endDate?: string | null };
 type StaffingRow = { id: string; shiftKey: string; employeeId: string; timeIn: string; timeOut: string; actingOfficer: boolean };
@@ -40,7 +41,7 @@ function nowTime() { const d = new Date(); return `${String(d.getHours()).padSta
 function clientId() { return `row-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`; }
 function blankStaff(shiftKey: string, timeIn: string, timeOut: string, actingOfficer = false): StaffingRow { return { id: clientId(), shiftKey, employeeId: "", timeIn, timeOut, actingOfficer }; }
 function blankCall(): CallRow { return { id: clientId(), reportNumber: "", timeOut: "", timeIn: "", respondingUnits: "", address: "", callType: "EMS" }; }
-function displayName(value: string) { const [last, first] = value.split(",").map((part) => part.trim()); return first ? `${first} ${last}` : value; }
+const displayName = formatEmployeeName;
 function shiftMinutes(value: string, shiftKey: string) { const [hours, minutes] = value.split(":").map(Number); const total = hours * 60 + minutes; return shiftKey === "overnight" && total <= 360 ? total + 1440 : total; }
 export default function DailyLog({ employees, onPayrollSynced }: { employees: LogEmployee[]; onPayrollSynced?: () => void }) {
   const [logDate, setLogDate] = useState(localDate);
@@ -116,11 +117,11 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
   useEffect(() => { if (!dirty || readOnly) return; window.localStorage.setItem(draftKey(logDate), JSON.stringify({ savedAt: new Date().toISOString(), logDate, staffing: staffing.filter((row) => row.employeeId), calls, shiftNotes })); }, [calls, dirty, logDate, readOnly, shiftNotes, staffing]);
   useEffect(() => { if (!isOnline || !dirty || readOnly) return; const timer = window.setTimeout(() => void saveLog(true), 250); return () => window.clearTimeout(timer); }, [dirty, isOnline, readOnly, saveLog]);
 
-  const activeEmployees = useMemo(() => employees.filter((employee) => (!employee.startDate || employee.startDate <= logDate) && (!employee.endDate || employee.endDate >= logDate)), [employees, logDate]);
+  const activeEmployees = useMemo(() => employees.filter((employee) => (!employee.startDate || employee.startDate <= logDate) && (!employee.endDate || employee.endDate >= logDate)).sort((a, b) => compareEmployeeNames(a.name, b.name)), [employees, logDate]);
   const markDirty = () => { if (loaded.current) setDirty(true); };
   function selectStaffEmployee(id: string, employeeId: string) {
     setStaffing((current) => {
-      let rows = current.map((row) => row.id === id ? { ...row, employeeId } : { ...row });
+      const rows = current.map((row) => row.id === id ? { ...row, employeeId } : { ...row });
       const target = rows.find((row) => row.id === id);
       if (!target) return rows;
       if (!employeeId) target.actingOfficer = false;

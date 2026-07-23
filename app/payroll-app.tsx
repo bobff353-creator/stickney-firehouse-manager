@@ -15,6 +15,7 @@ import ActivityTimeline from "./activity-timeline";
 import SmartAlerts from "./smart-alerts";
 import PwaInstall from "./pwa-install";
 import CommandCenter from "./command-center";
+import { compareEmployeeNames, employeeNameFromParts, formatEmployeeName, splitEmployeeName } from "./employee-names";
 
 type Category = "shift" | "drill" | "workDetail" | "callback" | "actingOfficer" | "holiday" | "dpw";
 type PayScale = { id: string; label: string; regularRate: number; overtimeRate: number; holidayRate: number };
@@ -26,7 +27,7 @@ type Employee = PayScale & {
   emergencyName?: string | null; emergencyRelationship?: string | null; emergencyPhone?: string | null; notes?: string | null;
 };
 type EmployeeForm = {
-  id?: string; name: string; payScaleId: string; employeeNumber: string; startDate: string; endDate: string;
+  id?: string; lastName: string; firstName: string; payScaleId: string; employeeNumber: string; startDate: string; endDate: string;
   dateOfBirth: string; phone: string; email: string; addressLine1: string; city: string; state: string;
   postalCode: string; employmentType: string; isDpw: boolean; driverStatus: string; isAdmin: boolean; emergencyName: string; emergencyRelationship: string;
   emergencyPhone: string; notes: string;
@@ -55,7 +56,7 @@ const adminNavGroups: Array<{ label: string; icon: IconName; items: Array<{ labe
   { label: "Settings", icon: "settings", items: [{ label: "Important Phone Numbers", page: "Phone Numbers" }] },
 ];
 const emptyEmployee: EmployeeForm = {
-  name: "", payScaleId: "firefighter", employeeNumber: "", startDate: "", endDate: "", dateOfBirth: "",
+  lastName: "", firstName: "", payScaleId: "firefighter", employeeNumber: "", startDate: "", endDate: "", dateOfBirth: "",
   phone: "", email: "", addressLine1: "", city: "", state: "IL", postalCode: "", employmentType: "Part-time", isDpw: false, driverStatus: "", isAdmin: false,
   emergencyName: "", emergencyRelationship: "", emergencyPhone: "", notes: "",
 };
@@ -122,10 +123,7 @@ function dayLabel(value: string) {
   return new Date(`${value}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
-function displayName(value: string) {
-  const [last, first] = value.split(",").map((part) => part.trim());
-  return first ? `${first} ${last}` : value;
-}
+const displayName = formatEmployeeName;
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
@@ -387,7 +385,7 @@ export default function PayrollApp() {
       setEmployeeDraft(emptyEmployee);
     } else {
       setEmployeeDraft({
-        id: employee.id, name: employee.name, payScaleId: employee.payScaleId, employeeNumber: employee.employeeNumber ?? "",
+        id: employee.id, ...splitEmployeeName(employee.name), payScaleId: employee.payScaleId, employeeNumber: employee.employeeNumber ?? "",
         startDate: employee.startDate ?? "", endDate: employee.endDate ?? "", dateOfBirth: employee.dateOfBirth ?? "",
         phone: employee.phone ?? "", email: employee.email ?? "", addressLine1: employee.addressLine1 ?? "",
         city: employee.city ?? "", state: employee.state ?? "IL", postalCode: employee.postalCode ?? "",
@@ -402,7 +400,7 @@ export default function PayrollApp() {
   async function saveEmployeeProfile(event: React.FormEvent) {
     event.preventDefault();
     try {
-      await post({ action: "saveEmployee", ...employeeDraft });
+      await post({ action: "saveEmployee", ...employeeDraft, name: employeeNameFromParts(employeeDraft.lastName, employeeDraft.firstName) });
       setEmployeeDraft(emptyEmployee);
       setProfileOpen(false);
       await loadPayroll(periodStart);
@@ -523,9 +521,10 @@ export default function PayrollApp() {
           {activeNav === "Employees" && <section className="employee-page">
             <div className="standard-page-header"><div><span className="page-icon"><Icon name="users" size={25}/></span><div><p className="eyebrow">Personnel administration</p><h1>Employees</h1><p>Manage employment, contact, access, driver status, and emergency information.</p></div></div><button type="button" className="primary-action" onClick={() => editEmployee()}>Add Employee</button></div>
             {profileOpen && <form className="content-card employee-profile-form" onSubmit={(event) => void saveEmployeeProfile(event)}>
-              <div className="section-header"><div><h2>{employeeDraft.id ? `Edit ${displayName(employeeDraft.name)}` : "Add employee"}</h2><p>Personnel, payroll eligibility, and emergency contact information.</p></div><div className="employee-form-actions">{employeeDraft.id && <button type="button" className="quiet-button" onClick={() => editEmployee()}>New Employee</button>}<button className="primary-action compact" type="submit">{employeeDraft.id ? "Save Changes" : "Add Employee"}</button></div></div>
+              <div className="section-header"><div><h2>{employeeDraft.id ? `Edit ${employeeNameFromParts(employeeDraft.lastName, employeeDraft.firstName)}` : "Add employee"}</h2><p>Personnel, payroll eligibility, and emergency contact information.</p></div><div className="employee-form-actions">{employeeDraft.id && <button type="button" className="quiet-button" onClick={() => editEmployee()}>New Employee</button>}<button className="primary-action compact" type="submit">{employeeDraft.id ? "Save Changes" : "Add Employee"}</button></div></div>
               <fieldset><legend>Employment</legend><div className="employee-fields three-col">
-                <label><span>Employee name *</span><input required placeholder="Last, First" value={employeeDraft.name} onChange={(event) => setEmployeeDraft((current) => ({ ...current, name: event.target.value }))} /></label>
+                <label><span>Last name *</span><input required autoComplete="family-name" value={employeeDraft.lastName} onChange={(event) => setEmployeeDraft((current) => ({ ...current, lastName: event.target.value }))} /></label>
+                <label><span>First name *</span><input required autoComplete="given-name" value={employeeDraft.firstName} onChange={(event) => setEmployeeDraft((current) => ({ ...current, firstName: event.target.value }))} /></label>
                 <label><span>Employee number</span><input placeholder="Example: 1203-17" value={employeeDraft.employeeNumber} onChange={(event) => setEmployeeDraft((current) => ({ ...current, employeeNumber: event.target.value }))} /></label>
                 <label><span>Employment type</span><select value={employeeDraft.employmentType} onChange={(event) => setEmployeeDraft((current) => ({ ...current, employmentType: event.target.value }))}><option>Part-time</option><option>Full-time</option><option>Paid-on-call</option><option>Temporary</option><option>Contract</option></select></label>
                 <label><span>Driver status</span><select value={employeeDraft.driverStatus} onChange={(event) => setEmployeeDraft((current) => ({ ...current, driverStatus: event.target.value }))}><option value="">Not entered</option><option>Cleared</option><option>Ambulance Only</option><option>Not Cleared</option></select></label>
@@ -553,7 +552,7 @@ export default function PayrollApp() {
             </form>}
             <section className="content-card employee-roster-card"><div className="section-header"><div><h2>Employee roster</h2><p>Ended employees remain here for payroll history and can be updated or rehired.</p></div><div className="employee-form-actions"><span className="count-badge">{data.employees.length} records</span><button type="button" className="primary-action compact" onClick={() => editEmployee()}>Add Employee</button></div></div>
               {data.employees.length === 0 && <div className="action-empty-state"><Icon name="users" size={28}/><div><strong>No employees yet</strong><p>Add the first employee to begin staffing, timesheets, and payroll.</p></div><button className="quiet-button" onClick={() => editEmployee()}>Add Employee</button></div>}
-              <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Employee #</th><th>Pay Scale</th><th>Driver</th><th>Phone</th><th>Start</th><th>Last Day</th><th>Status</th><th></th></tr></thead><tbody>{data.employees.map((employee) => {
+              <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Employee #</th><th>Pay Scale</th><th>Driver</th><th>Phone</th><th>Start</th><th>Last Day</th><th>Status</th><th></th></tr></thead><tbody>{[...data.employees].sort((a, b) => compareEmployeeNames(a.name, b.name)).map((employee) => {
                 const payrollStatus = employee.startDate && employee.startDate > data.period.endDate ? "Scheduled" : employee.endDate && employee.endDate < data.period.startDate ? "Ended" : "Active";
                 return <tr key={employee.id}><td data-label="Employee"><span className="person-icon"><Icon name="users"/></span><strong>{displayName(employee.name)}</strong></td><td data-label="Employee #">{employee.employeeNumber || "—"}</td><td data-label="Pay Scale">{employee.rank}</td><td data-label="Driver">{employee.driverStatus || "—"}</td><td data-label="Phone">{employee.phone || "—"}</td><td data-label="Start">{employee.startDate || "—"}</td><td data-label="Last Day">{employee.endDate || "—"}</td><td data-label="Status"><span className={`employment-status ${payrollStatus.toLowerCase()}`}>{payrollStatus}</span></td><td data-label="Actions"><button className="edit-employee" onClick={() => editEmployee(employee)}>Edit</button></td></tr>;
               })}</tbody></table></div>

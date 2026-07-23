@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { formatEmployeeName } from "./employee-names";
 
 type BoardData = { asOf: string; currentShift: string; onDuty: Array<{ employeeId: string; name: string; rank: string; timeIn: string; timeOut: string; actingOfficer: number }>; officerInCharge: string | null; staffing: { filled: number; required: number; complete: boolean }; equipmentIssues: Array<{ item: string; status: string; detail: string }>; activeCalls: Array<{ reportNumber: string; timeOut: string; respondingUnits: string; address: string; callType: string }>; apparatus: Array<{ unit: string; status: string }>; error?: string };
-const displayName = (value: string) => { const [last, first] = value.split(",").map((part) => part.trim()); return first ? `${first} ${last}` : value; };
+const displayName = formatEmployeeName;
 const shiftLabel = (value: string) => value === "morning" ? "6:00 AM – Noon" : value === "afternoon" ? "Noon – 6:00 PM" : "6:00 PM – 6:00 AM";
 function nextShift(now: Date) { const local = new Date(now.toLocaleString("en-US", { timeZone: "America/Chicago" })); const minutes = local.getHours() * 60 + local.getMinutes(); const target = minutes < 360 ? 360 : minutes < 720 ? 720 : minutes < 1080 ? 1080 : 1800; const remaining = target - minutes; return { label: target === 360 ? "6:00 AM" : target === 720 ? "Noon" : "6:00 PM", remaining: `${Math.floor(remaining / 60)}h ${remaining % 60}m` }; }
 

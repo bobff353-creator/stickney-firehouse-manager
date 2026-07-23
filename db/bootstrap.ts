@@ -1,6 +1,7 @@
 import policySeed from "./policy-seed.json";
 import { stickneyBoxCards } from "./box-card-seed";
 import regionalBoxCards from "./regional-box-card-seed.json";
+import { formatEmployeeName } from "../app/employee-names";
 
 const payScales = [
   ["deputy-chief-1", "Chief — O'Dowd", 31, 46.5, 46.5, 1],
@@ -61,6 +62,19 @@ let ready = false;
 
 const policySeedVersion = "stickney-policy-library-2026-07-18";
 const boxCardSeedVersion = "regional-box-cards-structured-2026-07-21-v2";
+const employeeNameFormatVersion = "employee-names-last-first-2026-07-23";
+
+async function normalizeEmployeeNames(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
+  const marker = await db.prepare("SELECT value FROM system_meta WHERE key = ? LIMIT 1").bind("employee_name_format_version").first<{ value: string }>();
+  if (marker?.value === employeeNameFormatVersion) return;
+  const employees = await db.prepare("SELECT id, name FROM employees").all<{ id: string; name: string }>();
+  const updates = employees.results
+    .map((employee) => ({ ...employee, formatted: formatEmployeeName(employee.name) }))
+    .filter((employee) => employee.formatted && employee.formatted !== employee.name)
+    .map((employee) => db.prepare("UPDATE employees SET name = ? WHERE id = ?").bind(employee.formatted, employee.id));
+  if (updates.length) await db.batch(updates);
+  await db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind("employee_name_format_version", employeeNameFormatVersion).run();
+}
 
 async function seedPolicies(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
   const marker = await db.prepare("SELECT value FROM system_meta WHERE key = ? LIMIT 1").bind("policy_seed_version").first<{ value: string }>();
@@ -156,6 +170,7 @@ export async function ensureDatabase() {
   await db.prepare("INSERT OR IGNORE INTO payroll_settings (id, overtime_threshold, acting_officer_premium, dpw_multiplier) VALUES (1, 106, 1, 1.5)").run();
   await db.batch(payScales.map((scale) => db.prepare("INSERT OR IGNORE INTO pay_scales (id, label, regular_rate, overtime_rate, holiday_rate, sort_order) VALUES (?, ?, ?, ?, ?, ?)").bind(...scale)));
   await db.batch(employeeSeed.map((employee, index) => db.prepare("INSERT OR IGNORE INTO employees (id, name, pay_scale_id, active, sort_order) VALUES (?, ?, ?, 1, ?)").bind(employee[0], employee[1], employee[2], index + 1)));
+  await normalizeEmployeeNames(db);
   const rosterImport = [
     ["aguinaga-hugo", "(708) 543-3980", "Cleared", 0],
     ["boulden-jamal", "(773) 213-3598", "Ambulance Only", 0],

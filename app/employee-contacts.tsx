@@ -1,5 +1,7 @@
 "use client";
 
+import { compareEmployeeNames, formatEmployeeName } from "./employee-names";
+
 type ContactEmployee = {
   id: string;
   name: string;
@@ -10,17 +12,12 @@ type ContactEmployee = {
   isDpw?: number | boolean;
 };
 
-function displayName(value: string) {
-  const [last, first] = value.split(",").map((part) => part.trim());
-  return first ? `${first} ${last}` : value;
-}
-
 function phoneHref(value: string) {
   return `tel:${value.replace(/[^\d+]/g, "")}`;
 }
 
 export default function EmployeeContacts({ employees }: { employees: ContactEmployee[] }) {
-  const alphabetical = [...employees].sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
+  const alphabetical = [...employees].sort((a, b) => compareEmployeeNames(a.name, b.name));
 
   return <section className="employee-contact-page">
     <div className="contact-page-heading standard-page-header">
@@ -34,7 +31,7 @@ export default function EmployeeContacts({ employees }: { employees: ContactEmpl
         <thead><tr><th>Rank</th><th>Name</th><th>Employment</th><th>Driver Status</th><th>Cell Number</th></tr></thead>
         <tbody>{alphabetical.map((employee) => <tr key={employee.id}>
           <td data-label="Rank"><strong>{employee.rank}</strong></td>
-          <td data-label="Name">{displayName(employee.name)}</td>
+          <td data-label="Name">{formatEmployeeName(employee.name)}</td>
           <td data-label="Employment">{employee.isDpw ? "DPW" : employee.employmentType || ""}</td>
           <td data-label="Driver Status">{employee.driverStatus || ""}</td>
           <td data-label="Cell Number">{employee.phone ? <a className="employee-call-link" href={phoneHref(employee.phone)}>{employee.phone}</a> : ""}</td>

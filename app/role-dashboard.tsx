@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { formatEmployeeName } from "./employee-names";
 
 type Employee = { id: string; name: string; rank: string; phone?: string | null; email?: string | null; driverStatus?: string | null };
 type Entry = { employeeId: string; category: string; hours: number };
 type DashboardData = { viewer: { isAdmin: boolean; displayName: string; employeeId: string | null }; employees: Employee[]; entries: Entry[]; period: { startDate: string; endDate: string; status: string }; grossPayroll: number; reviewCount: number; employeeGross: number };
 type Briefing = { asOf: string; currentShift: string; priorShift: string; onDuty: Array<{ employeeId: string; name: string; rank: string; timeIn: string; timeOut: string; actingOfficer: number }>; officerInCharge: string | null; staffing: { filled: number; required: number; complete: boolean }; equipmentIssues: Array<{ item: string; status: string; detail: string }>; approvals: { logs: number; payroll: number }; previousShift: { officer: string | null; note: string; calls: Array<{ reportNumber: string; timeOut: string; respondingUnits: string; address: string; callType: string }> } };
 
-function displayName(value: string) { const [last, first] = value.split(",").map((part) => part.trim()); return first ? `${first} ${last}` : value; }
+const displayName = formatEmployeeName;
 function shiftLabel(value: string) { return value === "morning" ? "6:00 AM – Noon" : value === "afternoon" ? "Noon – 6:00 PM" : "6:00 PM – 6:00 AM"; }
 function money(value: number) { return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value); }
 
