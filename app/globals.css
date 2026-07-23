@@ -696,8 +696,9 @@ td strong { font-size: 16px; }
 .staff-row select { width: 100%; min-width: 0; height: 44px; padding: 0 8px; border: 1px solid #bcc7cf; border-radius: 6px; background: white; color: var(--ink); font-size: 13px; }
 .staff-row select:nth-child(2) { font-weight: 700; }
 .staff-row.ao-row { margin: 2px -4px; padding: 4px; border: 1px solid #d9ad57; border-radius: 8px; background: #fff8e8; }
-.ao-check { height: 44px; border: 1px solid #d5dde3; border-radius: 6px; color: #9ba8b2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; font-size: 9px; font-weight: 900; visibility: hidden; }
-.ao-check.visible { border-color: #bf9138; background: #fff5dc; color: #785313; visibility: visible; }
+.ao-check { height: 44px; border: 1px solid #d5dde3; border-radius: 6px; color: #667681; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; font-size: 9px; font-weight: 900; cursor: pointer; }
+.ao-check:has(input:disabled) { color: #a9b3ba; cursor: not-allowed; }
+.ao-check.visible { border-color: #bf9138; background: #fff5dc; color: #785313; }
 .ao-check input { width: 17px; height: 17px; margin: 0; accent-color: #b27613; }
 .remove-row { position: absolute; z-index: 2; top: -7px; right: -8px; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: #6c7985; color: white; line-height: 1; }
 .officer-actions { margin-top: 16px; padding-top: 14px; border-top: 1px solid #dce3e8; display: flex; justify-content: space-between; gap: 8px; }
