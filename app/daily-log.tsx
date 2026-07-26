@@ -6,13 +6,14 @@ import ConfirmDialog from "./confirm-dialog";
 import { RecordCredibility, type Revision } from "./record-credibility";
 import { compareEmployeeNames, formatEmployeeName } from "./employee-names";
 import { formatMilitaryTime, normalizeMilitaryTime } from "./military-time";
+import { chicagoOperationalContext, dailyLogDateIsAutoLocked } from "./operational-day";
 
 type LogEmployee = { id: string; name: string; rank: string; startDate?: string | null; endDate?: string | null };
 type StaffingRow = { id: string; shiftKey: string; employeeId: string; timeIn: string; timeOut: string; actingOfficer: boolean };
 type CallRow = { id: string; reportNumber: string; timeOut: string; timeIn: string; respondingUnits: string; address: string; callType: string };
 type Approval = { shiftKey: string; signInOfficerId?: string; signInAt?: string; signOutOfficerId?: string; signOutAt?: string; signOutNote?: string };
 type RecentNote = { logDate: string; note: string };
-type LogPayload = { log: { shiftNotes: string; locked: number; adminUnlocked: number; createdBy?: string; createdAt?: string; updatedBy?: string; updatedAt: string; lockedBy?: string; lockedAt?: string; revisions?: Revision[] }; staffing: StaffingRow[]; calls: CallRow[]; approvals: Approval[]; recentNotes: RecentNote[]; addresses: string[]; error?: string };
+type LogPayload = { log: { shiftNotes: string; locked: number; adminUnlocked: number; createdBy?: string; createdAt?: string; updatedBy?: string; updatedAt: string; lockedBy?: string; lockedAt?: string; revisions?: Revision[] }; staffing: StaffingRow[]; staffingSource?: "department_schedule" | "daily_log"; schedulePrefilled?: boolean; calls: CallRow[]; approvals: Approval[]; recentNotes: RecentNote[]; addresses: string[]; error?: string };
 type Handoff = { shiftKey: string; shiftTitle: string; mode: "in" | "out" };
 type OfflineDraft = { savedAt: string; logDate: string; staffing: StaffingRow[]; calls: CallRow[]; shiftNotes: string };
 const draftKey = (date: string) => `sfd-daily-log-draft:${date}`;
@@ -37,7 +38,6 @@ const timeOptions = Array.from({ length: 96 }, (_, index) => {
 });
 const cleanEquipment = () => Object.fromEntries(equipmentItems.map((item) => [item.key, { status: "Present", detail: "" }])) as Record<string, { status: string; detail: string }>;
 
-function localDate() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 function nowTime() { const d = new Date(); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; }
 function clientId() { return `row-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`; }
 function blankStaff(shiftKey: string, timeIn: string, timeOut: string, actingOfficer = false): StaffingRow { return { id: clientId(), shiftKey, employeeId: "", timeIn, timeOut, actingOfficer }; }
@@ -45,7 +45,7 @@ function blankCall(): CallRow { return { id: clientId(), reportNumber: "", timeO
 const displayName = formatEmployeeName;
 function shiftMinutes(value: string, shiftKey: string) { const [hours, minutes] = value.split(":").map(Number); const total = hours * 60 + minutes; return shiftKey === "overnight" && total <= 360 ? total + 1440 : total; }
 export default function DailyLog({ employees, onPayrollSynced }: { employees: LogEmployee[]; onPayrollSynced?: () => void }) {
-  const [logDate, setLogDate] = useState(localDate);
+  const [logDate, setLogDate] = useState(() => chicagoOperationalContext().operationalDate);
   const [staffing, setStaffing] = useState<StaffingRow[]>([]);
   const [calls, setCalls] = useState<CallRow[]>([]);
   const [shiftNotes, setShiftNotes] = useState("");
@@ -68,8 +68,9 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
   const [isOnline, setIsOnline] = useState(true);
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [logAudit, setLogAudit] = useState<LogPayload["log"] | null>(null);
+  const [schedulePrefilled, setSchedulePrefilled] = useState(false);
   const loaded = useRef(false);
-  const currentDay = useRef(localDate());
+  const currentDay = useRef(chicagoOperationalContext().operationalDate);
   const saveInFlight = useRef(false);
   const saveAgain = useRef(false);
   const editVersion = useRef(0);
@@ -94,15 +95,27 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
       setLogAudit(data.log ?? null);
       setAddresses(data.addresses ?? []); setApprovals(data.approvals ?? []); setRecentNotes(data.recentNotes ?? []);
       setLocked(Boolean(data.log?.locked)); setAdminUnlocked(Boolean(data.log?.adminUnlocked)); setDirty(restore);
+      setSchedulePrefilled(!restore && Boolean(data.schedulePrefilled));
       if (restore) setMessage("Unsaved work restored from this device");
       setLastSynced(data.log?.updatedAt ? new Date(data.log.updatedAt) : new Date());
       window.setTimeout(() => { loaded.current = true; }, 0);
-    } catch (error) { const stored = window.localStorage.getItem(draftKey(date)); if (stored) { const draft = JSON.parse(stored) as OfflineDraft; const rows = [...draft.staffing]; for (const shift of shiftSections) for (let i = rows.filter((row) => row.shiftKey === shift.key).length; i < 4; i += 1) rows.push(blankStaff(shift.key, shift.defaultIn, shift.defaultOut)); const callRows = [...draft.calls]; while (callRows.length < 2) callRows.push(blankCall()); setStaffing(rows); setCalls(callRows); setShiftNotes(draft.shiftNotes); setDirty(true); setMessage("Offline draft restored · changes will sync when connected"); window.setTimeout(() => { loaded.current = true; }, 0); } else setMessage(error instanceof Error ? error.message : "Unable to load log"); }
+    } catch (error) { setSchedulePrefilled(false); const stored = window.localStorage.getItem(draftKey(date)); if (stored) { const draft = JSON.parse(stored) as OfflineDraft; const rows = [...draft.staffing]; for (const shift of shiftSections) for (let i = rows.filter((row) => row.shiftKey === shift.key).length; i < 4; i += 1) rows.push(blankStaff(shift.key, shift.defaultIn, shift.defaultOut)); const callRows = [...draft.calls]; while (callRows.length < 2) callRows.push(blankCall()); setStaffing(rows); setCalls(callRows); setShiftNotes(draft.shiftNotes); setDirty(true); setMessage("Offline draft restored · changes will sync when connected"); window.setTimeout(() => { loaded.current = true; }, 0); } else setMessage(error instanceof Error ? error.message : "Unable to load log"); }
     finally { setLoading(false); }
   }, []);
 
   useEffect(() => { const timer = window.setTimeout(() => { void loadLog(logDate); }, 0); return () => window.clearTimeout(timer); }, [loadLog, logDate]);
-  useEffect(() => { const timer = window.setInterval(() => { const today = localDate(); if (today !== currentDay.current) { currentDay.current = today; setLogDate(today); } }, 30000); return () => window.clearInterval(timer); }, []);
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const operationalDate = chicagoOperationalContext().operationalDate;
+      if (operationalDate !== currentDay.current) {
+        currentDay.current = operationalDate;
+        setLogDate(operationalDate);
+      } else if (!locked && dailyLogDateIsAutoLocked(logDate)) {
+        void loadLog(logDate);
+      }
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, [loadLog, locked, logDate]);
   useEffect(() => { const update = () => setIsOnline(window.navigator.onLine); update(); window.addEventListener("online", update); window.addEventListener("offline", update); return () => { window.removeEventListener("online", update); window.removeEventListener("offline", update); }; }, []);
 
   const saveLog = useCallback(async (silent = false) => {
@@ -120,6 +133,7 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
         if (!window.navigator.onLine) { setMessage("Saved on this device · waiting to sync"); return; }
         const response = await fetch("/api/logbook", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
         const result = await response.json() as { error?: string; payrollEmployeesUpdated?: number }; if (!response.ok) throw new Error(result.error || "Unable to save log");
+        setSchedulePrefilled(false);
         if (versionAtStart === editVersion.current) {
           window.localStorage.removeItem(draftKey(current.logDate));
           setDirty(false);
@@ -200,8 +214,9 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
     <div className="logbook-heading standard-page-header"><div><span className="page-icon" aria-hidden="true">▣</span><div><p className="eyebrow">Stickney Fire Department</p><h2>Daily Logbook</h2><p>Automatically saved staffing, responses, equipment checks, and officer handoffs.</p></div></div><div className="log-date-actions"><label><span>Log date</span><input type="date" value={logDate} onChange={(event) => setLogDate(event.target.value)} /></label><div className={`autosave-state ${!isOnline ? "offline" : saving ? "saving" : dirty ? "pending" : "saved"}`}><strong>{!isOnline ? "Offline" : saving ? "Saving…" : dirty ? "Save pending" : "Saved"}</strong><small>Last synced {lastSynced ? lastSynced.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "—"}</small></div></div></div>
     {logAudit && <RecordCredibility audit={{ recordNumber: `LOG-${logDate.replaceAll("-", "")}`, status: readOnly ? "Locked" : adminUnlocked ? "Unlocked for correction" : "Editable", createdBy: logAudit.createdBy, createdAt: logAudit.createdAt, updatedBy: logAudit.updatedBy, updatedAt: logAudit.updatedAt, closedBy: logAudit.lockedBy, closedAt: logAudit.lockedAt, closedLabel: "Locked", revisions: logAudit.revisions }} />}
     {holiday && <div className="holiday-log-banner"><div className="holiday-star">★</div><div><span>Department Holiday</span><strong>{holiday.name}</strong><p>{holiday.overnightOnly ? "Holiday pay applies to the 6:00 PM–6:00 AM section only." : "Eligible hours worked today automatically receive the configured holiday rate."}</p></div></div>}
-    {readOnly && <div className="locked-banner"><div><strong>🔒 Daily log locked</strong><span>Logs lock automatically after midnight. Editing requires administrator approval.</span></div><button onClick={() => setUnlockConfirmOpen(true)}>Admin Unlock</button></div>}
+    {readOnly && <div className="locked-banner"><div><strong>🔒 Daily log locked</strong><span>The operational day changes at 6:00 AM. The prior log locks at 7:00 AM after the one-hour grace period.</span></div><button onClick={() => setUnlockConfirmOpen(true)}>Admin Unlock</button></div>}
     {adminUnlocked && locked && <div className="admin-banner">Administrator editing is enabled for this locked log.</div>}
+    {schedulePrefilled && !readOnly && <div className="schedule-prefill-banner"><div><strong>Prefilled from Department Schedule</strong><span>Review the scheduled staffing and adjust names or times to match who actually worked. It remains fully editable.</span></div><button onClick={() => void saveLog()}>Confirm &amp; Save Staffing</button></div>}
     {message && <div className={message.includes("saved") || message.includes("approved") || message.includes("granted") ? "log-message success" : "log-message"}>{message}</div>}
     <ConfirmDialog open={unlockConfirmOpen} title="Unlock this finalized log?" description={`Administrator editing will be enabled for the ${logDate} daily log. The action will remain visible in the record status.`} confirmLabel="Unlock Log" tone="warning" busy={unlocking} onCancel={() => setUnlockConfirmOpen(false)} onConfirm={() => void adminUnlock()} />
 

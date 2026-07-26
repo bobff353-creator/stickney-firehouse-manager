@@ -1,9 +1,9 @@
 import { ensureDatabase } from "../../../db/bootstrap";
+import { chicagoOperationalContext } from "../../operational-day";
 
 function chicagoParts() {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date());
-  const get = (type: string) => parts.find((item) => item.type === type)?.value ?? "00";
-  return { date: `${get("year")}-${get("month")}-${get("day")}`, minutes: Number(get("hour")) * 60 + Number(get("minute")) };
+  const context = chicagoOperationalContext();
+  return { date: context.operationalDate, minutes: context.minutes };
 }
 function shiftFor(minutes: number) { return minutes < 360 ? "overnight" : minutes < 720 ? "morning" : minutes < 1080 ? "afternoon" : "overnight"; }
 function previousShift(current: string) { return current === "morning" ? "overnight" : current === "afternoon" ? "morning" : "afternoon"; }

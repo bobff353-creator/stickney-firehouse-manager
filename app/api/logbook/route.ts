@@ -1,5 +1,7 @@
 import { ensureDatabase } from "../../../db/bootstrap";
+import { scheduleQueryDates, scheduledStaffingForLog, type DepartmentScheduleAssignment } from "../../department-schedule";
 import { holidayForDate } from "../../holidays";
+import { chicagoOperationalContext } from "../../operational-day";
 import { dailyLogPayrollEntries, dailyLogPayrollTotals } from "../../payroll-hours";
 
 const callTypes = ["Fire", "EMS", "MVA", "TRT", "HazMat", "Auto Aid", "Mutual Aid", "Hazardous Condition", "Special"];
@@ -7,13 +9,8 @@ const shifts = ["morning", "afternoon", "overnight"];
 const actorFor = (request: Request) => request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() || "System";
 async function addRevision(db: Awaited<ReturnType<typeof ensureDatabase>>, id: string, action: string, summary: string, actor: string) { await db.prepare("INSERT INTO record_revisions (id, record_type, record_id, revision_number, action, summary, actor) SELECT ?, 'dailyLog', ?, COALESCE(MAX(revision_number), 0) + 1, ?, ?, ? FROM record_revisions WHERE record_type = 'dailyLog' AND record_id = ?").bind(crypto.randomUUID(), id, action, summary, actor, id).run(); }
 
-function cleanDate(value: string | null) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value ?? "") ? value! : chicagoDate();
-}
-function chicagoDate() {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
-  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")}`;
+function cleanDate(value: string | null, fallback: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value ?? "") ? value! : fallback;
 }
 function payrollPeriodStart(date: string) {
   const parsed = new Date(`${date}T12:00:00Z`);
@@ -32,12 +29,12 @@ function payrollPeriodEnd(start: string) {
 export async function GET(request: Request) {
   try {
     const db = await ensureDatabase();
-    const date = cleanDate(new URL(request.url).searchParams.get("date"));
-    const today = chicagoDate();
+    const operational = chicagoOperationalContext();
+    const date = cleanDate(new URL(request.url).searchParams.get("date"), operational.operationalDate);
     await db.prepare("INSERT OR IGNORE INTO daily_logs (log_date) VALUES (?)").bind(date).run();
-    await db.prepare("UPDATE daily_logs SET locked = 1, admin_unlocked = 0, locked_by = COALESCE(locked_by, 'System · Midnight Lock'), locked_at = COALESCE(locked_at, CURRENT_TIMESTAMP) WHERE log_date < ?").bind(today).run();
+    await db.prepare("UPDATE daily_logs SET locked = 1, admin_unlocked = 0, locked_by = COALESCE(locked_by, 'System · 7:00 AM Lock'), locked_at = COALESCE(locked_at, CURRENT_TIMESTAMP) WHERE log_date < ?").bind(operational.lockBeforeDate).run();
     const [log, staffing, calls, addresses, approvals, recentNotes, revisions] = await Promise.all([
-      db.prepare("SELECT log_date AS logDate, shift_notes AS shiftNotes, CASE WHEN log_date < ? THEN 1 ELSE locked END AS locked, admin_unlocked AS adminUnlocked, created_by AS createdBy, COALESCE(created_at, updated_at) AS createdAt, updated_by AS updatedBy, updated_at AS updatedAt, locked_by AS lockedBy, locked_at AS lockedAt FROM daily_logs WHERE log_date = ?").bind(today, date).first(),
+      db.prepare("SELECT log_date AS logDate, shift_notes AS shiftNotes, CASE WHEN log_date < ? THEN 1 ELSE locked END AS locked, admin_unlocked AS adminUnlocked, created_by AS createdBy, COALESCE(created_at, updated_at) AS createdAt, updated_by AS updatedBy, updated_at AS updatedAt, locked_by AS lockedBy, locked_at AS lockedAt FROM daily_logs WHERE log_date = ?").bind(operational.lockBeforeDate, date).first(),
       db.prepare("SELECT id, shift_key AS shiftKey, employee_id AS employeeId, time_in AS timeIn, time_out AS timeOut, acting_officer AS actingOfficer, sort_order AS sortOrder FROM daily_log_staffing WHERE log_date = ? ORDER BY shift_key, sort_order").bind(date).all(),
       db.prepare("SELECT id, report_number AS reportNumber, time_out AS timeOut, time_in AS timeIn, responding_units AS respondingUnits, address, call_type AS callType, sort_order AS sortOrder FROM daily_log_calls WHERE log_date = ? ORDER BY sort_order").bind(date).all(),
       db.prepare("SELECT DISTINCT address FROM daily_log_calls WHERE address <> '' ORDER BY rowid DESC LIMIT 50").all(),
@@ -45,7 +42,36 @@ export async function GET(request: Request) {
       db.prepare("SELECT log_date AS logDate, shift_notes AS note FROM daily_logs WHERE log_date < ? AND log_date >= date(?, '-7 day') AND shift_notes <> '' UNION ALL SELECT log_date AS logDate, sign_out_note AS note FROM daily_log_approvals WHERE log_date < ? AND log_date >= date(?, '-7 day') AND sign_out_note <> '' ORDER BY logDate DESC").bind(date, date, date, date).all(),
       db.prepare("SELECT revision_number AS revisionNumber, action, summary, actor, changed_at AS changedAt FROM record_revisions WHERE record_type = 'dailyLog' AND record_id = ? ORDER BY revision_number DESC").bind(date).all(),
     ]);
-    return Response.json({ log: { ...(log as object), revisions: revisions.results }, staffing: staffing.results, calls: calls.results, approvals: approvals.results, recentNotes: recentNotes.results, addresses: addresses.results.map((row) => String((row as { address: string }).address)) });
+    const logState = log as { locked?: number; adminUnlocked?: number } | null;
+    let staffingRows = staffing.results;
+    let schedulePrefilled = false;
+    if (!staffingRows.length && (!logState?.locked || logState.adminUnlocked)) {
+      const range = scheduleQueryDates(date);
+      const scheduled = await db.prepare(
+        "SELECT a.id,a.employee_id AS employeeId,e.name AS employeeName,a.work_date AS workDate,a.start_time AS startTime,a.end_time AS endTime,a.role,a.source,a.status FROM schedule_assignments a JOIN employees e ON e.id=a.employee_id WHERE a.status='assigned' AND a.work_date BETWEEN ? AND ? ORDER BY a.work_date,a.start_time,e.name COLLATE NOCASE",
+      ).bind(range.startDate, range.endDate).all<DepartmentScheduleAssignment>();
+      const prefilled = scheduledStaffingForLog(scheduled.results, date);
+      if (prefilled.length) {
+        staffingRows = prefilled;
+        schedulePrefilled = true;
+      }
+    }
+    return Response.json({
+      log: { ...(log as object), revisions: revisions.results },
+      staffing: staffingRows,
+      staffingSource: schedulePrefilled ? "department_schedule" : "daily_log",
+      schedulePrefilled,
+      calls: calls.results,
+      approvals: approvals.results,
+      recentNotes: recentNotes.results,
+      addresses: addresses.results.map((row) => String((row as { address: string }).address)),
+      operationalDay: {
+        date: operational.operationalDate,
+        changesAt: "06:00",
+        priorLogLocksAt: "07:00",
+        gracePeriodActive: operational.inLockGracePeriod,
+      },
+    });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Unable to load daily log" }, { status: 500 });
   }
@@ -55,9 +81,11 @@ export async function POST(request: Request) {
   try {
     const db = await ensureDatabase();
     const body = await request.json() as Record<string, unknown>;
-    const date = cleanDate(String(body.logDate ?? ""));
+    const operational = chicagoOperationalContext();
+    const date = cleanDate(String(body.logDate ?? ""), operational.operationalDate);
     const action = String(body.action ?? "save");
     const actor = actorFor(request);
+    await db.prepare("UPDATE daily_logs SET locked = 1, admin_unlocked = 0, locked_by = COALESCE(locked_by, 'System · 7:00 AM Lock'), locked_at = COALESCE(locked_at, CURRENT_TIMESTAMP) WHERE log_date < ?").bind(operational.lockBeforeDate).run();
     const existing = await db.prepare("SELECT locked, admin_unlocked AS adminUnlocked FROM daily_logs WHERE log_date = ?").bind(date).first<{ locked: number; adminUnlocked: number }>();
 
     if (action === "adminUnlock") {
@@ -65,7 +93,7 @@ export async function POST(request: Request) {
       await addRevision(db, date, "Unlocked", "Administrator edit access granted", actor);
       return Response.json({ ok: true });
     }
-    if ((date < chicagoDate() || existing?.locked) && !existing?.adminUnlocked) return Response.json({ error: "This daily log is locked. An administrator must unlock it before changes can be made." }, { status: 423 });
+    if ((date < operational.lockBeforeDate || existing?.locked) && !existing?.adminUnlocked) return Response.json({ error: "This daily log is locked. An administrator must unlock it before changes can be made." }, { status: 423 });
 
     if (action === "handoff") {
       const shiftKey = String(body.shiftKey ?? "");
