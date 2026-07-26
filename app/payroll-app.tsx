@@ -19,6 +19,7 @@ import DailyDuties from "./daily-duties";
 import { compareEmployeeNames, employeeNameFromParts, formatEmployeeName, splitEmployeeName } from "./employee-names";
 import { roundPayrollUpToCent } from "./payroll-rounding";
 import { ACTING_OFFICER_STIPEND_PER_HOUR, calculateGrossPay } from "./payroll-calculation";
+import { payrollExportRows } from "./payroll-export";
 
 type Category = "shift" | "drill" | "workDetail" | "callback" | "actingOfficer" | "holiday" | "dpw";
 type PayScale = { id: string; label: string; regularRate: number; overtimeRate: number; holidayRate: number };
@@ -357,8 +358,35 @@ export default function PayrollApp() {
 
   function exportCsv() {
     if (!data) return;
-    const rows = [["Employee", "Rank", "Regular Hours", "OT Hours", "Holiday Hours", "Acting Officer Hours", "DPW Hours", "Gross Pay", "Status"]];
-    employeeSummaries.forEach((row) => rows.push([displayName(row.employee.name), row.employee.rank, row.regularHours.toFixed(2), row.overtimeHours.toFixed(2), row.holidayHours.toFixed(2), row.actingHours.toFixed(2), row.dpwHours.toFixed(2), row.gross.toFixed(2), row.status]));
+    const rows: Array<Array<string | number>> = [
+      [`${periodLabel(data.period.startDate, data.period.endDate)} Payroll`],
+      ["Name", "Rank", "Shift", "Drill", "Work Detail", "Call Back", "Acting Officer", "Holiday", "Total", "Rate", "Pay"],
+    ];
+    employeeSummaries.forEach((summary) => {
+      const employeeEntries = data.entries.filter((entry) => entry.employeeId === summary.employee.id);
+      rows.push(...payrollExportRows({
+        name: displayName(summary.employee.name),
+        rank: summary.employee.rank,
+        regularRate: summary.employee.regularRate,
+        overtimeRate: summary.employee.overtimeRate,
+        holidayRate: summary.employee.holidayRate,
+        isDpw: summary.employee.isDpw,
+      }, employeeEntries, data.settings.overtimeThreshold, data.settings.dpwMultiplier));
+    });
+    const categoryTotal = (category: Category) => data.entries.filter((entry) => entry.category === category).reduce((sum, entry) => sum + entry.hours, 0);
+    rows.push([
+      "Totals",
+      "",
+      categoryTotal("shift").toFixed(2),
+      categoryTotal("drill").toFixed(2),
+      categoryTotal("workDetail").toFixed(2),
+      categoryTotal("callback").toFixed(2),
+      categoryTotal("actingOfficer").toFixed(2),
+      categoryTotal("holiday").toFixed(2),
+      "",
+      "",
+      grossPayroll.toFixed(2),
+    ]);
     const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const anchor = document.createElement("a");

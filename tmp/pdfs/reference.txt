@@ -1,0 +1,57 @@
+                                                     July 11th - July 25th
+             Name                           Rank                     Shift   Drill   Work Detail   Call Back   Acting Officer   Holiday   Total    Rate       Pay
+         Aguinaga, Hugo                  Firefighter                  13      0          0             2             0             0       15     $23.00    $345.00
+     Alonzo, Sam (Overtime)              Lieutenant                   24      0          0            0              0            0        24     $39.75    $954.00
+         Anderson, Jacob                     Captain                  60      0          7.5          0             0             0       67.5    $27.83   $1,878.53
+           Babinec, John                Deputy Chief 2                 0      0         25.5          4             0             0       29.5    $28.58    $843.11
+           Brunslik, Reid                  Firefighter                24      0           0           0             0             0        24     $23.00    $552.00
+         Chervinko, Keith                    Captain                  54      0           0           2             0             0        56     $27.83   $1,558.48
+          Collier, Joshua                  Firefighter                12      0           0           0             0             0        12     $23.00    $276.00
+           Corsini, Mark                   Firefighter                 0      0           0           0             0             0         0     $23.00     $0.00
+     Czech, Doug (Overtime)                Firefighter                24      0           0           2             0             0        26     $34.50    $897.00
+           DelGatto, Eric                  Firefighter               123      0           0           0             0             0       106     $23.00   $2,438.00
+  DelGatto, Eric (Acting Officer)        Acting Officer                0      0           0           0             42            0        42     $1.00      $42.00
+    DelGatto, Eric (overtime)        Firefighter Overtime              0      0           0           0             0             0        17     $34.50    $586.50
+          Dixon, Armauni                   Firefighter                22      0           0           0             0             0        22     $23.00    $506.00
+       Durkop, Christopher                 Firefighter                24      0           0           0             0             0        24     $23.00    $552.00
+          Eagle, Deandre                   Firefighter                17      0           0           2             0             0        19     $23.00    $437.00
+        Espino, Leonardo                   Firefighter               126      0           0           0             0             0       106     $23.00   $2,438.00
+  Espino, Leonardo (Overtime)        Firefighter Overtime              0      0           0           0             0             0        20     $34.50    $690.00
+        Eurkaitis, Andrew                  Firefighter                48      0           0           0             0             0        48     $23.00   $1,104.00
+             Focht, Eric                   Firefighter                42      0           0           0             0             0        42     $23.00    $966.00
+    Focht, Eric (Acting officer)         Acting Officer                0      0           0           0             8             0         8     $1.00      $8.00
+          Focht, Garrett                   Firefighter                 6      0           0           0             0             0         6     $23.00    $138.00
+  Focht, Garrett (Acting Officer)        Acting Officer                0      0           0           0             6             0         6     $1.00      $6.00
+       Gilmore , Donyea Jr.                Firefighter                31      0           0           0             0             0        31     $23.00    $713.00
+   Iovino, Dominic (Overtime)              Lieutenant                 49      0           0           0             0             0        49     $39.75   $1,947.75
+           Jarom, Ethan                    Firefighter                15      0           0           0             0             0        15     $23.00    $345.00
+  Jarom, Ethan (Acting Officer)          Acting Officer                0      0           0           0             9             0         9     $1.00      $9.00
+         Keane, Matthew                    Firefighter                90      0           0           0             0             0        90     $23.00   $2,070.00
+ Keane, Matthew (Acting Officer)         Acting Officer                0      0           0           0             6             0         6     $1.00        6
+         Kummer, Hunter                    Firefighter               22.5     0           0           0             0             0       22.5    $23.00    $517.50
+       Lewandowski, Justin                 Lieutenant                  0      0           0           0             0             0         0     $26.50     $0.00
+           Lopez, Joseph                   Firefighter               34.5     0           0           2             0             0       36.5    $23.00    $839.50
+  Lopez, Joseph (Acting Officer)         Acting Officer                0      0           0           0            28.5           0       28.5    $1.00      $28.50
+            Lukas, Colin                   Firefighter               108      0           0           0             0             0       106     $23.00   $2,438.00
+     Lukas, Colin (Overtime)         Firefighter Overtime              0      0           0           0             0             0         2     $34.50     $69.00
+      Maldonado, Franklin                  Firefighter               27.5     0           0           0             0             0       27.5    $23.00    $632.50
+           Mulford, Kyle                   Firefighter                66      0           0           4             0             0        70     $23.00   $1,610.00
+            O'Dowd, Jon                  Deputy Chief                  0      0          10           0             0             0        10     $35.00    $350.00
+          Ramey, Bivian                    Firefighter                36      0           0           0             0             0        36     $23.00    $828.00
+         Raygoza, Dainel             Temp Single role FF              24      0           0           0             0             0        24     $20.00    $480.00
+         Rodriguze, Mark                   Firefighter                24      0           0           0             0             0        24     $23.00    $552.00
+             Sticha, Will                  Lieutenant                 12      0           0           0             0             0        12     $26.50    $318.00
+       Szafarczyk, Anthony           Temp Single role FF              42      0           0           2             0             0        44     $20.00    $880.00
+        Tarnowski, Joshua                  Firefighter                60      0           0           0             0             0        60     $23.00   $1,380.00
+Tarnowski, Joshua (Acting Officer)       Acting Officer                0      0           0           0             6             0         6     $1.00        6
+         Taylor, Cherelle                  Firefighter                78      0           0           0             0             0        78     $23.00   $1,794.00
+           Valdez, David             Temp Single role FF               6      0           0           0             0             0         6     $20.00    $120.00
+        Vuelvas, Eduardo                   Firefighter                24      0           0           0             0             0        24     $23.00    $552.00
+         Weber, Michael                    Lieutenant                  0      0           0           0             0             0         0     $26.50     $0.00
+           White, Danny                    Lieutenant                 12      0           0           0             0             0        12     $26.50    $318.00
+         Williams, Joshua                  Firefighter                68      0           0           0             0             0        68     $23.00   $1,564.00
+          Wyant, Robert                    Lieutenant                 43      0          4.5          0             0             0       47.5    $26.50   $1,258.75
+            Zolo, Hrvoje                   Lieutenant                40.5     0           0           4             0             0       44.5    $26.50   $1,179.25
+
+                                            Toatls                   1532     0         47.5          24           105.5          0        X        X      $40,021.37
+
