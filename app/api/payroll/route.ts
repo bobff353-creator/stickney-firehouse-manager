@@ -133,6 +133,7 @@ export async function POST(request: Request) {
       if (Number(history?.count ?? 0) > 0) {
         return Response.json({ error: "This employee has payroll or Daily Log history and cannot be permanently deleted. Add a Last day of work instead to keep department records intact." }, { status: 409 });
       }
+      await db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind(`employee_deleted:${employeeId}`, viewer.displayName).run();
       await db.prepare("DELETE FROM employee_profiles WHERE employee_id = ?").bind(employeeId).run();
       await db.prepare("DELETE FROM employees WHERE id = ?").bind(employeeId).run();
       return Response.json({ ok: true, name: employee.name });

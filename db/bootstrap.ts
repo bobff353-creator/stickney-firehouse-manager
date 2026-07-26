@@ -212,7 +212,7 @@ export async function ensureDatabase() {
 
   await db.prepare("INSERT OR IGNORE INTO payroll_settings (id, overtime_threshold, acting_officer_premium, dpw_multiplier) VALUES (1, 106, 1, 1.5)").run();
   await db.batch(payScales.map((scale) => db.prepare("INSERT OR IGNORE INTO pay_scales (id, label, regular_rate, overtime_rate, holiday_rate, sort_order) VALUES (?, ?, ?, ?, ?, ?)").bind(...scale)));
-  await db.batch(employeeSeed.map((employee, index) => db.prepare("INSERT OR IGNORE INTO employees (id, name, pay_scale_id, active, sort_order) VALUES (?, ?, ?, 1, ?)").bind(employee[0], employee[1], employee[2], index + 1)));
+  await db.batch(employeeSeed.map((employee, index) => db.prepare("INSERT INTO employees (id, name, pay_scale_id, active, sort_order) SELECT ?, ?, ?, 1, ? WHERE NOT EXISTS (SELECT 1 FROM system_meta WHERE key = ?) ON CONFLICT(id) DO NOTHING").bind(employee[0], employee[1], employee[2], index + 1, `employee_deleted:${employee[0]}`)));
   await normalizeEmployeeNames(db);
   await normalizeHistoricalCallTimes(db);
   const rosterImport = [
@@ -247,7 +247,7 @@ export async function ensureDatabase() {
     ["williams-joshua", "(773) 792-5600", "Cleared", 0],
   ] as const;
   for (const [employeeId, phone, driverStatus, isDpw] of rosterImport) {
-    await db.prepare("INSERT OR IGNORE INTO employee_profiles (employee_id) VALUES (?)").bind(employeeId).run();
+    await db.prepare("INSERT INTO employee_profiles (employee_id) SELECT ? WHERE EXISTS (SELECT 1 FROM employees WHERE id = ?) ON CONFLICT(employee_id) DO NOTHING").bind(employeeId, employeeId).run();
     await db.prepare("UPDATE employee_profiles SET phone = CASE WHEN (phone IS NULL OR phone = '') AND ? <> '' THEN ? ELSE phone END, driver_status = CASE WHEN driver_status = '' THEN ? ELSE driver_status END, is_dpw = CASE WHEN ? = 1 AND driver_status = '' THEN 1 ELSE is_dpw END, updated_at = CURRENT_TIMESTAMP WHERE employee_id = ?").bind(phone, phone, driverStatus, isDpw, employeeId).run();
   }
   const phoneSeed = [
