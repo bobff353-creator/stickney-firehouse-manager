@@ -121,6 +121,37 @@ export const workDetailPostings = sqliteTable("work_detail_postings", {
   postedAt: text("posted_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [uniqueIndex("work_detail_posting_idx").on(table.requestId, table.employeeId)]);
 
+export const scheduleRotations = sqliteTable("schedule_rotations", {
+  id: text("id").primaryKey(), name: text("name").notNull(), startDate: text("start_date").notNull(), endDate: text("end_date").notNull(),
+  startTime: text("start_time").notNull(), endTime: text("end_time").notNull(), cycleDays: integer("cycle_days").notNull(),
+  dutyDays: text("duty_days").notNull(), role: text("role").notNull(), active: integer("active", { mode: "boolean" }).notNull().default(true),
+  createdBy: text("created_by").notNull(), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+export const scheduleRotationMembers = sqliteTable("schedule_rotation_members", {
+  rotationId: text("rotation_id").notNull().references(() => scheduleRotations.id), employeeId: text("employee_id").notNull().references(() => employees.id),
+}, (table) => [uniqueIndex("schedule_rotation_member_idx").on(table.rotationId, table.employeeId)]);
+export const scheduleAssignments = sqliteTable("schedule_assignments", {
+  id: text("id").primaryKey(), employeeId: text("employee_id").references(() => employees.id), workDate: text("work_date").notNull(),
+  startTime: text("start_time").notNull(), endTime: text("end_time").notNull(), role: text("role").notNull(), source: text("source").notNull().default("manual"),
+  rotationId: text("rotation_id").references(() => scheduleRotations.id), status: text("status").notNull().default("assigned"),
+  emergency: integer("emergency", { mode: "boolean" }).notNull().default(false), notes: text("notes").notNull().default(""),
+  createdBy: text("created_by").notNull(), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [index("schedule_assignment_date_idx").on(table.workDate), uniqueIndex("schedule_assignment_unique_idx").on(table.employeeId, table.workDate, table.startTime, table.role)]);
+export const scheduleRequests = sqliteTable("schedule_requests", {
+  id: text("id").primaryKey(), requestType: text("request_type").notNull(), employeeId: text("employee_id").notNull().references(() => employees.id),
+  assignmentId: text("assignment_id").references(() => scheduleAssignments.id), targetEmployeeId: text("target_employee_id").references(() => employees.id),
+  startDate: text("start_date").notNull(), endDate: text("end_date").notNull(), startTime: text("start_time").notNull().default(""),
+  endTime: text("end_time").notNull().default(""), role: text("role").notNull().default(""), repeatMode: text("repeat_mode").notNull().default("none"),
+  status: text("status").notNull().default("pending"), notes: text("notes").notNull().default(""), reviewedBy: text("reviewed_by"),
+  reviewedAt: text("reviewed_at"), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [index("schedule_request_status_idx").on(table.status, table.createdAt)]);
+export const scheduleNotifications = sqliteTable("schedule_notifications", {
+  id: text("id").primaryKey(), employeeId: text("employee_id").notNull().references(() => employees.id), title: text("title").notNull(),
+  message: text("message").notNull(), inApp: integer("in_app", { mode: "boolean" }).notNull().default(true),
+  email: integer("email", { mode: "boolean" }).notNull().default(false), sms: integer("sms", { mode: "boolean" }).notNull().default(false),
+  deliveryStatus: text("delivery_status").notNull().default("queued"), readAt: text("read_at"), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [index("schedule_notification_employee_idx").on(table.employeeId, table.createdAt)]);
+
 export const dailyLogs = sqliteTable("daily_logs", {
   logDate: text("log_date").primaryKey(),
   shiftNotes: text("shift_notes").notNull().default(""),
