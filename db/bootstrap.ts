@@ -68,6 +68,7 @@ const boxCardSeedVersion = "regional-box-cards-structured-2026-07-21-v2";
 const employeeNameFormatVersion = "employee-names-last-first-2026-07-23";
 const callTimeFormatVersion = "daily-log-call-times-military-2026-07-23";
 const exactLogPayrollRangeVersion = "daily-log-payroll-2026-07-11-through-2026-07-25-v1";
+const actingOfficerStraightStipendVersion = "acting-officer-straight-stipend-2026-07-26-v1";
 const dailyDutySeed = [
   [1, "morning", "Weekly checks on 1201."],
   [1, "afternoon", "Deep clean bathrooms. Scrub floor in bathroom. Wash shower curtains. Clean shower stall."],
@@ -169,6 +170,16 @@ async function reconcileExactLogPayrollRange(db: Awaited<ReturnType<typeof getDa
     await db.batch(writes);
   }
   await db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind(markerKey, exactLogPayrollRangeVersion).run();
+}
+
+async function enforceActingOfficerStraightStipend(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
+  const markerKey = "acting_officer_straight_stipend_version";
+  const marker = await db.prepare("SELECT value FROM system_meta WHERE key = ? LIMIT 1").bind(markerKey).first<{ value: string }>();
+  if (marker?.value === actingOfficerStraightStipendVersion) return;
+  await db.batch([
+    db.prepare("UPDATE payroll_settings SET acting_officer_premium = 1, updated_at = CURRENT_TIMESTAMP WHERE id = 1"),
+    db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind(markerKey, actingOfficerStraightStipendVersion),
+  ]);
 }
 
 async function seedPolicies(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
@@ -307,6 +318,7 @@ export async function ensureDatabase() {
     await db.prepare("INSERT INTO employee_profiles (employee_id) SELECT ? WHERE EXISTS (SELECT 1 FROM employees WHERE id = ?) ON CONFLICT(employee_id) DO NOTHING").bind(employeeId, employeeId).run();
     await db.prepare("UPDATE employee_profiles SET phone = CASE WHEN (phone IS NULL OR phone = '') AND ? <> '' THEN ? ELSE phone END, driver_status = CASE WHEN driver_status = '' THEN ? ELSE driver_status END, is_dpw = CASE WHEN ? = 1 AND driver_status = '' THEN 1 ELSE is_dpw END, updated_at = CURRENT_TIMESTAMP WHERE employee_id = ?").bind(phone, phone, driverStatus, isDpw, employeeId).run();
   }
+  await enforceActingOfficerStraightStipend(db);
   await reconcileExactLogPayrollRange(db);
   const phoneSeed = [
     ["fire-berwyn", "fire", "Berwyn Fire Department", "", "(708) 484-1644", "", 1],

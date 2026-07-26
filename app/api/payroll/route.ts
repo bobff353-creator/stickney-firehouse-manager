@@ -1,6 +1,7 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 import { employeeNameFromParts, formatEmployeeName } from "../../employee-names";
 import { roundPayrollUpToCent } from "../../payroll-rounding";
+import { ACTING_OFFICER_STIPEND_PER_HOUR } from "../../payroll-calculation";
 
 const categories = ["shift", "drill", "workDetail", "callback", "actingOfficer", "holiday", "dpw"] as const;
 const ownerAdminEmails = ["bobff353@gmail.com"];
@@ -109,10 +110,9 @@ export async function POST(request: Request) {
 
     if (action === "saveRules") {
       const overtimeThreshold = Number(payload.overtimeThreshold);
-      const actingOfficerPremium = Number(payload.actingOfficerPremium);
       const dpwMultiplier = Number(payload.dpwMultiplier);
-      if (![overtimeThreshold, actingOfficerPremium, dpwMultiplier].every(Number.isFinite)) return Response.json({ error: "Invalid payroll rules" }, { status: 400 });
-      await db.prepare("UPDATE payroll_settings SET overtime_threshold = ?, acting_officer_premium = ?, dpw_multiplier = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1").bind(overtimeThreshold, actingOfficerPremium, dpwMultiplier).run();
+      if (![overtimeThreshold, dpwMultiplier].every(Number.isFinite)) return Response.json({ error: "Invalid payroll rules" }, { status: 400 });
+      await db.prepare("UPDATE payroll_settings SET overtime_threshold = ?, acting_officer_premium = ?, dpw_multiplier = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1").bind(overtimeThreshold, ACTING_OFFICER_STIPEND_PER_HOUR, dpwMultiplier).run();
       const scales = Array.isArray(payload.payScales) ? payload.payScales as Array<Record<string, unknown>> : [];
       for (const scale of scales) {
         const regularRate = Number(scale.regularRate);

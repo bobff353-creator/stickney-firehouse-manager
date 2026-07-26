@@ -18,6 +18,7 @@ import CommandCenter from "./command-center";
 import DailyDuties from "./daily-duties";
 import { compareEmployeeNames, employeeNameFromParts, formatEmployeeName, splitEmployeeName } from "./employee-names";
 import { roundPayrollUpToCent } from "./payroll-rounding";
+import { ACTING_OFFICER_STIPEND_PER_HOUR, calculateGrossPay } from "./payroll-calculation";
 
 type Category = "shift" | "drill" | "workDetail" | "callback" | "actingOfficer" | "holiday" | "dpw";
 type PayScale = { id: string; label: string; regularRate: number; overtimeRate: number; holidayRate: number };
@@ -268,7 +269,17 @@ export default function PayrollApp() {
     const holidayHours = total("holiday");
     const actingHours = total("actingOfficer");
     const dpwHours = total("dpw");
-    const gross = roundPayrollUpToCent(regularHours * employee.regularRate + overtimeHours * employee.overtimeRate + holidayHours * employee.holidayRate + actingHours * data.settings.actingOfficerPremium + dpwHours * employee.regularRate * data.settings.dpwMultiplier);
+    const gross = calculateGrossPay({
+      regularHours,
+      overtimeHours,
+      holidayHours,
+      actingOfficerHours: actingHours,
+      dpwHours,
+      regularRate: employee.regularRate,
+      overtimeRate: employee.overtimeRate,
+      holidayRate: employee.holidayRate,
+      dpwMultiplier: data.settings.dpwMultiplier,
+    });
     const issues: string[] = [];
     for (const date of listDates(data.period.startDate, data.period.endDate)) {
       const dayHours = employeeEntries.filter((entry) => entry.workDate === date && entry.category !== "actingOfficer").reduce((sum, entry) => sum + entry.hours, 0);
@@ -569,7 +580,7 @@ export default function PayrollApp() {
                 })}<td>{rowTotal.toFixed(1)}</td></tr>;
               })}
             </tbody><tfoot><tr><td>Period totals</td>{categoryColumns.map((column) => <td key={column.key}>{data.entries.filter((entry) => entry.employeeId === selectedEmployee.id && entry.category === column.key).reduce((sum, entry) => sum + entry.hours, 0).toFixed(1)}</td>)}<td>{selectedSummary.hours.toFixed(1)}</td></tr></tfoot></table></div>
-            <p className="helper-note">{data.period.status === "finalized" ? "This finalized timesheet is read only. Reopening a closed payroll period requires a separate administrator workflow." : data.viewer.isAdmin ? "Acting Officer hours add the configured premium only. DPW hours use the configured DPW multiplier. Daily totals over 24 hours are allowed for callbacks and overlapping pay categories. Entries save when you leave a field." : "This timesheet is read only. Contact an administrator if an entry needs to be corrected."}</p>
+            <p className="helper-note">{data.period.status === "finalized" ? "This finalized timesheet is read only. Reopening a closed payroll period requires a separate administrator workflow." : data.viewer.isAdmin ? `Acting Officer pay is a straight $${ACTING_OFFICER_STIPEND_PER_HOUR.toFixed(2)} per AO hour and never receives overtime or holiday multipliers. DPW hours use the configured DPW multiplier. Daily totals over 24 hours are allowed for callbacks and overlapping pay categories. Entries save when you leave a field.` : "This timesheet is read only. Contact an administrator if an entry needs to be corrected."}</p>
           </section></div>}
 
           {activeNav === "Daily Log" && <DailyLog employees={data.employees} onPayrollSynced={() => { void loadPayroll(periodStart); }} />}
@@ -627,7 +638,7 @@ export default function PayrollApp() {
           </section>}
 
           {activeNav === "Rates & Rules" && rulesDraft && <section className="settings-layout">
-            <article className="content-card rules-card"><div className="section-header"><div><h2>Payroll rules</h2><p>These replace the formulas that caused broken references.</p></div></div><div className="settings-grid"><label><span>Overtime threshold</span><div className="input-unit"><input type="number" min="0" step="1" value={rulesDraft.overtimeThreshold} onChange={(event) => setRulesDraft({ ...rulesDraft, overtimeThreshold: safeNumber(event.target.value) })} /><b>hours</b></div></label><label><span>Acting Officer premium</span><div className="input-unit"><b>$</b><input type="number" min="0" step="0.01" value={rulesDraft.actingOfficerPremium} onChange={(event) => setRulesDraft({ ...rulesDraft, actingOfficerPremium: safeNumber(event.target.value) })} /><b>/ hr</b></div></label><label><span>DPW multiplier</span><div className="input-unit"><input type="number" min="1" step="0.05" value={rulesDraft.dpwMultiplier} onChange={(event) => setRulesDraft({ ...rulesDraft, dpwMultiplier: safeNumber(event.target.value) })} /><b>× rate</b></div></label></div></article>
+              <article className="content-card rules-card"><div className="section-header"><div><h2>Payroll rules</h2><p>These replace the formulas that caused broken references.</p></div></div><div className="settings-grid"><label><span>Overtime threshold</span><div className="input-unit"><input type="number" min="0" step="1" value={rulesDraft.overtimeThreshold} onChange={(event) => setRulesDraft({ ...rulesDraft, overtimeThreshold: safeNumber(event.target.value) })} /><b>hours</b></div></label><label><span>Acting Officer stipend</span><div className="input-unit"><b>$</b><input type="number" value={ACTING_OFFICER_STIPEND_PER_HOUR.toFixed(2)} readOnly aria-readonly="true" /><b>/ AO hr</b></div><small>Straight stipend only—never multiplied for overtime or holidays.</small></label><label><span>DPW multiplier</span><div className="input-unit"><input type="number" min="1" step="0.05" value={rulesDraft.dpwMultiplier} onChange={(event) => setRulesDraft({ ...rulesDraft, dpwMultiplier: safeNumber(event.target.value) })} /><b>× rate</b></div></label></div></article>
             <article className="content-card"><div className="section-header"><div><h2>Pay rates</h2><p>Enter the Straight Time / Normal Rate. Overtime and Holiday automatically calculate at 1.5×.</p></div></div><div className="rate-list"><div className="rate-head"><span>Pay scale</span><span>Straight Time / Normal</span><span>Overtime · 1.5×</span><span>Holiday · 1.5×</span></div>{scaleDraft.map((scale, index) => <div className="rate-row" key={scale.id}><strong>{scale.label}</strong><label><span className="mobile-rate-label">Straight Time / Normal</span><b>$</b><input aria-label={`${scale.label} Straight Time / Normal Rate`} type="number" min="0" step="0.01" value={scale.regularRate} onChange={(event) => changeBaseRate(index, safeNumber(event.target.value))} /></label><label className="calculated-rate"><span className="mobile-rate-label">Overtime · 1.5×</span><b>$</b><input aria-label={`${scale.label} Overtime Rate`} readOnly value={scale.overtimeRate.toFixed(2)} /><em>Auto</em></label><label className="calculated-rate"><span className="mobile-rate-label">Holiday · 1.5×</span><b>$</b><input aria-label={`${scale.label} Holiday Rate`} readOnly value={scale.holidayRate.toFixed(2)} /><em>Auto</em></label></div>)}</div><button className="primary-action save-rules" onClick={() => void saveRules()}>Save Rates & Rules</button></article>
           </section>}
         </>}
