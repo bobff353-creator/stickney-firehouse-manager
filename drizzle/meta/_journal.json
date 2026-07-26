@@ -127,6 +127,13 @@
       "when": 1785031640295,
       "tag": "0017_lumpy_banshee",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1785043263858,
+      "tag": "0018_slippery_loa",
+      "breakpoints": true
     }
   ]
 }

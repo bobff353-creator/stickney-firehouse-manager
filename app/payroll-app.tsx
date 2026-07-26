@@ -25,7 +25,7 @@ type Employee = PayScale & {
   employeeNumber?: string | null; startDate?: string | null; endDate?: string | null; dateOfBirth?: string | null;
   phone?: string | null; email?: string | null; addressLine1?: string | null; city?: string | null;
   state?: string | null; postalCode?: string | null; employmentType?: string | null; isDpw?: number | boolean; driverStatus?: string | null; isAdmin?: number | boolean;
-  emergencyName?: string | null; emergencyRelationship?: string | null; emergencyPhone?: string | null; notes?: string | null;
+  emergencyName?: string | null; emergencyRelationship?: string | null; emergencyPhone?: string | null; photoUpdatedAt?: string | null; notes?: string | null;
 };
 type EmployeeForm = {
   id?: string; lastName: string; firstName: string; payScaleId: string; employeeNumber: string; startDate: string; endDate: string;
@@ -193,6 +193,9 @@ export default function PayrollApp() {
   const [finalizing, setFinalizing] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
   const [deletingEmployee, setDeletingEmployee] = useState(false);
+  const [employeePhotoFile, setEmployeePhotoFile] = useState<File | null>(null);
+  const [employeePhotoPreview, setEmployeePhotoPreview] = useState("");
+  const [removeEmployeePhoto, setRemoveEmployeePhoto] = useState(false);
 
   const loadPayroll = useCallback(async (start: string) => {
     setLoading(true);
@@ -307,7 +310,7 @@ export default function PayrollApp() {
 
   async function post(payload: Record<string, unknown>) {
     const response = await fetch("/api/payroll", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
-    const result = await response.json() as { error?: string };
+    const result = await response.json() as { error?: string; id?: string };
     if (!response.ok) throw new Error(result.error || "Unable to save");
     return result;
   }
@@ -383,8 +386,11 @@ export default function PayrollApp() {
   }
 
   function editEmployee(employee?: Employee) {
+    setEmployeePhotoFile(null);
+    setRemoveEmployeePhoto(false);
     if (!employee) {
       setEmployeeDraft(emptyEmployee);
+      setEmployeePhotoPreview("");
     } else {
       setEmployeeDraft({
         id: employee.id, ...splitEmployeeName(employee.name), payScaleId: employee.payScaleId, employeeNumber: employee.employeeNumber ?? "",
@@ -394,6 +400,7 @@ export default function PayrollApp() {
         employmentType: employee.employmentType ?? "Part-time", isDpw: Boolean(employee.isDpw), driverStatus: employee.driverStatus ?? "", isAdmin: Boolean(employee.isAdmin), emergencyName: employee.emergencyName ?? "",
         emergencyRelationship: employee.emergencyRelationship ?? "", emergencyPhone: employee.emergencyPhone ?? "", notes: employee.notes ?? "",
       });
+      setEmployeePhotoPreview(employee.photoUpdatedAt ? `/api/employee-photo/${employee.id}?v=${encodeURIComponent(employee.photoUpdatedAt)}` : "");
     }
     setProfileOpen(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -402,12 +409,47 @@ export default function PayrollApp() {
   async function saveEmployeeProfile(event: React.FormEvent) {
     event.preventDefault();
     try {
-      await post({ action: "saveEmployee", ...employeeDraft, name: employeeNameFromParts(employeeDraft.lastName, employeeDraft.firstName) });
+      const result = await post({ action: "saveEmployee", ...employeeDraft, name: employeeNameFromParts(employeeDraft.lastName, employeeDraft.firstName) });
+      const employeeId = result.id || employeeDraft.id;
+      if (!employeeId) throw new Error("The employee record was saved without an ID.");
+      if (removeEmployeePhoto && employeeDraft.id) {
+        const response = await fetch(`/api/employee-photo/${employeeDraft.id}`, { method: "DELETE" });
+        const payload = await response.json() as { error?: string };
+        if (!response.ok) throw new Error(payload.error || "Unable to remove employee photo");
+      }
+      if (employeePhotoFile) {
+        const form = new FormData();
+        form.set("photo", employeePhotoFile);
+        const response = await fetch(`/api/employee-photo/${employeeId}`, { method: "POST", body: form });
+        const payload = await response.json() as { error?: string };
+        if (!response.ok) throw new Error(payload.error || "Unable to upload employee photo");
+      }
       setEmployeeDraft(emptyEmployee);
+      setEmployeePhotoFile(null);
+      setEmployeePhotoPreview("");
+      setRemoveEmployeePhoto(false);
       setProfileOpen(false);
       await loadPayroll(periodStart);
       setToast(employeeDraft.id ? "Employee information updated" : "Employee added");
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to save employee"); }
+  }
+
+  function chooseEmployeePhoto(file: File | null) {
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setError("Use a JPG, PNG, or WebP employee photo.");
+      return;
+    }
+    if (file.size > 3 * 1024 * 1024) {
+      setError("Employee photos must be smaller than 3 MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.addEventListener("load", () => setEmployeePhotoPreview(String(reader.result || "")), { once: true });
+    reader.readAsDataURL(file);
+    setEmployeePhotoFile(file);
+    setRemoveEmployeePhoto(false);
+    setError("");
   }
 
   async function deleteEmployee() {
@@ -546,7 +588,7 @@ export default function PayrollApp() {
             <div className="standard-page-header"><div><span className="page-icon"><Icon name="users" size={25}/></span><div><p className="eyebrow">Personnel administration</p><h1>Employees</h1><p>Manage employment, contact, access, driver status, and emergency information.</p></div></div><button type="button" className="primary-action" onClick={() => editEmployee()}>Add Employee</button></div>
             {profileOpen && <form className="content-card employee-profile-form" onSubmit={(event) => void saveEmployeeProfile(event)}>
               <div className="section-header"><div><h2>{employeeDraft.id ? `Edit ${employeeNameFromParts(employeeDraft.lastName, employeeDraft.firstName)}` : "Add employee"}</h2><p>Personnel, payroll eligibility, and emergency contact information.</p></div><div className="employee-form-actions">{employeeDraft.id && <button type="button" className="quiet-button" onClick={() => editEmployee()}>New Employee</button>}<button className="primary-action compact" type="submit">{employeeDraft.id ? "Save Changes" : "Add Employee"}</button></div></div>
-              <fieldset><legend>Employment</legend><div className="employee-fields three-col">
+              <fieldset><legend>Employment</legend><div className="employee-photo-editor"><div className="employee-photo-preview">{employeePhotoPreview ? <img src={employeePhotoPreview} alt="Employee photo preview" /> : <span>{employeeNameFromParts(employeeDraft.lastName, employeeDraft.firstName).split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span>}</div><div><strong>Employee photo</strong><p>Used for new-member announcements and personnel displays.</p><div><label className="employee-photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => chooseEmployeePhoto(event.target.files?.[0] ?? null)} /><span>{employeePhotoPreview ? "Choose a different photo" : "Choose photo"}</span></label>{employeePhotoPreview && <button type="button" className="quiet-button" onClick={() => { setEmployeePhotoFile(null); setEmployeePhotoPreview(""); setRemoveEmployeePhoto(Boolean(employeeDraft.id)); }}>Remove photo</button>}</div><small>JPG, PNG, or WebP · maximum 3 MB</small></div></div><div className="employee-fields three-col">
                 <label><span>Last name *</span><input required autoComplete="family-name" value={employeeDraft.lastName} onChange={(event) => setEmployeeDraft((current) => ({ ...current, lastName: event.target.value }))} /></label>
                 <label><span>First name *</span><input required autoComplete="given-name" value={employeeDraft.firstName} onChange={(event) => setEmployeeDraft((current) => ({ ...current, firstName: event.target.value }))} /></label>
                 <label><span>Employee number</span><input placeholder="Example: 1203-17" value={employeeDraft.employeeNumber} onChange={(event) => setEmployeeDraft((current) => ({ ...current, employeeNumber: event.target.value }))} /></label>
@@ -578,7 +620,7 @@ export default function PayrollApp() {
               {data.employees.length === 0 && <div className="action-empty-state"><Icon name="users" size={28}/><div><strong>No employees yet</strong><p>Add the first employee to begin staffing, timesheets, and payroll.</p></div><button className="quiet-button" onClick={() => editEmployee()}>Add Employee</button></div>}
               <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Employee #</th><th>Pay Scale</th><th>Driver</th><th>Phone</th><th>Start</th><th>Last Day</th><th>Status</th><th></th></tr></thead><tbody>{[...data.employees].sort((a, b) => compareEmployeeNames(a.name, b.name)).map((employee) => {
                 const payrollStatus = employee.startDate && employee.startDate > data.period.endDate ? "Scheduled" : employee.endDate && employee.endDate < data.period.startDate ? "Ended" : "Active";
-                return <tr key={employee.id}><td data-label="Employee"><span className="person-icon"><Icon name="users"/></span><strong>{displayName(employee.name)}</strong></td><td data-label="Employee #">{employee.employeeNumber || "—"}</td><td data-label="Pay Scale">{employee.rank}</td><td data-label="Driver">{employee.driverStatus || "—"}</td><td data-label="Phone">{employee.phone || "—"}</td><td data-label="Start">{employee.startDate || "—"}</td><td data-label="Last Day">{employee.endDate || "—"}</td><td data-label="Status"><span className={`employment-status ${payrollStatus.toLowerCase()}`}>{payrollStatus}</span></td><td data-label="Actions"><div className="employee-row-actions"><button className="edit-employee" onClick={() => editEmployee(employee)}>Edit</button><button className="delete-employee" onClick={() => setEmployeeToDelete(employee)}>Delete</button></div></td></tr>;
+                return <tr key={employee.id}><td data-label="Employee"><span className="person-icon employee-list-photo">{employee.photoUpdatedAt ? <img src={`/api/employee-photo/${employee.id}?v=${encodeURIComponent(employee.photoUpdatedAt)}`} alt="" /> : <Icon name="users"/>}</span><strong>{displayName(employee.name)}</strong></td><td data-label="Employee #">{employee.employeeNumber || "—"}</td><td data-label="Pay Scale">{employee.rank}</td><td data-label="Driver">{employee.driverStatus || "—"}</td><td data-label="Phone">{employee.phone || "—"}</td><td data-label="Start">{employee.startDate || "—"}</td><td data-label="Last Day">{employee.endDate || "—"}</td><td data-label="Status"><span className={`employment-status ${payrollStatus.toLowerCase()}`}>{payrollStatus}</span></td><td data-label="Actions"><div className="employee-row-actions"><button className="edit-employee" onClick={() => editEmployee(employee)}>Edit</button><button className="delete-employee" onClick={() => setEmployeeToDelete(employee)}>Delete</button></div></td></tr>;
               })}</tbody></table></div>
             </section>
           </section>}

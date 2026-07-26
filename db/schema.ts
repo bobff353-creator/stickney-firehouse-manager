@@ -38,6 +38,7 @@ export const employeeProfiles = sqliteTable("employee_profiles", {
   emergencyName: text("emergency_name"),
   emergencyRelationship: text("emergency_relationship"),
   emergencyPhone: text("emergency_phone"),
+  photoUpdatedAt: text("photo_updated_at"),
   notes: text("notes"),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [uniqueIndex("employee_profiles_number_idx").on(table.employeeNumber)]);
