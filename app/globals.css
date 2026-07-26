@@ -167,6 +167,9 @@ h1 { margin: 0; font-size: clamp(38px, 4.4vw, 58px); line-height: 1; letter-spac
 .record-finalized .content-card, .record-finalized .table-wrap, .record-finalized .review-bar { border-color: #aab8b1; }
 .record-finalized .entry-grid input { background: #eef1ef; color: #536159; }
 .closed-confirmation { min-height: 42px; padding: 0 14px; border: 1px solid #7fa08f; border-radius: 7px; background: #edf5f0; color: #315f4b; display: inline-flex; align-items: center; font-weight: 850; }
+.employee-row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
+.delete-employee { min-height: 34px; padding: 0 10px; border: 1px solid #c98484; border-radius: 6px; background: #fff7f7; color: #9b3333; font-weight: 800; }
+.delete-employee:hover { background: #fbe8e8; border-color: #a93434; }
 .period-arrow { width: 42px; height: 42px; border: 1px solid #aebbc5; border-radius: 50%; background: rgba(255,255,255,.8); color: var(--navy); display: grid; place-items: center; font-size: 30px; line-height: 1; }
 .period-arrow:hover { background: white; }
 .primary-action { min-height: 50px; padding: 0 21px; border: 0; border-radius: 8px; background: linear-gradient(180deg, #245f8d, #18476d); color: white; display: inline-flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 800; box-shadow: 0 7px 17px rgba(24,71,109,.17); transition: transform .14s ease, box-shadow .14s ease; }

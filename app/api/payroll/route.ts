@@ -124,6 +124,20 @@ export async function POST(request: Request) {
       return Response.json({ ok: true, id });
     }
 
+    if (action === "deleteEmployee") {
+      const employeeId = String(payload.employeeId ?? "");
+      if (!employeeId) return Response.json({ error: "Employee is required" }, { status: 400 });
+      const employee = await db.prepare("SELECT name FROM employees WHERE id = ? AND active = 1").bind(employeeId).first<{ name: string }>();
+      if (!employee) return Response.json({ error: "Employee was not found" }, { status: 404 });
+      const history = await db.prepare("SELECT (SELECT COUNT(*) FROM time_entries WHERE employee_id = ?) + (SELECT COUNT(*) FROM daily_log_staffing WHERE employee_id = ?) + (SELECT COUNT(*) FROM daily_log_approvals WHERE sign_in_officer_id = ? OR sign_out_officer_id = ?) AS count").bind(employeeId, employeeId, employeeId, employeeId).first<{ count: number }>();
+      if (Number(history?.count ?? 0) > 0) {
+        return Response.json({ error: "This employee has payroll or Daily Log history and cannot be permanently deleted. Add a Last day of work instead to keep department records intact." }, { status: 409 });
+      }
+      await db.prepare("DELETE FROM employee_profiles WHERE employee_id = ?").bind(employeeId).run();
+      await db.prepare("DELETE FROM employees WHERE id = ?").bind(employeeId).run();
+      return Response.json({ ok: true, name: employee.name });
+    }
+
     if (action === "setPeriodStatus") {
       const periodStart = cleanStart(String(payload.periodStart ?? ""));
       const status = String(payload.status ?? "draft");
