@@ -67,9 +67,7 @@ const policySeedVersion = "stickney-policy-library-2026-07-18";
 const boxCardSeedVersion = "regional-box-cards-structured-2026-07-21-v2";
 const employeeNameFormatVersion = "employee-names-last-first-2026-07-23";
 const callTimeFormatVersion = "daily-log-call-times-military-2026-07-23";
-const july18PayrollCleanupVersion = "july-18-payroll-cleanup-v2";
-const legacyDpwDedupVersion = "legacy-dpw-dedup-v1";
-const historicalLogReconciliationVersion = "historical-daily-log-payroll-v1";
+const exactLogPayrollRangeVersion = "daily-log-payroll-2026-07-11-through-2026-07-25-v1";
 const dailyDutySeed = [
   [1, "morning", "Weekly checks on 1201."],
   [1, "afternoon", "Deep clean bathrooms. Scrub floor in bathroom. Wash shower curtains. Clean shower stall."],
@@ -120,17 +118,6 @@ async function normalizeHistoricalCallTimes(db: Awaited<ReturnType<typeof getDat
   await db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind("call_time_format_version", callTimeFormatVersion).run();
 }
 
-async function repairJuly18Payroll(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
-  const markerKey = "payroll_repair_2026_07_18_v3";
-  const marker = await db.prepare("SELECT value FROM system_meta WHERE key = ? LIMIT 1").bind(markerKey).first<{ value: string }>();
-  if (marker?.value === july18PayrollCleanupVersion) return;
-  await db.batch([
-    db.prepare("DELETE FROM time_entries WHERE employee_id = 'czech-doug' AND work_date = '2026-07-18'"),
-    db.prepare("UPDATE time_entries SET hours = 24, updated_at = CURRENT_TIMESTAMP WHERE employee_id = 'delgatto-eric' AND work_date = '2026-07-18' AND category = 'shift' AND hours < 24"),
-    db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind(markerKey, july18PayrollCleanupVersion),
-  ]);
-}
-
 function historicalPayrollPeriod(date: string) {
   const parsed = new Date(`${date}T12:00:00Z`);
   const day = parsed.getUTCDate();
@@ -150,48 +137,38 @@ function historicalPayrollPeriod(date: string) {
   return { start, end: parsed.toISOString().slice(0, 10) };
 }
 
-async function reconcileHistoricalLogPayroll(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
-  const markerKey = "historical_daily_log_payroll_reconciliation";
+function datesInRange(start: string, end: string) {
+  const dates: string[] = [];
+  const cursor = new Date(`${start}T12:00:00Z`);
+  while (cursor.toISOString().slice(0, 10) <= end) {
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+async function reconcileExactLogPayrollRange(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
+  const markerKey = "exact_daily_log_payroll_2026_07_11_2026_07_25";
   const marker = await db.prepare("SELECT value FROM system_meta WHERE key = ? LIMIT 1").bind(markerKey).first<{ value: string }>();
-  if (marker?.value === historicalLogReconciliationVersion) return;
-  const [dates, dpwRows] = await Promise.all([
-    db.prepare("SELECT DISTINCT log_date AS logDate FROM daily_log_staffing WHERE employee_id IS NOT NULL ORDER BY log_date").all<{ logDate: string }>(),
-    db.prepare("SELECT employee_id AS employeeId FROM employee_profiles WHERE is_dpw = 1").all<{ employeeId: string }>(),
-  ]);
+  if (marker?.value === exactLogPayrollRangeVersion) return;
+  const dpwRows = await db.prepare("SELECT employee_id AS employeeId FROM employee_profiles WHERE is_dpw = 1").all<{ employeeId: string }>();
   const dpwEmployees = new Set(dpwRows.results.map((row) => row.employeeId));
-  for (const { logDate } of dates.results) {
+  for (const logDate of datesInRange("2026-07-11", "2026-07-25")) {
     const staffing = await db.prepare("SELECT employee_id AS employeeId, time_in AS timeIn, time_out AS timeOut, shift_key AS shiftKey, acting_officer AS actingOfficer FROM daily_log_staffing WHERE log_date = ? AND employee_id IS NOT NULL").bind(logDate).all<PayrollStaffingRow>();
     const totals = dailyLogPayrollTotals(staffing.results, holidayForDate(logDate));
     const period = historicalPayrollPeriod(logDate);
     const writes = [
       db.prepare("INSERT OR IGNORE INTO pay_periods (start_date, end_date, status) VALUES (?, ?, 'draft')").bind(period.start, period.end),
-      db.prepare("DELETE FROM time_entries WHERE work_date = ? AND category IN ('shift', 'holiday', 'actingOfficer', 'dailyLogDpw')").bind(logDate),
+      // Replace only Daily Log-derived categories. Explicit callback, drill,
+      // and work-detail entries remain exactly as entered.
+      db.prepare("DELETE FROM time_entries WHERE work_date = ? AND (category IN ('shift', 'holiday', 'actingOfficer', 'dailyLogDpw') OR (category = 'dpw' AND employee_id IN (SELECT employee_id FROM employee_profiles WHERE is_dpw = 1)))").bind(logDate),
     ];
     for (const entry of dailyLogPayrollEntries(totals, dpwEmployees)) {
       writes.push(db.prepare("INSERT INTO time_entries (id, employee_id, period_start, work_date, category, hours, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)").bind(crypto.randomUUID(), entry.employeeId, period.start, logDate, entry.category, entry.hours));
     }
     await db.batch(writes);
   }
-  await db.batch([
-    // The user confirmed Alonzo had no paid work of any category on July 18.
-    db.prepare("DELETE FROM time_entries WHERE employee_id = 'alonzo-sam' AND work_date = '2026-07-18'"),
-    db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind(markerKey, historicalLogReconciliationVersion),
-  ]);
-}
-
-async function removeLegacyDpwDuplicates(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
-  const markerKey = "legacy_daily_log_dpw_dedup";
-  const marker = await db.prepare("SELECT value FROM system_meta WHERE key = ? LIMIT 1").bind(markerKey).first<{ value: string }>();
-  if (marker?.value === legacyDpwDedupVersion) return;
-  await db.batch([
-    // Czech's July 21 total was the old 12-hour DPW row plus the new
-    // 12-hour Daily Log DPW row.
-    db.prepare("DELETE FROM time_entries WHERE employee_id = 'czech-doug' AND work_date = '2026-07-21' AND category = 'dpw' AND EXISTS (SELECT 1 FROM time_entries automatic WHERE automatic.employee_id = 'czech-doug' AND automatic.work_date = '2026-07-21' AND automatic.category = 'dailyLogDpw')"),
-    // Clean any other exact legacy duplicates created during the source split.
-    // Different-valued manual DPW entries are preserved.
-    db.prepare("DELETE FROM time_entries WHERE category = 'dpw' AND EXISTS (SELECT 1 FROM time_entries automatic WHERE automatic.employee_id = time_entries.employee_id AND automatic.work_date = time_entries.work_date AND automatic.category = 'dailyLogDpw' AND ABS(automatic.hours - time_entries.hours) < 0.001)"),
-    db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind(markerKey, legacyDpwDedupVersion),
-  ]);
+  await db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind(markerKey, exactLogPayrollRangeVersion).run();
 }
 
 async function seedPolicies(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
@@ -294,9 +271,6 @@ export async function ensureDatabase() {
   await db.batch(employeeSeed.map((employee, index) => db.prepare("INSERT INTO employees (id, name, pay_scale_id, active, sort_order) SELECT ?, ?, ?, 1, ? WHERE NOT EXISTS (SELECT 1 FROM system_meta WHERE key = ?) ON CONFLICT(id) DO NOTHING").bind(employee[0], employee[1], employee[2], index + 1, `employee_deleted:${employee[0]}`)));
   await normalizeEmployeeNames(db);
   await normalizeHistoricalCallTimes(db);
-  await reconcileHistoricalLogPayroll(db);
-  await repairJuly18Payroll(db);
-  await removeLegacyDpwDuplicates(db);
   const rosterImport = [
     ["aguinaga-hugo", "(708) 543-3980", "Cleared", 0],
     ["boulden-jamal", "(773) 213-3598", "Ambulance Only", 0],
@@ -332,6 +306,7 @@ export async function ensureDatabase() {
     await db.prepare("INSERT INTO employee_profiles (employee_id) SELECT ? WHERE EXISTS (SELECT 1 FROM employees WHERE id = ?) ON CONFLICT(employee_id) DO NOTHING").bind(employeeId, employeeId).run();
     await db.prepare("UPDATE employee_profiles SET phone = CASE WHEN (phone IS NULL OR phone = '') AND ? <> '' THEN ? ELSE phone END, driver_status = CASE WHEN driver_status = '' THEN ? ELSE driver_status END, is_dpw = CASE WHEN ? = 1 AND driver_status = '' THEN 1 ELSE is_dpw END, updated_at = CURRENT_TIMESTAMP WHERE employee_id = ?").bind(phone, phone, driverStatus, isDpw, employeeId).run();
   }
+  await reconcileExactLogPayrollRange(db);
   const phoneSeed = [
     ["fire-berwyn", "fire", "Berwyn Fire Department", "", "(708) 484-1644", "", 1],
     ["fire-cicero", "fire", "Cicero Fire Department", "", "(708) 652-2130", "", 2],
