@@ -1,5 +1,6 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 import { employeeNameFromParts, formatEmployeeName } from "../../employee-names";
+import { roundPayrollUpToCent } from "../../payroll-rounding";
 
 const categories = ["shift", "drill", "workDetail", "callback", "actingOfficer", "holiday", "dpw"] as const;
 const ownerAdminEmails = ["bobff353@gmail.com"];
@@ -115,7 +116,7 @@ export async function POST(request: Request) {
       const scales = Array.isArray(payload.payScales) ? payload.payScales as Array<Record<string, unknown>> : [];
       for (const scale of scales) {
         const regularRate = Number(scale.regularRate);
-        const premiumRate = Math.round(regularRate * 1.5 * 100) / 100;
+        const premiumRate = roundPayrollUpToCent(regularRate * 1.5);
         await db.prepare("UPDATE pay_scales SET regular_rate = ?, overtime_rate = ?, holiday_rate = ? WHERE id = ?").bind(regularRate, premiumRate, premiumRate, String(scale.id)).run();
       }
       return Response.json({ ok: true });

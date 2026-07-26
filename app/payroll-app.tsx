@@ -17,6 +17,7 @@ import PwaInstall from "./pwa-install";
 import CommandCenter from "./command-center";
 import DailyDuties from "./daily-duties";
 import { compareEmployeeNames, employeeNameFromParts, formatEmployeeName, splitEmployeeName } from "./employee-names";
+import { roundPayrollUpToCent } from "./payroll-rounding";
 
 type Category = "shift" | "drill" | "workDetail" | "callback" | "actingOfficer" | "holiday" | "dpw";
 type PayScale = { id: string; label: string; regularRate: number; overtimeRate: number; holidayRate: number };
@@ -267,7 +268,7 @@ export default function PayrollApp() {
     const holidayHours = total("holiday");
     const actingHours = total("actingOfficer");
     const dpwHours = total("dpw");
-    const gross = regularHours * employee.regularRate + overtimeHours * employee.overtimeRate + holidayHours * employee.holidayRate + actingHours * data.settings.actingOfficerPremium + dpwHours * employee.regularRate * data.settings.dpwMultiplier;
+    const gross = roundPayrollUpToCent(regularHours * employee.regularRate + overtimeHours * employee.overtimeRate + holidayHours * employee.holidayRate + actingHours * data.settings.actingOfficerPremium + dpwHours * employee.regularRate * data.settings.dpwMultiplier);
     const issues: string[] = [];
     for (const date of listDates(data.period.startDate, data.period.endDate)) {
       const dayHours = employeeEntries.filter((entry) => entry.workDate === date && entry.category !== "actingOfficer").reduce((sum, entry) => sum + entry.hours, 0);
@@ -381,7 +382,7 @@ export default function PayrollApp() {
   }
 
   function changeBaseRate(index: number, value: number) {
-    const calculated = Math.round(value * 1.5 * 100) / 100;
+    const calculated = roundPayrollUpToCent(value * 1.5);
     setScaleDraft((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, regularRate: value, overtimeRate: calculated, holidayRate: calculated } : item));
   }
 
