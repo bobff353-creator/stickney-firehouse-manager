@@ -11,6 +11,15 @@ test("work detail workflow requires certification and supports multiple employee
   assert.equal(page.includes('type="date"'), true);
 });
 
+test("start and end times are optional while total time is required", async () => {
+  const api = await readFile(new URL("../app/api/work-details/route.ts", import.meta.url), "utf8");
+  const page = await readFile(new URL("../app/work-details.tsx", import.meta.url), "utf8");
+  assert.equal(page.includes('startTime: "", endTime: "", totalHours: ""'), true);
+  assert.equal(page.includes('<span>Total time *</span><input type="number" required'), true);
+  assert.equal(api.includes("const totalHours = Number(payload.totalHours)"), true);
+  assert.equal(api.includes("Enter both optional times or leave both blank."), true);
+});
+
 test("approved work details post once and add to existing work detail hours", async () => {
   const api = await readFile(new URL("../app/api/work-details/route.ts", import.meta.url), "utf8");
   assert.equal(api.includes("work_detail_postings"), true);

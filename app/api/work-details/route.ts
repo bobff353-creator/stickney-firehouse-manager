@@ -1,5 +1,4 @@
 import { ensureDatabase } from "../../../db/bootstrap";
-import { workedHours } from "../../payroll-hours";
 
 const ownerAdminEmails = ["bobff353@gmail.com"];
 const isOfficer = (rank: string) => /(chief|captain|lieutenant)/i.test(rank);
@@ -59,8 +58,9 @@ export async function POST(request: Request) {
     if (action === "submit") {
       const workDate = String(payload.workDate ?? ""), requestingOfficerId = String(payload.requestingOfficerId ?? ""), approverId = String(payload.approverId ?? ""), startTime = String(payload.startTime ?? ""), endTime = String(payload.endTime ?? ""), workType = String(payload.workType ?? "").trim(), description = String(payload.description ?? "").trim();
       const employeeIds = [...new Set(Array.isArray(payload.employeeIds) ? payload.employeeIds.map(String).filter(Boolean) : [])];
-      const totalHours = workedHours(startTime, endTime);
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate) || !requestingOfficerId || !approverId || !workType || !description || !payload.certified || employeeIds.length === 0 || totalHours <= 0) return Response.json({ error: "Complete every required field, select at least one member, and certify the sheet." }, { status: 400 });
+      const totalHours = Number(payload.totalHours);
+      if ((startTime && !endTime) || (!startTime && endTime)) return Response.json({ error: "Enter both optional times or leave both blank." }, { status: 400 });
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate) || !requestingOfficerId || !approverId || !workType || !description || !payload.certified || employeeIds.length === 0 || !Number.isFinite(totalHours) || totalHours <= 0) return Response.json({ error: "Complete every required field, enter total time, select at least one member, and certify the sheet." }, { status: 400 });
       const validEmployees = await db.prepare(`SELECT COUNT(*) AS count FROM employees WHERE active = 1 AND id IN (${employeeIds.map(() => "?").join(",")})`).bind(...employeeIds).first<{ count: number }>();
       const requestingOfficer = await db.prepare("SELECT p.label AS rank FROM employees e JOIN pay_scales p ON p.id = e.pay_scale_id WHERE e.id = ? AND e.active = 1").bind(requestingOfficerId).first<{ rank: string }>();
       const approver = await db.prepare("SELECT p.label AS rank, COALESCE(ep.is_admin, 0) AS isAdmin FROM employees e JOIN pay_scales p ON p.id = e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id = e.id WHERE e.id = ? AND e.active = 1").bind(approverId).first<{ rank: string; isAdmin: number }>();
