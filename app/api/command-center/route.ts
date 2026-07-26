@@ -3,12 +3,19 @@ const ownerAdminEmails = ["bobff353@gmail.com"];
 async function isAdmin(request: Request, db: Awaited<ReturnType<typeof ensureDatabase>>) { const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? ""; if (ownerAdminEmails.includes(email)) return true; const row = email ? await db.prepare("SELECT is_admin AS isAdmin FROM employee_profiles WHERE lower(email) = ? LIMIT 1").bind(email).first<{ isAdmin: number }>() : null; return Boolean(row?.isAdmin); }
 function equipmentCount(raw: unknown) { try { return Object.values(JSON.parse(String(raw || "{}")) as Record<string, { status?: string }>).filter((item) => item.status && item.status !== "Present").length; } catch { return 0; } }
 type Metric = { date: string; staffingGaps: number; overtimeHours: number; aoHours: number; calls: number; equipmentIssues: number; payrollCost: number };
+function fiscalYear() {
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+  const year = Number(today.slice(0, 4));
+  const startYear = today.slice(5) >= "05-01" ? year : year - 1;
+  return { startDate: `${startYear}-05-01`, endDate: `${startYear + 1}-04-30` };
+}
 export async function GET(request: Request) {
   try {
     const db = await ensureDatabase(); if (!await isAdmin(request, db)) return Response.json({ error: "Administrator privileges are required." }, { status: 403 });
-    const [staffing, calls, approvals, entries, settings] = await Promise.all([
+    const [staffing, calls, callTiming, approvals, entries, settings] = await Promise.all([
       db.prepare("SELECT l.log_date AS date, s.shift_key AS shiftKey, COUNT(s.employee_id) AS filled FROM daily_logs l CROSS JOIN (SELECT 'morning' AS shift_key UNION ALL SELECT 'afternoon' UNION ALL SELECT 'overnight') shifts LEFT JOIN daily_log_staffing s ON s.log_date = l.log_date AND s.shift_key = shifts.shift_key AND s.employee_id IS NOT NULL WHERE l.log_date >= date('now', '-365 day') GROUP BY l.log_date, shifts.shift_key").all(),
       db.prepare("SELECT log_date AS date, call_type AS callType, COUNT(*) AS count FROM daily_log_calls WHERE log_date >= date('now', '-365 day') GROUP BY log_date, call_type").all(),
+      db.prepare("SELECT log_date AS date, time_out AS timeOut FROM daily_log_calls WHERE log_date >= date('now', '-365 day') ORDER BY log_date, time_out").all(),
       db.prepare("SELECT log_date AS date, sign_in_equipment AS signInEquipment, sign_out_equipment AS signOutEquipment FROM daily_log_approvals WHERE log_date >= date('now', '-365 day')").all(),
       db.prepare("SELECT t.employee_id AS employeeId, t.period_start AS periodStart, t.work_date AS date, t.category, t.hours, ps.regular_rate AS regularRate, ps.holiday_rate AS holidayRate FROM time_entries t JOIN employees e ON e.id = t.employee_id JOIN pay_scales ps ON ps.id = e.pay_scale_id WHERE t.work_date >= date('now', '-365 day') ORDER BY t.employee_id, t.period_start, t.work_date, t.category").all(),
       db.prepare("SELECT overtime_threshold AS overtimeThreshold, acting_officer_premium AS actingOfficerPremium, dpw_multiplier AS dpwMultiplier FROM payroll_settings WHERE id = 1").first<{ overtimeThreshold: number; actingOfficerPremium: number; dpwMultiplier: number }>(),
@@ -19,6 +26,9 @@ export async function GET(request: Request) {
     for (const row of approvals.results as Array<Record<string, unknown>>) metric(String(row.date)).equipmentIssues += equipmentCount(row.signInEquipment) + equipmentCount(row.signOutEquipment);
     const running = new Map<string, number>(); const threshold = Number(settings?.overtimeThreshold || 106), aoPremium = Number(settings?.actingOfficerPremium || 0), dpwMultiplier = Number(settings?.dpwMultiplier || 1.5);
     for (const row of entries.results as Array<Record<string, unknown>>) { const day = metric(String(row.date)), hours = Number(row.hours), regular = Number(row.regularRate), category = String(row.category), key = `${row.employeeId}:${row.periodStart}`; if (category === "actingOfficer") { day.aoHours += hours; day.payrollCost += hours * aoPremium; continue; } if (category === "holiday") { day.payrollCost += hours * Number(row.holidayRate); continue; } if (category === "dpw") { day.payrollCost += hours * regular * dpwMultiplier; continue; } const before = running.get(key) || 0, overtime = Math.max(0, before + hours - threshold) - Math.max(0, before - threshold); running.set(key, before + hours); day.overtimeHours += overtime; day.payrollCost += (hours - overtime) * regular + overtime * regular * 1.5; }
-    return Response.json({ daily: [...map.values()].sort((a, b) => a.date.localeCompare(b.date)), responseTypes, responseTypeDaily, generatedAt: new Date().toISOString() });
+    const fiscal = fiscalYear();
+    const daily = [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
+    const payToDate = daily.filter((row) => row.date >= fiscal.startDate && row.date <= fiscal.endDate).reduce((sum, row) => sum + row.payrollCost, 0);
+    return Response.json({ daily, responseTypes, responseTypeDaily, callTiming: callTiming.results, fiscalYear: { ...fiscal, payToDate }, generatedAt: new Date().toISOString() });
   } catch (error) { return Response.json({ error: error instanceof Error ? error.message : "Unable to load command center" }, { status: 500 }); }
 }
