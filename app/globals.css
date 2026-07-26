@@ -651,6 +651,7 @@ td strong { font-size: 16px; }
 .rotating-panel { position: relative; padding-bottom: 38px; }
 .rotating-panel > .rotation-content { min-height: 190px; animation: board-panel-fade .35s ease; }
 .rotating-panel.duty { border-color: #8b6c2f; background: linear-gradient(145deg,#172a32,#24291f); }
+.rotating-panel.news { border-color: #6e8798; background: linear-gradient(145deg,#132733,#192b35); }
 .current-duty-card { min-height: 165px; padding: 22px !important; border-left-color: #f1b84b !important; background: linear-gradient(135deg,#312d20,#262a25) !important; display: grid; align-content: center; gap: 7px; }
 .current-duty-card > span { width: fit-content; padding: 4px 8px; border-radius: 999px; background: #f1b84b; color: #18252b; font-size: 9px; font-weight: 950; letter-spacing: .12em; }
 .current-duty-card > b { color: #f3c76e; font-size: 15px; text-transform: uppercase; letter-spacing: .06em; }
@@ -659,6 +660,12 @@ td strong { font-size: 16px; }
 .rotation-indicator button { width: 9px; height: 9px; padding: 0; border: 0; border-radius: 50%; background: #52646f; }
 .rotation-indicator button.active { background: #f1b84b; box-shadow: 0 0 0 3px rgba(241,184,75,.15); }
 .rotation-indicator span { margin-left: auto; color: #81939e; font-size: 9px; }
+.close-call-list { display: grid; gap: 8px; }
+.close-call-list a { padding: 10px 12px; border: 1px solid #3a5261; border-left: 4px solid #d34d46; border-radius: 7px; background: #192e3a; color: white; display: grid; grid-template-columns: 54px minmax(0,1fr) auto; align-items: center; gap: 10px; text-decoration: none; }
+.close-call-list a:hover, .close-call-list a:focus-visible { border-color: #7c9aaa; background: #203946; outline: none; }
+.close-call-list time { color: #e6b667; font-size: 10px; font-weight: 900; text-transform: uppercase; }
+.close-call-list strong { color: white !important; font-size: 11px; line-height: 1.3; }
+.close-call-list span { color: #9bc6dc; font-size: 9px; font-weight: 850; white-space: nowrap; }
 @keyframes board-panel-fade { from { opacity: .25; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .board-empty { margin: 0; padding: 28px 12px; color: #aebdc7; text-align: center; grid-column: 1/-1; }
 .board-empty.clear { color: #7bd39b; }
