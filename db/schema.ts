@@ -134,7 +134,8 @@ export const scheduleAssignments = sqliteTable("schedule_assignments", {
   id: text("id").primaryKey(), employeeId: text("employee_id").references(() => employees.id), workDate: text("work_date").notNull(),
   startTime: text("start_time").notNull(), endTime: text("end_time").notNull(), role: text("role").notNull(), source: text("source").notNull().default("manual"),
   rotationId: text("rotation_id").references(() => scheduleRotations.id), status: text("status").notNull().default("assigned"),
-  emergency: integer("emergency", { mode: "boolean" }).notNull().default(false), notes: text("notes").notNull().default(""),
+  emergency: integer("emergency", { mode: "boolean" }).notNull().default(false), requiredRank: text("required_rank").notNull().default(""),
+  claimDeadline: text("claim_deadline").notNull().default(""), notes: text("notes").notNull().default(""),
   createdBy: text("created_by").notNull(), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [index("schedule_assignment_date_idx").on(table.workDate), uniqueIndex("schedule_assignment_unique_idx").on(table.employeeId, table.workDate, table.startTime, table.role)]);
 export const scheduleRequests = sqliteTable("schedule_requests", {
@@ -142,9 +143,16 @@ export const scheduleRequests = sqliteTable("schedule_requests", {
   assignmentId: text("assignment_id").references(() => scheduleAssignments.id), targetEmployeeId: text("target_employee_id").references(() => employees.id),
   startDate: text("start_date").notNull(), endDate: text("end_date").notNull(), startTime: text("start_time").notNull().default(""),
   endTime: text("end_time").notNull().default(""), role: text("role").notNull().default(""), repeatMode: text("repeat_mode").notNull().default("none"),
-  status: text("status").notNull().default("pending"), notes: text("notes").notNull().default(""), reviewedBy: text("reviewed_by"),
+  status: text("status").notNull().default("pending"), targetStatus: text("target_status").notNull().default("not_required"),
+  notes: text("notes").notNull().default(""), reviewedBy: text("reviewed_by"),
   reviewedAt: text("reviewed_at"), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [index("schedule_request_status_idx").on(table.status, table.createdAt)]);
+export const scheduleCoverageRules = sqliteTable("schedule_coverage_rules", {
+  id: text("id").primaryKey(), name: text("name").notNull(), role: text("role").notNull(), minimumStaff: integer("minimum_staff").notNull(),
+  startTime: text("start_time").notNull(), endTime: text("end_time").notNull(), daysOfWeek: text("days_of_week").notNull().default("0,1,2,3,4,5,6"),
+  active: integer("active", { mode: "boolean" }).notNull().default(true), createdBy: text("created_by").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [index("schedule_coverage_rule_active_idx").on(table.active, table.role)]);
 export const scheduleNotifications = sqliteTable("schedule_notifications", {
   id: text("id").primaryKey(), employeeId: text("employee_id").notNull().references(() => employees.id), title: text("title").notNull(),
   message: text("message").notNull(), inApp: integer("in_app", { mode: "boolean" }).notNull().default(true),
