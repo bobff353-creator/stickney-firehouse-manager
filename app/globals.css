@@ -670,8 +670,8 @@ td strong { font-size: 16px; }
 .rotation-indicator button { width: 9px; height: 9px; padding: 0; border: 0; border-radius: 50%; background: #52646f; }
 .rotation-indicator button.active { background: #f1b84b; box-shadow: 0 0 0 3px rgba(241,184,75,.15); }
 .rotation-indicator span { margin-left: auto; color: #81939e; font-size: 9px; }
-.close-call-list { display: grid; gap: 8px; }
-.close-call-list a { padding: 11px 12px; border: 1px solid #3a5261; border-left: 4px solid #d34d46; border-radius: 7px; background: #192e3a; color: white; display: grid; grid-template-columns: 62px minmax(0,1fr); align-items: start; gap: 11px; text-decoration: none; }
+.close-call-list { display: grid; grid-template-rows: repeat(3,minmax(0,1fr)); gap: 8px; min-height: 440px; }
+.close-call-list a { min-height: 0; padding: 11px 12px; border: 1px solid #3a5261; border-left: 4px solid #d34d46; border-radius: 7px; background: #192e3a; color: white; display: grid; grid-template-columns: 62px minmax(0,1fr); align-items: start; gap: 11px; text-decoration: none; }
 .close-call-list a:hover, .close-call-list a:focus-visible { border-color: #7c9aaa; background: #203946; outline: none; }
 .close-call-list time { color: #e6b667; font-size: 9px; font-weight: 900; line-height: 1.35; text-transform: uppercase; }
 .close-call-list a > div { display: grid; gap: 4px; }
@@ -1089,6 +1089,7 @@ td strong { font-size: 16px; }
   .board-grid.redesigned { grid-template-rows: auto; }
   .board-grid.redesigned .chief-board-panel, .board-grid.redesigned .staffing, .board-grid.redesigned .rotating-panel { grid-column: 1; grid-row: auto; }
   .board-grid.redesigned .rotating-panel > .rotation-content { min-height: 260px; }
+  .close-call-list { min-height: 360px; }
   .board-grid.redesigned .current-duty-card { min-height: 220px; }
   .board-panel.staffing > div, .board-panel.apparatus > div { grid-template-columns: 1fr; }
   .apparatus-wide > div { grid-template-columns: 1fr !important; }
