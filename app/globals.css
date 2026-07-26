@@ -660,6 +660,19 @@ td strong { font-size: 16px; }
 .board-header p { margin: 0 0 5px; color: #f1b84b; font-size: 12px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
 .board-header h1 { color: white; font-size: clamp(34px,4vw,56px); }
 .board-header > div > span { margin-top: 8px; color: #aebdc7; display: block; }
+.board-header-rotation { position: relative; min-width: min(720px, 68vw); min-height: 126px; padding-bottom: 20px; }
+.board-title-slide, .board-weather-slide { animation: board-panel-fade .35s ease; }
+.board-weather-slide .weather-day { color: #8fd6aa; font-size: 12px; font-weight: 900; letter-spacing: .09em; text-transform: uppercase; }
+.board-weather-slide h1 { margin-top: 3px; }
+.board-weather-slide > div { margin-top: 5px; display: flex; align-items: baseline; gap: 7px 12px; color: #aebdc7; }
+.board-weather-slide > div strong { color: white; font-size: 27px; }
+.board-weather-slide > div b { color: #b9d9ea; font-size: 22px; }
+.board-weather-slide > div span { font-size: 10px; font-weight: 900; text-transform: uppercase; }
+.board-weather-slide > div small { padding-left: 9px; border-left: 1px solid #536775; color: #d5e1e7; font-size: 12px; }
+.board-header-dots { position: absolute; bottom: 0; left: 0; display: flex; align-items: center; gap: 7px; }
+.board-header-dots button { width: 9px; height: 9px; padding: 0; border: 0; border-radius: 50%; background: #526772; }
+.board-header-dots button.active { background: #f1b84b; box-shadow: 0 0 0 3px rgba(241,184,75,.14); }
+.board-header-dots span { margin-left: 4px; color: #7f919c; font-size: 9px; }
 .board-clock { text-align: right; }
 .board-clock strong { font-size: clamp(30px,3.5vw,46px); font-variant-numeric: tabular-nums; display: block; }
 .board-clock > span { color: #aebdc7; font-size: 12px; }
@@ -1162,6 +1175,9 @@ td strong { font-size: 16px; }
   .dashboard-live { width: 100%; }
   .operations-board { margin: -26px -16px -42px; padding: 22px 14px 36px; }
   .board-header { align-items: flex-start; flex-direction: column; }
+  .board-header-rotation { width: 100%; min-width: 0; min-height: 136px; }
+  .board-weather-slide > div { flex-wrap: wrap; }
+  .board-weather-slide > div small { flex-basis: 100%; padding-left: 0; border-left: 0; }
   .board-clock { text-align: left; }
   .board-summary, .board-grid { grid-template-columns: 1fr; }
   .board-grid.redesigned { grid-template-rows: auto; }
