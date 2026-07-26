@@ -66,6 +66,7 @@ const boxCardSeedVersion = "regional-box-cards-structured-2026-07-21-v2";
 const employeeNameFormatVersion = "employee-names-last-first-2026-07-23";
 const callTimeFormatVersion = "daily-log-call-times-military-2026-07-23";
 const july18PayrollCleanupVersion = "july-18-payroll-cleanup-v1";
+const legacyDpwDedupVersion = "legacy-dpw-dedup-v1";
 const dailyDutySeed = [
   [1, "morning", "Weekly checks on 1201."],
   [1, "afternoon", "Deep clean bathrooms. Scrub floor in bathroom. Wash shower curtains. Clean shower stall."],
@@ -124,6 +125,21 @@ async function repairJuly18Payroll(db: Awaited<ReturnType<typeof getDatabaseBind
     db.prepare("DELETE FROM time_entries WHERE employee_id = 'czech-doug' AND work_date = '2026-07-18'"),
     db.prepare("UPDATE time_entries SET hours = 24, updated_at = CURRENT_TIMESTAMP WHERE employee_id = 'delgatto-eric' AND work_date = '2026-07-18' AND category = 'shift' AND hours < 24"),
     db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind(markerKey, july18PayrollCleanupVersion),
+  ]);
+}
+
+async function removeLegacyDpwDuplicates(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
+  const markerKey = "legacy_daily_log_dpw_dedup";
+  const marker = await db.prepare("SELECT value FROM system_meta WHERE key = ? LIMIT 1").bind(markerKey).first<{ value: string }>();
+  if (marker?.value === legacyDpwDedupVersion) return;
+  await db.batch([
+    // Czech's July 21 total was the old 12-hour DPW row plus the new
+    // 12-hour Daily Log DPW row.
+    db.prepare("DELETE FROM time_entries WHERE employee_id = 'czech-doug' AND work_date = '2026-07-21' AND category = 'dpw' AND EXISTS (SELECT 1 FROM time_entries automatic WHERE automatic.employee_id = 'czech-doug' AND automatic.work_date = '2026-07-21' AND automatic.category = 'dailyLogDpw')"),
+    // Clean any other exact legacy duplicates created during the source split.
+    // Different-valued manual DPW entries are preserved.
+    db.prepare("DELETE FROM time_entries WHERE category = 'dpw' AND EXISTS (SELECT 1 FROM time_entries automatic WHERE automatic.employee_id = time_entries.employee_id AND automatic.work_date = time_entries.work_date AND automatic.category = 'dailyLogDpw' AND ABS(automatic.hours - time_entries.hours) < 0.001)"),
+    db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind(markerKey, legacyDpwDedupVersion),
   ]);
 }
 
@@ -228,6 +244,7 @@ export async function ensureDatabase() {
   await normalizeEmployeeNames(db);
   await normalizeHistoricalCallTimes(db);
   await repairJuly18Payroll(db);
+  await removeLegacyDpwDuplicates(db);
   const rosterImport = [
     ["aguinaga-hugo", "(708) 543-3980", "Cleared", 0],
     ["boulden-jamal", "(773) 213-3598", "Ambulance Only", 0],
