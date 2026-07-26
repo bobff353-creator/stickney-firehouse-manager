@@ -7,10 +7,11 @@ import { workedHours } from "./payroll-hours";
 type Person = { id: string; name: string; rank: string; isAdmin?: number };
 type Detail = { id: string; workDate: string; requestingOfficerName: string; approverId: string; approverName: string; startTime: string; endTime: string; totalHours: number; workType: string; description: string; status: string; rejectionNote?: string; members: Person[] };
 type Data = { viewer: { employeeId: string | null; isAdmin: boolean }; employees: Person[]; officers: Person[]; approvers: Person[]; requests: Detail[] };
+type WorkDetailsProps = { onPayrollChanged?: (periodStart: string) => void };
 const localToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
 const initialForm = () => ({ workDate: localToday(), requestingOfficerId: "", approverId: "", startTime: "", endTime: "", totalHours: "", workType: "", description: "", certified: false });
 
-export default function WorkDetails() {
+export default function WorkDetails({ onPayrollChanged }: WorkDetailsProps) {
   const [data, setData] = useState<Data | null>(null);
   const [form, setForm] = useState(initialForm);
   const [selected, setSelected] = useState<string[]>([]);
@@ -35,9 +36,9 @@ export default function WorkDetails() {
   }
   const filtered = useMemo(() => (data?.employees ?? []).filter((person) => `${person.name} ${person.rank}`.toLowerCase().includes(search.toLowerCase())), [data, search]);
   const selectedNames = (data?.employees ?? []).filter((person) => selected.includes(person.id)).map((person) => formatEmployeeName(person.name));
-  async function post(payload: Record<string, unknown>) { const response = await fetch("/api/work-details", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) }); const result = await response.json() as { error?: string }; if (!response.ok) throw new Error(result.error || "Unable to save work detail"); }
+  async function post(payload: Record<string, unknown>) { const response = await fetch("/api/work-details", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) }); const result = await response.json() as { error?: string; periodStart?: string }; if (!response.ok) throw new Error(result.error || "Unable to save work detail"); return result; }
   async function submit(event: React.FormEvent) { event.preventDefault(); setBusy(true); setError(""); try { await post({ action: "submit", ...form, employeeIds: selected }); setForm({ ...initialForm(), requestingOfficerId: data?.officers[0]?.id || "", approverId: data?.approvers[0]?.id || "" }); setSelected([]); setMessage("Work detail submitted for approval"); await load(); } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to submit work detail"); } finally { setBusy(false); } }
-  async function review(id: string, action: "approve" | "reject") { let note = ""; if (action === "reject") { note = window.prompt("Reason for rejection")?.trim() ?? ""; if (!note) return; } setBusy(true); setError(""); try { await post({ action, id, note }); setMessage(action === "approve" ? "Approved hours were added to payroll" : "Work detail rejected"); await load(); } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to review work detail"); } finally { setBusy(false); } }
+  async function review(id: string, action: "approve" | "reject") { let note = ""; if (action === "reject") { note = window.prompt("Reason for rejection")?.trim() ?? ""; if (!note) return; } setBusy(true); setError(""); try { const result = await post({ action, id, note }); if (action === "approve" && result.periodStart) onPayrollChanged?.(result.periodStart); setMessage(action === "approve" ? "Approved hours were added to payroll and the timesheet was refreshed" : "Work detail rejected"); await load(); } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to review work detail"); } finally { setBusy(false); } }
   return <div className="work-detail-page">
     <section className="content-card work-detail-form-card"><div className="section-header"><div><p className="eyebrow">Payroll workflow</p><h2>New Work Detail Sheet</h2><p>Hours enter employee timesheets only after approval.</p></div><span className="count-badge">{data?.requests.filter((item) => item.status === "pending").length ?? 0} pending</span></div>
       {error && <div className="error-banner" role="alert">{error}</div>}{message && <div className="work-detail-message" role="status">{message}</div>}

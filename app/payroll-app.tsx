@@ -589,7 +589,7 @@ export default function PayrollApp() {
           {activeNav === "Dashboard" && <RoleDashboard data={{ viewer: data.viewer, employees: data.employees, entries: data.entries, period: data.period, grossPayroll, reviewCount, employeeGross: selectedSummary?.gross ?? 0 }} onNavigate={(page) => setActiveNav(page)} />}
 
           {activeNav === "Command Center" && <CommandCenter />}
-          {activeNav === "Work Details" && <WorkDetails />}
+          {activeNav === "Work Details" && <WorkDetails onPayrollChanged={(approvedPeriodStart) => { if (approvedPeriodStart === periodStart) void loadPayroll(periodStart); else setPeriodStart(approvedPeriodStart); }} />}
 
           {activeNav === "Operations Board" && <OperationsBoard />}
 

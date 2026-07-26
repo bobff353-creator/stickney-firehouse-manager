@@ -93,7 +93,7 @@ export async function POST(request: Request) {
       }
       statements.push(db.prepare("UPDATE work_detail_requests SET status = 'approved', approved_by = ?, approved_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'pending'").bind(current.name, id));
       await db.batch(statements);
-      return Response.json({ ok: true });
+      return Response.json({ ok: true, periodStart: period.start, workDate: detail.workDate, employeeIds: members.results.map((member) => member.employeeId) });
     }
     return Response.json({ error: "Unsupported work detail action." }, { status: 400 });
   } catch (error) {

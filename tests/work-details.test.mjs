@@ -22,9 +22,14 @@ test("start and end times are optional while total time is required", async () =
 
 test("approved work details post once and add to existing work detail hours", async () => {
   const api = await readFile(new URL("../app/api/work-details/route.ts", import.meta.url), "utf8");
+  const page = await readFile(new URL("../app/work-details.tsx", import.meta.url), "utf8");
+  const shell = await readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8");
   assert.equal(api.includes("work_detail_postings"), true);
   assert.equal(api.includes("hours = time_entries.hours + excluded.hours"), true);
   assert.equal(api.includes('detail.status !== "pending"'), true);
+  assert.equal(api.includes("periodStart: period.start"), true);
+  assert.equal(page.includes("onPayrollChanged?.(result.periodStart)"), true);
+  assert.equal(shell.includes("approvedPeriodStart === periodStart"), true);
 });
 
 test("requesting officers and approvers are validated from employee ranks", async () => {
