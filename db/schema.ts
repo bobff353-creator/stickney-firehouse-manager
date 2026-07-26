@@ -76,6 +76,37 @@ export const timeEntries = sqliteTable("time_entries", {
   index("entry_period_employee_idx").on(table.periodStart, table.employeeId),
 ]);
 
+export const workDetailRequests = sqliteTable("work_detail_requests", {
+  id: text("id").primaryKey(),
+  workDate: text("work_date").notNull(),
+  requestingOfficerId: text("requesting_officer_id").notNull().references(() => employees.id),
+  approverId: text("approver_id").notNull().references(() => employees.id),
+  startTime: text("start_time").notNull(),
+  endTime: text("end_time").notNull(),
+  totalHours: real("total_hours").notNull(),
+  workType: text("work_type").notNull(),
+  description: text("description").notNull(),
+  certified: integer("certified", { mode: "boolean" }).notNull().default(false),
+  status: text("status").notNull().default("pending"),
+  submittedBy: text("submitted_by").notNull(),
+  submittedAt: text("submitted_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  approvedBy: text("approved_by"),
+  approvedAt: text("approved_at"),
+  rejectionNote: text("rejection_note").notNull().default(""),
+}, (table) => [index("work_detail_status_date_idx").on(table.status, table.workDate)]);
+
+export const workDetailMembers = sqliteTable("work_detail_members", {
+  requestId: text("request_id").notNull().references(() => workDetailRequests.id),
+  employeeId: text("employee_id").notNull().references(() => employees.id),
+}, (table) => [uniqueIndex("work_detail_member_idx").on(table.requestId, table.employeeId)]);
+
+export const workDetailPostings = sqliteTable("work_detail_postings", {
+  requestId: text("request_id").notNull().references(() => workDetailRequests.id),
+  employeeId: text("employee_id").notNull().references(() => employees.id),
+  hours: real("hours").notNull(),
+  postedAt: text("posted_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [uniqueIndex("work_detail_posting_idx").on(table.requestId, table.employeeId)]);
+
 export const dailyLogs = sqliteTable("daily_logs", {
   logDate: text("log_date").primaryKey(),
   shiftNotes: text("shift_notes").notNull().default(""),
