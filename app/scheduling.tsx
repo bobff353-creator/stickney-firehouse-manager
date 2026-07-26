@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatEmployeeName } from "./employee-names";
+import { matchingTimeBlock, scheduleTimeBlocks } from "./schedule-time";
 
 type Employee = { id:string; name:string; rank:string; email:string; phone:string };
 type Assignment = {
@@ -53,6 +54,16 @@ const departmentPositions = [
   "Detail",
 ];
 const friendlyDate = (value:string) => new Date(`${value}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+
+function TimeBlockSelect({ startTime, endTime, onChange }:{ startTime:string; endTime:string; onChange:(startTime:string,endTime:string)=>void }) {
+  return <label className="wide"><span>Quick time block</span><select value={matchingTimeBlock(startTime, endTime)} onChange={(event) => {
+    const block = scheduleTimeBlocks.find((item) => item.id === event.target.value);
+    if (block) onChange(block.startTime, block.endTime);
+  }}>
+    {scheduleTimeBlocks.map((block) => <option key={block.id} value={block.id}>{block.label}</option>)}
+    <option value="custom">Custom start and end</option>
+  </select><small>Selecting Afternoon automatically enters 12:00 PM through 6:00 PM.</small></label>;
+}
 
 export default function Scheduling() {
   const [data, setData] = useState<ScheduleData | null>(null);
@@ -263,6 +274,7 @@ export default function Scheduling() {
         <div className="section-header"><div><h2>Create minimum staffing plan</h2><p>Each save creates a separate plan. Add as many plans as the department needs.</p></div></div>
         <div className="schedule-fields">
           <label><span>Plan name *</span><input value={coverage.name} onChange={(event) => setCoverage({ ...coverage, name: event.target.value })}/></label>
+          <TimeBlockSelect startTime={coverage.startTime} endTime={coverage.endTime} onChange={(startTime, endTime) => setCoverage({ ...coverage, startTime, endTime })}/>
           <label><span>Coverage starts *</span><input type="time" value={coverage.startTime} onChange={(event) => setCoverage({ ...coverage, startTime: event.target.value })}/></label>
           <label><span>Coverage ends *</span><input type="time" value={coverage.endTime} onChange={(event) => setCoverage({ ...coverage, endTime: event.target.value })}/></label>
         </div>
@@ -305,6 +317,7 @@ export default function Scheduling() {
         <div className="schedule-fields">
           <label><span>Shift name *</span><select value={rotation.name} onChange={(event) => setRotation({ ...rotation, name: event.target.value })}><option>Red</option><option>Gold</option><option>Black</option></select></label>
           <label><span>Required position *</span><select value={requiredPositions.includes(rotation.role) ? rotation.role : ""} disabled={!requiredPositions.length} onChange={(event) => setRotation({ ...rotation, role: event.target.value })}><option value="">Select required position</option>{requiredPositions.map((position) => <option key={position}>{position}</option>)}</select><small>Positions come from active minimum staffing plans.</small></label>
+          <TimeBlockSelect startTime={rotation.startTime} endTime={rotation.endTime} onChange={(startTime, endTime) => setRotation({ ...rotation, startTime, endTime })}/>
           {[
             ["Start date", "startDate", "date"], ["End date", "endDate", "date"], ["Start time", "startTime", "time"],
             ["End time", "endTime", "time"], ["Cycle length (days)", "cycleDays", "number"], ["Duty days in cycle", "dutyDays", "text"],
@@ -333,6 +346,7 @@ export default function Scheduling() {
           <label><span>Employee</span><select value={shift.employeeId} onChange={(event) => setShift({ ...shift, employeeId: event.target.value })}>
             <option value="">Open to employees</option>{data.employees.map((employee) => <option key={employee.id} value={employee.id}>{formatEmployeeName(employee.name)} · {employee.rank}</option>)}
           </select></label>
+          <TimeBlockSelect startTime={shift.startTime} endTime={shift.endTime} onChange={(startTime, endTime) => setShift({ ...shift, startTime, endTime })}/>
           {[
             ["Position", "role", "text"], ["Date", "workDate", "date"], ["Start", "startTime", "time"], ["End", "endTime", "time"],
           ].map(([label, key, type]) => <label key={key}><span>{label} *</span><input type={type} list={key === "role" ? "schedule-position-options" : undefined} value={String(shift[key as keyof typeof shift])} onChange={(event) => setShift({ ...shift, [key]: event.target.value })}/></label>)}

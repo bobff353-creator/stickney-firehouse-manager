@@ -1,8 +1,8 @@
 import { ensureDatabase } from "../../../db/bootstrap";
+import { normalizeScheduleTime } from "../../schedule-time";
 
 const ownerAdminEmails = ["bobff353@gmail.com"];
 const iso = /^\d{4}-\d{2}-\d{2}$/;
-const clock = /^\d{2}:\d{2}$/;
 type Db = Awaited<ReturnType<typeof ensureDatabase>>;
 type Assignment = {
   id: string; employeeId: string | null; employeeName?: string; workDate: string; startTime: string; endTime: string;
@@ -129,14 +129,14 @@ export async function POST(request: Request) {
       const name = String(payload.name ?? "").trim();
       const startDate = String(payload.startDate ?? "");
       const endDate = String(payload.endDate ?? "");
-      const startTime = String(payload.startTime ?? "");
-      const endTime = String(payload.endTime ?? "");
+      const startTime = normalizeScheduleTime(String(payload.startTime ?? ""));
+      const endTime = normalizeScheduleTime(String(payload.endTime ?? ""));
       const role = String(payload.role ?? "").trim();
       const cycleDays = Number(payload.cycleDays);
       const dutyDays = [...new Set(String(payload.dutyDays ?? "").split(",").map((value) => Number(value.trim())).filter(Number.isInteger))];
       const employeeIds = [...new Set(Array.isArray(payload.employeeIds) ? payload.employeeIds.map(String).filter(Boolean) : [])];
       const span = spanDays(startDate, endDate);
-      if (!["Red", "Gold", "Black"].includes(name) || !iso.test(startDate) || !iso.test(endDate) || span < 0 || span > 730 || !clock.test(startTime) || !clock.test(endTime) || !role || !Number.isInteger(cycleDays) || cycleDays < 1 || cycleDays > 60 || !dutyDays.length || dutyDays.some((day) => day < 0 || day >= cycleDays) || !employeeIds.length) {
+      if (!["Red", "Gold", "Black"].includes(name) || !iso.test(startDate) || !iso.test(endDate) || span < 0 || span > 730 || !startTime || !endTime || !role || !Number.isInteger(cycleDays) || cycleDays < 1 || cycleDays > 60 || !dutyDays.length || dutyDays.some((day) => day < 0 || day >= cycleDays) || !employeeIds.length) {
         return Response.json({ error: "Choose Red, Gold, or Black shift and complete the rotation pattern and employee selection." }, { status: 400 });
       }
       const requiredPosition = await db.prepare("SELECT id FROM schedule_coverage_rules WHERE active=1 AND lower(role)=lower(?) LIMIT 1").bind(role).first();
@@ -176,8 +176,8 @@ export async function POST(request: Request) {
     if (action === "saveCoverageRule") {
       if (!current.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
       const name = String(payload.name ?? "").trim();
-      const startTime = String(payload.startTime ?? "");
-      const endTime = String(payload.endTime ?? "");
+      const startTime = normalizeScheduleTime(String(payload.startTime ?? ""));
+      const endTime = normalizeScheduleTime(String(payload.endTime ?? ""));
       const days = [...new Set(Array.isArray(payload.daysOfWeek) ? payload.daysOfWeek.map(Number).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6) : [])].sort();
       const positions = Array.isArray(payload.positions)
         ? payload.positions.map((item) => {
@@ -186,7 +186,7 @@ export async function POST(request: Request) {
         })
         : [{ role: String(payload.role ?? "").trim(), minimumStaff: Number(payload.minimumStaff) }];
       const uniqueRoles = new Set(positions.map((position) => position.role.toLowerCase()));
-      if (!name || !clock.test(startTime) || !clock.test(endTime) || !days.length || !positions.length ||
+      if (!name || !startTime || !endTime || !days.length || !positions.length ||
         positions.some((position) => !position.role || !Number.isInteger(position.minimumStaff) || position.minimumStaff < 1 || position.minimumStaff > 50) ||
         uniqueRoles.size !== positions.length) {
         return Response.json({ error: "Complete every staffing position, use each position once, and select at least one day." }, { status: 400 });
@@ -211,14 +211,14 @@ export async function POST(request: Request) {
       if (!current.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
       const employeeId = String(payload.employeeId ?? "");
       const workDate = String(payload.workDate ?? "");
-      const startTime = String(payload.startTime ?? "");
-      const endTime = String(payload.endTime ?? "");
+      const startTime = normalizeScheduleTime(String(payload.startTime ?? ""));
+      const endTime = normalizeScheduleTime(String(payload.endTime ?? ""));
       const role = String(payload.role ?? "").trim();
       const requiredRank = employeeId ? "" : String(payload.requiredRank ?? "").trim();
       const claimDeadline = employeeId ? "" : String(payload.claimDeadline ?? "").trim();
       const notes = String(payload.notes ?? "").trim();
       const emergency = Boolean(payload.emergency);
-      if (!iso.test(workDate) || !clock.test(startTime) || !clock.test(endTime) || !role || (claimDeadline && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(claimDeadline))) {
+      if (!iso.test(workDate) || !startTime || !endTime || !role || (claimDeadline && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(claimDeadline))) {
         return Response.json({ error: "Enter a date, times, position, and a valid response deadline." }, { status: 400 });
       }
       await db.prepare("INSERT INTO schedule_assignments(id,employee_id,work_date,start_time,end_time,role,source,status,emergency,required_rank,claim_deadline,notes,created_by) VALUES(?,NULLIF(?,''),?,?,?,?,'manual',?,?,?,?,?,?)")
