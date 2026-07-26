@@ -151,6 +151,15 @@ export const policies = sqliteTable("policies", {
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [index("policies_title_idx").on(table.title)]);
 
+export const dailyDuties = sqliteTable("daily_duties", {
+  id: text("id").primaryKey(),
+  dayOfWeek: integer("day_of_week").notNull(),
+  shiftKey: text("shift_key").notNull(),
+  duty: text("duty").notNull().default(""),
+  updatedBy: text("updated_by").notNull().default("System"),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [uniqueIndex("daily_duties_day_shift_idx").on(table.dayOfWeek, table.shiftKey)]);
+
 export const systemMeta = sqliteTable("system_meta", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),

@@ -65,6 +65,29 @@ const policySeedVersion = "stickney-policy-library-2026-07-18";
 const boxCardSeedVersion = "regional-box-cards-structured-2026-07-21-v2";
 const employeeNameFormatVersion = "employee-names-last-first-2026-07-23";
 const callTimeFormatVersion = "daily-log-call-times-military-2026-07-23";
+const dailyDutySeed = [
+  [1, "morning", "Weekly checks on 1201."],
+  [1, "afternoon", "Deep clean bathrooms. Scrub floor in bathroom. Wash shower curtains. Clean shower stall."],
+  [1, "night", "Sweep/remove debris under gear lockers. Wash apparatus floor."],
+  [2, "morning", "Weekly checks on 1203."],
+  [2, "afternoon", "Clean grill. Clean exterior patio and perimeter of firehouse of garbage/debris."],
+  [2, "night", "Clean laundry room. Wash towels/linens. Clean hose tower, roll any hanging hose."],
+  [3, "morning", "Weekly checks on 1205. Complete disinfection of all equipment and vehicle."],
+  [3, "afternoon", "Clean all interior firehouse windows."],
+  [3, "night", "Remove chairs and wipe down tables with disinfectant training room. Clean board."],
+  [4, "morning", "Remove chairs and wipe down tables with disinfectant training room. Clean board. Weekly check on 1210."],
+  [4, "afternoon", "Clean all exterior firehouse windows."],
+  [4, "night", "Sweep/remove debris under gear lockers. Wash apparatus floor."],
+  [5, "morning", "Weekly checks on 1204."],
+  [5, "afternoon", "Clean kitchen and pantry. Empty grease trap. Mop floor. Clean out fridge and freezer."],
+  [5, "night", "Straighten, disinfect, and mop weight room, second floor and stairwell."],
+  [6, "morning", "Weekly checks on 1207. Complete disinfection of all equipment and vehicle."],
+  [6, "afternoon", "Inventory and wash light tower. Start and run it on the 1st and 3rd Saturday of the month."],
+  [6, "night", "Service cascade system."],
+  [0, "morning", "Weekly checks on 1208, 1209, 1211."],
+  [0, "afternoon", "Clean day room, including dusting, vacuuming, and disinfecting."],
+  [0, "night", "Clean bunkroom. Wash mattress covers. Vacuum and disinfect."],
+] as const;
 
 async function normalizeEmployeeNames(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
   const marker = await db.prepare("SELECT value FROM system_meta WHERE key = ? LIMIT 1").bind("employee_name_format_version").first<{ value: string }>();
@@ -152,6 +175,8 @@ export async function ensureDatabase() {
     db.prepare("CREATE INDEX IF NOT EXISTS important_phone_category_sort_idx ON important_phone_numbers(category, sort_order)"),
     db.prepare("CREATE TABLE IF NOT EXISTS policies (id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL, policy_number TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT 'General', effective_date TEXT NOT NULL DEFAULT '', body TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'Active', created_by TEXT NOT NULL DEFAULT 'System', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE INDEX IF NOT EXISTS policies_title_idx ON policies(title)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS daily_duties (id TEXT PRIMARY KEY NOT NULL, day_of_week INTEGER NOT NULL, shift_key TEXT NOT NULL, duty TEXT NOT NULL DEFAULT '', updated_by TEXT NOT NULL DEFAULT 'System', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS daily_duties_day_shift_idx ON daily_duties(day_of_week, shift_key)"),
     db.prepare("CREATE TABLE IF NOT EXISTS system_meta (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE TABLE IF NOT EXISTS box_cards (id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL, address TEXT NOT NULL DEFAULT '', box_number TEXT NOT NULL DEFAULT '', access_notes TEXT NOT NULL DEFAULT '', details TEXT NOT NULL DEFAULT '', department TEXT NOT NULL DEFAULT 'Stickney', document_url TEXT NOT NULL DEFAULT '', document_page INTEGER NOT NULL DEFAULT 0, effective_date TEXT NOT NULL DEFAULT '', review_date TEXT NOT NULL DEFAULT '', layout_data TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'Active', created_by TEXT NOT NULL DEFAULT 'System', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE INDEX IF NOT EXISTS box_cards_title_idx ON box_cards(title)"),
@@ -252,6 +277,7 @@ export async function ensureDatabase() {
   await db.batch(phoneSeed.map((row) => db.prepare("INSERT OR IGNORE INTO important_phone_numbers (id, category, name, emergency_number, non_emergency_number, notes, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(...row)));
   await db.prepare("UPDATE important_phone_numbers SET name = 'Cicero Consolidated Dispatch', emergency_number = '', updated_at = CURRENT_TIMESTAMP WHERE id = 'misc-cook-dispatch'").run();
   await db.prepare("UPDATE important_phone_numbers SET emergency_number = '', updated_at = CURRENT_TIMESTAMP WHERE emergency_number = '911'").run();
+  await db.batch(dailyDutySeed.map(([day, shift, duty]) => db.prepare("INSERT OR IGNORE INTO daily_duties (id, day_of_week, shift_key, duty, updated_by) VALUES (?, ?, ?, ?, 'Daily Duties.xlsx import')").bind(`duty-${day}-${shift}`, day, shift, duty)));
   await seedPolicies(db);
   await seedBoxCards(db);
   ready = true;
