@@ -9,7 +9,7 @@ type Assignment = {
   role: string; source: string; status: string; emergency: number; requiredRank: string; claimDeadline: string; notes: string;
 };
 type CoverageRule = {
-  id: string; name: string; role: string; minimumStaff: number; startTime: string; endTime: string; daysOfWeek: string; active: number;
+  id: string; planId: string; name: string; role: string; minimumStaff: number; startTime: string; endTime: string; daysOfWeek: string; active: number;
 };
 
 async function viewer(db: Db, request: Request) {
@@ -98,7 +98,7 @@ export async function GET(request: Request) {
         ? db.prepare("SELECT id,title,message,email,sms,delivery_status deliveryStatus,read_at readAt,created_at createdAt FROM schedule_notifications WHERE employee_id=? ORDER BY created_at DESC LIMIT 50").bind(employeeId).all()
         : Promise.resolve({ results: [] }),
       current.isAdmin
-        ? db.prepare("SELECT id,name,role,minimum_staff minimumStaff,start_time startTime,end_time endTime,days_of_week daysOfWeek,active FROM schedule_coverage_rules ORDER BY active DESC,name COLLATE NOCASE").all<CoverageRule>()
+        ? db.prepare("SELECT id,plan_id planId,name,role,minimum_staff minimumStaff,start_time startTime,end_time endTime,days_of_week daysOfWeek,active FROM schedule_coverage_rules ORDER BY active DESC,name COLLATE NOCASE").all<CoverageRule>()
         : Promise.resolve({ results: [] as CoverageRule[] }),
     ]);
     return Response.json({
@@ -136,9 +136,11 @@ export async function POST(request: Request) {
       const dutyDays = [...new Set(String(payload.dutyDays ?? "").split(",").map((value) => Number(value.trim())).filter(Number.isInteger))];
       const employeeIds = [...new Set(Array.isArray(payload.employeeIds) ? payload.employeeIds.map(String).filter(Boolean) : [])];
       const span = spanDays(startDate, endDate);
-      if (!name || !iso.test(startDate) || !iso.test(endDate) || span < 0 || span > 730 || !clock.test(startTime) || !clock.test(endTime) || !role || !Number.isInteger(cycleDays) || cycleDays < 1 || cycleDays > 60 || !dutyDays.length || dutyDays.some((day) => day < 0 || day >= cycleDays) || !employeeIds.length) {
-        return Response.json({ error: "Complete the rotation, duty pattern, and employee selection." }, { status: 400 });
+      if (!["Red", "Gold", "Black"].includes(name) || !iso.test(startDate) || !iso.test(endDate) || span < 0 || span > 730 || !clock.test(startTime) || !clock.test(endTime) || !role || !Number.isInteger(cycleDays) || cycleDays < 1 || cycleDays > 60 || !dutyDays.length || dutyDays.some((day) => day < 0 || day >= cycleDays) || !employeeIds.length) {
+        return Response.json({ error: "Choose Red, Gold, or Black shift and complete the rotation pattern and employee selection." }, { status: 400 });
       }
+      const requiredPosition = await db.prepare("SELECT id FROM schedule_coverage_rules WHERE active=1 AND lower(role)=lower(?) LIMIT 1").bind(role).first();
+      if (!requiredPosition) return Response.json({ error: "Choose a position from an active minimum staffing plan." }, { status: 400 });
       const rotationId = crypto.randomUUID();
       await db.prepare("INSERT INTO schedule_rotations(id,name,start_date,end_date,start_time,end_time,cycle_days,duty_days,role,created_by) VALUES(?,?,?,?,?,?,?,?,?,?)")
         .bind(rotationId, name, startDate, endDate, startTime, endTime, cycleDays, dutyDays.join(","), role, current.name).run();
@@ -189,9 +191,10 @@ export async function POST(request: Request) {
         uniqueRoles.size !== positions.length) {
         return Response.json({ error: "Complete every staffing position, use each position once, and select at least one day." }, { status: 400 });
       }
+      const planId = crypto.randomUUID();
       await db.batch(positions.map((position) =>
-        db.prepare("INSERT INTO schedule_coverage_rules(id,name,role,minimum_staff,start_time,end_time,days_of_week,created_by) VALUES(?,?,?,?,?,?,?,?)")
-          .bind(crypto.randomUUID(), name, position.role, position.minimumStaff, startTime, endTime, days.join(","), current.name),
+        db.prepare("INSERT INTO schedule_coverage_rules(id,plan_id,name,role,minimum_staff,start_time,end_time,days_of_week,created_by) VALUES(?,?,?,?,?,?,?,?,?)")
+          .bind(crypto.randomUUID(), planId, name, position.role, position.minimumStaff, startTime, endTime, days.join(","), current.name),
       ));
       return Response.json({ ok: true, rulesCreated: positions.length });
     }

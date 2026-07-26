@@ -148,7 +148,7 @@ export const scheduleRequests = sqliteTable("schedule_requests", {
   reviewedAt: text("reviewed_at"), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [index("schedule_request_status_idx").on(table.status, table.createdAt)]);
 export const scheduleCoverageRules = sqliteTable("schedule_coverage_rules", {
-  id: text("id").primaryKey(), name: text("name").notNull(), role: text("role").notNull(), minimumStaff: integer("minimum_staff").notNull(),
+  id: text("id").primaryKey(), planId: text("plan_id").notNull().default(""), name: text("name").notNull(), role: text("role").notNull(), minimumStaff: integer("minimum_staff").notNull(),
   startTime: text("start_time").notNull(), endTime: text("end_time").notNull(), daysOfWeek: text("days_of_week").notNull().default("0,1,2,3,4,5,6"),
   active: integer("active", { mode: "boolean" }).notNull().default(true), createdBy: text("created_by").notNull(),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),

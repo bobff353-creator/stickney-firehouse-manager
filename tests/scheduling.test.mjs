@@ -48,6 +48,25 @@ test("one minimum staffing plan can contain multiple selectable positions", asyn
   assert.equal(screen.includes("+ Add Position"), true);
 });
 
+test("multiple staffing plans keep separate plan identities", async () => {
+  const api = await readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8");
+  const schema = await readFile(new URL("../db/schema.ts", import.meta.url), "utf8");
+  const screen = await readFile(new URL("../app/scheduling.tsx", import.meta.url), "utf8");
+  assert.equal(schema.includes('planId: text("plan_id")'), true);
+  assert.equal(api.includes("const planId = crypto.randomUUID()"), true);
+  assert.equal(screen.includes("Save as New Staffing Plan"), true);
+  assert.equal(screen.includes("+ New Plan"), true);
+});
+
+test("rotating shifts use named colors and admin staffing positions", async () => {
+  const api = await readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8");
+  const screen = await readFile(new URL("../app/scheduling.tsx", import.meta.url), "utf8");
+  assert.equal(api.includes('["Red", "Gold", "Black"].includes(name)'), true);
+  assert.equal(api.includes("Choose a position from an active minimum staffing plan."), true);
+  for (const shift of ["Red", "Gold", "Black"]) assert.equal(screen.includes(`<option>${shift}</option>`), true);
+  assert.equal(screen.includes("requiredPositions.map"), true);
+});
+
 test("open shifts enforce rank and response deadlines", async () => {
   const source = await readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8");
   assert.equal(source.includes("required_rank requiredRank"), true);
@@ -71,5 +90,5 @@ test("schedule includes agenda filters and coverage command views", async () => 
   const source = await readFile(new URL("../app/scheduling.tsx", import.meta.url), "utf8");
   assert.equal(source.includes('"agenda"'), true);
   assert.equal(source.includes("schedule-filters"), true);
-  assert.equal(source.includes("Coverage watch"), true);
+  assert.equal(source.includes("Saved staffing plans"), true);
 });
