@@ -37,6 +37,21 @@ const requestLabels:Record<string,string> = {
   availability: "Availability", time_off: "Time Off", shift_claim: "Open Shift", trade: "Trade / Give Away",
 };
 const weekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const departmentPositions = [
+  "Duty Crew",
+  "Chief Officer",
+  "Officer/AO",
+  "Driver/Engineer",
+  "Ambulance Driver",
+  "Ambulance Attendant",
+  "Interior Firefighter",
+  "Exterior Firefighter",
+  "Firefighter",
+  "Paramedic",
+  "EMT",
+  "Fire Prevention",
+  "Detail",
+];
 const friendlyDate = (value:string) => new Date(`${value}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
 export default function Scheduling() {
@@ -64,8 +79,12 @@ export default function Scheduling() {
     startTime: "06:00", endTime: "18:00", role: "Firefighter", repeatMode: "none", notes: "",
   });
   const [coverage, setCoverage] = useState({
-    name: "Minimum daily crew", role: "Duty Crew", minimumStaff: "3", startTime: "06:00", endTime: "06:00",
+    name: "24-hour minimum staffing", startTime: "06:00", endTime: "06:00",
   });
+  const [coveragePositions, setCoveragePositions] = useState([
+    { id: "position-1", role: "Officer/AO", minimumStaff: "1" },
+    { id: "position-2", role: "Driver/Engineer", minimumStaff: "1" },
+  ]);
   const [coverageDays, setCoverageDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
 
   const load = useCallback(async () => {
@@ -121,6 +140,14 @@ export default function Scheduling() {
   const upcomingGaps = data?.coverageGaps.filter((gap) => gap.date >= today()).slice(0, 20) ?? [];
   const ranks = [...new Set(data?.employees.map((employee) => employee.rank) ?? [])].sort();
   const unread = data?.notifications.filter((item) => !item.readAt).length ?? 0;
+  const coveragePlans = useMemo(() => {
+    const plans = new Map<string, CoverageRule[]>();
+    for (const rule of data?.coverageRules.filter((item) => item.active) ?? []) {
+      const key = [rule.name, rule.startTime, rule.endTime, rule.daysOfWeek].join("|");
+      plans.set(key, [...(plans.get(key) ?? []), rule]);
+    }
+    return [...plans.entries()];
+  }, [data]);
   const tabs = data?.viewer.isAdmin
     ? [["calendar", "Department Schedule"], ["coverage", "Coverage"], ["rotations", "Rotations"], ["open", "Add / Open Shifts"], ["requests", "Requests & Trades"], ["alerts", `Notifications${unread ? ` (${unread})` : ""}`]]
     : [["calendar", "My Schedule"], ["request", "Request / Availability"], ["open", "Open Shifts"], ["alerts", `Notifications${unread ? ` (${unread})` : ""}`]];
@@ -132,6 +159,7 @@ export default function Scheduling() {
   }
 
   return <div className="schedule-page">
+    <datalist id="schedule-position-options">{departmentPositions.map((position) => <option key={position} value={position}/>)}</datalist>
     <section className="schedule-hero">
       <div>
         <p className="eyebrow">Department scheduling</p>
@@ -207,23 +235,33 @@ export default function Scheduling() {
 
     {tab === "coverage" && data?.viewer.isAdmin && <section className="schedule-two-col">
       <article className="content-card schedule-form">
-        <div className="section-header"><div><h2>Minimum staffing rule</h2><p>Set the required headcount for a position and recurring days.</p></div></div>
+        <div className="section-header"><div><h2>Minimum staffing plan</h2><p>Select every position that must be filled and the minimum needed for each one.</p></div></div>
         <div className="schedule-fields">
           <label><span>Rule name *</span><input value={coverage.name} onChange={(event) => setCoverage({ ...coverage, name: event.target.value })}/></label>
-          <label><span>Position *</span><input value={coverage.role} onChange={(event) => setCoverage({ ...coverage, role: event.target.value })}/></label>
-          <label><span>Minimum staff *</span><input type="number" min="1" max="50" value={coverage.minimumStaff} onChange={(event) => setCoverage({ ...coverage, minimumStaff: event.target.value })}/></label>
           <label><span>Coverage starts *</span><input type="time" value={coverage.startTime} onChange={(event) => setCoverage({ ...coverage, startTime: event.target.value })}/></label>
           <label><span>Coverage ends *</span><input type="time" value={coverage.endTime} onChange={(event) => setCoverage({ ...coverage, endTime: event.target.value })}/></label>
         </div>
+        <div className="coverage-position-builder">
+          <header><div><strong>Required positions</strong><small>Add as many different staffing positions as this plan needs.</small></div><button type="button" onClick={() => setCoveragePositions((current) => [...current, { id: `position-${Date.now()}-${current.length}`, role: "Exterior Firefighter", minimumStaff: "1" }])}>+ Add Position</button></header>
+          {coveragePositions.map((position, index) => <div key={position.id}>
+            <label><span>Position {index + 1}</span><select value={departmentPositions.includes(position.role) ? position.role : "Custom"} onChange={(event) => setCoveragePositions((current) => current.map((item) => item.id === position.id ? { ...item, role: event.target.value === "Custom" ? "" : event.target.value } : item))}>
+              {departmentPositions.filter((item) => item !== "Duty Crew").map((item) => <option key={item}>{item}</option>)}
+              <option value="Custom">Custom position…</option>
+            </select></label>
+            {!departmentPositions.includes(position.role) && <label><span>Custom position name</span><input autoFocus value={position.role} placeholder="Enter position" onChange={(event) => setCoveragePositions((current) => current.map((item) => item.id === position.id ? { ...item, role: event.target.value } : item))}/></label>}
+            <label><span>Minimum needed</span><input type="number" min="1" max="50" value={position.minimumStaff} onChange={(event) => setCoveragePositions((current) => current.map((item) => item.id === position.id ? { ...item, minimumStaff: event.target.value } : item))}/></label>
+            <button type="button" aria-label={`Remove position ${index + 1}`} disabled={coveragePositions.length === 1} onClick={() => setCoveragePositions((current) => current.filter((item) => item.id !== position.id))}>Remove</button>
+          </div>)}
+        </div>
         <fieldset className="coverage-days"><legend>Applies on *</legend>{weekdayLabels.map((label, day) => <label key={label}><input type="checkbox" checked={coverageDays.includes(day)} onChange={(event) => setCoverageDays((current) => event.target.checked ? [...current, day] : current.filter((item) => item !== day))}/><span>{label}</span></label>)}</fieldset>
-        <button className="primary-action" disabled={busy} onClick={() => void act({ action: "saveCoverageRule", ...coverage, minimumStaff: Number(coverage.minimumStaff), daysOfWeek: coverageDays }, "Coverage rule saved")}>Save Coverage Rule</button>
+        <button className="primary-action" disabled={busy || coveragePositions.some((position) => !position.role.trim() || Number(position.minimumStaff) < 1)} onClick={() => void act({ action: "saveCoverageRule", ...coverage, positions: coveragePositions.map((position) => ({ role: position.role, minimumStaff: Number(position.minimumStaff) })), daysOfWeek: coverageDays }, "Minimum staffing plan saved")}>Save Minimum Staffing Plan</button>
       </article>
       <article className="content-card">
         <div className="section-header"><div><h2>Coverage watch</h2><p>Next 63 days · warnings update from assigned shifts.</p></div></div>
         <div className="coverage-rules">
-          {data.coverageRules.filter((rule) => rule.active).map((rule) => <article key={rule.id}>
-            <div><strong>{rule.name}</strong><p>{rule.minimumStaff} × {rule.role} · {rule.startTime}-{rule.endTime}</p><small>{rule.daysOfWeek.split(",").map((day) => weekdayLabels[Number(day)]).join(", ")}</small></div>
-            <button disabled={busy} onClick={() => void act({ action: "deleteCoverageRule", id: rule.id }, "Coverage rule ended")}>End Rule</button>
+          {coveragePlans.map(([key, rules]) => <article key={key}>
+            <div><strong>{rules[0].name}</strong><p>{rules.map((rule) => `${rule.minimumStaff} × ${rule.role}`).join(" · ")}</p><small>{rules[0].startTime}-{rules[0].endTime} · {rules[0].daysOfWeek.split(",").map((day) => weekdayLabels[Number(day)]).join(", ")}</small></div>
+            <button disabled={busy} onClick={() => void act({ action: "deleteCoverageRule", ids: rules.map((rule) => rule.id) }, "Minimum staffing plan ended")}>End Plan</button>
           </article>)}
           {!data.coverageRules.some((rule) => rule.active) && <p className="schedule-empty">Add a rule to start automatic staffing checks.</p>}
         </div>
@@ -242,7 +280,7 @@ export default function Scheduling() {
           {[
             ["Rotation name", "name", "text"], ["Position", "role", "text"], ["Start date", "startDate", "date"], ["End date", "endDate", "date"],
             ["Start time", "startTime", "time"], ["End time", "endTime", "time"], ["Cycle length (days)", "cycleDays", "number"], ["Duty days in cycle", "dutyDays", "text"],
-          ].map(([label, key, type]) => <label key={key}><span>{label} *</span><input type={type} value={String(rotation[key as keyof typeof rotation])} onChange={(event) => setRotation({ ...rotation, [key]: event.target.value })}/>{key === "dutyDays" && <small>For 24/48 use cycle 3 and duty day 0. Multiple duty days: 0,2,4.</small>}</label>)}
+          ].map(([label, key, type]) => <label key={key}><span>{label} *</span><input type={type} list={key === "role" ? "schedule-position-options" : undefined} value={String(rotation[key as keyof typeof rotation])} onChange={(event) => setRotation({ ...rotation, [key]: event.target.value })}/>{key === "dutyDays" && <small>For 24/48 use cycle 3 and duty day 0. Multiple duty days: 0,2,4.</small>}</label>)}
         </div>
         <fieldset className="schedule-member-select"><legend>Employees *</legend>
           {data.employees.map((employee) => <label key={employee.id}><input type="checkbox" checked={members.includes(employee.id)} onChange={(event) => setMembers((current) => event.target.checked ? [...current, employee.id] : current.filter((id) => id !== employee.id))}/><span>{formatEmployeeName(employee.name)}<small>{employee.rank}</small></span></label>)}
@@ -269,7 +307,7 @@ export default function Scheduling() {
           </select></label>
           {[
             ["Position", "role", "text"], ["Date", "workDate", "date"], ["Start", "startTime", "time"], ["End", "endTime", "time"],
-          ].map(([label, key, type]) => <label key={key}><span>{label} *</span><input type={type} value={String(shift[key as keyof typeof shift])} onChange={(event) => setShift({ ...shift, [key]: event.target.value })}/></label>)}
+          ].map(([label, key, type]) => <label key={key}><span>{label} *</span><input type={type} list={key === "role" ? "schedule-position-options" : undefined} value={String(shift[key as keyof typeof shift])} onChange={(event) => setShift({ ...shift, [key]: event.target.value })}/></label>)}
           {!shift.employeeId && <><label><span>Required rank</span><select value={shift.requiredRank} onChange={(event) => setShift({ ...shift, requiredRank: event.target.value })}><option value="">Any rank</option>{ranks.map((rank) => <option key={rank}>{rank}</option>)}</select></label>
           <label><span>Response deadline</span><input type="datetime-local" value={shift.claimDeadline} onChange={(event) => setShift({ ...shift, claimDeadline: event.target.value })}/></label></>}
           <label className="schedule-check"><input type="checkbox" checked={shift.emergency} onChange={(event) => setShift({ ...shift, emergency: event.target.checked })}/><span>Emergency coverage alert</span></label>

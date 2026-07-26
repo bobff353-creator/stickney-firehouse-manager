@@ -174,22 +174,33 @@ export async function POST(request: Request) {
     if (action === "saveCoverageRule") {
       if (!current.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
       const name = String(payload.name ?? "").trim();
-      const role = String(payload.role ?? "").trim();
-      const minimumStaff = Number(payload.minimumStaff);
       const startTime = String(payload.startTime ?? "");
       const endTime = String(payload.endTime ?? "");
       const days = [...new Set(Array.isArray(payload.daysOfWeek) ? payload.daysOfWeek.map(Number).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6) : [])].sort();
-      if (!name || !role || !Number.isInteger(minimumStaff) || minimumStaff < 1 || minimumStaff > 50 || !clock.test(startTime) || !clock.test(endTime) || !days.length) {
-        return Response.json({ error: "Complete the coverage rule and select at least one day." }, { status: 400 });
+      const positions = Array.isArray(payload.positions)
+        ? payload.positions.map((item) => {
+          const position = item as Record<string,unknown>;
+          return { role: String(position.role ?? "").trim(), minimumStaff: Number(position.minimumStaff) };
+        })
+        : [{ role: String(payload.role ?? "").trim(), minimumStaff: Number(payload.minimumStaff) }];
+      const uniqueRoles = new Set(positions.map((position) => position.role.toLowerCase()));
+      if (!name || !clock.test(startTime) || !clock.test(endTime) || !days.length || !positions.length ||
+        positions.some((position) => !position.role || !Number.isInteger(position.minimumStaff) || position.minimumStaff < 1 || position.minimumStaff > 50) ||
+        uniqueRoles.size !== positions.length) {
+        return Response.json({ error: "Complete every staffing position, use each position once, and select at least one day." }, { status: 400 });
       }
-      await db.prepare("INSERT INTO schedule_coverage_rules(id,name,role,minimum_staff,start_time,end_time,days_of_week,created_by) VALUES(?,?,?,?,?,?,?,?)")
-        .bind(crypto.randomUUID(), name, role, minimumStaff, startTime, endTime, days.join(","), current.name).run();
-      return Response.json({ ok: true });
+      await db.batch(positions.map((position) =>
+        db.prepare("INSERT INTO schedule_coverage_rules(id,name,role,minimum_staff,start_time,end_time,days_of_week,created_by) VALUES(?,?,?,?,?,?,?,?)")
+          .bind(crypto.randomUUID(), name, position.role, position.minimumStaff, startTime, endTime, days.join(","), current.name),
+      ));
+      return Response.json({ ok: true, rulesCreated: positions.length });
     }
 
     if (action === "deleteCoverageRule") {
       if (!current.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
-      await db.prepare("UPDATE schedule_coverage_rules SET active=0 WHERE id=?").bind(String(payload.id ?? "")).run();
+      const ids = [...new Set(Array.isArray(payload.ids) ? payload.ids.map(String).filter(Boolean) : [String(payload.id ?? "")].filter(Boolean))];
+      if (!ids.length) return Response.json({ error: "Choose a staffing plan." }, { status: 400 });
+      await db.batch(ids.map((id) => db.prepare("UPDATE schedule_coverage_rules SET active=0 WHERE id=?").bind(id)));
       return Response.json({ ok: true });
     }
 

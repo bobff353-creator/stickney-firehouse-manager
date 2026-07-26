@@ -36,6 +36,18 @@ test("coverage rules calculate future staffing gaps", async () => {
   assert.equal(source.includes('action === "saveCoverageRule"'), true);
 });
 
+test("one minimum staffing plan can contain multiple selectable positions", async () => {
+  const api = await readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8");
+  const screen = await readFile(new URL("../app/scheduling.tsx", import.meta.url), "utf8");
+  assert.equal(api.includes("payload.positions"), true);
+  assert.equal(api.includes("uniqueRoles.size !== positions.length"), true);
+  for (const position of ["Officer/AO", "Driver/Engineer", "Ambulance Driver", "Ambulance Attendant", "Exterior Firefighter", "Fire Prevention", "Detail"]) {
+    assert.equal(screen.includes(`"${position}"`), true);
+  }
+  assert.equal(screen.includes("Custom position…"), true);
+  assert.equal(screen.includes("+ Add Position"), true);
+});
+
 test("open shifts enforce rank and response deadlines", async () => {
   const source = await readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8");
   assert.equal(source.includes("required_rank requiredRank"), true);
