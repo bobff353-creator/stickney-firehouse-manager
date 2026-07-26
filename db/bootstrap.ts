@@ -65,7 +65,7 @@ const policySeedVersion = "stickney-policy-library-2026-07-18";
 const boxCardSeedVersion = "regional-box-cards-structured-2026-07-21-v2";
 const employeeNameFormatVersion = "employee-names-last-first-2026-07-23";
 const callTimeFormatVersion = "daily-log-call-times-military-2026-07-23";
-const delGattoJuly18PayrollRepairVersion = "delgatto-2026-07-18-full-tour-v1";
+const july18PayrollCleanupVersion = "july-18-payroll-cleanup-v1";
 const dailyDutySeed = [
   [1, "morning", "Weekly checks on 1201."],
   [1, "afternoon", "Deep clean bathrooms. Scrub floor in bathroom. Wash shower curtains. Clean shower stall."],
@@ -116,12 +116,15 @@ async function normalizeHistoricalCallTimes(db: Awaited<ReturnType<typeof getDat
   await db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind("call_time_format_version", callTimeFormatVersion).run();
 }
 
-async function repairDelGattoJuly18Payroll(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
-  const markerKey = "payroll_repair_delgatto_2026_07_18";
+async function repairJuly18Payroll(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
+  const markerKey = "payroll_repair_2026_07_18_v2";
   const marker = await db.prepare("SELECT value FROM system_meta WHERE key = ? LIMIT 1").bind(markerKey).first<{ value: string }>();
-  if (marker?.value === delGattoJuly18PayrollRepairVersion) return;
-  await db.prepare("UPDATE time_entries SET hours = 24, updated_at = CURRENT_TIMESTAMP WHERE employee_id = 'delgatto-eric' AND work_date = '2026-07-18' AND category = 'shift' AND hours < 24").run();
-  await db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind(markerKey, delGattoJuly18PayrollRepairVersion).run();
+  if (marker?.value === july18PayrollCleanupVersion) return;
+  await db.batch([
+    db.prepare("DELETE FROM time_entries WHERE employee_id = 'czech-doug' AND work_date = '2026-07-18'"),
+    db.prepare("UPDATE time_entries SET hours = 24, updated_at = CURRENT_TIMESTAMP WHERE employee_id = 'delgatto-eric' AND work_date = '2026-07-18' AND category = 'shift' AND hours < 24"),
+    db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind(markerKey, july18PayrollCleanupVersion),
+  ]);
 }
 
 async function seedPolicies(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
@@ -224,7 +227,7 @@ export async function ensureDatabase() {
   await db.batch(employeeSeed.map((employee, index) => db.prepare("INSERT INTO employees (id, name, pay_scale_id, active, sort_order) SELECT ?, ?, ?, 1, ? WHERE NOT EXISTS (SELECT 1 FROM system_meta WHERE key = ?) ON CONFLICT(id) DO NOTHING").bind(employee[0], employee[1], employee[2], index + 1, `employee_deleted:${employee[0]}`)));
   await normalizeEmployeeNames(db);
   await normalizeHistoricalCallTimes(db);
-  await repairDelGattoJuly18Payroll(db);
+  await repairJuly18Payroll(db);
   const rosterImport = [
     ["aguinaga-hugo", "(708) 543-3980", "Cleared", 0],
     ["boulden-jamal", "(773) 213-3598", "Ambulance Only", 0],

@@ -269,7 +269,6 @@ export default function PayrollApp() {
     for (const date of listDates(data.period.startDate, data.period.endDate)) {
       const dayHours = employeeEntries.filter((entry) => entry.workDate === date && entry.category !== "actingOfficer").reduce((sum, entry) => sum + entry.hours, 0);
       const dayActing = employeeEntries.filter((entry) => entry.workDate === date && entry.category === "actingOfficer").reduce((sum, entry) => sum + entry.hours, 0);
-      if (dayHours > 24) issues.push(`${dayLabel(date)} has ${dayHours} paid hours`);
       if (dayActing > dayHours && dayActing > 0) issues.push(`${dayLabel(date)} acting-officer hours exceed worked hours`);
     }
     const hours = baseHours + holidayHours + dpwHours;
@@ -524,10 +523,10 @@ export default function PayrollApp() {
                   const value = entryValue(selectedEmployee.id, date, column.key);
                   const canEditEntry = data.viewer.isAdmin && data.period.status !== "finalized";
                   return <td key={column.key}><input aria-label={`${column.label} hours for ${dayLabel(date)}`} type="number" min="0" max="48" step="0.25" value={value || ""} readOnly={!canEditEntry} className={`${savingCells.has(cell) ? "saving" : ""}${canEditEntry ? "" : " timesheet-readonly"}`} onChange={(event) => { if (canEditEntry) changeEntry(selectedEmployee.id, date, column.key, safeNumber(event.target.value)); }} onBlur={(event) => { if (canEditEntry) void saveEntry(selectedEmployee.id, date, column.key, safeNumber(event.target.value)); }} /></td>;
-                })}<td className={rowTotal > 24 ? "row-warning" : ""}>{rowTotal.toFixed(1)}</td></tr>;
+                })}<td>{rowTotal.toFixed(1)}</td></tr>;
               })}
             </tbody><tfoot><tr><td>Period totals</td>{categoryColumns.map((column) => <td key={column.key}>{data.entries.filter((entry) => entry.employeeId === selectedEmployee.id && entry.category === column.key).reduce((sum, entry) => sum + entry.hours, 0).toFixed(1)}</td>)}<td>{selectedSummary.hours.toFixed(1)}</td></tr></tfoot></table></div>
-            <p className="helper-note">{data.period.status === "finalized" ? "This finalized timesheet is read only. Reopening a closed payroll period requires a separate administrator workflow." : data.viewer.isAdmin ? "Acting Officer hours add the configured premium only. DPW hours use the configured DPW multiplier. Entries save when you leave a field." : "This timesheet is read only. Contact an administrator if an entry needs to be corrected."}</p>
+            <p className="helper-note">{data.period.status === "finalized" ? "This finalized timesheet is read only. Reopening a closed payroll period requires a separate administrator workflow." : data.viewer.isAdmin ? "Acting Officer hours add the configured premium only. DPW hours use the configured DPW multiplier. Daily totals over 24 hours are allowed for callbacks and overlapping pay categories. Entries save when you leave a field." : "This timesheet is read only. Contact an administrator if an entry needs to be corrected."}</p>
           </section></div>}
 
           {activeNav === "Daily Log" && <DailyLog employees={data.employees} onPayrollSynced={() => { void loadPayroll(periodStart); }} />}

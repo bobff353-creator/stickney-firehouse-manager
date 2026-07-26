@@ -1,5 +1,6 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 import { holidayForDate } from "../../holidays";
+import { dailyLogPayrollEntries, dailyLogPayrollTotals } from "../../payroll-hours";
 
 const callTypes = ["Fire", "EMS", "MVA", "TRT", "HazMat", "Auto Aid", "Mutual Aid", "Hazardous Condition", "Special"];
 const shifts = ["morning", "afternoon", "overnight"];
@@ -28,17 +29,6 @@ function payrollPeriodEnd(start: string) {
   else { parsed.setUTCMonth(parsed.getUTCMonth() + 1); parsed.setUTCDate(10); }
   return parsed.toISOString().slice(0, 10);
 }
-function workedHours(timeIn: string, timeOut: string) {
-  const minutes = (value: string) => { const [hours, mins] = value.split(":").map(Number); return hours * 60 + mins; };
-  const start = minutes(timeIn), rawEnd = minutes(timeOut);
-  if (!Number.isFinite(start) || !Number.isFinite(rawEnd)) return 0;
-  // A staffed row with matching in/out times represents a full 24-hour tour
-  // (for example, 06:00 through 06:00 the following day).
-  if (start === rawEnd) return 24;
-  const end = rawEnd < start ? rawEnd + 1440 : rawEnd;
-  return Math.max(0, Math.round(((end - start) / 60) * 100) / 100);
-}
-
 export async function GET(request: Request) {
   try {
     const db = await ensureDatabase();
@@ -98,60 +88,41 @@ export async function POST(request: Request) {
 
     const staffing = Array.isArray(body.staffing) ? body.staffing as Array<Record<string, unknown>> : [];
     const calls = Array.isArray(body.calls) ? body.calls as Array<Record<string, unknown>> : [];
-    await db.prepare("INSERT INTO daily_logs (log_date, shift_notes, created_by, updated_by, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(log_date) DO UPDATE SET shift_notes = excluded.shift_notes, updated_by = excluded.updated_by, updated_at = CURRENT_TIMESTAMP").bind(date, String(body.shiftNotes ?? ""), actor, actor).run();
-    await db.prepare("DELETE FROM daily_log_staffing WHERE log_date = ?").bind(date).run();
-    await db.prepare("DELETE FROM daily_log_calls WHERE log_date = ?").bind(date).run();
+    const logWrites = [
+      db.prepare("INSERT INTO daily_logs (log_date, shift_notes, created_by, updated_by, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(log_date) DO UPDATE SET shift_notes = excluded.shift_notes, updated_by = excluded.updated_by, updated_at = CURRENT_TIMESTAMP").bind(date, String(body.shiftNotes ?? ""), actor, actor),
+      db.prepare("DELETE FROM daily_log_staffing WHERE log_date = ?").bind(date),
+      db.prepare("DELETE FROM daily_log_calls WHERE log_date = ?").bind(date),
+    ];
     for (const [index, row] of staffing.entries()) {
       const shiftKey = String(row.shiftKey ?? "");
       if (!shifts.includes(shiftKey)) continue;
-      await db.prepare("INSERT INTO daily_log_staffing (id, log_date, shift_key, employee_id, time_in, time_out, acting_officer, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").bind(String(row.id || crypto.randomUUID()), date, shiftKey, String(row.employeeId ?? "") || null, String(row.timeIn ?? ""), String(row.timeOut ?? ""), row.actingOfficer ? 1 : 0, index).run();
+      logWrites.push(db.prepare("INSERT INTO daily_log_staffing (id, log_date, shift_key, employee_id, time_in, time_out, acting_officer, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").bind(String(row.id || crypto.randomUUID()), date, shiftKey, String(row.employeeId ?? "") || null, String(row.timeIn ?? ""), String(row.timeOut ?? ""), row.actingOfficer ? 1 : 0, index));
     }
     for (const [index, row] of calls.entries()) {
       const callType = String(row.callType ?? "EMS");
-      await db.prepare("INSERT INTO daily_log_calls (id, log_date, report_number, time_out, time_in, responding_units, address, call_type, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(String(row.id || crypto.randomUUID()), date, String(row.reportNumber ?? ""), String(row.timeOut ?? ""), String(row.timeIn ?? ""), String(row.respondingUnits ?? ""), String(row.address ?? ""), callTypes.includes(callType) ? callType : "Special", index).run();
+      logWrites.push(db.prepare("INSERT INTO daily_log_calls (id, log_date, report_number, time_out, time_in, responding_units, address, call_type, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(String(row.id || crypto.randomUUID()), date, String(row.reportNumber ?? ""), String(row.timeOut ?? ""), String(row.timeIn ?? ""), String(row.respondingUnits ?? ""), String(row.address ?? ""), callTypes.includes(callType) ? callType : "Special", index));
     }
     const holiday = holidayForDate(date);
-    const totals = new Map<string, { shift: number; holiday: number; actingOfficer: number }>();
-    for (const row of staffing) {
-      const employeeId = String(row.employeeId ?? "");
-      const hours = workedHours(String(row.timeIn ?? ""), String(row.timeOut ?? ""));
-      if (!employeeId || hours <= 0) continue;
-      const current = totals.get(employeeId) ?? { shift: 0, holiday: 0, actingOfficer: 0 };
-      const holidayApplies = Boolean(holiday && (!holiday.overnightOnly || String(row.shiftKey ?? "") === "overnight"));
-      if (holidayApplies) current.holiday += hours;
-      else current.shift += hours;
-      if (row.actingOfficer) current.actingOfficer += hours;
-      totals.set(employeeId, current);
-    }
+    const totals = dailyLogPayrollTotals(staffing, holiday);
     const periodStart = payrollPeriodStart(date), periodEnd = payrollPeriodEnd(periodStart);
-    await db.prepare("INSERT OR IGNORE INTO pay_periods (start_date, end_date, status) VALUES (?, ?, 'draft')").bind(periodStart, periodEnd).run();
-    const [dpwRows, dpwEmployeeRows] = await Promise.all([
-      db.prepare("SELECT employee_id AS employeeId, SUM(hours) AS hours FROM time_entries WHERE work_date = ? AND category = 'dpw' GROUP BY employee_id").bind(date).all(),
-      db.prepare("SELECT employee_id AS employeeId FROM employee_profiles WHERE is_dpw = 1").all(),
-    ]);
-    const dpwByEmployee = new Map(dpwRows.results.map((row) => [String((row as { employeeId: string }).employeeId), Number((row as { hours: number }).hours)]));
+    const dpwEmployeeRows = await db.prepare("SELECT employee_id AS employeeId FROM employee_profiles WHERE is_dpw = 1").all();
     const dpwEmployees = new Set(dpwEmployeeRows.results.map((row) => String((row as { employeeId: string }).employeeId)));
-    await db.prepare("DELETE FROM time_entries WHERE work_date = ? AND category IN ('shift', 'holiday', 'actingOfficer')").bind(date).run();
-    for (const [employeeId, hours] of totals) {
-      if (dpwEmployees.has(employeeId)) {
-        const dpwHours = Math.round((hours.shift + hours.holiday) * 100) / 100;
-        const actingOfficerHours = Math.round(hours.actingOfficer * 100) / 100;
-        await db.prepare("DELETE FROM time_entries WHERE employee_id = ? AND work_date = ? AND category = 'dpw'").bind(employeeId, date).run();
-        if (dpwHours > 0) await db.prepare("INSERT INTO time_entries (id, employee_id, period_start, work_date, category, hours, updated_at) VALUES (?, ?, ?, ?, 'dpw', ?, CURRENT_TIMESTAMP)").bind(crypto.randomUUID(), employeeId, periodStart, date, dpwHours).run();
-        if (actingOfficerHours > 0) await db.prepare("INSERT INTO time_entries (id, employee_id, period_start, work_date, category, hours, updated_at) VALUES (?, ?, ?, ?, 'actingOfficer', ?, CURRENT_TIMESTAMP)").bind(crypto.randomUUID(), employeeId, periodStart, date, actingOfficerHours).run();
-        continue;
-      }
-      let dpwHours = dpwByEmployee.get(employeeId) ?? 0;
-      const holidayHours = Math.max(0, hours.holiday - dpwHours); dpwHours = Math.max(0, dpwHours - hours.holiday);
-      const shiftHours = Math.max(0, hours.shift - dpwHours);
-      const actingOfficerHours = Math.max(0, hours.actingOfficer - (dpwByEmployee.get(employeeId) ?? 0));
-      if (shiftHours > 0) await db.prepare("INSERT INTO time_entries (id, employee_id, period_start, work_date, category, hours, updated_at) VALUES (?, ?, ?, ?, 'shift', ?, CURRENT_TIMESTAMP)").bind(crypto.randomUUID(), employeeId, periodStart, date, Math.round(shiftHours * 100) / 100).run();
-      if (holidayHours > 0) await db.prepare("INSERT INTO time_entries (id, employee_id, period_start, work_date, category, hours, updated_at) VALUES (?, ?, ?, ?, 'holiday', ?, CURRENT_TIMESTAMP)").bind(crypto.randomUUID(), employeeId, periodStart, date, Math.round(holidayHours * 100) / 100).run();
-      if (actingOfficerHours > 0) await db.prepare("INSERT INTO time_entries (id, employee_id, period_start, work_date, category, hours, updated_at) VALUES (?, ?, ?, ?, 'actingOfficer', ?, CURRENT_TIMESTAMP)").bind(crypto.randomUUID(), employeeId, periodStart, date, Math.round(actingOfficerHours * 100) / 100).run();
+    const payrollWrites = [
+      db.prepare("INSERT OR IGNORE INTO pay_periods (start_date, end_date, status) VALUES (?, ?, 'draft')").bind(periodStart, periodEnd),
+      // Daily Log owns these categories for this date. Manual drill, detail,
+      // callback, and DPW entries remain untouched.
+      db.prepare("DELETE FROM time_entries WHERE work_date = ? AND category IN ('shift', 'holiday', 'actingOfficer', 'dailyLogDpw')").bind(date),
+    ];
+    for (const entry of dailyLogPayrollEntries(totals, dpwEmployees)) {
+      payrollWrites.push(db.prepare("INSERT INTO time_entries (id, employee_id, period_start, work_date, category, hours, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)").bind(crypto.randomUUID(), entry.employeeId, periodStart, date, entry.category, entry.hours));
     }
-    await addRevision(db, date, "Saved", `Staffing, calls, and notes updated; ${totals.size} payroll record(s) synchronized`, actor);
+    payrollWrites.push(db.prepare("INSERT INTO record_revisions (id, record_type, record_id, revision_number, action, summary, actor) SELECT ?, 'dailyLog', ?, COALESCE(MAX(revision_number), 0) + 1, 'Saved', ?, ? FROM record_revisions WHERE record_type = 'dailyLog' AND record_id = ?").bind(crypto.randomUUID(), date, `Staffing, calls, and notes updated; ${totals.size} payroll record(s) synchronized`, actor, date));
+    // D1 executes this as one transaction: the Daily Log and its payroll
+    // projection either both save or neither does.
+    await db.batch([...logWrites, ...payrollWrites]);
     return Response.json({ ok: true, payrollEmployeesUpdated: totals.size, periodStart, holiday: holiday?.name ?? null });
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "Unable to save daily log" }, { status: 500 });
+    console.error("Daily Log save failed", error);
+    return Response.json({ error: "The Daily Log and payroll were not saved. No partial changes were applied; please try again." }, { status: 500 });
   }
 }

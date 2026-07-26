@@ -70,8 +70,13 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
   const [logAudit, setLogAudit] = useState<LogPayload["log"] | null>(null);
   const loaded = useRef(false);
   const currentDay = useRef(localDate());
+  const saveInFlight = useRef(false);
+  const saveAgain = useRef(false);
+  const editVersion = useRef(0);
+  const latestSave = useRef({ logDate, staffing, calls, shiftNotes });
   const readOnly = locked && !adminUnlocked;
   const holiday = useMemo(() => holidayForDate(logDate), [logDate]);
+  useEffect(() => { latestSave.current = { logDate, staffing, calls, shiftNotes }; }, [calls, logDate, shiftNotes, staffing]);
 
   const loadLog = useCallback(async (date: string) => {
     setLoading(true); setMessage(""); loaded.current = false;
@@ -102,23 +107,42 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
 
   const saveLog = useCallback(async (silent = false) => {
     if (!loaded.current || readOnly) return;
+    if (saveInFlight.current) { saveAgain.current = true; return; }
+    saveInFlight.current = true;
     setSaving(true); if (!silent) setMessage("");
     try {
-      const payload = { logDate, staffing: staffing.filter((row) => row.employeeId), calls: calls.filter((row) => Object.entries(row).some(([key, value]) => key !== "id" && value && value !== "EMS")), shiftNotes };
-      window.localStorage.setItem(draftKey(logDate), JSON.stringify({ ...payload, savedAt: new Date().toISOString() }));
-      if (!window.navigator.onLine) { setMessage("Saved on this device · waiting to sync"); return; }
-      const response = await fetch("/api/logbook", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
-      const result = await response.json() as { error?: string; payrollEmployeesUpdated?: number }; if (!response.ok) throw new Error(result.error || "Unable to save log");
-      window.localStorage.removeItem(draftKey(logDate)); setDirty(false); setLastSynced(new Date()); setMessage(silent ? "All changes saved · Timesheets updated" : "Daily log and timesheets saved"); onPayrollSynced?.();
+      do {
+        saveAgain.current = false;
+        const current = latestSave.current;
+        const versionAtStart = editVersion.current;
+        const payload = { logDate: current.logDate, staffing: current.staffing.filter((row) => row.employeeId), calls: current.calls.filter((row) => Object.entries(row).some(([key, value]) => key !== "id" && value && value !== "EMS")), shiftNotes: current.shiftNotes };
+        window.localStorage.setItem(draftKey(current.logDate), JSON.stringify({ ...payload, savedAt: new Date().toISOString() }));
+        if (!window.navigator.onLine) { setMessage("Saved on this device · waiting to sync"); return; }
+        const response = await fetch("/api/logbook", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+        const result = await response.json() as { error?: string; payrollEmployeesUpdated?: number }; if (!response.ok) throw new Error(result.error || "Unable to save log");
+        if (versionAtStart === editVersion.current) {
+          window.localStorage.removeItem(draftKey(current.logDate));
+          setDirty(false);
+        } else {
+          saveAgain.current = true;
+        }
+        setLastSynced(new Date());
+      } while (saveAgain.current && window.navigator.onLine && !readOnly);
+      setMessage(silent ? "All changes saved · Timesheets updated" : "Daily log and timesheets saved"); onPayrollSynced?.();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to save log"); }
-    finally { setSaving(false); }
-  }, [calls, logDate, onPayrollSynced, readOnly, shiftNotes, staffing]);
+    finally { saveInFlight.current = false; setSaving(false); }
+  }, [onPayrollSynced, readOnly]);
   useEffect(() => { if (!dirty || readOnly) return; const timer = window.setTimeout(() => { void saveLog(true); }, 900); return () => window.clearTimeout(timer); }, [dirty, readOnly, saveLog]);
   useEffect(() => { if (!dirty || readOnly) return; window.localStorage.setItem(draftKey(logDate), JSON.stringify({ savedAt: new Date().toISOString(), logDate, staffing: staffing.filter((row) => row.employeeId), calls, shiftNotes })); }, [calls, dirty, logDate, readOnly, shiftNotes, staffing]);
   useEffect(() => { if (!isOnline || !dirty || readOnly) return; const timer = window.setTimeout(() => void saveLog(true), 250); return () => window.clearTimeout(timer); }, [dirty, isOnline, readOnly, saveLog]);
 
   const activeEmployees = useMemo(() => employees.filter((employee) => (!employee.startDate || employee.startDate <= logDate) && (!employee.endDate || employee.endDate >= logDate)).sort((a, b) => compareEmployeeNames(a.name, b.name)), [employees, logDate]);
-  const markDirty = () => { if (loaded.current) setDirty(true); };
+  const markDirty = () => {
+    if (!loaded.current) return;
+    editVersion.current += 1;
+    if (saveInFlight.current) saveAgain.current = true;
+    setDirty(true);
+  };
   function selectStaffEmployee(id: string, employeeId: string) {
     setStaffing((current) => {
       const rows = current.map((row) => row.id === id ? { ...row, employeeId } : { ...row });

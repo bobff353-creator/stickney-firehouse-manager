@@ -45,7 +45,9 @@ export async function GET(request: Request) {
 
     const employeeSelect = "SELECT e.id, e.name, e.pay_scale_id AS payScaleId, e.active, p.label AS rank, p.regular_rate AS regularRate, p.overtime_rate AS overtimeRate, p.holiday_rate AS holidayRate, ep.employee_number AS employeeNumber, ep.start_date AS startDate, ep.end_date AS endDate, ep.date_of_birth AS dateOfBirth, ep.phone, ep.email, ep.address_line_1 AS addressLine1, ep.city, ep.state, ep.postal_code AS postalCode, COALESCE(ep.employment_type, 'Part-time') AS employmentType, COALESCE(ep.is_dpw, 0) AS isDpw, COALESCE(ep.driver_status, '') AS driverStatus, COALESCE(ep.is_admin, 0) AS isAdmin, ep.emergency_name AS emergencyName, ep.emergency_relationship AS emergencyRelationship, ep.emergency_phone AS emergencyPhone, ep.notes FROM employees e JOIN pay_scales p ON p.id = e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id = e.id WHERE e.active = 1";
     const employeeQuery = viewer.isAdmin ? db.prepare(`${employeeSelect} ORDER BY e.name COLLATE NOCASE`).all() : db.prepare("SELECT e.id, e.name, e.pay_scale_id AS payScaleId, e.active, p.label AS rank, p.regular_rate AS regularRate, p.overtime_rate AS overtimeRate, p.holiday_rate AS holidayRate, ep.start_date AS startDate, ep.end_date AS endDate, COALESCE(ep.employment_type, 'Part-time') AS employmentType, COALESCE(ep.is_dpw, 0) AS isDpw FROM employees e JOIN pay_scales p ON p.id = e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id = e.id WHERE e.active = 1 AND e.id = ?").bind(viewer.employeeId).all();
-    const entryQuery = viewer.isAdmin ? db.prepare("SELECT id, employee_id AS employeeId, work_date AS workDate, category, hours FROM time_entries WHERE period_start = ? ORDER BY work_date").bind(start).all() : db.prepare("SELECT id, employee_id AS employeeId, work_date AS workDate, category, hours FROM time_entries WHERE period_start = ? AND employee_id = ? ORDER BY work_date").bind(start, viewer.employeeId).all();
+    const entrySelect = "SELECT MIN(id) AS id, employee_id AS employeeId, work_date AS workDate, CASE WHEN category = 'dailyLogDpw' THEN 'dpw' ELSE category END AS category, SUM(hours) AS hours FROM time_entries";
+    const entryGroup = "GROUP BY employee_id, work_date, CASE WHEN category = 'dailyLogDpw' THEN 'dpw' ELSE category END ORDER BY work_date";
+    const entryQuery = viewer.isAdmin ? db.prepare(`${entrySelect} WHERE period_start = ? ${entryGroup}`).bind(start).all() : db.prepare(`${entrySelect} WHERE period_start = ? AND employee_id = ? ${entryGroup}`).bind(start, viewer.employeeId).all();
     const scaleQuery = viewer.isAdmin ? db.prepare("SELECT id, label, regular_rate AS regularRate, overtime_rate AS overtimeRate, holiday_rate AS holidayRate FROM pay_scales ORDER BY sort_order").all() : db.prepare("SELECT p.id, p.label, p.regular_rate AS regularRate, p.overtime_rate AS overtimeRate, p.holiday_rate AS holidayRate FROM pay_scales p JOIN employees e ON e.pay_scale_id = p.id WHERE e.id = ?").bind(viewer.employeeId).all();
     const [employeeRows, entryRows, scaleRows, settingsRow, periodRow] = await Promise.all([
       employeeQuery,
@@ -87,13 +89,20 @@ export async function POST(request: Request) {
         return Response.json({ error: "Invalid time entry" }, { status: 400 });
       }
       await db.prepare("INSERT OR IGNORE INTO pay_periods (start_date, end_date, status) VALUES (?, ?, 'draft')").bind(periodStart, periodEnd(periodStart)).run();
-      if (hours === 0) {
+      const automaticDpw = category === "dpw"
+        ? Number((await db.prepare("SELECT COALESCE(SUM(hours), 0) AS hours FROM time_entries WHERE employee_id = ? AND work_date = ? AND category = 'dailyLogDpw'").bind(employeeId, workDate).first<{ hours: number }>())?.hours ?? 0)
+        : 0;
+      if (category === "dpw" && hours < automaticDpw) {
+        return Response.json({ error: `The Daily Log already supplies ${automaticDpw} DPW hours for this date. Correct the Daily Log to reduce that time.` }, { status: 409 });
+      }
+      const manualHours = category === "dpw" ? Math.round((hours - automaticDpw) * 100) / 100 : hours;
+      if (manualHours === 0) {
         await db.prepare("DELETE FROM time_entries WHERE employee_id = ? AND work_date = ? AND category = ?").bind(employeeId, workDate, category).run();
       } else {
-        await db.prepare("INSERT INTO time_entries (id, employee_id, period_start, work_date, category, hours, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(employee_id, work_date, category) DO UPDATE SET hours = excluded.hours, period_start = excluded.period_start, updated_at = CURRENT_TIMESTAMP").bind(crypto.randomUUID(), employeeId, periodStart, workDate, category, hours).run();
+        await db.prepare("INSERT INTO time_entries (id, employee_id, period_start, work_date, category, hours, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(employee_id, work_date, category) DO UPDATE SET hours = excluded.hours, period_start = excluded.period_start, updated_at = CURRENT_TIMESTAMP").bind(crypto.randomUUID(), employeeId, periodStart, workDate, category, manualHours).run();
       }
       await db.prepare("UPDATE pay_periods SET updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE start_date = ?").bind(viewer.displayName, periodStart).run();
-      await addRevision(db, periodStart, "Hours updated", `${workDate} ${category} entry updated`, viewer.displayName);
+      await addRevision(db, periodStart, "Hours updated", `${workDate} ${category} entry updated to ${hours} total hours`, viewer.displayName);
       return Response.json({ ok: true });
     }
 
