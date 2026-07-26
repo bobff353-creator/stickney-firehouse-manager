@@ -124,7 +124,8 @@ export const workDetailPostings = sqliteTable("work_detail_postings", {
 export const scheduleRotations = sqliteTable("schedule_rotations", {
   id: text("id").primaryKey(), name: text("name").notNull(), startDate: text("start_date").notNull(), endDate: text("end_date").notNull(),
   startTime: text("start_time").notNull(), endTime: text("end_time").notNull(), cycleDays: integer("cycle_days").notNull(),
-  dutyDays: text("duty_days").notNull(), role: text("role").notNull(), active: integer("active", { mode: "boolean" }).notNull().default(true),
+  dutyDays: text("duty_days").notNull(), role: text("role").notNull(), coveragePlanId: text("coverage_plan_id").notNull().default(""),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
   createdBy: text("created_by").notNull(), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 export const scheduleRotationMembers = sqliteTable("schedule_rotation_members", {

@@ -1086,6 +1086,10 @@ td strong { font-size: 16px; }
 .shift-color.shift-red { background: #b93039; }
 .shift-color.shift-gold { background: #d9a926; }
 .shift-color.shift-black { background: #20262b; }
+.rotation-summary { margin: 15px 0; padding: 13px 14px; border: 1px solid #9bb8ca; border-radius: 8px; background: #eef5f8; display: grid; gap: 3px; }
+.rotation-summary span { color: #647b8b; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: .05em; }
+.rotation-summary strong { color: var(--navy-deep); font-size: 17px; }
+.rotation-summary b { color: #426177; font-size: 11px; }
 
 @media (max-width: 680px) {
   .topbar { min-height: 72px; padding: 0 13px; gap: 7px; }

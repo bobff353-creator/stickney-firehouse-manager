@@ -13,7 +13,8 @@ test("custom rotations generate assignments", async () => {
   const source = await readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8");
   assert.equal(source.includes('action === "createRotation"'), true);
   assert.equal(source.includes("cycleDays < 1 || cycleDays > 60"), true);
-  assert.equal(source.includes("dutyDays.includes(offset % cycleDays)"), true);
+  assert.equal(source.includes("offset % cycleDays !== 0"), true);
+  assert.equal(source.includes("employeeIds.length !== 1"), true);
 });
 
 test("availability open shifts trades and approvals are supported", async () => {
@@ -62,9 +63,23 @@ test("rotating shifts use named colors and admin staffing positions", async () =
   const api = await readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8");
   const screen = await readFile(new URL("../app/scheduling.tsx", import.meta.url), "utf8");
   assert.equal(api.includes('["Red", "Gold", "Black"].includes(name)'), true);
-  assert.equal(api.includes("Choose a position from an active minimum staffing plan."), true);
+  assert.equal(api.includes("Choose a position from the selected active minimum staffing plan."), true);
   for (const shift of ["Red", "Gold", "Black"]) assert.equal(screen.includes(`<option>${shift}</option>`), true);
-  assert.equal(screen.includes("requiredPositions.map"), true);
+  assert.equal(screen.includes("selectedRotationPlan.map"), true);
+});
+
+test("rotation form selects one employee plan start day and repeat interval", async () => {
+  const api = await readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8");
+  const screen = await readFile(new URL("../app/scheduling.tsx", import.meta.url), "utf8");
+  const schema = await readFile(new URL("../db/schema.ts", import.meta.url), "utf8");
+  assert.equal(screen.includes("Select employee"), true);
+  assert.equal(screen.includes("Select staffing plan"), true);
+  assert.equal(screen.includes("Start day *"), true);
+  assert.equal(screen.includes('"Every day" : `Every ${days} days`'), true);
+  assert.equal(screen.includes("Fill Schedule With Rotation"), true);
+  assert.equal(api.includes("coverage_plan_id"), true);
+  assert.equal(api.includes("assignmentsCreated: writes.length"), true);
+  assert.equal(schema.includes('coveragePlanId: text("coverage_plan_id")'), true);
 });
 
 test("open shifts enforce rank and response deadlines", async () => {

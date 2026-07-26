@@ -11,7 +11,7 @@ type Assignment = {
 };
 type Rotation = {
   id:string; name:string; startDate:string; endDate:string; startTime:string; endTime:string; cycleDays:number;
-  dutyDays:string; role:string; members:string; active:number;
+  dutyDays:string; role:string; coveragePlanId:string; members:string; active:number;
 };
 type Request = {
   id:string; requestType:string; employeeId:string; employeeName:string; assignmentId?:string; targetEmployeeId?:string;
@@ -76,10 +76,8 @@ export default function Scheduling() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [members, setMembers] = useState<string[]>([]);
   const [rotation, setRotation] = useState({
-    name: "Red", startDate: today(), endDate: plusDays(today(), 90), startTime: "06:00", endTime: "06:00",
-    cycleDays: "3", dutyDays: "0", role: "",
+    name: "Red", employeeId: "", coveragePlanId: "", role: "", startDate: today(), endDate: plusDays(today(), 365), cycleDays: "3",
   });
   const [shift, setShift] = useState({
     employeeId: "", workDate: today(), startTime: "06:00", endTime: "18:00", role: "Firefighter",
@@ -161,9 +159,8 @@ export default function Scheduling() {
     }
     return [...plans.entries()];
   }, [data]);
-  const requiredPositions = useMemo(() =>
-    [...new Set(data?.coverageRules.filter((rule) => rule.active).map((rule) => rule.role) ?? [])].sort(),
-  [data]);
+  const selectedRotationPlan = coveragePlans.find(([, rules]) => (rules[0].planId || rules[0].id) === rotation.coveragePlanId)?.[1] ?? [];
+  const selectedRotationRule = selectedRotationPlan.find((rule) => rule.role === rotation.role) ?? selectedRotationPlan[0];
   const tabs = data?.viewer.isAdmin
     ? [["calendar", "Department Schedule"], ["coverage", "Coverage"], ["rotations", "Rotations"], ["open", "Add / Open Shifts"], ["requests", "Requests & Trades"], ["alerts", `Notifications${unread ? ` (${unread})` : ""}`]]
     : [["calendar", "My Schedule"], ["request", "Request / Availability"], ["open", "Open Shifts"], ["alerts", `Notifications${unread ? ` (${unread})` : ""}`]];
@@ -312,28 +309,33 @@ export default function Scheduling() {
 
     {tab === "rotations" && data?.viewer.isAdmin && <section className="schedule-two-col">
       <article className="content-card schedule-form">
-        <div className="section-header"><div><h2>Create rotating shift</h2><p>Choose Red, Gold, or Black shift, then assign a position from the active staffing plans.</p></div></div>
-        {!requiredPositions.length && <div className="schedule-setup-callout"><strong>Create a minimum staffing plan first.</strong><span>Rotating shifts can only use administrator-defined required positions.</span><button onClick={() => setTab("coverage")}>Go to Coverage</button></div>}
+        <div className="section-header"><div><h2>Add employee rotation</h2><p>Pick the employee and staffing plan, choose the first day and repeat interval, then fill the schedule automatically.</p></div></div>
+        {!coveragePlans.length && <div className="schedule-setup-callout"><strong>Create a minimum staffing plan first.</strong><span>Employee rotations use the plan’s positions and working hours.</span><button onClick={() => setTab("coverage")}>Go to Coverage</button></div>}
         <div className="schedule-fields">
+          <label><span>Employee *</span><select value={rotation.employeeId} onChange={(event) => setRotation({ ...rotation, employeeId: event.target.value })}><option value="">Select employee</option>{data.employees.map((employee) => <option key={employee.id} value={employee.id}>{formatEmployeeName(employee.name)} · {employee.rank}</option>)}</select></label>
+          <label><span>Staffing plan *</span><select value={rotation.coveragePlanId} disabled={!coveragePlans.length} onChange={(event) => {
+            const planId = event.target.value;
+            const plan = coveragePlans.find(([, rules]) => (rules[0].planId || rules[0].id) === planId)?.[1] ?? [];
+            setRotation({ ...rotation, coveragePlanId: planId, role: plan[0]?.role ?? "" });
+          }}><option value="">Select staffing plan</option>{coveragePlans.map(([key, rules]) => <option key={key} value={rules[0].planId || rules[0].id}>{rules[0].name} · {rules[0].startTime}-{rules[0].endTime}</option>)}</select></label>
+          <label><span>Position in plan *</span><select value={rotation.role} disabled={!selectedRotationPlan.length} onChange={(event) => setRotation({ ...rotation, role: event.target.value })}><option value="">Select position</option>{selectedRotationPlan.map((rule) => <option key={rule.id} value={rule.role}>{rule.role} · minimum {rule.minimumStaff}</option>)}</select></label>
           <label><span>Shift name *</span><select value={rotation.name} onChange={(event) => setRotation({ ...rotation, name: event.target.value })}><option>Red</option><option>Gold</option><option>Black</option></select></label>
-          <label><span>Required position *</span><select value={requiredPositions.includes(rotation.role) ? rotation.role : ""} disabled={!requiredPositions.length} onChange={(event) => setRotation({ ...rotation, role: event.target.value })}><option value="">Select required position</option>{requiredPositions.map((position) => <option key={position}>{position}</option>)}</select><small>Positions come from active minimum staffing plans.</small></label>
-          <TimeBlockSelect startTime={rotation.startTime} endTime={rotation.endTime} onChange={(startTime, endTime) => setRotation({ ...rotation, startTime, endTime })}/>
-          {[
-            ["Start date", "startDate", "date"], ["End date", "endDate", "date"], ["Start time", "startTime", "time"],
-            ["End time", "endTime", "time"], ["Cycle length (days)", "cycleDays", "number"], ["Duty days in cycle", "dutyDays", "text"],
-          ].map(([label, key, type]) => <label key={key}><span>{label} *</span><input type={type} value={String(rotation[key as keyof typeof rotation])} onChange={(event) => setRotation({ ...rotation, [key]: event.target.value })}/>{key === "dutyDays" && <small>For 24/48 use cycle 3 and duty day 0. Multiple duty days: 0,2,4.</small>}</label>)}
+          <label><span>Start day *</span><input type="date" value={rotation.startDate} onChange={(event) => {
+            const startDate = event.target.value;
+            setRotation({ ...rotation, startDate, endDate: rotation.endDate < startDate ? plusDays(startDate, 365) : rotation.endDate });
+          }}/></label>
+          <label><span>Repeats *</span><select value={rotation.cycleDays} onChange={(event) => setRotation({ ...rotation, cycleDays: event.target.value })}>{Array.from({ length: 60 }, (_, index) => index + 1).map((days) => <option key={days} value={days}>{days === 1 ? "Every day" : `Every ${days} days`}</option>)}</select></label>
+          <label><span>Fill schedule through *</span><input type="date" min={rotation.startDate} value={rotation.endDate} onChange={(event) => setRotation({ ...rotation, endDate: event.target.value })}/><small>Defaults to one year. You can shorten or extend it.</small></label>
         </div>
-        <fieldset className="schedule-member-select"><legend>Employees *</legend>
-          {data.employees.map((employee) => <label key={employee.id}><input type="checkbox" checked={members.includes(employee.id)} onChange={(event) => setMembers((current) => event.target.checked ? [...current, employee.id] : current.filter((id) => id !== employee.id))}/><span>{formatEmployeeName(employee.name)}<small>{employee.rank}</small></span></label>)}
-        </fieldset>
-        <button className={`primary-action shift-${rotation.name.toLowerCase()}`} disabled={busy || !rotation.role || !requiredPositions.length || !members.length} onClick={() => void act({ action: "createRotation", ...rotation, cycleDays: Number(rotation.cycleDays), employeeIds: members }, `${rotation.name} shift rotation created`)}>Create {rotation.name} Shift Rotation</button>
+        {selectedRotationRule && <div className="rotation-summary"><span>Will schedule</span><strong>{data.employees.find((employee) => employee.id === rotation.employeeId) ? formatEmployeeName(data.employees.find((employee) => employee.id === rotation.employeeId)?.name || "") : "Selected employee"}</strong><b>{rotation.role || "Select position"} · {selectedRotationRule.startTime}-{selectedRotationRule.endTime} · {Number(rotation.cycleDays) === 1 ? "every day" : `every ${rotation.cycleDays} days`}</b></div>}
+        <button className={`primary-action shift-${rotation.name.toLowerCase()}`} disabled={busy || !rotation.employeeId || !rotation.coveragePlanId || !rotation.role || !coveragePlans.length} onClick={() => void act({ action: "createRotation", name: rotation.name, coveragePlanId: rotation.coveragePlanId, role: rotation.role, startDate: rotation.startDate, endDate: rotation.endDate, cycleDays: Number(rotation.cycleDays), employeeIds: [rotation.employeeId] }, `Schedule filled for ${rotation.name} shift`)}>Fill Schedule With Rotation</button>
       </article>
       <article className="content-card">
         <div className="section-header"><div><h2>Rotation manager</h2><p>Ending a rotation removes only future generated assignments and preserves history.</p></div></div>
         <div className="rotation-list">{data.rotations.map((item) => <article key={item.id} className={item.active ? "" : "inactive"}>
           <header><strong><i className={`shift-color shift-${item.name.toLowerCase()}`}/>{item.name} Shift</strong><span>{item.active ? "Active" : "Ended"}</span></header>
           <p>{item.members}</p>
-          <dl><div><dt>Dates</dt><dd>{item.startDate} to {item.endDate}</dd></div><div><dt>Hours</dt><dd>{item.startTime}-{item.endTime}</dd></div><div><dt>Pattern</dt><dd>Days {item.dutyDays} of {item.cycleDays}</dd></div><div><dt>Position</dt><dd>{item.role}</dd></div></dl>
+          <dl><div><dt>Dates</dt><dd>{item.startDate} to {item.endDate}</dd></div><div><dt>Hours</dt><dd>{item.startTime}-{item.endTime}</dd></div><div><dt>Repeats</dt><dd>{item.cycleDays === 1 ? "Every day" : `Every ${item.cycleDays} days`}</dd></div><div><dt>Position</dt><dd>{item.role}</dd></div><div><dt>Staffing plan</dt><dd>{coveragePlans.find(([, rules]) => (rules[0].planId || rules[0].id) === item.coveragePlanId)?.[1][0]?.name || "Legacy plan"}</dd></div></dl>
           {Boolean(item.active) && <footer><button disabled={busy} onClick={() => void act({ action: "deactivateRotation", id: item.id }, "Rotation ended; future generated assignments removed")}>End Rotation</button></footer>}
         </article>)}</div>
       </article>

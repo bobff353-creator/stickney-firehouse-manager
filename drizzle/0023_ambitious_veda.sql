@@ -1,0 +1,1 @@
+ALTER TABLE `schedule_rotations` ADD `coverage_plan_id` text DEFAULT '' NOT NULL;

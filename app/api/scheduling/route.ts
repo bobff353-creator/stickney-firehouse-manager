@@ -90,7 +90,7 @@ export async function GET(request: Request) {
       current.isAdmin
         ? db.prepare("SELECT a.id,a.employee_id employeeId,e.name employeeName,a.work_date workDate,a.start_time startTime,a.end_time endTime,a.role,a.source,a.status,a.emergency,a.required_rank requiredRank,a.claim_deadline claimDeadline,a.notes FROM schedule_assignments a LEFT JOIN employees e ON e.id=a.employee_id WHERE a.work_date>=date('now','-45 day') ORDER BY a.work_date,a.start_time").all<Assignment>()
         : db.prepare("SELECT a.id,a.employee_id employeeId,e.name employeeName,a.work_date workDate,a.start_time startTime,a.end_time endTime,a.role,a.source,a.status,a.emergency,a.required_rank requiredRank,a.claim_deadline claimDeadline,a.notes FROM schedule_assignments a LEFT JOIN employees e ON e.id=a.employee_id WHERE a.work_date>=date('now','-45 day') AND (a.employee_id=? OR a.status='open') ORDER BY a.work_date,a.start_time").bind(employeeId).all<Assignment>(),
-      db.prepare("SELECT r.id,r.name,r.start_date startDate,r.end_date endDate,r.start_time startTime,r.end_time endTime,r.cycle_days cycleDays,r.duty_days dutyDays,r.role,r.active,GROUP_CONCAT(e.name,', ') members FROM schedule_rotations r LEFT JOIN schedule_rotation_members m ON m.rotation_id=r.id LEFT JOIN employees e ON e.id=m.employee_id GROUP BY r.id ORDER BY r.active DESC,r.start_date DESC").all(),
+      db.prepare("SELECT r.id,r.name,r.start_date startDate,r.end_date endDate,r.start_time startTime,r.end_time endTime,r.cycle_days cycleDays,r.duty_days dutyDays,r.role,r.coverage_plan_id coveragePlanId,r.active,GROUP_CONCAT(e.name,', ') members FROM schedule_rotations r LEFT JOIN schedule_rotation_members m ON m.rotation_id=r.id LEFT JOIN employees e ON e.id=m.employee_id GROUP BY r.id ORDER BY r.active DESC,r.start_date DESC").all(),
       current.isAdmin
         ? db.prepare("SELECT q.id,q.request_type requestType,q.employee_id employeeId,e.name employeeName,q.assignment_id assignmentId,q.target_employee_id targetEmployeeId,te.name targetEmployeeName,q.start_date startDate,q.end_date endDate,q.start_time startTime,q.end_time endTime,q.role,q.repeat_mode repeatMode,q.status,q.target_status targetStatus,q.notes,q.reviewed_by reviewedBy,q.created_at createdAt FROM schedule_requests q JOIN employees e ON e.id=q.employee_id LEFT JOIN employees te ON te.id=q.target_employee_id ORDER BY CASE q.status WHEN 'pending' THEN 0 ELSE 1 END,q.created_at DESC LIMIT 150").all()
         : db.prepare("SELECT q.id,q.request_type requestType,q.employee_id employeeId,e.name employeeName,q.assignment_id assignmentId,q.target_employee_id targetEmployeeId,te.name targetEmployeeName,q.start_date startDate,q.end_date endDate,q.start_time startTime,q.end_time endTime,q.role,q.repeat_mode repeatMode,q.status,q.target_status targetStatus,q.notes,q.reviewed_by reviewedBy,q.created_at createdAt FROM schedule_requests q JOIN employees e ON e.id=q.employee_id LEFT JOIN employees te ON te.id=q.target_employee_id WHERE q.employee_id=? OR q.target_employee_id=? ORDER BY q.created_at DESC").bind(employeeId, employeeId).all(),
@@ -127,34 +127,34 @@ export async function POST(request: Request) {
     if (action === "createRotation") {
       if (!current.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
       const name = String(payload.name ?? "").trim();
+      const coveragePlanId = String(payload.coveragePlanId ?? "").trim();
       const startDate = String(payload.startDate ?? "");
       const endDate = String(payload.endDate ?? "");
-      const startTime = normalizeScheduleTime(String(payload.startTime ?? ""));
-      const endTime = normalizeScheduleTime(String(payload.endTime ?? ""));
       const role = String(payload.role ?? "").trim();
       const cycleDays = Number(payload.cycleDays);
-      const dutyDays = [...new Set(String(payload.dutyDays ?? "").split(",").map((value) => Number(value.trim())).filter(Number.isInteger))];
       const employeeIds = [...new Set(Array.isArray(payload.employeeIds) ? payload.employeeIds.map(String).filter(Boolean) : [])];
       const span = spanDays(startDate, endDate);
-      if (!["Red", "Gold", "Black"].includes(name) || !iso.test(startDate) || !iso.test(endDate) || span < 0 || span > 730 || !startTime || !endTime || !role || !Number.isInteger(cycleDays) || cycleDays < 1 || cycleDays > 60 || !dutyDays.length || dutyDays.some((day) => day < 0 || day >= cycleDays) || !employeeIds.length) {
-        return Response.json({ error: "Choose Red, Gold, or Black shift and complete the rotation pattern and employee selection." }, { status: 400 });
+      if (!["Red", "Gold", "Black"].includes(name) || !coveragePlanId || !iso.test(startDate) || !iso.test(endDate) || span < 0 || span > 730 || !role || !Number.isInteger(cycleDays) || cycleDays < 1 || cycleDays > 60 || employeeIds.length !== 1) {
+        return Response.json({ error: "Choose one employee, a staffing plan and position, a start date, and how often the shift repeats." }, { status: 400 });
       }
-      const requiredPosition = await db.prepare("SELECT id FROM schedule_coverage_rules WHERE active=1 AND lower(role)=lower(?) LIMIT 1").bind(role).first();
-      if (!requiredPosition) return Response.json({ error: "Choose a position from an active minimum staffing plan." }, { status: 400 });
+      const requiredPosition = await db.prepare("SELECT id,plan_id planId,name,start_time startTime,end_time endTime,role FROM schedule_coverage_rules WHERE active=1 AND lower(role)=lower(?) AND ((plan_id<>'' AND plan_id=?) OR id=?) LIMIT 1").bind(role, coveragePlanId, coveragePlanId).first<{id:string;planId:string;name:string;startTime:string;endTime:string;role:string}>();
+      if (!requiredPosition) return Response.json({ error: "Choose a position from the selected active minimum staffing plan." }, { status: 400 });
+      const employee = await db.prepare("SELECT id FROM employees WHERE id=? AND active=1").bind(employeeIds[0]).first();
+      if (!employee) return Response.json({ error: "Choose an active employee." }, { status: 400 });
       const rotationId = crypto.randomUUID();
-      await db.prepare("INSERT INTO schedule_rotations(id,name,start_date,end_date,start_time,end_time,cycle_days,duty_days,role,created_by) VALUES(?,?,?,?,?,?,?,?,?,?)")
-        .bind(rotationId, name, startDate, endDate, startTime, endTime, cycleDays, dutyDays.join(","), role, current.name).run();
+      await db.prepare("INSERT INTO schedule_rotations(id,name,start_date,end_date,start_time,end_time,cycle_days,duty_days,role,coverage_plan_id,created_by) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
+        .bind(rotationId, name, startDate, endDate, requiredPosition.startTime, requiredPosition.endTime, cycleDays, "0", requiredPosition.role, requiredPosition.planId || requiredPosition.id, current.name).run();
       await db.batch(employeeIds.map((id) => db.prepare("INSERT INTO schedule_rotation_members(rotation_id,employee_id) VALUES(?,?)").bind(rotationId, id)));
       const writes = [];
       for (let offset = 0; offset <= span; offset += 1) {
-        if (!dutyDays.includes(offset % cycleDays)) continue;
+        if (offset % cycleDays !== 0) continue;
         for (const id of employeeIds) writes.push(
           db.prepare("INSERT OR IGNORE INTO schedule_assignments(id,employee_id,work_date,start_time,end_time,role,source,rotation_id,status,created_by) VALUES(?,?,?,?,?,?,'rotation',?,'assigned',?)")
-            .bind(crypto.randomUUID(), id, addDays(startDate, offset), startTime, endTime, role, rotationId, current.name),
+            .bind(crypto.randomUUID(), id, addDays(startDate, offset), requiredPosition.startTime, requiredPosition.endTime, requiredPosition.role, rotationId, current.name),
         );
       }
       for (let index = 0; index < writes.length; index += 75) await db.batch(writes.slice(index, index + 75));
-      await notify(db, employeeIds, "New rotating schedule", `${name} was assigned from ${startDate} through ${endDate}.`);
+      await notify(db, employeeIds, "New rotating schedule", `${name} shift · ${requiredPosition.name} · ${requiredPosition.role} was assigned every ${cycleDays} day${cycleDays === 1 ? "" : "s"} from ${startDate} through ${endDate}.`);
       return Response.json({ ok: true, assignmentsCreated: writes.length });
     }
 
