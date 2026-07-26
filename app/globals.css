@@ -374,6 +374,10 @@ td strong { font-size: 16px; }
 .input-unit input { width: 100%; border: 0; outline: 0; background: transparent; text-align: right; font-variant-numeric: tabular-nums; }
 .input-unit b { color: var(--slate); font-size: 13px; white-space: nowrap; }
 .rate-list { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.rate-effective-control { margin-bottom: 18px; padding: 14px 16px; border: 1px solid #d7dee4; border-radius: 10px; background: #f7f9fa; display: flex; align-items: end; gap: 18px; }
+.rate-effective-control label { min-width: 220px; display: grid; gap: 7px; color: #40566b; font-size: 12px; font-weight: 850; }
+.rate-effective-control input { min-height: 44px; padding: 0 11px; border: 1px solid #aab7c2; border-radius: 7px; background: white; }
+.rate-effective-control small { color: #596b79; line-height: 1.45; }
 .rate-head, .rate-row { display: grid; grid-template-columns: minmax(230px, 1.4fr) repeat(3, 1fr); gap: 14px; align-items: center; padding: 12px 16px; }
 .rate-head { background: #edf2f5; color: #40566b; font-size: 13px; font-weight: 850; }
 .rate-row { border-top: 1px solid var(--border); }
@@ -385,6 +389,9 @@ td strong { font-size: 16px; }
 .rate-row .calculated-rate em { padding: 3px 6px; border-radius: 999px; background: #dfeaf0; color: #416176; font-size: 9px; font-style: normal; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }
 .mobile-rate-label { display: none; }
 .save-rules { margin-top: 22px; }
+.rate-history { margin-top: 22px; border-top: 1px solid #e1e6ea; padding-top: 16px; }
+.rate-history h3 { margin: 0 0 10px; }
+.rate-history > div { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid #edf0f2; color: #526472; }
 
 /* Important phone directory */
 .phone-page { display: grid; gap: 22px; }
@@ -1327,6 +1334,8 @@ td strong { font-size: 16px; }
   .duty-day-card section { align-items: flex-start; }
   .duty-editor-actions { align-items: stretch; flex-direction: column; }
   .work-detail-fields, .member-picker > div, .work-detail-list dl { grid-template-columns: 1fr; }
+  .rate-effective-control { align-items: stretch; flex-direction: column; }
+  .rate-effective-control label { min-width: 0; }
 }
 
 @media print {

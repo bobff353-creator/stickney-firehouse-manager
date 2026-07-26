@@ -10,6 +10,20 @@ export const payScales = sqliteTable("pay_scales", {
   sortOrder: integer("sort_order").notNull().default(0),
 });
 
+export const payRateHistory = sqliteTable("pay_rate_history", {
+  id: text("id").primaryKey(),
+  payScaleId: text("pay_scale_id").notNull().references(() => payScales.id),
+  effectiveDate: text("effective_date").notNull(),
+  regularRate: real("regular_rate").notNull(),
+  overtimeRate: real("overtime_rate").notNull(),
+  holidayRate: real("holiday_rate").notNull(),
+  createdBy: text("created_by").notNull().default("System"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("pay_rate_history_scale_date_idx").on(table.payScaleId, table.effectiveDate),
+  index("pay_rate_history_effective_idx").on(table.effectiveDate),
+]);
+
 export const employees = sqliteTable("employees", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),

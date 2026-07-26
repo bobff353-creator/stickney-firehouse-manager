@@ -222,6 +222,9 @@ export async function ensureDatabase() {
   if (ready) return db;
   await db.batch([
     db.prepare("CREATE TABLE IF NOT EXISTS pay_scales (id TEXT PRIMARY KEY NOT NULL, label TEXT NOT NULL, regular_rate REAL NOT NULL, overtime_rate REAL NOT NULL, holiday_rate REAL NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS pay_rate_history (id TEXT PRIMARY KEY NOT NULL, pay_scale_id TEXT NOT NULL REFERENCES pay_scales(id), effective_date TEXT NOT NULL, regular_rate REAL NOT NULL, overtime_rate REAL NOT NULL, holiday_rate REAL NOT NULL, created_by TEXT NOT NULL DEFAULT 'System', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS pay_rate_history_scale_date_idx ON pay_rate_history(pay_scale_id, effective_date)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS pay_rate_history_effective_idx ON pay_rate_history(effective_date)"),
     db.prepare("CREATE TABLE IF NOT EXISTS employees (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, pay_scale_id TEXT NOT NULL REFERENCES pay_scales(id), active INTEGER NOT NULL DEFAULT 1, sort_order INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE INDEX IF NOT EXISTS employees_active_sort_idx ON employees(active, sort_order)"),
     db.prepare("CREATE TABLE IF NOT EXISTS employee_profiles (employee_id TEXT PRIMARY KEY NOT NULL REFERENCES employees(id), employee_number TEXT, start_date TEXT, end_date TEXT, date_of_birth TEXT, phone TEXT, email TEXT, address_line_1 TEXT, city TEXT, state TEXT, postal_code TEXT, employment_type TEXT NOT NULL DEFAULT 'Part-time', is_dpw INTEGER NOT NULL DEFAULT 0, driver_status TEXT NOT NULL DEFAULT '', is_admin INTEGER NOT NULL DEFAULT 0, emergency_name TEXT, emergency_relationship TEXT, emergency_phone TEXT, photo_updated_at TEXT, notes TEXT, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
@@ -284,6 +287,7 @@ export async function ensureDatabase() {
 
   await db.prepare("INSERT OR IGNORE INTO payroll_settings (id, overtime_threshold, acting_officer_premium, dpw_multiplier) VALUES (1, 106, 1, 1.5)").run();
   await db.batch(payScales.map((scale) => db.prepare("INSERT OR IGNORE INTO pay_scales (id, label, regular_rate, overtime_rate, holiday_rate, sort_order) VALUES (?, ?, ?, ?, ?, ?)").bind(...scale)));
+  await db.prepare("INSERT OR IGNORE INTO pay_rate_history (id, pay_scale_id, effective_date, regular_rate, overtime_rate, holiday_rate, created_by) SELECT 'initial-' || id, id, '1900-01-01', regular_rate, overtime_rate, holiday_rate, 'System' FROM pay_scales").run();
   await db.batch(employeeSeed.map((employee, index) => db.prepare("INSERT INTO employees (id, name, pay_scale_id, active, sort_order) SELECT ?, ?, ?, 1, ? WHERE NOT EXISTS (SELECT 1 FROM system_meta WHERE key = ?) ON CONFLICT(id) DO NOTHING").bind(employee[0], employee[1], employee[2], index + 1, `employee_deleted:${employee[0]}`)));
   await normalizeEmployeeNames(db);
   await normalizeHistoricalCallTimes(db);

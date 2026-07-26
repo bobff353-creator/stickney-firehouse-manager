@@ -134,6 +134,13 @@
       "when": 1785043263858,
       "tag": "0018_slippery_loa",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1785085014647,
+      "tag": "0019_striped_king_bedlam",
+      "breakpoints": true
     }
   ]
 }

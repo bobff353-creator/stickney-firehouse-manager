@@ -24,6 +24,7 @@ import WorkDetails from "./work-details";
 
 type Category = "shift" | "drill" | "workDetail" | "callback" | "actingOfficer" | "holiday" | "dpw";
 type PayScale = { id: string; label: string; regularRate: number; overtimeRate: number; holidayRate: number };
+type PayRateHistory = PayScale & { payScaleId: string; effectiveDate: string; createdBy?: string; createdAt?: string };
 type Employee = PayScale & {
   id: string; name: string; payScaleId: string; rank: string; active: number;
   employeeNumber?: string | null; startDate?: string | null; endDate?: string | null; dateOfBirth?: string | null;
@@ -43,6 +44,7 @@ type PayrollData = {
   employees: Employee[];
   entries: Entry[];
   payScales: PayScale[];
+  rateHistory: PayRateHistory[];
   settings: { overtimeThreshold: number; actingOfficerPremium: number; dpwMultiplier: number };
   viewer: { email: string; isAdmin: boolean; employeeId: string | null; displayName: string };
 };
@@ -184,6 +186,7 @@ export default function PayrollApp() {
   const [toast, setToast] = useState("");
   const [rulesDraft, setRulesDraft] = useState<PayrollData["settings"] | null>(null);
   const [scaleDraft, setScaleDraft] = useState<PayScale[]>([]);
+  const [rateEffectiveDate, setRateEffectiveDate] = useState(currentPeriodStart);
   const [employeeDraft, setEmployeeDraft] = useState<EmployeeForm>(emptyEmployee);
   const [profileOpen, setProfileOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -211,6 +214,7 @@ export default function PayrollApp() {
       setData(payload);
       setRulesDraft(payload.settings);
       setScaleDraft(payload.payScales);
+      setRateEffectiveDate(start);
       setLastSynced(new Date());
       setSelectedEmployeeId((current) => current || payload.employees[0]?.id || "");
       setActiveNav((current) => (payload.viewer.isAdmin ? adminNavItems : employeeNavItems).includes(current) ? current : "Dashboard");
@@ -415,10 +419,19 @@ export default function PayrollApp() {
   async function saveRules() {
     if (!rulesDraft) return;
     try {
-      await post({ action: "saveRules", ...rulesDraft, payScales: scaleDraft });
+      await post({ action: "saveRules", ...rulesDraft, effectiveDate: rateEffectiveDate, payScales: scaleDraft });
       await loadPayroll(periodStart);
-      setToast("Rates and rules saved");
+      setToast(`Rates saved effective ${rateEffectiveDate}`);
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to save rules"); }
+  }
+
+  function changeRateEffectiveDate(value: string) {
+    setRateEffectiveDate(value);
+    if (!data) return;
+    setScaleDraft(data.payScales.map((scale) => {
+      const rate = data.rateHistory.find((item) => item.payScaleId === scale.id && item.effectiveDate <= value);
+      return rate ? { id: scale.id, label: scale.label, regularRate: rate.regularRate, overtimeRate: rate.overtimeRate, holidayRate: rate.holidayRate } : scale;
+    }));
   }
 
   function changeBaseRate(index: number, value: number) {
@@ -669,7 +682,7 @@ export default function PayrollApp() {
 
           {activeNav === "Rates & Rules" && rulesDraft && <section className="settings-layout">
               <article className="content-card rules-card"><div className="section-header"><div><h2>Payroll rules</h2><p>These replace the formulas that caused broken references.</p></div></div><div className="settings-grid"><label><span>Overtime threshold</span><div className="input-unit"><input type="number" min="0" step="1" value={rulesDraft.overtimeThreshold} onChange={(event) => setRulesDraft({ ...rulesDraft, overtimeThreshold: safeNumber(event.target.value) })} /><b>hours</b></div></label><label><span>Acting Officer stipend</span><div className="input-unit"><b>$</b><input type="number" value={ACTING_OFFICER_STIPEND_PER_HOUR.toFixed(2)} readOnly aria-readonly="true" /><b>/ AO hr</b></div><small>Straight stipend only—never multiplied for overtime or holidays.</small></label><label><span>DPW multiplier</span><div className="input-unit"><input type="number" min="1" step="0.05" value={rulesDraft.dpwMultiplier} onChange={(event) => setRulesDraft({ ...rulesDraft, dpwMultiplier: safeNumber(event.target.value) })} /><b>× rate</b></div></label></div></article>
-            <article className="content-card"><div className="section-header"><div><h2>Pay rates</h2><p>Enter the Straight Time / Normal Rate. Overtime and Holiday automatically calculate at 1.5×.</p></div></div><div className="rate-list"><div className="rate-head"><span>Pay scale</span><span>Straight Time / Normal</span><span>Overtime · 1.5×</span><span>Holiday · 1.5×</span></div>{scaleDraft.map((scale, index) => <div className="rate-row" key={scale.id}><strong>{scale.label}</strong><label><span className="mobile-rate-label">Straight Time / Normal</span><b>$</b><input aria-label={`${scale.label} Straight Time / Normal Rate`} type="number" min="0" step="0.01" value={scale.regularRate} onChange={(event) => changeBaseRate(index, safeNumber(event.target.value))} /></label><label className="calculated-rate"><span className="mobile-rate-label">Overtime · 1.5×</span><b>$</b><input aria-label={`${scale.label} Overtime Rate`} readOnly value={scale.overtimeRate.toFixed(2)} /><em>Auto</em></label><label className="calculated-rate"><span className="mobile-rate-label">Holiday · 1.5×</span><b>$</b><input aria-label={`${scale.label} Holiday Rate`} readOnly value={scale.holidayRate.toFixed(2)} /><em>Auto</em></label></div>)}</div><button className="primary-action save-rules" onClick={() => void saveRules()}>Save Rates & Rules</button></article>
+            <article className="content-card"><div className="section-header"><div><h2>Pay rates</h2><p>Rates are saved by effective date, so closed and earlier payroll periods never change.</p></div></div><div className="rate-effective-control"><label><span>Effective pay-period date *</span><input type="date" required value={rateEffectiveDate} onChange={(event) => changeRateEffectiveDate(event.target.value)} /></label><small>Select the first day of a payroll period: the 11th or 26th. Existing history before this date remains unchanged.</small></div><div className="rate-list"><div className="rate-head"><span>Pay scale</span><span>Straight Time / Normal</span><span>Overtime · 1.5×</span><span>Holiday · 1.5×</span></div>{scaleDraft.map((scale, index) => <div className="rate-row" key={scale.id}><strong>{scale.label}</strong><label><span className="mobile-rate-label">Straight Time / Normal</span><b>$</b><input aria-label={`${scale.label} Straight Time / Normal Rate`} type="number" min="0" step="0.01" value={scale.regularRate} onChange={(event) => changeBaseRate(index, safeNumber(event.target.value))} /></label><label className="calculated-rate"><span className="mobile-rate-label">Overtime · 1.5×</span><b>$</b><input aria-label={`${scale.label} Overtime Rate`} readOnly value={scale.overtimeRate.toFixed(2)} /><em>Auto</em></label><label className="calculated-rate"><span className="mobile-rate-label">Holiday · 1.5×</span><b>$</b><input aria-label={`${scale.label} Holiday Rate`} readOnly value={scale.holidayRate.toFixed(2)} /><em>Auto</em></label></div>)}</div><button className="primary-action save-rules" onClick={() => void saveRules()}>Save Rates Effective {rateEffectiveDate}</button><div className="rate-history"><h3>Rate history</h3>{data.rateHistory.filter((rate, index, rows) => rows.findIndex((item) => item.effectiveDate === rate.effectiveDate) === index).slice(0, 8).map((rate) => <div key={rate.effectiveDate}><strong>{rate.effectiveDate}</strong><span>{data.rateHistory.filter((item) => item.effectiveDate === rate.effectiveDate).length} pay scales</span></div>)}</div></article>
           </section>}
         </>}
       </section>

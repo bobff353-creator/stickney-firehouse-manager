@@ -51,20 +51,32 @@ export async function GET(request: Request) {
     const entryGroup = "GROUP BY employee_id, work_date, CASE WHEN category = 'dailyLogDpw' THEN 'dpw' ELSE category END ORDER BY work_date";
     const entryQuery = viewer.isAdmin ? db.prepare(`${entrySelect} WHERE period_start = ? ${entryGroup}`).bind(start).all() : db.prepare(`${entrySelect} WHERE period_start = ? AND employee_id = ? ${entryGroup}`).bind(start, viewer.employeeId).all();
     const scaleQuery = viewer.isAdmin ? db.prepare("SELECT id, label, regular_rate AS regularRate, overtime_rate AS overtimeRate, holiday_rate AS holidayRate FROM pay_scales ORDER BY sort_order").all() : db.prepare("SELECT p.id, p.label, p.regular_rate AS regularRate, p.overtime_rate AS overtimeRate, p.holiday_rate AS holidayRate FROM pay_scales p JOIN employees e ON e.pay_scale_id = p.id WHERE e.id = ?").bind(viewer.employeeId).all();
-    const [employeeRows, entryRows, scaleRows, settingsRow, periodRow] = await Promise.all([
+    const [employeeRows, entryRows, scaleRows, settingsRow, periodRow, rateHistoryRows] = await Promise.all([
       employeeQuery,
       entryQuery,
       scaleQuery,
       db.prepare("SELECT overtime_threshold AS overtimeThreshold, acting_officer_premium AS actingOfficerPremium, dpw_multiplier AS dpwMultiplier FROM payroll_settings WHERE id = 1").first(),
       db.prepare("SELECT start_date AS startDate, end_date AS endDate, status, created_by AS createdBy, COALESCE(created_at, updated_at) AS createdAt, updated_by AS updatedBy, updated_at AS updatedAt, finalized_by AS finalizedBy, finalized_at AS finalizedAt FROM pay_periods WHERE start_date = ?").bind(start).first(),
+      db.prepare("SELECT h.id, h.pay_scale_id AS payScaleId, p.label, h.effective_date AS effectiveDate, h.regular_rate AS regularRate, h.overtime_rate AS overtimeRate, h.holiday_rate AS holidayRate, h.created_by AS createdBy, h.created_at AS createdAt FROM pay_rate_history h JOIN pay_scales p ON p.id = h.pay_scale_id ORDER BY h.effective_date DESC, p.sort_order").all(),
     ]);
 
+    const rateHistory = rateHistoryRows.results as Array<{ payScaleId: string; effectiveDate: string; regularRate: number; overtimeRate: number; holidayRate: number }>;
+    const rateFor = (payScaleId: string) => rateHistory.find((rate) => rate.payScaleId === payScaleId && rate.effectiveDate <= start);
+    const employeesForPeriod = (employeeRows.results as Array<Record<string, unknown>>).map((employee) => {
+      const rate = rateFor(String(employee.payScaleId));
+      return rate ? { ...employee, regularRate: rate.regularRate, overtimeRate: rate.overtimeRate, holidayRate: rate.holidayRate } : employee;
+    });
+    const scalesForPeriod = (scaleRows.results as Array<Record<string, unknown>>).map((scale) => {
+      const rate = rateFor(String(scale.id));
+      return rate ? { ...scale, regularRate: rate.regularRate, overtimeRate: rate.overtimeRate, holidayRate: rate.holidayRate } : scale;
+    });
     const revisions = await db.prepare("SELECT revision_number AS revisionNumber, action, summary, actor, changed_at AS changedAt FROM record_revisions WHERE record_type = 'payroll' AND record_id = ? ORDER BY revision_number DESC").bind(start).all();
     return Response.json({
       period: { ...(periodRow as object), revisions: revisions.results },
-      employees: employeeRows.results,
+      employees: employeesForPeriod,
       entries: entryRows.results,
-      payScales: scaleRows.results,
+      payScales: scalesForPeriod,
+      rateHistory: viewer.isAdmin ? rateHistoryRows.results : [],
       settings: settingsRow,
       viewer,
     });
@@ -111,15 +123,21 @@ export async function POST(request: Request) {
     if (action === "saveRules") {
       const overtimeThreshold = Number(payload.overtimeThreshold);
       const dpwMultiplier = Number(payload.dpwMultiplier);
+      const effectiveDate = String(payload.effectiveDate ?? "");
       if (![overtimeThreshold, dpwMultiplier].every(Number.isFinite)) return Response.json({ error: "Invalid payroll rules" }, { status: 400 });
+      if (!/^\d{4}-\d{2}-(11|26)$/.test(effectiveDate)) return Response.json({ error: "Rate effective date must be the first day of a payroll period—the 11th or 26th." }, { status: 400 });
       await db.prepare("UPDATE payroll_settings SET overtime_threshold = ?, acting_officer_premium = ?, dpw_multiplier = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1").bind(overtimeThreshold, ACTING_OFFICER_STIPEND_PER_HOUR, dpwMultiplier).run();
       const scales = Array.isArray(payload.payScales) ? payload.payScales as Array<Record<string, unknown>> : [];
       for (const scale of scales) {
         const regularRate = Number(scale.regularRate);
+        if (!Number.isFinite(regularRate) || regularRate < 0) return Response.json({ error: "Every pay rate must be a valid amount." }, { status: 400 });
         const premiumRate = roundPayrollUpToCent(regularRate * 1.5);
-        await db.prepare("UPDATE pay_scales SET regular_rate = ?, overtime_rate = ?, holiday_rate = ? WHERE id = ?").bind(regularRate, premiumRate, premiumRate, String(scale.id)).run();
+        const payScaleId = String(scale.id);
+        await db.prepare("INSERT INTO pay_rate_history (id, pay_scale_id, effective_date, regular_rate, overtime_rate, holiday_rate, created_by) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(pay_scale_id, effective_date) DO UPDATE SET regular_rate = excluded.regular_rate, overtime_rate = excluded.overtime_rate, holiday_rate = excluded.holiday_rate, created_by = excluded.created_by, created_at = CURRENT_TIMESTAMP").bind(crypto.randomUUID(), payScaleId, effectiveDate, regularRate, premiumRate, premiumRate, viewer.displayName).run();
+        await db.prepare("UPDATE pay_scales SET regular_rate = (SELECT regular_rate FROM pay_rate_history WHERE pay_scale_id = ? AND effective_date <= date('now') ORDER BY effective_date DESC LIMIT 1), overtime_rate = (SELECT overtime_rate FROM pay_rate_history WHERE pay_scale_id = ? AND effective_date <= date('now') ORDER BY effective_date DESC LIMIT 1), holiday_rate = (SELECT holiday_rate FROM pay_rate_history WHERE pay_scale_id = ? AND effective_date <= date('now') ORDER BY effective_date DESC LIMIT 1) WHERE id = ?").bind(payScaleId, payScaleId, payScaleId, payScaleId).run();
       }
-      return Response.json({ ok: true });
+      await addRevision(db, effectiveDate, "Rates updated", `Pay rates saved effective ${effectiveDate}`, viewer.displayName);
+      return Response.json({ ok: true, effectiveDate });
     }
 
     if (action === "saveEmployee") {
