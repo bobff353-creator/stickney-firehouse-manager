@@ -1,4 +1,5 @@
 const forecastUrl = new URL("https://api.open-meteo.com/v1/forecast");
+const weatherComUrl = "https://weather.com/us/illinois/city/berwyn/today";
 forecastUrl.search = new URLSearchParams({
   latitude: "41.8189",
   longitude: "-87.7734",
@@ -24,14 +25,15 @@ function condition(code: number) {
   return "Mixed conditions";
 }
 
-export async function GET() {
-  try {
-    const response = await fetch(forecastUrl, {
+type ForecastDay = { date: string; condition: string; high: number; low: number; precipitationChance: number; windGust: number };
+
+async function openMeteoForecast(): Promise<ForecastDay[]> {
+  const response = await fetch(forecastUrl, {
       signal: AbortSignal.timeout(8000),
       cf: { cacheTtl: 900, cacheEverything: true },
     } as RequestInit & { cf: { cacheTtl: number; cacheEverything: boolean } });
-    if (!response.ok) throw new Error("Forecast source unavailable");
-    const payload = await response.json() as {
+  if (!response.ok) throw new Error("Open-Meteo unavailable");
+  const payload = await response.json() as {
       daily?: {
         time?: string[];
         weather_code?: number[];
@@ -41,18 +43,85 @@ export async function GET() {
         wind_gusts_10m_max?: number[];
       };
     };
-    const daily = payload.daily;
-    if (!daily?.time || daily.time.length < 2) throw new Error("Incomplete forecast");
-    const days = daily.time.slice(0, 2).map((date, index) => ({
+  const daily = payload.daily;
+  if (!daily?.time || daily.time.length < 2) throw new Error("Incomplete Open-Meteo forecast");
+  return daily.time.slice(0, 2).map((date, index) => ({
       date,
       condition: condition(Number(daily.weather_code?.[index] ?? -1)),
       high: Math.round(Number(daily.temperature_2m_max?.[index] ?? 0)),
       low: Math.round(Number(daily.temperature_2m_min?.[index] ?? 0)),
       precipitationChance: Math.round(Number(daily.precipitation_probability_max?.[index] ?? 0)),
       windGust: Math.round(Number(daily.wind_gusts_10m_max?.[index] ?? 0)),
-    }));
-    return Response.json({ location: "Stickney, IL", days }, { headers: { "cache-control": "public, max-age=300, s-maxage=900" } });
+  }));
+}
+
+async function nationalWeatherServiceForecast(): Promise<ForecastDay[]> {
+  const headers = { "user-agent": "Stickney Fire Department Operations Portal weather@stickneyil.gov", accept: "application/geo+json" };
+  const pointsResponse = await fetch("https://api.weather.gov/points/41.8506,-87.7937", {
+    headers,
+    signal: AbortSignal.timeout(8000),
+    cf: { cacheTtl: 3600, cacheEverything: true },
+  } as RequestInit & { cf: { cacheTtl: number; cacheEverything: boolean } });
+  if (!pointsResponse.ok) throw new Error("NWS location lookup unavailable");
+  const points = await pointsResponse.json() as { properties?: { forecast?: string } };
+  const endpoint = points.properties?.forecast;
+  if (!endpoint?.startsWith("https://api.weather.gov/")) throw new Error("Invalid NWS forecast endpoint");
+  const forecastResponse = await fetch(endpoint, {
+    headers,
+    signal: AbortSignal.timeout(8000),
+    cf: { cacheTtl: 900, cacheEverything: true },
+  } as RequestInit & { cf: { cacheTtl: number; cacheEverything: boolean } });
+  if (!forecastResponse.ok) throw new Error("NWS forecast unavailable");
+  const forecast = await forecastResponse.json() as {
+    properties?: {
+      periods?: Array<{
+        startTime: string;
+        isDaytime: boolean;
+        temperature: number;
+        temperatureUnit: string;
+        shortForecast: string;
+        probabilityOfPrecipitation?: { value?: number | null };
+        windSpeed?: string;
+      }>;
+    };
+  };
+  const grouped = new Map<string, NonNullable<NonNullable<typeof forecast.properties>["periods"]>>();
+  for (const period of forecast.properties?.periods ?? []) {
+    const date = period.startTime.slice(0, 10);
+    grouped.set(date, [...(grouped.get(date) ?? []), period]);
+  }
+  const days = [...grouped.entries()].slice(0, 2).map(([date, periods]) => {
+    const daytime = periods.find((period) => period.isDaytime);
+    const nighttime = periods.find((period) => !period.isDaytime);
+    const temperatures = periods.map((period) => period.temperature);
+    const precipitationChance = Math.max(...periods.map((period) => Number(period.probabilityOfPrecipitation?.value ?? 0)));
+    const windGust = Math.max(...periods.flatMap((period) => (period.windSpeed ?? "").match(/\d+/g)?.map(Number) ?? [0]));
+    return {
+      date,
+      condition: daytime?.shortForecast ?? nighttime?.shortForecast ?? "Forecast available",
+      high: daytime?.temperature ?? Math.max(...temperatures),
+      low: nighttime?.temperature ?? Math.min(...temperatures),
+      precipitationChance,
+      windGust,
+    };
+  });
+  if (days.length < 2) throw new Error("Incomplete NWS forecast");
+  return days;
+}
+
+export async function GET() {
+  try {
+    let days: ForecastDay[];
+    let source: string;
+    try {
+      days = await nationalWeatherServiceForecast();
+      source = "National Weather Service";
+    } catch {
+      days = await openMeteoForecast();
+      source = "Open-Meteo backup";
+    }
+    return Response.json({ location: "Berwyn, IL", days, source, detailUrl: weatherComUrl }, { headers: { "cache-control": "public, max-age=300, s-maxage=900" } });
   } catch {
-    return Response.json({ error: "Weather forecast temporarily unavailable" }, { status: 503, headers: { "cache-control": "no-store" } });
+    return Response.json({ error: "Weather forecast temporarily unavailable", detailUrl: weatherComUrl }, { status: 503, headers: { "cache-control": "no-store" } });
   }
 }

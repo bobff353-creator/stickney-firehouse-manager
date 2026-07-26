@@ -669,6 +669,8 @@ td strong { font-size: 16px; }
 .board-weather-slide > div b { color: #b9d9ea; font-size: 22px; }
 .board-weather-slide > div span { font-size: 10px; font-weight: 900; text-transform: uppercase; }
 .board-weather-slide > div small { padding-left: 9px; border-left: 1px solid #536775; color: #d5e1e7; font-size: 12px; }
+.board-weather-slide > a { margin-top: 6px; color: #9ed5ef; display: inline-block; font-size: 10px; font-weight: 850; text-decoration: none; }
+.board-weather-slide > a:hover { color: white; text-decoration: underline; }
 .board-header-dots { position: absolute; bottom: 0; left: 0; display: flex; align-items: center; gap: 7px; }
 .board-header-dots button { width: 9px; height: 9px; padding: 0; border: 0; border-radius: 50%; background: #526772; }
 .board-header-dots button.active { background: #f1b84b; box-shadow: 0 0 0 3px rgba(241,184,75,.14); }
