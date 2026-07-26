@@ -3,6 +3,8 @@ import { stickneyBoxCards } from "./box-card-seed";
 import regionalBoxCards from "./regional-box-card-seed.json";
 import { formatEmployeeName } from "../app/employee-names";
 import { normalizeMilitaryTime } from "../app/military-time";
+import { dailyLogPayrollEntries, dailyLogPayrollTotals, type PayrollStaffingRow } from "../app/payroll-hours";
+import { holidayForDate } from "../app/holidays";
 
 const payScales = [
   ["deputy-chief-1", "Chief — O'Dowd", 31, 46.5, 46.5, 1],
@@ -65,8 +67,9 @@ const policySeedVersion = "stickney-policy-library-2026-07-18";
 const boxCardSeedVersion = "regional-box-cards-structured-2026-07-21-v2";
 const employeeNameFormatVersion = "employee-names-last-first-2026-07-23";
 const callTimeFormatVersion = "daily-log-call-times-military-2026-07-23";
-const july18PayrollCleanupVersion = "july-18-payroll-cleanup-v1";
+const july18PayrollCleanupVersion = "july-18-payroll-cleanup-v2";
 const legacyDpwDedupVersion = "legacy-dpw-dedup-v1";
+const historicalLogReconciliationVersion = "historical-daily-log-payroll-v1";
 const dailyDutySeed = [
   [1, "morning", "Weekly checks on 1201."],
   [1, "afternoon", "Deep clean bathrooms. Scrub floor in bathroom. Wash shower curtains. Clean shower stall."],
@@ -118,13 +121,61 @@ async function normalizeHistoricalCallTimes(db: Awaited<ReturnType<typeof getDat
 }
 
 async function repairJuly18Payroll(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
-  const markerKey = "payroll_repair_2026_07_18_v2";
+  const markerKey = "payroll_repair_2026_07_18_v3";
   const marker = await db.prepare("SELECT value FROM system_meta WHERE key = ? LIMIT 1").bind(markerKey).first<{ value: string }>();
   if (marker?.value === july18PayrollCleanupVersion) return;
   await db.batch([
     db.prepare("DELETE FROM time_entries WHERE employee_id = 'czech-doug' AND work_date = '2026-07-18'"),
     db.prepare("UPDATE time_entries SET hours = 24, updated_at = CURRENT_TIMESTAMP WHERE employee_id = 'delgatto-eric' AND work_date = '2026-07-18' AND category = 'shift' AND hours < 24"),
     db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind(markerKey, july18PayrollCleanupVersion),
+  ]);
+}
+
+function historicalPayrollPeriod(date: string) {
+  const parsed = new Date(`${date}T12:00:00Z`);
+  const day = parsed.getUTCDate();
+  if (day >= 26) {
+    const start = `${parsed.getUTCFullYear()}-${String(parsed.getUTCMonth() + 1).padStart(2, "0")}-26`;
+    parsed.setUTCMonth(parsed.getUTCMonth() + 1, 10);
+    return { start, end: parsed.toISOString().slice(0, 10) };
+  }
+  if (day >= 11) {
+    const start = `${parsed.getUTCFullYear()}-${String(parsed.getUTCMonth() + 1).padStart(2, "0")}-11`;
+    parsed.setUTCDate(25);
+    return { start, end: parsed.toISOString().slice(0, 10) };
+  }
+  parsed.setUTCMonth(parsed.getUTCMonth() - 1);
+  const start = `${parsed.getUTCFullYear()}-${String(parsed.getUTCMonth() + 1).padStart(2, "0")}-26`;
+  parsed.setUTCMonth(parsed.getUTCMonth() + 1, 10);
+  return { start, end: parsed.toISOString().slice(0, 10) };
+}
+
+async function reconcileHistoricalLogPayroll(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
+  const markerKey = "historical_daily_log_payroll_reconciliation";
+  const marker = await db.prepare("SELECT value FROM system_meta WHERE key = ? LIMIT 1").bind(markerKey).first<{ value: string }>();
+  if (marker?.value === historicalLogReconciliationVersion) return;
+  const [dates, dpwRows] = await Promise.all([
+    db.prepare("SELECT DISTINCT log_date AS logDate FROM daily_log_staffing WHERE employee_id IS NOT NULL ORDER BY log_date").all<{ logDate: string }>(),
+    db.prepare("SELECT employee_id AS employeeId FROM employee_profiles WHERE is_dpw = 1").all<{ employeeId: string }>(),
+  ]);
+  const dpwEmployees = new Set(dpwRows.results.map((row) => row.employeeId));
+  for (const { logDate } of dates.results) {
+    const staffing = await db.prepare("SELECT employee_id AS employeeId, time_in AS timeIn, time_out AS timeOut, shift_key AS shiftKey, acting_officer AS actingOfficer FROM daily_log_staffing WHERE log_date = ? AND employee_id IS NOT NULL").bind(logDate).all<PayrollStaffingRow>();
+    const totals = dailyLogPayrollTotals(staffing.results, holidayForDate(logDate));
+    const period = historicalPayrollPeriod(logDate);
+    const writes = [
+      db.prepare("INSERT OR IGNORE INTO pay_periods (start_date, end_date, status) VALUES (?, ?, 'draft')").bind(period.start, period.end),
+      db.prepare("DELETE FROM time_entries WHERE work_date = ? AND category IN ('shift', 'holiday', 'actingOfficer', 'dailyLogDpw')").bind(logDate),
+    ];
+    for (const entry of dailyLogPayrollEntries(totals, dpwEmployees)) {
+      writes.push(db.prepare("INSERT INTO time_entries (id, employee_id, period_start, work_date, category, hours, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)").bind(crypto.randomUUID(), entry.employeeId, period.start, logDate, entry.category, entry.hours));
+    }
+    await db.batch(writes);
+  }
+  await db.batch([
+    // The user confirmed Alonzo had no paid work of any category on July 18.
+    db.prepare("DELETE FROM time_entries WHERE employee_id = 'alonzo-sam' AND work_date = '2026-07-18'"),
+    db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind(markerKey, historicalLogReconciliationVersion),
   ]);
 }
 
@@ -243,6 +294,7 @@ export async function ensureDatabase() {
   await db.batch(employeeSeed.map((employee, index) => db.prepare("INSERT INTO employees (id, name, pay_scale_id, active, sort_order) SELECT ?, ?, ?, 1, ? WHERE NOT EXISTS (SELECT 1 FROM system_meta WHERE key = ?) ON CONFLICT(id) DO NOTHING").bind(employee[0], employee[1], employee[2], index + 1, `employee_deleted:${employee[0]}`)));
   await normalizeEmployeeNames(db);
   await normalizeHistoricalCallTimes(db);
+  await reconcileHistoricalLogPayroll(db);
   await repairJuly18Payroll(db);
   await removeLegacyDpwDuplicates(db);
   const rosterImport = [
