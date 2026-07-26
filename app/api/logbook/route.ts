@@ -31,7 +31,10 @@ function payrollPeriodEnd(start: string) {
 function workedHours(timeIn: string, timeOut: string) {
   const minutes = (value: string) => { const [hours, mins] = value.split(":").map(Number); return hours * 60 + mins; };
   const start = minutes(timeIn), rawEnd = minutes(timeOut);
-  if (!Number.isFinite(start) || !Number.isFinite(rawEnd) || start === rawEnd) return 0;
+  if (!Number.isFinite(start) || !Number.isFinite(rawEnd)) return 0;
+  // A staffed row with matching in/out times represents a full 24-hour tour
+  // (for example, 06:00 through 06:00 the following day).
+  if (start === rawEnd) return 24;
   const end = rawEnd < start ? rawEnd + 1440 : rawEnd;
   return Math.max(0, Math.round(((end - start) / 60) * 100) / 100);
 }
