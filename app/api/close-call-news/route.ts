@@ -4,19 +4,19 @@ const fallbackItems = [
     title: "4th FIREFIGHTER DIES FOLLOWING KNOWLES FIRE BURNOVER (The Secret List)",
     url: "https://www.firefighterclosecalls.com/4th-firefighter-dies-following-knowles-fire-burnover-the-secret-list/",
     publishedAt: "2026-07-25T12:00:00-05:00",
-    excerpt: "",
+    excerpt: "A fourth firefighter died following the Knowles Fire burnover. Open the full Firefighter Close Calls report for the incident details and updates.",
   },
   {
     title: "WASHINGTON, DC FIREFIGHTER STRUCK BY LADDER TRUCK – MEDAVAC’D TO TRAUMA CENTER",
     url: "https://www.firefighterclosecalls.com/washington-dc-firefighter-struck-by-ladder-truck-medavacd-to-trauma-center/",
     publishedAt: "2026-07-23T12:00:00-05:00",
-    excerpt: "",
+    excerpt: "A Washington, D.C., firefighter was struck by a ladder truck and transported by medical helicopter to a trauma center.",
   },
   {
     title: "TROOPERS CITE STATE FIRE EMPLOYEE AFTER CRASH – COLORADO",
     url: "https://www.firefighterclosecalls.com/troopers-cite-state-fire-employee-after-crash-colorado/",
     publishedAt: "2026-07-23T12:00:00-05:00",
-    excerpt: "",
+    excerpt: "Troopers cited a state fire employee after a crash in Colorado. Open the report for the available incident information.",
   },
 ];
 
@@ -53,12 +53,12 @@ export async function GET() {
       const link = decodeXml(field(item, "link"));
       const url = new URL(link);
       if (url.hostname !== "www.firefighterclosecalls.com" && url.hostname !== "firefighterclosecalls.com") throw new Error("Unexpected news link");
-      const description = decodeXml(field(item, "description"));
+      const description = decodeXml(field(item, "content:encoded") || field(item, "description"));
       return {
         title: decodeXml(field(item, "title")),
         url: url.toString(),
         publishedAt: field(item, "pubDate"),
-        excerpt: description.length > 155 ? `${description.slice(0, 152).trimEnd()}…` : description,
+        excerpt: description.length > 360 ? `${description.slice(0, 357).trimEnd()}…` : description,
       };
     }).filter((item) => item.title && item.url);
     if (!items.length) throw new Error("No news reports found");
