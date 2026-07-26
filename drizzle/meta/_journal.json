@@ -120,6 +120,13 @@
       "when": 1785028809557,
       "tag": "0016_light_steve_rogers",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1785031640295,
+      "tag": "0017_lumpy_banshee",
+      "breakpoints": true
     }
   ]
 }

@@ -160,6 +160,18 @@ export const dailyDuties = sqliteTable("daily_duties", {
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [uniqueIndex("daily_duties_day_shift_idx").on(table.dayOfWeek, table.shiftKey)]);
 
+export const chiefBoardItems = sqliteTable("chief_board_items", {
+  id: text("id").primaryKey(),
+  itemType: text("item_type").notNull().default("note"),
+  title: text("title").notNull(),
+  body: text("body").notNull().default(""),
+  eventDate: text("event_date").notNull().default(""),
+  active: integer("active").notNull().default(1),
+  createdBy: text("created_by").notNull().default("System"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [index("chief_board_active_date_idx").on(table.active, table.eventDate)]);
+
 export const systemMeta = sqliteTable("system_meta", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
