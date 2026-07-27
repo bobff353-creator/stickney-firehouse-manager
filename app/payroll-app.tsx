@@ -177,6 +177,7 @@ function PortalSkeleton({ page }: { page: NavItem }) {
 
 export default function PayrollApp() {
   const [activeNav, setActiveNav] = useState<NavItem>("Dashboard");
+  const [tvMode, setTvMode] = useState(false);
   const [periodStart, setPeriodStart] = useState(currentPeriodStart);
   const [data, setData] = useState<PayrollData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -231,6 +232,14 @@ export default function PayrollApp() {
     const update = () => setIsOnline(window.navigator.onLine);
     update(); window.addEventListener("online", update); window.addEventListener("offline", update);
     return () => { window.removeEventListener("online", update); window.removeEventListener("offline", update); };
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("display") === "tv") {
+      setActiveNav("Operations Board");
+      setTvMode(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -535,8 +544,8 @@ export default function PayrollApp() {
   function navigate(page: NavItem) { setActiveNav(page); setMobileMenuOpen(false); setGlobalSearchOpen(false); setGlobalSearch(""); window.scrollTo({ top: 0, behavior: "smooth" }); }
 
   return (
-    <main className="app-shell">
-      <PwaInstall />
+    <main className={`app-shell${tvMode ? " tv-shell" : ""}`}>
+      {!tvMode && <PwaInstall />}
       <aside className="desktop-sidebar">
         <button className="sidebar-brand" onClick={() => navigate("Dashboard")} aria-label="Stickney Fire Department Operations Portal home"><img className="brand-patch" src="/stickney-fd-patch.jpg?v=2" alt="Stickney Fire Department patch" width="64" height="64" /><span><strong>Stickney Fire Department</strong><small>Operations Portal</small></span></button>
         <nav className="sidebar-nav" aria-label="Primary navigation"><button className={activeNav === "Dashboard" ? "current" : ""} onClick={() => navigate("Dashboard")}><Icon name="home"/><span>Dashboard</span></button>{data?.viewer.isAdmin ? adminNavGroups.map((group) => <section key={group.label}><h2>{group.label}</h2>{group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><Icon name={navIcons[item.page]}/><span>{item.label}</span></button>)}</section>) : <section><h2>My Portal</h2>{visibleNav.filter((item) => item !== "Dashboard").map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => navigate(item)}><Icon name={navIcons[item]}/><span>{item}</span></button>)}</section>}</nav>
@@ -607,7 +616,13 @@ export default function PayrollApp() {
           {activeNav === "Work Details" && <WorkDetails onPayrollChanged={(approvedPeriodStart) => { if (approvedPeriodStart === periodStart) void loadPayroll(periodStart); else setPeriodStart(approvedPeriodStart); }} />}
           {activeNav === "Scheduling" && <Scheduling />}
 
-          {activeNav === "Operations Board" && <OperationsBoard />}
+          {activeNav === "Operations Board" && <OperationsBoard tvMode={tvMode} onTvModeChange={(enabled) => {
+            setTvMode(enabled);
+            const url = new URL(window.location.href);
+            if (enabled) url.searchParams.set("display", "tv");
+            else url.searchParams.delete("display");
+            window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+          }} />}
 
           {activeNav === "Activity Timeline" && <ActivityTimeline />}
 
