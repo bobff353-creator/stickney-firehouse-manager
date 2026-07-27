@@ -6,6 +6,7 @@ type ResendEvent = {
   data?: {
     email_id?: string;
     from?: string;
+    to?: string[];
     subject?: string;
     attachments?: Array<{ id?: string; filename?: string; content_type?: string }>;
   };
@@ -15,6 +16,7 @@ type RuntimeEnv = {
   RESEND_API_KEY?: string;
   RESEND_WEBHOOK_SECRET?: string;
   DISPATCH_EMAIL_FROM?: string;
+  DISPATCH_EMAIL_TO?: string;
 };
 
 function safeEqual(left: Uint8Array, right: Uint8Array) {
@@ -79,7 +81,7 @@ export async function POST(request: Request) {
   try {
     const { env } = await import("cloudflare:workers");
     const runtime = env as unknown as RuntimeEnv;
-    if (!runtime.RESEND_API_KEY || !runtime.RESEND_WEBHOOK_SECRET || !runtime.DISPATCH_EMAIL_FROM) {
+    if (!runtime.RESEND_API_KEY || !runtime.RESEND_WEBHOOK_SECRET || !runtime.DISPATCH_EMAIL_FROM || !runtime.DISPATCH_EMAIL_TO) {
       return Response.json({ error: "Dispatch email integration is not configured" }, { status: 503 });
     }
     const body = await request.text();
@@ -90,6 +92,13 @@ export async function POST(request: Request) {
     if (event.type !== "email.received") return Response.json({ ignored: true });
     if ((event.data?.from || "").trim().toLowerCase() !== runtime.DISPATCH_EMAIL_FROM.trim().toLowerCase()) {
       return Response.json({ error: "Unapproved dispatch sender" }, { status: 403 });
+    }
+    const approvedRecipient = runtime.DISPATCH_EMAIL_TO.trim().toLowerCase();
+    if (!(event.data?.to || []).some((recipient) => recipient.trim().toLowerCase() === approvedRecipient)) {
+      return Response.json({ error: "Unapproved dispatch recipient" }, { status: 403 });
+    }
+    if (!(event.data?.subject || "").startsWith("[BRYX Dispatch] STIF")) {
+      return Response.json({ ignored: true, reason: "Not a Stickney Bryx dispatch" });
     }
     const { incident, attachmentCount } = await retrieveIncident(event, runtime.RESEND_API_KEY);
     const db = await ensureDatabase();
