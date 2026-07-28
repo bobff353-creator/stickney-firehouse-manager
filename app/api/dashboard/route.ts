@@ -1,5 +1,6 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 import { chicagoOperationalContext } from "../../operational-day";
+import { syncRecentResendDispatches } from "../../resend-dispatch-sync";
 
 function chicagoParts() {
   const context = chicagoOperationalContext();
@@ -14,6 +15,7 @@ function equipmentIssues(raw: unknown) {
 export async function GET() {
   try {
     const db = await ensureDatabase();
+    try { await syncRecentResendDispatches(db); } catch (error) { console.error("Direct Resend dispatch sync failed", error); }
     const now = chicagoParts(), currentShift = shiftFor(now.minutes), priorShift = previousShift(currentShift);
     await db.prepare("INSERT OR IGNORE INTO daily_logs (log_date) VALUES (?)").bind(now.date).run();
     const [staffing, approvals, calls, dispatchCalls, log, payrollWaiting, newMembers] = await Promise.all([
