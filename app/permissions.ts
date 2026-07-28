@@ -6,7 +6,7 @@ export const permissionCatalog = [
   { key: "daily_log.manage", label: "Edit and approve Daily Log", group: "Operations" },
   { key: "scheduling.view", label: "View scheduling", group: "Scheduling" },
   { key: "scheduling.manage", label: "Manage schedules and requests", group: "Scheduling" },
-  { key: "payroll.view_own", label: "View own timesheet", group: "Payroll" },
+  { key: "payroll.view_own", label: "View own timesheet", group: "Payroll", required: true },
   { key: "payroll.manage", label: "Manage payroll and rates", group: "Payroll" },
   { key: "employees.view", label: "View employee directory", group: "Personnel" },
   { key: "employees.manage", label: "Manage employee records", group: "Personnel" },

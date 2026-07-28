@@ -25,6 +25,7 @@ async function effectivePermissions(db: Awaited<ReturnType<typeof ensureDatabase
   ]);
   const selected = new Set(rankRows.results.length ? rankRows.results.filter((row) => row.allowed).map((row) => row.permissionKey) : defaultPermissionsForRank(employee.rank));
   for (const override of overrides.results) override.effect === "allow" ? selected.add(override.permissionKey) : selected.delete(override.permissionKey);
+  selected.add("payroll.view_own");
   return [...selected];
 }
 
@@ -56,6 +57,7 @@ export async function GET(request: Request) {
   const employeeRows = employees.results.map((employee) => {
     const effective = new Set(employee.isAdmin ? permissionCatalog.map((permission) => permission.key) : rankSettings[employee.rank] ?? defaultPermissionsForRank(employee.rank));
     for (const [key, effect] of Object.entries(overrides[employee.id] ?? {})) effect === "allow" ? effective.add(key as PermissionKey) : effective.delete(key as PermissionKey);
+    effective.add("payroll.view_own");
     return { ...employee, effectivePermissions: [...effective] };
   });
   return Response.json({ catalog: permissionCatalog, ranks: ranks.results.map((row) => row.rank), rankSettings, overrides, employees: employeeRows, viewerPermissions: permissionCatalog.map((permission) => permission.key) });
@@ -70,6 +72,7 @@ export async function PUT(request: Request) {
     const rankExists = rank && await db.prepare("SELECT 1 ok FROM pay_scales WHERE label=? LIMIT 1").bind(rank).first();
     if (!rankExists) return Response.json({ error: "Select a valid rank" }, { status: 400 });
     const selected = new Set((body.permissions ?? []).filter(validPermission));
+    selected.add("payroll.view_own");
     await db.batch([
       db.prepare("DELETE FROM rank_permissions WHERE rank=?").bind(rank),
       ...permissionCatalog.map((permission) => db.prepare("INSERT INTO rank_permissions (rank,permission_key,allowed,updated_at) VALUES (?,?,?,CURRENT_TIMESTAMP)").bind(rank, permission.key, selected.has(permission.key) ? 1 : 0)),
@@ -78,7 +81,7 @@ export async function PUT(request: Request) {
     const employeeId = String(body.employeeId ?? "");
     const exists = await db.prepare("SELECT 1 ok FROM employees WHERE id=? AND active=1").bind(employeeId).first();
     if (!exists) return Response.json({ error: "Select a valid employee" }, { status: 400 });
-    const entries = Object.entries(body.overrides ?? {}).filter(([key, effect]) => validPermission(key) && (effect === "allow" || effect === "deny"));
+    const entries = Object.entries(body.overrides ?? {}).filter(([key, effect]) => key !== "payroll.view_own" && validPermission(key) && (effect === "allow" || effect === "deny"));
     await db.batch([
       db.prepare("DELETE FROM employee_permission_overrides WHERE employee_id=?").bind(employeeId),
       ...entries.map(([key, effect]) => db.prepare("INSERT INTO employee_permission_overrides (employee_id,permission_key,effect,updated_at) VALUES (?,?,?,CURRENT_TIMESTAMP)").bind(employeeId, key, effect)),

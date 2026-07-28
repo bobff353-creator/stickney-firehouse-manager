@@ -40,3 +40,15 @@ test("firefighters can operate an unlocked Daily Log while document editing stay
   assert.match(resources, /"box_cards\.manage"/);
   assert.match(resourcePage, /data-test-safe/);
 });
+
+test("every employee keeps a read-only own-timesheet view including administrator Test View", async () => {
+  const [permissions, route, app] = await Promise.all([
+    readFile(new URL("../app/permissions.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/permissions/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(permissions, /payroll\.view_own.*required: true/);
+  assert.match(route, /effective\.add\("payroll\.view_own"\)/);
+  assert.match(app, /const canEditEntry = isAdminView/);
+  assert.match(app, /isAdminView \? .*employee-select/);
+});
