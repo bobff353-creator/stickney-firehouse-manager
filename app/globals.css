@@ -400,6 +400,39 @@ td strong { font-size: 16px; }
 .edit-employee:hover { background: #edf4f8; }
 .settings-layout { display: grid; gap: 22px; }
 .settings-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.permission-page { display: grid; gap: 18px; }
+.permission-tabs { width: fit-content; padding: 4px; border: 1px solid #c7d2da; border-radius: 9px; background: #eaf0f3; display: flex; gap: 4px; }
+.permission-tabs button { min-height: 38px; padding: 0 15px; border: 0; border-radius: 6px; background: transparent; color: #52697a; font-weight: 850; }
+.permission-tabs button.active { background: white; color: var(--navy); box-shadow: 0 2px 7px rgba(21,48,66,.14); }
+.permission-section { padding: 0; overflow: hidden; }
+.permission-section > header { padding: 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.permission-section h2, .test-member-card h2 { margin: 0; color: var(--navy-deep); }
+.permission-section p, .test-member-card p { margin: 5px 0 0; color: var(--slate); }
+.permission-section select, .test-member-card select { min-height: 43px; padding: 0 11px; border: 1px solid #aab8c2; border-radius: 7px; background: white; }
+.permission-groups { padding: 18px; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 13px; }
+.permission-groups fieldset { padding: 12px; border: 1px solid #d0dbe2; border-radius: 8px; display: grid; align-content: start; gap: 7px; }
+.permission-groups legend { padding: 0 6px; color: #365e7a; font-size: 10px; font-weight: 900; text-transform: uppercase; }
+.permission-groups label { padding: 7px; border-radius: 6px; background: #f1f5f7; display: flex; align-items: center; gap: 8px; color: #344d60; font-size: 12px; font-weight: 750; }
+.permission-groups input { width: 18px; height: 18px; }
+.permission-section > footer { padding: 14px 18px; border-top: 1px solid var(--border); background: #f7f9fa; display: flex; justify-content: flex-end; }
+.permission-override-list { padding: 18px; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.permission-override-list label { padding: 10px; border: 1px solid #d6dfe5; border-radius: 7px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.permission-override-list label > span { min-width: 0; display: grid; gap: 3px; }
+.permission-override-list b { color: #294b63; font-size: 12px; }
+.permission-override-list small { color: #788996; font-size: 9px; }
+.permission-admin-note { margin: 18px !important; padding: 15px; border-radius: 7px; background: #edf5f8; color: #315d77 !important; font-weight: 800; }
+.test-member-card { max-width: 760px; padding: 28px; display: grid; gap: 14px; }
+.test-member-card select { width: 100%; }
+.test-member-card button { width: fit-content; min-height: 40px; padding: 0 14px; border: 1px solid #a45145; border-radius: 7px; background: white; color: #913e34; font-weight: 850; }
+.test-member-card small { color: #758794; }
+.test-badge { width: fit-content; padding: 5px 8px; border-radius: 999px; background: #fff0cb; color: #80590e; font-size: 9px; font-weight: 950; letter-spacing: .08em; }
+.test-view-banner { margin-bottom: 14px; padding: 11px 14px; border: 2px solid #d4952b; border-radius: 9px; background: #fff7df; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.test-view-banner > div { display: flex; align-items: center; gap: 9px; }
+.test-view-banner b { padding: 4px 7px; border-radius: 999px; background: #bd7914; color: white; font-size: 9px; letter-spacing: .08em; }
+.test-view-banner span { color: #604718; font-weight: 850; }
+.test-view-banner small { color: #7b6b4b; }
+.test-view-banner button { min-height: 34px; padding: 0 11px; border: 1px solid #9b5b14; border-radius: 6px; background: white; color: #78440d; font-weight: 850; }
+.testing-member-view button:not(.test-view-banner button), .testing-member-view input, .testing-member-view select, .testing-member-view textarea { cursor: not-allowed; }
 .input-unit { min-height: 52px; padding: 0 13px; border: 1px solid #aab7c2; border-radius: 7px; background: white; display: flex; align-items: center; gap: 8px; }
 .input-unit input { width: 100%; border: 0; outline: 0; background: transparent; text-align: right; font-variant-numeric: tabular-nums; }
 .input-unit b { color: var(--slate); font-size: 13px; white-space: nowrap; }
@@ -1162,6 +1195,8 @@ td strong { font-size: 16px; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .mini-summary { grid-template-columns: repeat(2, 1fr); }
   .settings-grid { grid-template-columns: 1fr; }
+  .permission-groups, .permission-override-list { grid-template-columns: 1fr; }
+  .permission-section > header, .test-view-banner, .test-view-banner > div { align-items: stretch; flex-direction: column; }
   .employee-fields.three-col { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .shift-card-grid { grid-template-columns: 1fr; }
   .call-row { grid-template-columns: 34px repeat(3, minmax(0, 1fr)); }

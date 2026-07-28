@@ -22,6 +22,7 @@ import { ACTING_OFFICER_STIPEND_PER_HOUR, calculateGrossPay } from "./payroll-ca
 import { payrollExportRows } from "./payroll-export";
 import WorkDetails from "./work-details";
 import Scheduling from "./scheduling";
+import PermissionSettings from "./permission-settings";
 
 type Category = "shift" | "drill" | "workDetail" | "callback" | "actingOfficer" | "holiday" | "dpw";
 type PayScale = { id: string; label: string; regularRate: number; overtimeRate: number; holidayRate: number };
@@ -52,18 +53,19 @@ type PayrollData = {
 type GlobalSearchItem = { id: string; type: "Employee" | "Contact" | "Policy" | "Box Card" | "Important Number"; title: string; detail: string; page: NavItem };
 type IconName = "home" | "log" | "box" | "users" | "phone" | "payroll" | "clock" | "rates" | "document" | "holiday" | "settings" | "search" | "bell" | "menu" | "close" | "filter" | "export" | "back" | "next" | "save" | "warning" | "chevron";
 
-type NavItem = "Dashboard" | "Command Center" | "Operations Board" | "Activity Timeline" | "Scheduling" | "Payroll" | "Work Details" | "Daily Log" | "Timesheets" | "My Timesheet" | "Employees" | "Employee Contacts" | "Policies" | "Box Cards" | "Holiday Policy" | "Daily Duties" | "Phone Numbers" | "Rates & Rules";
-const adminNavItems: NavItem[] = ["Dashboard", "Command Center", "Operations Board", "Activity Timeline", "Scheduling", "Payroll", "Work Details", "Daily Log", "Timesheets", "Employees", "Employee Contacts", "Policies", "Box Cards", "Holiday Policy", "Daily Duties", "Phone Numbers", "Rates & Rules"];
+type NavItem = "Dashboard" | "Command Center" | "Operations Board" | "Activity Timeline" | "Scheduling" | "Payroll" | "Work Details" | "Daily Log" | "Timesheets" | "My Timesheet" | "Employees" | "Employee Contacts" | "Policies" | "Box Cards" | "Holiday Policy" | "Daily Duties" | "Phone Numbers" | "Rates & Rules" | "Permissions" | "Test View";
+const adminNavItems: NavItem[] = ["Dashboard", "Command Center", "Operations Board", "Activity Timeline", "Scheduling", "Payroll", "Work Details", "Daily Log", "Timesheets", "Employees", "Employee Contacts", "Policies", "Box Cards", "Holiday Policy", "Daily Duties", "Phone Numbers", "Rates & Rules", "Permissions", "Test View"];
 const employeeNavItems: NavItem[] = ["Dashboard", "Operations Board", "Scheduling", "My Timesheet", "Policies", "Box Cards", "Daily Duties"];
-const navIcons: Record<NavItem, IconName> = { Dashboard: "home", "Command Center": "rates", "Operations Board": "log", "Activity Timeline": "clock", Scheduling: "clock", Payroll: "payroll", "Work Details": "document", "Daily Log": "log", Timesheets: "clock", "My Timesheet": "clock", Employees: "users", "Employee Contacts": "phone", Policies: "document", "Box Cards": "box", "Holiday Policy": "holiday", "Daily Duties": "clock", "Phone Numbers": "phone", "Rates & Rules": "rates" };
+const navIcons: Record<NavItem, IconName> = { Dashboard: "home", "Command Center": "rates", "Operations Board": "log", "Activity Timeline": "clock", Scheduling: "clock", Payroll: "payroll", "Work Details": "document", "Daily Log": "log", Timesheets: "clock", "My Timesheet": "clock", Employees: "users", "Employee Contacts": "phone", Policies: "document", "Box Cards": "box", "Holiday Policy": "holiday", "Daily Duties": "clock", "Phone Numbers": "phone", "Rates & Rules": "rates", Permissions: "settings", "Test View": "users" };
 const adminNavGroups: Array<{ label: string; icon: IconName; items: Array<{ label: string; page: NavItem }> }> = [
   { label: "Operations", icon: "log", items: [{ label: "Command Center", page: "Command Center" }, { label: "Live Operations Board", page: "Operations Board" }, { label: "Activity Timeline", page: "Activity Timeline" }, { label: "Daily Log", page: "Daily Log" }, { label: "Box Cards", page: "Box Cards" }] },
   { label: "Scheduling", icon: "clock", items: [{ label: "Schedule Command", page: "Scheduling" }] },
   { label: "Personnel", icon: "users", items: [{ label: "Employees", page: "Employees" }, { label: "Contacts", page: "Employee Contacts" }] },
   { label: "Payroll", icon: "payroll", items: [{ label: "Payroll", page: "Payroll" }, { label: "Work Detail", page: "Work Details" }, { label: "Timesheets", page: "Timesheets" }, { label: "Rates", page: "Rates & Rules" }] },
   { label: "Documents", icon: "document", items: [{ label: "Policies", page: "Policies" }, { label: "Holiday Policy", page: "Holiday Policy" }, { label: "Daily Duties", page: "Daily Duties" }] },
-  { label: "Settings", icon: "settings", items: [{ label: "Important Phone Numbers", page: "Phone Numbers" }] },
+  { label: "Settings", icon: "settings", items: [{ label: "Important Phone Numbers", page: "Phone Numbers" }, { label: "Permissions", page: "Permissions" }, { label: "Test as Member", page: "Test View" }] },
 ];
+const navPermission: Partial<Record<NavItem, string>> = { Dashboard: "dashboard.view", "Command Center": "command_center.view", "Operations Board": "operations_board.view", "Activity Timeline": "command_center.view", Scheduling: "scheduling.view", Payroll: "payroll.manage", "Work Details": "scheduling.manage", "Daily Log": "daily_log.view", Timesheets: "payroll.manage", "My Timesheet": "payroll.view_own", Employees: "employees.manage", "Employee Contacts": "contacts.view", Policies: "documents.view", "Box Cards": "documents.view", "Holiday Policy": "documents.view", "Daily Duties": "documents.view", "Phone Numbers": "settings.manage", "Rates & Rules": "payroll.manage", Permissions: "permissions.manage", "Test View": "permissions.manage" };
 const emptyEmployee: EmployeeForm = {
   lastName: "", firstName: "", payScaleId: "firefighter", employeeNumber: "", startDate: "", endDate: "", dateOfBirth: "",
   phone: "", email: "", addressLine1: "", city: "", state: "IL", postalCode: "", employmentType: "Part-time", isDpw: false, driverStatus: "", actingOfficerEligible: false, scheduleSmsOptIn: false, isAdmin: false,
@@ -206,6 +208,8 @@ export default function PayrollApp() {
   const [employeePhotoFile, setEmployeePhotoFile] = useState<File | null>(null);
   const [employeePhotoPreview, setEmployeePhotoPreview] = useState("");
   const [removeEmployeePhoto, setRemoveEmployeePhoto] = useState(false);
+  const [testMember, setTestMember] = useState<{ id: string; name: string; rank: string; effectivePermissions: string[] } | null>(null);
+  const [viewerPermissions, setViewerPermissions] = useState<string[] | null>(null);
 
   const loadPayroll = useCallback(async (start: string) => {
     setLoading(true);
@@ -221,6 +225,11 @@ export default function PayrollApp() {
       setLastSynced(new Date());
       setSelectedEmployeeId((current) => current || payload.employees[0]?.id || "");
       setActiveNav((current) => (payload.viewer.isAdmin ? adminNavItems : employeeNavItems).includes(current) ? current : "Dashboard");
+      const permissionsResponse = await fetch("/api/permissions");
+      if (permissionsResponse.ok) {
+        const permissionsPayload = await permissionsResponse.json() as { viewerPermissions?: string[] };
+        setViewerPermissions(permissionsPayload.viewerPermissions ?? null);
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to load payroll");
     } finally {
@@ -540,33 +549,43 @@ export default function PayrollApp() {
   const statusLabel = data?.period.status ? data.period.status[0].toUpperCase() + data.period.status.slice(1) : "Draft";
   const syncLabel = !isOnline ? "Offline" : loading || savingCells.size > 0 ? "Saving" : "Saved";
   const syncTime = lastSynced?.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) ?? "Not synced";
-  const visibleNav = data?.viewer.isAdmin ? adminNavItems : employeeNavItems;
+  const isAdminView = Boolean(data?.viewer.isAdmin && !testMember);
+  const visibleNav = testMember ? adminNavItems.filter((item) => !navPermission[item] || testMember.effectivePermissions.includes(navPermission[item]!)) : data?.viewer.isAdmin ? adminNavItems : viewerPermissions ? adminNavItems.filter((item) => !navPermission[item] || viewerPermissions.includes(navPermission[item]!)) : employeeNavItems;
+  const visibleAdminGroups = adminNavGroups.map((group) => ({ ...group, items: group.items.filter((item) => visibleNav.includes(item.page)) })).filter((group) => group.items.length);
   function navigate(page: NavItem) { setActiveNav(page); setMobileMenuOpen(false); setGlobalSearchOpen(false); setGlobalSearch(""); window.scrollTo({ top: 0, behavior: "smooth" }); }
+  function changeTestMember(member: { id: string; name: string; rank: string; effectivePermissions: string[] } | null) {
+    setTestMember(member);
+    if (member) {
+      setSelectedEmployeeId(member.id);
+      setActiveNav("Dashboard");
+    } else setActiveNav("Test View");
+  }
 
   return (
     <main className={`app-shell${tvMode ? " tv-shell" : ""}`}>
       {!tvMode && <PwaInstall />}
       <aside className="desktop-sidebar">
         <button className="sidebar-brand" onClick={() => navigate("Dashboard")} aria-label="Stickney Fire Department Operations Portal home"><img className="brand-patch" src="/stickney-fd-patch.jpg?v=2" alt="Stickney Fire Department patch" width="64" height="64" /><span><strong>Stickney Fire Department</strong><small>Operations Portal</small></span></button>
-        <nav className="sidebar-nav" aria-label="Primary navigation"><button className={activeNav === "Dashboard" ? "current" : ""} onClick={() => navigate("Dashboard")}><Icon name="home"/><span>Dashboard</span></button>{data?.viewer.isAdmin ? adminNavGroups.map((group) => <section key={group.label}><h2>{group.label}</h2>{group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><Icon name={navIcons[item.page]}/><span>{item.label}</span></button>)}</section>) : <section><h2>My Portal</h2>{visibleNav.filter((item) => item !== "Dashboard").map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => navigate(item)}><Icon name={navIcons[item]}/><span>{item}</span></button>)}</section>}</nav>
+        <nav className="sidebar-nav" aria-label="Primary navigation"><button className={activeNav === "Dashboard" ? "current" : ""} onClick={() => navigate("Dashboard")}><Icon name="home"/><span>Dashboard</span></button>{isAdminView ? visibleAdminGroups.map((group) => <section key={group.label}><h2>{group.label}</h2>{group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><Icon name={navIcons[item.page]}/><span>{item.label}</span></button>)}</section>) : <section><h2>{testMember ? `Testing · ${testMember.rank}` : "My Portal"}</h2>{visibleNav.filter((item) => item !== "Dashboard").map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => navigate(item)}><Icon name={navIcons[item]}/><span>{item}</span></button>)}</section>}</nav>
         <div className="sidebar-footer"><span className="system-dot"/>System ready<small>Portal v1.0</small></div>
       </aside>
       <header className="topbar">
         <button className="mobile-brand" onClick={() => navigate("Dashboard")} aria-label="Stickney Fire Department Operations Portal home"><img src="/stickney-fd-patch.jpg?v=2" alt="Stickney Fire Department patch" width="44" height="44" /><strong>Stickney FD Operations Portal</strong></button>
         <div className="topbar-context"><span>Stickney Fire Department</span><strong>{activeNav}</strong></div>
-        <div className="topbar-utilities"><div className={`sync-indicator ${syncLabel.toLowerCase()}`}><Icon name={syncLabel === "Offline" ? "warning" : "save"} size={16}/><span><strong>{syncLabel}</strong><small>Last synced {syncTime}</small></span></div><button className="global-search-trigger" onClick={() => void openGlobalSearch()}><Icon name="search"/><span>Search</span><kbd>⌘ K</kbd></button><SmartAlerts icon={<Icon name="bell"/>} onNavigate={(page) => navigate(page as NavItem)} /><div className="profile"><span className="avatar">{data?.viewer.displayName.split(/[ ,]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span><span className="profile-copy"><strong>{data ? displayName(data.viewer.displayName) : "Signed in"}</strong><small>{data?.viewer.isAdmin ? "Administrator" : "Employee"}</small></span><Icon name="chevron" size={15}/></div><button className="mobile-menu-toggle" aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen((current) => !current)} aria-label="Open navigation"><Icon name={mobileMenuOpen ? "close" : "menu"}/></button></div>
-        {mobileMenuOpen && <nav id="mobile-navigation" className="mobile-nav-panel" aria-label="Mobile navigation"><button className={activeNav === "Dashboard" ? "current" : ""} onClick={() => navigate("Dashboard")}><Icon name="home"/>Dashboard</button>{data?.viewer.isAdmin ? adminNavGroups.map((group) => <section key={group.label}><h2>{group.label}</h2>{group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><Icon name={navIcons[item.page]}/>{item.label}</button>)}</section>) : visibleNav.filter((item) => item !== "Dashboard").map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => navigate(item)}><Icon name={navIcons[item]}/>{item}</button>)}</nav>}
+        <div className="topbar-utilities"><div className={`sync-indicator ${syncLabel.toLowerCase()}`}><Icon name={syncLabel === "Offline" ? "warning" : "save"} size={16}/><span><strong>{syncLabel}</strong><small>Last synced {syncTime}</small></span></div><button className="global-search-trigger" onClick={() => void openGlobalSearch()}><Icon name="search"/><span>Search</span><kbd>⌘ K</kbd></button><SmartAlerts icon={<Icon name="bell"/>} onNavigate={(page) => navigate(page as NavItem)} /><div className="profile"><span className="avatar">{(testMember?.name ?? data?.viewer.displayName ?? "").split(/[ ,]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span><span className="profile-copy"><strong>{testMember ? displayName(testMember.name) : data ? displayName(data.viewer.displayName) : "Signed in"}</strong><small>{testMember ? `Test view · ${testMember.rank}` : data?.viewer.isAdmin ? "Administrator" : "Employee"}</small></span><Icon name="chevron" size={15}/></div><button className="mobile-menu-toggle" aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen((current) => !current)} aria-label="Open navigation"><Icon name={mobileMenuOpen ? "close" : "menu"}/></button></div>
+        {mobileMenuOpen && <nav id="mobile-navigation" className="mobile-nav-panel" aria-label="Mobile navigation"><button className={activeNav === "Dashboard" ? "current" : ""} onClick={() => navigate("Dashboard")}><Icon name="home"/>Dashboard</button>{isAdminView ? visibleAdminGroups.map((group) => <section key={group.label}><h2>{group.label}</h2>{group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><Icon name={navIcons[item.page]}/>{item.label}</button>)}</section>) : visibleNav.filter((item) => item !== "Dashboard").map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => navigate(item)}><Icon name={navIcons[item]}/>{item}</button>)}</nav>}
       </header>
 
       {globalSearchOpen && <div className="global-search-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setGlobalSearchOpen(false); }}><section className="global-search-dialog" role="dialog" aria-modal="true" aria-labelledby="global-search-title"><div className="global-search-head"><div><p className="eyebrow">Department-wide search</p><h2 id="global-search-title">Find anything</h2></div><button aria-label="Close search" onClick={() => setGlobalSearchOpen(false)}><Icon name="close"/></button></div><label className="global-search-input"><Icon name="search"/><input autoFocus value={globalSearch} onChange={(event) => setGlobalSearch(event.target.value)} placeholder="Search employees, contacts, policies, Box Cards, or important numbers…" /></label><div className="global-search-results">{globalSearchLoading ? <div className="global-search-empty">Loading shared information…</div> : !globalSearch.trim() ? <div className="global-search-empty">Start typing a name, address, policy, card number, or phone number.</div> : globalSearchResults.length ? globalSearchResults.map((item) => <button key={item.id} onClick={() => navigate(item.page)}><span className={`search-type ${item.type.toLowerCase().replace(" ", "-")}`}>{item.type}</span><strong>{item.title}</strong><small>{item.detail || `Open ${item.page}`}</small><b aria-hidden="true"><Icon name="chevron" size={18}/></b></button>) : <div className="global-search-empty">No results found for “{globalSearch}”.</div>}</div></section></div>}
       <ConfirmDialog open={finalizeConfirmOpen} title="Finalize this payroll period?" description={`This will lock payroll for ${data ? periodLabel(data.period.startDate, data.period.endDate) : "the selected period"}. Timesheets will become read only and additional changes will require an administrator workflow.`} confirmLabel="Finalize Payroll" tone="warning" busy={finalizing} onCancel={() => setFinalizeConfirmOpen(false)} onConfirm={() => void finalizePayroll()} />
       <ConfirmDialog open={Boolean(employeeToDelete)} title={`Delete ${employeeToDelete ? displayName(employeeToDelete.name) : "employee"}?`} description="This permanently deletes the employee record. This cannot be undone. Employees with payroll or Daily Log history cannot be deleted." confirmLabel="Confirm Delete" tone="danger" busy={deletingEmployee} onCancel={() => setEmployeeToDelete(null)} onConfirm={() => void deleteEmployee()} />
 
-      <section className="workspace">
+      <section className={`workspace${testMember ? " testing-member-view" : ""}`} onClickCapture={(event) => { if (testMember && (event.target as HTMLElement).closest("button,input,select,textarea") && !(event.target as HTMLElement).closest(".test-view-banner")) { event.preventDefault(); event.stopPropagation(); } }} onSubmitCapture={(event) => { if (testMember) { event.preventDefault(); event.stopPropagation(); } }} onChangeCapture={(event) => { if (testMember && !(event.target as HTMLElement).closest(".test-view-banner")) { event.preventDefault(); event.stopPropagation(); } }}>
+        {testMember && <div className="test-view-banner"><div><b>TEST VIEW</b><span>Previewing as {displayName(testMember.name)} · {testMember.rank}</span><small>No identity or approval authority has changed.</small></div><button onClick={() => changeTestMember(null)}>Exit test view</button></div>}
         {error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={() => { setError(""); void loadPayroll(periodStart); }}>Retry</button></div>}
         {toast && <div className="toast" role="status"><Icon name="save" /> {toast}</div>}
         {loading && !data ? <PortalSkeleton page={activeNav} /> : data && <>
-          {activeNav !== "Dashboard" && activeNav !== "Command Center" && activeNav !== "Operations Board" && activeNav !== "Activity Timeline" && activeNav !== "Scheduling" && activeNav !== "Work Details" && activeNav !== "Daily Log" && activeNav !== "Holiday Policy" && activeNav !== "Daily Duties" && activeNav !== "Phone Numbers" && activeNav !== "Employee Contacts" && activeNav !== "Policies" && activeNav !== "Box Cards" && <div className="period-row">
+          {activeNav !== "Dashboard" && activeNav !== "Command Center" && activeNav !== "Operations Board" && activeNav !== "Activity Timeline" && activeNav !== "Scheduling" && activeNav !== "Work Details" && activeNav !== "Daily Log" && activeNav !== "Holiday Policy" && activeNav !== "Daily Duties" && activeNav !== "Phone Numbers" && activeNav !== "Employee Contacts" && activeNav !== "Policies" && activeNav !== "Box Cards" && activeNav !== "Permissions" && activeNav !== "Test View" && <div className="period-row">
             <div>
               <p className="eyebrow">{activeNav === "Payroll" ? "Current pay period" : activeNav}</p>
               <div className="title-line">
@@ -610,7 +629,7 @@ export default function PayrollApp() {
             </section>
           </div>}
 
-          {activeNav === "Dashboard" && <RoleDashboard data={{ viewer: data.viewer, employees: data.employees, entries: data.entries, period: data.period, grossPayroll, reviewCount, employeeGross: selectedSummary?.gross ?? 0 }} onNavigate={(page) => setActiveNav(page)} />}
+          {activeNav === "Dashboard" && <RoleDashboard data={{ viewer: testMember ? { email: "", isAdmin: false, employeeId: testMember.id, displayName: testMember.name } : data.viewer, employees: testMember ? data.employees.filter((employee) => employee.id === testMember.id) : data.employees, entries: testMember ? data.entries.filter((entry) => entry.employeeId === testMember.id) : data.entries, period: data.period, grossPayroll, reviewCount, employeeGross: selectedSummary?.gross ?? 0 }} onNavigate={(page) => setActiveNav(page)} />}
 
           {activeNav === "Command Center" && <CommandCenter />}
           {activeNav === "Work Details" && <WorkDetails onPayrollChanged={(approvedPeriodStart) => { if (approvedPeriodStart === periodStart) void loadPayroll(periodStart); else setPeriodStart(approvedPeriodStart); }} />}
@@ -656,6 +675,8 @@ export default function PayrollApp() {
           {activeNav === "Policies" && <PoliciesPage />}
 
           {activeNav === "Box Cards" && <BoxCardsPage />}
+
+          {(activeNav === "Permissions" || activeNav === "Test View") && data.viewer.isAdmin && <PermissionSettings initialTab={activeNav === "Test View" ? "test" : "permissions"} testEmployeeId={testMember?.id ?? ""} onTestEmployee={changeTestMember} />}
 
           {activeNav === "Employees" && <section className="employee-page">
             <div className="standard-page-header"><div><span className="page-icon"><Icon name="users" size={25}/></span><div><p className="eyebrow">Personnel administration</p><h1>Employees</h1><p>Manage employment, contact, access, driver status, and emergency information.</p></div></div><button type="button" className="primary-action" onClick={() => editEmployee()}>Add Employee</button></div>

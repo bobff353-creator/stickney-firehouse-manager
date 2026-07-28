@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const payScales = sqliteTable("pay_scales", {
   id: text("id").primaryKey(),
@@ -58,6 +58,20 @@ export const employeeProfiles = sqliteTable("employee_profiles", {
   notes: text("notes"),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [uniqueIndex("employee_profiles_number_idx").on(table.employeeNumber)]);
+
+export const rankPermissions = sqliteTable("rank_permissions", {
+  rank: text("rank").notNull(),
+  permissionKey: text("permission_key").notNull(),
+  allowed: integer("allowed").notNull().default(0),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [primaryKey({ columns: [table.rank, table.permissionKey] })]);
+
+export const employeePermissionOverrides = sqliteTable("employee_permission_overrides", {
+  employeeId: text("employee_id").notNull().references(() => employees.id),
+  permissionKey: text("permission_key").notNull(),
+  effect: text("effect").notNull(),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [primaryKey({ columns: [table.employeeId, table.permissionKey] })]);
 
 export const payrollSettings = sqliteTable("payroll_settings", {
   id: integer("id").primaryKey(),

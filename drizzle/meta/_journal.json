@@ -190,6 +190,13 @@
       "when": 1785257593448,
       "tag": "0026_motionless_rocket_raccoon",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1785263158352,
+      "tag": "0027_lazy_james_howlett",
+      "breakpoints": true
     }
   ]
 }
