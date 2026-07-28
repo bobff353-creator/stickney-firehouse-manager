@@ -160,6 +160,7 @@ export const scheduleRequests = sqliteTable("schedule_requests", {
   assignmentId: text("assignment_id").references(() => scheduleAssignments.id), targetEmployeeId: text("target_employee_id").references(() => employees.id),
   startDate: text("start_date").notNull(), endDate: text("end_date").notNull(), startTime: text("start_time").notNull().default(""),
   endTime: text("end_time").notNull().default(""), role: text("role").notNull().default(""), repeatMode: text("repeat_mode").notNull().default("none"),
+  repeatInterval: integer("repeat_interval").notNull().default(0),
   status: text("status").notNull().default("pending"), targetStatus: text("target_status").notNull().default("not_required"),
   notes: text("notes").notNull().default(""), reviewedBy: text("reviewed_by"),
   reviewedAt: text("reviewed_at"), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),

@@ -36,6 +36,25 @@ test("alerts include in-app email and text channels", async () => {
   assert.equal(employeeScreen.includes("Employee elected to receive scheduling texts"), true);
 });
 
+test("employees have a private schedule portal with recurring requests and self-service alerts", async () => {
+  const [page, route, bootstrap, app] = await Promise.all([
+    readFile(new URL("../app/scheduling.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/bootstrap.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(page, /Employee Schedule Portal/);
+  assert.match(page, /Build & Submit Schedule/);
+  assert.match(page, /Open Shifts & Trades/);
+  assert.match(page, /repeatInterval/);
+  assert.match(page, /Save My Alert Preferences/);
+  assert.match(route, /saveMyNotificationPreferences/);
+  assert.match(route, /repeat_interval repeatInterval/);
+  assert.match(route, /repeatInterval < 2 \|\| repeatInterval > 365/);
+  assert.match(bootstrap, /schedule_requests ADD COLUMN repeat_interval/);
+  assert.match(app, /item === "Scheduling" \? "Employee Schedule Portal"/);
+});
+
 test("coverage rules calculate future staffing gaps", async () => {
   const source = await readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8");
   assert.equal(source.includes("schedule_coverage_rules"), true);

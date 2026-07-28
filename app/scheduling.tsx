@@ -15,7 +15,7 @@ type Rotation = {
 };
 type Request = {
   id:string; requestType:string; employeeId:string; employeeName:string; assignmentId?:string; targetEmployeeId?:string;
-  targetEmployeeName?:string; startDate:string; endDate:string; role:string; status:string; targetStatus:string; notes:string;
+  targetEmployeeName?:string; startDate:string; endDate:string; role:string; repeatMode:string; repeatInterval:number; status:string; targetStatus:string; notes:string;
 };
 type Notification = { id:string; title:string; message:string; email:number; sms:number; deliveryStatus:string; readAt?:string; createdAt:string };
 type NotificationRule = { eventType:string; label:string; active:number|boolean; emailEnabled:number|boolean; smsEnabled:number|boolean; deliveryTimings:string; updatedAt:string };
@@ -30,7 +30,7 @@ type StaffingOverride = {
   id:string; patternId:string; name:string; conditionType:string; role:string; minimumStaff:number; active:number;
 };
 type ScheduleData = {
-  viewer:{ employeeId:string|null; isAdmin:boolean; rank:string; actingOfficerEligible:boolean };
+  viewer:{ employeeId:string|null; isAdmin:boolean; rank:string; profileEmail:string; phone:string; smsOptIn:boolean; actingOfficerEligible:boolean };
   employees:Employee[]; assignments:Assignment[]; rotations:Rotation[]; requests:Request[]; notifications:Notification[];
   coverageRules:CoverageRule[]; coverageGaps:CoverageGap[]; shiftPatterns:ShiftPattern[]; staffingOverrides:StaffingOverride[]; notificationRules:NotificationRule[];
 };
@@ -102,7 +102,7 @@ export default function Scheduling() {
   });
   const [request, setRequest] = useState({
     requestType: "availability", assignmentId: "", targetEmployeeId: "", startDate: today(), endDate: today(),
-    startTime: "06:00", endTime: "18:00", role: "Firefighter", repeatMode: "none", notes: "",
+    startTime: "06:00", endTime: "18:00", role: "Firefighter", repeatMode: "none", repeatInterval: "2", notes: "",
   });
   const [coverage, setCoverage] = useState({
     name: "24-hour minimum staffing", startTime: "06:00", endTime: "06:00",
@@ -184,6 +184,8 @@ export default function Scheduling() {
   const monthAssignments = filteredAssignments.filter((item) => item.workDate.slice(0, 7) === month);
   const openShifts = data?.assignments.filter((item) => item.status === "open") ?? [];
   const ownAssignments = data?.assignments.filter((item) => item.employeeId === data.viewer.employeeId) ?? [];
+  const upcomingOwnAssignments = ownAssignments.filter((item) => item.workDate >= today());
+  const incomingTrades = data?.requests.filter((item) => item.requestType === "trade" && item.targetEmployeeId === data.viewer.employeeId && item.status === "pending") ?? [];
   const upcomingGaps = data?.coverageGaps.filter((gap) => gap.date >= today()).slice(0, 20) ?? [];
   const ranks = [...new Set(data?.employees.map((employee) => employee.rank) ?? [])].sort();
   const unread = data?.notifications.filter((item) => !item.readAt).length ?? 0;
@@ -199,7 +201,7 @@ export default function Scheduling() {
   const selectedRotationRule = selectedRotationPlan.find((rule) => rule.role === rotation.role) ?? selectedRotationPlan[0];
   const tabs = data?.viewer.isAdmin
     ? [["calendar", "Department Schedule"], ["patterns", "Shift Patterns"], ["coverage", "Coverage"], ["rotations", "Employee Rotations"], ["open", "Add / Open Shifts"], ["requests", "Requests & Trades"], ["alerts", `Notifications${unread ? ` (${unread})` : ""}`]]
-    : [["calendar", "My Schedule"], ["request", "Request / Availability"], ["open", "Open Shifts"], ["alerts", `Notifications${unread ? ` (${unread})` : ""}`]];
+    : [["calendar", "My Schedule"], ["request", "Build & Submit Schedule"], ["open", `Open Shifts & Trades${incomingTrades.length ? ` (${incomingTrades.length})` : ""}`], ["alerts", `My Alerts${unread ? ` (${unread})` : ""}`]];
 
   function changeMonth(offset:number) {
     const date = new Date(`${month}-01T12:00:00`);
@@ -261,13 +263,13 @@ export default function Scheduling() {
     <section className="schedule-hero">
       <div>
         <p className="eyebrow">Department scheduling</p>
-        <h1>{data?.viewer.isAdmin ? "Scheduling Command" : "My Schedule"}</h1>
+        <h1>{data?.viewer.isAdmin ? "Scheduling Command" : "Employee Schedule Portal"}</h1>
         <p>{data?.viewer.isAdmin
           ? "Control rotations, watch staffing coverage, qualify open shifts, approve requests, and notify members."
-          : "View assignments, submit availability, request qualified open shifts, and arrange confirmed trades."}</p>
+          : "Your private scheduling page for assignments, recurring availability, open shifts, trades, and alert preferences."}</p>
       </div>
       <div className="schedule-metrics">
-        <span><b>{data?.assignments.filter((item) => item.workDate >= today()).length ?? 0}</b>upcoming</span>
+        <span><b>{data?.viewer.isAdmin ? data.assignments.filter((item) => item.workDate >= today()).length : upcomingOwnAssignments.length}</b>upcoming</span>
         <span><b>{openShifts.length}</b>open</span>
         <span className={data?.coverageGaps.length ? "warning" : ""}><b>{data?.coverageGaps.length ?? 0}</b>coverage gaps</span>
         <span><b>{data?.requests.filter((item) => item.status === "pending").length ?? 0}</b>pending</span>
@@ -279,6 +281,12 @@ export default function Scheduling() {
     </nav>
     {error && <div className="error-banner">{error}</div>}
     {message && <div className="work-detail-message">{message}</div>}
+
+    {!data?.viewer.isAdmin && <section className="employee-schedule-overview" aria-label="Employee schedule overview">
+      <article><span>Next assigned shift</span>{upcomingOwnAssignments[0] ? <><strong>{friendlyDate(upcomingOwnAssignments[0].workDate)}</strong><small>{upcomingOwnAssignments[0].startTime}-{upcomingOwnAssignments[0].endTime} · {upcomingOwnAssignments[0].role}</small></> : <strong>No upcoming assignment</strong>}<button onClick={() => setTab("calendar")}>View my calendar</button></article>
+      <article><span>Build my schedule</span><strong>Availability & time off</strong><small>Submit one-time or every-N-days requests for chief review.</small><button onClick={() => setTab("request")}>Create schedule request</button></article>
+      <article className={incomingTrades.length ? "attention" : ""}><span>Open opportunities</span><strong>{openShifts.length} shift{openShifts.length === 1 ? "" : "s"} · {incomingTrades.length} trade{incomingTrades.length === 1 ? "" : "s"}</strong><small>Request eligible openings or respond to a trade offered to you.</small><button onClick={() => setTab("open")}>Review openings</button></article>
+    </section>}
 
     {tab === "calendar" && <section className="content-card schedule-calendar-card">
       <div className="schedule-command-bar">
@@ -474,11 +482,18 @@ export default function Scheduling() {
           </div>{!data.viewer.isAdmin && (() => { const eligible = qualifiedForPosition({ rank: data.viewer.rank, actingOfficerEligible: data.viewer.actingOfficerEligible ? 1 : 0 }, item.role); return <button disabled={busy || !eligible} title={eligible ? undefined : "Your employee record is not marked Acting Officer eligible."} onClick={() => void act({ action: "submitRequest", requestType: "shift_claim", assignmentId: item.id, startDate: item.workDate, endDate: item.workDate, startTime: item.startTime, endTime: item.endTime, role: item.role }, "Shift request sent")}>{eligible ? "Request Shift" : "AO eligibility required"}</button>; })()}</article>)}
         </div>
       </article>
+      {!data?.viewer.isAdmin && <article className="content-card">
+        <div className="section-header"><div><h2>Trades offered to me</h2><p>Accepting sends the trade to chief approval; it does not change the schedule by itself.</p></div></div>
+        <div className="request-list">
+          {!incomingTrades.length && <p className="schedule-empty">No open trades are waiting for you.</p>}
+          {incomingTrades.map((item) => <article key={item.id}><header><div><strong>Trade offer</strong><span>{formatEmployeeName(item.employeeName)} · {friendlyDate(item.startDate)}</span></div><b className={item.status}>{item.targetStatus}</b></header><p>{item.role}{item.notes ? ` · ${item.notes}` : ""}</p>{item.targetStatus === "pending" && <footer><button onClick={() => void act({ action: "respondTrade", id: item.id, decision: "declined" }, "Trade declined")}>Decline</button><button onClick={() => void act({ action: "respondTrade", id: item.id, decision: "accepted" }, "Trade accepted and sent for chief approval")}>Accept & Send for Approval</button></footer>}</article>)}
+        </div>
+      </article>}
     </section>}
 
     {(tab === "request" || tab === "requests") && <section className="schedule-two-col">
       {!data?.viewer.isAdmin && <article className="content-card schedule-form">
-        <div className="section-header"><div><h2>Schedule request</h2><p>Trades require the selected member to accept before chief approval.</p></div></div>
+        <div className="section-header"><div><h2>Build and submit my schedule</h2><p>Enter when you can work or need time off. Recurring requests remain pending until reviewed.</p></div></div>
         <div className="schedule-fields">
           <label><span>Request type</span><select value={request.requestType} onChange={(event) => setRequest({ ...request, requestType: event.target.value, assignmentId: "" })}>{Object.entries(requestLabels).filter(([key]) => key !== "shift_claim").map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
           {request.requestType === "trade" && <>
@@ -487,18 +502,19 @@ export default function Scheduling() {
           </>}
           {["availability", "time_off"].includes(request.requestType) && <>
             {[["Start date", "startDate", "date"], ["End date", "endDate", "date"], ["From", "startTime", "time"], ["To", "endTime", "time"], ["Position", "role", "text"]].map(([label, key, type]) => <label key={key}><span>{label}</span><input type={type} value={String(request[key as keyof typeof request])} onChange={(event) => setRequest({ ...request, [key]: event.target.value })}/></label>)}
-            <label><span>Repeat</span><select value={request.repeatMode} onChange={(event) => setRequest({ ...request, repeatMode: event.target.value })}><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option></select></label>
+            <label><span>Repeat</span><select value={request.repeatMode} onChange={(event) => setRequest({ ...request, repeatMode: event.target.value })}><option value="none">Does not repeat</option><option value="interval">Repeat every set number of days</option></select></label>
+            {request.repeatMode === "interval" && <label><span>Repeat every *</span><div className="input-unit"><input type="number" min="2" max="365" value={request.repeatInterval} onChange={(event) => setRequest({ ...request, repeatInterval: event.target.value })}/><b>days</b></div><small>Examples: every 2, 3, 4, 5, or 6 days.</small></label>}
           </>}
           <label className="wide"><span>Notes</span><textarea rows={4} value={request.notes} onChange={(event) => setRequest({ ...request, notes: event.target.value })}/></label>
         </div>
-        <button className="primary-action" disabled={busy} onClick={() => void act({ action: "submitRequest", ...request }, "Request sent")}>Submit Request</button>
+        <button className="primary-action" disabled={busy || (request.repeatMode === "interval" && (Number(request.repeatInterval) < 2 || Number(request.repeatInterval) > 365))} onClick={() => void act({ action: "submitRequest", ...request, repeatInterval: Number(request.repeatInterval) }, "Schedule request submitted for review")}>Submit My Schedule Request</button>
       </article>}
       <article className="content-card">
         <div className="section-header"><div><h2>{data?.viewer.isAdmin ? "All employee requests" : "My requests and trades"}</h2></div></div>
         <div className="request-list">{data?.requests.map((item) => {
           const needsMyTradeResponse = item.requestType === "trade" && item.targetEmployeeId === data.viewer.employeeId && item.status === "pending" && item.targetStatus === "pending";
           return <article key={item.id}><header><div><strong>{requestLabels[item.requestType] || item.requestType}</strong><span>{formatEmployeeName(item.employeeName)} · {item.startDate}</span></div><b className={item.status}>{item.status}</b></header>
-            <p>{item.role}{item.targetEmployeeName ? ` · requested member: ${formatEmployeeName(item.targetEmployeeName)}` : ""}{item.notes ? ` · ${item.notes}` : ""}</p>
+            <p>{item.role}{item.repeatMode === "interval" && item.repeatInterval ? ` · repeats every ${item.repeatInterval} days through ${item.endDate}` : ""}{item.targetEmployeeName ? ` · requested member: ${formatEmployeeName(item.targetEmployeeName)}` : ""}{item.notes ? ` · ${item.notes}` : ""}</p>
             {item.requestType === "trade" && <small className={`trade-status ${item.targetStatus}`}>Member response: {item.targetStatus.replace("_", " ")}</small>}
             {needsMyTradeResponse && <footer><button onClick={() => void act({ action: "respondTrade", id: item.id, decision: "declined" }, "Trade declined")}>Decline Trade</button><button onClick={() => void act({ action: "respondTrade", id: item.id, decision: "accepted" }, "Trade accepted and sent for chief approval")}>Accept Trade</button></footer>}
             {data.viewer.isAdmin && item.status === "pending" && <footer><button onClick={() => void act({ action: "reviewRequest", id: item.id, decision: "denied" }, "Request denied")}>Deny</button><button disabled={item.requestType === "trade" && item.targetStatus !== "accepted"} title={item.requestType === "trade" && item.targetStatus !== "accepted" ? "Waiting for requested member" : ""} onClick={() => void act({ action: "reviewRequest", id: item.id, decision: "approved" }, "Request approved")}>Approve</button></footer>}
@@ -509,6 +525,11 @@ export default function Scheduling() {
 
     {tab === "alerts" && <section className="content-card">
       <div className="section-header"><div><h2>Scheduling notifications</h2><p>Choose each alert, its channels, and more than one delivery time when needed.</p></div></div>
+      {!data?.viewer.isAdmin && <div className="employee-alert-preferences">
+        <div><span>Email updates</span><strong>{data.viewer.profileEmail || "No employee email saved"}</strong><small>{data.viewer.profileEmail ? "Shift assignments, open-shift responses, trades, and request decisions use this saved employee email automatically." : "Ask an administrator to add your login email in Employee Information."}</small></div>
+        <label className={!data.viewer.phone ? "disabled" : ""}><input type="checkbox" checked={data.viewer.smsOptIn} disabled={!data.viewer.phone || busy} onChange={(event) => setData({ ...data, viewer: { ...data.viewer, smsOptIn: event.target.checked } })}/><span><strong>Text updates</strong><small>{data.viewer.phone ? `Send eligible scheduling texts to ${data.viewer.phone}.` : "A mobile number must be saved before text updates can be enabled."}</small></span></label>
+        <button className="primary-action compact" disabled={busy} onClick={() => void act({ action: "saveMyNotificationPreferences", smsOptIn: data.viewer.smsOptIn }, "My alert preferences saved")}>Save My Alert Preferences</button>
+      </div>}
       {data?.viewer.isAdmin && <div className="schedule-notification-setup">
         <div className="notification-setup-head"><div><strong>Notification setup</strong><p>Text is queued only for employees who elected to receive texts in their Employee profile.</p></div><button className="primary-action compact" disabled={busy} onClick={() => void act({ action: "saveNotificationRules", rules: data.notificationRules.map((rule) => ({ ...rule, deliveryTimings: JSON.parse(rule.deliveryTimings) })) }, "Notification setup saved")}>Save Notification Setup</button></div>
         <div className="notification-rule-list">{data.notificationRules.map((rule) => {

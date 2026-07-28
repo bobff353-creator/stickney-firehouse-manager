@@ -27,13 +27,16 @@ const qualifiedForRole = (role: string, rank: string, actingOfficerEligible: num
 async function viewer(db: Db, request: Request) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
   const employee = email
-    ? await db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.is_admin,0) isAdmin FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(ep.email)=? LIMIT 1").bind(email).first<{id:string;name:string;rank:string;actingOfficerEligible:number;isAdmin:number}>()
+    ? await db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.email,'') profileEmail,COALESCE(ep.phone,'') phone,COALESCE(ep.schedule_sms_opt_in,0) smsOptIn,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.is_admin,0) isAdmin FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(ep.email)=? LIMIT 1").bind(email).first<{id:string;name:string;rank:string;profileEmail:string;phone:string;smsOptIn:number;actingOfficerEligible:number;isAdmin:number}>()
     : null;
   return {
     email,
     employeeId: employee?.id ?? null,
     name: employee?.name ?? (email || "Employee"),
     rank: employee?.rank ?? "",
+    profileEmail: employee?.profileEmail ?? email,
+    phone: employee?.phone ?? "",
+    smsOptIn: Boolean(employee?.smsOptIn),
     actingOfficerEligible: Boolean(employee?.actingOfficerEligible),
     isAdmin: ownerAdminEmails.includes(email) || Boolean(employee?.isAdmin),
   };
@@ -145,8 +148,8 @@ export async function GET(request: Request) {
         : db.prepare("SELECT a.id,a.employee_id employeeId,e.name employeeName,a.work_date workDate,a.start_time startTime,a.end_time endTime,a.role,a.source,a.status,a.emergency,a.required_rank requiredRank,a.claim_deadline claimDeadline,a.notes FROM schedule_assignments a LEFT JOIN employees e ON e.id=a.employee_id WHERE a.work_date>=date('now','-45 day') AND (a.employee_id=? OR a.status='open') ORDER BY a.work_date,a.start_time").bind(employeeId).all<Assignment>(),
       db.prepare("SELECT r.id,r.name,r.start_date startDate,r.end_date endDate,r.start_time startTime,r.end_time endTime,r.cycle_days cycleDays,r.duty_days dutyDays,r.role,r.coverage_plan_id coveragePlanId,r.active,GROUP_CONCAT(e.name,', ') members FROM schedule_rotations r LEFT JOIN schedule_rotation_members m ON m.rotation_id=r.id LEFT JOIN employees e ON e.id=m.employee_id GROUP BY r.id ORDER BY r.active DESC,r.start_date DESC").all(),
       current.isAdmin
-        ? db.prepare("SELECT q.id,q.request_type requestType,q.employee_id employeeId,e.name employeeName,q.assignment_id assignmentId,q.target_employee_id targetEmployeeId,te.name targetEmployeeName,q.start_date startDate,q.end_date endDate,q.start_time startTime,q.end_time endTime,q.role,q.repeat_mode repeatMode,q.status,q.target_status targetStatus,q.notes,q.reviewed_by reviewedBy,q.created_at createdAt FROM schedule_requests q JOIN employees e ON e.id=q.employee_id LEFT JOIN employees te ON te.id=q.target_employee_id ORDER BY CASE q.status WHEN 'pending' THEN 0 ELSE 1 END,q.created_at DESC LIMIT 150").all()
-        : db.prepare("SELECT q.id,q.request_type requestType,q.employee_id employeeId,e.name employeeName,q.assignment_id assignmentId,q.target_employee_id targetEmployeeId,te.name targetEmployeeName,q.start_date startDate,q.end_date endDate,q.start_time startTime,q.end_time endTime,q.role,q.repeat_mode repeatMode,q.status,q.target_status targetStatus,q.notes,q.reviewed_by reviewedBy,q.created_at createdAt FROM schedule_requests q JOIN employees e ON e.id=q.employee_id LEFT JOIN employees te ON te.id=q.target_employee_id WHERE q.employee_id=? OR q.target_employee_id=? ORDER BY q.created_at DESC").bind(employeeId, employeeId).all(),
+        ? db.prepare("SELECT q.id,q.request_type requestType,q.employee_id employeeId,e.name employeeName,q.assignment_id assignmentId,q.target_employee_id targetEmployeeId,te.name targetEmployeeName,q.start_date startDate,q.end_date endDate,q.start_time startTime,q.end_time endTime,q.role,q.repeat_mode repeatMode,q.repeat_interval repeatInterval,q.status,q.target_status targetStatus,q.notes,q.reviewed_by reviewedBy,q.created_at createdAt FROM schedule_requests q JOIN employees e ON e.id=q.employee_id LEFT JOIN employees te ON te.id=q.target_employee_id ORDER BY CASE q.status WHEN 'pending' THEN 0 ELSE 1 END,q.created_at DESC LIMIT 150").all()
+        : db.prepare("SELECT q.id,q.request_type requestType,q.employee_id employeeId,e.name employeeName,q.assignment_id assignmentId,q.target_employee_id targetEmployeeId,te.name targetEmployeeName,q.start_date startDate,q.end_date endDate,q.start_time startTime,q.end_time endTime,q.role,q.repeat_mode repeatMode,q.repeat_interval repeatInterval,q.status,q.target_status targetStatus,q.notes,q.reviewed_by reviewedBy,q.created_at createdAt FROM schedule_requests q JOIN employees e ON e.id=q.employee_id LEFT JOIN employees te ON te.id=q.target_employee_id WHERE q.employee_id=? OR q.target_employee_id=? ORDER BY q.created_at DESC").bind(employeeId, employeeId).all(),
       employeeId
         ? db.prepare("SELECT id,title,message,email,sms,delivery_status deliveryStatus,read_at readAt,created_at createdAt FROM schedule_notifications WHERE employee_id=? ORDER BY created_at DESC LIMIT 50").bind(employeeId).all()
         : Promise.resolve({ results: [] }),
@@ -202,6 +205,15 @@ export async function POST(request: Request) {
       });
       await db.batch(writes);
       return Response.json({ ok: true });
+    }
+
+    if (action === "saveMyNotificationPreferences") {
+      if (!current.employeeId) return Response.json({ error: "Your login is not connected to an employee record." }, { status: 403 });
+      const smsOptIn = Boolean(payload.smsOptIn);
+      const profile = await db.prepare("SELECT COALESCE(email,'') email,COALESCE(phone,'') phone FROM employee_profiles WHERE employee_id=?").bind(current.employeeId).first<{email:string;phone:string}>();
+      if (smsOptIn && !profile?.phone) return Response.json({ error: "Add a mobile phone number to Employee Information before enabling text updates." }, { status: 400 });
+      await db.prepare("UPDATE employee_profiles SET schedule_sms_opt_in=?,updated_at=CURRENT_TIMESTAMP WHERE employee_id=?").bind(smsOptIn ? 1 : 0, current.employeeId).run();
+      return Response.json({ ok: true, email: profile?.email ?? "", smsOptIn });
     }
 
     if (action === "createRotation") {
@@ -372,8 +384,13 @@ export async function POST(request: Request) {
       const targetEmployeeId = String(payload.targetEmployeeId ?? "");
       const startDate = String(payload.startDate ?? "");
       const endDate = String(payload.endDate ?? startDate);
+      const repeatMode = String(payload.repeatMode ?? "none");
+      const repeatInterval = repeatMode === "interval" ? Number(payload.repeatInterval) : 0;
       if (!employeeId || !["availability", "time_off", "shift_claim", "trade"].includes(requestType) || !iso.test(startDate) || !iso.test(endDate)) {
         return Response.json({ error: "Complete the schedule request." }, { status: 400 });
+      }
+      if (["availability", "time_off"].includes(requestType) && (spanDays(startDate, endDate) < 0 || (repeatMode === "interval" && (!Number.isInteger(repeatInterval) || repeatInterval < 2 || repeatInterval > 365)) || !["none", "interval"].includes(repeatMode))) {
+        return Response.json({ error: "Choose a valid date range and a repeat interval from 2 to 365 days." }, { status: 400 });
       }
       if (requestType === "trade" && (!assignmentId || !targetEmployeeId || targetEmployeeId === employeeId)) {
         return Response.json({ error: "Choose your shift and the member who must accept the trade." }, { status: 400 });
@@ -394,8 +411,8 @@ export async function POST(request: Request) {
         if (existing) return Response.json({ error: "You already requested this shift." }, { status: 409 });
       }
       const targetStatus = requestType === "trade" ? "pending" : "not_required";
-      await db.prepare("INSERT INTO schedule_requests(id,request_type,employee_id,assignment_id,target_employee_id,start_date,end_date,start_time,end_time,role,repeat_mode,status,target_status,notes) VALUES(?,?,?,NULLIF(?,''),NULLIF(?,''),?,?,?,?,?,?,'pending',?,?)")
-        .bind(crypto.randomUUID(), requestType, employeeId, assignmentId, targetEmployeeId, startDate, endDate, String(payload.startTime ?? ""), String(payload.endTime ?? ""), String(payload.role ?? ""), String(payload.repeatMode ?? "none"), targetStatus, String(payload.notes ?? "")).run();
+      await db.prepare("INSERT INTO schedule_requests(id,request_type,employee_id,assignment_id,target_employee_id,start_date,end_date,start_time,end_time,role,repeat_mode,repeat_interval,status,target_status,notes) VALUES(?,?,?,NULLIF(?,''),NULLIF(?,''),?,?,?,?,?,?,?,'pending',?,?)")
+        .bind(crypto.randomUUID(), requestType, employeeId, assignmentId, targetEmployeeId, startDate, endDate, String(payload.startTime ?? ""), String(payload.endTime ?? ""), String(payload.role ?? ""), repeatMode, repeatInterval, targetStatus, String(payload.notes ?? "")).run();
       if (requestType === "trade") {
         await notify(db, [targetEmployeeId], "Trade needs your response", `${current.name} requested a shift trade for ${startDate}. Accept or decline it in Scheduling.`, "trade", `${startDate}T12:00:00-05:00`);
       }
