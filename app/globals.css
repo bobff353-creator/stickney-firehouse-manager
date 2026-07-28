@@ -675,8 +675,8 @@ td strong { font-size: 16px; }
 .tv-display .board-clock strong { font-size: clamp(38px,4vw,62px); }
 .tv-display .board-summary article > strong { font-size: clamp(28px,2.8vw,46px); }
 .tv-display .board-panel h2 { font-size: clamp(20px,1.5vw,27px); }
-.tv-display .board-header { min-height: 174px; align-items: stretch; }
-.tv-display .board-header-rotation { min-width: 0; height: 150px; min-height: 150px; flex: 1 1 auto; overflow: hidden; }
+.tv-display .board-header { min-height: 194px; align-items: stretch; }
+.tv-display .board-header-rotation { min-width: 0; height: 170px; min-height: 170px; flex: 1 1 auto; overflow: hidden; }
 .tv-display .board-clock { width: clamp(300px,25vw,430px); flex: 0 0 clamp(300px,25vw,430px); align-self: flex-end; }
 .tv-display .board-summary article { height: 150px; min-height: 150px; overflow: hidden; }
 .tv-display .board-grid.redesigned { grid-template-rows: 290px 330px; }
