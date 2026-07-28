@@ -663,9 +663,19 @@ td strong { font-size: 16px; }
 .previous-shift > div:last-of-type { display: flex; gap: 14px; color: #657785; font-size: 11px; font-weight: 750; }
 .previous-call { margin: 8px 0 0 !important; padding-top: 8px; border-top: 1px solid #e3e8eb; }
 .operations-board { margin: -38px calc(clamp(22px, 3vw, 54px) * -1) -60px; min-height: calc(100vh - 72px); padding: 28px clamp(22px,3vw,48px) 48px; background: #0b1822; color: white; }
-.board-display-controls { position: fixed; z-index: 80; right: 18px; bottom: 18px; opacity: .28; transition: opacity .2s ease; }
+.board-display-controls { position: fixed; z-index: 80; right: 18px; bottom: 18px; display: grid; justify-items: end; gap: 9px; opacity: .28; transition: opacity .2s ease; }
 .board-display-controls:hover, .board-display-controls:focus-within { opacity: 1; }
 .board-display-controls button { min-height: 42px; padding: 0 15px; border: 1px solid #708793; border-radius: 7px; background: rgba(11,24,34,.92); color: white; font-size: 11px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; box-shadow: 0 8px 24px rgba(0,0,0,.28); }
+.board-control-buttons { display: flex; gap: 8px; }
+.call-alert-settings { width: min(360px,calc(100vw - 36px)); padding: 16px; border: 1px solid #708793; border-radius: 10px; background: rgba(11,24,34,.98); color: white; box-shadow: 0 14px 36px rgba(0,0,0,.42); }
+.call-alert-settings > strong { display: block; font-size: 16px; }
+.call-alert-settings label { margin: 12px 0; display: grid; gap: 6px; }
+.call-alert-settings label span, .call-alert-settings small { color: #aebdc7; font-size: 11px; }
+.call-alert-settings select { min-height: 42px; padding: 0 10px; border: 1px solid #536b78; border-radius: 7px; background: #172c39; color: white; font: inherit; }
+.call-alert-settings > div { display: flex; gap: 8px; }
+.call-alert-settings button { flex: 1; }
+.call-alert-settings button.enabled { border-color: #45c777; background: #173a2a; }
+.call-alert-settings small { margin-top: 10px; display: block; line-height: 1.4; }
 .tv-shell { display: block; min-height: 100vh; background: #0b1822; }
 .tv-shell > .desktop-sidebar, .tv-shell > .topbar, .tv-shell > .portal-footer { display: none !important; }
 .tv-shell > .workspace { width: 100%; min-height: 100vh; margin: 0; padding: 0; }
