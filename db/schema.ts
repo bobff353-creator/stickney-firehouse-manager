@@ -266,11 +266,25 @@ export const chiefBoardItems = sqliteTable("chief_board_items", {
   title: text("title").notNull(),
   body: text("body").notNull().default(""),
   eventDate: text("event_date").notNull().default(""),
+  startsAt: text("starts_at").notNull().default(""),
+  endsAt: text("ends_at").notNull().default(""),
+  expiresAt: text("expires_at").notNull().default(""),
+  inviteStatus: text("invite_status").notNull().default(""),
   active: integer("active").notNull().default(1),
   createdBy: text("created_by").notNull().default("System"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [index("chief_board_active_date_idx").on(table.active, table.eventDate)]);
+
+export const chiefBoardAttachments = sqliteTable("chief_board_attachments", {
+  id: text("id").primaryKey(),
+  itemId: text("item_id").notNull().references(() => chiefBoardItems.id),
+  objectKey: text("object_key").notNull(),
+  filename: text("filename").notNull(),
+  contentType: text("content_type").notNull().default("application/octet-stream"),
+  sizeBytes: integer("size_bytes").notNull().default(0),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [index("chief_board_attachment_item_idx").on(table.itemId)]);
 
 export const systemMeta = sqliteTable("system_meta", {
   key: text("key").primaryKey(),

@@ -176,6 +176,13 @@
       "when": 1785251236008,
       "tag": "0024_magenta_leper_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1785256668185,
+      "tag": "0025_smooth_ogun",
+      "breakpoints": true
     }
   ]
 }
