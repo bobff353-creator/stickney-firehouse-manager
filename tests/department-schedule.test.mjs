@@ -43,6 +43,15 @@ test("an assignment beginning after midnight fills the prior operational day's o
   });
 });
 
+test("schedule prefill never automatically selects Acting Officer payroll", () => {
+  const rows = scheduledStaffingForLog([{
+    ...assignment,
+    role: "Officer/AO",
+  }], "2026-07-26");
+  assert.equal(rows.length, 3);
+  assert.equal(rows.every((row) => row.actingOfficer === false), true);
+});
+
 test("Next 24 Hours uses only assigned department shifts that overlap the live window", () => {
   const items = next24DepartmentSchedule([
     assignment,

@@ -100,18 +100,15 @@ export function scheduledStaffingForLog(assignments: DepartmentScheduleAssignmen
       const timeIn = absoluteDateTime(overlapStart).time;
       const timeOut = absoluteDateTime(overlapEnd).time;
       const key = `${section.shiftKey}:${assignment.employeeId}:${timeIn}:${timeOut}`;
-      const actingOfficer = /\bacting\s+officer\b|\bao\b/i.test(assignment.role);
       const existing = rows.get(key);
-      if (existing) {
-        existing.actingOfficer = existing.actingOfficer || actingOfficer;
-      } else {
+      if (!existing) {
         rows.set(key, {
           id: `schedule-${logDate}-${assignment.id}-${section.shiftKey}`,
           shiftKey: section.shiftKey,
           employeeId: assignment.employeeId,
           timeIn,
           timeOut,
-          actingOfficer,
+          actingOfficer: false,
         });
       }
     }
