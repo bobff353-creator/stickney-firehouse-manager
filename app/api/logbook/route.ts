@@ -1,5 +1,6 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 import { scheduleQueryDates, scheduledStaffingForLog, type DepartmentScheduleAssignment } from "../../department-schedule";
+import { projectDispatchIntoDailyLog } from "../../dispatch-daily-log";
 import { holidayForDate } from "../../holidays";
 import { chicagoOperationalContext } from "../../operational-day";
 import { dailyLogPayrollEntries, dailyLogPayrollTotals } from "../../payroll-hours";
@@ -31,6 +32,21 @@ export async function GET(request: Request) {
     const operational = chicagoOperationalContext();
     const date = cleanDate(new URL(request.url).searchParams.get("date"), operational.operationalDate);
     await db.prepare("INSERT OR IGNORE INTO daily_logs (log_date) VALUES (?)").bind(date).run();
+    const unprojectedDispatches = await db.prepare(
+      "SELECT incident_id AS reportNumber, dispatched_at AS dispatchedAt, time_out AS timeOut, responding_units AS respondingUnits, address, call_type AS callType FROM dispatch_incidents WHERE NOT EXISTS (SELECT 1 FROM daily_log_calls WHERE daily_log_calls.report_number = dispatch_incidents.incident_id) ORDER BY datetime(dispatched_at)"
+    ).all<{
+      reportNumber: string;
+      dispatchedAt: string;
+      timeOut: string;
+      respondingUnits: string;
+      address: string;
+      callType: string;
+    }>();
+    for (const incident of unprojectedDispatches.results) {
+      if (chicagoOperationalContext(new Date(incident.dispatchedAt)).operationalDate === date) {
+        await projectDispatchIntoDailyLog(db, incident);
+      }
+    }
     await db.prepare("UPDATE daily_logs SET locked = 1, admin_unlocked = 0, locked_by = COALESCE(locked_by, 'System · 7:00 AM Lock'), locked_at = COALESCE(locked_at, CURRENT_TIMESTAMP) WHERE log_date < ?").bind(operational.lockBeforeDate).run();
     const [log, staffing, calls, addresses, approvals, recentNotes, revisions] = await Promise.all([
       db.prepare("SELECT log_date AS logDate, shift_notes AS shiftNotes, CASE WHEN log_date < ? THEN 1 ELSE locked END AS locked, admin_unlocked AS adminUnlocked, created_by AS createdBy, COALESCE(created_at, updated_at) AS createdAt, updated_by AS updatedBy, updated_at AS updatedAt, locked_by AS lockedBy, locked_at AS lockedAt FROM daily_logs WHERE log_date = ?").bind(operational.lockBeforeDate, date).first(),
