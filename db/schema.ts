@@ -175,7 +175,7 @@ export const scheduleNotifications = sqliteTable("schedule_notifications", {
   eventType: text("event_type").notNull().default("general"),
   email: integer("email", { mode: "boolean" }).notNull().default(false), sms: integer("sms", { mode: "boolean" }).notNull().default(false),
   deliveryStatus: text("delivery_status").notNull().default("queued"), readAt: text("read_at"), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-  scheduledFor: text("scheduled_for").notNull().default(sql`CURRENT_TIMESTAMP`),
+  scheduledFor: text("scheduled_for").notNull().default(""),
 }, (table) => [index("schedule_notification_employee_idx").on(table.employeeId, table.createdAt)]);
 
 export const scheduleNotificationRules = sqliteTable("schedule_notification_rules", {
