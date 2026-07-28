@@ -25,9 +25,15 @@ test("availability open shifts trades and approvals are supported", async () => 
 
 test("alerts include in-app email and text channels", async () => {
   const source = await readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8");
+  const screen = await readFile(new URL("../app/scheduling.tsx", import.meta.url), "utf8");
+  const employeeScreen = await readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8");
   assert.equal(source.includes("schedule_notifications"), true);
-  assert.equal(source.includes("contact?.email ? 1 : 0"), true);
-  assert.equal(source.includes("contact?.phone ? 1 : 0"), true);
+  assert.equal(source.includes("schedule_notification_rules"), true);
+  assert.equal(source.includes("contact.smsOptIn"), true);
+  assert.equal(source.includes('action === "saveNotificationRules"'), true);
+  assert.equal(screen.includes("Alert times (select multiple)"), true);
+  assert.equal(screen.includes("Save Notification Setup"), true);
+  assert.equal(employeeScreen.includes("Employee elected to receive scheduling texts"), true);
 });
 
 test("coverage rules calculate future staffing gaps", async () => {

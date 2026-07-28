@@ -41,6 +41,7 @@ export const employeeProfiles = sqliteTable("employee_profiles", {
   dateOfBirth: text("date_of_birth"),
   phone: text("phone"),
   email: text("email"),
+  scheduleSmsOptIn: integer("schedule_sms_opt_in", { mode: "boolean" }).notNull().default(false),
   addressLine1: text("address_line_1"),
   city: text("city"),
   state: text("state"),
@@ -171,9 +172,22 @@ export const scheduleStaffingOverrides = sqliteTable("schedule_staffing_override
 export const scheduleNotifications = sqliteTable("schedule_notifications", {
   id: text("id").primaryKey(), employeeId: text("employee_id").notNull().references(() => employees.id), title: text("title").notNull(),
   message: text("message").notNull(), inApp: integer("in_app", { mode: "boolean" }).notNull().default(true),
+  eventType: text("event_type").notNull().default("general"),
   email: integer("email", { mode: "boolean" }).notNull().default(false), sms: integer("sms", { mode: "boolean" }).notNull().default(false),
   deliveryStatus: text("delivery_status").notNull().default("queued"), readAt: text("read_at"), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  scheduledFor: text("scheduled_for").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [index("schedule_notification_employee_idx").on(table.employeeId, table.createdAt)]);
+
+export const scheduleNotificationRules = sqliteTable("schedule_notification_rules", {
+  eventType: text("event_type").primaryKey(),
+  label: text("label").notNull(),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  emailEnabled: integer("email_enabled", { mode: "boolean" }).notNull().default(true),
+  smsEnabled: integer("sms_enabled", { mode: "boolean" }).notNull().default(false),
+  deliveryTimings: text("delivery_timings").notNull().default('["immediate"]'),
+  updatedBy: text("updated_by").notNull().default("System"),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
 
 export const dailyLogs = sqliteTable("daily_logs", {
   logDate: text("log_date").primaryKey(),

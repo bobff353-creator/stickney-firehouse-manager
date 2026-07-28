@@ -13,6 +13,28 @@
   --ink: #142c45;
 }
 
+/* Scheduling notification command */
+.schedule-notification-setup { margin-bottom: 24px; padding: 16px; border: 1px solid #c8d5dd; border-radius: 10px; background: #f7fafb; }
+.notification-setup-head { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.notification-setup-head p { margin: 4px 0 0; color: #627583; font-size: 12px; }
+.notification-rule-list { margin-top: 14px; display: grid; gap: 10px; }
+.notification-rule-list > article { padding: 13px; border: 1px solid #ced9e0; border-radius: 8px; background: #fff; display: grid; grid-template-columns: minmax(190px,1fr) minmax(180px,.7fr) minmax(360px,1.7fr); gap: 16px; align-items: center; }
+.notification-rule-list > article.disabled { opacity: .58; background: #f0f2f3; }
+.notification-rule-list header label { display: flex; align-items: center; gap: 9px; }
+.notification-rule-list input { width: 18px; height: 18px; accent-color: #245f8d; }
+.notification-rule-list header span { display: grid; }
+.notification-rule-list header small { color: #71818d; font-size: 9px; }
+.notification-channels, .notification-timings { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 12px; }
+.notification-channels > span, .notification-timings > span { width: 100%; color: #526a7a; font-size: 9px; font-weight: 900; text-transform: uppercase; }
+.notification-channels label, .notification-timings label { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 750; }
+.notification-history-title { margin: 0 0 12px; color: var(--navy-deep); }
+
+@media (max-width: 800px) {
+  .notification-setup-head { align-items: stretch; flex-direction: column; }
+  .notification-rule-list > article { grid-template-columns: 1fr; }
+  .notification-timings { gap: 10px 14px; }
+}
+
 * { box-sizing: border-box; }
 html { background: var(--paper); }
 body { margin: 0; background: var(--paper); color: var(--ink); font-family: "Public Sans", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }

@@ -30,13 +30,13 @@ type Employee = PayScale & {
   id: string; name: string; payScaleId: string; rank: string; active: number;
   employeeNumber?: string | null; startDate?: string | null; endDate?: string | null; dateOfBirth?: string | null;
   phone?: string | null; email?: string | null; addressLine1?: string | null; city?: string | null;
-  state?: string | null; postalCode?: string | null; employmentType?: string | null; isDpw?: number | boolean; driverStatus?: string | null; actingOfficerEligible?: number | boolean; isAdmin?: number | boolean;
+  state?: string | null; postalCode?: string | null; employmentType?: string | null; isDpw?: number | boolean; driverStatus?: string | null; actingOfficerEligible?: number | boolean; scheduleSmsOptIn?: number | boolean; isAdmin?: number | boolean;
   emergencyName?: string | null; emergencyRelationship?: string | null; emergencyPhone?: string | null; photoUpdatedAt?: string | null; notes?: string | null;
 };
 type EmployeeForm = {
   id?: string; lastName: string; firstName: string; payScaleId: string; employeeNumber: string; startDate: string; endDate: string;
   dateOfBirth: string; phone: string; email: string; addressLine1: string; city: string; state: string;
-  postalCode: string; employmentType: string; isDpw: boolean; driverStatus: string; actingOfficerEligible: boolean; isAdmin: boolean; emergencyName: string; emergencyRelationship: string;
+  postalCode: string; employmentType: string; isDpw: boolean; driverStatus: string; actingOfficerEligible: boolean; scheduleSmsOptIn: boolean; isAdmin: boolean; emergencyName: string; emergencyRelationship: string;
   emergencyPhone: string; notes: string;
 };
 type Entry = { id?: string; employeeId: string; workDate: string; category: Category; hours: number };
@@ -66,7 +66,7 @@ const adminNavGroups: Array<{ label: string; icon: IconName; items: Array<{ labe
 ];
 const emptyEmployee: EmployeeForm = {
   lastName: "", firstName: "", payScaleId: "firefighter", employeeNumber: "", startDate: "", endDate: "", dateOfBirth: "",
-  phone: "", email: "", addressLine1: "", city: "", state: "IL", postalCode: "", employmentType: "Part-time", isDpw: false, driverStatus: "", actingOfficerEligible: false, isAdmin: false,
+  phone: "", email: "", addressLine1: "", city: "", state: "IL", postalCode: "", employmentType: "Part-time", isDpw: false, driverStatus: "", actingOfficerEligible: false, scheduleSmsOptIn: false, isAdmin: false,
   emergencyName: "", emergencyRelationship: "", emergencyPhone: "", notes: "",
 };
 const categoryColumns: Array<{ key: Category; short: string; label: string }> = [
@@ -462,7 +462,7 @@ export default function PayrollApp() {
         startDate: employee.startDate ?? "", endDate: employee.endDate ?? "", dateOfBirth: employee.dateOfBirth ?? "",
         phone: employee.phone ?? "", email: employee.email ?? "", addressLine1: employee.addressLine1 ?? "",
         city: employee.city ?? "", state: employee.state ?? "IL", postalCode: employee.postalCode ?? "",
-        employmentType: employee.employmentType ?? "Part-time", isDpw: Boolean(employee.isDpw), driverStatus: employee.driverStatus ?? "", actingOfficerEligible: Boolean(employee.actingOfficerEligible), isAdmin: Boolean(employee.isAdmin), emergencyName: employee.emergencyName ?? "",
+        employmentType: employee.employmentType ?? "Part-time", isDpw: Boolean(employee.isDpw), driverStatus: employee.driverStatus ?? "", actingOfficerEligible: Boolean(employee.actingOfficerEligible), scheduleSmsOptIn: Boolean(employee.scheduleSmsOptIn), isAdmin: Boolean(employee.isAdmin), emergencyName: employee.emergencyName ?? "",
         emergencyRelationship: employee.emergencyRelationship ?? "", emergencyPhone: employee.emergencyPhone ?? "", notes: employee.notes ?? "",
       });
       setEmployeePhotoPreview(employee.photoUpdatedAt ? `/api/employee-photo/${employee.id}?v=${encodeURIComponent(employee.photoUpdatedAt)}` : "");
@@ -678,6 +678,7 @@ export default function PayrollApp() {
                 <label><span>Date of birth</span><input type="date" value={employeeDraft.dateOfBirth} onChange={(event) => setEmployeeDraft((current) => ({ ...current, dateOfBirth: event.target.value }))} /></label>
                 <label><span>Phone number</span><input type="tel" placeholder="(708) 555-0123" value={employeeDraft.phone} onChange={(event) => setEmployeeDraft((current) => ({ ...current, phone: event.target.value }))} /></label>
                 <label><span>Login email</span><input type="email" placeholder="name@example.com" value={employeeDraft.email} onChange={(event) => setEmployeeDraft((current) => ({ ...current, email: event.target.value }))} /><small className="input-help">Must match the employee’s ChatGPT login email to show their timesheet.</small></label>
+                <label className="admin-employee-check"><input type="checkbox" checked={employeeDraft.scheduleSmsOptIn} onChange={(event) => setEmployeeDraft((current) => ({ ...current, scheduleSmsOptIn: event.target.checked }))} /><span><strong>Employee elected to receive scheduling texts</strong><small>Text alerts are queued only when this is checked and a phone number is saved.</small></span></label>
                 <label className="span-two"><span>Home address</span><input placeholder="Street address" value={employeeDraft.addressLine1} onChange={(event) => setEmployeeDraft((current) => ({ ...current, addressLine1: event.target.value }))} /></label>
                 <label><span>City</span><input value={employeeDraft.city} onChange={(event) => setEmployeeDraft((current) => ({ ...current, city: event.target.value }))} /></label>
                 <label><span>State</span><input maxLength={2} value={employeeDraft.state} onChange={(event) => setEmployeeDraft((current) => ({ ...current, state: event.target.value.toUpperCase() }))} /></label>

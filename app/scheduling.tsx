@@ -18,6 +18,7 @@ type Request = {
   targetEmployeeName?:string; startDate:string; endDate:string; role:string; status:string; targetStatus:string; notes:string;
 };
 type Notification = { id:string; title:string; message:string; email:number; sms:number; deliveryStatus:string; readAt?:string; createdAt:string };
+type NotificationRule = { eventType:string; label:string; active:number|boolean; emailEnabled:number|boolean; smsEnabled:number|boolean; deliveryTimings:string; updatedAt:string };
 type CoverageRule = { id:string; planId:string; name:string; role:string; minimumStaff:number; startTime:string; endTime:string; daysOfWeek:string; active:number };
 type CoverageGap = {
   date:string; ruleId:string; name:string; role:string; startTime:string; endTime:string; minimumStaff:number; scheduled:number; shortBy:number;
@@ -31,7 +32,7 @@ type StaffingOverride = {
 type ScheduleData = {
   viewer:{ employeeId:string|null; isAdmin:boolean; rank:string; actingOfficerEligible:boolean };
   employees:Employee[]; assignments:Assignment[]; rotations:Rotation[]; requests:Request[]; notifications:Notification[];
-  coverageRules:CoverageRule[]; coverageGaps:CoverageGap[]; shiftPatterns:ShiftPattern[]; staffingOverrides:StaffingOverride[];
+  coverageRules:CoverageRule[]; coverageGaps:CoverageGap[]; shiftPatterns:ShiftPattern[]; staffingOverrides:StaffingOverride[]; notificationRules:NotificationRule[];
 };
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
@@ -204,6 +205,21 @@ export default function Scheduling() {
     const date = new Date(`${month}-01T12:00:00`);
     date.setMonth(date.getMonth() + offset);
     setMonth(date.toLocaleDateString("en-CA").slice(0, 7));
+  }
+
+  function updateNotificationRule(eventType:string, update:Partial<NotificationRule>) {
+    setData((current) => current ? {
+      ...current,
+      notificationRules: current.notificationRules.map((rule) => rule.eventType === eventType ? { ...rule, ...update } : rule),
+    } : current);
+  }
+
+  function toggleNotificationTiming(rule:NotificationRule, timing:string) {
+    const selected = new Set<string>(JSON.parse(rule.deliveryTimings || '["immediate"]'));
+    if (selected.has(timing)) {
+      if (selected.size > 1) selected.delete(timing);
+    } else selected.add(timing);
+    updateNotificationRule(rule.eventType, { deliveryTimings: JSON.stringify([...selected]) });
   }
   function moveCalendar(offset:number) {
     if (viewMode === "month" || viewMode === "agenda") {
@@ -492,7 +508,21 @@ export default function Scheduling() {
     </section>}
 
     {tab === "alerts" && <section className="content-card">
-      <div className="section-header"><div><h2>Scheduling notifications</h2><p>In-app notices are immediate. Email and text are queued from employee contact records.</p></div></div>
+      <div className="section-header"><div><h2>Scheduling notifications</h2><p>Choose each alert, its channels, and more than one delivery time when needed.</p></div></div>
+      {data?.viewer.isAdmin && <div className="schedule-notification-setup">
+        <div className="notification-setup-head"><div><strong>Notification setup</strong><p>Text is queued only for employees who elected to receive texts in their Employee profile.</p></div><button className="primary-action compact" disabled={busy} onClick={() => void act({ action: "saveNotificationRules", rules: data.notificationRules.map((rule) => ({ ...rule, deliveryTimings: JSON.parse(rule.deliveryTimings) })) }, "Notification setup saved")}>Save Notification Setup</button></div>
+        <div className="notification-rule-list">{data.notificationRules.map((rule) => {
+          const timings = new Set<string>(JSON.parse(rule.deliveryTimings || '["immediate"]'));
+          return <article key={rule.eventType} className={rule.active ? "" : "disabled"}>
+            <header><label><input type="checkbox" checked={Boolean(rule.active)} onChange={(event) => updateNotificationRule(rule.eventType, { active: event.target.checked })}/><span><strong>{rule.label}</strong><small>Turn this task notification on or off</small></span></label></header>
+            <div className="notification-channels"><span>Send by</span><label><input type="checkbox" checked={Boolean(rule.emailEnabled)} onChange={(event) => updateNotificationRule(rule.eventType, { emailEnabled: event.target.checked })}/> Email</label><label><input type="checkbox" checked={Boolean(rule.smsEnabled)} onChange={(event) => updateNotificationRule(rule.eventType, { smsEnabled: event.target.checked })}/> Text</label></div>
+            <div className="notification-timings"><span>Alert times (select multiple)</span>{[
+              ["immediate", "Immediately"], ["48_hours_before", "48 hours before"], ["24_hours_before", "24 hours before"], ["12_hours_before", "12 hours before"], ["2_hours_before", "2 hours before"],
+            ].map(([value, label]) => <label key={value}><input type="checkbox" checked={timings.has(value)} onChange={() => toggleNotificationTiming(rule, value)}/>{label}</label>)}</div>
+          </article>;
+        })}</div>
+      </div>}
+      <h3 className="notification-history-title">Notification history</h3>
       <div className="notification-list">{data?.notifications.map((item) => <article key={item.id} className={item.readAt ? "read" : ""}><div><strong>{item.title}</strong><p>{item.message}</p><small>In-app{item.email ? " · Email queued" : ""}{item.sms ? " · Text queued" : ""}</small></div>{!item.readAt && <button onClick={() => void act({ action: "markRead", id: item.id }, "Marked read")}>Mark Read</button>}</article>)}</div>
     </section>}
   </div>;

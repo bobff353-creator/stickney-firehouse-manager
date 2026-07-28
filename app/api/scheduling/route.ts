@@ -56,11 +56,25 @@ const chicagoNow = () => {
   return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
 };
 
-async function notify(db: Db, ids: string[], title: string, message: string) {
+const timingHours: Record<string, number> = { "48_hours_before": 48, "24_hours_before": 24, "12_hours_before": 12, "2_hours_before": 2 };
+async function notify(db: Db, ids: string[], title: string, message: string, eventType = "general", eventAt = "") {
+  const rule = await db.prepare("SELECT active,email_enabled emailEnabled,sms_enabled smsEnabled,delivery_timings deliveryTimings FROM schedule_notification_rules WHERE event_type=? LIMIT 1").bind(eventType).first<{active:number;emailEnabled:number;smsEnabled:number;deliveryTimings:string}>();
+  if (rule && !rule.active) return;
+  let timings = ["immediate"];
+  try { timings = JSON.parse(rule?.deliveryTimings || '["immediate"]'); } catch { /* Keep immediate delivery. */ }
+  const eventTimestamp = eventAt ? Date.parse(eventAt) : Number.NaN;
   for (const employeeId of [...new Set(ids.filter(Boolean))]) {
-    const contact = await db.prepare("SELECT COALESCE(email,'') email,COALESCE(phone,'') phone FROM employee_profiles WHERE employee_id=?").bind(employeeId).first<{email:string;phone:string}>();
-    await db.prepare("INSERT INTO schedule_notifications(id,employee_id,title,message,in_app,email,sms,delivery_status) VALUES(?,?,?,?,1,?,?,'queued')")
-      .bind(crypto.randomUUID(), employeeId, title, message, contact?.email ? 1 : 0, contact?.phone ? 1 : 0).run();
+    const contact = await db.prepare("SELECT COALESCE(email,'') email,COALESCE(phone,'') phone,COALESCE(schedule_sms_opt_in,0) smsOptIn FROM employee_profiles WHERE employee_id=?").bind(employeeId).first<{email:string;phone:string;smsOptIn:number}>();
+    const writes = timings.map((timing) => {
+      const hours = timingHours[timing];
+      const scheduledFor = timing === "immediate" || !Number.isFinite(eventTimestamp)
+        ? new Date().toISOString()
+        : new Date(eventTimestamp - hours * 3600000).toISOString();
+      if (Date.parse(scheduledFor) < Date.now() - 60000) return null;
+      return db.prepare("INSERT INTO schedule_notifications(id,employee_id,title,message,in_app,event_type,email,sms,delivery_status,scheduled_for) VALUES(?,?,?,?,1,?,?,?,'queued',?)")
+        .bind(crypto.randomUUID(), employeeId, title, message, eventType, rule?.emailEnabled !== 0 && contact?.email ? 1 : 0, Boolean(rule?.smsEnabled && contact?.phone && contact.smsOptIn) ? 1 : 0, scheduledFor);
+    }).filter(Boolean) as ReturnType<Db["prepare"]>[];
+    if (writes.length) await db.batch(writes);
   }
 }
 
@@ -124,7 +138,7 @@ export async function GET(request: Request) {
     const current = await viewer(db, request);
     if (!current.isAdmin && !current.employeeId) return Response.json({ error: "Your login is not connected to an employee record." }, { status: 403 });
     const employeeId = current.employeeId ?? "";
-    const [employees, assignments, rotations, requests, notifications, rules, patterns, overrides] = await Promise.all([
+    const [employees, assignments, rotations, requests, notifications, rules, patterns, overrides, notificationRules] = await Promise.all([
       db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.email,'') email,COALESCE(ep.phone,'') phone,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 ORDER BY e.name COLLATE NOCASE").all(),
       current.isAdmin
         ? db.prepare("SELECT a.id,a.employee_id employeeId,e.name employeeName,a.work_date workDate,a.start_time startTime,a.end_time endTime,a.role,a.source,a.status,a.emergency,a.required_rank requiredRank,a.claim_deadline claimDeadline,a.notes FROM schedule_assignments a LEFT JOIN employees e ON e.id=a.employee_id WHERE a.work_date>=date('now','-45 day') ORDER BY a.work_date,a.start_time").all<Assignment>()
@@ -143,6 +157,9 @@ export async function GET(request: Request) {
       current.isAdmin
         ? db.prepare("SELECT id,pattern_id patternId,name,condition_type conditionType,role,minimum_staff minimumStaff,active FROM schedule_staffing_overrides WHERE active=1 ORDER BY name COLLATE NOCASE,role").all<StaffingOverride>()
         : Promise.resolve({ results: [] as StaffingOverride[] }),
+      current.isAdmin
+        ? db.prepare("SELECT event_type eventType,label,active,email_enabled emailEnabled,sms_enabled smsEnabled,delivery_timings deliveryTimings,updated_at updatedAt FROM schedule_notification_rules ORDER BY label").all()
+        : Promise.resolve({ results: [] }),
     ]);
     return Response.json({
       viewer: current,
@@ -154,6 +171,7 @@ export async function GET(request: Request) {
       coverageRules: rules.results,
       shiftPatterns: patterns.results,
       staffingOverrides: overrides.results,
+      notificationRules: notificationRules.results,
       coverageGaps: current.isAdmin ? coverageGaps(assignments.results, rules.results, patterns.results, overrides.results) : [],
     });
   } catch (error) {
@@ -168,6 +186,23 @@ export async function POST(request: Request) {
     const payload = await request.json() as Record<string,unknown>;
     const action = String(payload.action ?? "");
     if (!current.isAdmin && !current.employeeId) return Response.json({ error: "Your login is not connected to an employee record." }, { status: 403 });
+
+    if (action === "saveNotificationRules") {
+      if (!current.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
+      const rules = Array.isArray(payload.rules) ? payload.rules : [];
+      const allowedTimings = new Set(["immediate", ...Object.keys(timingHours)]);
+      if (!rules.length) return Response.json({ error: "Choose at least one notification rule." }, { status: 400 });
+      const writes = rules.map((entry) => {
+        const rule = entry as Record<string, unknown>;
+        const eventType = String(rule.eventType ?? "");
+        const timings = [...new Set(Array.isArray(rule.deliveryTimings) ? rule.deliveryTimings.map(String).filter((timing) => allowedTimings.has(timing)) : [])];
+        if (!eventType || !timings.length) throw new Error("Each notification needs at least one delivery time.");
+        return db.prepare("UPDATE schedule_notification_rules SET active=?,email_enabled=?,sms_enabled=?,delivery_timings=?,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE event_type=?")
+          .bind(rule.active ? 1 : 0, rule.emailEnabled ? 1 : 0, rule.smsEnabled ? 1 : 0, JSON.stringify(timings), current.name, eventType);
+      });
+      await db.batch(writes);
+      return Response.json({ ok: true });
+    }
 
     if (action === "createRotation") {
       if (!current.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
@@ -200,7 +235,7 @@ export async function POST(request: Request) {
         );
       }
       for (let index = 0; index < writes.length; index += 75) await db.batch(writes.slice(index, index + 75));
-      await notify(db, employeeIds, "New rotating schedule", `${name} shift · ${requiredPosition.name} · ${requiredPosition.role} was assigned every ${cycleDays} day${cycleDays === 1 ? "" : "s"} from ${startDate} through ${endDate}.`);
+      await notify(db, employeeIds, "New rotating schedule", `${name} shift · ${requiredPosition.name} · ${requiredPosition.role} was assigned every ${cycleDays} day${cycleDays === 1 ? "" : "s"} from ${startDate} through ${endDate}.`, "rotation", `${startDate}T${requiredPosition.startTime}:00-05:00`);
       return Response.json({ ok: true, assignmentsCreated: writes.length });
     }
 
@@ -215,7 +250,7 @@ export async function POST(request: Request) {
         db.prepare("UPDATE schedule_rotations SET active=0 WHERE id=?").bind(id),
         db.prepare("DELETE FROM schedule_assignments WHERE rotation_id=? AND work_date>=?").bind(id, today),
       ]);
-      await notify(db, members.results.map((item) => item.employeeId), "Rotation ended", `${rotation.name} was ended. Future generated assignments were removed; past schedule history was preserved.`);
+      await notify(db, members.results.map((item) => item.employeeId), "Rotation ended", `${rotation.name} was ended. Future generated assignments were removed; past schedule history was preserved.`, "rotation");
       return Response.json({ ok: true });
     }
 
@@ -326,7 +361,7 @@ export async function POST(request: Request) {
       const recipients = employeeId
         ? [employeeId]
         : (await db.prepare("SELECT e.id FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND (?='' OR lower(p.label)=lower(?)) AND (?=0 OR lower(p.label) LIKE '%chief%' OR lower(p.label) LIKE '%captain%' OR lower(p.label) LIKE '%lieutenant%' OR COALESCE(ep.acting_officer_eligible,0)=1)").bind(requiredRank, requiredRank, officerRole(role) ? 1 : 0).all<{id:string}>()).results.map((row) => row.id);
-      await notify(db, recipients, emergency ? "Emergency coverage needed" : employeeId ? "Schedule assignment" : "Open shift available", `${workDate} ${startTime}-${endTime} · ${role}${requiredRank ? ` · ${requiredRank} required` : ""}${notes ? ` · ${notes}` : ""}`);
+      await notify(db, recipients, emergency ? "Emergency coverage needed" : employeeId ? "Schedule assignment" : "Open shift available", `${workDate} ${startTime}-${endTime} · ${role}${requiredRank ? ` · ${requiredRank} required` : ""}${notes ? ` · ${notes}` : ""}`, employeeId ? "schedule_assignment" : "open_shift", `${workDate}T${startTime}:00-05:00`);
       return Response.json({ ok: true });
     }
 
@@ -362,9 +397,9 @@ export async function POST(request: Request) {
       await db.prepare("INSERT INTO schedule_requests(id,request_type,employee_id,assignment_id,target_employee_id,start_date,end_date,start_time,end_time,role,repeat_mode,status,target_status,notes) VALUES(?,?,?,NULLIF(?,''),NULLIF(?,''),?,?,?,?,?,?,'pending',?,?)")
         .bind(crypto.randomUUID(), requestType, employeeId, assignmentId, targetEmployeeId, startDate, endDate, String(payload.startTime ?? ""), String(payload.endTime ?? ""), String(payload.role ?? ""), String(payload.repeatMode ?? "none"), targetStatus, String(payload.notes ?? "")).run();
       if (requestType === "trade") {
-        await notify(db, [targetEmployeeId], "Trade needs your response", `${current.name} requested a shift trade for ${startDate}. Accept or decline it in Scheduling.`);
+        await notify(db, [targetEmployeeId], "Trade needs your response", `${current.name} requested a shift trade for ${startDate}. Accept or decline it in Scheduling.`, "trade", `${startDate}T12:00:00-05:00`);
       }
-      await notify(db, await admins(db), "New schedule request", `${current.name} submitted a ${requestType.replace("_", " ")} request for ${startDate}.`);
+      await notify(db, await admins(db), "New schedule request", `${current.name} submitted a ${requestType.replace("_", " ")} request for ${startDate}.`, "shift_request", `${startDate}T12:00:00-05:00`);
       return Response.json({ ok: true });
     }
 
@@ -376,7 +411,7 @@ export async function POST(request: Request) {
       if (!trade) return Response.json({ error: "This trade is no longer waiting for your response." }, { status: 409 });
       if (decision === "accepted" && !qualifiedForRole(trade.role, trade.rank, trade.actingOfficerEligible)) return Response.json({ error: "Your employee record is not eligible for this Officer/AO shift." }, { status: 403 });
       await db.prepare(`UPDATE schedule_requests SET target_status=?${decision === "declined" ? ",status='denied'" : ""} WHERE id=?`).bind(decision, id).run();
-      await notify(db, [trade.employeeId, ...(decision === "accepted" ? await admins(db) : [])], `Trade ${decision}`, `${current.name} ${decision} the proposed trade.`);
+      await notify(db, [trade.employeeId, ...(decision === "accepted" ? await admins(db) : [])], `Trade ${decision}`, `${current.name} ${decision} the proposed trade.`, "trade");
       return Response.json({ ok: true });
     }
 
@@ -401,7 +436,7 @@ export async function POST(request: Request) {
         await db.prepare("UPDATE schedule_assignments SET employee_id=? WHERE id=? AND employee_id=?").bind(item.targetEmployeeId, item.assignmentId, item.employeeId).run();
       }
       await db.prepare("UPDATE schedule_requests SET status=?,reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP WHERE id=?").bind(decision, current.name, id).run();
-      await notify(db, [item.employeeId, ...(item.targetEmployeeId ? [item.targetEmployeeId] : [])], `Schedule request ${decision}`, `Your request was ${decision} by ${current.name}.`);
+      await notify(db, [item.employeeId, ...(item.targetEmployeeId ? [item.targetEmployeeId] : [])], `Schedule request ${decision}`, `Your request was ${decision} by ${current.name}.`, "shift_request");
       return Response.json({ ok: true });
     }
 
