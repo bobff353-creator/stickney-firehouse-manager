@@ -59,18 +59,19 @@ const trainingProviders: Record<"romeoville" | "ifsi" | "nipsta", TrainingProvid
     ],
   },
 };
+type AlertSegment = { frequencies: readonly number[]; duration: number; waveform?: OscillatorType; sweepTo?: number };
 const alertTones = [
-  { id: "station-chime", label: "Station Chime", notes: [659, 784, 988] },
-  { id: "dispatch-triple", label: "Dispatch Triple", notes: [880, 880, 880] },
-  { id: "rising-alert", label: "Rising Alert", notes: [440, 660, 880, 1100] },
-  { id: "two-tone", label: "Two-Tone Page", notes: [600, 900, 600, 900] },
-  { id: "bell", label: "Bell Sequence", notes: [1047, 784, 1047] },
-  { id: "warble", label: "Warble", notes: [740, 988, 740, 988, 740] },
-  { id: "low-high", label: "Low–High", notes: [392, 784, 392, 784] },
-  { id: "priority", label: "Priority Alert", notes: [988, 988, 659, 988] },
-  { id: "digital", label: "Digital Page", notes: [523, 659, 784, 1047] },
-  { id: "soft-chime", label: "Soft Chime", notes: [523, 659, 784] },
-] as const;
+  { id: "minitor-two-tone", label: "Minitor Two-Tone Page", segments: [{ frequencies: [600], duration: 1, waveform: "sine" }, { frequencies: [900], duration: 3, waveform: "sine" }] },
+  { id: "quick-call", label: "Quick-Call Two-Tone", segments: [{ frequencies: [1006], duration: 1, waveform: "sine" }, { frequencies: [1180], duration: 3, waveform: "sine" }] },
+  { id: "plectron", label: "Plectron Tone-Out", segments: [{ frequencies: [1082], duration: 1, waveform: "sine" }, { frequencies: [701], duration: 3, waveform: "sine" }] },
+  { id: "station-hi-lo", label: "Station Hi-Lo Alert", segments: [580, 760, 580, 760, 580, 760, 580, 760].map((frequency) => ({ frequencies: [frequency], duration: .32, waveform: "triangle" as OscillatorType })) },
+  { id: "station-klaxon", label: "Station Klaxon", segments: [1, 0, 1, 0, 1].map((on) => ({ frequencies: on ? [440, 466] : [], duration: on ? .55 : .18, waveform: "sawtooth" as OscillatorType })) },
+  { id: "siren-burst", label: "Electronic Siren Burst", segments: [{ frequencies: [320], sweepTo: 960, duration: 1.2, waveform: "sawtooth" }, { frequencies: [960], sweepTo: 360, duration: 1.2, waveform: "sawtooth" }] },
+  { id: "air-horn", label: "Dual Air-Horn Alert", segments: [{ frequencies: [370, 493], duration: .85, waveform: "sawtooth" }, { frequencies: [], duration: .25 }, { frequencies: [370, 493], duration: .85, waveform: "sawtooth" }] },
+  { id: "house-bell", label: "Firehouse Bell", segments: [1, 0, 1, 0, 1, 0, 1].map((on) => ({ frequencies: on ? [784, 1568] : [], duration: on ? .22 : .18, waveform: "sine" as OscillatorType })) },
+  { id: "dispatch-warble", label: "Dispatch Warble", segments: [720, 980, 720, 980, 720, 980, 720, 980, 720, 980].map((frequency) => ({ frequencies: [frequency], duration: .16, waveform: "triangle" as OscillatorType })) },
+  { id: "three-chime", label: "Three-Chime Station Alert", segments: [{ frequencies: [523, 659, 784], duration: .7, waveform: "sine" }, { frequencies: [], duration: .18 }, { frequencies: [659, 784, 988], duration: .7, waveform: "sine" }, { frequencies: [], duration: .18 }, { frequencies: [784, 988, 1175], duration: 1.1, waveform: "sine" }] },
+] as const satisfies readonly { id: string; label: string; segments: readonly AlertSegment[] }[];
 type AlertTone = typeof alertTones[number]["id"];
 const alertToneIds = new Set<string>(alertTones.map((tone) => tone.id));
 const displayName = formatEmployeeName;
@@ -89,31 +90,42 @@ function TrainingCourses({ provider, today }: { provider: TrainingProvider; toda
 
 export default function OperationsBoard({ tvMode = false, onTvModeChange }: { tvMode?: boolean; onTvModeChange?: (enabled: boolean) => void }) {
   const [data, setData] = useState<BoardData | null>(null), [currentDuty, setCurrentDuty] = useState<CurrentDuty | null>(null), [news, setNews] = useState<CloseCallReport[]>([]), [fatalities, setFatalities] = useState<UsfaData | null>(null), [weather, setWeather] = useState<WeatherData | null>(null), [error, setError] = useState(""), [clock, setClock] = useState(new Date()), [rotation, setRotation] = useState<Rotation>("equipment"), [headerRotation, setHeaderRotation] = useState<HeaderRotation>("title");
-  const [alertEnabled, setAlertEnabled] = useState(false), [alertTone, setAlertTone] = useState<AlertTone>("station-chime"), [alertPanelOpen, setAlertPanelOpen] = useState(false);
-  const alertEnabledRef = useRef(false), alertToneRef = useRef<AlertTone>("station-chime"), seenCallIdsRef = useRef<Set<string> | null>(null), audioContextRef = useRef<AudioContext | null>(null);
+  const [alertEnabled, setAlertEnabled] = useState(false), [alertTone, setAlertTone] = useState<AlertTone>("minitor-two-tone"), [alertPanelOpen, setAlertPanelOpen] = useState(false);
+  const alertEnabledRef = useRef(false), alertToneRef = useRef<AlertTone>("minitor-two-tone"), seenCallIdsRef = useRef<Set<string> | null>(null), audioContextRef = useRef<AudioContext | null>(null);
   const playAlert = useCallback(async (toneId = alertToneRef.current) => {
     const AudioContextClass = window.AudioContext;
     const context = audioContextRef.current ?? new AudioContextClass();
     audioContextRef.current = context;
     if (context.state === "suspended") await context.resume();
     const tone = alertTones.find((item) => item.id === toneId) ?? alertTones[0];
-    const start = context.currentTime + .03;
-    tone.notes.forEach((frequency, index) => {
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
-      const noteStart = start + index * .2;
-      oscillator.type = toneId === "soft-chime" ? "sine" : toneId === "digital" ? "square" : "triangle";
-      oscillator.frequency.setValueAtTime(frequency, noteStart);
-      gain.gain.setValueAtTime(.0001, noteStart);
-      gain.gain.exponentialRampToValueAtTime(toneId === "soft-chime" ? .08 : .16, noteStart + .025);
-      gain.gain.exponentialRampToValueAtTime(.0001, noteStart + .17);
-      oscillator.connect(gain).connect(context.destination);
-      oscillator.start(noteStart);
-      oscillator.stop(noteStart + .18);
+    let segmentStart = context.currentTime + .04;
+    tone.segments.forEach((segment: AlertSegment) => {
+      if (!segment.frequencies.length) {
+        segmentStart += segment.duration;
+        return;
+      }
+      segment.frequencies.forEach((frequency) => {
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        const filter = context.createBiquadFilter();
+        oscillator.type = segment.waveform ?? "sine";
+        oscillator.frequency.setValueAtTime(frequency, segmentStart);
+        if (segment.sweepTo) oscillator.frequency.exponentialRampToValueAtTime(segment.sweepTo, segmentStart + segment.duration);
+        filter.type = "lowpass";
+        filter.frequency.setValueAtTime(2400, segmentStart);
+        gain.gain.setValueAtTime(.0001, segmentStart);
+        gain.gain.exponentialRampToValueAtTime(.15 / Math.sqrt(segment.frequencies.length), segmentStart + .035);
+        gain.gain.setValueAtTime(.15 / Math.sqrt(segment.frequencies.length), Math.max(segmentStart + .04, segmentStart + segment.duration - .06));
+        gain.gain.exponentialRampToValueAtTime(.0001, segmentStart + segment.duration);
+        oscillator.connect(filter).connect(gain).connect(context.destination);
+        oscillator.start(segmentStart);
+        oscillator.stop(segmentStart + segment.duration + .02);
+      });
+      segmentStart += segment.duration;
     });
   }, []);
   const load = useCallback(async () => { const [dashboardResponse, dutiesResponse, newsResponse, fatalitiesResponse, weatherResponse] = await Promise.all([fetch("/api/dashboard"), fetch("/api/daily-duties"), fetch("/api/close-call-news"), fetch("/api/usfa-fatalities"), fetch("/api/weather")]); const result = await dashboardResponse.json() as BoardData; const duties = await dutiesResponse.json() as { currentDuty?: CurrentDuty | null }; const reports = await newsResponse.json() as { items?: CloseCallReport[] }; const usfa = await fatalitiesResponse.json() as UsfaData; const forecast = await weatherResponse.json() as WeatherData; if (dashboardResponse.ok) { const incomingIds = new Set(result.activeCalls.map((call) => call.reportNumber).filter(Boolean)); if (seenCallIdsRef.current) { const hasNewCall = [...incomingIds].some((id) => !seenCallIdsRef.current?.has(id)); if (hasNewCall && alertEnabledRef.current) void playAlert(); incomingIds.forEach((id) => seenCallIdsRef.current?.add(id)); } else { seenCallIdsRef.current = incomingIds; } setData(result); setError(""); } else setError(result.error || "Unable to load live operations"); if (dutiesResponse.ok) setCurrentDuty(duties.currentDuty ?? null); if (newsResponse.ok) setNews(reports.items ?? []); if (fatalitiesResponse.ok) setFatalities(usfa); if (weatherResponse.ok) setWeather(forecast); }, [playAlert]);
-  useEffect(() => { const storedTone = window.localStorage.getItem("stickney-call-alert-tone") || ""; const selectedTone = alertToneIds.has(storedTone) ? storedTone as AlertTone : "station-chime"; const enabled = window.localStorage.getItem("stickney-call-alert-enabled") === "true"; setAlertTone(selectedTone); setAlertEnabled(enabled); alertToneRef.current = selectedTone; alertEnabledRef.current = enabled; }, []);
+  useEffect(() => { const storedTone = window.localStorage.getItem("stickney-call-alert-tone") || ""; const selectedTone = alertToneIds.has(storedTone) ? storedTone as AlertTone : "minitor-two-tone"; const enabled = window.localStorage.getItem("stickney-call-alert-enabled") === "true"; setAlertTone(selectedTone); setAlertEnabled(enabled); alertToneRef.current = selectedTone; alertEnabledRef.current = enabled; }, []);
   useEffect(() => { const initial = window.setTimeout(() => void load(), 0); const refresh = window.setInterval(() => void load(), 30000); const ticker = window.setInterval(() => setClock(new Date()), 1000); const rotate = window.setInterval(() => setRotation((current) => rotationOrder[(rotationOrder.indexOf(current) + 1) % rotationOrder.length]), 12000); const rotateHeader = window.setInterval(() => setHeaderRotation((current) => headerRotationOrder[(headerRotationOrder.indexOf(current) + 1) % headerRotationOrder.length]), 8000); return () => { window.clearTimeout(initial); window.clearInterval(refresh); window.clearInterval(ticker); window.clearInterval(rotate); window.clearInterval(rotateHeader); }; }, [load]);
   const next = useMemo(() => nextShift(clock), [clock]);
   const activeCall = data?.activeCalls[0];
