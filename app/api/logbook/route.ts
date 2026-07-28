@@ -4,7 +4,6 @@ import { holidayForDate } from "../../holidays";
 import { chicagoOperationalContext } from "../../operational-day";
 import { dailyLogPayrollEntries, dailyLogPayrollTotals } from "../../payroll-hours";
 
-const callTypes = ["Fire", "EMS", "MVA", "TRT", "HazMat", "Auto Aid", "Mutual Aid", "Hazardous Condition", "Special"];
 const shifts = ["morning", "afternoon", "overnight"];
 const actorFor = (request: Request) => request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() || "System";
 async function addRevision(db: Awaited<ReturnType<typeof ensureDatabase>>, id: string, action: string, summary: string, actor: string) { await db.prepare("INSERT INTO record_revisions (id, record_type, record_id, revision_number, action, summary, actor) SELECT ?, 'dailyLog', ?, COALESCE(MAX(revision_number), 0) + 1, ?, ?, ? FROM record_revisions WHERE record_type = 'dailyLog' AND record_id = ?").bind(crypto.randomUUID(), id, action, summary, actor, id).run(); }
@@ -128,7 +127,7 @@ export async function POST(request: Request) {
     }
     for (const [index, row] of calls.entries()) {
       const callType = String(row.callType ?? "EMS");
-      logWrites.push(db.prepare("INSERT INTO daily_log_calls (id, log_date, report_number, time_out, time_in, responding_units, address, call_type, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(String(row.id || crypto.randomUUID()), date, String(row.reportNumber ?? ""), String(row.timeOut ?? ""), String(row.timeIn ?? ""), String(row.respondingUnits ?? ""), String(row.address ?? ""), callTypes.includes(callType) ? callType : "Special", index));
+      logWrites.push(db.prepare("INSERT INTO daily_log_calls (id, log_date, report_number, time_out, time_in, responding_units, address, call_type, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(String(row.id || crypto.randomUUID()), date, String(row.reportNumber ?? ""), String(row.timeOut ?? ""), String(row.timeIn ?? ""), String(row.respondingUnits ?? ""), String(row.address ?? ""), callType || "Special", index));
     }
     const holiday = holidayForDate(date);
     const totals = dailyLogPayrollTotals(staffing, holiday);

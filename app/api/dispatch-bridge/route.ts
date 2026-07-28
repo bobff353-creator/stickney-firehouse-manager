@@ -1,4 +1,5 @@
 import { ensureDatabase } from "../../../db/bootstrap";
+import { projectDispatchIntoDailyLog } from "../../dispatch-daily-log";
 
 type RuntimeEnv = {
   DISPATCH_BRIDGE_READ_TOKEN?: string;
@@ -74,6 +75,14 @@ export async function POST(request: Request) {
       Math.max(0, Math.trunc(optionalNumber(incident.attachmentCount) || 0)),
       JSON.stringify(incident),
     ).run();
+    await projectDispatchIntoDailyLog(db, {
+      reportNumber,
+      dispatchedAt,
+      timeOut: text(incident.timeOut),
+      respondingUnits: text(incident.respondingUnits),
+      address: text(incident.address),
+      callType,
+    });
 
     return Response.json({ accepted: true, incidentId: reportNumber });
   } catch (error) {
