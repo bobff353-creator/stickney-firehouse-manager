@@ -13,10 +13,52 @@ type UsfaFatality = { id: number; name: string; department: string; location: st
 type UsfaData = { year: number; total: number; items: UsfaFatality[]; stale?: boolean };
 type WeatherDay = { date: string; condition: string; high: number; low: number; precipitationChance: number; windGust: number };
 type WeatherData = { location: string; days: WeatherDay[]; source?: string; detailUrl?: string };
-type Rotation = "equipment" | "duty" | "news" | "fatalities";
+type TrainingCourse = { title: string; dates: string; endDate: string; location?: string; url: string };
+type TrainingProvider = { name: string; shortName: string; sourceUrl: string; checked: string; courses: TrainingCourse[] };
+type Rotation = "equipment" | "duty" | "news" | "fatalities" | "romeoville" | "ifsi" | "nipsta";
 type HeaderRotation = "title" | "today" | "tomorrow";
-const rotationOrder: Rotation[] = ["equipment", "duty", "news", "fatalities"];
+const rotationOrder: Rotation[] = ["equipment", "duty", "news", "fatalities", "romeoville", "ifsi", "nipsta"];
 const headerRotationOrder: HeaderRotation[] = ["title", "today", "tomorrow"];
+const trainingProviders: Record<"romeoville" | "ifsi" | "nipsta", TrainingProvider> = {
+  romeoville: {
+    name: "Romeoville Fire Academy",
+    shortName: "Romeoville",
+    sourceUrl: "https://www.romeoville.org/562/Fire-Rescue-Courses",
+    checked: "July 28, 2026",
+    courses: [
+      { title: "Basic Operations Firefighter Academy #6", dates: "Aug 3–Oct 2", endDate: "2026-10-02", url: "https://www.romeoville.org/DocumentCenter/View/15985/RFA-2026-Course-Catalog" },
+      { title: "Fire Apparatus Engineer", dates: "Aug 3–7", endDate: "2026-08-07", url: "https://www.romeoville.org/DocumentCenter/View/15985/RFA-2026-Course-Catalog" },
+      { title: "Common Passenger Vehicle Rescue", dates: "Aug 3–7", endDate: "2026-08-07", url: "https://www.romeoville.org/DocumentCenter/View/15985/RFA-2026-Course-Catalog" },
+      { title: "Advanced SCBA", dates: "Aug 10–12", endDate: "2026-08-12", url: "https://www.romeoville.org/DocumentCenter/View/15985/RFA-2026-Course-Catalog" },
+      { title: "Rope Operations", dates: "Aug 10–14", endDate: "2026-08-14", location: "North Aurora", url: "https://www.romeoville.org/DocumentCenter/View/15985/RFA-2026-Course-Catalog" },
+    ],
+  },
+  ifsi: {
+    name: "Illinois Fire Service Institute",
+    shortName: "IFSI",
+    sourceUrl: "https://www.fsi.illinois.edu/content/courses/",
+    checked: "July 28, 2026",
+    courses: [
+      { title: "Down and Dirty Hydraulics", dates: "Jul 29", endDate: "2026-07-29", location: "Polo", url: "https://www.fsi.illinois.edu/content/courses/schedule/" },
+      { title: "Elevator Equipment, Function and Rescue Considerations", dates: "Jul 29", endDate: "2026-07-29", location: "Oak Lawn", url: "https://www.fsi.illinois.edu/content/courses/schedule/" },
+      { title: "Fire Origin and Cause Awareness", dates: "Jul 29", endDate: "2026-07-29", location: "Danville", url: "https://www.fsi.illinois.edu/content/courses/schedule/" },
+      { title: "Mobile Water Supply Operations", dates: "Jul 30", endDate: "2026-07-30", location: "Tower Hill", url: "https://www.fsi.illinois.edu/content/courses/schedule/" },
+      { title: "State of Illinois Traffic Incident Management", dates: "Jul 30", endDate: "2026-07-30", location: "Anna", url: "https://www.fsi.illinois.edu/content/courses/schedule/" },
+    ],
+  },
+  nipsta: {
+    name: "NIPSTA Fire & Technical Rescue",
+    shortName: "NIPSTA",
+    sourceUrl: "https://nipsta.org/175/Fire-Technical-Rescue-Training",
+    checked: "July 28, 2026",
+    courses: [
+      { title: "Advanced Technician Firefighter", dates: "Aug 24–28", endDate: "2026-08-28", location: "NIPSTA", url: "https://nipsta.org/360/Advanced-Technician-Firefighter" },
+      { title: "Rope Technician", dates: "Sep 8–11", endDate: "2026-09-11", location: "NIPSTA", url: "https://nipsta.org/369/Rope-Technician" },
+      { title: "Confined Space Entrant, Attendant & Entry Supervisor", dates: "Sep 9", endDate: "2026-09-09", location: "NIPSTA Campus", url: "https://nipsta.org/568/Con-Space-Entrant-Attendant-Entry-Superv" },
+      { title: "Advanced Technician Firefighter", dates: "Nov 16–20", endDate: "2026-11-20", location: "NIPSTA", url: "https://nipsta.org/360/Advanced-Technician-Firefighter" },
+    ],
+  },
+};
 const alertTones = [
   { id: "station-chime", label: "Station Chime", notes: [659, 784, 988] },
   { id: "dispatch-triple", label: "Dispatch Triple", notes: [880, 880, 880] },
@@ -34,6 +76,16 @@ const alertToneIds = new Set<string>(alertTones.map((tone) => tone.id));
 const displayName = formatEmployeeName;
 const shiftLabel = (value: string) => value === "morning" ? "6:00 AM – Noon" : value === "afternoon" ? "Noon – 6:00 PM" : "6:00 PM – 6:00 AM";
 function nextShift(now: Date) { const local = new Date(now.toLocaleString("en-US", { timeZone: "America/Chicago" })); const minutes = local.getHours() * 60 + local.getMinutes(); const target = minutes < 360 ? 360 : minutes < 720 ? 720 : minutes < 1080 ? 1080 : 1800; const remaining = target - minutes; return { label: target === 360 ? "6:00 AM" : target === 720 ? "Noon" : "6:00 PM", remaining: `${Math.floor(remaining / 60)}h ${remaining % 60}m` }; }
+
+function TrainingCourses({ provider, today }: { provider: TrainingProvider; today: string }) {
+  const upcoming = provider.courses.filter((course) => course.endDate >= today).slice(0, 5);
+  return <div className="training-board">
+    <div className="training-provider"><span>Upcoming training</span><strong>{provider.name}</strong><small>Official schedule checked {provider.checked}</small></div>
+    <div className="training-course-list">{upcoming.length ? upcoming.map((course) => <a href={course.url} target="_blank" rel="noreferrer" key={`${course.title}-${course.dates}`}><time>{course.dates}<small>2026</small></time><div><strong>{course.title}</strong>{course.location && <span>{course.location}</span>}</div><b aria-hidden="true">↗</b></a>) : <p className="board-empty">No future classes remain in the confirmed schedule.</p>}</div>
+    <a className="training-source" href={provider.sourceUrl} target="_blank" rel="noreferrer">View {provider.shortName} official courses and registration ↗</a>
+    <p className="training-disclaimer">Dates and availability can change. Confirm with the training provider before registering.</p>
+  </div>;
+}
 
 export default function OperationsBoard({ tvMode = false, onTvModeChange }: { tvMode?: boolean; onTvModeChange?: (enabled: boolean) => void }) {
   const [data, setData] = useState<BoardData | null>(null), [currentDuty, setCurrentDuty] = useState<CurrentDuty | null>(null), [news, setNews] = useState<CloseCallReport[]>([]), [fatalities, setFatalities] = useState<UsfaData | null>(null), [weather, setWeather] = useState<WeatherData | null>(null), [error, setError] = useState(""), [clock, setClock] = useState(new Date()), [rotation, setRotation] = useState<Rotation>("equipment"), [headerRotation, setHeaderRotation] = useState<HeaderRotation>("title");
@@ -66,6 +118,7 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange }: { tv
   const next = useMemo(() => nextShift(clock), [clock]);
   const activeCall = data?.activeCalls[0];
   const headerWeather = headerRotation === "today" ? weather?.days[0] : headerRotation === "tomorrow" ? weather?.days[1] : null;
+  const today = clock.toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
   async function enterTvMode() {
     onTvModeChange?.(true);
     try {
@@ -105,7 +158,23 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange }: { tv
     <div className="board-summary"><article className={data?.staffing.complete ? "clear" : "warning"}><span>Staffing</span><strong>{data?.staffing.filled ?? "—"} / {data?.staffing.required ?? 4}</strong><small>{data?.staffing.complete ? "Complete" : "Coverage needs attention"}</small></article><article className={data?.officerInCharge ? "clear" : "warning"}><span>Officer in charge</span><strong>{data?.officerInCharge ? displayName(data.officerInCharge) : "Not signed in"}</strong><small>Current shift command</small></article><article className={`active-call-summary ${activeCall ? "active" : "clear"}`}><span>{data?.activeCalls.length ? `Active call${data.activeCalls.length > 1 ? ` · ${data.activeCalls.length} total` : ""}` : "Active call"}</span>{activeCall ? <><strong>{activeCall.callType}</strong><b>{activeCall.address || "Address not entered"}</b>{activeCall.narrative && <em>{activeCall.narrative}</em>}<small>{activeCall.respondingUnits || "Units pending"} · {activeCall.timeOut ? formatMilitaryTime(activeCall.timeOut) : "Time pending"}{activeCall.source ? ` · ${activeCall.source}` : ""}</small></> : <><strong>None</strong><small>No open calls</small></>}</article><article><span>Next shift change</span><strong>{next.label}</strong><small>In {next.remaining}</small></article></div>
     <div className="board-grid redesigned"><ChiefBoardPanel />
       <StaffingRotation mode="board" onDuty={data?.onDuty ?? []} newMembers={data?.newMembers ?? []} />
-      <section className={`board-panel equipment rotating-panel ${rotation}`} aria-live="polite"><header><h2>{rotation === "equipment" ? "Equipment issues" : rotation === "duty" ? "Current daily duty" : rotation === "news" ? "Firefighter Close Calls" : "U.S. Firefighter Line-of-Duty Deaths"}</h2><span>{rotation === "equipment" ? `${data?.equipmentIssues.length ?? 0} reported` : rotation === "duty" ? `${clock.toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "long" })} · ${shiftLabel(currentDuty?.shiftKey ?? data?.currentShift ?? "night")}` : rotation === "news" ? "Newest 3 · updates automatically" : "USFA · latest 5"}</span></header><div className="rotation-content">{rotation === "equipment" ? data?.equipmentIssues.length ? data.equipmentIssues.map((issue) => <article key={issue.item}><b>{issue.item}</b><strong>{issue.status}</strong><p>{issue.detail || "No details entered"}</p></article>) : <p className="board-empty clear">✓ No equipment issues reported</p> : rotation === "duty" ? currentDuty ? <article className="current-duty-card"><span>NOW</span><b>{currentDuty.shiftKey[0].toUpperCase() + currentDuty.shiftKey.slice(1)} duty</b><p>{currentDuty.duty}</p></article> : <p className="board-empty">No duty is entered for the current shift.</p> : rotation === "news" ? news.length ? <div className="close-call-list">{news.map((report) => <a href={report.url} target="_blank" rel="noreferrer" key={report.url} aria-label={`${report.title}. Open the full Firefighter Close Calls report.`}><time><span>Posted</span>{new Date(report.publishedAt).toLocaleDateString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", year: "numeric" })}</time><div><span className="close-call-kicker">Incident report</span><strong>{report.title}</strong>{report.excerpt && <p>{report.excerpt}</p>}<small>Read the complete report <b aria-hidden="true">↗</b></small></div></a>)}</div> : <p className="board-empty">Latest reports are temporarily unavailable.</p> : fatalities ? <div className="fatality-board"><div className="fatality-total"><strong>{fatalities.total}</strong><div><b>firefighter deaths in {fatalities.year}</b><span>{fatalities.stale ? "Last confirmed USFA data" : "Current USFA reported total"}</span></div></div><div className="fatality-list">{fatalities.items.map((person) => <a href={person.url} target="_blank" rel="noreferrer" key={person.id}><time>{new Date(person.deathDate).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" })}</time><div><strong>{person.name}</strong><span>{person.department}</span><small>{person.location}</small></div><b aria-hidden="true">↗</b></a>)}</div><p className="fatality-source">Provisional on-duty fatality information from the U.S. Fire Administration.</p></div> : <p className="board-empty">USFA fatality information is temporarily unavailable.</p>}</div><footer className="rotation-indicator"><button className={rotation === "equipment" ? "active" : ""} aria-label="Show equipment issues" onClick={() => setRotation("equipment")}/><button className={rotation === "duty" ? "active" : ""} aria-label="Show current daily duty" onClick={() => setRotation("duty")}/><button className={rotation === "news" ? "active" : ""} aria-label="Show Firefighter Close Calls reports" onClick={() => setRotation("news")}/><button className={rotation === "fatalities" ? "active" : ""} aria-label="Show USFA firefighter fatalities" onClick={() => setRotation("fatalities")}/><span>Rotates every 12 seconds</span></footer></section></div>
+      <section className={`board-panel equipment rotating-panel ${rotation}`} aria-live="polite">
+        <header>
+          <h2>{rotation === "equipment" ? "Equipment issues" : rotation === "duty" ? "Current daily duty" : rotation === "news" ? "Firefighter Close Calls" : rotation === "fatalities" ? "U.S. Firefighter Line-of-Duty Deaths" : trainingProviders[rotation].name}</h2>
+          <span>{rotation === "equipment" ? `${data?.equipmentIssues.length ?? 0} reported` : rotation === "duty" ? `${clock.toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "long" })} · ${shiftLabel(currentDuty?.shiftKey ?? data?.currentShift ?? "night")}` : rotation === "news" ? "Newest 3 · updates automatically" : rotation === "fatalities" ? "USFA · latest 5" : "Upcoming classes · official links"}</span>
+        </header>
+        <div className="rotation-content">
+          {rotation === "equipment" ? data?.equipmentIssues.length ? data.equipmentIssues.map((issue) => <article key={issue.item}><b>{issue.item}</b><strong>{issue.status}</strong><p>{issue.detail || "No details entered"}</p></article>) : <p className="board-empty clear">✓ No equipment issues reported</p>
+            : rotation === "duty" ? currentDuty ? <article className="current-duty-card"><span>NOW</span><b>{currentDuty.shiftKey[0].toUpperCase() + currentDuty.shiftKey.slice(1)} duty</b><p>{currentDuty.duty}</p></article> : <p className="board-empty">No duty is entered for the current shift.</p>
+            : rotation === "news" ? news.length ? <div className="close-call-list">{news.map((report) => <a href={report.url} target="_blank" rel="noreferrer" key={report.url} aria-label={`${report.title}. Open the full Firefighter Close Calls report.`}><time><span>Posted</span>{new Date(report.publishedAt).toLocaleDateString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", year: "numeric" })}</time><div><span className="close-call-kicker">Incident report</span><strong>{report.title}</strong>{report.excerpt && <p>{report.excerpt}</p>}<small>Read the complete report <b aria-hidden="true">↗</b></small></div></a>)}</div> : <p className="board-empty">Latest reports are temporarily unavailable.</p>
+            : rotation === "fatalities" ? fatalities ? <div className="fatality-board"><div className="fatality-total"><strong>{fatalities.total}</strong><div><b>firefighter deaths in {fatalities.year}</b><span>{fatalities.stale ? "Last confirmed USFA data" : "Current USFA reported total"}</span></div></div><div className="fatality-list">{fatalities.items.map((person) => <a href={person.url} target="_blank" rel="noreferrer" key={person.id}><time>{new Date(person.deathDate).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" })}</time><div><strong>{person.name}</strong><span>{person.department}</span><small>{person.location}</small></div><b aria-hidden="true">↗</b></a>)}</div><p className="fatality-source">Provisional on-duty fatality information from the U.S. Fire Administration.</p></div> : <p className="board-empty">USFA fatality information is temporarily unavailable.</p>
+            : <TrainingCourses provider={trainingProviders[rotation]} today={today} />}
+        </div>
+        <footer className="rotation-indicator">
+          {rotationOrder.map((item) => <button className={rotation === item ? "active" : ""} aria-label={`Show ${item === "romeoville" ? "Romeoville training" : item === "ifsi" ? "IFSI training" : item === "nipsta" ? "NIPSTA training" : item}`} onClick={() => setRotation(item)} key={item}/>)}
+          <span>Rotates every 12 seconds</span>
+        </footer>
+      </section></div>
     <section className="board-panel apparatus apparatus-wide"><header><h2>Apparatus status</h2><span>From active calls</span></header><div>{data?.apparatus.map((unit) => <article className={unit.status === "Committed to call" ? "committed" : "unknown"} key={unit.unit}><b>Unit {unit.unit}</b><span>{unit.status}</span></article>)}</div><p className="board-source-note">Availability is not assumed. Units only show “Committed” when listed on an active call.</p></section>
   </section>;
 }
