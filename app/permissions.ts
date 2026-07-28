@@ -12,6 +12,8 @@ export const permissionCatalog = [
   { key: "employees.manage", label: "Manage employee records", group: "Personnel" },
   { key: "contacts.view", label: "View employee contacts", group: "Personnel" },
   { key: "documents.view", label: "View policies, duties, and box cards", group: "Documents" },
+  { key: "policies.manage", label: "Add and edit policies", group: "Documents" },
+  { key: "box_cards.manage", label: "Add and edit Box Cards", group: "Documents" },
   { key: "settings.manage", label: "Manage department settings", group: "Settings" },
   { key: "permissions.manage", label: "Manage permissions and test views", group: "Settings" },
 ] as const;
@@ -20,12 +22,13 @@ export type PermissionKey = typeof permissionCatalog[number]["key"];
 
 const allPermissions = permissionCatalog.map((permission) => permission.key);
 const memberPermissions: PermissionKey[] = ["dashboard.view", "operations_board.view", "scheduling.view", "payroll.view_own", "documents.view"];
-const officerPermissions: PermissionKey[] = [...memberPermissions, "daily_log.view", "daily_log.manage", "employees.view", "contacts.view"];
+const firefighterPermissions: PermissionKey[] = [...memberPermissions, "daily_log.view", "daily_log.manage"];
+const officerPermissions: PermissionKey[] = [...firefighterPermissions, "employees.view", "contacts.view"];
 
 export function defaultPermissionsForRank(rank: string, isAdmin = false): PermissionKey[] {
   const value = rank.trim().toLowerCase();
   if (isAdmin || value.includes("chief")) return [...allPermissions];
   if (value.includes("captain") || value.includes("lieutenant")) return [...officerPermissions, "command_center.view", "scheduling.manage"];
+  if (value.includes("firefighter") || value === "ff") return [...firefighterPermissions];
   return [...memberPermissions];
 }
-

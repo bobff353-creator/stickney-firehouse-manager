@@ -1,14 +1,5 @@
 import { ensureDatabase } from "../../../db/bootstrap";
-
-const ownerAdminEmails = ["bobff353@gmail.com"];
-
-async function isAdmin(request: Request, db: Awaited<ReturnType<typeof ensureDatabase>>) {
-  const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
-  if (ownerAdminEmails.includes(email)) return true;
-  if (!email) return false;
-  const row = await db.prepare("SELECT is_admin AS isAdmin FROM employee_profiles WHERE lower(email) = ? LIMIT 1").bind(email).first<{ isAdmin: number }>();
-  return Boolean(row?.isAdmin);
-}
+import { hasPermission } from "../../server-permissions";
 
 function resourceType(request: Request) {
   return new URL(request.url).searchParams.get("type") === "boxCard" ? "boxCard" : "policy";
@@ -22,7 +13,8 @@ export async function GET(request: Request) {
   try {
     const db = await ensureDatabase();
     const type = resourceType(request);
-    const canEdit = await isAdmin(request, db);
+    if (!await hasPermission(request, db, "documents.view")) return Response.json({ error: "Document access is not enabled for this account." }, { status: 403 });
+    const canEdit = await hasPermission(request, db, type === "policy" ? "policies.manage" : "box_cards.manage");
     const rows = type === "policy"
       ? await db.prepare("SELECT id, title, policy_number AS policyNumber, category, effective_date AS effectiveDate, body, status, created_by AS createdBy, COALESCE(created_at, updated_at) AS createdAt, updated_by AS updatedBy, updated_at AS updatedAt FROM policies ORDER BY CAST(policy_number AS INTEGER), title COLLATE NOCASE").all()
       : await db.prepare("SELECT id, title, address, box_number AS boxNumber, access_notes AS accessNotes, details, department, document_url AS documentUrl, document_page AS documentPage, effective_date AS effectiveDate, review_date AS reviewDate, layout_data AS layoutData, status, created_by AS createdBy, COALESCE(created_at, updated_at) AS createdAt, updated_by AS updatedBy, updated_at AS updatedAt FROM box_cards ORDER BY department COLLATE NOCASE, title COLLATE NOCASE").all();
@@ -38,8 +30,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const db = await ensureDatabase();
-    if (!await isAdmin(request, db)) return Response.json({ error: "Administrator privileges are required." }, { status: 403 });
     const type = resourceType(request);
+    if (!await hasPermission(request, db, type === "policy" ? "policies.manage" : "box_cards.manage")) return Response.json({ error: "Editing is not enabled for this account." }, { status: 403 });
     const body = await request.json() as Record<string, unknown>;
     const updatedBy = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() || "Administrator";
     const id = String(body.id || crypto.randomUUID());

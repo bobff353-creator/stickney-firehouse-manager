@@ -13,7 +13,7 @@ type StaffingRow = { id: string; shiftKey: string; employeeId: string; timeIn: s
 type CallRow = { id: string; reportNumber: string; timeOut: string; timeIn: string; respondingUnits: string; address: string; callType: string };
 type Approval = { shiftKey: string; signInOfficerId?: string; signInAt?: string; signOutOfficerId?: string; signOutAt?: string; signOutNote?: string };
 type RecentNote = { logDate: string; note: string };
-type LogPayload = { log: { shiftNotes: string; locked: number; adminUnlocked: number; createdBy?: string; createdAt?: string; updatedBy?: string; updatedAt: string; lockedBy?: string; lockedAt?: string; revisions?: Revision[] }; staffing: StaffingRow[]; staffingSource?: "department_schedule" | "daily_log"; schedulePrefilled?: boolean; calls: CallRow[]; approvals: Approval[]; recentNotes: RecentNote[]; addresses: string[]; error?: string };
+type LogPayload = { log: { shiftNotes: string; locked: number; adminUnlocked: number; createdBy?: string; createdAt?: string; updatedBy?: string; updatedAt: string; lockedBy?: string; lockedAt?: string; revisions?: Revision[] }; staffing: StaffingRow[]; staffingSource?: "department_schedule" | "daily_log"; schedulePrefilled?: boolean; calls: CallRow[]; approvals: Approval[]; recentNotes: RecentNote[]; addresses: string[]; canUnlock?: boolean; error?: string };
 type Handoff = { shiftKey: string; shiftTitle: string; mode: "in" | "out" };
 type OfflineDraft = { savedAt: string; logDate: string; staffing: StaffingRow[]; calls: CallRow[]; shiftNotes: string };
 const draftKey = (date: string) => `sfd-daily-log-draft:${date}`;
@@ -54,6 +54,7 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
   const [recentNotes, setRecentNotes] = useState<RecentNote[]>([]);
   const [locked, setLocked] = useState(false);
   const [adminUnlocked, setAdminUnlocked] = useState(false);
+  const [canUnlock, setCanUnlock] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -94,7 +95,7 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
       setStaffing(rows); setCalls(callRows); setShiftNotes(restore ? draft!.shiftNotes : data.log?.shiftNotes ?? "");
       setLogAudit(data.log ?? null);
       setAddresses(data.addresses ?? []); setApprovals(data.approvals ?? []); setRecentNotes(data.recentNotes ?? []);
-      setLocked(Boolean(data.log?.locked)); setAdminUnlocked(Boolean(data.log?.adminUnlocked)); setDirty(restore);
+      setLocked(Boolean(data.log?.locked)); setAdminUnlocked(Boolean(data.log?.adminUnlocked)); setCanUnlock(Boolean(data.canUnlock)); setDirty(restore);
       setSchedulePrefilled(!restore && Boolean(data.schedulePrefilled));
       if (restore) setMessage("Unsaved work restored from this device");
       setLastSynced(data.log?.updatedAt ? new Date(data.log.updatedAt) : new Date());
@@ -214,7 +215,7 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
     <div className="logbook-heading standard-page-header"><div><span className="page-icon" aria-hidden="true">▣</span><div><p className="eyebrow">Stickney Fire Department</p><h2>Daily Logbook</h2><p>Automatically saved staffing, responses, equipment checks, and officer handoffs.</p></div></div><div className="log-date-actions"><label><span>Log date</span><input type="date" value={logDate} onChange={(event) => setLogDate(event.target.value)} /></label><div className={`autosave-state ${!isOnline ? "offline" : saving ? "saving" : dirty ? "pending" : "saved"}`}><strong>{!isOnline ? "Offline" : saving ? "Saving…" : dirty ? "Save pending" : "Saved"}</strong><small>Last synced {lastSynced ? lastSynced.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "—"}</small></div></div></div>
     {logAudit && <RecordCredibility audit={{ recordNumber: `LOG-${logDate.replaceAll("-", "")}`, status: readOnly ? "Locked" : adminUnlocked ? "Unlocked for correction" : "Editable", createdBy: logAudit.createdBy, createdAt: logAudit.createdAt, updatedBy: logAudit.updatedBy, updatedAt: logAudit.updatedAt, closedBy: logAudit.lockedBy, closedAt: logAudit.lockedAt, closedLabel: "Locked", revisions: logAudit.revisions }} />}
     {holiday && <div className="holiday-log-banner"><div className="holiday-star">★</div><div><span>Department Holiday</span><strong>{holiday.name}</strong><p>{holiday.overnightOnly ? "Holiday pay applies to the 6:00 PM–6:00 AM section only." : "Eligible hours worked today automatically receive the configured holiday rate."}</p></div></div>}
-    {readOnly && <div className="locked-banner"><div><strong>🔒 Daily log locked</strong><span>The operational day changes at 6:00 AM. The prior log locks at 7:00 AM after the one-hour grace period.</span></div><button onClick={() => setUnlockConfirmOpen(true)}>Admin Unlock</button></div>}
+    {readOnly && <div className="locked-banner"><div><strong>🔒 Daily log locked</strong><span>The operational day changes at 6:00 AM. The prior log locks at 7:00 AM after the one-hour grace period.</span></div>{canUnlock && <button onClick={() => setUnlockConfirmOpen(true)}>Admin Unlock</button>}</div>}
     {adminUnlocked && locked && <div className="admin-banner">Administrator editing is enabled for this locked log.</div>}
     {schedulePrefilled && !readOnly && <div className="schedule-prefill-banner"><div><strong>Prefilled from Department Schedule</strong><span>Review the scheduled staffing and adjust names or times to match who actually worked. It remains fully editable.</span></div><button onClick={() => void saveLog()}>Confirm &amp; Save Staffing</button></div>}
     {message && <div className={message.includes("saved") || message.includes("approved") || message.includes("granted") ? "log-message success" : "log-message"}>{message}</div>}

@@ -5,6 +5,7 @@ import { projectDispatchIntoDailyLog } from "../../dispatch-daily-log";
 import { holidayForDate } from "../../holidays";
 import { chicagoOperationalContext } from "../../operational-day";
 import { dailyLogPayrollEntries, dailyLogPayrollTotals } from "../../payroll-hours";
+import { hasPermission } from "../../server-permissions";
 
 const shifts = ["morning", "afternoon", "overnight"];
 const actorFor = (request: Request) => request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() || "System";
@@ -30,6 +31,8 @@ function payrollPeriodEnd(start: string) {
 export async function GET(request: Request) {
   try {
     const db = await ensureDatabase();
+    if (!await hasPermission(request, db, "daily_log.view")) return Response.json({ error: "Daily Log access is not enabled for this account." }, { status: 403 });
+    const canUnlock = await hasPermission(request, db, "permissions.manage");
     const operational = chicagoOperationalContext();
     const date = cleanDate(new URL(request.url).searchParams.get("date"), operational.operationalDate);
     await db.prepare("INSERT OR IGNORE INTO daily_logs (log_date) VALUES (?)").bind(date).run();
@@ -87,6 +90,7 @@ export async function GET(request: Request) {
         priorLogLocksAt: "07:00",
         gracePeriodActive: operational.inLockGracePeriod,
       },
+      canUnlock,
     });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Unable to load daily log" }, { status: 500 });
@@ -100,11 +104,13 @@ export async function POST(request: Request) {
     const operational = chicagoOperationalContext();
     const date = cleanDate(String(body.logDate ?? ""), operational.operationalDate);
     const action = String(body.action ?? "save");
+    if (!await hasPermission(request, db, "daily_log.manage")) return Response.json({ error: "Daily Log editing is not enabled for this account." }, { status: 403 });
     const actor = actorFor(request);
     await db.prepare("UPDATE daily_logs SET locked = 1, admin_unlocked = 0, locked_by = COALESCE(locked_by, 'System · 7:00 AM Lock'), locked_at = COALESCE(locked_at, CURRENT_TIMESTAMP) WHERE log_date < ?").bind(operational.lockBeforeDate).run();
     const existing = await db.prepare("SELECT locked, admin_unlocked AS adminUnlocked FROM daily_logs WHERE log_date = ?").bind(date).first<{ locked: number; adminUnlocked: number }>();
 
     if (action === "adminUnlock") {
+      if (!await hasPermission(request, db, "permissions.manage")) return Response.json({ error: "Administrator permission is required to unlock a closed Daily Log." }, { status: 403 });
       await db.prepare("UPDATE daily_logs SET locked = 1, admin_unlocked = 1, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE log_date = ?").bind(actor, date).run();
       await addRevision(db, date, "Unlocked", "Administrator edit access granted", actor);
       return Response.json({ ok: true });

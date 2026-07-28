@@ -25,3 +25,18 @@ test("member testing is visibly labeled and never impersonates server identity",
   assert.match(app, /No identity or approval authority has changed/);
   assert.doesNotMatch(page, /oai-authenticated-user-email/);
 });
+
+test("firefighters can operate an unlocked Daily Log while document editing stays separately controlled", async () => {
+  const [permissions, logbook, resources, resourcePage] = await Promise.all([
+    readFile(new URL("../app/permissions.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/logbook/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/resources/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/resource-pages.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(permissions, /firefighterPermissions.*daily_log\.view.*daily_log\.manage/);
+  assert.match(logbook, /"daily_log\.manage"/);
+  assert.match(logbook, /This daily log is locked/);
+  assert.match(resources, /"policies\.manage"/);
+  assert.match(resources, /"box_cards\.manage"/);
+  assert.match(resourcePage, /data-test-safe/);
+});
