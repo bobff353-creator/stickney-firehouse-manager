@@ -1,5 +1,6 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 import { scheduleQueryDates, scheduledStaffingForLog, type DepartmentScheduleAssignment } from "../../department-schedule";
+import { completedDispatchReportNumbers } from "../../dispatch-closure";
 import { projectDispatchIntoDailyLog } from "../../dispatch-daily-log";
 import { holidayForDate } from "../../holidays";
 import { chicagoOperationalContext } from "../../operational-day";
@@ -144,6 +145,9 @@ export async function POST(request: Request) {
     for (const [index, row] of calls.entries()) {
       const callType = String(row.callType ?? "EMS");
       logWrites.push(db.prepare("INSERT INTO daily_log_calls (id, log_date, report_number, time_out, time_in, responding_units, address, call_type, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(String(row.id || crypto.randomUUID()), date, String(row.reportNumber ?? ""), String(row.timeOut ?? ""), String(row.timeIn ?? ""), String(row.respondingUnits ?? ""), String(row.address ?? ""), callType || "Special", index));
+    }
+    for (const reportNumber of completedDispatchReportNumbers(calls)) {
+      logWrites.push(db.prepare("UPDATE dispatch_incidents SET active = 0, cleared_at = COALESCE(cleared_at, CURRENT_TIMESTAMP) WHERE incident_id = ?").bind(reportNumber));
     }
     const holiday = holidayForDate(date);
     const totals = dailyLogPayrollTotals(staffing, holiday);
