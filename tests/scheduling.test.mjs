@@ -134,3 +134,19 @@ test("schedule includes agenda filters and coverage command views", async () => 
   assert.equal(source.includes("schedule-filters"), true);
   assert.equal(source.includes("Saved staffing plans"), true);
 });
+
+test("calendar supports day week and month views with transparent shift colors", async () => {
+  const [screen, styles] = await Promise.all([
+    readFile(new URL("../app/scheduling.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  for (const view of ["day", "week", "month"]) {
+    assert.equal(screen.includes(`viewMode === "${view}"`), true);
+    assert.equal(screen.includes(`setViewMode("${view}")`), true);
+  }
+  assert.equal(screen.includes("data-shift-color"), true);
+  assert.equal(styles.includes('article[data-shift-color="red"]'), true);
+  assert.equal(styles.includes("rgba(180,59,59,.10)"), true);
+  assert.equal(styles.includes(".schedule-calendar.view-day"), true);
+  assert.equal(styles.includes(".schedule-calendar.view-week"), true);
+});

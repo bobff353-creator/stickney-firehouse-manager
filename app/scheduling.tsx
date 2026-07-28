@@ -84,7 +84,8 @@ export default function Scheduling() {
   const [data, setData] = useState<ScheduleData | null>(null);
   const [tab, setTab] = useState("calendar");
   const [month, setMonth] = useState(today().slice(0, 7));
-  const [viewMode, setViewMode] = useState<"calendar"|"agenda">("calendar");
+  const [selectedDate, setSelectedDate] = useState(today());
+  const [viewMode, setViewMode] = useState<"month"|"week"|"day"|"agenda">("month");
   const [employeeFilter, setEmployeeFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -159,6 +160,19 @@ export default function Scheduling() {
       return date.toLocaleDateString("en-CA");
     });
   }, [month]);
+  const visibleDays = useMemo(() => {
+    if (viewMode === "month" || viewMode === "agenda") return days;
+    if (viewMode === "day") return [selectedDate];
+    const selected = new Date(`${selectedDate}T12:00:00`);
+    const weekStart = plusDays(selectedDate, -selected.getDay());
+    return Array.from({ length: 7 }, (_, index) => plusDays(weekStart, index));
+  }, [days, selectedDate, viewMode]);
+  const calendarTitle = useMemo(() => {
+    if (viewMode === "month" || viewMode === "agenda") return new Date(`${month}-01T12:00:00`).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    if (viewMode === "day") return new Date(`${selectedDate}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+    const start = visibleDays[0], end = visibleDays[6];
+    return `${new Date(`${start}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${new Date(`${end}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+  }, [month, selectedDate, viewMode, visibleDays]);
 
   const roles = useMemo(() => [...new Set(data?.assignments.map((item) => item.role).filter(Boolean) ?? [])].sort(), [data]);
   const filteredAssignments = useMemo(() => (data?.assignments ?? []).filter((item) =>
@@ -190,6 +204,20 @@ export default function Scheduling() {
     const date = new Date(`${month}-01T12:00:00`);
     date.setMonth(date.getMonth() + offset);
     setMonth(date.toLocaleDateString("en-CA").slice(0, 7));
+  }
+  function moveCalendar(offset:number) {
+    if (viewMode === "month" || viewMode === "agenda") {
+      changeMonth(offset);
+      return;
+    }
+    const next = plusDays(selectedDate, offset * (viewMode === "week" ? 7 : 1));
+    setSelectedDate(next);
+    setMonth(next.slice(0, 7));
+  }
+  function goToday() {
+    const current = today();
+    setSelectedDate(current);
+    setMonth(current.slice(0, 7));
   }
 
   function startNewCoveragePlan(announce = true, planNumber = coveragePlans.length + 1) {
@@ -239,13 +267,15 @@ export default function Scheduling() {
     {tab === "calendar" && <section className="content-card schedule-calendar-card">
       <div className="schedule-command-bar">
         <div className="schedule-calendar-head">
-          <button aria-label="Previous month" onClick={() => changeMonth(-1)}>‹</button>
-          <h2>{new Date(`${month}-01T12:00:00`).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</h2>
-          <button aria-label="Next month" onClick={() => changeMonth(1)}>›</button>
-          <button className="today-button" onClick={() => setMonth(today().slice(0, 7))}>Today</button>
+          <button aria-label={`Previous ${viewMode}`} onClick={() => moveCalendar(-1)}>‹</button>
+          <h2>{calendarTitle}</h2>
+          <button aria-label={`Next ${viewMode}`} onClick={() => moveCalendar(1)}>›</button>
+          <button className="today-button" onClick={goToday}>Today</button>
         </div>
         <div className="schedule-view-toggle">
-          <button className={viewMode === "calendar" ? "active" : ""} onClick={() => setViewMode("calendar")}>Calendar</button>
+          <button className={viewMode === "day" ? "active" : ""} onClick={() => setViewMode("day")}>Day</button>
+          <button className={viewMode === "week" ? "active" : ""} onClick={() => setViewMode("week")}>Week</button>
+          <button className={viewMode === "month" ? "active" : ""} onClick={() => setViewMode("month")}>Month</button>
           <button className={viewMode === "agenda" ? "active" : ""} onClick={() => setViewMode("agenda")}>Agenda</button>
         </div>
       </div>
@@ -263,14 +293,14 @@ export default function Scheduling() {
         </select>
         {(employeeFilter || roleFilter || statusFilter) && <button onClick={() => { setEmployeeFilter(""); setRoleFilter(""); setStatusFilter(""); }}>Clear filters</button>}
       </div>
-      {viewMode === "calendar" ? <>
-        <div className="schedule-weekdays">{weekdayLabels.map((label) => <b key={label}>{label}</b>)}</div>
-        <div className="schedule-calendar">
-          {days.map((date) => {
+      {viewMode !== "agenda" ? <>
+        {viewMode !== "day" && <div className="schedule-weekdays">{weekdayLabels.map((label) => <b key={label}>{label}</b>)}</div>}
+        <div className={`schedule-calendar view-${viewMode}`}>
+          {visibleDays.map((date) => {
             const gaps = data?.coverageGaps.filter((gap) => gap.date === date) ?? [];
             const patterns = data?.shiftPatterns.filter((pattern) => patternOccurs(pattern, date)) ?? [];
-            return <article key={date} className={`${date.slice(0, 7) === month ? "" : "outside"} ${date === today() ? "today" : ""} ${gaps.length ? "understaffed" : ""}`}>
-              <header><span>{Number(date.slice(8))}</span>{gaps.length > 0 && <b title={gaps.map((gap) => `${gap.role}: short ${gap.shortBy}`).join(", ")}>−{gaps.reduce((sum, gap) => sum + gap.shortBy, 0)} staff</b>}</header>
+            return <article key={date} data-shift-color={patterns[0]?.color || "none"} className={`${date.slice(0, 7) === month || viewMode !== "month" ? "" : "outside"} ${date === today() ? "today" : ""} ${gaps.length ? "understaffed" : ""}`}>
+              <header><button className="schedule-date-button" aria-label={`Open day view for ${friendlyDate(date)}`} onClick={() => { setSelectedDate(date); setMonth(date.slice(0, 7)); setViewMode("day"); }}>{viewMode === "day" ? friendlyDate(date) : Number(date.slice(8))}</button>{gaps.length > 0 && <b title={gaps.map((gap) => `${gap.role}: short ${gap.shortBy}`).join(", ")}>−{gaps.reduce((sum, gap) => sum + gap.shortBy, 0)} staff</b>}</header>
               {patterns.length > 0 && <div className="schedule-patterns">{patterns.map((pattern) => <span className="schedule-pattern-chip" data-color={pattern.color} key={pattern.id}><strong>{pattern.name}</strong><small>{pattern.startTime}–{pattern.endTime}</small></span>)}</div>}
               <div>{filteredAssignments.filter((item) => item.workDate === date).map((item) => <span key={item.id} className={`${item.status} ${item.emergency ? "emergency" : ""}`}>
                 <strong>{item.status === "open" ? "OPEN" : formatEmployeeName(item.employeeName || "")}</strong>
