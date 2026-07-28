@@ -67,3 +67,11 @@ test("permission saves are verified and refresh the active permission snapshot",
   assert.match(app, /function permissionsSaved/);
   assert.match(styles, /data-test-safe.*cursor: pointer !important/);
 });
+
+test("Dashboard disappears and cannot remain active when its permission is removed", async () => {
+  const app = await readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8");
+  assert.match(app, /visibleNav\.includes\("Dashboard"\) && <button/);
+  assert.match(app, /!visibleNav\.includes\(activeNav\).*setActiveNav\(homePage\)/s);
+  assert.match(app, /onClick=\{\(\) => navigate\(homePage\)\}/);
+  assert.match(app, /firstPermitted.*setActiveNav\(firstPermitted \?\? "My Timesheet"\)/s);
+});
