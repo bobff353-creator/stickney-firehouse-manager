@@ -49,6 +49,8 @@ test("every employee keeps a read-only own-timesheet view including administrato
   ]);
   assert.match(permissions, /payroll\.view_own.*required: true/);
   assert.match(route, /effective\.add\("payroll\.view_own"\)/);
+  assert.match(app, /const adminNavItems: NavItem\[\] = \[[^\]]*"My Timesheet"/);
+  assert.match(app, /"My Timesheet": "payroll\.view_own"/);
   assert.match(app, /const canEditEntry = isAdminView/);
   assert.match(app, /isAdminView \? .*employee-select/);
 });
