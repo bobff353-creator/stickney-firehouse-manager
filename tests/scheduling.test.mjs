@@ -89,6 +89,18 @@ test("open shifts enforce rank and response deadlines", async () => {
   assert.equal(source.includes("This shift requires"), true);
 });
 
+test("Acting Officer eligibility gates officer scheduling workflows", async () => {
+  const api = await readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8");
+  const profile = await readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8");
+  const schema = await readFile(new URL("../db/schema.ts", import.meta.url), "utf8");
+  assert.equal(schema.includes('actingOfficerEligible: integer("acting_officer_eligible"'), true);
+  assert.equal(profile.includes("Eligible to work Acting Officer shifts"), true);
+  assert.equal(api.includes("qualifiedForRole(requiredPosition.role"), true);
+  assert.equal(api.includes("qualifiedForRole(openShift.role"), true);
+  assert.equal(api.includes("The selected member is not eligible to work this Officer/AO shift."), true);
+  assert.equal(api.includes("The requested member is not eligible for this Officer/AO shift."), true);
+});
+
 test("trades require member acceptance before admin approval", async () => {
   const source = await readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8");
   assert.equal(source.includes('action === "respondTrade"'), true);

@@ -30,13 +30,13 @@ type Employee = PayScale & {
   id: string; name: string; payScaleId: string; rank: string; active: number;
   employeeNumber?: string | null; startDate?: string | null; endDate?: string | null; dateOfBirth?: string | null;
   phone?: string | null; email?: string | null; addressLine1?: string | null; city?: string | null;
-  state?: string | null; postalCode?: string | null; employmentType?: string | null; isDpw?: number | boolean; driverStatus?: string | null; isAdmin?: number | boolean;
+  state?: string | null; postalCode?: string | null; employmentType?: string | null; isDpw?: number | boolean; driverStatus?: string | null; actingOfficerEligible?: number | boolean; isAdmin?: number | boolean;
   emergencyName?: string | null; emergencyRelationship?: string | null; emergencyPhone?: string | null; photoUpdatedAt?: string | null; notes?: string | null;
 };
 type EmployeeForm = {
   id?: string; lastName: string; firstName: string; payScaleId: string; employeeNumber: string; startDate: string; endDate: string;
   dateOfBirth: string; phone: string; email: string; addressLine1: string; city: string; state: string;
-  postalCode: string; employmentType: string; isDpw: boolean; driverStatus: string; isAdmin: boolean; emergencyName: string; emergencyRelationship: string;
+  postalCode: string; employmentType: string; isDpw: boolean; driverStatus: string; actingOfficerEligible: boolean; isAdmin: boolean; emergencyName: string; emergencyRelationship: string;
   emergencyPhone: string; notes: string;
 };
 type Entry = { id?: string; employeeId: string; workDate: string; category: Category; hours: number };
@@ -66,7 +66,7 @@ const adminNavGroups: Array<{ label: string; icon: IconName; items: Array<{ labe
 ];
 const emptyEmployee: EmployeeForm = {
   lastName: "", firstName: "", payScaleId: "firefighter", employeeNumber: "", startDate: "", endDate: "", dateOfBirth: "",
-  phone: "", email: "", addressLine1: "", city: "", state: "IL", postalCode: "", employmentType: "Part-time", isDpw: false, driverStatus: "", isAdmin: false,
+  phone: "", email: "", addressLine1: "", city: "", state: "IL", postalCode: "", employmentType: "Part-time", isDpw: false, driverStatus: "", actingOfficerEligible: false, isAdmin: false,
   emergencyName: "", emergencyRelationship: "", emergencyPhone: "", notes: "",
 };
 const categoryColumns: Array<{ key: Category; short: string; label: string }> = [
@@ -462,7 +462,7 @@ export default function PayrollApp() {
         startDate: employee.startDate ?? "", endDate: employee.endDate ?? "", dateOfBirth: employee.dateOfBirth ?? "",
         phone: employee.phone ?? "", email: employee.email ?? "", addressLine1: employee.addressLine1 ?? "",
         city: employee.city ?? "", state: employee.state ?? "IL", postalCode: employee.postalCode ?? "",
-        employmentType: employee.employmentType ?? "Part-time", isDpw: Boolean(employee.isDpw), driverStatus: employee.driverStatus ?? "", isAdmin: Boolean(employee.isAdmin), emergencyName: employee.emergencyName ?? "",
+        employmentType: employee.employmentType ?? "Part-time", isDpw: Boolean(employee.isDpw), driverStatus: employee.driverStatus ?? "", actingOfficerEligible: Boolean(employee.actingOfficerEligible), isAdmin: Boolean(employee.isAdmin), emergencyName: employee.emergencyName ?? "",
         emergencyRelationship: employee.emergencyRelationship ?? "", emergencyPhone: employee.emergencyPhone ?? "", notes: employee.notes ?? "",
       });
       setEmployeePhotoPreview(employee.photoUpdatedAt ? `/api/employee-photo/${employee.id}?v=${encodeURIComponent(employee.photoUpdatedAt)}` : "");
@@ -673,6 +673,7 @@ export default function PayrollApp() {
                 <label><span>Start date</span><input type="date" value={employeeDraft.startDate} onChange={(event) => setEmployeeDraft((current) => ({ ...current, startDate: event.target.value }))} /></label>
                 <label><span>Last day of work</span><input type="date" value={employeeDraft.endDate} min={employeeDraft.startDate || undefined} onChange={(event) => setEmployeeDraft((current) => ({ ...current, endDate: event.target.value }))} /></label>
               </div><p className="field-help">The employee appears on payroll beginning with their start date. After their last day, they are automatically removed from future payrolls while all history stays saved.</p></fieldset>
+              <fieldset className="acting-officer-profile"><legend>Acting Officer</legend><label className="acting-officer-eligible-check"><input type="checkbox" checked={employeeDraft.actingOfficerEligible} onChange={(event) => setEmployeeDraft((current) => ({ ...current, actingOfficerEligible: event.target.checked }))} /><span><strong>Eligible to work Acting Officer shifts</strong><small>Scheduling will allow this employee to be assigned to, notified about, trade into, or request an Officer/AO shift. Commissioned officer ranks remain eligible by rank.</small></span></label><p className="field-help">This controls scheduling eligibility only. Acting Officer payroll remains a separate manual selection in the Daily Log for the employee and hours actually worked.</p></fieldset>
               <fieldset><legend>Contact & personal information</legend><div className="employee-fields three-col">
                 <label><span>Date of birth</span><input type="date" value={employeeDraft.dateOfBirth} onChange={(event) => setEmployeeDraft((current) => ({ ...current, dateOfBirth: event.target.value }))} /></label>
                 <label><span>Phone number</span><input type="tel" placeholder="(708) 555-0123" value={employeeDraft.phone} onChange={(event) => setEmployeeDraft((current) => ({ ...current, phone: event.target.value }))} /></label>
@@ -691,9 +692,9 @@ export default function PayrollApp() {
             </form>}
             <section className="content-card employee-roster-card"><div className="section-header"><div><h2>Employee roster</h2><p>Ended employees remain here for payroll history and can be updated or rehired.</p></div><div className="employee-form-actions"><span className="count-badge">{data.employees.length} records</span><button type="button" className="primary-action compact" onClick={() => editEmployee()}>Add Employee</button></div></div>
               {data.employees.length === 0 && <div className="action-empty-state"><Icon name="users" size={28}/><div><strong>No employees yet</strong><p>Add the first employee to begin staffing, timesheets, and payroll.</p></div><button className="quiet-button" onClick={() => editEmployee()}>Add Employee</button></div>}
-              <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Employee #</th><th>Pay Scale</th><th>Driver</th><th>Phone</th><th>Start</th><th>Last Day</th><th>Status</th><th></th></tr></thead><tbody>{[...data.employees].sort((a, b) => compareEmployeeNames(a.name, b.name)).map((employee) => {
+              <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Employee #</th><th>Pay Scale</th><th>Driver</th><th>Acting Officer</th><th>Phone</th><th>Start</th><th>Last Day</th><th>Status</th><th></th></tr></thead><tbody>{[...data.employees].sort((a, b) => compareEmployeeNames(a.name, b.name)).map((employee) => {
                 const payrollStatus = employee.startDate && employee.startDate > data.period.endDate ? "Scheduled" : employee.endDate && employee.endDate < data.period.startDate ? "Ended" : "Active";
-                return <tr key={employee.id}><td data-label="Employee"><span className="person-icon employee-list-photo">{employee.photoUpdatedAt ? <img src={`/api/employee-photo/${employee.id}?v=${encodeURIComponent(employee.photoUpdatedAt)}`} alt="" /> : <Icon name="users"/>}</span><strong>{displayName(employee.name)}</strong></td><td data-label="Employee #">{employee.employeeNumber || "—"}</td><td data-label="Pay Scale">{employee.rank}</td><td data-label="Driver">{employee.driverStatus || "—"}</td><td data-label="Phone">{employee.phone || "—"}</td><td data-label="Start">{employee.startDate || "—"}</td><td data-label="Last Day">{employee.endDate || "—"}</td><td data-label="Status"><span className={`employment-status ${payrollStatus.toLowerCase()}`}>{payrollStatus}</span></td><td data-label="Actions"><div className="employee-row-actions"><button className="edit-employee" onClick={() => editEmployee(employee)}>Edit</button><button className="delete-employee" onClick={() => setEmployeeToDelete(employee)}>Delete</button></div></td></tr>;
+                return <tr key={employee.id}><td data-label="Employee"><span className="person-icon employee-list-photo">{employee.photoUpdatedAt ? <img src={`/api/employee-photo/${employee.id}?v=${encodeURIComponent(employee.photoUpdatedAt)}`} alt="" /> : <Icon name="users"/>}</span><strong>{displayName(employee.name)}</strong></td><td data-label="Employee #">{employee.employeeNumber || "—"}</td><td data-label="Pay Scale">{employee.rank}</td><td data-label="Driver">{employee.driverStatus || "—"}</td><td data-label="Acting Officer"><span className={`ao-eligibility ${employee.actingOfficerEligible ? "eligible" : ""}`}>{employee.actingOfficerEligible ? "Eligible" : "Not eligible"}</span></td><td data-label="Phone">{employee.phone || "—"}</td><td data-label="Start">{employee.startDate || "—"}</td><td data-label="Last Day">{employee.endDate || "—"}</td><td data-label="Status"><span className={`employment-status ${payrollStatus.toLowerCase()}`}>{payrollStatus}</span></td><td data-label="Actions"><div className="employee-row-actions"><button className="edit-employee" onClick={() => editEmployee(employee)}>Edit</button><button className="delete-employee" onClick={() => setEmployeeToDelete(employee)}>Delete</button></div></td></tr>;
               })}</tbody></table></div>
             </section>
           </section>}

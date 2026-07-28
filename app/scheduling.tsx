@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatEmployeeName } from "./employee-names";
 import { matchingTimeBlock, scheduleTimeBlocks } from "./schedule-time";
 
-type Employee = { id:string; name:string; rank:string; email:string; phone:string };
+type Employee = { id:string; name:string; rank:string; email:string; phone:string; actingOfficerEligible:number };
 type Assignment = {
   id:string; employeeId:string|null; employeeName?:string; workDate:string; startTime:string; endTime:string; role:string;
   source:string; status:string; emergency:number; requiredRank:string; claimDeadline:string; notes:string;
@@ -23,7 +23,7 @@ type CoverageGap = {
   date:string; ruleId:string; name:string; role:string; startTime:string; endTime:string; minimumStaff:number; scheduled:number; shortBy:number;
 };
 type ScheduleData = {
-  viewer:{ employeeId:string|null; isAdmin:boolean };
+  viewer:{ employeeId:string|null; isAdmin:boolean; rank:string; actingOfficerEligible:boolean };
   employees:Employee[]; assignments:Assignment[]; rotations:Rotation[]; requests:Request[]; notifications:Notification[];
   coverageRules:CoverageRule[]; coverageGaps:CoverageGap[];
 };
@@ -54,6 +54,10 @@ const departmentPositions = [
   "Detail",
 ];
 const friendlyDate = (value:string) => new Date(`${value}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+const isOfficerPosition = (role:string) => /\b(officer|acting\s+officer|ao|oic)\b/i.test(role);
+const isOfficerRank = (rank:string) => /\b(chief|captain|lieutenant)\b/i.test(rank);
+const qualifiedForPosition = (employee:Pick<Employee,"rank"|"actingOfficerEligible">, role:string) =>
+  !isOfficerPosition(role) || isOfficerRank(employee.rank) || Boolean(employee.actingOfficerEligible);
 
 function TimeBlockSelect({ startTime, endTime, onChange }:{ startTime:string; endTime:string; onChange:(startTime:string,endTime:string)=>void }) {
   return <label className="wide"><span>Quick time block</span><select value={matchingTimeBlock(startTime, endTime)} onChange={(event) => {
@@ -312,7 +316,7 @@ export default function Scheduling() {
         <div className="section-header"><div><h2>Add employee rotation</h2><p>Pick the employee and staffing plan, choose the first day and repeat interval, then fill the schedule automatically.</p></div></div>
         {!coveragePlans.length && <div className="schedule-setup-callout"><strong>Create a minimum staffing plan first.</strong><span>Employee rotations use the plan’s positions and working hours.</span><button onClick={() => setTab("coverage")}>Go to Coverage</button></div>}
         <div className="schedule-fields">
-          <label><span>Employee *</span><select value={rotation.employeeId} onChange={(event) => setRotation({ ...rotation, employeeId: event.target.value })}><option value="">Select employee</option>{data.employees.map((employee) => <option key={employee.id} value={employee.id}>{formatEmployeeName(employee.name)} · {employee.rank}</option>)}</select></label>
+          <label><span>Employee *</span><select value={rotation.employeeId} onChange={(event) => setRotation({ ...rotation, employeeId: event.target.value })}><option value="">Select employee</option>{data.employees.filter((employee) => qualifiedForPosition(employee, rotation.role)).map((employee) => <option key={employee.id} value={employee.id}>{formatEmployeeName(employee.name)} · {employee.rank}{employee.actingOfficerEligible ? " · AO eligible" : ""}</option>)}</select></label>
           <label><span>Staffing plan *</span><select value={rotation.coveragePlanId} disabled={!coveragePlans.length} onChange={(event) => {
             const planId = event.target.value;
             const plan = coveragePlans.find(([, rules]) => (rules[0].planId || rules[0].id) === planId)?.[1] ?? [];
@@ -346,7 +350,7 @@ export default function Scheduling() {
         <div className="section-header"><div><h2>Add assignment or open shift</h2><p>Leave employee blank to publish a qualified open shift.</p></div></div>
         <div className="schedule-fields">
           <label><span>Employee</span><select value={shift.employeeId} onChange={(event) => setShift({ ...shift, employeeId: event.target.value })}>
-            <option value="">Open to employees</option>{data.employees.map((employee) => <option key={employee.id} value={employee.id}>{formatEmployeeName(employee.name)} · {employee.rank}</option>)}
+            <option value="">Open to employees</option>{data.employees.filter((employee) => qualifiedForPosition(employee, shift.role)).map((employee) => <option key={employee.id} value={employee.id}>{formatEmployeeName(employee.name)} · {employee.rank}{employee.actingOfficerEligible ? " · AO eligible" : ""}</option>)}
           </select></label>
           <TimeBlockSelect startTime={shift.startTime} endTime={shift.endTime} onChange={(startTime, endTime) => setShift({ ...shift, startTime, endTime })}/>
           {[
@@ -367,7 +371,7 @@ export default function Scheduling() {
             <span>{item.emergency ? "Emergency coverage" : "Open shift"}</span><strong>{item.workDate} · {item.startTime}-{item.endTime}</strong>
             <p>{item.role}{item.requiredRank ? ` · ${item.requiredRank} required` : ""}{item.notes ? ` · ${item.notes}` : ""}</p>
             {item.claimDeadline && <small>Respond by {item.claimDeadline.replace("T", " ")}</small>}
-          </div>{!data.viewer.isAdmin && <button disabled={busy} onClick={() => void act({ action: "submitRequest", requestType: "shift_claim", assignmentId: item.id, startDate: item.workDate, endDate: item.workDate, startTime: item.startTime, endTime: item.endTime, role: item.role }, "Shift request sent")}>Request Shift</button>}</article>)}
+          </div>{!data.viewer.isAdmin && (() => { const eligible = qualifiedForPosition({ rank: data.viewer.rank, actingOfficerEligible: data.viewer.actingOfficerEligible ? 1 : 0 }, item.role); return <button disabled={busy || !eligible} title={eligible ? undefined : "Your employee record is not marked Acting Officer eligible."} onClick={() => void act({ action: "submitRequest", requestType: "shift_claim", assignmentId: item.id, startDate: item.workDate, endDate: item.workDate, startTime: item.startTime, endTime: item.endTime, role: item.role }, "Shift request sent")}>{eligible ? "Request Shift" : "AO eligibility required"}</button>; })()}</article>)}
         </div>
       </article>
     </section>}
@@ -379,7 +383,7 @@ export default function Scheduling() {
           <label><span>Request type</span><select value={request.requestType} onChange={(event) => setRequest({ ...request, requestType: event.target.value, assignmentId: "" })}>{Object.entries(requestLabels).filter(([key]) => key !== "shift_claim").map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
           {request.requestType === "trade" && <>
             <label><span>Your shift *</span><select value={request.assignmentId} onChange={(event) => { const assignment = ownAssignments.find((item) => item.id === event.target.value); setRequest({ ...request, assignmentId: event.target.value, startDate: assignment?.workDate || today(), endDate: assignment?.workDate || today(), startTime: assignment?.startTime || "", endTime: assignment?.endTime || "", role: assignment?.role || "" }); }}><option value="">Select shift</option>{ownAssignments.map((item) => <option key={item.id} value={item.id}>{item.workDate} · {item.startTime}-{item.endTime} · {item.role}</option>)}</select></label>
-            <label><span>Requested member *</span><select value={request.targetEmployeeId} onChange={(event) => setRequest({ ...request, targetEmployeeId: event.target.value })}><option value="">Select member</option>{data.employees.filter((employee) => employee.id !== data.viewer.employeeId).map((employee) => <option key={employee.id} value={employee.id}>{formatEmployeeName(employee.name)} · {employee.rank}</option>)}</select></label>
+            <label><span>Requested member *</span><select value={request.targetEmployeeId} onChange={(event) => setRequest({ ...request, targetEmployeeId: event.target.value })}><option value="">Select member</option>{data.employees.filter((employee) => employee.id !== data.viewer.employeeId && qualifiedForPosition(employee, request.role)).map((employee) => <option key={employee.id} value={employee.id}>{formatEmployeeName(employee.name)} · {employee.rank}{employee.actingOfficerEligible ? " · AO eligible" : ""}</option>)}</select></label>
           </>}
           {["availability", "time_off"].includes(request.requestType) && <>
             {[["Start date", "startDate", "date"], ["End date", "endDate", "date"], ["From", "startTime", "time"], ["To", "endTime", "time"], ["Position", "role", "text"]].map(([label, key, type]) => <label key={key}><span>{label}</span><input type={type} value={String(request[key as keyof typeof request])} onChange={(event) => setRequest({ ...request, [key]: event.target.value })}/></label>)}

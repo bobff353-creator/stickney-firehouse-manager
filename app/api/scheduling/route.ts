@@ -11,16 +11,22 @@ type Assignment = {
 type CoverageRule = {
   id: string; planId: string; name: string; role: string; minimumStaff: number; startTime: string; endTime: string; daysOfWeek: string; active: number;
 };
+const officerRole = (role: string) => /\b(officer|acting\s+officer|ao|oic)\b/i.test(role);
+const officerRank = (rank: string) => /\b(chief|captain|lieutenant)\b/i.test(rank);
+const qualifiedForRole = (role: string, rank: string, actingOfficerEligible: number | boolean) =>
+  !officerRole(role) || officerRank(rank) || Boolean(actingOfficerEligible);
 
 async function viewer(db: Db, request: Request) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
   const employee = email
-    ? await db.prepare("SELECT e.id,e.name,COALESCE(ep.is_admin,0) isAdmin FROM employees e LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(ep.email)=? LIMIT 1").bind(email).first<{id:string;name:string;isAdmin:number}>()
+    ? await db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.is_admin,0) isAdmin FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(ep.email)=? LIMIT 1").bind(email).first<{id:string;name:string;rank:string;actingOfficerEligible:number;isAdmin:number}>()
     : null;
   return {
     email,
     employeeId: employee?.id ?? null,
     name: employee?.name ?? (email || "Employee"),
+    rank: employee?.rank ?? "",
+    actingOfficerEligible: Boolean(employee?.actingOfficerEligible),
     isAdmin: ownerAdminEmails.includes(email) || Boolean(employee?.isAdmin),
   };
 }
@@ -86,7 +92,7 @@ export async function GET(request: Request) {
     if (!current.isAdmin && !current.employeeId) return Response.json({ error: "Your login is not connected to an employee record." }, { status: 403 });
     const employeeId = current.employeeId ?? "";
     const [employees, assignments, rotations, requests, notifications, rules] = await Promise.all([
-      db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.email,'') email,COALESCE(ep.phone,'') phone FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 ORDER BY e.name COLLATE NOCASE").all(),
+      db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.email,'') email,COALESCE(ep.phone,'') phone,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 ORDER BY e.name COLLATE NOCASE").all(),
       current.isAdmin
         ? db.prepare("SELECT a.id,a.employee_id employeeId,e.name employeeName,a.work_date workDate,a.start_time startTime,a.end_time endTime,a.role,a.source,a.status,a.emergency,a.required_rank requiredRank,a.claim_deadline claimDeadline,a.notes FROM schedule_assignments a LEFT JOIN employees e ON e.id=a.employee_id WHERE a.work_date>=date('now','-45 day') ORDER BY a.work_date,a.start_time").all<Assignment>()
         : db.prepare("SELECT a.id,a.employee_id employeeId,e.name employeeName,a.work_date workDate,a.start_time startTime,a.end_time endTime,a.role,a.source,a.status,a.emergency,a.required_rank requiredRank,a.claim_deadline claimDeadline,a.notes FROM schedule_assignments a LEFT JOIN employees e ON e.id=a.employee_id WHERE a.work_date>=date('now','-45 day') AND (a.employee_id=? OR a.status='open') ORDER BY a.work_date,a.start_time").bind(employeeId).all<Assignment>(),
@@ -139,8 +145,9 @@ export async function POST(request: Request) {
       }
       const requiredPosition = await db.prepare("SELECT id,plan_id planId,name,start_time startTime,end_time endTime,role FROM schedule_coverage_rules WHERE active=1 AND lower(role)=lower(?) AND ((plan_id<>'' AND plan_id=?) OR id=?) LIMIT 1").bind(role, coveragePlanId, coveragePlanId).first<{id:string;planId:string;name:string;startTime:string;endTime:string;role:string}>();
       if (!requiredPosition) return Response.json({ error: "Choose a position from the selected active minimum staffing plan." }, { status: 400 });
-      const employee = await db.prepare("SELECT id FROM employees WHERE id=? AND active=1").bind(employeeIds[0]).first();
+      const employee = await db.prepare("SELECT e.id,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1").bind(employeeIds[0]).first<{id:string;rank:string;actingOfficerEligible:number}>();
       if (!employee) return Response.json({ error: "Choose an active employee." }, { status: 400 });
+      if (!qualifiedForRole(requiredPosition.role, employee.rank, employee.actingOfficerEligible)) return Response.json({ error: "This employee is not eligible to work the selected Officer/AO position." }, { status: 403 });
       const rotationId = crypto.randomUUID();
       await db.prepare("INSERT INTO schedule_rotations(id,name,start_date,end_date,start_time,end_time,cycle_days,duty_days,role,coverage_plan_id,created_by) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
         .bind(rotationId, name, startDate, endDate, requiredPosition.startTime, requiredPosition.endTime, cycleDays, "0", requiredPosition.role, requiredPosition.planId || requiredPosition.id, current.name).run();
@@ -221,11 +228,16 @@ export async function POST(request: Request) {
       if (!iso.test(workDate) || !startTime || !endTime || !role || (claimDeadline && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(claimDeadline))) {
         return Response.json({ error: "Enter a date, times, position, and a valid response deadline." }, { status: 400 });
       }
+      if (employeeId) {
+        const employee = await db.prepare("SELECT p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1").bind(employeeId).first<{rank:string;actingOfficerEligible:number}>();
+        if (!employee) return Response.json({ error: "Choose an active employee." }, { status: 400 });
+        if (!qualifiedForRole(role, employee.rank, employee.actingOfficerEligible)) return Response.json({ error: "This employee is not eligible to work an Officer/AO assignment." }, { status: 403 });
+      }
       await db.prepare("INSERT INTO schedule_assignments(id,employee_id,work_date,start_time,end_time,role,source,status,emergency,required_rank,claim_deadline,notes,created_by) VALUES(?,NULLIF(?,''),?,?,?,?,'manual',?,?,?,?,?,?)")
         .bind(crypto.randomUUID(), employeeId, workDate, startTime, endTime, role, employeeId ? "assigned" : "open", emergency ? 1 : 0, requiredRank, claimDeadline, notes, current.name).run();
       const recipients = employeeId
         ? [employeeId]
-        : (await db.prepare("SELECT e.id FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id WHERE e.active=1 AND (?='' OR lower(p.label)=lower(?))").bind(requiredRank, requiredRank).all<{id:string}>()).results.map((row) => row.id);
+        : (await db.prepare("SELECT e.id FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND (?='' OR lower(p.label)=lower(?)) AND (?=0 OR lower(p.label) LIKE '%chief%' OR lower(p.label) LIKE '%captain%' OR lower(p.label) LIKE '%lieutenant%' OR COALESCE(ep.acting_officer_eligible,0)=1)").bind(requiredRank, requiredRank, officerRole(role) ? 1 : 0).all<{id:string}>()).results.map((row) => row.id);
       await notify(db, recipients, emergency ? "Emergency coverage needed" : employeeId ? "Schedule assignment" : "Open shift available", `${workDate} ${startTime}-${endTime} · ${role}${requiredRank ? ` · ${requiredRank} required` : ""}${notes ? ` · ${notes}` : ""}`);
       return Response.json({ ok: true });
     }
@@ -244,14 +256,17 @@ export async function POST(request: Request) {
         return Response.json({ error: "Choose your shift and the member who must accept the trade." }, { status: 400 });
       }
       if (requestType === "trade") {
-        const ownedShift = await db.prepare("SELECT id FROM schedule_assignments WHERE id=? AND employee_id=? AND status='assigned'").bind(assignmentId, employeeId).first();
+        const ownedShift = await db.prepare("SELECT id,role FROM schedule_assignments WHERE id=? AND employee_id=? AND status='assigned'").bind(assignmentId, employeeId).first<{id:string;role:string}>();
         if (!ownedShift) return Response.json({ error: "Choose one of your currently assigned shifts." }, { status: 403 });
+        const targetEmployee = await db.prepare("SELECT p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1").bind(targetEmployeeId).first<{rank:string;actingOfficerEligible:number}>();
+        if (!targetEmployee || !qualifiedForRole(ownedShift.role, targetEmployee.rank, targetEmployee.actingOfficerEligible)) return Response.json({ error: "The selected member is not eligible to work this Officer/AO shift." }, { status: 403 });
       }
       if (requestType === "shift_claim") {
-        const openShift = await db.prepare("SELECT a.status,a.required_rank requiredRank,a.claim_deadline claimDeadline,p.label employeeRank FROM schedule_assignments a JOIN employees e ON e.id=? JOIN pay_scales p ON p.id=e.pay_scale_id WHERE a.id=?").bind(employeeId, assignmentId).first<{status:string;requiredRank:string;claimDeadline:string;employeeRank:string}>();
+        const openShift = await db.prepare("SELECT a.status,a.role,a.required_rank requiredRank,a.claim_deadline claimDeadline,p.label employeeRank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM schedule_assignments a JOIN employees e ON e.id=? JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE a.id=?").bind(employeeId, assignmentId).first<{status:string;role:string;requiredRank:string;claimDeadline:string;employeeRank:string;actingOfficerEligible:number}>();
         if (!openShift || openShift.status !== "open") return Response.json({ error: "That shift is no longer open." }, { status: 409 });
         if (openShift.claimDeadline && openShift.claimDeadline < chicagoNow()) return Response.json({ error: "The response deadline for that shift has passed." }, { status: 409 });
         if (openShift.requiredRank && openShift.requiredRank.toLowerCase() !== openShift.employeeRank.toLowerCase()) return Response.json({ error: `This shift requires ${openShift.requiredRank}.` }, { status: 403 });
+        if (!qualifiedForRole(openShift.role, openShift.employeeRank, openShift.actingOfficerEligible)) return Response.json({ error: "Your employee record is not marked eligible for Officer/AO shifts." }, { status: 403 });
         const existing = await db.prepare("SELECT id FROM schedule_requests WHERE assignment_id=? AND employee_id=? AND request_type='shift_claim' AND status='pending'").bind(assignmentId, employeeId).first();
         if (existing) return Response.json({ error: "You already requested this shift." }, { status: 409 });
       }
@@ -269,8 +284,9 @@ export async function POST(request: Request) {
       const id = String(payload.id ?? "");
       const decision = String(payload.decision ?? "");
       if (!current.employeeId || !["accepted", "declined"].includes(decision)) return Response.json({ error: "Choose accept or decline." }, { status: 400 });
-      const trade = await db.prepare("SELECT employee_id employeeId FROM schedule_requests WHERE id=? AND request_type='trade' AND target_employee_id=? AND status='pending' AND target_status='pending'").bind(id, current.employeeId).first<{employeeId:string}>();
+      const trade = await db.prepare("SELECT q.employee_id employeeId,a.role,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM schedule_requests q JOIN schedule_assignments a ON a.id=q.assignment_id JOIN employees e ON e.id=q.target_employee_id JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE q.id=? AND q.request_type='trade' AND q.target_employee_id=? AND q.status='pending' AND q.target_status='pending'").bind(id, current.employeeId).first<{employeeId:string;role:string;rank:string;actingOfficerEligible:number}>();
       if (!trade) return Response.json({ error: "This trade is no longer waiting for your response." }, { status: 409 });
+      if (decision === "accepted" && !qualifiedForRole(trade.role, trade.rank, trade.actingOfficerEligible)) return Response.json({ error: "Your employee record is not eligible for this Officer/AO shift." }, { status: 403 });
       await db.prepare(`UPDATE schedule_requests SET target_status=?${decision === "declined" ? ",status='denied'" : ""} WHERE id=?`).bind(decision, id).run();
       await notify(db, [trade.employeeId, ...(decision === "accepted" ? await admins(db) : [])], `Trade ${decision}`, `${current.name} ${decision} the proposed trade.`);
       return Response.json({ ok: true });
@@ -286,10 +302,14 @@ export async function POST(request: Request) {
       if (!item) return Response.json({ error: "Request is no longer pending." }, { status: 409 });
       if (decision === "approved" && item.requestType === "trade" && item.targetStatus !== "accepted") return Response.json({ error: "The requested member must accept the trade before approval." }, { status: 409 });
       if (decision === "approved" && item.assignmentId && item.requestType === "shift_claim") {
+        const qualification = await db.prepare("SELECT a.role,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM schedule_assignments a JOIN employees e ON e.id=? JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE a.id=?").bind(item.employeeId, item.assignmentId).first<{role:string;rank:string;actingOfficerEligible:number}>();
+        if (!qualification || !qualifiedForRole(qualification.role, qualification.rank, qualification.actingOfficerEligible)) return Response.json({ error: "The employee is not eligible for this Officer/AO shift." }, { status: 403 });
         const result = await db.prepare("UPDATE schedule_assignments SET employee_id=?,status='assigned' WHERE id=? AND status='open'").bind(item.employeeId, item.assignmentId).run();
         if (!result.meta.changes) return Response.json({ error: "That shift was already filled." }, { status: 409 });
       }
       if (decision === "approved" && item.assignmentId && item.requestType === "trade" && item.targetEmployeeId) {
+        const qualification = await db.prepare("SELECT a.role,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM schedule_assignments a JOIN employees e ON e.id=? JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE a.id=?").bind(item.targetEmployeeId, item.assignmentId).first<{role:string;rank:string;actingOfficerEligible:number}>();
+        if (!qualification || !qualifiedForRole(qualification.role, qualification.rank, qualification.actingOfficerEligible)) return Response.json({ error: "The requested member is not eligible for this Officer/AO shift." }, { status: 403 });
         await db.prepare("UPDATE schedule_assignments SET employee_id=? WHERE id=? AND employee_id=?").bind(item.targetEmployeeId, item.assignmentId, item.employeeId).run();
       }
       await db.prepare("UPDATE schedule_requests SET status=?,reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP WHERE id=?").bind(decision, current.name, id).run();
