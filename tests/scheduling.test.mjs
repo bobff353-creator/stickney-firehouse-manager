@@ -55,6 +55,19 @@ test("employees have a private schedule portal with recurring requests and self-
   assert.match(app, /item === "Scheduling" \? "Employee Schedule Portal"/);
 });
 
+test("administrator Test View stays on the selected employee schedule portal", async () => {
+  const [page, route, app] = await Promise.all([
+    readFile(new URL("../app/scheduling.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(app, /<Scheduling testMember=\{testMember\}/);
+  assert.match(page, /data\?\.viewer\.isAdmin && !testMember/);
+  assert.match(page, /item\.employeeId === portalEmployeeId \|\| item\.status === "open"/);
+  assert.match(page, /Boolean\(testMember\)/);
+  assert.match(route, /current\.isAdmin \? new URL\(request\.url\)\.searchParams\.get\("testEmployeeId"\)/);
+});
+
 test("coverage rules calculate future staffing gaps", async () => {
   const source = await readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8");
   assert.equal(source.includes("schedule_coverage_rules"), true);

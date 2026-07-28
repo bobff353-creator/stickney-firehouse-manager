@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatEmployeeName } from "./employee-names";
 import { matchingTimeBlock, scheduleTimeBlocks } from "./schedule-time";
 
-type Employee = { id:string; name:string; rank:string; email:string; phone:string; actingOfficerEligible:number };
+type Employee = { id:string; name:string; rank:string; email:string; phone:string; scheduleSmsOptIn:number; actingOfficerEligible:number };
+type TestMember = { id:string; name:string; rank:string; effectivePermissions:string[] };
 type Assignment = {
   id:string; employeeId:string|null; employeeName?:string; workDate:string; startTime:string; endTime:string; role:string;
   source:string; status:string; emergency:number; requiredRank:string; claimDeadline:string; notes:string;
@@ -81,7 +82,7 @@ function TimeBlockSelect({ startTime, endTime, onChange }:{ startTime:string; en
   </select><small>Selecting Afternoon automatically enters 12:00 PM through 6:00 PM.</small></label>;
 }
 
-export default function Scheduling() {
+export default function Scheduling({ testMember = null }:{ testMember?:TestMember|null }) {
   const [data, setData] = useState<ScheduleData | null>(null);
   const [tab, setTab] = useState("calendar");
   const [month, setMonth] = useState(today().slice(0, 7));
@@ -120,11 +121,11 @@ export default function Scheduling() {
   });
 
   const load = useCallback(async () => {
-    const response = await fetch("/api/scheduling");
+    const response = await fetch(testMember ? `/api/scheduling?testEmployeeId=${encodeURIComponent(testMember.id)}` : "/api/scheduling");
     const payload = await response.json() as ScheduleData & { error?:string };
     if (!response.ok) throw new Error(payload.error || "Unable to load scheduling");
     setData(payload);
-  }, []);
+  }, [testMember]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void load().catch((reason) => setError(reason.message)); }, 0);
@@ -175,17 +176,24 @@ export default function Scheduling() {
     return `${new Date(`${start}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${new Date(`${end}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
   }, [month, selectedDate, viewMode, visibleDays]);
 
-  const roles = useMemo(() => [...new Set(data?.assignments.map((item) => item.role).filter(Boolean) ?? [])].sort(), [data]);
-  const filteredAssignments = useMemo(() => (data?.assignments ?? []).filter((item) =>
+  const isCommandView = Boolean(data?.viewer.isAdmin && !testMember);
+  const portalEmployeeId = testMember?.id ?? data?.viewer.employeeId ?? null;
+  const portalEmployee = data?.employees.find((employee) => employee.id === portalEmployeeId);
+  const portalRank = testMember?.rank ?? data?.viewer.rank ?? "";
+  const portalActingOfficerEligible = Boolean(portalEmployee?.actingOfficerEligible ?? data?.viewer.actingOfficerEligible);
+  const portalAssignments = useMemo(() => (data?.assignments ?? []).filter((item) => isCommandView || item.employeeId === portalEmployeeId || item.status === "open"), [data, isCommandView, portalEmployeeId]);
+  const portalRequests = useMemo(() => (data?.requests ?? []).filter((item) => isCommandView || item.employeeId === portalEmployeeId || item.targetEmployeeId === portalEmployeeId), [data, isCommandView, portalEmployeeId]);
+  const roles = useMemo(() => [...new Set(portalAssignments.map((item) => item.role).filter(Boolean))].sort(), [portalAssignments]);
+  const filteredAssignments = useMemo(() => portalAssignments.filter((item) =>
     (!employeeFilter || item.employeeId === employeeFilter) &&
     (!roleFilter || item.role === roleFilter) &&
     (!statusFilter || item.status === statusFilter)
-  ), [data, employeeFilter, roleFilter, statusFilter]);
+  ), [employeeFilter, portalAssignments, roleFilter, statusFilter]);
   const monthAssignments = filteredAssignments.filter((item) => item.workDate.slice(0, 7) === month);
-  const openShifts = data?.assignments.filter((item) => item.status === "open") ?? [];
-  const ownAssignments = data?.assignments.filter((item) => item.employeeId === data.viewer.employeeId) ?? [];
+  const openShifts = portalAssignments.filter((item) => item.status === "open");
+  const ownAssignments = portalAssignments.filter((item) => item.employeeId === portalEmployeeId);
   const upcomingOwnAssignments = ownAssignments.filter((item) => item.workDate >= today());
-  const incomingTrades = data?.requests.filter((item) => item.requestType === "trade" && item.targetEmployeeId === data.viewer.employeeId && item.status === "pending") ?? [];
+  const incomingTrades = portalRequests.filter((item) => item.requestType === "trade" && item.targetEmployeeId === portalEmployeeId && item.status === "pending");
   const upcomingGaps = data?.coverageGaps.filter((gap) => gap.date >= today()).slice(0, 20) ?? [];
   const ranks = [...new Set(data?.employees.map((employee) => employee.rank) ?? [])].sort();
   const unread = data?.notifications.filter((item) => !item.readAt).length ?? 0;
@@ -199,7 +207,7 @@ export default function Scheduling() {
   }, [data]);
   const selectedRotationPlan = coveragePlans.find(([, rules]) => (rules[0].planId || rules[0].id) === rotation.coveragePlanId)?.[1] ?? [];
   const selectedRotationRule = selectedRotationPlan.find((rule) => rule.role === rotation.role) ?? selectedRotationPlan[0];
-  const tabs = data?.viewer.isAdmin
+  const tabs = isCommandView
     ? [["calendar", "Department Schedule"], ["patterns", "Shift Patterns"], ["coverage", "Coverage"], ["rotations", "Employee Rotations"], ["open", "Add / Open Shifts"], ["requests", "Requests & Trades"], ["alerts", `Notifications${unread ? ` (${unread})` : ""}`]]
     : [["calendar", "My Schedule"], ["request", "Build & Submit Schedule"], ["open", `Open Shifts & Trades${incomingTrades.length ? ` (${incomingTrades.length})` : ""}`], ["alerts", `My Alerts${unread ? ` (${unread})` : ""}`]];
 
@@ -263,13 +271,13 @@ export default function Scheduling() {
     <section className="schedule-hero">
       <div>
         <p className="eyebrow">Department scheduling</p>
-        <h1>{data?.viewer.isAdmin ? "Scheduling Command" : "Employee Schedule Portal"}</h1>
-        <p>{data?.viewer.isAdmin
+        <h1>{isCommandView ? "Scheduling Command" : "Employee Schedule Portal"}</h1>
+        <p>{isCommandView
           ? "Control rotations, watch staffing coverage, qualify open shifts, approve requests, and notify members."
           : "Your private scheduling page for assignments, recurring availability, open shifts, trades, and alert preferences."}</p>
       </div>
       <div className="schedule-metrics">
-        <span><b>{data?.viewer.isAdmin ? data.assignments.filter((item) => item.workDate >= today()).length : upcomingOwnAssignments.length}</b>upcoming</span>
+        <span><b>{isCommandView ? data?.assignments.filter((item) => item.workDate >= today()).length ?? 0 : upcomingOwnAssignments.length}</b>upcoming</span>
         <span><b>{openShifts.length}</b>open</span>
         <span className={data?.coverageGaps.length ? "warning" : ""}><b>{data?.coverageGaps.length ?? 0}</b>coverage gaps</span>
         <span><b>{data?.requests.filter((item) => item.status === "pending").length ?? 0}</b>pending</span>
@@ -282,7 +290,7 @@ export default function Scheduling() {
     {error && <div className="error-banner">{error}</div>}
     {message && <div className="work-detail-message">{message}</div>}
 
-    {!data?.viewer.isAdmin && <section className="employee-schedule-overview" aria-label="Employee schedule overview">
+    {!isCommandView && <section className="employee-schedule-overview" aria-label="Employee schedule overview">
       <article><span>Next assigned shift</span>{upcomingOwnAssignments[0] ? <><strong>{friendlyDate(upcomingOwnAssignments[0].workDate)}</strong><small>{upcomingOwnAssignments[0].startTime}-{upcomingOwnAssignments[0].endTime} · {upcomingOwnAssignments[0].role}</small></> : <strong>No upcoming assignment</strong>}<button onClick={() => setTab("calendar")}>View my calendar</button></article>
       <article><span>Build my schedule</span><strong>Availability & time off</strong><small>Submit one-time or every-N-days requests for chief review.</small><button onClick={() => setTab("request")}>Create schedule request</button></article>
       <article className={incomingTrades.length ? "attention" : ""}><span>Open opportunities</span><strong>{openShifts.length} shift{openShifts.length === 1 ? "" : "s"} · {incomingTrades.length} trade{incomingTrades.length === 1 ? "" : "s"}</strong><small>Request eligible openings or respond to a trade offered to you.</small><button onClick={() => setTab("open")}>Review openings</button></article>
@@ -304,7 +312,7 @@ export default function Scheduling() {
         </div>
       </div>
       <div className="schedule-filters">
-        {data?.viewer.isAdmin && <select aria-label="Filter employee" value={employeeFilter} onChange={(event) => setEmployeeFilter(event.target.value)}>
+        {isCommandView && <select aria-label="Filter employee" value={employeeFilter} onChange={(event) => setEmployeeFilter(event.target.value)}>
           <option value="">All employees</option>
           {data.employees.map((employee) => <option key={employee.id} value={employee.id}>{formatEmployeeName(employee.name)}</option>)}
         </select>}
@@ -343,7 +351,7 @@ export default function Scheduling() {
       </div>}
     </section>}
 
-    {tab === "patterns" && data?.viewer.isAdmin && <section className="shift-pattern-command">
+    {tab === "patterns" && isCommandView && <section className="shift-pattern-command">
       <article className="content-card schedule-form">
         <div className="section-header"><div><p className="eyebrow">Step 1</p><h2>Create shift reference</h2><p>Name and color the shift, choose its first day, then set how often it repeats.</p></div></div>
         <div className="shift-reference-presets">{["Red","Black","Gold","Red 2","Black 2","Gold 2","A","B","C","D"].map((name) => <button type="button" className={shiftPattern.name === name ? "active" : ""} key={name} onClick={() => setShiftPattern((current) => ({ ...current, name, color: name.toLowerCase().startsWith("black") ? "black" : name.toLowerCase().startsWith("gold") ? "gold" : name.toLowerCase().startsWith("red") ? "red" : "blue" }))}>{name}</button>)}</div>
@@ -378,7 +386,7 @@ export default function Scheduling() {
       </article>
     </section>}
 
-    {tab === "coverage" && data?.viewer.isAdmin && <section className="schedule-two-col">
+    {tab === "coverage" && isCommandView && <section className="schedule-two-col">
       <article className="content-card schedule-form">
         <div className="section-header"><div><h2>Create minimum staffing plan</h2><p>Each save creates a separate plan. Add as many plans as the department needs.</p></div></div>
         <div className="schedule-fields">
@@ -419,7 +427,7 @@ export default function Scheduling() {
       </article>
     </section>}
 
-    {tab === "rotations" && data?.viewer.isAdmin && <section className="schedule-two-col">
+    {tab === "rotations" && isCommandView && <section className="schedule-two-col">
       <article className="content-card schedule-form">
         <div className="section-header"><div><h2>Add employee rotation</h2><p>Pick the employee and staffing plan, choose the first day and repeat interval, then fill the schedule automatically.</p></div></div>
         {!coveragePlans.length && <div className="schedule-setup-callout"><strong>Create a minimum staffing plan first.</strong><span>Employee rotations use the plan’s positions and working hours.</span><button onClick={() => setTab("coverage")}>Go to Coverage</button></div>}
@@ -454,7 +462,7 @@ export default function Scheduling() {
     </section>}
 
     {tab === "open" && <section className="schedule-two-col">
-      {data?.viewer.isAdmin && <article className="content-card schedule-form">
+      {isCommandView && <article className="content-card schedule-form">
         <div className="section-header"><div><h2>Add assignment or open shift</h2><p>Leave employee blank to publish a qualified open shift.</p></div></div>
         <div className="schedule-fields">
           <label><span>Employee</span><select value={shift.employeeId} onChange={(event) => setShift({ ...shift, employeeId: event.target.value })}>
@@ -479,26 +487,26 @@ export default function Scheduling() {
             <span>{item.emergency ? "Emergency coverage" : "Open shift"}</span><strong>{item.workDate} · {item.startTime}-{item.endTime}</strong>
             <p>{item.role}{item.requiredRank ? ` · ${item.requiredRank} required` : ""}{item.notes ? ` · ${item.notes}` : ""}</p>
             {item.claimDeadline && <small>Respond by {item.claimDeadline.replace("T", " ")}</small>}
-          </div>{!data.viewer.isAdmin && (() => { const eligible = qualifiedForPosition({ rank: data.viewer.rank, actingOfficerEligible: data.viewer.actingOfficerEligible ? 1 : 0 }, item.role); return <button disabled={busy || !eligible} title={eligible ? undefined : "Your employee record is not marked Acting Officer eligible."} onClick={() => void act({ action: "submitRequest", requestType: "shift_claim", assignmentId: item.id, startDate: item.workDate, endDate: item.workDate, startTime: item.startTime, endTime: item.endTime, role: item.role }, "Shift request sent")}>{eligible ? "Request Shift" : "AO eligibility required"}</button>; })()}</article>)}
+          </div>{!isCommandView && (() => { const eligible = qualifiedForPosition({ rank: portalRank, actingOfficerEligible: portalActingOfficerEligible ? 1 : 0 }, item.role); return <button disabled={busy || !eligible || Boolean(testMember)} title={testMember ? "Actions are disabled in Test View." : eligible ? undefined : "Your employee record is not marked Acting Officer eligible."} onClick={() => void act({ action: "submitRequest", requestType: "shift_claim", assignmentId: item.id, startDate: item.workDate, endDate: item.workDate, startTime: item.startTime, endTime: item.endTime, role: item.role }, "Shift request sent")}>{eligible ? "Request Shift" : "AO eligibility required"}</button>; })()}</article>)}
         </div>
       </article>
-      {!data?.viewer.isAdmin && <article className="content-card">
+      {!isCommandView && <article className="content-card">
         <div className="section-header"><div><h2>Trades offered to me</h2><p>Accepting sends the trade to chief approval; it does not change the schedule by itself.</p></div></div>
         <div className="request-list">
           {!incomingTrades.length && <p className="schedule-empty">No open trades are waiting for you.</p>}
-          {incomingTrades.map((item) => <article key={item.id}><header><div><strong>Trade offer</strong><span>{formatEmployeeName(item.employeeName)} · {friendlyDate(item.startDate)}</span></div><b className={item.status}>{item.targetStatus}</b></header><p>{item.role}{item.notes ? ` · ${item.notes}` : ""}</p>{item.targetStatus === "pending" && <footer><button onClick={() => void act({ action: "respondTrade", id: item.id, decision: "declined" }, "Trade declined")}>Decline</button><button onClick={() => void act({ action: "respondTrade", id: item.id, decision: "accepted" }, "Trade accepted and sent for chief approval")}>Accept & Send for Approval</button></footer>}</article>)}
+          {incomingTrades.map((item) => <article key={item.id}><header><div><strong>Trade offer</strong><span>{formatEmployeeName(item.employeeName)} · {friendlyDate(item.startDate)}</span></div><b className={item.status}>{item.targetStatus}</b></header><p>{item.role}{item.notes ? ` · ${item.notes}` : ""}</p>{item.targetStatus === "pending" && <footer><button disabled={Boolean(testMember)} onClick={() => void act({ action: "respondTrade", id: item.id, decision: "declined" }, "Trade declined")}>Decline</button><button disabled={Boolean(testMember)} onClick={() => void act({ action: "respondTrade", id: item.id, decision: "accepted" }, "Trade accepted and sent for chief approval")}>Accept & Send for Approval</button></footer>}</article>)}
         </div>
       </article>}
     </section>}
 
     {(tab === "request" || tab === "requests") && <section className="schedule-two-col">
-      {!data?.viewer.isAdmin && <article className="content-card schedule-form">
+      {!isCommandView && <article className="content-card schedule-form">
         <div className="section-header"><div><h2>Build and submit my schedule</h2><p>Enter when you can work or need time off. Recurring requests remain pending until reviewed.</p></div></div>
         <div className="schedule-fields">
           <label><span>Request type</span><select value={request.requestType} onChange={(event) => setRequest({ ...request, requestType: event.target.value, assignmentId: "" })}>{Object.entries(requestLabels).filter(([key]) => key !== "shift_claim").map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
           {request.requestType === "trade" && <>
             <label><span>Your shift *</span><select value={request.assignmentId} onChange={(event) => { const assignment = ownAssignments.find((item) => item.id === event.target.value); setRequest({ ...request, assignmentId: event.target.value, startDate: assignment?.workDate || today(), endDate: assignment?.workDate || today(), startTime: assignment?.startTime || "", endTime: assignment?.endTime || "", role: assignment?.role || "" }); }}><option value="">Select shift</option>{ownAssignments.map((item) => <option key={item.id} value={item.id}>{item.workDate} · {item.startTime}-{item.endTime} · {item.role}</option>)}</select></label>
-            <label><span>Requested member *</span><select value={request.targetEmployeeId} onChange={(event) => setRequest({ ...request, targetEmployeeId: event.target.value })}><option value="">Select member</option>{data.employees.filter((employee) => employee.id !== data.viewer.employeeId && qualifiedForPosition(employee, request.role)).map((employee) => <option key={employee.id} value={employee.id}>{formatEmployeeName(employee.name)} · {employee.rank}{employee.actingOfficerEligible ? " · AO eligible" : ""}</option>)}</select></label>
+            <label><span>Requested member *</span><select value={request.targetEmployeeId} onChange={(event) => setRequest({ ...request, targetEmployeeId: event.target.value })}><option value="">Select member</option>{data.employees.filter((employee) => employee.id !== portalEmployeeId && qualifiedForPosition(employee, request.role)).map((employee) => <option key={employee.id} value={employee.id}>{formatEmployeeName(employee.name)} · {employee.rank}{employee.actingOfficerEligible ? " · AO eligible" : ""}</option>)}</select></label>
           </>}
           {["availability", "time_off"].includes(request.requestType) && <>
             {[["Start date", "startDate", "date"], ["End date", "endDate", "date"], ["From", "startTime", "time"], ["To", "endTime", "time"], ["Position", "role", "text"]].map(([label, key, type]) => <label key={key}><span>{label}</span><input type={type} value={String(request[key as keyof typeof request])} onChange={(event) => setRequest({ ...request, [key]: event.target.value })}/></label>)}
@@ -507,17 +515,17 @@ export default function Scheduling() {
           </>}
           <label className="wide"><span>Notes</span><textarea rows={4} value={request.notes} onChange={(event) => setRequest({ ...request, notes: event.target.value })}/></label>
         </div>
-        <button className="primary-action" disabled={busy || (request.repeatMode === "interval" && (Number(request.repeatInterval) < 2 || Number(request.repeatInterval) > 365))} onClick={() => void act({ action: "submitRequest", ...request, repeatInterval: Number(request.repeatInterval) }, "Schedule request submitted for review")}>Submit My Schedule Request</button>
+        <button className="primary-action" disabled={busy || Boolean(testMember) || (request.repeatMode === "interval" && (Number(request.repeatInterval) < 2 || Number(request.repeatInterval) > 365))} onClick={() => void act({ action: "submitRequest", ...request, repeatInterval: Number(request.repeatInterval) }, "Schedule request submitted for review")}>Submit My Schedule Request</button>
       </article>}
       <article className="content-card">
-        <div className="section-header"><div><h2>{data?.viewer.isAdmin ? "All employee requests" : "My requests and trades"}</h2></div></div>
-        <div className="request-list">{data?.requests.map((item) => {
-          const needsMyTradeResponse = item.requestType === "trade" && item.targetEmployeeId === data.viewer.employeeId && item.status === "pending" && item.targetStatus === "pending";
+        <div className="section-header"><div><h2>{isCommandView ? "All employee requests" : "My requests and trades"}</h2></div></div>
+        <div className="request-list">{portalRequests.map((item) => {
+          const needsMyTradeResponse = !testMember && item.requestType === "trade" && item.targetEmployeeId === portalEmployeeId && item.status === "pending" && item.targetStatus === "pending";
           return <article key={item.id}><header><div><strong>{requestLabels[item.requestType] || item.requestType}</strong><span>{formatEmployeeName(item.employeeName)} · {item.startDate}</span></div><b className={item.status}>{item.status}</b></header>
             <p>{item.role}{item.repeatMode === "interval" && item.repeatInterval ? ` · repeats every ${item.repeatInterval} days through ${item.endDate}` : ""}{item.targetEmployeeName ? ` · requested member: ${formatEmployeeName(item.targetEmployeeName)}` : ""}{item.notes ? ` · ${item.notes}` : ""}</p>
             {item.requestType === "trade" && <small className={`trade-status ${item.targetStatus}`}>Member response: {item.targetStatus.replace("_", " ")}</small>}
             {needsMyTradeResponse && <footer><button onClick={() => void act({ action: "respondTrade", id: item.id, decision: "declined" }, "Trade declined")}>Decline Trade</button><button onClick={() => void act({ action: "respondTrade", id: item.id, decision: "accepted" }, "Trade accepted and sent for chief approval")}>Accept Trade</button></footer>}
-            {data.viewer.isAdmin && item.status === "pending" && <footer><button onClick={() => void act({ action: "reviewRequest", id: item.id, decision: "denied" }, "Request denied")}>Deny</button><button disabled={item.requestType === "trade" && item.targetStatus !== "accepted"} title={item.requestType === "trade" && item.targetStatus !== "accepted" ? "Waiting for requested member" : ""} onClick={() => void act({ action: "reviewRequest", id: item.id, decision: "approved" }, "Request approved")}>Approve</button></footer>}
+            {isCommandView && item.status === "pending" && <footer><button onClick={() => void act({ action: "reviewRequest", id: item.id, decision: "denied" }, "Request denied")}>Deny</button><button disabled={item.requestType === "trade" && item.targetStatus !== "accepted"} title={item.requestType === "trade" && item.targetStatus !== "accepted" ? "Waiting for requested member" : ""} onClick={() => void act({ action: "reviewRequest", id: item.id, decision: "approved" }, "Request approved")}>Approve</button></footer>}
           </article>;
         })}</div>
       </article>
@@ -525,12 +533,12 @@ export default function Scheduling() {
 
     {tab === "alerts" && <section className="content-card">
       <div className="section-header"><div><h2>Scheduling notifications</h2><p>Choose each alert, its channels, and more than one delivery time when needed.</p></div></div>
-      {!data?.viewer.isAdmin && <div className="employee-alert-preferences">
-        <div><span>Email updates</span><strong>{data.viewer.profileEmail || "No employee email saved"}</strong><small>{data.viewer.profileEmail ? "Shift assignments, open-shift responses, trades, and request decisions use this saved employee email automatically." : "Ask an administrator to add your login email in Employee Information."}</small></div>
-        <label className={!data.viewer.phone ? "disabled" : ""}><input type="checkbox" checked={data.viewer.smsOptIn} disabled={!data.viewer.phone || busy} onChange={(event) => setData({ ...data, viewer: { ...data.viewer, smsOptIn: event.target.checked } })}/><span><strong>Text updates</strong><small>{data.viewer.phone ? `Send eligible scheduling texts to ${data.viewer.phone}.` : "A mobile number must be saved before text updates can be enabled."}</small></span></label>
-        <button className="primary-action compact" disabled={busy} onClick={() => void act({ action: "saveMyNotificationPreferences", smsOptIn: data.viewer.smsOptIn }, "My alert preferences saved")}>Save My Alert Preferences</button>
+      {!isCommandView && <div className="employee-alert-preferences">
+        <div><span>Email updates</span><strong>{(testMember ? portalEmployee?.email : data?.viewer.profileEmail) || "No employee email saved"}</strong><small>{(testMember ? portalEmployee?.email : data?.viewer.profileEmail) ? "Shift assignments, open-shift responses, trades, and request decisions use this saved employee email automatically." : "Ask an administrator to add your login email in Employee Information."}</small></div>
+        <label className={!(testMember ? portalEmployee?.phone : data?.viewer.phone) ? "disabled" : ""}><input type="checkbox" checked={testMember ? Boolean(portalEmployee?.scheduleSmsOptIn) : Boolean(data?.viewer.smsOptIn)} disabled={Boolean(testMember) || !(testMember ? portalEmployee?.phone : data?.viewer.phone) || busy} onChange={(event) => data && setData({ ...data, viewer: { ...data.viewer, smsOptIn: event.target.checked } })}/><span><strong>Text updates</strong><small>{(testMember ? portalEmployee?.phone : data?.viewer.phone) ? `Send eligible scheduling texts to ${testMember ? portalEmployee?.phone : data?.viewer.phone}.` : "A mobile number must be saved before text updates can be enabled."}</small></span></label>
+        <button className="primary-action compact" disabled={busy || Boolean(testMember)} onClick={() => data && void act({ action: "saveMyNotificationPreferences", smsOptIn: data.viewer.smsOptIn }, "My alert preferences saved")}>Save My Alert Preferences</button>
       </div>}
-      {data?.viewer.isAdmin && <div className="schedule-notification-setup">
+      {isCommandView && <div className="schedule-notification-setup">
         <div className="notification-setup-head"><div><strong>Notification setup</strong><p>Text is queued only for employees who elected to receive texts in their Employee profile.</p></div><button className="primary-action compact" disabled={busy} onClick={() => void act({ action: "saveNotificationRules", rules: data.notificationRules.map((rule) => ({ ...rule, deliveryTimings: JSON.parse(rule.deliveryTimings) })) }, "Notification setup saved")}>Save Notification Setup</button></div>
         <div className="notification-rule-list">{data.notificationRules.map((rule) => {
           const timings = new Set<string>(JSON.parse(rule.deliveryTimings || '["immediate"]'));
