@@ -59,6 +59,21 @@ test("multiple staffing plans keep separate plan identities", async () => {
   assert.equal(screen.includes("+ New Plan"), true);
 });
 
+test("shift references recur on the calendar and support weekend and holiday staffing", async () => {
+  const api = await readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8");
+  const screen = await readFile(new URL("../app/scheduling.tsx", import.meta.url), "utf8");
+  const schema = await readFile(new URL("../db/schema.ts", import.meta.url), "utf8");
+  assert.equal(schema.includes('scheduleShiftPatterns = sqliteTable("schedule_shift_patterns"'), true);
+  assert.equal(schema.includes('scheduleStaffingOverrides = sqliteTable("schedule_staffing_overrides"'), true);
+  assert.equal(api.includes('action === "saveShiftPattern"'), true);
+  assert.equal(api.includes('action === "saveStaffingOverride"'), true);
+  assert.equal(api.includes('override.conditionType === "weekend"'), true);
+  assert.equal(api.includes('override.conditionType === "holiday"'), true);
+  for (const name of ["Red 2", "Black 2", "Gold 2", "A", "B", "C", "D"]) assert.equal(screen.includes(`"${name}"`), true);
+  assert.equal(screen.includes("Repeats every *"), true);
+  assert.equal(screen.includes("schedule-pattern-chip"), true);
+});
+
 test("rotating shifts use named colors and admin staffing positions", async () => {
   const api = await readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8");
   const screen = await readFile(new URL("../app/scheduling.tsx", import.meta.url), "utf8");

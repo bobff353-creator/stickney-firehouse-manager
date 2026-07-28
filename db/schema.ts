@@ -155,6 +155,19 @@ export const scheduleCoverageRules = sqliteTable("schedule_coverage_rules", {
   active: integer("active", { mode: "boolean" }).notNull().default(true), createdBy: text("created_by").notNull(),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [index("schedule_coverage_rule_active_idx").on(table.active, table.role)]);
+export const scheduleShiftPatterns = sqliteTable("schedule_shift_patterns", {
+  id: text("id").primaryKey(), name: text("name").notNull(), color: text("color").notNull().default("red"),
+  startDate: text("start_date").notNull(), startTime: text("start_time").notNull(), endTime: text("end_time").notNull(),
+  recurrenceDays: integer("recurrence_days").notNull(), coveragePlanId: text("coverage_plan_id").notNull(),
+  active: integer("active", { mode: "boolean" }).notNull().default(true), createdBy: text("created_by").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [index("schedule_shift_pattern_active_idx").on(table.active, table.startDate)]);
+export const scheduleStaffingOverrides = sqliteTable("schedule_staffing_overrides", {
+  id: text("id").primaryKey(), patternId: text("pattern_id").notNull().references(() => scheduleShiftPatterns.id),
+  name: text("name").notNull(), conditionType: text("condition_type").notNull(), role: text("role").notNull(),
+  minimumStaff: integer("minimum_staff").notNull(), active: integer("active", { mode: "boolean" }).notNull().default(true),
+  createdBy: text("created_by").notNull(), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [index("schedule_staffing_override_pattern_idx").on(table.patternId, table.active)]);
 export const scheduleNotifications = sqliteTable("schedule_notifications", {
   id: text("id").primaryKey(), employeeId: text("employee_id").notNull().references(() => employees.id), title: text("title").notNull(),
   message: text("message").notNull(), inApp: integer("in_app", { mode: "boolean" }).notNull().default(true),

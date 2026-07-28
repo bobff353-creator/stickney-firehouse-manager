@@ -22,10 +22,16 @@ type CoverageRule = { id:string; planId:string; name:string; role:string; minimu
 type CoverageGap = {
   date:string; ruleId:string; name:string; role:string; startTime:string; endTime:string; minimumStaff:number; scheduled:number; shortBy:number;
 };
+type ShiftPattern = {
+  id:string; name:string; color:string; startDate:string; startTime:string; endTime:string; recurrenceDays:number; coveragePlanId:string; active:number;
+};
+type StaffingOverride = {
+  id:string; patternId:string; name:string; conditionType:string; role:string; minimumStaff:number; active:number;
+};
 type ScheduleData = {
   viewer:{ employeeId:string|null; isAdmin:boolean; rank:string; actingOfficerEligible:boolean };
   employees:Employee[]; assignments:Assignment[]; rotations:Rotation[]; requests:Request[]; notifications:Notification[];
-  coverageRules:CoverageRule[]; coverageGaps:CoverageGap[];
+  coverageRules:CoverageRule[]; coverageGaps:CoverageGap[]; shiftPatterns:ShiftPattern[]; staffingOverrides:StaffingOverride[];
 };
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
@@ -54,6 +60,11 @@ const departmentPositions = [
   "Detail",
 ];
 const friendlyDate = (value:string) => new Date(`${value}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+const daysBetween = (start:string, end:string) => Math.floor((Date.parse(`${end}T12:00:00Z`) - Date.parse(`${start}T12:00:00Z`)) / 86400000);
+const patternOccurs = (pattern:ShiftPattern, date:string) => {
+  const offset = daysBetween(pattern.startDate, date);
+  return Boolean(pattern.active) && offset >= 0 && offset % pattern.recurrenceDays === 0;
+};
 const isOfficerPosition = (role:string) => /\b(officer|acting\s+officer|ao|oic)\b/i.test(role);
 const isOfficerRank = (rank:string) => /\b(chief|captain|lieutenant)\b/i.test(rank);
 const qualifiedForPosition = (employee:Pick<Employee,"rank"|"actingOfficerEligible">, role:string) =>
@@ -99,6 +110,12 @@ export default function Scheduling() {
     { id: "position-2", role: "Driver/Engineer", minimumStaff: "1" },
   ]);
   const [coverageDays, setCoverageDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
+  const [shiftPattern, setShiftPattern] = useState({
+    name: "Red", color: "red", startDate: today(), recurrenceDays: "3", coveragePlanId: "",
+  });
+  const [staffingOverride, setStaffingOverride] = useState({
+    patternId: "", conditionType: "weekend", role: "Firefighter", minimumStaff: "5",
+  });
 
   const load = useCallback(async () => {
     const response = await fetch("/api/scheduling");
@@ -166,7 +183,7 @@ export default function Scheduling() {
   const selectedRotationPlan = coveragePlans.find(([, rules]) => (rules[0].planId || rules[0].id) === rotation.coveragePlanId)?.[1] ?? [];
   const selectedRotationRule = selectedRotationPlan.find((rule) => rule.role === rotation.role) ?? selectedRotationPlan[0];
   const tabs = data?.viewer.isAdmin
-    ? [["calendar", "Department Schedule"], ["coverage", "Coverage"], ["rotations", "Rotations"], ["open", "Add / Open Shifts"], ["requests", "Requests & Trades"], ["alerts", `Notifications${unread ? ` (${unread})` : ""}`]]
+    ? [["calendar", "Department Schedule"], ["patterns", "Shift Patterns"], ["coverage", "Coverage"], ["rotations", "Employee Rotations"], ["open", "Add / Open Shifts"], ["requests", "Requests & Trades"], ["alerts", `Notifications${unread ? ` (${unread})` : ""}`]]
     : [["calendar", "My Schedule"], ["request", "Request / Availability"], ["open", "Open Shifts"], ["alerts", `Notifications${unread ? ` (${unread})` : ""}`]];
 
   function changeMonth(offset:number) {
@@ -251,8 +268,10 @@ export default function Scheduling() {
         <div className="schedule-calendar">
           {days.map((date) => {
             const gaps = data?.coverageGaps.filter((gap) => gap.date === date) ?? [];
+            const patterns = data?.shiftPatterns.filter((pattern) => patternOccurs(pattern, date)) ?? [];
             return <article key={date} className={`${date.slice(0, 7) === month ? "" : "outside"} ${date === today() ? "today" : ""} ${gaps.length ? "understaffed" : ""}`}>
               <header><span>{Number(date.slice(8))}</span>{gaps.length > 0 && <b title={gaps.map((gap) => `${gap.role}: short ${gap.shortBy}`).join(", ")}>−{gaps.reduce((sum, gap) => sum + gap.shortBy, 0)} staff</b>}</header>
+              {patterns.length > 0 && <div className="schedule-patterns">{patterns.map((pattern) => <span className="schedule-pattern-chip" data-color={pattern.color} key={pattern.id}><strong>{pattern.name}</strong><small>{pattern.startTime}–{pattern.endTime}</small></span>)}</div>}
               <div>{filteredAssignments.filter((item) => item.workDate === date).map((item) => <span key={item.id} className={`${item.status} ${item.emergency ? "emergency" : ""}`}>
                 <strong>{item.status === "open" ? "OPEN" : formatEmployeeName(item.employeeName || "")}</strong>
                 <small>{item.role} · {item.startTime}-{item.endTime}</small>
@@ -268,6 +287,41 @@ export default function Scheduling() {
           <span>{item.emergency ? "Emergency" : item.status}</span>
         </article>)}
       </div>}
+    </section>}
+
+    {tab === "patterns" && data?.viewer.isAdmin && <section className="shift-pattern-command">
+      <article className="content-card schedule-form">
+        <div className="section-header"><div><p className="eyebrow">Step 1</p><h2>Create shift reference</h2><p>Name and color the shift, choose its first day, then set how often it repeats.</p></div></div>
+        <div className="shift-reference-presets">{["Red","Black","Gold","Red 2","Black 2","Gold 2","A","B","C","D"].map((name) => <button type="button" className={shiftPattern.name === name ? "active" : ""} key={name} onClick={() => setShiftPattern((current) => ({ ...current, name, color: name.toLowerCase().startsWith("black") ? "black" : name.toLowerCase().startsWith("gold") ? "gold" : name.toLowerCase().startsWith("red") ? "red" : "blue" }))}>{name}</button>)}</div>
+        <div className="schedule-fields">
+          <label><span>Shift reference *</span><input value={shiftPattern.name} onChange={(event) => setShiftPattern({ ...shiftPattern, name: event.target.value })}/><small>Use a preset or enter a department-specific name.</small></label>
+          <label><span>Calendar color *</span><select value={shiftPattern.color} onChange={(event) => setShiftPattern({ ...shiftPattern, color: event.target.value })}><option value="red">Red</option><option value="black">Black</option><option value="gold">Gold</option><option value="blue">Blue</option><option value="green">Green</option><option value="purple">Purple</option><option value="orange">Orange</option></select></label>
+          <label><span>First assigned day *</span><input type="date" value={shiftPattern.startDate} onChange={(event) => setShiftPattern({ ...shiftPattern, startDate: event.target.value })}/></label>
+          <label><span>Repeats every *</span><div className="input-unit"><input type="number" min="1" max="365" value={shiftPattern.recurrenceDays} onChange={(event) => setShiftPattern({ ...shiftPattern, recurrenceDays: event.target.value })}/><b>days</b></div><small>Examples: 3, 4, 5, or 6 days.</small></label>
+          <label className="wide"><span>Shift requirements *</span><select value={shiftPattern.coveragePlanId} onChange={(event) => setShiftPattern({ ...shiftPattern, coveragePlanId: event.target.value })}><option value="">Select minimum staffing plan</option>{coveragePlans.map(([planId, rules]) => <option key={planId} value={rules[0].planId || rules[0].id}>{rules[0].name} · {rules.map((rule) => `${rule.minimumStaff} ${rule.role}`).join(", ")}</option>)}</select><small>The selected plan controls required positions and staffing for every occurrence.</small></label>
+        </div>
+        <button className="primary-action" disabled={busy} onClick={() => void act({ action: "saveShiftPattern", ...shiftPattern, recurrenceDays: Number(shiftPattern.recurrenceDays) }, "Shift reference added to calendar")}>Save Shift Pattern</button>
+      </article>
+
+      <article className="content-card schedule-form">
+        <div className="section-header"><div><p className="eyebrow">Step 2</p><h2>Weekend & holiday staffing</h2><p>Set a higher minimum when this shift falls on a weekend or department holiday.</p></div></div>
+        <div className="schedule-fields">
+          <label className="wide"><span>Shift reference *</span><select value={staffingOverride.patternId} onChange={(event) => setStaffingOverride({ ...staffingOverride, patternId: event.target.value })}><option value="">Select shift reference</option>{data.shiftPatterns.map((pattern) => <option key={pattern.id} value={pattern.id}>{pattern.name} · every {pattern.recurrenceDays} days</option>)}</select></label>
+          <label><span>Special day *</span><select value={staffingOverride.conditionType} onChange={(event) => setStaffingOverride({ ...staffingOverride, conditionType: event.target.value })}><option value="weekend">Weekend</option><option value="holiday">Department holiday</option></select></label>
+          <label><span>Position *</span><input list="schedule-position-options" value={staffingOverride.role} onChange={(event) => setStaffingOverride({ ...staffingOverride, role: event.target.value })}/></label>
+          <label><span>Required minimum *</span><input type="number" min="1" max="50" value={staffingOverride.minimumStaff} onChange={(event) => setStaffingOverride({ ...staffingOverride, minimumStaff: event.target.value })}/></label>
+        </div>
+        <button className="primary-action" disabled={busy} onClick={() => void act({ action: "saveStaffingOverride", ...staffingOverride, minimumStaff: Number(staffingOverride.minimumStaff) }, "Special staffing rule saved")}>Add Special Requirement</button>
+      </article>
+
+      <article className="content-card shift-pattern-list">
+        <div className="section-header"><div><h2>Active shift references</h2><p>These labels are painted onto the Department Schedule calendar.</p></div></div>
+        {data.shiftPatterns.length ? data.shiftPatterns.map((pattern) => {
+          const requirements = data.coverageRules.filter((rule) => rule.active && (rule.planId || rule.id) === pattern.coveragePlanId);
+          const specials = data.staffingOverrides.filter((item) => item.patternId === pattern.id);
+          return <div className="shift-pattern-row" key={pattern.id}><i data-color={pattern.color}/><div><strong>{pattern.name}</strong><span>Starts {friendlyDate(pattern.startDate)} · every {pattern.recurrenceDays} days · {pattern.startTime}–{pattern.endTime}</span><small>{requirements.map((rule) => `${rule.minimumStaff} ${rule.role}`).join(" · ") || "Staffing plan unavailable"}</small>{specials.map((item) => <em key={item.id}>{item.conditionType}: {item.minimumStaff} {item.role}<button aria-label={`Remove ${item.name}`} onClick={() => void act({ action: "deleteStaffingOverride", id: item.id }, "Special staffing rule removed")}>×</button></em>)}</div><button className="danger-link" onClick={() => void act({ action: "deactivateShiftPattern", id: pattern.id }, "Shift reference ended")}>End pattern</button></div>;
+        }) : <p className="schedule-empty">No shift references have been created yet.</p>}
+      </article>
     </section>}
 
     {tab === "coverage" && data?.viewer.isAdmin && <section className="schedule-two-col">

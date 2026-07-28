@@ -169,6 +169,13 @@
       "when": 1785093534494,
       "tag": "0023_ambitious_veda",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1785251236008,
+      "tag": "0024_magenta_leper_queen",
+      "breakpoints": true
     }
   ]
 }

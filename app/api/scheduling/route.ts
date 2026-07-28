@@ -1,4 +1,5 @@
 import { ensureDatabase } from "../../../db/bootstrap";
+import { holidayForDate } from "../../holidays";
 import { normalizeScheduleTime } from "../../schedule-time";
 
 const ownerAdminEmails = ["bobff353@gmail.com"];
@@ -10,6 +11,13 @@ type Assignment = {
 };
 type CoverageRule = {
   id: string; planId: string; name: string; role: string; minimumStaff: number; startTime: string; endTime: string; daysOfWeek: string; active: number;
+};
+type ShiftPattern = {
+  id: string; name: string; color: string; startDate: string; startTime: string; endTime: string;
+  recurrenceDays: number; coveragePlanId: string; active: number;
+};
+type StaffingOverride = {
+  id: string; patternId: string; name: string; conditionType: string; role: string; minimumStaff: number; active: number;
 };
 const officerRole = (role: string) => /\b(officer|acting\s+officer|ao|oic)\b/i.test(role);
 const officerRank = (rank: string) => /\b(chief|captain|lieutenant)\b/i.test(rank);
@@ -37,6 +45,10 @@ const addDays = (value: string, count: number) => {
   return date.toISOString().slice(0, 10);
 };
 const spanDays = (a: string, b: string) => Math.floor((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86400000);
+const patternOccurs = (pattern: ShiftPattern, date: string) => {
+  const offset = spanDays(pattern.startDate, date);
+  return Boolean(pattern.active) && offset >= 0 && offset % pattern.recurrenceDays === 0;
+};
 const chicagoNow = () => {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
@@ -57,7 +69,7 @@ async function admins(db: Db) {
   return rows.results.map((row) => row.id);
 }
 
-function coverageGaps(assignments: Assignment[], rules: CoverageRule[]) {
+function coverageGaps(assignments: Assignment[], rules: CoverageRule[], patterns: ShiftPattern[], overrides: StaffingOverride[]) {
   const today = chicagoNow().slice(0, 10);
   const gaps: Array<{date:string;ruleId:string;name:string;role:string;startTime:string;endTime:string;minimumStaff:number;scheduled:number;shortBy:number}> = [];
   const minutes = (value:string) => Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5));
@@ -71,7 +83,28 @@ function coverageGaps(assignments: Assignment[], rules: CoverageRule[]) {
   for (let offset = 0; offset <= 62; offset += 1) {
     const date = addDays(today, offset);
     const day = new Date(`${date}T12:00:00Z`).getUTCDay();
-    for (const rule of rules.filter((item) => item.active && item.daysOfWeek.split(",").map(Number).includes(day))) {
+    const occurringPatterns = patterns.filter((pattern) => patternOccurs(pattern, date));
+    const referencedPlans = new Set(patterns.filter((pattern) => pattern.active).map((pattern) => pattern.coveragePlanId));
+    const requirements = new Map<string, CoverageRule>();
+    for (const rule of rules.filter((item) => item.active)) {
+      const appliesThroughPattern = occurringPatterns.some((pattern) => pattern.coveragePlanId === (rule.planId || rule.id));
+      const appliesAsLegacyRule = !referencedPlans.has(rule.planId || rule.id) && rule.daysOfWeek.split(",").map(Number).includes(day);
+      if (appliesThroughPattern || appliesAsLegacyRule) requirements.set(`${rule.role.toLowerCase()}|${rule.startTime}|${rule.endTime}`, { ...rule });
+    }
+    for (const override of overrides.filter((item) => item.active && occurringPatterns.some((pattern) => pattern.id === item.patternId))) {
+      const specialDay = override.conditionType === "weekend" ? day === 0 || day === 6 : override.conditionType === "holiday" ? Boolean(holidayForDate(date)) : false;
+      if (!specialDay) continue;
+      const pattern = occurringPatterns.find((item) => item.id === override.patternId);
+      if (!pattern) continue;
+      const base = [...requirements.values()].find((item) => item.role.toLowerCase() === override.role.toLowerCase());
+      const key = `${override.role.toLowerCase()}|${base?.startTime || pattern.startTime}|${base?.endTime || pattern.endTime}`;
+      requirements.set(key, {
+        id: override.id, planId: pattern.coveragePlanId, name: override.name, role: override.role,
+        minimumStaff: Math.max(base?.minimumStaff || 0, override.minimumStaff),
+        startTime: base?.startTime || pattern.startTime, endTime: base?.endTime || pattern.endTime, daysOfWeek: String(day), active: 1,
+      });
+    }
+    for (const rule of requirements.values()) {
       const scheduled = new Set(assignments.filter((item) =>
         item.workDate === date && item.status === "assigned" && item.employeeId &&
         item.role.trim().toLowerCase() === rule.role.trim().toLowerCase() && overlaps(item, rule),
@@ -91,7 +124,7 @@ export async function GET(request: Request) {
     const current = await viewer(db, request);
     if (!current.isAdmin && !current.employeeId) return Response.json({ error: "Your login is not connected to an employee record." }, { status: 403 });
     const employeeId = current.employeeId ?? "";
-    const [employees, assignments, rotations, requests, notifications, rules] = await Promise.all([
+    const [employees, assignments, rotations, requests, notifications, rules, patterns, overrides] = await Promise.all([
       db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.email,'') email,COALESCE(ep.phone,'') phone,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 ORDER BY e.name COLLATE NOCASE").all(),
       current.isAdmin
         ? db.prepare("SELECT a.id,a.employee_id employeeId,e.name employeeName,a.work_date workDate,a.start_time startTime,a.end_time endTime,a.role,a.source,a.status,a.emergency,a.required_rank requiredRank,a.claim_deadline claimDeadline,a.notes FROM schedule_assignments a LEFT JOIN employees e ON e.id=a.employee_id WHERE a.work_date>=date('now','-45 day') ORDER BY a.work_date,a.start_time").all<Assignment>()
@@ -106,6 +139,10 @@ export async function GET(request: Request) {
       current.isAdmin
         ? db.prepare("SELECT id,plan_id planId,name,role,minimum_staff minimumStaff,start_time startTime,end_time endTime,days_of_week daysOfWeek,active FROM schedule_coverage_rules ORDER BY active DESC,name COLLATE NOCASE").all<CoverageRule>()
         : Promise.resolve({ results: [] as CoverageRule[] }),
+      db.prepare("SELECT id,name,color,start_date startDate,start_time startTime,end_time endTime,recurrence_days recurrenceDays,coverage_plan_id coveragePlanId,active FROM schedule_shift_patterns WHERE active=1 ORDER BY start_date,name COLLATE NOCASE").all<ShiftPattern>(),
+      current.isAdmin
+        ? db.prepare("SELECT id,pattern_id patternId,name,condition_type conditionType,role,minimum_staff minimumStaff,active FROM schedule_staffing_overrides WHERE active=1 ORDER BY name COLLATE NOCASE,role").all<StaffingOverride>()
+        : Promise.resolve({ results: [] as StaffingOverride[] }),
     ]);
     return Response.json({
       viewer: current,
@@ -115,7 +152,9 @@ export async function GET(request: Request) {
       requests: requests.results,
       notifications: notifications.results,
       coverageRules: rules.results,
-      coverageGaps: current.isAdmin ? coverageGaps(assignments.results, rules.results) : [],
+      shiftPatterns: patterns.results,
+      staffingOverrides: overrides.results,
+      coverageGaps: current.isAdmin ? coverageGaps(assignments.results, rules.results, patterns.results, overrides.results) : [],
     });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Unable to load scheduling" }, { status: 500 });
@@ -211,6 +250,55 @@ export async function POST(request: Request) {
       const ids = [...new Set(Array.isArray(payload.ids) ? payload.ids.map(String).filter(Boolean) : [String(payload.id ?? "")].filter(Boolean))];
       if (!ids.length) return Response.json({ error: "Choose a staffing plan." }, { status: 400 });
       await db.batch(ids.map((id) => db.prepare("UPDATE schedule_coverage_rules SET active=0 WHERE id=?").bind(id)));
+      return Response.json({ ok: true });
+    }
+
+    if (action === "saveShiftPattern") {
+      if (!current.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
+      const name = String(payload.name ?? "").trim();
+      const color = String(payload.color ?? "").trim().toLowerCase();
+      const startDate = String(payload.startDate ?? "");
+      const recurrenceDays = Number(payload.recurrenceDays);
+      const coveragePlanId = String(payload.coveragePlanId ?? "");
+      const allowedColors = ["red", "black", "gold", "blue", "green", "purple", "orange"];
+      const plan = await db.prepare("SELECT MIN(start_time) startTime,MIN(end_time) endTime FROM schedule_coverage_rules WHERE active=1 AND (plan_id=? OR id=?)").bind(coveragePlanId, coveragePlanId).first<{startTime:string;endTime:string}>();
+      if (!name || !allowedColors.includes(color) || !iso.test(startDate) || !Number.isInteger(recurrenceDays) || recurrenceDays < 1 || recurrenceDays > 365 || !plan?.startTime || !plan?.endTime) {
+        return Response.json({ error: "Enter a shift reference, color, start date, recurrence from 1 to 365 days, and an active staffing plan." }, { status: 400 });
+      }
+      await db.prepare("INSERT INTO schedule_shift_patterns(id,name,color,start_date,start_time,end_time,recurrence_days,coverage_plan_id,created_by) VALUES(?,?,?,?,?,?,?,?,?)")
+        .bind(crypto.randomUUID(), name, color, startDate, plan.startTime, plan.endTime, recurrenceDays, coveragePlanId, current.name).run();
+      return Response.json({ ok: true });
+    }
+
+    if (action === "deactivateShiftPattern") {
+      if (!current.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
+      const id = String(payload.id ?? "");
+      await db.batch([
+        db.prepare("UPDATE schedule_shift_patterns SET active=0 WHERE id=?").bind(id),
+        db.prepare("UPDATE schedule_staffing_overrides SET active=0 WHERE pattern_id=?").bind(id),
+      ]);
+      return Response.json({ ok: true });
+    }
+
+    if (action === "saveStaffingOverride") {
+      if (!current.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
+      const patternId = String(payload.patternId ?? "");
+      const conditionType = String(payload.conditionType ?? "");
+      const role = String(payload.role ?? "").trim();
+      const minimumStaff = Number(payload.minimumStaff);
+      const pattern = await db.prepare("SELECT id,name FROM schedule_shift_patterns WHERE id=? AND active=1").bind(patternId).first<{id:string;name:string}>();
+      if (!pattern || !["weekend", "holiday"].includes(conditionType) || !role || !Number.isInteger(minimumStaff) || minimumStaff < 1 || minimumStaff > 50) {
+        return Response.json({ error: "Choose an active shift reference, weekend or holiday, a position, and its required minimum." }, { status: 400 });
+      }
+      const name = `${pattern.name} ${conditionType === "weekend" ? "weekend" : "holiday"} staffing`;
+      await db.prepare("INSERT INTO schedule_staffing_overrides(id,pattern_id,name,condition_type,role,minimum_staff,created_by) VALUES(?,?,?,?,?,?,?)")
+        .bind(crypto.randomUUID(), patternId, name, conditionType, role, minimumStaff, current.name).run();
+      return Response.json({ ok: true });
+    }
+
+    if (action === "deleteStaffingOverride") {
+      if (!current.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
+      await db.prepare("UPDATE schedule_staffing_overrides SET active=0 WHERE id=?").bind(String(payload.id ?? "")).run();
       return Response.json({ ok: true });
     }
 
