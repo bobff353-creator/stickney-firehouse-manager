@@ -433,7 +433,7 @@ td strong { font-size: 16px; }
 .test-view-banner small { color: #7b6b4b; }
 .test-view-banner button { min-height: 34px; padding: 0 11px; border: 1px solid #9b5b14; border-radius: 6px; background: white; color: #78440d; font-weight: 850; }
 .testing-member-view button:not(.test-view-banner button), .testing-member-view input, .testing-member-view select, .testing-member-view textarea { cursor: not-allowed; }
-.testing-member-view [data-test-safe], .testing-member-view [data-test-safe] input { cursor: pointer; }
+.testing-member-view button[data-test-safe], .testing-member-view [data-test-safe] button, .testing-member-view [data-test-safe] input { cursor: pointer !important; }
 .input-unit { min-height: 52px; padding: 0 13px; border: 1px solid #aab7c2; border-radius: 7px; background: white; display: flex; align-items: center; gap: 8px; }
 .input-unit input { width: 100%; border: 0; outline: 0; background: transparent; text-align: right; font-variant-numeric: tabular-nums; }
 .input-unit b { color: var(--slate); font-size: 13px; white-space: nowrap; }

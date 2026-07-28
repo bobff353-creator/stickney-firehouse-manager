@@ -560,6 +560,13 @@ export default function PayrollApp() {
       setActiveNav("Dashboard");
     } else setActiveNav("Test View");
   }
+  function permissionsSaved(payload: { viewerPermissions?: string[]; employees: Array<{ id: string; name: string; rank: string; effectivePermissions: string[] }> }) {
+    if (payload.viewerPermissions) setViewerPermissions(payload.viewerPermissions);
+    if (testMember) {
+      const refreshed = payload.employees.find((employee) => employee.id === testMember.id);
+      if (refreshed) setTestMember(refreshed);
+    }
+  }
 
   return (
     <main className={`app-shell${tvMode ? " tv-shell" : ""}`}>
@@ -676,7 +683,7 @@ export default function PayrollApp() {
 
           {activeNav === "Box Cards" && <BoxCardsPage />}
 
-          {(activeNav === "Permissions" || activeNav === "Test View") && data.viewer.isAdmin && <PermissionSettings initialTab={activeNav === "Test View" ? "test" : "permissions"} testEmployeeId={testMember?.id ?? ""} onTestEmployee={changeTestMember} />}
+          {(activeNav === "Permissions" || activeNav === "Test View") && data.viewer.isAdmin && <PermissionSettings initialTab={activeNav === "Test View" ? "test" : "permissions"} testEmployeeId={testMember?.id ?? ""} onTestEmployee={changeTestMember} onPermissionsSaved={permissionsSaved} />}
 
           {activeNav === "Employees" && <section className="employee-page">
             <div className="standard-page-header"><div><span className="page-icon"><Icon name="users" size={25}/></span><div><p className="eyebrow">Personnel administration</p><h1>Employees</h1><p>Manage employment, contact, access, driver status, and emergency information.</p></div></div><button type="button" className="primary-action" onClick={() => editEmployee()}>Add Employee</button></div>

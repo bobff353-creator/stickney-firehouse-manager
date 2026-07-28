@@ -52,3 +52,18 @@ test("every employee keeps a read-only own-timesheet view including administrato
   assert.match(app, /const canEditEntry = isAdminView/);
   assert.match(app, /isAdminView \? .*employee-select/);
 });
+
+test("permission saves are verified and refresh the active permission snapshot", async () => {
+  const [route, page, app, styles] = await Promise.all([
+    readFile(new URL("../app/api/permissions/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/permission-settings.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(route, /saved: true/);
+  assert.match(route, /could not be verified/);
+  assert.match(page, /cache: "no-store"/);
+  assert.match(page, /onPermissionsSaved\(refreshed\)/);
+  assert.match(app, /function permissionsSaved/);
+  assert.match(styles, /data-test-safe.*cursor: pointer !important/);
+});

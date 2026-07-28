@@ -77,6 +77,8 @@ export async function PUT(request: Request) {
       db.prepare("DELETE FROM rank_permissions WHERE rank=?").bind(rank),
       ...permissionCatalog.map((permission) => db.prepare("INSERT INTO rank_permissions (rank,permission_key,allowed,updated_at) VALUES (?,?,?,CURRENT_TIMESTAMP)").bind(rank, permission.key, selected.has(permission.key) ? 1 : 0)),
     ]);
+    const verified = await db.prepare("SELECT COUNT(*) total FROM rank_permissions WHERE rank=?").bind(rank).first<{ total: number }>();
+    if (Number(verified?.total) !== permissionCatalog.length) return Response.json({ error: "The rank permission set could not be verified." }, { status: 500 });
   } else if (body.scope === "employee") {
     const employeeId = String(body.employeeId ?? "");
     const exists = await db.prepare("SELECT 1 ok FROM employees WHERE id=? AND active=1").bind(employeeId).first();
@@ -86,6 +88,8 @@ export async function PUT(request: Request) {
       db.prepare("DELETE FROM employee_permission_overrides WHERE employee_id=?").bind(employeeId),
       ...entries.map(([key, effect]) => db.prepare("INSERT INTO employee_permission_overrides (employee_id,permission_key,effect,updated_at) VALUES (?,?,?,CURRENT_TIMESTAMP)").bind(employeeId, key, effect)),
     ]);
+    const verified = await db.prepare("SELECT COUNT(*) total FROM employee_permission_overrides WHERE employee_id=?").bind(employeeId).first<{ total: number }>();
+    if (Number(verified?.total) !== entries.length) return Response.json({ error: "The employee permission exceptions could not be verified." }, { status: 500 });
   } else return Response.json({ error: "Invalid permission scope" }, { status: 400 });
-  return Response.json({ ok: true });
+  return Response.json({ ok: true, saved: true });
 }
