@@ -1,0 +1,101 @@
+"use client";
+/* eslint-disable @next/next/no-img-element -- imagery tiles and protected field photos are runtime sources. */
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+type Point = { lat:number; lng:number };
+type Feature = { id:string; preplanId:string; featureType:string; label:string; latitude:number; longitude:number; systemType:string; serviceStatus:string; details:string };
+type Photo = { id:string; side:string; featureId?:string; filename:string; caption:string; url:string };
+type Preplan = {
+  id:string; businessName:string; address:string; latitude:number; longitude:number; aSideLatitude:number|null; aSideLongitude:number|null; footprint:Point[];
+  contactInfo:string; construction:string; accessInfo:string; alarmSystem:string; knoxBox:string; riser:string; fdc:string; sprinklerSystem:string;
+  status:string; updatedBy:string; updatedAt:string; features:Feature[]; photos:Photo[];
+};
+type Form = Omit<Preplan,"features"|"photos"|"updatedBy"|"updatedAt">;
+
+const stickney:Point = { lat:41.8189, lng:-87.7734 };
+const empty = (center:Point):Form => ({ id:"",businessName:"",address:"",latitude:center.lat,longitude:center.lng,aSideLatitude:null,aSideLongitude:null,footprint:[],contactInfo:"",construction:"",accessInfo:"",alarmSystem:"",knoxBox:"",riser:"",fdc:"",sprinklerSystem:"",status:"Quick Preplan" });
+const pinTypes = [
+  ["knox","K","Knox Box"],["fdc","F","FDC"],["riser","R","Riser"],["sprinkler","S","Sprinkler"],["alarm","A","Alarm Panel"],
+  ["gas","G","Gas Shutoff"],["water","W","Water Shutoff"],["electric","E","Electrical Panel"],["propane","P","Propane Tank"],
+  ["elevator","EL","Elevator"],["elevator_room","ER","Elevator Room"],["standpipe","ST","Standpipe"],["access","→","Access"],["hazard","!","Hazard"],
+] as const;
+const pinMeta = Object.fromEntries(pinTypes.map(([key,short,label]) => [key,{short,label}])) as Record<string,{short:string;label:string}>;
+const systemOptions = ["","Wet","Dry","Deluge","Pre-action","Combination","Local alarm","Monitored alarm","Keyed access","Other"];
+
+function tile(center:Point, zoom:number) {
+  const scale = 2 ** zoom, x = Math.floor((center.lng + 180) / 360 * scale);
+  const y = Math.floor((1 - Math.asinh(Math.tan(center.lat * Math.PI / 180)) / Math.PI) / 2 * scale);
+  return { x,y,scale };
+}
+function project(point:Point, center:Point, zoom:number, width:number, height:number) {
+  const scale = 256 * 2 ** zoom;
+  const world = (value:Point) => ({ x:(value.lng + 180) / 360 * scale, y:(1 - Math.asinh(Math.tan(value.lat * Math.PI / 180)) / Math.PI) / 2 * scale });
+  const p = world(point), c = world(center);
+  return { x:width / 2 + p.x - c.x, y:height / 2 + p.y - c.y };
+}
+function unproject(x:number,y:number,center:Point,zoom:number,width:number,height:number):Point {
+  const scale = 256 * 2 ** zoom;
+  const centerX = (center.lng + 180) / 360 * scale;
+  const centerY = (1 - Math.asinh(Math.tan(center.lat * Math.PI / 180)) / Math.PI) / 2 * scale;
+  const wx = centerX + x - width / 2, wy = centerY + y - height / 2;
+  return { lng:wx / scale * 360 - 180, lat:Math.atan(Math.sinh(Math.PI * (1 - 2 * wy / scale))) * 180 / Math.PI };
+}
+function polygon(points:Point[],center:Point,zoom:number,width:number,height:number) { return points.map((point) => { const p=project(point,center,zoom,width,height); return `${p.x},${p.y}`; }).join(" "); }
+
+function FieldMap({ center,zoom,imagery,plans,selected,draft,mode,onMapClick,onSelect }:{ center:Point;zoom:number;imagery:"aerial"|"street";plans:Preplan[];selected:string;draft:Form|null;mode:string;onMapClick:(point:Point)=>void;onSelect:(id:string)=>void }) {
+  const width=1100,height=720,{x,y}=tile(center,zoom);
+  const tiles = Array.from({length:25},(_,index) => ({ dx:index%5-2,dy:Math.floor(index/5)-2 }));
+  return <div className={`field-map ${mode ? "capture" : ""}`} onClick={(event) => {
+    if (!mode) return;
+    const rect=event.currentTarget.getBoundingClientRect();
+    onMapClick(unproject((event.clientX-rect.left)/rect.width*width,(event.clientY-rect.top)/rect.height*height,center,zoom,width,height));
+  }}>
+    <div className="field-map-tiles">{tiles.map(({dx,dy}) => <img key={`${dx}-${dy}`} alt="" draggable={false} style={{left:`calc(50% + ${dx*256-128}px)`,top:`calc(50% + ${dy*256-128}px)`}} src={imagery === "aerial" ? `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${y+dy}/${x+dx}` : `https://tile.openstreetmap.org/${zoom}/${x+dx}/${y+dy}.png`}/>)}</div>
+    <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-label="Preplan map overlay">
+      {plans.map((plan) => plan.footprint.length >= 3 && <polygon key={plan.id} points={polygon(plan.footprint,center,zoom,width,height)} className={plan.id === selected ? "selected" : ""} onClick={(event) => { event.stopPropagation(); onSelect(plan.id); }}/>)}
+      {draft?.footprint && draft.footprint.length > 0 && <><polyline points={polygon(draft.footprint,center,zoom,width,height)} className="draft"/>{draft.footprint.map((point,index) => { const p=project(point,center,zoom,width,height); return <circle key={index} cx={p.x} cy={p.y} r="7" className="corner"/>; })}</>}
+    </svg>
+    {plans.flatMap((plan) => zoom >= 17 ? plan.features.map((feature) => ({...feature,planId:plan.id})) : []).map((feature) => { const p=project({lat:feature.latitude,lng:feature.longitude},center,zoom,width,height); const meta=pinMeta[feature.featureType] ?? {short:"•",label:feature.label}; return <button key={feature.id} className={`field-pin ${feature.featureType}`} style={{left:`${p.x/width*100}%`,top:`${p.y/height*100}%`}} title={`${meta.label}: ${feature.label || feature.details}`} onClick={(event) => {event.stopPropagation();onSelect(feature.planId);}}>{meta.short}</button>; })}
+    {mode && <div className="capture-instruction">{mode === "footprint" ? "Click each building corner" : mode === "auto" ? "Click the center of the building" : mode === "aSide" ? "Click the A-side apparatus approach" : `Drop ${pinMeta[mode]?.label ?? "feature"}`}</div>}
+    <small className="map-credit">{imagery === "aerial" ? "Esri World Imagery" : "© OpenStreetMap contributors"}</small>
+  </div>;
+}
+
+export default function FieldPreplans() {
+  const [plans,setPlans]=useState<Preplan[]>([]),[canEdit,setCanEdit]=useState(false),[query,setQuery]=useState(""),[selected,setSelected]=useState(""),[draft,setDraft]=useState<Form|null>(null);
+  const [center,setCenter]=useState<Point>(stickney),[zoom,setZoom]=useState(18),[imagery,setImagery]=useState<"aerial"|"street">("aerial"),[mode,setMode]=useState(""),[tab,setTab]=useState<"quick"|"details"|"photos">("quick");
+  const [feature,setFeature]=useState({featureType:"knox",label:"",systemType:"",serviceStatus:"in_service",details:""}),[message,setMessage]=useState(""),[busy,setBusy]=useState(false);
+  const load=useCallback(async()=>{const response=await fetch("/api/field-preplans",{cache:"no-store"});const body=await response.json() as {preplans?:Preplan[];canEdit?:boolean;error?:string};if(!response.ok)throw new Error(body.error||"Unable to load preplans");setPlans(body.preplans??[]);setCanEdit(Boolean(body.canEdit));},[]);
+  useEffect(()=>{void load().catch((error)=>setMessage(error.message));navigator.geolocation?.getCurrentPosition((position)=>setCenter({lat:position.coords.latitude,lng:position.coords.longitude}),()=>{}, {enableHighAccuracy:true,timeout:7000});},[load]);
+  const shown=useMemo(()=>{const span=360/(2**zoom)*1.6;return plans.filter((plan)=>Math.abs(plan.longitude-center.lng)<span&&Math.abs(plan.latitude-center.lat)<span&&`${plan.businessName} ${plan.address}`.toLowerCase().includes(query.toLowerCase()));},[plans,query,center,zoom]);
+  const current=plans.find((plan)=>plan.id===selected);
+  function edit(plan:Preplan){setSelected(plan.id);setDraft({...plan});setCenter({lat:plan.latitude,lng:plan.longitude});setTab("quick");}
+  function locate(){navigator.geolocation?.getCurrentPosition((position)=>{const point={lat:position.coords.latitude,lng:position.coords.longitude};setCenter(point);if(draft)setDraft({...draft,latitude:point.lat,longitude:point.lng});},()=>setMessage("Location permission is unavailable."),{enableHighAccuracy:true});}
+  function clickMap(point:Point){
+    if(!draft)return;
+    if(mode==="footprint")setDraft({...draft,footprint:[...draft.footprint,point]});
+    else if(mode==="auto"){const d=.00012;setDraft({...draft,latitude:point.lat,longitude:point.lng,footprint:[{lat:point.lat-d,lng:point.lng-d},{lat:point.lat-d,lng:point.lng+d},{lat:point.lat+d,lng:point.lng+d},{lat:point.lat+d,lng:point.lng-d}]});setMode("");}
+    else if(mode==="aSide"){setDraft({...draft,aSideLatitude:point.lat,aSideLongitude:point.lng,latitude:point.lat,longitude:point.lng});setMode("");}
+    else if(pinMeta[mode]&&selected){void saveFeature(point,mode);}
+  }
+  async function save(payload:object,success:string){setBusy(true);setMessage("");try{const response=await fetch("/api/field-preplans",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)});const body=await response.json() as {id?:string;error?:string};if(!response.ok)throw new Error(body.error||"Unable to save");await load();setMessage(success);return body.id;}catch(error){setMessage(error instanceof Error?error.message:"Unable to save");}finally{setBusy(false);}}
+  async function savePlan(){if(!draft)return;const id=await save({action:"savePreplan",id:draft.id,businessName:draft.businessName,address:draft.address,location:{lat:draft.latitude,lng:draft.longitude},aSide:draft.aSideLatitude==null?null:{lat:draft.aSideLatitude,lng:draft.aSideLongitude},footprint:draft.footprint,contactInfo:draft.contactInfo,construction:draft.construction,accessInfo:draft.accessInfo,alarmSystem:draft.alarmSystem,knoxBox:draft.knoxBox,riser:draft.riser,fdc:draft.fdc,sprinklerSystem:draft.sprinklerSystem,status:draft.status},"Preplan saved");if(id){setSelected(id);setDraft({...draft,id});}}
+  async function saveFeature(point:Point,type=feature.featureType){await save({action:"saveFeature",preplanId:selected,featureType:type,label:feature.label,systemType:feature.systemType,serviceStatus:feature.serviceStatus,details:feature.details,location:point},`${pinMeta[type]?.label??"Feature"} placed`);setMode("");}
+  async function upload(event:React.ChangeEvent<HTMLInputElement>,side:string){const file=event.target.files?.[0];if(!file||!selected)return;const form=new FormData();form.set("preplanId",selected);form.set("side",side);form.set("photo",file);setBusy(true);try{const response=await fetch("/api/field-preplans/photos",{method:"POST",body:form});const body=await response.json() as {error?:string};if(!response.ok)throw new Error(body.error||"Unable to upload");await load();setMessage(`${side}-side photo saved`);}catch(error){setMessage(error instanceof Error?error.message:"Unable to upload");}finally{setBusy(false);event.target.value="";}}
+  const mapPlans=draft?.id ? plans.map((plan)=>plan.id===draft.id?{...plan,...draft}:plan) : plans;
+  return <section className="field-preplans-page">
+    <header className="field-preplan-header"><div><p className="eyebrow">Field</p><h1>Preplans</h1><p>Map-first building intelligence for response and field capture.</p></div><div className="field-preplan-actions"><label><span>Search preplans</span><input value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="Business, address, or occupancy…"/></label>{canEdit&&<button className="primary-action" onClick={()=>{const next=empty(center);setDraft(next);setSelected("");setTab("quick");setMode("auto");}}>+ Add Preplan</button>}</div></header>
+    {message&&<div className="field-message">{message}</div>}
+    <div className="field-map-toolbar"><button onClick={locate}>◎ Current location</button><button className={imagery==="aerial"?"active":""} onClick={()=>setImagery("aerial")}>Aerial</button><button className={imagery==="street"?"active":""} onClick={()=>setImagery("street")}>Streets</button><span/><button onClick={()=>setZoom(Math.max(14,zoom-1))}>−</button><b>{zoom}</b><button onClick={()=>setZoom(Math.min(21,zoom+1))}>+</button></div>
+    <div className="field-map-layout"><FieldMap center={center} zoom={zoom} imagery={imagery} plans={mapPlans} selected={selected} draft={draft} mode={mode} onMapClick={clickMap} onSelect={(id)=>{const plan=plans.find((item)=>item.id===id);if(plan)edit(plan);}}/><aside><header><b>Preplans on map</b><span>{shown.length}</span></header>{shown.length?shown.map((plan)=><button key={plan.id} className={plan.id===selected?"active":""} onClick={()=>edit(plan)}><strong>{plan.businessName}</strong><span>{plan.address||"A-side GPS location"}</span><small>{plan.status} · {plan.features.length} mapped items</small></button>):<p>No preplans match this view.</p>}</aside></div>
+    {draft&&<section className="preplan-editor">
+      <header><div><span>{draft.id?"EDIT PREPLAN":"NEW PREPLAN"}</span><h2>{draft.businessName||"Capture building"}</h2></div><nav><button className={tab==="quick"?"active":""} onClick={()=>setTab("quick")}>Quick Preplan</button><button disabled={!draft.id} className={tab==="details"?"active":""} onClick={()=>setTab("details")}>Detailed Systems</button><button disabled={!draft.id} className={tab==="photos"?"active":""} onClick={()=>setTab("photos")}>A–D Photos</button></nav></header>
+      {tab==="quick"&&<div className="preplan-quick-grid"><article><h3>1 · Capture footprint</h3><p>Click the corners in order, or use assisted outline and click the building center.</p><div className="capture-buttons"><button className={mode==="auto"?"active":""} onClick={()=>setMode("auto")}>Assisted outline</button><button className={mode==="footprint"?"active":""} onClick={()=>setMode("footprint")}>Click corners</button><button onClick={()=>setDraft({...draft,footprint:draft.footprint.slice(0,-1)})}>Undo corner</button><button onClick={()=>setDraft({...draft,footprint:[]})}>Clear</button></div><small>{draft.footprint.length} corners · footprint is highlighted on every map view</small><button className={mode==="aSide"?"active wide-action": "wide-action"} onClick={()=>setMode("aSide")}>Drop private A-side / fallback GPS point</button><p className="privacy-note">The A-side point is stored for routing fallback and is not rendered as a public map pin.</p></article>
+      <article className="preplan-form"><h3>2 · Building information</h3><label>Business / building name<input value={draft.businessName} onChange={(event)=>setDraft({...draft,businessName:event.target.value})}/></label><label>Address<input value={draft.address} onChange={(event)=>setDraft({...draft,address:event.target.value})} placeholder="Leave blank to use A-side GPS"/></label><label>Contacts<textarea value={draft.contactInfo} onChange={(event)=>setDraft({...draft,contactInfo:event.target.value})}/></label><label>Construction<input value={draft.construction} onChange={(event)=>setDraft({...draft,construction:event.target.value})} placeholder="Type, floors, roof, occupancy"/></label><label>Access concerns / information<textarea value={draft.accessInfo} onChange={(event)=>setDraft({...draft,accessInfo:event.target.value})}/></label></article>
+      <article className="preplan-form systems"><h3>3 · Quick systems</h3>{([["alarmSystem","Alarm system"],["knoxBox","Knox Box"],["riser","Riser"],["fdc","FDC"],["sprinklerSystem","Sprinkler system"]] as const).map(([key,label])=><label key={key}>{label}<textarea value={draft[key]} onChange={(event)=>setDraft({...draft,[key]:event.target.value})}/></label>)}<button className="primary-action" disabled={busy||draft.footprint.length<3} onClick={()=>void savePlan()}>Save Quick Preplan</button></article></div>}
+      {tab==="details"&&current&&<div className="preplan-detail-grid"><article className="content-card"><h3>Place an operational feature</h3><label>Feature<select value={feature.featureType} onChange={(event)=>setFeature({...feature,featureType:event.target.value})}>{pinTypes.map(([key,,label])=><option key={key} value={key}>{label}</option>)}</select></label><label>Label<input value={feature.label} onChange={(event)=>setFeature({...feature,label:event.target.value})} placeholder="Example: Alpha/Bravo corner"/></label><label>System type<select value={feature.systemType} onChange={(event)=>setFeature({...feature,systemType:event.target.value})}>{systemOptions.map((item)=><option key={item}>{item||"Choose type"}</option>)}</select></label><label>Status<select value={feature.serviceStatus} onChange={(event)=>setFeature({...feature,serviceStatus:event.target.value})}><option value="in_service">In service</option><option value="out_of_service">Out of service</option><option value="unknown">Unknown</option></select></label><label>Details<textarea value={feature.details} onChange={(event)=>setFeature({...feature,details:event.target.value})} placeholder="Monitoring company, keys, valves, access, hazards…"/></label><button className="primary-action" onClick={()=>setMode(feature.featureType)}>Use map to place {pinMeta[feature.featureType]?.label}</button><small>Feature symbols appear only at close zoom. Zooming out leaves the highlighted building footprint.</small></article><article className="content-card mapped-feature-list"><h3>Mapped building systems</h3>{current.features.length?current.features.map((item)=><div key={item.id}><span className={`feature-symbol ${item.featureType}`}>{pinMeta[item.featureType]?.short||"•"}</span><p><strong>{item.label||pinMeta[item.featureType]?.label}</strong><small>{item.systemType||"Type not entered"} · {item.serviceStatus.replaceAll("_"," ")}</small><span>{item.details||"No additional details"}</span></p></div>):<p>No detailed systems mapped yet.</p>}</article></div>}
+      {tab==="photos"&&current&&<div className="preplan-photo-grid">{["A","B","C","D"].map((side)=>{const photos=current.photos.filter((photo)=>photo.side===side);return <article key={side}><header><b>{side} Side</b><label>{busy?"Uploading…":"Take or add photo"}<input type="file" accept="image/*" capture="environment" disabled={busy} onChange={(event)=>void upload(event,side)}/></label></header>{photos.length?<div>{photos.map((photo)=><img src={photo.url} alt={`${side} side ${photo.caption||photo.filename}`} key={photo.id}/>)}</div>:<p>Photo required</p>}<small>Visual symbols may be documented in the photo caption without creating map pins.</small></article>;})}</div>}
+    </section>}
+  </section>;
+}

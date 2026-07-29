@@ -23,6 +23,7 @@ import { payrollExportRows } from "./payroll-export";
 import WorkDetails from "./work-details";
 import Scheduling from "./scheduling";
 import PermissionSettings from "./permission-settings";
+import FieldPreplans from "./field-preplans";
 
 type Category = "shift" | "drill" | "workDetail" | "callback" | "actingOfficer" | "holiday" | "dpw";
 type PayScale = { id: string; label: string; regularRate: number; overtimeRate: number; holidayRate: number };
@@ -53,19 +54,20 @@ type PayrollData = {
 type GlobalSearchItem = { id: string; type: "Employee" | "Contact" | "Policy" | "Box Card" | "Important Number"; title: string; detail: string; page: NavItem };
 type IconName = "home" | "log" | "box" | "users" | "phone" | "payroll" | "clock" | "rates" | "document" | "holiday" | "settings" | "search" | "bell" | "menu" | "close" | "filter" | "export" | "back" | "next" | "save" | "warning" | "chevron";
 
-type NavItem = "Dashboard" | "Command Center" | "Operations Board" | "Activity Timeline" | "Scheduling" | "Payroll" | "Work Details" | "Daily Log" | "Timesheets" | "My Timesheet" | "Employees" | "Employee Contacts" | "Policies" | "Box Cards" | "Holiday Policy" | "Daily Duties" | "Phone Numbers" | "Rates & Rules" | "Permissions" | "Test View";
-const adminNavItems: NavItem[] = ["Dashboard", "Command Center", "Operations Board", "Activity Timeline", "Scheduling", "Payroll", "Work Details", "Daily Log", "Timesheets", "My Timesheet", "Employees", "Employee Contacts", "Policies", "Box Cards", "Holiday Policy", "Daily Duties", "Phone Numbers", "Rates & Rules", "Permissions", "Test View"];
-const employeeNavItems: NavItem[] = ["Dashboard", "Operations Board", "Scheduling", "My Timesheet", "Policies", "Box Cards", "Daily Duties"];
-const navIcons: Record<NavItem, IconName> = { Dashboard: "home", "Command Center": "rates", "Operations Board": "log", "Activity Timeline": "clock", Scheduling: "clock", Payroll: "payroll", "Work Details": "document", "Daily Log": "log", Timesheets: "clock", "My Timesheet": "clock", Employees: "users", "Employee Contacts": "phone", Policies: "document", "Box Cards": "box", "Holiday Policy": "holiday", "Daily Duties": "clock", "Phone Numbers": "phone", "Rates & Rules": "rates", Permissions: "settings", "Test View": "users" };
+type NavItem = "Dashboard" | "Command Center" | "Operations Board" | "Activity Timeline" | "Field Preplans" | "Scheduling" | "Payroll" | "Work Details" | "Daily Log" | "Timesheets" | "My Timesheet" | "Employees" | "Employee Contacts" | "Policies" | "Box Cards" | "Holiday Policy" | "Daily Duties" | "Phone Numbers" | "Rates & Rules" | "Permissions" | "Test View";
+const adminNavItems: NavItem[] = ["Dashboard", "Command Center", "Operations Board", "Activity Timeline", "Field Preplans", "Scheduling", "Payroll", "Work Details", "Daily Log", "Timesheets", "My Timesheet", "Employees", "Employee Contacts", "Policies", "Box Cards", "Holiday Policy", "Daily Duties", "Phone Numbers", "Rates & Rules", "Permissions", "Test View"];
+const employeeNavItems: NavItem[] = ["Dashboard", "Operations Board", "Field Preplans", "Scheduling", "My Timesheet", "Policies", "Box Cards", "Daily Duties"];
+const navIcons: Record<NavItem, IconName> = { Dashboard: "home", "Command Center": "rates", "Operations Board": "log", "Activity Timeline": "clock", "Field Preplans": "search", Scheduling: "clock", Payroll: "payroll", "Work Details": "document", "Daily Log": "log", Timesheets: "clock", "My Timesheet": "clock", Employees: "users", "Employee Contacts": "phone", Policies: "document", "Box Cards": "box", "Holiday Policy": "holiday", "Daily Duties": "clock", "Phone Numbers": "phone", "Rates & Rules": "rates", Permissions: "settings", "Test View": "users" };
 const adminNavGroups: Array<{ label: string; icon: IconName; items: Array<{ label: string; page: NavItem }> }> = [
   { label: "Operations", icon: "log", items: [{ label: "Command Center", page: "Command Center" }, { label: "Live Operations Board", page: "Operations Board" }, { label: "Activity Timeline", page: "Activity Timeline" }, { label: "Daily Log", page: "Daily Log" }, { label: "Box Cards", page: "Box Cards" }] },
+  { label: "Field", icon: "search", items: [{ label: "Preplans", page: "Field Preplans" }] },
   { label: "Scheduling", icon: "clock", items: [{ label: "Schedule Command", page: "Scheduling" }] },
   { label: "Personnel", icon: "users", items: [{ label: "Employees", page: "Employees" }, { label: "Contacts", page: "Employee Contacts" }] },
   { label: "Payroll", icon: "payroll", items: [{ label: "Payroll", page: "Payroll" }, { label: "Work Detail", page: "Work Details" }, { label: "Timesheets", page: "Timesheets" }, { label: "Rates", page: "Rates & Rules" }] },
   { label: "Documents", icon: "document", items: [{ label: "Policies", page: "Policies" }, { label: "Holiday Policy", page: "Holiday Policy" }, { label: "Daily Duties", page: "Daily Duties" }] },
   { label: "Settings", icon: "settings", items: [{ label: "Important Phone Numbers", page: "Phone Numbers" }, { label: "Permissions", page: "Permissions" }, { label: "Test as Member", page: "Test View" }] },
 ];
-const navPermission: Partial<Record<NavItem, string>> = { Dashboard: "dashboard.view", "Command Center": "command_center.view", "Operations Board": "operations_board.view", "Activity Timeline": "command_center.view", Scheduling: "scheduling.view", Payroll: "payroll.manage", "Work Details": "scheduling.manage", "Daily Log": "daily_log.view", Timesheets: "payroll.manage", "My Timesheet": "payroll.view_own", Employees: "employees.manage", "Employee Contacts": "contacts.view", Policies: "documents.view", "Box Cards": "documents.view", "Holiday Policy": "documents.view", "Daily Duties": "documents.view", "Phone Numbers": "settings.manage", "Rates & Rules": "payroll.manage", Permissions: "permissions.manage", "Test View": "permissions.manage" };
+const navPermission: Partial<Record<NavItem, string>> = { Dashboard: "dashboard.view", "Command Center": "command_center.view", "Operations Board": "operations_board.view", "Activity Timeline": "command_center.view", "Field Preplans": "field_preplans.view", Scheduling: "scheduling.view", Payroll: "payroll.manage", "Work Details": "scheduling.manage", "Daily Log": "daily_log.view", Timesheets: "payroll.manage", "My Timesheet": "payroll.view_own", Employees: "employees.manage", "Employee Contacts": "contacts.view", Policies: "documents.view", "Box Cards": "documents.view", "Holiday Policy": "documents.view", "Daily Duties": "documents.view", "Phone Numbers": "settings.manage", "Rates & Rules": "payroll.manage", Permissions: "permissions.manage", "Test View": "permissions.manage" };
 const emptyEmployee: EmployeeForm = {
   lastName: "", firstName: "", payScaleId: "firefighter", employeeNumber: "", startDate: "", endDate: "", dateOfBirth: "",
   phone: "", email: "", addressLine1: "", city: "", state: "IL", postalCode: "", employmentType: "Part-time", isDpw: false, driverStatus: "", actingOfficerEligible: false, scheduleSmsOptIn: false, isAdmin: false,
@@ -597,7 +599,7 @@ export default function PayrollApp() {
         {error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={() => { setError(""); void loadPayroll(periodStart); }}>Retry</button></div>}
         {toast && <div className="toast" role="status"><Icon name="save" /> {toast}</div>}
         {loading && !data ? <PortalSkeleton page={activeNav} /> : data && <>
-          {activeNav !== "Dashboard" && activeNav !== "Command Center" && activeNav !== "Operations Board" && activeNav !== "Activity Timeline" && activeNav !== "Scheduling" && activeNav !== "Work Details" && activeNav !== "Daily Log" && activeNav !== "Holiday Policy" && activeNav !== "Daily Duties" && activeNav !== "Phone Numbers" && activeNav !== "Employee Contacts" && activeNav !== "Policies" && activeNav !== "Box Cards" && activeNav !== "Permissions" && activeNav !== "Test View" && <div className="period-row">
+          {activeNav !== "Dashboard" && activeNav !== "Command Center" && activeNav !== "Operations Board" && activeNav !== "Activity Timeline" && activeNav !== "Field Preplans" && activeNav !== "Scheduling" && activeNav !== "Work Details" && activeNav !== "Daily Log" && activeNav !== "Holiday Policy" && activeNav !== "Daily Duties" && activeNav !== "Phone Numbers" && activeNav !== "Employee Contacts" && activeNav !== "Policies" && activeNav !== "Box Cards" && activeNav !== "Permissions" && activeNav !== "Test View" && <div className="period-row">
             <div>
               <p className="eyebrow">{activeNav === "Payroll" ? "Current pay period" : activeNav}</p>
               <div className="title-line">
@@ -656,6 +658,7 @@ export default function PayrollApp() {
           }} />}
 
           {activeNav === "Activity Timeline" && <ActivityTimeline />}
+          {activeNav === "Field Preplans" && <FieldPreplans />}
 
           {(activeNav === "Timesheets" || activeNav === "My Timesheet") && selectedEmployee && selectedSummary && <div className={data.period.status === "finalized" ? "record-finalized" : "record-editable"}>{data.period.status === "finalized" && <div className="record-state-banner finalized"><span className="state-lock" aria-hidden="true">🔒</span><div><strong>Finalized timesheet · Read only</strong><span>This timesheet belongs to a closed payroll period.</span></div></div>}<section className="content-card timesheet-card">
             <div className="section-header"><div>{isAdminView ? <><label htmlFor="employee-select">Employee</label><select id="employee-select" value={selectedEmployee.id} onChange={(event) => setSelectedEmployeeId(event.target.value)}>{payrollEmployees.map((employee) => <option value={employee.id} key={employee.id}>{displayName(employee.name)} — {employee.rank}</option>)}</select></> : <><p className="eyebrow">My timesheet</p><h2>{displayName(selectedEmployee.name)}</h2><p>{selectedEmployee.rank} · Read only</p></>}</div><span className={`status-pill ${selectedSummary.status.toLowerCase().replace(" ", "-")}`}>{selectedSummary.status}</span></div>
