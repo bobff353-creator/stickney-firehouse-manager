@@ -1,6 +1,33 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
+import { fireFlowCalculationArea, polygonAreaSquareFeet, suggestedFireFlow } from "../app/preplan-fire-flow.ts";
+
+test("multi-point overhead footprints calculate ground square footage", () => {
+  const area = polygonAreaSquareFeet([
+    { lat: 41.8189, lng: -87.7734 },
+    { lat: 41.8189, lng: -87.7730 },
+    { lat: 41.8191, lng: -87.7729 },
+    { lat: 41.81925, lng: -87.7731 },
+    { lat: 41.81915, lng: -87.77345 },
+  ]);
+  assert.equal(area > 9_000 && area < 15_000, true);
+});
+
+test("IFC Appendix B advisory flow uses total levels and sprinkler assumptions", () => {
+  assert.equal(fireFlowCalculationArea(10_000, 4, "VB"), 40_000);
+  assert.equal(fireFlowCalculationArea(10_000, 5, "IA_IB"), 30_000);
+  const result = suggestedFireFlow({
+    footprintSquareFeet: 10_000,
+    floorCount: 1,
+    constructionType: "VB",
+    occupancyFlowCategory: "other",
+    sprinklerStandard: "nfpa13",
+  });
+  assert.equal(result?.baseGpm, 2750);
+  assert.equal(result?.suggestedGpm, 1000);
+  assert.equal(result?.durationHours, 2);
+});
 
 test("Field Preplans provides map-first quick and detailed capture", async () => {
   const [page, api, bootstrap, shell, permissions, googleMap, mapsConfig] = await Promise.all([
@@ -22,15 +49,17 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(page, /onWheel/);
   assert.match(page, /Drag to move/);
   assert.match(page, /Math\.min\(21,zoom\+1\)/);
-  assert.match(page, /Assisted outline/);
-  assert.match(page, /Add corner dots/);
+  assert.match(page, /Place corner points/);
   assert.match(page, /Accept Footprint/);
   assert.match(page, /footprintAccepted/);
+  assert.match(page, /polygonAreaSquareFeet/);
+  assert.match(page, /Suggested fire flow/);
   assert.match(page, /private A-side \/ fallback GPS point/);
   assert.match(page, /zoom >= 17/);
   for (const label of ["Knox Box","FDC","Riser","Gas Shutoff","Water Shutoff","Electrical Panel","Propane Tank","Elevator Room","Standpipe"]) assert.match(page, new RegExp(label));
   for (const side of ['["A","B","C","D"]']) assert.match(page, new RegExp(side.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(api, /at least three footprint corners/);
+  assert.match(api, /footprint_square_feet/);
   assert.match(bootstrap, /CREATE TABLE IF NOT EXISTS field_preplans/);
   assert.match(bootstrap, /CREATE TABLE IF NOT EXISTS field_preplan_features/);
   assert.match(bootstrap, /CREATE TABLE IF NOT EXISTS field_preplan_photos/);

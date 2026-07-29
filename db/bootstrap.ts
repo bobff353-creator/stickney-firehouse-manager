@@ -5,6 +5,7 @@ import { formatEmployeeName } from "../app/employee-names";
 import { normalizeMilitaryTime } from "../app/military-time";
 import { dailyLogPayrollEntries, dailyLogPayrollTotals, type PayrollStaffingRow } from "../app/payroll-hours";
 import { holidayForDate } from "../app/holidays";
+import { polygonAreaSquareFeet, suggestedFireFlow, type ConstructionGroup, type OccupancyFlowCategory, type Point, type SprinklerStandard } from "../app/preplan-fire-flow";
 
 const payScales = [
   ["deputy-chief-1", "Chief — O'Dowd", 31, 46.5, 46.5, 1],
@@ -69,6 +70,7 @@ const employeeNameFormatVersion = "employee-names-last-first-2026-07-23";
 const callTimeFormatVersion = "daily-log-call-times-military-2026-07-23";
 const exactLogPayrollRangeVersion = "daily-log-payroll-2026-07-11-through-2026-07-25-v1";
 const actingOfficerStraightStipendVersion = "acting-officer-straight-stipend-2026-07-26-v1";
+const preplanFootprintMetricsVersion = "preplan-footprint-metrics-ifc2018-2026-07-29-v1";
 const dailyDutySeed = [
   [1, "morning", "Weekly checks on 1201."],
   [1, "afternoon", "Deep clean bathrooms. Scrub floor in bathroom. Wash shower curtains. Clean shower stall."],
@@ -182,6 +184,25 @@ async function enforceActingOfficerStraightStipend(db: Awaited<ReturnType<typeof
   ]);
 }
 
+async function backfillPreplanFootprintMetrics(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
+  const markerKey = "preplan_footprint_metrics_version";
+  const marker = await db.prepare("SELECT value FROM system_meta WHERE key = ? LIMIT 1").bind(markerKey).first<{ value: string }>();
+  if (marker?.value === preplanFootprintMetricsVersion) return;
+  const rows = await db.prepare("SELECT id,footprint,floor_count floorCount,construction_type constructionType,occupancy_flow_category occupancyFlowCategory,sprinkler_standard sprinklerStandard FROM field_preplans").all<{ id:string;footprint:string;floorCount:number;constructionType:ConstructionGroup;occupancyFlowCategory:OccupancyFlowCategory;sprinklerStandard:SprinklerStandard }>();
+  const writes = rows.results.flatMap((row) => {
+    try {
+      const points = JSON.parse(row.footprint || "[]") as Point[];
+      const footprintSquareFeet = Math.round(polygonAreaSquareFeet(points));
+      const recommendation = suggestedFireFlow({ footprintSquareFeet, floorCount:row.floorCount || 1, constructionType:row.constructionType || "VB", occupancyFlowCategory:row.occupancyFlowCategory || "other", sprinklerStandard:row.sprinklerStandard || "none" });
+      return [db.prepare("UPDATE field_preplans SET footprint_square_feet=?,fire_flow_calculation_area=?,suggested_fire_flow_gpm=?,suggested_fire_flow_duration=? WHERE id=?").bind(footprintSquareFeet,recommendation?.calculationArea ?? 0,recommendation?.suggestedGpm ?? 0,recommendation?.durationHours ?? 0,row.id)];
+    } catch {
+      return [];
+    }
+  });
+  if (writes.length) await db.batch(writes);
+  await db.prepare("INSERT INTO system_meta (key,value,updated_at) VALUES (?,?,CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").bind(markerKey,preplanFootprintMetricsVersion).run();
+}
+
 async function seedPolicies(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
   const marker = await db.prepare("SELECT value FROM system_meta WHERE key = ? LIMIT 1").bind("policy_seed_version").first<{ value: string }>();
   if (marker?.value === policySeedVersion) return;
@@ -278,7 +299,7 @@ export async function ensureDatabase() {
     db.prepare("CREATE INDEX IF NOT EXISTS chief_board_active_date_idx ON chief_board_items(active, event_date)"),
     db.prepare("CREATE TABLE IF NOT EXISTS chief_board_attachments (id TEXT PRIMARY KEY NOT NULL, item_id TEXT NOT NULL REFERENCES chief_board_items(id), object_key TEXT NOT NULL, filename TEXT NOT NULL, content_type TEXT NOT NULL DEFAULT 'application/octet-stream', size_bytes INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE INDEX IF NOT EXISTS chief_board_attachment_item_idx ON chief_board_attachments(item_id)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS field_preplans (id TEXT PRIMARY KEY NOT NULL, business_name TEXT NOT NULL, address TEXT NOT NULL DEFAULT '', latitude REAL NOT NULL, longitude REAL NOT NULL, a_side_latitude REAL, a_side_longitude REAL, footprint TEXT NOT NULL DEFAULT '[]', contact_info TEXT NOT NULL DEFAULT '', construction TEXT NOT NULL DEFAULT '', access_info TEXT NOT NULL DEFAULT '', alarm_system TEXT NOT NULL DEFAULT '', knox_box TEXT NOT NULL DEFAULT '', riser TEXT NOT NULL DEFAULT '', fdc TEXT NOT NULL DEFAULT '', sprinkler_system TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'Quick Preplan', created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS field_preplans (id TEXT PRIMARY KEY NOT NULL, business_name TEXT NOT NULL, address TEXT NOT NULL DEFAULT '', latitude REAL NOT NULL, longitude REAL NOT NULL, a_side_latitude REAL, a_side_longitude REAL, footprint TEXT NOT NULL DEFAULT '[]', footprint_square_feet REAL NOT NULL DEFAULT 0, floor_count INTEGER NOT NULL DEFAULT 1, fire_flow_calculation_area REAL NOT NULL DEFAULT 0, construction_type TEXT NOT NULL DEFAULT 'VB', occupancy_flow_category TEXT NOT NULL DEFAULT 'other', sprinkler_standard TEXT NOT NULL DEFAULT 'none', suggested_fire_flow_gpm REAL NOT NULL DEFAULT 0, suggested_fire_flow_duration REAL NOT NULL DEFAULT 0, contact_info TEXT NOT NULL DEFAULT '', construction TEXT NOT NULL DEFAULT '', access_info TEXT NOT NULL DEFAULT '', alarm_system TEXT NOT NULL DEFAULT '', knox_box TEXT NOT NULL DEFAULT '', riser TEXT NOT NULL DEFAULT '', fdc TEXT NOT NULL DEFAULT '', sprinkler_system TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'Quick Preplan', created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_location_idx ON field_preplans(latitude,longitude)"),
     db.prepare("CREATE TABLE IF NOT EXISTS field_preplan_features (id TEXT PRIMARY KEY NOT NULL, preplan_id TEXT NOT NULL REFERENCES field_preplans(id), feature_type TEXT NOT NULL, label TEXT NOT NULL DEFAULT '', latitude REAL NOT NULL, longitude REAL NOT NULL, system_type TEXT NOT NULL DEFAULT '', service_status TEXT NOT NULL DEFAULT 'in_service', details TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_feature_preplan_idx ON field_preplan_features(preplan_id)"),
@@ -311,6 +332,15 @@ export async function ensureDatabase() {
   try { await db.prepare("ALTER TABLE chief_board_items ADD COLUMN ends_at TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE chief_board_items ADD COLUMN expires_at TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE chief_board_items ADD COLUMN invite_status TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN footprint_square_feet REAL NOT NULL DEFAULT 0").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN floor_count INTEGER NOT NULL DEFAULT 1").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN fire_flow_calculation_area REAL NOT NULL DEFAULT 0").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN construction_type TEXT NOT NULL DEFAULT 'VB'").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN occupancy_flow_category TEXT NOT NULL DEFAULT 'other'").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN sprinkler_standard TEXT NOT NULL DEFAULT 'none'").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN suggested_fire_flow_gpm REAL NOT NULL DEFAULT 0").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN suggested_fire_flow_duration REAL NOT NULL DEFAULT 0").run(); } catch { /* Column already exists after migration. */ }
+  await backfillPreplanFootprintMetrics(db);
   await db.batch([
     ["shift_request", "Shift requests", 1, 1, 0, '["immediate"]'],
     ["open_shift", "Open shifts", 1, 1, 1, '["immediate","24_hours_before","2_hours_before"]'],
