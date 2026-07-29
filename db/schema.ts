@@ -351,3 +351,25 @@ export const recordRevisions = sqliteTable("record_revisions", {
   actor: text("actor").notNull(),
   changedAt: text("changed_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [uniqueIndex("record_revision_number_idx").on(table.recordType, table.recordId, table.revisionNumber)]);
+
+export const incidentCommandBoards = sqliteTable("incident_command_boards", {
+  incidentId: text("incident_id").primaryKey(),
+  boardState: text("board_state").notNull().default("{}"),
+  revision: integer("revision").notNull().default(0),
+  updatedBy: text("updated_by").notNull(),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const incidentCommandEvents = sqliteTable("incident_command_events", {
+  id: text("id").primaryKey(),
+  incidentId: text("incident_id").notNull(),
+  revision: integer("revision").notNull(),
+  eventType: text("event_type").notNull(),
+  summary: text("summary").notNull().default(""),
+  actor: text("actor").notNull(),
+  eventPayload: text("event_payload").notNull().default("{}"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("incident_command_event_revision_idx").on(table.incidentId, table.revision),
+  index("incident_command_events_incident_time_idx").on(table.incidentId, table.createdAt),
+]);
