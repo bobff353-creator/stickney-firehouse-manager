@@ -1,8 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- preplan photos are protected runtime records. */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import GoogleStreetView from "./google-street-view";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Point = { lat: number; lng: number };
 type Feature = { id:string; featureType:string; label:string; latitude:number; longitude:number; systemType:string; serviceStatus:string; details:string };
@@ -40,10 +39,6 @@ function googleNavigation(call:ActiveCall) {
   const destination = call.latitude != null && call.longitude != null ? `${call.latitude},${call.longitude}` : [call.address,call.city].filter(Boolean).join(", ");
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
 }
-function streetViewUrl(call:ActiveCall) {
-  if (call.latitude != null && call.longitude != null) return `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${call.latitude},${call.longitude}`;
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([call.address,call.city].filter(Boolean).join(", "))}`;
-}
 
 function FootprintDiagram({ preplan, selectedId, onSelect }:{preplan:Preplan;selectedId:string;onSelect:(item:QuickItem)=>void}) {
   const points = [...preplan.footprint.map((point) => ({ latitude:point.lat, longitude:point.lng })), ...preplan.features];
@@ -67,13 +62,15 @@ function FootprintDiagram({ preplan, selectedId, onSelect }:{preplan:Preplan;sel
 
 export default function Respond() {
   const [data,setData]=useState<RespondData|null>(null), [error,setError]=useState(""), [view,setView]=useState<RightView>("cad"), [selected,setSelected]=useState<QuickItem|null>(null);
-  const [mapsKey,setMapsKey]=useState("");
+  const [monitorMode,setMonitorMode]=useState(false);
+  const pageRef=useRef<HTMLElement>(null);
   const load=useCallback(async()=>{
     try{const response=await fetch("/api/respond",{cache:"no-store"});const body=await response.json() as RespondData&{error?:string};if(!response.ok)throw new Error(body.error||"Unable to load Respond.");setData(body);setError("");}
     catch(value){setError(value instanceof Error?value.message:"Unable to load Respond.");}
   },[]);
   useEffect(()=>{const initial=window.setTimeout(()=>void load(),0);const timer=window.setInterval(()=>void load(),10000);return()=>{window.clearTimeout(initial);window.clearInterval(timer);};},[load]);
-  useEffect(()=>{void fetch("/api/maps-config",{cache:"no-store"}).then((response)=>response.json()).then((body:{configured?:boolean;apiKey?:string})=>{if(body.configured&&body.apiKey)setMapsKey(body.apiKey);}).catch(()=>{});},[]);
+  useEffect(()=>{const update=()=>{if(!document.fullscreenElement)setMonitorMode(false);};document.addEventListener("fullscreenchange",update);return()=>document.removeEventListener("fullscreenchange",update);},[]);
+  async function toggleMonitor(){if(monitorMode){setMonitorMode(false);if(document.fullscreenElement)await document.exitFullscreen().catch(()=>{});return;}setMonitorMode(true);await pageRef.current?.requestFullscreen().catch(()=>{});}
   const quickItems=useMemo<QuickItem[]>(()=>{
     const plan=data?.preplan;if(!plan)return[];
     const staticItems=[
@@ -85,15 +82,14 @@ export default function Respond() {
     return [...mapped,...staticItems];
   },[data?.preplan]);
   const call=data?.activeCall??null, plan=data?.preplan??null, alpha=sidePhoto(plan,"A"), selectedSide=view==="B"||view==="C"||view==="D"?sidePhoto(plan,view):null;
-  const streetPoint=call ? (call.latitude!=null&&call.longitude!=null?{lat:call.latitude,lng:call.longitude}:plan?{lat:plan.aSideLatitude??plan.latitude,lng:plan.aSideLongitude??plan.longitude}:null) : null;
   if(!data&&!error)return <section className="respond-page"><div className="respond-empty"><strong>Loading active response…</strong><span>Checking current CAD and preplan records.</span></div></section>;
   if(error&&!data)return <section className="respond-page"><div className="respond-empty danger"><strong>Respond could not load</strong><span>{error}</span><button onClick={()=>void load()}>Try again</button></div></section>;
-  if(!call)return <section className="respond-page"><header className="respond-title"><div><span>FIELD · RESPOND</span><h1>Response Workspace</h1></div><small>Checks every 10 seconds</small></header><div className="respond-empty"><strong>No active call</strong><span>When a CAD call or open Daily Log call is active, its incident and matched preplan will appear here automatically.</span></div></section>;
-  return <section className="respond-page">
+  if(!call)return <section ref={pageRef} className={`respond-page${monitorMode?" monitor-view":""}`}><header className="respond-title"><div><span>FIELD · RESPOND</span><h1>Response Workspace</h1></div><div className="respond-title-actions"><small>Checks every 10 seconds</small><button onClick={()=>void toggleMonitor()}>{monitorMode?"Exit Monitor":"Monitor View"}</button></div></header><div className="respond-empty"><strong>No active call</strong><span>When a CAD call or open Daily Log call is active, its incident and matched preplan will appear here automatically.</span></div></section>;
+  return <section ref={pageRef} className={`respond-page${monitorMode?" monitor-view":""}`}>
     <header className="respond-callbar">
       <div><span>ACTIVE CALL · {call.source||"CAD"}</span><h1>{call.callType||call.category||"Call type not reported"}</h1><p>{[call.address,call.city].filter(Boolean).join(", ")||"Address not reported"}</p></div>
       <dl><div><dt>Call #</dt><dd>{call.reportNumber||"Pending"}</dd></div><div><dt>Time out</dt><dd>{displayTime(call.timeOut||call.dispatchedAt)}</dd></div><div><dt>Units</dt><dd>{call.respondingUnits||"Not reported"}</dd></div></dl>
-      <a className="respond-nav" href={googleNavigation(call)} target="_blank" rel="noreferrer" data-test-safe>Open Google Navigation ↗</a>
+      <div className="respond-call-actions"><button className="respond-monitor" onClick={()=>void toggleMonitor()} data-test-safe>{monitorMode?"Exit Monitor":"Monitor View"}</button><a className="respond-nav" href={googleNavigation(call)} target="_blank" rel="noreferrer" data-test-safe>Open Google Navigation ↗</a></div>
     </header>
     <div className="respond-statusline"><span className={plan?"matched":"unmatched"}>{plan?`Preplan matched by ${data?.match?.method}${data?.match?.method==="gps"?` · ${data.match.distanceFeet} ft`:""}`:"No matching preplan"}</span><span>Updated {displayTime(data?.generatedAt||"")}</span>{error&&<span className="warning">{error}</span>}</div>
     <div className="respond-grid">
@@ -102,9 +98,9 @@ export default function Respond() {
         <div className="respond-intel-list">{quickItems.map((item)=><button key={item.id} className={selected?.id===item.id?"selected":""} onClick={()=>setSelected(item)} data-test-safe><span className="feature-symbol">{featureSymbols[item.id.replace("summary-","")]||featureSymbols[plan?.features.find((feature)=>feature.id===item.id)?.featureType||""]||"i"}</span><span><strong>{item.label}</strong><small>{item.summary||"Details available"}</small></span><b>›</b></button>)}</div>
         {!quickItems.length&&<div className="respond-empty compact"><strong>No building systems entered</strong><span>Add them in Field Preplans.</span></div>}
       </aside>
-      <main className="respond-alpha"><header><div><span>PRIMARY VIEW</span><h2>{alpha?"Alpha / A Side":"Street View Fallback"}</h2></div>{plan&&<span className="record-badge">{plan.status}</span>}</header>
-        <div className="respond-primary-media">{alpha?<img src={alpha.url} alt={alpha.caption||`Alpha side of ${plan?.businessName||call.address}`}/>:mapsKey&&streetPoint?<GoogleStreetView apiKey={mapsKey} position={streetPoint} label={call.address} fallbackUrl={streetViewUrl(call)}/>:<div className="respond-empty overlay"><strong>No Alpha photo is saved</strong><span>Open Street View for the active-call address.</span><a href={streetViewUrl(call)} target="_blank" rel="noreferrer" data-test-safe>Open Street View ↗</a></div>}</div>
-        <footer><strong>{alpha?.caption||plan?.businessName||call.address}</strong><span>{alpha?"Approved preplan photo":"Fallback based on the dispatch address or GPS location"}</span></footer>
+      <main className="respond-alpha"><header><div><span>PRIMARY VIEW</span><h2>Alpha / A Side</h2></div>{plan&&<span className="record-badge">{plan.status}</span>}</header>
+        <div className="respond-primary-media">{alpha?<img src={alpha.url} alt={alpha.caption||`Alpha side of ${plan?.businessName||call.address}`}/>:<div className="respond-empty overlay"><strong>Alpha photo required</strong><span>No A-side preplan photo has been saved for this building.</span></div>}</div>
+        <footer><strong>{alpha?.caption||plan?.businessName||call.address}</strong><span>{alpha?"Approved preplan photo":"Add the Alpha photo in Field Preplans"}</span></footer>
       </main>
       <aside className="respond-context"><nav>{(["cad","footprint","B","C","D"] as RightView[]).map((item)=><button key={item} className={view===item?"active":""} onClick={()=>setView(item)} data-test-safe>{item==="cad"?"CAD Notes":item==="footprint"?"Footprint":`${item} Side`}</button>)}</nav>
         <div className="respond-context-body">

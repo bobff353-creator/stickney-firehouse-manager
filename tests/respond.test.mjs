@@ -38,9 +38,11 @@ test("Respond reads existing call and preplan records and exposes requested fiel
   assert.match(route, /FROM field_preplan_features/);
   assert.match(route, /FROM field_preplan_photos/);
   assert.match(component, /Alpha \/ A Side/);
-  assert.match(component, /Street View Fallback/);
-  assert.doesNotMatch(component, /maps\/embed\/v1\/streetview/);
-  assert.match(component, /<GoogleStreetView/);
+  assert.doesNotMatch(component, /Street View|streetView|GoogleStreetView|maps-config/);
+  assert.match(component, /Monitor View/);
+  assert.match(component, /requestFullscreen/);
+  assert.match(component, /exitFullscreen/);
+  assert.match(component, /Alpha photo required/);
   assert.match(component, /CAD Notes/);
   assert.match(component, /Footprint/);
   assert.match(component, /type RightView = "cad"\|"footprint"\|"B"\|"C"\|"D"/);

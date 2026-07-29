@@ -14,15 +14,9 @@ type GoogleMapInstance = {
   setOptions(options: Record<string, unknown>): void;
   setZoom(zoom: number): void;
 };
-type GoogleStreetViewInstance = {
-  setPosition(position: Point): void;
-  setPov(pov: { heading: number; pitch: number }): void;
-  setVisible(visible: boolean): void;
-};
-export type GoogleMapsApi = {
+type GoogleMapsApi = {
   maps: {
     Map: new (element: HTMLElement, options: Record<string, unknown>) => GoogleMapInstance;
-    StreetViewPanorama: new (element: HTMLElement, options: Record<string, unknown>) => GoogleStreetViewInstance;
   };
 };
 
@@ -33,7 +27,7 @@ const cleanMapStyles = [
   { featureType: "transit.station", elementType: "all", stylers: [{ visibility: "off" }] },
 ];
 
-export function loadGoogleMaps(apiKey: string) {
+function loadGoogleMaps(apiKey: string) {
   if (window.google?.maps?.Map) return Promise.resolve(window.google);
   if (loader) return loader;
   loader = new Promise<GoogleMapsApi>((resolve, reject) => {
