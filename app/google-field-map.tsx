@@ -21,6 +21,7 @@ type GoogleMapsApi = {
 };
 
 let loader: Promise<GoogleMapsApi> | null = null;
+const authenticationFailureListeners = new Set<() => void>();
 
 function loadGoogleMaps(apiKey: string) {
   if (window.google?.maps?.Map) return Promise.resolve(window.google);
@@ -28,6 +29,10 @@ function loadGoogleMaps(apiKey: string) {
   loader = new Promise<GoogleMapsApi>((resolve, reject) => {
     const callbackName = "__stickneyGoogleMapsReady";
     const callbackWindow = window as unknown as Window & Record<string, unknown>;
+    callbackWindow.gm_authFailure = () => {
+      authenticationFailureListeners.forEach((listener) => listener());
+      reject(new Error("Google Maps key authorization failed."));
+    };
     callbackWindow[callbackName] = () => {
       if (window.google?.maps?.Map) resolve(window.google);
       else reject(new Error("Google Maps did not initialize."));
@@ -81,6 +86,13 @@ export default function GoogleFieldMap({
     let active = true;
     let idleListener: GoogleListener | null = null;
     const initial = initialView.current;
+    const handleAuthenticationFailure = () => {
+      if (!active) return;
+      map.current = null;
+      setReady(false);
+      onReadyRef.current(false);
+    };
+    authenticationFailureListeners.add(handleAuthenticationFailure);
     void loadGoogleMaps(apiKey).then((google) => {
       if (!active || !element.current) return;
       const instance = new google.maps.Map(element.current, {
@@ -119,6 +131,7 @@ export default function GoogleFieldMap({
     });
     return () => {
       active = false;
+      authenticationFailureListeners.delete(handleAuthenticationFailure);
       idleListener?.remove();
       map.current = null;
     };

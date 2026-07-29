@@ -37,6 +37,7 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(googleMap, /maps\.googleapis\.com\/maps\/api\/js/);
   assert.match(googleMap, /loading=async/);
   assert.match(googleMap, /auth_referrer_policy=origin/);
+  assert.match(googleMap, /gm_authFailure/);
   assert.match(googleMap, /gestureHandling/);
   assert.match(mapsConfig, /runtime\["Maps Platform API Key"\]/);
   assert.match(mapsConfig, /Authentication required/);
