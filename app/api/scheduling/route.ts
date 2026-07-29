@@ -190,6 +190,13 @@ export async function POST(request: Request) {
     const payload = await request.json() as Record<string,unknown>;
     const action = String(payload.action ?? "");
     if (!current.isAdmin && !current.employeeId) return Response.json({ error: "Your login is not connected to an employee record." }, { status: 403 });
+    const testEmployeeId = current.isAdmin ? String(payload.testEmployeeId ?? "") : "";
+    const actingEmployeeId = testEmployeeId || current.employeeId || "";
+    const actingEmployee = testEmployeeId
+      ? await db.prepare("SELECT id,name FROM employees WHERE id=? AND active=1").bind(testEmployeeId).first<{id:string;name:string}>()
+      : null;
+    if (testEmployeeId && !actingEmployee) return Response.json({ error: "The selected Test View employee is unavailable." }, { status: 404 });
+    const actingName = actingEmployee?.name ?? current.name;
 
     if (action === "saveNotificationRules") {
       if (!current.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
@@ -209,11 +216,11 @@ export async function POST(request: Request) {
     }
 
     if (action === "saveMyNotificationPreferences") {
-      if (!current.employeeId) return Response.json({ error: "Your login is not connected to an employee record." }, { status: 403 });
+      if (!actingEmployeeId) return Response.json({ error: "Your login is not connected to an employee record." }, { status: 403 });
       const smsOptIn = Boolean(payload.smsOptIn);
-      const profile = await db.prepare("SELECT COALESCE(email,'') email,COALESCE(phone,'') phone FROM employee_profiles WHERE employee_id=?").bind(current.employeeId).first<{email:string;phone:string}>();
+      const profile = await db.prepare("SELECT COALESCE(email,'') email,COALESCE(phone,'') phone FROM employee_profiles WHERE employee_id=?").bind(actingEmployeeId).first<{email:string;phone:string}>();
       if (smsOptIn && !profile?.phone) return Response.json({ error: "Add a mobile phone number to Employee Information before enabling text updates." }, { status: 400 });
-      await db.prepare("UPDATE employee_profiles SET schedule_sms_opt_in=?,updated_at=CURRENT_TIMESTAMP WHERE employee_id=?").bind(smsOptIn ? 1 : 0, current.employeeId).run();
+      await db.prepare("UPDATE employee_profiles SET schedule_sms_opt_in=?,updated_at=CURRENT_TIMESTAMP WHERE employee_id=?").bind(smsOptIn ? 1 : 0, actingEmployeeId).run();
       return Response.json({ ok: true, email: profile?.email ?? "", smsOptIn });
     }
 
@@ -379,7 +386,7 @@ export async function POST(request: Request) {
     }
 
     if (action === "submitRequest") {
-      const employeeId = current.isAdmin && payload.employeeId ? String(payload.employeeId) : current.employeeId ?? "";
+      const employeeId = testEmployeeId || (current.isAdmin && payload.employeeId ? String(payload.employeeId) : current.employeeId ?? "");
       const requestType = String(payload.requestType ?? "");
       const assignmentId = String(payload.assignmentId ?? "");
       const targetEmployeeId = String(payload.targetEmployeeId ?? "");
@@ -415,21 +422,21 @@ export async function POST(request: Request) {
       await db.prepare("INSERT INTO schedule_requests(id,request_type,employee_id,assignment_id,target_employee_id,start_date,end_date,start_time,end_time,role,repeat_mode,repeat_interval,status,target_status,notes) VALUES(?,?,?,NULLIF(?,''),NULLIF(?,''),?,?,?,?,?,?,?,'pending',?,?)")
         .bind(crypto.randomUUID(), requestType, employeeId, assignmentId, targetEmployeeId, startDate, endDate, String(payload.startTime ?? ""), String(payload.endTime ?? ""), String(payload.role ?? ""), repeatMode, repeatInterval, targetStatus, String(payload.notes ?? "")).run();
       if (requestType === "trade") {
-        await notify(db, [targetEmployeeId], "Trade needs your response", `${current.name} requested a shift trade for ${startDate}. Accept or decline it in Scheduling.`, "trade", `${startDate}T12:00:00-05:00`);
+        await notify(db, [targetEmployeeId], "Trade needs your response", `${actingName} requested a shift trade for ${startDate}. Accept or decline it in Scheduling.`, "trade", `${startDate}T12:00:00-05:00`);
       }
-      await notify(db, await admins(db), "New schedule request", `${current.name} submitted a ${requestType.replace("_", " ")} request for ${startDate}.`, "shift_request", `${startDate}T12:00:00-05:00`);
+      await notify(db, await admins(db), "New schedule request", `${actingName} submitted a ${requestType.replace("_", " ")} request for ${startDate}.`, "shift_request", `${startDate}T12:00:00-05:00`);
       return Response.json({ ok: true });
     }
 
     if (action === "respondTrade") {
       const id = String(payload.id ?? "");
       const decision = String(payload.decision ?? "");
-      if (!current.employeeId || !["accepted", "declined"].includes(decision)) return Response.json({ error: "Choose accept or decline." }, { status: 400 });
-      const trade = await db.prepare("SELECT q.employee_id employeeId,a.role,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM schedule_requests q JOIN schedule_assignments a ON a.id=q.assignment_id JOIN employees e ON e.id=q.target_employee_id JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE q.id=? AND q.request_type='trade' AND q.target_employee_id=? AND q.status='pending' AND q.target_status='pending'").bind(id, current.employeeId).first<{employeeId:string;role:string;rank:string;actingOfficerEligible:number}>();
+      if (!actingEmployeeId || !["accepted", "declined"].includes(decision)) return Response.json({ error: "Choose accept or decline." }, { status: 400 });
+      const trade = await db.prepare("SELECT q.employee_id employeeId,a.role,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM schedule_requests q JOIN schedule_assignments a ON a.id=q.assignment_id JOIN employees e ON e.id=q.target_employee_id JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE q.id=? AND q.request_type='trade' AND q.target_employee_id=? AND q.status='pending' AND q.target_status='pending'").bind(id, actingEmployeeId).first<{employeeId:string;role:string;rank:string;actingOfficerEligible:number}>();
       if (!trade) return Response.json({ error: "This trade is no longer waiting for your response." }, { status: 409 });
       if (decision === "accepted" && !qualifiedForRole(trade.role, trade.rank, trade.actingOfficerEligible)) return Response.json({ error: "Your employee record is not eligible for this Officer/AO shift." }, { status: 403 });
       await db.prepare(`UPDATE schedule_requests SET target_status=?${decision === "declined" ? ",status='denied'" : ""} WHERE id=?`).bind(decision, id).run();
-      await notify(db, [trade.employeeId, ...(decision === "accepted" ? await admins(db) : [])], `Trade ${decision}`, `${current.name} ${decision} the proposed trade.`, "trade");
+      await notify(db, [trade.employeeId, ...(decision === "accepted" ? await admins(db) : [])], `Trade ${decision}`, `${actingName} ${decision} the proposed trade.`, "trade");
       return Response.json({ ok: true });
     }
 
@@ -458,8 +465,8 @@ export async function POST(request: Request) {
       return Response.json({ ok: true });
     }
 
-    if (action === "markRead" && current.employeeId) {
-      await db.prepare("UPDATE schedule_notifications SET read_at=CURRENT_TIMESTAMP WHERE id=? AND employee_id=?").bind(String(payload.id ?? ""), current.employeeId).run();
+    if (action === "markRead" && actingEmployeeId) {
+      await db.prepare("UPDATE schedule_notifications SET read_at=CURRENT_TIMESTAMP WHERE id=? AND employee_id=?").bind(String(payload.id ?? ""), actingEmployeeId).run();
       return Response.json({ ok: true });
     }
     return Response.json({ error: "Unsupported scheduling action." }, { status: 400 });
