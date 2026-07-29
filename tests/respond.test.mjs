@@ -27,10 +27,11 @@ test("Respond prefers exact address matches and allows controlled nearby GPS mat
 });
 
 test("Respond reads existing call and preplan records and exposes requested field views", async () => {
-  const [route, component, shell] = await Promise.all([
+  const [route, component, shell, styles] = await Promise.all([
     readFile(new URL("../app/api/respond/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/respond.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
   assert.match(route, /FROM dispatch_incidents/);
   assert.match(route, /FROM daily_log_calls/);
@@ -50,4 +51,5 @@ test("Respond reads existing call and preplan records and exposes requested fiel
   assert.match(component, /Open Google Navigation/);
   assert.match(shell, /\{ label: "Respond", page: "Respond" \}/);
   assert.match(shell, /activeNav === "Respond"/);
+  assert.match(styles, /grid-template-columns:minmax\(165px,\.432fr\) minmax\(460px,1\.53fr\) minmax\(315px,\.988fr\)/);
 });
