@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- imagery tiles and protected field photos are runtime sources. */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Point = { lat:number; lng:number };
 type Feature = { id:string; preplanId:string; featureType:string; label:string; latitude:number; longitude:number; systemType:string; serviceStatus:string; details:string };
@@ -23,15 +23,9 @@ const pinTypes = [
 const pinMeta = Object.fromEntries(pinTypes.map(([key,short,label]) => [key,{short,label}])) as Record<string,{short:string;label:string}>;
 const systemOptions = ["","Wet","Dry","Deluge","Pre-action","Combination","Local alarm","Monitored alarm","Keyed access","Other"];
 
-function tile(center:Point, zoom:number) {
-  const scale = 2 ** zoom, x = Math.floor((center.lng + 180) / 360 * scale);
-  const y = Math.floor((1 - Math.asinh(Math.tan(center.lat * Math.PI / 180)) / Math.PI) / 2 * scale);
-  return { x,y,scale };
-}
+function world(point:Point,zoom:number) { const scale=256*2**zoom; return {x:(point.lng+180)/360*scale,y:(1-Math.asinh(Math.tan(point.lat*Math.PI/180))/Math.PI)/2*scale}; }
 function project(point:Point, center:Point, zoom:number, width:number, height:number) {
-  const scale = 256 * 2 ** zoom;
-  const world = (value:Point) => ({ x:(value.lng + 180) / 360 * scale, y:(1 - Math.asinh(Math.tan(value.lat * Math.PI / 180)) / Math.PI) / 2 * scale });
-  const p = world(point), c = world(center);
+  const p = world(point,zoom), c = world(center,zoom);
   return { x:width / 2 + p.x - c.x, y:height / 2 + p.y - c.y };
 }
 function unproject(x:number,y:number,center:Point,zoom:number,width:number,height:number):Point {
@@ -43,15 +37,20 @@ function unproject(x:number,y:number,center:Point,zoom:number,width:number,heigh
 }
 function polygon(points:Point[],center:Point,zoom:number,width:number,height:number) { return points.map((point) => { const p=project(point,center,zoom,width,height); return `${p.x},${p.y}`; }).join(" "); }
 
-function FieldMap({ center,zoom,imagery,plans,selected,draft,mode,onMapClick,onSelect }:{ center:Point;zoom:number;imagery:"aerial"|"street";plans:Preplan[];selected:string;draft:Form|null;mode:string;onMapClick:(point:Point)=>void;onSelect:(id:string)=>void }) {
-  const width=1100,height=720,{x,y}=tile(center,zoom);
-  const tiles = Array.from({length:25},(_,index) => ({ dx:index%5-2,dy:Math.floor(index/5)-2 }));
-  return <div className={`field-map ${mode ? "capture" : ""}`} onClick={(event) => {
-    if (!mode) return;
-    const rect=event.currentTarget.getBoundingClientRect();
-    onMapClick(unproject((event.clientX-rect.left)/rect.width*width,(event.clientY-rect.top)/rect.height*height,center,zoom,width,height));
-  }}>
-    <div className="field-map-tiles">{tiles.map(({dx,dy}) => <img key={`${dx}-${dy}`} alt="" draggable={false} style={{left:`calc(50% + ${dx*256-128}px)`,top:`calc(50% + ${dy*256-128}px)`}} src={imagery === "aerial" ? `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${y+dy}/${x+dx}` : `https://tile.openstreetmap.org/${zoom}/${x+dx}/${y+dy}.png`}/>)}</div>
+function FieldMap({ center,zoom,imagery,plans,selected,draft,mode,onMapClick,onSelect,onCenter,onZoom }:{ center:Point;zoom:number;imagery:"aerial"|"street";plans:Preplan[];selected:string;draft:Form|null;mode:string;onMapClick:(point:Point)=>void;onSelect:(id:string)=>void;onCenter:(point:Point)=>void;onZoom:(zoom:number)=>void }) {
+  const width=1100,height=720,centerWorld=world(center,zoom),tileX=Math.floor(centerWorld.x/256),tileY=Math.floor(centerWorld.y/256),tileCount=2**zoom;
+  const gesture=useRef<{x:number;y:number;center:Point;moved:boolean}|null>(null);
+  const [dragging,setDragging]=useState(false);
+  const tiles=Array.from({length:49},(_,index)=>({x:tileX+index%7-3,y:tileY+Math.floor(index/7)-3})).filter((item)=>item.y>=0&&item.y<tileCount);
+  function mapPoint(element:HTMLDivElement,clientX:number,clientY:number,base=center){const rect=element.getBoundingClientRect();return unproject((clientX-rect.left)/rect.width*width,(clientY-rect.top)/rect.height*height,base,zoom,width,height);}
+  return <div className={`field-map ${mode ? "capture" : ""}${dragging ? " dragging" : ""}`}
+    onPointerDown={(event)=>{if(event.button!==0)return;event.currentTarget.setPointerCapture(event.pointerId);gesture.current={x:event.clientX,y:event.clientY,center,moved:false};setDragging(true);}}
+    onPointerMove={(event)=>{const start=gesture.current;if(!start)return;const dx=event.clientX-start.x,dy=event.clientY-start.y;if(Math.hypot(dx,dy)>4)start.moved=true;if(start.moved){const rect=event.currentTarget.getBoundingClientRect();onCenter(unproject(width/2-dx/rect.width*width,height/2-dy/rect.height*height,start.center,zoom,width,height));}}}
+    onPointerUp={(event)=>{const start=gesture.current;gesture.current=null;setDragging(false);if(start&&!start.moved&&mode)onMapClick(mapPoint(event.currentTarget,event.clientX,event.clientY));}}
+    onPointerCancel={()=>{gesture.current=null;setDragging(false);}}
+    onDoubleClick={(event)=>{event.preventDefault();onCenter(mapPoint(event.currentTarget,event.clientX,event.clientY));onZoom(Math.min(20,zoom+1));}}
+    onWheel={(event)=>{event.preventDefault();onZoom(Math.max(14,Math.min(20,zoom+(event.deltaY<0?1:-1))));}}>
+    <div className="field-map-tiles">{tiles.map((item)=>{const wrappedX=((item.x%tileCount)+tileCount)%tileCount,left=width/2+item.x*256-centerWorld.x,top=height/2+item.y*256-centerWorld.y;return <img key={`${item.x}-${item.y}`} alt="" draggable={false} style={{left:`${left/width*100}%`,top:`${top/height*100}%`,width:`${256/width*100}%`,height:`${256/height*100}%`}} src={imagery === "aerial" ? `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${item.y}/${wrappedX}` : `https://tile.openstreetmap.org/${zoom}/${wrappedX}/${item.y}.png`}/>;})}</div>
     <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-label="Preplan map overlay">
       {plans.map((plan) => plan.footprint.length >= 3 && <polygon key={plan.id} points={polygon(plan.footprint,center,zoom,width,height)} className={plan.id === selected ? "selected" : ""} onClick={(event) => { event.stopPropagation(); onSelect(plan.id); }}/>)}
       {draft?.footprint && draft.footprint.length > 0 && <><polyline points={polygon(draft.footprint,center,zoom,width,height)} className="draft"/>{draft.footprint.map((point,index) => { const p=project(point,center,zoom,width,height); return <circle key={index} cx={p.x} cy={p.y} r="7" className="corner"/>; })}</>}
@@ -64,7 +63,7 @@ function FieldMap({ center,zoom,imagery,plans,selected,draft,mode,onMapClick,onS
 
 export default function FieldPreplans() {
   const [plans,setPlans]=useState<Preplan[]>([]),[canEdit,setCanEdit]=useState(false),[query,setQuery]=useState(""),[selected,setSelected]=useState(""),[draft,setDraft]=useState<Form|null>(null);
-  const [center,setCenter]=useState<Point>(stickney),[zoom,setZoom]=useState(18),[imagery,setImagery]=useState<"aerial"|"street">("aerial"),[mode,setMode]=useState(""),[tab,setTab]=useState<"quick"|"details"|"photos">("quick");
+  const [center,setCenter]=useState<Point>(stickney),[zoom,setZoom]=useState(19),[imagery,setImagery]=useState<"aerial"|"street">("aerial"),[mode,setMode]=useState(""),[tab,setTab]=useState<"quick"|"details"|"photos">("quick");
   const [feature,setFeature]=useState({featureType:"knox",label:"",systemType:"",serviceStatus:"in_service",details:""}),[message,setMessage]=useState(""),[busy,setBusy]=useState(false);
   const load=useCallback(async()=>{const response=await fetch("/api/field-preplans",{cache:"no-store"});const body=await response.json() as {preplans?:Preplan[];canEdit?:boolean;error?:string};if(!response.ok)throw new Error(body.error||"Unable to load preplans");setPlans(body.preplans??[]);setCanEdit(Boolean(body.canEdit));},[]);
   useEffect(()=>{void load().catch((error)=>setMessage(error.message));navigator.geolocation?.getCurrentPosition((position)=>setCenter({lat:position.coords.latitude,lng:position.coords.longitude}),()=>{}, {enableHighAccuracy:true,timeout:7000});},[load]);
@@ -87,8 +86,8 @@ export default function FieldPreplans() {
   return <section className="field-preplans-page">
     <header className="field-preplan-header"><div><p className="eyebrow">Field</p><h1>Preplans</h1><p>Map-first building intelligence for response and field capture.</p></div><div className="field-preplan-actions"><label><span>Search preplans</span><input value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="Business, address, or occupancy…"/></label>{canEdit&&<button className="primary-action" onClick={()=>{const next=empty(center);setDraft(next);setSelected("");setTab("quick");setMode("auto");}}>+ Add Preplan</button>}</div></header>
     {message&&<div className="field-message">{message}</div>}
-    <div className="field-map-toolbar"><button onClick={locate}>◎ Current location</button><button className={imagery==="aerial"?"active":""} onClick={()=>setImagery("aerial")}>Aerial</button><button className={imagery==="street"?"active":""} onClick={()=>setImagery("street")}>Streets</button><span/><button onClick={()=>setZoom(Math.max(14,zoom-1))}>−</button><b>{zoom}</b><button onClick={()=>setZoom(Math.min(21,zoom+1))}>+</button></div>
-    <div className="field-map-layout"><FieldMap center={center} zoom={zoom} imagery={imagery} plans={mapPlans} selected={selected} draft={draft} mode={mode} onMapClick={clickMap} onSelect={(id)=>{const plan=plans.find((item)=>item.id===id);if(plan)edit(plan);}}/><aside><header><b>Preplans on map</b><span>{shown.length}</span></header>{shown.length?shown.map((plan)=><button key={plan.id} className={plan.id===selected?"active":""} onClick={()=>edit(plan)}><strong>{plan.businessName}</strong><span>{plan.address||"A-side GPS location"}</span><small>{plan.status} · {plan.features.length} mapped items</small></button>):<p>No preplans match this view.</p>}</aside></div>
+    <div className="field-map-toolbar"><button onClick={locate}>◎ Current location</button><button className={imagery==="aerial"?"active":""} onClick={()=>setImagery("aerial")}>Aerial</button><button className={imagery==="street"?"active":""} onClick={()=>setImagery("street")}>Streets</button><small>Drag to move · wheel or double-click to zoom</small><span/><button aria-label="Zoom out" onClick={()=>setZoom(Math.max(14,zoom-1))}>−</button><b>Zoom {zoom}</b><button aria-label="Zoom in" onClick={()=>setZoom(Math.min(20,zoom+1))}>+</button></div>
+    <div className="field-map-layout"><FieldMap center={center} zoom={zoom} imagery={imagery} plans={mapPlans} selected={selected} draft={draft} mode={mode} onMapClick={clickMap} onCenter={setCenter} onZoom={setZoom} onSelect={(id)=>{const plan=plans.find((item)=>item.id===id);if(plan)edit(plan);}}/><aside><header><b>Preplans on map</b><span>{shown.length}</span></header>{shown.length?shown.map((plan)=><button key={plan.id} className={plan.id===selected?"active":""} onClick={()=>edit(plan)}><strong>{plan.businessName}</strong><span>{plan.address||"A-side GPS location"}</span><small>{plan.status} · {plan.features.length} mapped items</small></button>):<p>No preplans match this view.</p>}</aside></div>
     {draft&&<section className="preplan-editor">
       <header><div><span>{draft.id?"EDIT PREPLAN":"NEW PREPLAN"}</span><h2>{draft.businessName||"Capture building"}</h2></div><nav><button className={tab==="quick"?"active":""} onClick={()=>setTab("quick")}>Quick Preplan</button><button disabled={!draft.id} className={tab==="details"?"active":""} onClick={()=>setTab("details")}>Detailed Systems</button><button disabled={!draft.id} className={tab==="photos"?"active":""} onClick={()=>setTab("photos")}>A–D Photos</button></nav></header>
       {tab==="quick"&&<div className="preplan-quick-grid"><article><h3>1 · Capture footprint</h3><p>Click the corners in order, or use assisted outline and click the building center.</p><div className="capture-buttons"><button className={mode==="auto"?"active":""} onClick={()=>setMode("auto")}>Assisted outline</button><button className={mode==="footprint"?"active":""} onClick={()=>setMode("footprint")}>Click corners</button><button onClick={()=>setDraft({...draft,footprint:draft.footprint.slice(0,-1)})}>Undo corner</button><button onClick={()=>setDraft({...draft,footprint:[]})}>Clear</button></div><small>{draft.footprint.length} corners · footprint is highlighted on every map view</small><button className={mode==="aSide"?"active wide-action": "wide-action"} onClick={()=>setMode("aSide")}>Drop private A-side / fallback GPS point</button><p className="privacy-note">The A-side point is stored for routing fallback and is not rendered as a public map pin.</p></article>

@@ -15,6 +15,11 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(permissions, /field_preplans\.view/);
   assert.match(permissions, /field_preplans\.edit/);
   assert.match(page, /Current location/);
+  assert.match(page, /onPointerMove/);
+  assert.match(page, /onDoubleClick/);
+  assert.match(page, /onWheel/);
+  assert.match(page, /Drag to move/);
+  assert.match(page, /Math\.min\(20,zoom\+1\)/);
   assert.match(page, /Assisted outline/);
   assert.match(page, /Click corners/);
   assert.match(page, /private A-side \/ fallback GPS point/);
