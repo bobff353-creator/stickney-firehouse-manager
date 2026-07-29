@@ -3,12 +3,14 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 
 test("Field Preplans provides map-first quick and detailed capture", async () => {
-  const [page, api, bootstrap, shell, permissions] = await Promise.all([
+  const [page, api, bootstrap, shell, permissions, googleMap, mapsConfig] = await Promise.all([
     readFile(new URL("../app/field-preplans.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/field-preplans/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/bootstrap.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/permissions.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/google-field-map.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/maps-config/route.ts", import.meta.url), "utf8"),
   ]);
   assert.match(shell, /label: "Field"/);
   assert.match(shell, /activeNav === "Field Preplans"/);
@@ -19,7 +21,7 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(page, /onDoubleClick/);
   assert.match(page, /onWheel/);
   assert.match(page, /Drag to move/);
-  assert.match(page, /Math\.min\(20,zoom\+1\)/);
+  assert.match(page, /Math\.min\(21,zoom\+1\)/);
   assert.match(page, /Assisted outline/);
   assert.match(page, /Click corners/);
   assert.match(page, /private A-side \/ fallback GPS point/);
@@ -30,4 +32,12 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(bootstrap, /CREATE TABLE IF NOT EXISTS field_preplans/);
   assert.match(bootstrap, /CREATE TABLE IF NOT EXISTS field_preplan_features/);
   assert.match(bootstrap, /CREATE TABLE IF NOT EXISTS field_preplan_photos/);
+  assert.match(page, /Google Maps/);
+  assert.match(page, /Backup map/);
+  assert.match(googleMap, /maps\.googleapis\.com\/maps\/api\/js/);
+  assert.match(googleMap, /loading=async/);
+  assert.match(googleMap, /auth_referrer_policy=origin/);
+  assert.match(googleMap, /gestureHandling/);
+  assert.match(mapsConfig, /runtime\["Maps Platform API Key"\]/);
+  assert.match(mapsConfig, /Authentication required/);
 });
