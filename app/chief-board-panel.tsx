@@ -18,6 +18,11 @@ type ChiefItem = {
   createdAt: string;
   attachments: Attachment[];
 };
+type RiverGauge = {
+  gaugeId: string; name: string; level: number; unit: string; category: string; validTime: string;
+  actionStage: number | null; minorStage: number | null; moderateStage: number | null; majorStage: number | null;
+  inService: boolean; serviceMessage: string; sourceUrl: string; hydrographUrl: string; retrievedAt: string;
+};
 const emptyDraft = { itemType: "note" as "note" | "event", title: "", body: "", startsAt: "", endsAt: "", expiresAt: "" };
 
 function dateTime(value: string) {
@@ -28,8 +33,14 @@ function fileSize(bytes: number) {
   return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
+function floodLabel(category: string) {
+  return category.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 export default function ChiefBoardPanel() {
   const [items, setItems] = useState<ChiefItem[]>([]);
+  const [river, setRiver] = useState<RiverGauge | null>(null);
+  const [riverError, setRiverError] = useState("");
   const [canEdit, setCanEdit] = useState(false);
   const [current, setCurrent] = useState(0);
   const [draft, setDraft] = useState<typeof emptyDraft | null>(null);
@@ -38,24 +49,34 @@ export default function ChiefBoardPanel() {
   const [saving, setSaving] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const load = useCallback(async () => {
-    const response = await fetch("/api/chief-board");
-    const result = await response.json() as { items?: ChiefItem[]; canEdit?: boolean; error?: string };
-    if (!response.ok) return setMessage(result.error || "Unable to load Chief Notes and Events.");
-    setItems(result.items ?? []);
-    setCanEdit(Boolean(result.canEdit));
-    setCurrent(0);
+    const [boardResponse, riverResponse] = await Promise.all([fetch("/api/chief-board"), fetch("/api/river-gauge")]);
+    const result = await boardResponse.json() as { items?: ChiefItem[]; canEdit?: boolean; error?: string };
+    const riverResult = await riverResponse.json() as RiverGauge & { error?: string };
+    if (boardResponse.ok) {
+      setItems(result.items ?? []);
+      setCanEdit(Boolean(result.canEdit));
+    } else setMessage(result.error || "Unable to load Chief Notes and Events.");
+    if (riverResponse.ok) {
+      setRiver(riverResult);
+      setRiverError("");
+    } else setRiverError(riverResult.error || "Live river level is temporarily unavailable.");
   }, []);
   useEffect(() => {
     const initial = window.setTimeout(() => void load(), 0);
     const refresh = window.setInterval(() => void load(), 30000);
     return () => { window.clearTimeout(initial); window.clearInterval(refresh); };
   }, [load]);
+  const slideCount = items.length + 1;
   useEffect(() => {
-    if (items.length < 2) return;
-    const timer = window.setInterval(() => setCurrent((value) => (value + 1) % items.length), 9000);
+    if (slideCount < 2) return;
+    const timer = window.setInterval(() => setCurrent((value) => (value + 1) % slideCount), 12000);
     return () => window.clearInterval(timer);
-  }, [items.length]);
-  const item = items[current];
+  }, [slideCount]);
+  useEffect(() => { setCurrent((value) => value % slideCount); }, [slideCount]);
+  const riverActive = current === items.length;
+  const item = riverActive ? undefined : items[current];
+  const riverScale = river?.majorStage || river?.moderateStage || river?.minorStage || river?.actionStage || 25;
+  const riverPercent = river ? Math.max(0, Math.min(100, river.level / riverScale * 100)) : 0;
 
   function closeEditor() {
     if (saving) return;
@@ -103,11 +124,22 @@ export default function ChiefBoardPanel() {
 
   return <section className="board-panel chief-board-panel" aria-live="polite">
     <header>
-      <div><h2>Chief Notes & Events</h2><span>{items.length ? `${current + 1} of ${items.length}` : "Department updates"}</span></div>
+      <div><h2>{riverActive ? "Des Plaines River · Lyons" : "Chief Notes & Events"}</h2><span>{current + 1} of {slideCount} · rotates every 12 seconds</span></div>
       {canEdit && <button className="chief-add-button" aria-label="Add Chief Note or Event" onClick={() => { setDraft({ ...emptyDraft }); setSelectedFiles([]); }}>+</button>}
     </header>
     <div className="chief-board-content">
-      {item ? <article className={item.itemType}>
+      {riverActive ? river ? <article className={`river-gauge-slide ${river.category}`}>
+        <div className="river-gauge-heading"><span>LIVE NOAA GAUGE · {river.gaugeId}</span><strong className={river.category}>{floodLabel(river.category)}</strong></div>
+        <div className="river-gauge-reading"><strong>{river.level.toFixed(2)}</strong><span>{river.unit}</span><div><b>Current river stage</b><small>Observed {dateTime(river.validTime)}</small></div></div>
+        <div className="river-stage-meter"><div className="river-stage-fill" style={{ width: `${riverPercent}%` }}/></div>
+        <div className="river-thresholds">
+          <span><small>Action</small><b>{river.actionStage?.toFixed(1) ?? "—"} ft</b></span>
+          <span><small>Minor flood</small><b>{river.minorStage?.toFixed(1) ?? "—"} ft</b></span>
+          <span><small>Moderate</small><b>{river.moderateStage?.toFixed(1) ?? "—"} ft</b></span>
+          <span><small>Major</small><b>{river.majorStage?.toFixed(1) ?? "—"} ft</b></span>
+        </div>
+        <a className="river-source-link" href={river.sourceUrl} target="_blank" rel="noreferrer">Open live NOAA gauge and hydrograph ↗</a>
+      </article> : <div className="board-empty"><strong>River gauge unavailable</strong><p>{riverError || "Waiting for the next NOAA update."}</p><a href="https://water.noaa.gov/gauges/lyni2" target="_blank" rel="noreferrer">Open NOAA gauge ↗</a></div> : item ? <article className={item.itemType}>
         <div>
           <span>{item.itemType === "event" ? "UPCOMING EVENT" : "CHIEF NOTE"}</span>
           {item.itemType === "event" && item.startsAt && <time>{dateTime(item.startsAt)} – {dateTime(item.endsAt)}</time>}
@@ -122,7 +154,8 @@ export default function ChiefBoardPanel() {
         </div>}
       </article> : <div className="board-empty"><strong>No Chief Notes or Events</strong><p>Administrators can use the + button to post information here.</p></div>}
     </div>
-    {items.length > 1 && <footer className="chief-rotation-dots">{items.map((entry, index) => <button key={entry.id} className={index === current ? "active" : ""} aria-label={`Show ${entry.title}`} onClick={() => setCurrent(index)}/>)}</footer>}
+    {slideCount > 1 && <footer className="chief-rotation-dots">{items.map((entry, index) => <button key={entry.id} className={index === current ? "active" : ""} aria-label={`Show ${entry.title}`} onClick={() => setCurrent(index)}/>)}
+      <button className={riverActive ? "active" : ""} aria-label="Show live Des Plaines River level" onClick={() => setCurrent(items.length)}/></footer>}
     {message && <div className="chief-board-message" role="status">{message}</div>}
     {draft && <div className="chief-editor-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) closeEditor(); }}>
       <form className="chief-editor" onSubmit={(event) => void save(event)}>

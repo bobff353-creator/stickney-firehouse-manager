@@ -935,6 +935,25 @@ td strong { font-size: 16px; }
 .chief-board-content article.event > div span, .chief-board-content article.event time { color: #f1c76f; }
 .chief-board-content h3 { margin: 8px 0 4px; color: white; font-size: 19px; }
 .chief-board-content article p { margin: 0; color: #d0dae0; font-size: 12px; line-height: 1.45; white-space: pre-wrap; }
+.chief-board-content article.river-gauge-slide { padding: 10px 13px 11px; border-left-color: #48a8d1; background: linear-gradient(135deg,#142e3d,#183d50); }
+.river-gauge-heading { align-items: center; }
+.river-gauge-heading > span { color: #8ed4f2 !important; }
+.river-gauge-heading > strong { padding: 4px 7px; border-radius: 999px; background: #dff4e8; color: #24633f; font-size: 8px; text-transform: uppercase; }
+.river-gauge-heading > strong.action { background: #fff0bd; color: #76540b; }
+.river-gauge-heading > strong.minor,.river-gauge-heading > strong.moderate,.river-gauge-heading > strong.major { background: #ffe0dc; color: #9b382c; }
+.river-gauge-reading { margin: 6px 0 8px; align-items: end; justify-content: flex-start !important; gap: 6px !important; }
+.river-gauge-reading > strong { color: white; font-size: 34px; line-height: .9; }
+.river-gauge-reading > span { padding-bottom: 2px; color: #9fc9dc !important; font-size: 13px !important; }
+.river-gauge-reading > div { margin-left: 8px; display: grid !important; gap: 1px !important; }
+.river-gauge-reading b { color: #e8f3f7; font-size: 10px; }
+.river-gauge-reading small { color: #9fb5c0; font-size: 8px; }
+.river-stage-meter { height: 7px; overflow: hidden; border-radius: 999px; background: linear-gradient(90deg,#479bc4 0 64%,#e5b54c 64% 72%,#e16a51 72% 100%); }
+.river-stage-fill { height: 100%; border-right: 3px solid white; background: rgba(255,255,255,.22); }
+.river-thresholds { margin-top: 7px; display: grid !important; grid-template-columns: repeat(4,1fr); gap: 5px !important; }
+.river-thresholds span { padding: 4px 5px; border-radius: 4px; background: rgba(255,255,255,.07); display: grid; }
+.river-thresholds small { color: #9fb4c0; font-size: 7px; text-transform: uppercase; }
+.river-thresholds b { color: #eef6f9; font-size: 9px; }
+.river-source-link { margin-top: 7px; color: #8fd3ef; display: inline-block; font-size: 8px; font-weight: 850; text-decoration: none; }
 .chief-attachments { margin-top: 11px; display: flex !important; justify-content: flex-start !important; flex-wrap: wrap; gap: 8px !important; }
 .chief-photo { width: 70px; height: 54px; border: 1px solid #547083; border-radius: 6px; background: #10242f; overflow: hidden; }
 .chief-photo img { width: 100%; height: 100%; display: block; object-fit: cover; }

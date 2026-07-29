@@ -6,6 +6,7 @@ const route = await readFile(new URL("../app/api/chief-board/route.ts", import.m
 const panel = await readFile(new URL("../app/chief-board-panel.tsx", import.meta.url), "utf8");
 const schema = await readFile(new URL("../db/schema.ts", import.meta.url), "utf8");
 const attachmentRoute = await readFile(new URL("../app/api/chief-board/attachments/[attachmentId]/route.ts", import.meta.url), "utf8");
+const riverRoute = await readFile(new URL("../app/api/river-gauge/route.ts", import.meta.url), "utf8");
 
 test("Chief Notes support expiration and durable private attachments", () => {
   assert.match(schema, /chiefBoardAttachments/);
@@ -28,4 +29,16 @@ test("Chief events require a start and end and email active employee profiles", 
   assert.match(route, /idempotency-key/);
   assert.match(route, /stickney-department-event\.ics/);
   assert.match(panel, /Add & Send Invites/);
+});
+
+test("Chief Board rotates the live NOAA Des Plaines River gauge every 12 seconds", () => {
+  assert.match(panel, /fetch\("\/api\/river-gauge"\)/);
+  assert.match(panel, /slideCount\), 12000/);
+  assert.match(panel, /Des Plaines River · Lyons/);
+  assert.match(panel, /Open live NOAA gauge and hydrograph/);
+  assert.match(riverRoute, /api\.water\.noaa\.gov\/nwps\/v1\/gauges\/\$\{gaugeId\}/);
+  assert.match(riverRoute, /actionStage/);
+  assert.match(riverRoute, /minorStage/);
+  assert.match(riverRoute, /majorStage/);
+  assert.match(riverRoute, /water\.noaa\.gov\/gauges\/\$\{gaugeId\}/);
 });
