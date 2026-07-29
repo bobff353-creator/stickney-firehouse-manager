@@ -27,18 +27,24 @@ test("Respond prefers exact address matches and allows controlled nearby GPS mat
 });
 
 test("Respond reads existing call and preplan records and exposes requested field views", async () => {
-  const [route, component, shell, styles] = await Promise.all([
+  const [route, component, shell, styles, settings, board] = await Promise.all([
     readFile(new URL("../app/api/respond/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/respond.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/respond-device-settings.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/operations-board.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(route, /FROM dispatch_incidents/);
   assert.match(route, /FROM daily_log_calls/);
   assert.match(route, /FROM field_preplans/);
   assert.match(route, /FROM field_preplan_features/);
   assert.match(route, /FROM field_preplan_photos/);
+  assert.match(route, /respondingUnitsIncludeUnit/);
+  assert.match(route, /searchParams\.get\("apparatus"\)/);
   assert.match(component, /Alpha \/ A Side/);
+  assert.match(component, /\?apparatus=/);
+  assert.match(component, /APPARATUS RESPOND/);
   assert.doesNotMatch(component, /Street View|streetView|GoogleStreetView|maps-config/);
   assert.match(component, /Monitor View/);
   assert.match(component, /requestFullscreen/);
@@ -51,5 +57,13 @@ test("Respond reads existing call and preplan records and exposes requested fiel
   assert.match(component, /Open Google Navigation/);
   assert.match(shell, /\{ label: "Respond", page: "Respond" \}/);
   assert.match(shell, /activeNav === "Respond"/);
+  assert.match(shell, /Respond Device Modes/);
+  assert.match(shell, /respondDeviceSettings\.mode === "operations-alert" && activeNav === "Operations Board"/);
+  assert.match(shell, /Returning to Live Operations in \{respondAlertSeconds\} seconds/);
+  assert.match(settings, /No separate device account is required/);
+  assert.match(settings, /Option 1 · Apparatus Respond/);
+  assert.match(settings, /Option 2 · Operations Alert/);
+  assert.match(board, /onNewActiveCallRef\.current\?\.\(newCall\)/);
   assert.match(styles, /grid-template-columns:minmax\(165px,\.432fr\) minmax\(460px,1\.53fr\) minmax\(315px,\.988fr\)/);
+  assert.match(styles, /\.respond-auto-alert\{position:fixed;inset:0/);
 });

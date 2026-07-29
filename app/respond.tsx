@@ -15,7 +15,7 @@ type Preplan = {
 type ActiveCall = { reportNumber:string; callType:string; category:string; address:string; city:string; narrative:string; respondingUnits:string; longitude:number|null; latitude:number|null; dispatchedAt:string; timeOut:string; source:string; receivedAt:string };
 type RespondData = {
   activeCall:ActiveCall|null; preplan:Preplan|null; match:{method:"address"|"gps";distanceFeet:number}|null;
-  cadUpdates:Array<{eventType:string;status:string;receivedAt:string;narrative:string;respondingUnits:string}>; generatedAt:string;
+  cadUpdates:Array<{eventType:string;status:string;receivedAt:string;narrative:string;respondingUnits:string}>; apparatusFilter:string|null; generatedAt:string;
 };
 type QuickItem = { id:string; label:string; summary:string; details:string; status?:string; latitude?:number; longitude?:number };
 type RightView = "cad"|"footprint"|"B"|"C"|"D";
@@ -60,14 +60,14 @@ function FootprintDiagram({ preplan, selectedId, onSelect }:{preplan:Preplan;sel
   </div>;
 }
 
-export default function Respond() {
+export default function Respond({ apparatus = "" }: { apparatus?: string }) {
   const [data,setData]=useState<RespondData|null>(null), [error,setError]=useState(""), [view,setView]=useState<RightView>("cad"), [selected,setSelected]=useState<QuickItem|null>(null);
   const [monitorMode,setMonitorMode]=useState(false);
   const pageRef=useRef<HTMLElement>(null);
   const load=useCallback(async()=>{
-    try{const response=await fetch("/api/respond",{cache:"no-store"});const body=await response.json() as RespondData&{error?:string};if(!response.ok)throw new Error(body.error||"Unable to load Respond.");setData(body);setError("");}
+    try{const query=apparatus?`?apparatus=${encodeURIComponent(apparatus)}`:"";const response=await fetch(`/api/respond${query}`,{cache:"no-store"});const body=await response.json() as RespondData&{error?:string};if(!response.ok)throw new Error(body.error||"Unable to load Respond.");setData(body);setError("");}
     catch(value){setError(value instanceof Error?value.message:"Unable to load Respond.");}
-  },[]);
+  },[apparatus]);
   useEffect(()=>{const initial=window.setTimeout(()=>void load(),0);const timer=window.setInterval(()=>void load(),10000);return()=>{window.clearTimeout(initial);window.clearInterval(timer);};},[load]);
   useEffect(()=>{const update=()=>{if(!document.fullscreenElement)setMonitorMode(false);};document.addEventListener("fullscreenchange",update);return()=>document.removeEventListener("fullscreenchange",update);},[]);
   async function toggleMonitor(){if(monitorMode){setMonitorMode(false);if(document.fullscreenElement)await document.exitFullscreen().catch(()=>{});return;}setMonitorMode(true);await pageRef.current?.requestFullscreen().catch(()=>{});}
@@ -84,8 +84,9 @@ export default function Respond() {
   const call=data?.activeCall??null, plan=data?.preplan??null, alpha=sidePhoto(plan,"A"), selectedSide=view==="B"||view==="C"||view==="D"?sidePhoto(plan,view):null;
   if(!data&&!error)return <section className="respond-page"><div className="respond-empty"><strong>Loading active response…</strong><span>Checking current CAD and preplan records.</span></div></section>;
   if(error&&!data)return <section className="respond-page"><div className="respond-empty danger"><strong>Respond could not load</strong><span>{error}</span><button onClick={()=>void load()}>Try again</button></div></section>;
-  if(!call)return <section ref={pageRef} className={`respond-page${monitorMode?" monitor-view":""}`}><header className="respond-title"><div><span>FIELD · RESPOND</span><h1>Response Workspace</h1></div><div className="respond-title-actions"><small>Checks every 10 seconds</small><button onClick={()=>void toggleMonitor()}>{monitorMode?"Exit Monitor":"Monitor View"}</button></div></header><div className="respond-empty"><strong>No active call</strong><span>When a CAD call or open Daily Log call is active, its incident and matched preplan will appear here automatically.</span></div></section>;
+  if(!call)return <section ref={pageRef} className={`respond-page${monitorMode?" monitor-view":""}`}><header className="respond-title"><div><span>FIELD · RESPOND</span><h1>Response Workspace</h1>{apparatus&&<b className="respond-apparatus-badge">Apparatus Mode · Unit {apparatus}</b>}</div><div className="respond-title-actions"><small>Checks every 10 seconds</small><button onClick={()=>void toggleMonitor()}>{monitorMode?"Exit Monitor":"Monitor View"}</button></div></header><div className="respond-empty"><strong>No active call{apparatus?` for Unit ${apparatus}`:""}</strong><span>{apparatus?`This device will show a call only when CAD lists Unit ${apparatus} in responding units.`:"When a CAD call or open Daily Log call is active, its incident and matched preplan will appear here automatically."}</span></div></section>;
   return <section ref={pageRef} className={`respond-page${monitorMode?" monitor-view":""}`}>
+    {apparatus&&<div className="respond-apparatus-strip"><strong>APPARATUS RESPOND · UNIT {apparatus}</strong><span>Only CAD incidents assigned to this unit are displayed on this device.</span></div>}
     <header className="respond-callbar">
       <div><span>ACTIVE CALL · {call.source||"CAD"}</span><h1>{call.callType||call.category||"Call type not reported"}</h1><p>{[call.address,call.city].filter(Boolean).join(", ")||"Address not reported"}</p></div>
       <dl><div><dt>Call #</dt><dd>{call.reportNumber||"Pending"}</dd></div><div><dt>Time out</dt><dd>{displayTime(call.timeOut||call.dispatchedAt)}</dd></div><div><dt>Units</dt><dd>{call.respondingUnits||"Not reported"}</dd></div></dl>

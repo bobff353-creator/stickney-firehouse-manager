@@ -1,6 +1,7 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 import { chicagoOperationalContext } from "../../operational-day";
 import { rankPreplanMatch } from "../../respond-match";
+import { normalizeApparatusUnit, respondingUnitsIncludeUnit } from "../../respond-device";
 import { hasPermission } from "../../server-permissions";
 
 type Row = Record<string, unknown>;
@@ -15,13 +16,16 @@ export async function GET(request: Request) {
     const allowed = await hasPermission(request, db, "field_preplans.view");
     if (!allowed) return Response.json({ error: "Field response access is required." }, { status: 403 });
 
+    const apparatus = normalizeApparatusUnit(new URL(request.url).searchParams.get("apparatus"));
     await db.prepare("UPDATE dispatch_incidents SET active=0,cleared_at=COALESCE(cleared_at,CURRENT_TIMESTAMP) WHERE active=1 AND EXISTS (SELECT 1 FROM daily_log_calls WHERE daily_log_calls.report_number=dispatch_incidents.incident_id AND trim(daily_log_calls.time_in)<>'')").run();
-    let activeCall = await db.prepare("SELECT incident_id reportNumber,call_type callType,category,address,city,narrative,responding_units respondingUnits,longitude,latitude,dispatched_at dispatchedAt,time_out timeOut,source_system source,received_at receivedAt FROM dispatch_incidents WHERE active=1 AND cleared_at IS NULL AND datetime(dispatched_at)>=datetime('now','-12 hours') ORDER BY datetime(dispatched_at) DESC LIMIT 1").first<Row>();
+    const activeDispatches = await db.prepare("SELECT incident_id reportNumber,call_type callType,category,address,city,narrative,responding_units respondingUnits,longitude,latitude,dispatched_at dispatchedAt,time_out timeOut,source_system source,received_at receivedAt FROM dispatch_incidents WHERE active=1 AND cleared_at IS NULL AND datetime(dispatched_at)>=datetime('now','-12 hours') ORDER BY datetime(dispatched_at) DESC LIMIT 24").all<Row>();
+    let activeCall = activeDispatches.results.find((call) => respondingUnitsIncludeUnit(call.respondingUnits, apparatus)) ?? null;
     if (!activeCall) {
       const date = chicagoOperationalContext().operationalDate;
-      activeCall = await db.prepare("SELECT report_number reportNumber,call_type callType,'' category,address,'' city,'' narrative,responding_units respondingUnits,NULL longitude,NULL latitude,log_date dispatchedAt,time_out timeOut,'Daily Log' source,log_date receivedAt FROM daily_log_calls WHERE log_date=? AND trim(time_out)<>'' AND trim(time_in)='' ORDER BY sort_order DESC LIMIT 1").bind(date).first<Row>();
+      const dailyLogCalls = await db.prepare("SELECT report_number reportNumber,call_type callType,'' category,address,'' city,'' narrative,responding_units respondingUnits,NULL longitude,NULL latitude,log_date dispatchedAt,time_out timeOut,'Daily Log' source,log_date receivedAt FROM daily_log_calls WHERE log_date=? AND trim(time_out)<>'' AND trim(time_in)='' ORDER BY sort_order DESC LIMIT 24").bind(date).all<Row>();
+      activeCall = dailyLogCalls.results.find((call) => respondingUnitsIncludeUnit(call.respondingUnits, apparatus)) ?? null;
     }
-    if (!activeCall) return Response.json({ activeCall: null, preplan: null, match: null, cadUpdates: [], generatedAt: new Date().toISOString() }, { headers: { "cache-control": "no-store" } });
+    if (!activeCall) return Response.json({ activeCall: null, preplan: null, match: null, cadUpdates: [], apparatusFilter: apparatus || null, generatedAt: new Date().toISOString() }, { headers: { "cache-control": "no-store" } });
 
     const planRows = await db.prepare("SELECT id,business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,footprint_square_feet footprintSquareFeet,floor_count floorCount,construction_type constructionType,suggested_fire_flow_gpm suggestedFireFlowGpm,suggested_fire_flow_duration suggestedFireFlowDuration,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,status,updated_at updatedAt FROM field_preplans ORDER BY updated_at DESC").all<Row>();
     const plans = planRows.results.map((row) => ({
@@ -71,6 +75,7 @@ export async function GET(request: Request) {
       preplan,
       match: matched ? { method: matched.method, distanceFeet: Math.round(matched.distanceFeet) } : null,
       cadUpdates,
+      apparatusFilter: apparatus || null,
       generatedAt: new Date().toISOString(),
     }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
