@@ -2,6 +2,7 @@
 /* eslint-disable @next/next/no-img-element -- preplan photos are protected runtime records. */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import GoogleStreetView from "./google-street-view";
 
 type Point = { lat: number; lng: number };
 type Feature = { id:string; featureType:string; label:string; latitude:number; longitude:number; systemType:string; serviceStatus:string; details:string };
@@ -84,8 +85,7 @@ export default function Respond() {
     return [...mapped,...staticItems];
   },[data?.preplan]);
   const call=data?.activeCall??null, plan=data?.preplan??null, alpha=sidePhoto(plan,"A"), selectedSide=view==="B"||view==="C"||view==="D"?sidePhoto(plan,view):null;
-  const streetLocation=call ? (call.latitude!=null&&call.longitude!=null?`${call.latitude},${call.longitude}`:[call.address,call.city].filter(Boolean).join(", ")) : "";
-  const streetEmbed=mapsKey&&streetLocation?`https://www.google.com/maps/embed/v1/streetview?key=${encodeURIComponent(mapsKey)}&location=${encodeURIComponent(streetLocation)}&fov=90&heading=0&pitch=0`:"";
+  const streetPoint=call ? (call.latitude!=null&&call.longitude!=null?{lat:call.latitude,lng:call.longitude}:plan?{lat:plan.aSideLatitude??plan.latitude,lng:plan.aSideLongitude??plan.longitude}:null) : null;
   if(!data&&!error)return <section className="respond-page"><div className="respond-empty"><strong>Loading active response…</strong><span>Checking current CAD and preplan records.</span></div></section>;
   if(error&&!data)return <section className="respond-page"><div className="respond-empty danger"><strong>Respond could not load</strong><span>{error}</span><button onClick={()=>void load()}>Try again</button></div></section>;
   if(!call)return <section className="respond-page"><header className="respond-title"><div><span>FIELD · RESPOND</span><h1>Response Workspace</h1></div><small>Checks every 10 seconds</small></header><div className="respond-empty"><strong>No active call</strong><span>When a CAD call or open Daily Log call is active, its incident and matched preplan will appear here automatically.</span></div></section>;
@@ -103,7 +103,7 @@ export default function Respond() {
         {!quickItems.length&&<div className="respond-empty compact"><strong>No building systems entered</strong><span>Add them in Field Preplans.</span></div>}
       </aside>
       <main className="respond-alpha"><header><div><span>PRIMARY VIEW</span><h2>{alpha?"Alpha / A Side":"Street View Fallback"}</h2></div>{plan&&<span className="record-badge">{plan.status}</span>}</header>
-        <div className="respond-primary-media">{alpha?<img src={alpha.url} alt={alpha.caption||`Alpha side of ${plan?.businessName||call.address}`}/>:streetEmbed?<iframe title={`Street View near ${call.address}`} src={streetEmbed} loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen/>:<div className="respond-empty overlay"><strong>No Alpha photo is saved</strong><span>Open Street View for the active-call location.</span><a href={streetViewUrl(call)} target="_blank" rel="noreferrer" data-test-safe>Open Street View ↗</a></div>}</div>
+        <div className="respond-primary-media">{alpha?<img src={alpha.url} alt={alpha.caption||`Alpha side of ${plan?.businessName||call.address}`}/>:mapsKey&&streetPoint?<GoogleStreetView apiKey={mapsKey} position={streetPoint} label={call.address} fallbackUrl={streetViewUrl(call)}/>:<div className="respond-empty overlay"><strong>No Alpha photo is saved</strong><span>Open Street View for the active-call address.</span><a href={streetViewUrl(call)} target="_blank" rel="noreferrer" data-test-safe>Open Street View ↗</a></div>}</div>
         <footer><strong>{alpha?.caption||plan?.businessName||call.address}</strong><span>{alpha?"Approved preplan photo":"Fallback based on the dispatch address or GPS location"}</span></footer>
       </main>
       <aside className="respond-context"><nav>{(["cad","footprint","B","C","D"] as RightView[]).map((item)=><button key={item} className={view===item?"active":""} onClick={()=>setView(item)} data-test-safe>{item==="cad"?"CAD Notes":item==="footprint"?"Footprint":`${item} Side`}</button>)}</nav>
