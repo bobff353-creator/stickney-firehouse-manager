@@ -22,6 +22,10 @@ type GoogleMapsApi = {
 
 let loader: Promise<GoogleMapsApi> | null = null;
 const authenticationFailureListeners = new Set<() => void>();
+const cleanMapStyles = [
+  { featureType: "poi", elementType: "all", stylers: [{ visibility: "off" }] },
+  { featureType: "transit.station", elementType: "all", stylers: [{ visibility: "off" }] },
+];
 
 function loadGoogleMaps(apiKey: string) {
   if (window.google?.maps?.Map) return Promise.resolve(window.google);
@@ -98,17 +102,18 @@ export default function GoogleFieldMap({
       const instance = new google.maps.Map(element.current, {
         center: initial.center,
         zoom: initial.zoom,
-        mapTypeId: initial.imagery === "aerial" ? "hybrid" : "roadmap",
+        mapTypeId: initial.imagery === "aerial" ? "satellite" : "roadmap",
         clickableIcons: false,
         disableDoubleClickZoom: false,
         fullscreenControl: true,
         gestureHandling: initial.interactive ? "greedy" : "none",
         keyboardShortcuts: initial.interactive,
-        mapTypeControl: true,
+        mapTypeControl: false,
         minZoom: 14,
         maxZoom: 21,
         rotateControl: false,
         scaleControl: true,
+        styles: cleanMapStyles,
         streetViewControl: false,
         zoomControl: true,
       });
@@ -145,13 +150,14 @@ export default function GoogleFieldMap({
       instance.setCenter(center);
     }
     if (instance.getZoom() !== zoom) instance.setZoom(zoom);
-    instance.setMapTypeId(imagery === "aerial" ? "hybrid" : "roadmap");
+    instance.setMapTypeId(imagery === "aerial" ? "satellite" : "roadmap");
     instance.setOptions({
       gestureHandling: interactive ? "greedy" : "none",
       keyboardShortcuts: interactive,
       scrollwheel: interactive,
       draggable: interactive,
       disableDoubleClickZoom: !interactive,
+      styles: cleanMapStyles,
     });
   }, [center, imagery, interactive, zoom]);
 

@@ -23,7 +23,9 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(page, /Drag to move/);
   assert.match(page, /Math\.min\(21,zoom\+1\)/);
   assert.match(page, /Assisted outline/);
-  assert.match(page, /Click corners/);
+  assert.match(page, /Add corner dots/);
+  assert.match(page, /Accept Footprint/);
+  assert.match(page, /footprintAccepted/);
   assert.match(page, /private A-side \/ fallback GPS point/);
   assert.match(page, /zoom >= 17/);
   for (const label of ["Knox Box","FDC","Riser","Gas Shutoff","Water Shutoff","Electrical Panel","Propane Tank","Elevator Room","Standpipe"]) assert.match(page, new RegExp(label));
@@ -39,6 +41,8 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(googleMap, /auth_referrer_policy=origin/);
   assert.match(googleMap, /gm_authFailure/);
   assert.match(googleMap, /gestureHandling/);
+  assert.match(googleMap, /featureType: "poi"/);
+  assert.match(googleMap, /"satellite"/);
   assert.match(mapsConfig, /runtime\["Maps Platform API Key"\]/);
   assert.match(mapsConfig, /Authentication required/);
 });
