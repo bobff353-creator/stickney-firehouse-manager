@@ -42,14 +42,16 @@ export async function GET(request:Request) {
     const db = await ensureDatabase();
     const auth = await access(request, db);
     if (!auth.allowed) return Response.json({ error:"Field preplan access is required." }, { status:403 });
-    const [plans, features, photos] = await Promise.all([
+    const [plans, features, photos, imports] = await Promise.all([
       db.prepare("SELECT id,business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,COALESCE(footprint_square_feet,0) footprintSquareFeet,COALESCE(floor_count,1) floorCount,COALESCE(fire_flow_calculation_area,0) fireFlowCalculationArea,COALESCE(construction_type,'VB') constructionType,COALESCE(occupancy_flow_category,'other') occupancyFlowCategory,COALESCE(sprinkler_standard,'none') sprinklerStandard,COALESCE(suggested_fire_flow_gpm,0) suggestedFireFlowGpm,COALESCE(suggested_fire_flow_duration,0) suggestedFireFlowDuration,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,status,updated_by updatedBy,updated_at updatedAt FROM field_preplans ORDER BY updated_at DESC").all(),
       db.prepare("SELECT id,preplan_id preplanId,feature_type featureType,label,latitude,longitude,system_type systemType,service_status serviceStatus,details FROM field_preplan_features ORDER BY created_at").all(),
       db.prepare("SELECT id,preplan_id preplanId,feature_id featureId,side,filename,caption,created_at createdAt FROM field_preplan_photos ORDER BY created_at DESC").all(),
+      db.prepare("SELECT id,business_name businessName,address,source_file sourceFile,source_row sourceRow,status,linked_preplan_id linkedPreplanId FROM field_preplan_imports ORDER BY business_name COLLATE NOCASE,address COLLATE NOCASE").all(),
     ]);
     return Response.json({
       canEdit:auth.canEdit,
       preplans:plans.results.map((plan) => ({ ...plan, footprint:JSON.parse(String((plan as {footprint?:string}).footprint || "[]")), features:features.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id), photos:photos.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id).map((photo) => ({ ...photo, url:`/api/field-preplans/photos/${(photo as {id:string}).id}` })) })),
+      imports:imports.results,
     });
   } catch (error) { return Response.json({ error:error instanceof Error ? error.message : "Unable to load preplans." }, { status:500 }); }
 }
@@ -63,6 +65,7 @@ export async function POST(request:Request) {
     const action = text(body.action, 40);
     if (action === "savePreplan") {
       const id = text(body.id, 80) || crypto.randomUUID();
+      const importId = text(body.importId, 80);
       const businessName = text(body.businessName, 180), address = text(body.address, 240);
       const location = point(body.location), aSide = point(body.aSide), corners = footprint(body.footprint);
       if (!businessName || !location || corners.length < 3) return Response.json({ error:"Business name, map location, and at least three footprint corners are required." }, { status:400 });
@@ -80,6 +83,7 @@ export async function POST(request:Request) {
       const values = [businessName,address,location.lat,location.lng,aSide?.lat ?? null,aSide?.lng ?? null,JSON.stringify(corners),footprintSquareFeet,floorCount,recommendation?.calculationArea ?? 0,constructionType,occupancyFlowCategory,sprinklerStandard,recommendation?.suggestedGpm ?? 0,recommendation?.durationHours ?? 0,text(body.contactInfo),text(body.construction),text(body.accessInfo),text(body.alarmSystem),text(body.knoxBox),text(body.riser),text(body.fdc),text(body.sprinklerSystem),text(body.status,40) || "Quick Preplan",auth.actor];
       await db.prepare("INSERT INTO field_preplans(id,business_name,address,latitude,longitude,a_side_latitude,a_side_longitude,footprint,footprint_square_feet,floor_count,fire_flow_calculation_area,construction_type,occupancy_flow_category,sprinkler_standard,suggested_fire_flow_gpm,suggested_fire_flow_duration,contact_info,construction,access_info,alarm_system,knox_box,riser,fdc,sprinkler_system,status,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET business_name=excluded.business_name,address=excluded.address,latitude=excluded.latitude,longitude=excluded.longitude,a_side_latitude=excluded.a_side_latitude,a_side_longitude=excluded.a_side_longitude,footprint=excluded.footprint,footprint_square_feet=excluded.footprint_square_feet,floor_count=excluded.floor_count,fire_flow_calculation_area=excluded.fire_flow_calculation_area,construction_type=excluded.construction_type,occupancy_flow_category=excluded.occupancy_flow_category,sprinkler_standard=excluded.sprinkler_standard,suggested_fire_flow_gpm=excluded.suggested_fire_flow_gpm,suggested_fire_flow_duration=excluded.suggested_fire_flow_duration,contact_info=excluded.contact_info,construction=excluded.construction,access_info=excluded.access_info,alarm_system=excluded.alarm_system,knox_box=excluded.knox_box,riser=excluded.riser,fdc=excluded.fdc,sprinkler_system=excluded.sprinkler_system,status=excluded.status,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP")
         .bind(id,...values,auth.actor).run();
+      if (importId) await db.prepare("UPDATE field_preplan_imports SET linked_preplan_id=?,status='completed',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(id,importId).run();
       return Response.json({ ok:true, id });
     }
     if (action === "saveFeature") {

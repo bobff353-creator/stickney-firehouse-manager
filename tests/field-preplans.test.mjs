@@ -2,6 +2,25 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
 import { fireFlowCalculationArea, polygonAreaSquareFeet, suggestedFireFlow } from "../app/preplan-fire-flow.ts";
+import { importedBuildingSeeds } from "../app/preplan-imported-buildings.ts";
+
+test("supplied building workbook becomes 117 traceable preplan starters", async () => {
+  assert.equal(importedBuildingSeeds.length, 117);
+  assert.deepEqual(importedBuildingSeeds[0], { sourceRow:5, address:"3501 Laramie", businessName:"HRT" });
+  assert.deepEqual(importedBuildingSeeds.at(-1), { sourceRow:121, address:"7122 40th St", businessName:"Jewel-Osco" });
+  assert.equal(new Set(importedBuildingSeeds.map((item) => item.sourceRow)).size, 117);
+  const [page, api, bootstrap] = await Promise.all([
+    readFile(new URL("../app/field-preplans.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/field-preplans/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/bootstrap.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(bootstrap, /CREATE TABLE IF NOT EXISTS field_preplan_imports/);
+  assert.match(api, /imports:imports\.results/);
+  assert.match(api, /linked_preplan_id/);
+  assert.match(page, /Preplan Starters/);
+  assert.match(page, /No GPS point, footprint, or system information was invented/);
+  assert.match(page, /Locate & Build/);
+});
 
 test("multi-point overhead footprints calculate ground square footage", () => {
   const area = polygonAreaSquareFeet([
