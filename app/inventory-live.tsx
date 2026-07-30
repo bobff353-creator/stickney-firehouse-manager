@@ -694,7 +694,7 @@ export default function Inventory360({
               <strong>{suite.apparatus.length} department unit{suite.apparatus.length === 1 ? "" : "s"}</strong>
               <p>The roster starts empty and shows only saved department apparatus.</p>
               <strong>{twinState === "ready" ? `${twinData.apparatus.length} Inventory record${twinData.apparatus.length === 1 ? "" : "s"}` : "Inventory storage unavailable"}</strong>
-              <p>D1 stores department-scoped digital-twin records; R2 stores original media.</p>
+              <p>Supabase stores department-scoped digital-twin records and private original media.</p>
             </div>
           </div>
           <div className="capture-workspace">
@@ -704,7 +704,7 @@ export default function Inventory360({
               </OperationalState>
             ) : twinState === "unavailable" ? (
               <OperationalState title="Digital-twin storage is unavailable" kind="unavailable">
-                {twinData.error || "D1 and R2 are not connected in this deployment."}
+                {twinData.error || "Inventory records and private photo storage are unavailable."}
                 {" "}No changes can be saved until department storage is available.
               </OperationalState>
             ) : (
