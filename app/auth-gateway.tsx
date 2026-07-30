@@ -168,7 +168,7 @@ export default function AuthGateway() {
       <section className="login-brand-panel">
         <div className="login-brand">
           <span className="login-app-mark" aria-hidden="true">FC</span>
-          <span><b>Firehouse Command</b><small>Department Operations Portal</small></span>
+          <span><b>Firehouse Manager</b><small>Department Operations Portal</small></span>
         </div>
         <div>
           <p className="login-eyebrow">SECURE DEPARTMENT ACCESS</p>

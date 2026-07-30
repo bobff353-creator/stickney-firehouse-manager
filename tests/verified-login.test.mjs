@@ -7,7 +7,7 @@ const proxy = readFileSync(new URL("../proxy.ts", import.meta.url), "utf8");
 const confirmation = readFileSync(new URL("../app/auth/confirm/route.ts", import.meta.url), "utf8");
 
 test("verified email and password login requires confirmation and department approval", () => {
-  assert.match(gateway, /Firehouse Command/);
+  assert.match(gateway, /Firehouse Manager/);
   assert.match(gateway, /signInWithPassword/);
   assert.match(gateway, /auth\.signUp/);
   assert.match(gateway, /emailRedirectTo/);

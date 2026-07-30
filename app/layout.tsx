@@ -13,10 +13,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Firehouse Command | Department Operations Portal",
+  title: "Firehouse Manager | Department Operations Portal",
   description: "Secure department access for staffing, daily logs, policies, apparatus, inventory, scheduling, field operations, and payroll.",
   manifest: "/manifest.webmanifest?v=2",
-  appleWebApp: { capable: true, title: "Firehouse Command", statusBarStyle: "black-translucent" },
+  appleWebApp: { capable: true, title: "Firehouse Manager", statusBarStyle: "black-translucent" },
   themeColor: "#0f2e45",
   other: {
     "codex-preview": "development",
