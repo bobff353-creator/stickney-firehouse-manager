@@ -844,6 +844,11 @@ function DigitalTwinBuilder({
 
   async function createCompartment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!effectiveApparatusId) {
+      setError("Save the apparatus in Step 1 before adding a compartment.");
+      window.document.getElementById("apparatus-name")?.focus();
+      return;
+    }
     const form = new FormData(event.currentTarget);
     setBusy("compartment");
     setError("");
@@ -1006,7 +1011,7 @@ function DigitalTwinBuilder({
           </div>
         ) : suiteApparatus.length === 0 ? (
           <form className="builder-form apparatus-create-form" onSubmit={createStandaloneApparatus}>
-            <label>Unit name<input name="name" required placeholder="Example: Engine 1" /></label>
+            <label>Unit name<input id="apparatus-name" name="name" required placeholder="Example: Engine 1" /></label>
             <label>Apparatus type<input name="assetType" required placeholder="Engine, ambulance, truck..." /></label>
             <label>VIN<input name="vin" autoComplete="off" /></label>
             <label>Manufacturer<input name="manufacturer" /></label>
@@ -1025,6 +1030,11 @@ function DigitalTwinBuilder({
         <div>
           <span className="eyebrow">2 - COMPARTMENTS</span>
           <h3>Create stable storage locations</h3>
+          {!effectiveApparatusId ? (
+            <p className="builder-prerequisite" role="status">
+              Save the apparatus in Step 1 first. Every compartment must be attached to a saved unit.
+            </p>
+          ) : null}
         </div>
         <form className="builder-form" onSubmit={createCompartment}>
           <label>Compartment ID / label<input name="label" required placeholder="Compartment label" /></label>
@@ -1041,9 +1051,9 @@ function DigitalTwinBuilder({
           </label>
           <button
             className="primary"
-            disabled={!effectiveApparatusId || busy === "compartment"}
+            disabled={busy === "compartment"}
           >
-            Add compartment
+            {effectiveApparatusId ? "Add compartment" : "Save apparatus first"}
           </button>
         </form>
         <div className="configured-chips">
