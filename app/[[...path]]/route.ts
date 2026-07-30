@@ -1,6 +1,8 @@
 const upstreamOrigin = "https://stickney-payroll-manager.bobff353.chatgpt.site";
 
-const inventoryNavigation = '<script src="/inventory-route.js" defer></script>';
+const portalEnhancements =
+  '<script src="/inventory-route.js" defer></script>' +
+  '<script src="/training-route.js" defer></script>';
 
 function publicOrigin(request: Request) {
   const url = new URL(request.url);
@@ -58,8 +60,8 @@ async function proxy(request: Request) {
   if (method === "GET" && contentType.includes("text/html")) {
     let html = await upstream.text();
     html = html.includes("</body>")
-      ? html.replace("</body>", `${inventoryNavigation}</body>`)
-      : `${html}${inventoryNavigation}`;
+      ? html.replace("</body>", `${portalEnhancements}</body>`)
+      : `${html}${portalEnhancements}`;
     headers.set("cache-control", "private, no-store, max-age=0");
     return new Response(html, { status: upstream.status, headers });
   }
