@@ -15,6 +15,7 @@ test("refreshes Firefighter Close Calls from the official RSS feed", async () =>
     feeds,
     /https:\/\/www\.firefighterclosecalls\.com\/category\/news\/feed\//,
   );
+  assert.match(feeds, /wp-json\/wp\/v2\/posts\?categories=1/);
   assert.match(feeds, /hostname !== "www\.firefighterclosecalls\.com"/);
   assert.match(feeds, /\.slice\(0, 6\)/);
   assert.match(feeds, /revalidate: 86_400/);

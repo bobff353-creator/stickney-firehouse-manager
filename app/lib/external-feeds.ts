@@ -28,6 +28,8 @@ export const externalFeedCacheTag = dailyFeedTag;
 
 const closeCallFeed =
   "https://www.firefighterclosecalls.com/category/news/feed/";
+const closeCallPosts =
+  "https://www.firefighterclosecalls.com/wp-json/wp/v2/posts?categories=1&per_page=6&_fields=link,date_gmt,title,excerpt";
 
 const trainingSources = [
   {
@@ -102,6 +104,67 @@ async function fetchText(url: string) {
 }
 
 async function loadCloseCallNews() {
+  try {
+    const posts = JSON.parse(await fetchText(closeCallPosts)) as Array<{
+      link?: unknown;
+      date_gmt?: unknown;
+      title?: { rendered?: unknown };
+      excerpt?: { rendered?: unknown };
+    }>;
+    const items = Array.isArray(posts)
+      ? posts.flatMap((post): CloseCallItem[] => {
+          const title = decodeHtml(
+            typeof post.title?.rendered === "string"
+              ? post.title.rendered
+              : "",
+          );
+          const description = decodeHtml(
+            typeof post.excerpt?.rendered === "string"
+              ? post.excerpt.rendered
+              : "",
+          );
+          const publishedAt =
+            typeof post.date_gmt === "string" ? `${post.date_gmt}Z` : "";
+          try {
+            const url = safeOfficialUrl(
+              typeof post.link === "string" ? post.link : "",
+              closeCallPosts,
+            );
+            if (
+              url.hostname !== "www.firefighterclosecalls.com" &&
+              url.hostname !== "firefighterclosecalls.com"
+            ) {
+              return [];
+            }
+            if (!title || !publishedAt) return [];
+            return [
+              {
+                title,
+                url: url.toString(),
+                publishedAt,
+                excerpt:
+                  description.length > 360
+                    ? `${description.slice(0, 357).trimEnd()}…`
+                    : description,
+              },
+            ];
+          } catch {
+            return [];
+          }
+        })
+      : [];
+    if (items.length) {
+      return {
+        items,
+        source: "Firefighter Close Calls",
+        sourceUrl: "https://www.firefighterclosecalls.com/",
+        checkedAt: new Date().toISOString(),
+      };
+    }
+  } catch {
+    // The RSS parser below remains an official-source fallback.
+  }
+
   const xml = await fetchText(closeCallFeed);
   const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)]
     .slice(0, 6)

@@ -11,7 +11,11 @@ export async function GET() {
           "public, max-age=300, s-maxage=86400, stale-while-revalidate=604800",
       },
     });
-  } catch {
+  } catch (error) {
+    console.error(
+      "Close-call refresh failed:",
+      error instanceof Error ? error.message : "Unknown source error",
+    );
     return Response.json(
       {
         items: [],
