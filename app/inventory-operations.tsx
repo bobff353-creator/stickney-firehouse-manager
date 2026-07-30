@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 type OperationsView = "check" | "readiness" | "service" | "stock";
 type Row = Record<string, string | number | null>;
@@ -59,6 +60,7 @@ export default function InventoryOperations({
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [accessRequired, setAccessRequired] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -66,6 +68,7 @@ export default function InventoryOperations({
       const response = await fetch("/api/operations", { cache: "no-store" });
       const payload = await response.json().catch(() => ({})) as Partial<OperationsData>;
       if (!response.ok || payload.configured !== true) {
+        setAccessRequired(response.status === 401 || response.status === 403);
         throw new Error(payload.error || "Operational records are unavailable.");
       }
       setData({
@@ -80,6 +83,7 @@ export default function InventoryOperations({
         stock: payload.stock || [],
       });
       setError("");
+      setAccessRequired(false);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Operational records are unavailable.");
     } finally {
@@ -142,7 +146,17 @@ export default function InventoryOperations({
   }
 
   if (loading) return <div className="ops-state">Loading saved Inventory records…</div>;
-  if (error && !data.configured) return <div className="ops-state ops-error" role="alert">{error}<button onClick={() => void load()}>Try again</button></div>;
+  if (error && !data.configured) {
+    return (
+      <div className="ops-state ops-error" role="alert">
+        {error}
+        <div className="ops-state-actions">
+          {accessRequired ? <Link href="/">Return to department portal</Link> : null}
+          <button type="button" onClick={() => void load()}>Try again</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="inventory-ops">
@@ -253,7 +267,7 @@ export default function InventoryOperations({
             {stockRows.length ? <div className="stock-grid">{stockRows.map((item) => {
               const lot = item.lots[0];
               const belowPar = item.total <= Number(item.row.reorder_point || 0);
-              return <article key={value(item.row, "id")} className={belowPar ? "stock-low" : ""}><div><strong>{value(item.row, "name")}</strong><small>{value(item.row, "sku") || "No SKU"} · {value(item.row, "unit")}</small></div><b>{item.total}</b><span>{belowPar ? "REORDER" : `PAR ${value(item.row, "par_level")}`}</span>{lot ? <div className="stock-actions"><button disabled={Boolean(busy)} onClick={() => void action(`use-${value(lot, "lot_id")}`, { action: "adjust_stock", lotId: value(lot, "lot_id"), delta: -1, reason: "Used from station stock" })}>− Use 1</button><button disabled={Boolean(busy)} onClick={() => void action(`receive-${value(lot, "lot_id")}`, { action: "adjust_stock", lotId: value(lot, "lot_id"), delta: 1, reason: "Received into station stock" })}>+ Receive 1</button></div> : null}</article>;
+              return <article key={value(item.row, "id")} className={belowPar ? "stock-low" : ""}><div><strong>{value(item.row, "name")}</strong><small>{value(item.row, "sku") || "No SKU"} · {value(item.row, "unit")}</small></div><b>{item.total}</b><span>{belowPar ? "REORDER" : `PAR ${value(item.row, "par_level")}`}</span>{lot ? <div className="stock-actions"><button type="button" disabled={Boolean(busy) || Number(lot.quantity_on_hand || 0) <= 0} onClick={() => void action(`use-${value(lot, "lot_id")}`, { action: "adjust_stock", lotId: value(lot, "lot_id"), delta: -1, reason: "Used from station stock" })}>− Use 1</button><button type="button" disabled={Boolean(busy)} onClick={() => void action(`receive-${value(lot, "lot_id")}`, { action: "adjust_stock", lotId: value(lot, "lot_id"), delta: 1, reason: "Received into station stock" })}>+ Receive 1</button></div> : null}</article>;
             })}</div> : <div className="ops-empty"><strong>No stock records yet</strong><p>Add the first real supply and its current on-hand quantity.</p></div>}
           </section>
         </>

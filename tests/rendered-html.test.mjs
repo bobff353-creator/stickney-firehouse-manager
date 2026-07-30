@@ -41,6 +41,8 @@ test("ships a real-photo Fleet digital twin with mobile camera capture", async (
   assert.match(component, /Upload for review/);
   assert.match(operations, /Start a shift check/);
   assert.match(operations, /Open work order/);
+  assert.match(operations, /Return to department portal/);
+  assert.match(operations, /Number\(lot\.quantity_on_hand \|\| 0\) <= 0/);
   assert.match(api, /inventory_photo_views/);
   assert.match(api, /inventory_photo_hotspots/);
   assert.match(api, /inventory_audit_events/);
