@@ -187,7 +187,13 @@ function PortalSkeleton({ page }: { page: NavItem }) {
   return <div className="portal-skeleton" aria-label={`Loading ${page}`} aria-busy="true"><div className="skeleton-heading"><span/><strong/></div>{tableLike ? <><div className="skeleton-metrics">{[1,2,3,4].map((item) => <span key={item}/>)}</div><div className="skeleton-table"><i/><i/><i/><i/><i/></div></> : <><div className="skeleton-hero"/><div className="skeleton-cards">{[1,2,3].map((item) => <span key={item}/>)}</div></>}</div>;
 }
 
-export default function PayrollApp() {
+export default function PayrollApp({
+  accountEmail,
+  onSignOut,
+}: {
+  accountEmail: string;
+  onSignOut: () => void;
+}) {
   const [activeNav, setActiveNav] = useState<NavItem>("Dashboard");
   const [tvMode, setTvMode] = useState(false);
   const [periodStart, setPeriodStart] = useState(currentPeriodStart);
@@ -638,6 +644,10 @@ export default function PayrollApp() {
               </section>}
             </>
           )}
+          <div className="account-session-bar">
+            <span><b>Verified account</b>{accountEmail}</span>
+            <button type="button" onClick={onSignOut}>Sign out</button>
+          </div>
         </nav>
         <div className="sidebar-footer"><span className="system-dot"/>System ready<small>Portal v1.0</small></div>
       </aside>
@@ -651,6 +661,10 @@ export default function PayrollApp() {
             <section><h2>My Portal</h2>{visibleNav.filter((item) => item !== "Dashboard" && !memberStationDutyItems.has(item)).map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => navigate(item)}><Icon name={navIcons[item]}/>{item === "Scheduling" ? "Employee Schedule Portal" : item}</button>)}</section>
             {visibleNav.some((item) => memberStationDutyItems.has(item)) && <section><h2>Station Duties</h2>{visibleNav.filter((item) => memberStationDutyItems.has(item)).map((item) => <button key={item} onClick={() => navigate(item)}><Icon name={navIcons[item]}/>{item}</button>)}</section>}
           </>}
+          <div className="account-session-bar mobile-account-session">
+            <span><b>Verified account</b>{accountEmail}</span>
+            <button type="button" onClick={onSignOut}>Sign out</button>
+          </div>
         </nav>}
       </header>
 

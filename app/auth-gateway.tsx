@@ -120,13 +120,10 @@ export default function AuthGateway() {
 
   if (mode === "authorized") {
     return (
-      <>
-        <div className="account-session-bar">
-          <span><b>Verified account</b>{user?.email}</span>
-          <button type="button" onClick={signOut}>Sign out</button>
-        </div>
-        <PayrollApp />
-      </>
+      <PayrollApp
+        accountEmail={user?.email || ""}
+        onSignOut={signOut}
+      />
     );
   }
 

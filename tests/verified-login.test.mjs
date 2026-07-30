@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const gateway = readFileSync(new URL("../app/auth-gateway.tsx", import.meta.url), "utf8");
+const payrollApp = readFileSync(new URL("../app/payroll-app.tsx", import.meta.url), "utf8");
+const styles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 const proxy = readFileSync(new URL("../proxy.ts", import.meta.url), "utf8");
 const confirmation = readFileSync(new URL("../app/auth/confirm/route.ts", import.meta.url), "utf8");
 
@@ -14,6 +16,14 @@ test("verified email and password login requires confirmation and department app
   assert.match(gateway, /department administrator must approve access/i);
   assert.match(confirmation, /exchangeCodeForSession/);
   assert.match(confirmation, /verifyOtp/);
+});
+
+test("verified account sign out lives in the scrolling navigation", () => {
+  assert.match(gateway, /accountEmail=\{user\?\.email/);
+  assert.match(payrollApp, /className="account-session-bar"/);
+  assert.match(payrollApp, /Test as Member/);
+  assert.match(styles, /\.account-session-bar \{ margin:/);
+  assert.doesNotMatch(styles, /\.account-session-bar \{ position: fixed/);
 });
 
 test("protected APIs receive only a server-verified department identity", () => {
