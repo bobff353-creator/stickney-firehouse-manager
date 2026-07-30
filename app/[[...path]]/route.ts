@@ -25,6 +25,10 @@ function forwardedHeaders(request: Request) {
 
 function responseHeaders(request: Request, upstream: Response) {
   const headers = new Headers(upstream.headers);
+  // Node's fetch decodes the upstream body. Forwarding the original encoding
+  // or byte length makes browsers try to decode an already-decoded response.
+  headers.delete("content-length");
+  headers.delete("content-encoding");
   const location = headers.get("location");
   if (location) {
     const destination = new URL(location, upstreamOrigin);
@@ -56,8 +60,6 @@ async function proxy(request: Request) {
     html = html.includes("</body>")
       ? html.replace("</body>", `${inventoryNavigation}</body>`)
       : `${html}${inventoryNavigation}`;
-    headers.delete("content-length");
-    headers.delete("content-encoding");
     headers.set("cache-control", "private, no-store, max-age=0");
     return new Response(html, { status: upstream.status, headers });
   }

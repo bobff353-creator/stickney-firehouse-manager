@@ -14,6 +14,8 @@ test("keeps Inventory on the Stickney site", async () => {
 
   assert.match(proxy, /inventory-route\.js/);
   assert.match(proxy, /headers\.set\(\s*"location"/);
+  assert.match(proxy, /headers\.delete\("content-encoding"\)/);
+  assert.match(proxy, /headers\.delete\("content-length"\)/);
   assert.match(navigation, /new Set\(\["Inventory", "Open Inventory"\]\)/);
   assert.match(navigation, /window\.addEventListener/);
   assert.match(navigation, /window\.location\.assign\("\/inventory"\)/);
