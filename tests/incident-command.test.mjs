@@ -79,6 +79,8 @@ test("Command Board is under Field, permission gated, durable, and contains no c
   assert.match(migration, /incident_command_event_revision_idx/);
   assert.match(page, /confirm-par-unit/);
   assert.match(page, /requestFullscreen/);
+  assert.match(page, /dropStagedUnit/);
+  assert.match(page, /DRAG TO A FLOOR/);
   assert.match(page, /side-a/);
   assert.match(page, /side-b/);
   assert.match(page, /side-c/);

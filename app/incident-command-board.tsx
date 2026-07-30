@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from "react";
 import ConfirmDialog from "./confirm-dialog";
 import { formatEmployeeName } from "./employee-names";
 import {
@@ -165,6 +165,7 @@ export default function IncidentCommandBoard() {
   const parText = `${String(Math.floor(parSeconds / 60)).padStart(2, "0")}:${String(parSeconds % 60).padStart(2, "0")}`;
   const floorCount = state?.building.floorCount || data?.preplan?.floorCount || 1;
   const commandDisabled = !data?.canManage || saving || !online;
+  const stagedUnits = data?.cadUnits.filter((unitId) => state?.units[unitId]?.status === "Staged" || state?.units[unitId]?.assignment === "Staging") ?? [];
   const employeeName = (employeeId: string) => {
     const person = data?.personnel.find((candidate) => candidate.id === employeeId);
     return person ? formatEmployeeName(person.name) : "Assign";
@@ -195,6 +196,24 @@ export default function IncidentCommandBoard() {
       status: unit.status,
       floor: activeLevel,
       side,
+      crewStrength: unit.crewStrength,
+    });
+  };
+  const dropStagedUnit = (event: DragEvent<HTMLButtonElement>, level: string) => {
+    event.preventDefault();
+    const unitId = event.dataTransfer.getData("text/plain");
+    if (!stagedUnits.includes(unitId)) return setNotice("Only a unit currently marked Staged can be dropped onto the building.");
+    const unit = state?.units[unitId];
+    if (!unit) return;
+    setSelectedUnit(unitId);
+    setSelectedLevel(level);
+    void mutate({
+      action: "assign-unit",
+      unitId,
+      assignment: unit.assignment,
+      status: "On scene",
+      floor: level,
+      side: "",
       crewStrength: unit.crewStrength,
     });
   };
@@ -293,7 +312,7 @@ export default function IncidentCommandBoard() {
             const unit = state.units[unitId];
             return <button key={unitId} style={{ "--unit-color": ["#d9932f", "#32a975", "#28a9d1"][index % 3] } as CSSProperties} className={selectedUnit === unitId ? "selected" : ""} onClick={() => setSelectedUnit(unitId)}><strong>{unitId}</strong><span>{unit?.status || "Responding"}</span><i /></button>;
           })}</div>
-          <div className="icb-stage-strip"><span>STAGED</span>{data.cadUnits.filter((unitId) => state.units[unitId]?.status === "Staged").map((unitId) => <b key={unitId}>{unitId}</b>)}{!data.cadUnits.some((unitId) => state.units[unitId]?.status === "Staged") && <small>None</small>}</div>
+          <div className="icb-stage-strip"><span>STAGED · DRAG TO A FLOOR</span>{stagedUnits.map((unitId) => <button key={unitId} draggable={!commandDisabled} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", unitId); setSelectedUnit(unitId); }}>{unitId}</button>)}{stagedUnits.length === 0 && <small>None</small>}</div>
         </section>
 
         <section className="icb-dark-panel icb-assignment-panel">
@@ -328,7 +347,7 @@ export default function IncidentCommandBoard() {
             <div className="icb-building-stack" aria-label="Selectable stacked building floors">
               {levels.map((level, index) => {
                 const floorUnits = unitsAtLevel(level);
-                return <button key={level} className={`icb-building-floor${activeLevel === level ? " active" : ""}`} style={{ "--floor-order": index } as CSSProperties} onClick={() => setSelectedLevel(level)}>
+                return <button key={level} className={`icb-building-floor${activeLevel === level ? " active" : ""}`} style={{ "--floor-order": index } as CSSProperties} onDragOver={(event) => { if (!commandDisabled) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => dropStagedUnit(event, level)} onClick={() => setSelectedLevel(level)}>
                   <span>LEVEL {levels.length - index}</span>
                   <strong>{level}</strong>
                   <div>{floorUnits.length ? floorUnits.map(([unitId, unit]) => <b key={unitId} title={`${unit.assignment} · Side ${unit.side || "unassigned"}`}>{unitId}<small>{unit.side || "—"}</small></b>) : <em>No crews assigned</em>}</div>
