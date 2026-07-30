@@ -617,6 +617,34 @@ td strong { font-size: 16px; }
 .box-department-card strong { font-size: 21px; }
 .box-department-card small { color: var(--slate); font-size: 12px; }
 .box-department-card b { color: #6d8494; font-size: 32px; font-weight: 400; }
+.department-settings-page { display: grid; gap: 18px; }
+.department-create-form { display: grid; gap: 18px; }
+.department-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; }
+.department-form-grid label { display: grid; gap: 7px; color: var(--navy-deep); font-weight: 800; }
+.department-form-grid input { min-height: 44px; border: 1px solid #b9c8d2; border-radius: 8px; padding: 10px 12px; background: #fff; color: var(--navy-deep); font: inherit; }
+.department-slug-input { display: flex; align-items: stretch; }
+.department-slug-input input { min-width: 0; flex: 1; border-radius: 8px 0 0 8px; }
+.department-slug-input b { display: grid; place-items: center; padding: 0 11px; border: 1px solid #b9c8d2; border-left: 0; border-radius: 0 8px 8px 0; background: #edf3f6; color: #526978; font-size: 12px; }
+.department-create-actions { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.department-create-actions small { max-width: 620px; color: var(--slate); }
+.department-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.department-card { display: grid; gap: 18px; }
+.department-card-head { display: grid; grid-template-columns: 54px minmax(0, 1fr) auto; align-items: center; gap: 13px; }
+.department-card-head > span { width: 54px; height: 54px; display: grid; place-items: center; border-radius: 12px; background: var(--navy-deep); color: white; font-weight: 950; }
+.department-card-head h2, .department-card-head p { margin: 0; }
+.department-card-head p { margin-top: 3px; color: var(--slate); }
+.department-card-head > b { padding: 5px 9px; border-radius: 999px; background: #e6f3e9; color: #27643a; text-transform: capitalize; font-size: 11px; }
+.department-stats { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid #d7e0e6; border-radius: 10px; overflow: hidden; }
+.department-stats div { display: grid; gap: 3px; padding: 13px; text-align: center; }
+.department-stats div + div { border-left: 1px solid #d7e0e6; }
+.department-stats strong { font-size: 20px; color: var(--navy-deep); }
+.department-stats span { color: var(--slate); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+.department-card footer { display: flex; justify-content: space-between; gap: 12px; color: var(--slate); }
+.department-card footer span { color: var(--navy-deep); font-weight: 800; }
+@media (max-width: 850px) {
+  .department-form-grid, .department-card-grid { grid-template-columns: 1fr; }
+  .department-create-actions, .department-card footer { align-items: stretch; flex-direction: column; }
+}
 .box-card-browser { display: grid; gap: 16px; }
 .box-browser-bar { min-height: 64px; padding: 10px 14px; border: 1px solid #d2dce3; border-radius: 9px; background: #f7fafc; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 18px; }
 .box-browser-bar > div { display: grid; gap: 2px; }
