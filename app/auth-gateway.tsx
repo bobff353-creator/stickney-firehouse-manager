@@ -1,7 +1,6 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import Image from "next/image";
 import { type FormEvent, useEffect, useState } from "react";
 import PayrollApp from "./payroll-app";
 import { getSupabaseBrowserClient } from "./supabase-browser";
@@ -135,7 +134,7 @@ export default function AuthGateway() {
     return (
       <main className="login-shell">
         <section className="login-card login-waiting-card">
-          <Image src="/stickney-fd-patch.jpg?v=2" width={72} height={72} alt="Stickney Fire Department" />
+          <span className="login-app-mark" aria-hidden="true">FC</span>
           <p className="login-eyebrow">EMAIL CONFIRMED</p>
           <h1>Department approval needed</h1>
           <p>{message}</p>
@@ -154,7 +153,7 @@ export default function AuthGateway() {
     return (
       <main className="login-shell">
         <section className="login-card login-loading-card">
-          <Image src="/stickney-fd-patch.jpg?v=2" width={72} height={72} alt="" />
+          <span className="login-app-mark" aria-hidden="true">FC</span>
           <span className="login-spinner" />
           <h1>{mode === "checking" ? "Verifying department access" : "Loading secure sign-in"}</h1>
           <p>{message || "Checking your account securely..."}</p>
@@ -168,8 +167,8 @@ export default function AuthGateway() {
     <main className="login-shell">
       <section className="login-brand-panel">
         <div className="login-brand">
-          <Image src="/stickney-fd-patch.jpg?v=2" width={72} height={72} alt="Stickney Fire Department patch" />
-          <span><b>Stickney Fire Department</b><small>Operations Portal</small></span>
+          <span className="login-app-mark" aria-hidden="true">FC</span>
+          <span><b>Firehouse Command</b><small>Department Operations Portal</small></span>
         </div>
         <div>
           <p className="login-eyebrow">SECURE DEPARTMENT ACCESS</p>

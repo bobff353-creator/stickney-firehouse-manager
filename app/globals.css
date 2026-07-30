@@ -17,7 +17,8 @@
 .login-shell { min-height: 100vh; padding: clamp(22px,5vw,70px); background: radial-gradient(circle at 20% 10%,rgba(48,103,140,.24),transparent 34%),linear-gradient(135deg,#0b2235 0%,#143c59 56%,#0e2b41 100%); color: white; display: grid; grid-template-columns: minmax(320px,1fr) minmax(360px,520px); align-items: stretch; gap: clamp(22px,5vw,72px); }
 .login-brand-panel { min-height: 620px; padding: clamp(18px,3vw,38px); display: flex; flex-direction: column; justify-content: space-between; }
 .login-brand { display: flex; align-items: center; gap: 15px; }
-.login-brand img, .login-card > img { width: 72px; height: 72px; border: 3px solid rgba(255,255,255,.8); border-radius: 50%; background: white; object-fit: cover; box-shadow: 0 8px 25px rgba(0,0,0,.25); }
+.login-app-mark { flex: 0 0 auto; width: 72px; height: 72px; border: 2px solid rgba(255,255,255,.78); border-radius: 18px; background: linear-gradient(145deg,#e8b642,#ba7420); color: #102c42; display: grid; place-items: center; box-shadow: 0 8px 25px rgba(0,0,0,.25); font-size: 25px; font-weight: 1000; letter-spacing: -.08em; }
+.login-card > .login-app-mark { margin: 0 auto 20px; border-color: #e2b44b; }
 .login-brand span { display: grid; gap: 3px; }
 .login-brand b { font-size: 18px; }
 .login-brand small { color: #a9c8dc; font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
@@ -44,7 +45,6 @@
 .login-divider span { position: relative; top: -9px; padding: 0 10px; background: white; color: #7a8b96; font-size: 10px; font-weight: 800; }
 .login-message { margin: 0 !important; padding: 10px 12px; border-left: 3px solid #d89e22; border-radius: 4px; background: #fff6df; color: #76500c !important; font-size: 11px; }
 .login-loading-card, .login-waiting-card, .login-reset-card { grid-column: 1/-1; justify-self: center; text-align: center; }
-.login-loading-card img, .login-waiting-card img, .login-reset-card img { margin: 0 auto 20px; }
 .login-spinner { width: 34px; height: 34px; margin: 0 auto 18px; border: 4px solid #d7e2e8; border-top-color: #1b648d; border-radius: 50%; display: block; animation: login-spin .8s linear infinite; }
 .login-waiting-card dl { margin: 22px 0; border: 1px solid #d7e0e5; border-radius: 9px; overflow: hidden; text-align: left; }
 .login-waiting-card dl div { padding: 11px 13px; display: flex; justify-content: space-between; gap: 15px; }

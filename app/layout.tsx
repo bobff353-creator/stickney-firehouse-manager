@@ -13,10 +13,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Stickney Fire Department Operations Portal",
-  description: "Official operations, staffing, daily logbook, personnel, and payroll portal for the Stickney Fire Department.",
+  title: "Firehouse Command | Department Operations Portal",
+  description: "Secure department access for staffing, daily logs, policies, apparatus, inventory, scheduling, field operations, and payroll.",
   manifest: "/manifest.webmanifest?v=2",
-  appleWebApp: { capable: true, title: "SFD Operations", statusBarStyle: "black-translucent" },
+  appleWebApp: { capable: true, title: "Firehouse Command", statusBarStyle: "black-translucent" },
   themeColor: "#0f2e45",
   other: {
     "codex-preview": "development",

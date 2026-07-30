@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { type FormEvent, useState } from "react";
 import { getSupabaseBrowserClient } from "../supabase-browser";
 
@@ -34,7 +33,7 @@ export default function ResetPasswordPage() {
   return (
     <main className="login-shell">
       <section className="login-card login-reset-card">
-        <Image src="/stickney-fd-patch.jpg?v=2" width={72} height={72} alt="Stickney Fire Department" />
+        <span className="login-app-mark" aria-hidden="true">FC</span>
         <p className="login-eyebrow">ACCOUNT RECOVERY</p>
         <h1>Choose a new password</h1>
         <p>Use at least 8 characters. This password will protect every portal area your department authorizes.</p>
