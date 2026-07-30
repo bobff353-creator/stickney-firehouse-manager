@@ -37,6 +37,9 @@ test("ships a real-photo Fleet digital twin with mobile camera capture", async (
   assert.match(component, /accept="image\/\*"/);
   assert.match(component, /capture="environment"/);
   assert.match(component, /Phone\/iPad: use the rear camera/);
+  assert.match(component, /Take photo for hotspots/);
+  assert.match(component, /Tap to open camera/);
+  assert.match(component, /cameraInputRef\.current\.click/);
   assert.match(component, /placeHotspot/);
   assert.match(component, /Upload for review/);
   assert.match(component, /Save the apparatus in Step 1 before adding a compartment/);

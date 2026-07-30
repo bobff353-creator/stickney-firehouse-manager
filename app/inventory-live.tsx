@@ -7,6 +7,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -763,6 +764,7 @@ function DigitalTwinBuilder({
   const [error, setError] = useState("");
   const [hotspotPhotoId, setHotspotPhotoId] = useState("");
   const [hotspotCompartmentId, setHotspotCompartmentId] = useState("");
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const unlinkedUnits = suiteApparatus.filter((unit) => (
     !matchingTwin(unit, data.apparatus)
@@ -900,6 +902,22 @@ function DigitalTwinBuilder({
       setError(caught instanceof Error ? caught.message : "Photo upload failed.");
     } finally {
       setBusy("");
+    }
+  }
+
+  function openCamera(nextViewKey?: string, nextDoorState?: string) {
+    if (!effectiveApparatusId) {
+      setError("Save the apparatus in Step 1 before taking photographs.");
+      window.document.getElementById("apparatus-name")?.focus();
+      return;
+    }
+    if (nextViewKey) setViewKey(nextViewKey);
+    if (nextDoorState) setDoorState(nextDoorState);
+    setError("");
+    setPhotoFile(null);
+    if (cameraInputRef.current) {
+      cameraInputRef.current.value = "";
+      cameraInputRef.current.click();
     }
   }
 
@@ -1087,14 +1105,12 @@ function DigitalTwinBuilder({
                 type="button"
                 key={`${key}-${state}`}
                 className={photo ? "captured" : ""}
-                onClick={() => {
-                  setViewKey(key);
-                  setDoorState(state);
-                }}
+                onClick={() => openCamera(key, state)}
+                aria-label={`Take ${label} photo with rear camera`}
               >
                 <b>{photo ? "SAVED" : "PHOTO REQUIRED"}</b>
                 <span>{label}</span>
-                <small>{photo ? `v${photo.version_number} - ${photo.approval_status}` : "Not captured"}</small>
+                <small>{photo ? `v${photo.version_number} - ${photo.approval_status} - tap to replace` : "Tap to open camera"}</small>
               </button>
             );
           })}
@@ -1127,13 +1143,18 @@ function DigitalTwinBuilder({
           <label className="file-field">
             Take apparatus photo
             <input
+              ref={cameraInputRef}
               type="file"
               accept="image/*"
               capture="environment"
               aria-label="Take apparatus photo with rear camera"
               onChange={(event) => setPhotoFile(event.target.files?.[0] || null)}
             />
-            <small>Phone/iPad: use the rear camera. Desktop: choose an existing image.</small>
+            <small>
+              {photoFile
+                ? `${photoFile.name} ready to upload.`
+                : "Phone/iPad: use the rear camera. Desktop: choose an existing image."}
+            </small>
           </label>
           <button
             className="primary"
@@ -1234,7 +1255,14 @@ function DigitalTwinBuilder({
         ) : (
           <div className="builder-photo-required">
             <b>APPROVED PHOTO REQUIRED</b>
-            <span>Approve a real apparatus view before placing hotspots.</span>
+            <span>Take or choose a photo, upload it, then approve it before placing hotspots.</span>
+            <button
+              type="button"
+              className="primary"
+              onClick={() => openCamera()}
+            >
+              Take photo for hotspots
+            </button>
           </div>
         )}
         {busy === "hotspot" ? <p role="status">Saving hotspot...</p> : null}
