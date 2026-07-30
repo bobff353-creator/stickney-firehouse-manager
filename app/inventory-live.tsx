@@ -764,6 +764,10 @@ function DigitalTwinBuilder({
   const [error, setError] = useState("");
   const [hotspotPhotoId, setHotspotPhotoId] = useState("");
   const [hotspotCompartmentId, setHotspotCompartmentId] = useState("");
+  const [pendingHotspot, setPendingHotspot] = useState<{
+    xBasisPoints: number;
+    yBasisPoints: number;
+  } | null>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const unlinkedUnits = suiteApparatus.filter((unit) => (
@@ -935,11 +939,18 @@ function DigitalTwinBuilder({
     }
   }
 
-  async function placeHotspot(event: React.MouseEvent<HTMLButtonElement>) {
-    if (!selectedHotspotPhoto || !hotspotCompartmentId) return;
+  function placeHotspot(event: React.MouseEvent<HTMLButtonElement>) {
     const bounds = event.currentTarget.getBoundingClientRect();
     const xBasisPoints = Math.round(((event.clientX - bounds.left) / bounds.width) * 10000);
     const yBasisPoints = Math.round(((event.clientY - bounds.top) / bounds.height) * 10000);
+    setPendingHotspot({ xBasisPoints, yBasisPoints });
+  }
+
+  async function saveHotspot() {
+    if (!selectedHotspotPhoto || !hotspotCompartmentId || !pendingHotspot) {
+      setError("Select an approved photo and compartment, then tap the photo before saving.");
+      return;
+    }
     const compartment = compartments.find((item) => item.id === hotspotCompartmentId);
     setBusy("hotspot");
     setError("");
@@ -949,10 +960,11 @@ function DigitalTwinBuilder({
         photoViewId: selectedHotspotPhoto.id,
         compartmentId: hotspotCompartmentId,
         label: compartment?.label || "Compartment",
-        xBasisPoints,
-        yBasisPoints,
+        xBasisPoints: pendingHotspot.xBasisPoints,
+        yBasisPoints: pendingHotspot.yBasisPoints,
       });
       await onReload(effectiveApparatusId);
+      setPendingHotspot(null);
       notify("Hotspot connected to the saved compartment.");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Hotspot could not be saved.");
@@ -1024,7 +1036,7 @@ function DigitalTwinBuilder({
               onClick={() => void createApparatusFromSuite()}
               disabled={busy === "apparatus"}
             >
-              {busy === "apparatus" ? "Connecting..." : "Add to Inventory"}
+              {busy === "apparatus" ? "Saving..." : "Save apparatus to Inventory"}
             </button>
           </div>
         ) : suiteApparatus.length === 0 ? (
@@ -1036,7 +1048,7 @@ function DigitalTwinBuilder({
             <label>Model<input name="model" /></label>
             <label>Year<input name="year" type="number" min="1900" max="2100" /></label>
             <button className="primary" disabled={busy === "apparatus"}>
-              {busy === "apparatus" ? "Saving..." : "Add apparatus"}
+              {busy === "apparatus" ? "Saving..." : "Save apparatus"}
             </button>
           </form>
         ) : (
@@ -1077,7 +1089,11 @@ function DigitalTwinBuilder({
               window.document.getElementById("apparatus-name")?.focus();
             }}
           >
-            {effectiveApparatusId ? "Add compartment" : "Save apparatus first"}
+            {busy === "compartment"
+              ? "Saving..."
+              : effectiveApparatusId
+                ? "Save compartment"
+                : "Save apparatus first"}
           </button>
         </form>
         <div className="configured-chips">
@@ -1160,7 +1176,7 @@ function DigitalTwinBuilder({
             className="primary"
             disabled={!effectiveApparatusId || !photoFile || busy === "photo"}
           >
-            {busy === "photo" ? "Uploading original..." : "Upload for review"}
+            {busy === "photo" ? "Saving original..." : "Save photo for review"}
           </button>
         </form>
         <div className="photo-review-grid">
@@ -1201,7 +1217,10 @@ function DigitalTwinBuilder({
             Approved photo
             <select
               value={hotspotPhotoId}
-              onChange={(event) => setHotspotPhotoId(event.target.value)}
+              onChange={(event) => {
+                setHotspotPhotoId(event.target.value);
+                setPendingHotspot(null);
+              }}
             >
               <option value="">Select photo</option>
               {approvedPhotos.map((photo) => (
@@ -1215,7 +1234,10 @@ function DigitalTwinBuilder({
             Compartment
             <select
               value={hotspotCompartmentId}
-              onChange={(event) => setHotspotCompartmentId(event.target.value)}
+              onChange={(event) => {
+                setHotspotCompartmentId(event.target.value);
+                setPendingHotspot(null);
+              }}
             >
               <option value="">Select compartment</option>
               {compartments.map((item) => (
@@ -1251,6 +1273,17 @@ function DigitalTwinBuilder({
                   {item.label}
                 </i>
               ))}
+            {pendingHotspot ? (
+              <i
+                className="pending"
+                style={{
+                  left: `${pendingHotspot.xBasisPoints / 100}%`,
+                  top: `${pendingHotspot.yBasisPoints / 100}%`,
+                }}
+              >
+                NEW
+              </i>
+            ) : null}
           </button>
         ) : (
           <div className="builder-photo-required">
@@ -1265,7 +1298,19 @@ function DigitalTwinBuilder({
             </button>
           </div>
         )}
-        {busy === "hotspot" ? <p role="status">Saving hotspot...</p> : null}
+        <button
+          type="button"
+          className="primary hotspot-save"
+          disabled={
+            busy === "hotspot"
+            || !selectedHotspotPhoto
+            || !hotspotCompartmentId
+            || !pendingHotspot
+          }
+          onClick={() => void saveHotspot()}
+        >
+          {busy === "hotspot" ? "Saving hotspot..." : "Save hotspot"}
+        </button>
       </section>
     </div>
   );

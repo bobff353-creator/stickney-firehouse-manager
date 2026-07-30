@@ -40,8 +40,13 @@ test("ships a real-photo Fleet digital twin with mobile camera capture", async (
   assert.match(component, /Take photo for hotspots/);
   assert.match(component, /Tap to open camera/);
   assert.match(component, /cameraInputRef\.current\.click/);
+  assert.match(component, /Save apparatus to Inventory/);
+  assert.match(component, /Save compartment/);
+  assert.match(component, /Save photo for review/);
+  assert.match(component, /Save hotspot/);
+  assert.match(component, /setPendingHotspot/);
   assert.match(component, /placeHotspot/);
-  assert.match(component, /Upload for review/);
+  assert.match(component, /Save photo for review/);
   assert.match(component, /Save the apparatus in Step 1 before adding a compartment/);
   assert.match(component, /Save apparatus first/);
   assert.match(operations, /Start a shift check/);
