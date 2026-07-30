@@ -15,6 +15,7 @@ test("keeps Inventory on the Stickney site", async () => {
   assert.match(proxy, /inventory-route\.js/);
   assert.match(proxy, /headers\.set\(\s*"location"/);
   assert.match(navigation, /new Set\(\["Inventory", "Open Inventory"\]\)/);
+  assert.match(navigation, /window\.addEventListener/);
   assert.match(navigation, /window\.location\.assign\("\/inventory"\)/);
   assert.match(inventoryPage, /verifyInventoryServerSession/);
   assert.match(inventoryPage, /<Inventory360/);

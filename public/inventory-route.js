@@ -1,7 +1,7 @@
 (() => {
   const inventoryLabels = new Set(["Inventory", "Open Inventory"]);
 
-  document.addEventListener(
+  window.addEventListener(
     "click",
     (event) => {
       const target =
