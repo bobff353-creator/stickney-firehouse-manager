@@ -59,20 +59,23 @@ type PayrollData = {
 type GlobalSearchItem = { id: string; type: "Employee" | "Contact" | "Policy" | "Box Card" | "Important Number"; title: string; detail: string; page: NavItem };
 type IconName = "home" | "log" | "box" | "users" | "phone" | "payroll" | "clock" | "rates" | "document" | "holiday" | "settings" | "search" | "bell" | "menu" | "close" | "filter" | "export" | "back" | "next" | "save" | "warning" | "chevron";
 
-type NavItem = "Dashboard" | "Command Center" | "Operations Board" | "Activity Timeline" | "Respond" | "Command Board" | "Field Preplans" | "Scheduling" | "Payroll" | "Work Details" | "Daily Log" | "Timesheets" | "My Timesheet" | "Employees" | "Employee Contacts" | "Policies" | "Box Cards" | "Holiday Policy" | "Daily Duties" | "Phone Numbers" | "Rates & Rules" | "Permissions" | "CAD Integration" | "Respond Device Modes" | "Test View";
-const adminNavItems: NavItem[] = ["Dashboard", "Command Center", "Operations Board", "Activity Timeline", "Respond", "Command Board", "Field Preplans", "Scheduling", "Payroll", "Work Details", "Daily Log", "Timesheets", "My Timesheet", "Employees", "Employee Contacts", "Policies", "Box Cards", "Holiday Policy", "Daily Duties", "Phone Numbers", "Rates & Rules", "Permissions", "CAD Integration", "Respond Device Modes", "Test View"];
-const employeeNavItems: NavItem[] = ["Dashboard", "Operations Board", "Respond", "Command Board", "Field Preplans", "Scheduling", "My Timesheet", "Policies", "Box Cards", "Daily Duties"];
-const navIcons: Record<NavItem, IconName> = { Dashboard: "home", "Command Center": "rates", "Operations Board": "log", "Activity Timeline": "clock", Respond: "log", "Command Board": "warning", "Field Preplans": "search", Scheduling: "clock", Payroll: "payroll", "Work Details": "document", "Daily Log": "log", Timesheets: "clock", "My Timesheet": "clock", Employees: "users", "Employee Contacts": "phone", Policies: "document", "Box Cards": "box", "Holiday Policy": "holiday", "Daily Duties": "clock", "Phone Numbers": "phone", "Rates & Rules": "rates", Permissions: "settings", "CAD Integration": "settings", "Respond Device Modes": "settings", "Test View": "users" };
+type NavItem = "Dashboard" | "Command Center" | "Operations Board" | "Activity Timeline" | "Respond" | "Command Board" | "Field Preplans" | "Scheduling" | "Payroll" | "Work Details" | "Daily Log" | "Timesheets" | "My Timesheet" | "Employees" | "Employee Contacts" | "Policies" | "Box Cards" | "Holiday Policy" | "Daily Duties" | "Inventory" | "Phone Numbers" | "Rates & Rules" | "Permissions" | "CAD Integration" | "Respond Device Modes" | "Test View";
+const adminNavItems: NavItem[] = ["Dashboard", "Command Center", "Operations Board", "Activity Timeline", "Respond", "Command Board", "Field Preplans", "Scheduling", "Payroll", "Work Details", "Daily Log", "Timesheets", "My Timesheet", "Employees", "Employee Contacts", "Policies", "Box Cards", "Holiday Policy", "Daily Duties", "Inventory", "Phone Numbers", "Rates & Rules", "Permissions", "CAD Integration", "Respond Device Modes", "Test View"];
+const employeeNavItems: NavItem[] = ["Dashboard", "Operations Board", "Respond", "Command Board", "Field Preplans", "Scheduling", "My Timesheet", "Policies", "Box Cards", "Daily Duties", "Inventory"];
+const navIcons: Record<NavItem, IconName> = { Dashboard: "home", "Command Center": "rates", "Operations Board": "log", "Activity Timeline": "clock", Respond: "log", "Command Board": "warning", "Field Preplans": "search", Scheduling: "clock", Payroll: "payroll", "Work Details": "document", "Daily Log": "log", Timesheets: "clock", "My Timesheet": "clock", Employees: "users", "Employee Contacts": "phone", Policies: "document", "Box Cards": "box", "Holiday Policy": "holiday", "Daily Duties": "clock", Inventory: "box", "Phone Numbers": "phone", "Rates & Rules": "rates", Permissions: "settings", "CAD Integration": "settings", "Respond Device Modes": "settings", "Test View": "users" };
 const adminNavGroups: Array<{ label: string; icon: IconName; items: Array<{ label: string; page: NavItem }> }> = [
   { label: "Operations", icon: "log", items: [{ label: "Command Center", page: "Command Center" }, { label: "Live Operations Board", page: "Operations Board" }, { label: "Activity Timeline", page: "Activity Timeline" }, { label: "Daily Log", page: "Daily Log" }, { label: "Box Cards", page: "Box Cards" }] },
   { label: "Field", icon: "search", items: [{ label: "Respond", page: "Respond" }, { label: "Command Board", page: "Command Board" }, { label: "Preplans", page: "Field Preplans" }] },
   { label: "Scheduling", icon: "clock", items: [{ label: "Schedule Command", page: "Scheduling" }] },
   { label: "Personnel", icon: "users", items: [{ label: "Employees", page: "Employees" }, { label: "Contacts", page: "Employee Contacts" }] },
   { label: "Payroll", icon: "payroll", items: [{ label: "Payroll", page: "Payroll" }, { label: "Work Detail", page: "Work Details" }, { label: "Timesheets", page: "Timesheets" }, { label: "Rates", page: "Rates & Rules" }] },
-  { label: "Documents", icon: "document", items: [{ label: "Policies", page: "Policies" }, { label: "Holiday Policy", page: "Holiday Policy" }, { label: "Daily Duties", page: "Daily Duties" }] },
+  { label: "Documents", icon: "document", items: [{ label: "Policies", page: "Policies" }, { label: "Holiday Policy", page: "Holiday Policy" }] },
+  { label: "Station Duties", icon: "clock", items: [{ label: "Daily Duties", page: "Daily Duties" }, { label: "Inventory", page: "Inventory" }] },
   { label: "Settings", icon: "settings", items: [{ label: "Important Phone Numbers", page: "Phone Numbers" }, { label: "Permissions", page: "Permissions" }, { label: "CIS CAD Integration", page: "CAD Integration" }, { label: "Respond Device Modes", page: "Respond Device Modes" }, { label: "Test as Member", page: "Test View" }] },
 ];
-const navPermission: Partial<Record<NavItem, string>> = { Dashboard: "dashboard.view", "Command Center": "command_center.view", "Operations Board": "operations_board.view", "Activity Timeline": "command_center.view", Respond: "field_preplans.view", "Command Board": "incident_command.view", "Field Preplans": "field_preplans.view", Scheduling: "scheduling.view", Payroll: "payroll.manage", "Work Details": "scheduling.manage", "Daily Log": "daily_log.view", Timesheets: "payroll.manage", "My Timesheet": "payroll.view_own", Employees: "employees.manage", "Employee Contacts": "contacts.view", Policies: "documents.view", "Box Cards": "documents.view", "Holiday Policy": "documents.view", "Daily Duties": "documents.view", "Phone Numbers": "settings.manage", "Rates & Rules": "payroll.manage", Permissions: "permissions.manage", "CAD Integration": "permissions.manage", "Respond Device Modes": "settings.manage", "Test View": "permissions.manage" };
+const navPermission: Partial<Record<NavItem, string>> = { Dashboard: "dashboard.view", "Command Center": "command_center.view", "Operations Board": "operations_board.view", "Activity Timeline": "command_center.view", Respond: "field_preplans.view", "Command Board": "incident_command.view", "Field Preplans": "field_preplans.view", Scheduling: "scheduling.view", Payroll: "payroll.manage", "Work Details": "scheduling.manage", "Daily Log": "daily_log.view", Timesheets: "payroll.manage", "My Timesheet": "payroll.view_own", Employees: "employees.manage", "Employee Contacts": "contacts.view", Policies: "documents.view", "Box Cards": "documents.view", "Holiday Policy": "documents.view", "Daily Duties": "documents.view", Inventory: "documents.view", "Phone Numbers": "settings.manage", "Rates & Rules": "payroll.manage", Permissions: "permissions.manage", "CAD Integration": "permissions.manage", "Respond Device Modes": "settings.manage", "Test View": "permissions.manage" };
+const inventoryUrl = "https://inventory-360-command.bobff353.chatgpt.site/";
+const memberStationDutyItems = new Set<NavItem>(["Daily Duties", "Inventory"]);
 const emptyEmployee: EmployeeForm = {
   lastName: "", firstName: "", payScaleId: "firefighter", employeeNumber: "", startDate: "", endDate: "", dateOfBirth: "",
   phone: "", email: "", addressLine1: "", city: "", state: "IL", postalCode: "", employmentType: "Part-time", isDpw: false, driverStatus: "", actingOfficerEligible: false, scheduleSmsOptIn: false, isAdmin: false,
@@ -584,7 +587,17 @@ export default function PayrollApp() {
   useEffect(() => {
     if ((testMember || (data && !data.viewer.isAdmin && viewerPermissions)) && !visibleNav.includes(activeNav)) setActiveNav(homePage);
   }, [activeNav, data, homePage, testMember, viewerPermissions, visibleNav]);
-  function navigate(page: NavItem) { setActiveNav(page); setMobileMenuOpen(false); setGlobalSearchOpen(false); setGlobalSearch(""); window.scrollTo({ top: 0, behavior: "smooth" }); }
+  function navigate(page: NavItem) {
+    if (page === "Inventory") {
+      window.location.assign(inventoryUrl);
+      return;
+    }
+    setActiveNav(page);
+    setMobileMenuOpen(false);
+    setGlobalSearchOpen(false);
+    setGlobalSearch("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
   function changeTestMember(member: { id: string; name: string; rank: string; effectivePermissions: string[] } | null) {
     setTestMember(member);
     if (member) {
@@ -606,14 +619,39 @@ export default function PayrollApp() {
       {!tvMode && <PwaInstall />}
       <aside className="desktop-sidebar">
         <button className="sidebar-brand" onClick={() => navigate(homePage)} aria-label="Stickney Fire Department Operations Portal home"><img className="brand-patch" src="/stickney-fd-patch.jpg?v=2" alt="Stickney Fire Department patch" width="64" height="64" /><span><strong>Stickney Fire Department</strong><small>Operations Portal</small></span></button>
-        <nav className="sidebar-nav" aria-label="Primary navigation">{visibleNav.includes("Dashboard") && <button className={activeNav === "Dashboard" ? "current" : ""} onClick={() => navigate("Dashboard")}><Icon name="home"/><span>Dashboard</span></button>}{isAdminView ? visibleAdminGroups.map((group) => <section key={group.label}><h2>{group.label}</h2>{group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><Icon name={navIcons[item.page]}/><span>{item.label}</span></button>)}</section>) : <section><h2>{testMember ? `Testing · ${testMember.rank}` : "My Portal"}</h2>{visibleNav.filter((item) => item !== "Dashboard").map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => navigate(item)}><Icon name={navIcons[item]}/><span>{item === "Scheduling" ? "Employee Schedule Portal" : item}</span></button>)}</section>}</nav>
+        <nav className="sidebar-nav" aria-label="Primary navigation">
+          {visibleNav.includes("Dashboard") && <button className={activeNav === "Dashboard" ? "current" : ""} onClick={() => navigate("Dashboard")}><Icon name="home"/><span>Dashboard</span></button>}
+          {isAdminView ? visibleAdminGroups.map((group) => (
+            <section key={group.label}>
+              <h2>{group.label}</h2>
+              {group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><Icon name={navIcons[item.page]}/><span>{item.label}</span></button>)}
+            </section>
+          )) : (
+            <>
+              <section>
+                <h2>{testMember ? `Testing · ${testMember.rank}` : "My Portal"}</h2>
+                {visibleNav.filter((item) => item !== "Dashboard" && !memberStationDutyItems.has(item)).map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => navigate(item)}><Icon name={navIcons[item]}/><span>{item === "Scheduling" ? "Employee Schedule Portal" : item}</span></button>)}
+              </section>
+              {visibleNav.some((item) => memberStationDutyItems.has(item)) && <section>
+                <h2>Station Duties</h2>
+                {visibleNav.filter((item) => memberStationDutyItems.has(item)).map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => navigate(item)}><Icon name={navIcons[item]}/><span>{item}</span></button>)}
+              </section>}
+            </>
+          )}
+        </nav>
         <div className="sidebar-footer"><span className="system-dot"/>System ready<small>Portal v1.0</small></div>
       </aside>
       <header className="topbar">
         <button className="mobile-brand" onClick={() => navigate(homePage)} aria-label="Stickney Fire Department Operations Portal home"><img src="/stickney-fd-patch.jpg?v=2" alt="Stickney Fire Department patch" width="44" height="44" /><strong>Stickney FD Operations Portal</strong></button>
         <div className="topbar-context"><span>Stickney Fire Department</span><strong>{activeNav}</strong></div>
         <div className="topbar-utilities"><div className={`sync-indicator ${syncLabel.toLowerCase()}`}><Icon name={syncLabel === "Offline" ? "warning" : "save"} size={16}/><span><strong>{syncLabel}</strong><small>Last synced {syncTime}</small></span></div><button className="global-search-trigger" onClick={() => void openGlobalSearch()}><Icon name="search"/><span>Search</span><kbd>⌘ K</kbd></button><SmartAlerts icon={<Icon name="bell"/>} onNavigate={(page) => navigate(page as NavItem)} /><div className="profile"><span className="avatar">{(testMember?.name ?? data?.viewer.displayName ?? "").split(/[ ,]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span><span className="profile-copy"><strong>{testMember ? displayName(testMember.name) : data ? displayName(data.viewer.displayName) : "Signed in"}</strong><small>{testMember ? `Test view · ${testMember.rank}` : data?.viewer.isAdmin ? "Administrator" : "Employee"}</small></span><Icon name="chevron" size={15}/></div><button className="mobile-menu-toggle" aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen((current) => !current)} aria-label="Open navigation"><Icon name={mobileMenuOpen ? "close" : "menu"}/></button></div>
-        {mobileMenuOpen && <nav id="mobile-navigation" className="mobile-nav-panel" aria-label="Mobile navigation">{visibleNav.includes("Dashboard") && <button className={activeNav === "Dashboard" ? "current" : ""} onClick={() => navigate("Dashboard")}><Icon name="home"/>Dashboard</button>}{isAdminView ? visibleAdminGroups.map((group) => <section key={group.label}><h2>{group.label}</h2>{group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><Icon name={navIcons[item.page]}/>{item.label}</button>)}</section>) : visibleNav.filter((item) => item !== "Dashboard").map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => navigate(item)}><Icon name={navIcons[item]}/>{item === "Scheduling" ? "Employee Schedule Portal" : item}</button>)}</nav>}
+        {mobileMenuOpen && <nav id="mobile-navigation" className="mobile-nav-panel" aria-label="Mobile navigation">
+          {visibleNav.includes("Dashboard") && <button className={activeNav === "Dashboard" ? "current" : ""} onClick={() => navigate("Dashboard")}><Icon name="home"/>Dashboard</button>}
+          {isAdminView ? visibleAdminGroups.map((group) => <section key={group.label}><h2>{group.label}</h2>{group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><Icon name={navIcons[item.page]}/>{item.label}</button>)}</section>) : <>
+            <section><h2>My Portal</h2>{visibleNav.filter((item) => item !== "Dashboard" && !memberStationDutyItems.has(item)).map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => navigate(item)}><Icon name={navIcons[item]}/>{item === "Scheduling" ? "Employee Schedule Portal" : item}</button>)}</section>
+            {visibleNav.some((item) => memberStationDutyItems.has(item)) && <section><h2>Station Duties</h2>{visibleNav.filter((item) => memberStationDutyItems.has(item)).map((item) => <button key={item} onClick={() => navigate(item)}><Icon name={navIcons[item]}/>{item}</button>)}</section>}
+          </>}
+        </nav>}
       </header>
 
       {globalSearchOpen && <div className="global-search-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setGlobalSearchOpen(false); }}><section className="global-search-dialog" role="dialog" aria-modal="true" aria-labelledby="global-search-title"><div className="global-search-head"><div><p className="eyebrow">Department-wide search</p><h2 id="global-search-title">Find anything</h2></div><button aria-label="Close search" onClick={() => setGlobalSearchOpen(false)}><Icon name="close"/></button></div><label className="global-search-input"><Icon name="search"/><input autoFocus value={globalSearch} onChange={(event) => setGlobalSearch(event.target.value)} placeholder="Search employees, contacts, policies, Box Cards, or important numbers…" /></label><div className="global-search-results">{globalSearchLoading ? <div className="global-search-empty">Loading shared information…</div> : !globalSearch.trim() ? <div className="global-search-empty">Start typing a name, address, policy, card number, or phone number.</div> : globalSearchResults.length ? globalSearchResults.map((item) => <button key={item.id} onClick={() => navigate(item.page)}><span className={`search-type ${item.type.toLowerCase().replace(" ", "-")}`}>{item.type}</span><strong>{item.title}</strong><small>{item.detail || `Open ${item.page}`}</small><b aria-hidden="true"><Icon name="chevron" size={18}/></b></button>) : <div className="global-search-empty">No results found for “{globalSearch}”.</div>}</div></section></div>}

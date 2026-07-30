@@ -31,3 +31,14 @@ test("renders development preview metadata", async () => {
   );
   assert.match(await response.text(), developmentPreviewMeta);
 });
+
+test("places Inventory under Station Duties without 360 branding", async () => {
+  const source = await import("node:fs/promises").then((fs) =>
+    fs.readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8"),
+  );
+
+  assert.match(source, /label: "Station Duties"/);
+  assert.match(source, /\{ label: "Inventory", page: "Inventory" \}/);
+  assert.match(source, /inventory-360-command\.bobff353\.chatgpt\.site/);
+  assert.doesNotMatch(source, /label: "Inventory 360"/);
+});
