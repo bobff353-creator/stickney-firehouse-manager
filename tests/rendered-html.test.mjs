@@ -56,6 +56,8 @@ test("ships a real-photo Fleet digital twin with mobile camera capture", async (
   assert.match(api, /inventory_photo_views/);
   assert.match(api, /inventory_photo_hotspots/);
   assert.match(api, /inventory_audit_events/);
+  assert.match(api, /status: "in_service"/);
+  assert.doesNotMatch(api, /status: "active"/);
   assert.match(mediaApi, /stickney-inventory-media/);
   assert.match(mediaApi, /supabase\.storage/);
   assert.doesNotMatch(

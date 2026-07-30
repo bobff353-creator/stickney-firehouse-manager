@@ -147,8 +147,10 @@ export async function POST(request: Request) {
   const supabase = await createInventorySupabaseClient();
   const departmentId = session.context.department.id;
   const actor = session.context.user.email;
+  let requestedAction = "";
   try {
     if ((request.headers.get("content-type") || "").includes("multipart/form-data")) {
+      requestedAction = "save photo";
       const form = await request.formData();
       const file = form.get("photo");
       const apparatusId = clean(form.get("apparatusId"));
@@ -269,6 +271,7 @@ export async function POST(request: Request) {
 
     const body = await request.json() as Record<string, unknown>;
     const action = clean(body.action, 40);
+    requestedAction = action;
     if (action === "create_apparatus") {
       const requestedId = clean(body.id, 80);
       const id = requestedId || crypto.randomUUID();
@@ -291,7 +294,7 @@ export async function POST(request: Request) {
           unit_type: assetType,
           call_sign: name,
           station: "Stickney Fire Department",
-          status: "active",
+          status: "in_service",
           notes: "",
           created_by: session.context.user.id,
           updated_by: session.context.user.id,
@@ -420,9 +423,36 @@ export async function POST(request: Request) {
     }
     return privateJson({ error: "Unsupported digital-twin action." }, 400);
   } catch (error) {
-    const message = error instanceof Error && error.message.includes("duplicate")
-      ? "That stable identifier already exists."
-      : "Digital-twin change could not be saved.";
-    return privateJson({ error: message }, 503);
+    const databaseError = error !== null && typeof error === "object"
+      ? error as { code?: unknown; message?: unknown }
+      : {};
+    const code = clean(databaseError.code, 20);
+    const detail = clean(databaseError.message, 300).toLowerCase();
+    if (code === "23505" || detail.includes("duplicate")) {
+      return privateJson({ error: "That saved name or identifier already exists." }, 409);
+    }
+    if (code === "42501") {
+      return privateJson(
+        { error: "Your department role cannot save this Inventory record." },
+        403,
+      );
+    }
+    if (code === "23503") {
+      return privateJson(
+        { error: "Save the required apparatus, compartment, or photo first." },
+        409,
+      );
+    }
+    if (code === "23514") {
+      return privateJson(
+        { error: "One of the entered Inventory values is not allowed." },
+        400,
+      );
+    }
+    const actionName = requestedAction.replaceAll("_", " ") || "Inventory record";
+    return privateJson(
+      { error: `${actionName} could not be saved. Please check the fields and try again.` },
+      503,
+    );
   }
 }
