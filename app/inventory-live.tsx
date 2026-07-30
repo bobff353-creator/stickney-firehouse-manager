@@ -1052,6 +1052,12 @@ function DigitalTwinBuilder({
           <button
             className="primary"
             disabled={busy === "compartment"}
+            onClick={(event) => {
+              if (effectiveApparatusId) return;
+              event.preventDefault();
+              setError("Save the apparatus in Step 1 before adding a compartment.");
+              window.document.getElementById("apparatus-name")?.focus();
+            }}
           >
             {effectiveApparatusId ? "Add compartment" : "Save apparatus first"}
           </button>
