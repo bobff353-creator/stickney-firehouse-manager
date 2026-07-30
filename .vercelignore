@@ -1,0 +1,17 @@
+.git
+.next
+.npm-cache
+node_modules
+node_modules-*
+build
+db
+drizzle
+examples
+vercel
+worker
+.vinext
+dist
+outputs
+work
+vite.config.ts
+drizzle.config.ts
