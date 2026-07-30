@@ -1,5 +1,5 @@
-import PayrollApp from "./payroll-app";
+import AuthGateway from "./auth-gateway";
 
 export default function Home() {
-  return <PayrollApp />;
+  return <AuthGateway />;
 }
