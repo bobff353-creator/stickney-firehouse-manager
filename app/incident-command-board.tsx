@@ -166,9 +166,22 @@ export default function IncidentCommandBoard() {
   const floorCount = state?.building.floorCount || data?.preplan?.floorCount || 1;
   const commandDisabled = !data?.canManage || saving || !online;
   const stagedUnits = data?.cadUnits.filter((unitId) => state?.units[unitId]?.status === "Staged" || state?.units[unitId]?.assignment === "Staging") ?? [];
+  const onSceneUnits = data?.cadUnits ?? [];
   const employeeName = (employeeId: string) => {
     const person = data?.personnel.find((candidate) => candidate.id === employeeId);
     return person ? formatEmployeeName(person.name) : "Assign";
+  };
+  const commandAssigneeLabel = (assignee: string) => {
+    if (assignee.startsWith("unit:")) return assignee.slice(5);
+    if (assignee.startsWith("manual:")) return assignee.slice(7);
+    const person = data?.personnel.find((candidate) => candidate.id === assignee);
+    return person ? formatEmployeeName(person.name) : assignee;
+  };
+  const saveCommandPosition = (position: typeof commandPositions[number], value: string) => {
+    const label = value.trim().replace(/\s+/g, " ");
+    if (label === commandAssigneeLabel(state?.positions[position] ?? "")) return;
+    const unitId = onSceneUnits.find((candidate) => candidate.toLowerCase() === label.toLowerCase());
+    void mutate({ action: "assign-position", position, assignee: unitId ? `unit:${unitId}` : label ? `manual:${label}` : "" });
   };
   const unitsAtLevel = (level: string) => Object.entries(state?.units ?? {}).filter(([unitId, unit]) => data?.cadUnits.includes(unitId) && unit.floor === level);
 
@@ -199,12 +212,11 @@ export default function IncidentCommandBoard() {
       crewStrength: unit.crewStrength,
     });
   };
-  const dropStagedUnit = (event: DragEvent<HTMLButtonElement>, level: string) => {
+  const dropUnitOnFloor = (event: DragEvent<HTMLButtonElement>, level: string) => {
     event.preventDefault();
     const unitId = event.dataTransfer.getData("text/plain");
-    if (!stagedUnits.includes(unitId)) return setNotice("Only a unit currently marked Staged can be dropped onto the building.");
-    const unit = state?.units[unitId];
-    if (!unit) return;
+    if (!onSceneUnits.includes(unitId)) return setNotice("Only an incident unit can be dropped onto the building.");
+    const unit = state?.units[unitId] ?? { assignment: "Staging" as const, status: "Responding" as const, floor: "", side: "" as const, crewStrength: null };
     setSelectedUnit(unitId);
     setSelectedLevel(level);
     void mutate({
@@ -303,16 +315,20 @@ export default function IncidentCommandBoard() {
       <aside className="icb-reference-left">
         <section className="icb-dark-panel icb-command-positions">
           <header><span>COMMAND POSITIONS</span><small>{commandPositions.filter((position) => state.positions[position]).length} ROLES</small></header>
-          <div className="icb-command-grid">{commandPositions.map((position, index) => <label className={index === 0 ? "primary" : ""} key={position}><span>{position.toUpperCase()}</span><select disabled={commandDisabled} value={state.positions[position]} onChange={(event) => void mutate({ action: "assign-position", position, employeeId: event.target.value })}><option value="">Assign</option>{data.personnel.map((person) => <option key={person.id} value={person.id}>{formatEmployeeName(person.name)} · {person.rank}</option>)}</select></label>)}</div>
+          <div className="icb-command-grid">
+            <datalist id="icb-command-assignees">{onSceneUnits.map((unitId) => <option value={unitId} key={unitId}>On-scene unit</option>)}</datalist>
+            {commandPositions.map((position, index) => <label className={index === 0 ? "primary" : ""} key={`${position}:${state.positions[position]}`}><span>{position.toUpperCase()}</span><input list="icb-command-assignees" disabled={commandDisabled} defaultValue={commandAssigneeLabel(state.positions[position])} placeholder={onSceneUnits.length ? "Select on-scene unit or type name/unit" : "Type name or unit"} onBlur={(event) => saveCommandPosition(position, event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} /></label>)}
+          </div>
         </section>
 
         <section className="icb-dark-panel icb-onscene">
           <header><span>UNITS ON SCENE</span><small>{data.cadUnits.length} UNITS</small></header>
           <div className="icb-unit-cards">{data.cadUnits.map((unitId, index) => {
             const unit = state.units[unitId];
-            return <button key={unitId} style={{ "--unit-color": ["#d9932f", "#32a975", "#28a9d1"][index % 3] } as CSSProperties} className={selectedUnit === unitId ? "selected" : ""} onClick={() => setSelectedUnit(unitId)}><strong>{unitId}</strong><span>{unit?.status || "Responding"}</span><i /></button>;
+            const draggable = !commandDisabled;
+            return <button key={unitId} draggable={draggable} title={draggable ? "Drag this on-scene unit to a tactical floor" : undefined} style={{ "--unit-color": ["#d9932f", "#32a975", "#28a9d1"][index % 3] } as CSSProperties} className={selectedUnit === unitId ? "selected" : ""} onDragStart={(event) => { if (!draggable) return event.preventDefault(); event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", unitId); setSelectedUnit(unitId); }} onClick={() => setSelectedUnit(unitId)}><strong>{unitId}</strong><span>{unit?.status || "Responding"}</span><i /></button>;
           })}</div>
-          <div className="icb-stage-strip"><span>STAGED · DRAG TO A FLOOR</span>{stagedUnits.map((unitId) => <button key={unitId} draggable={!commandDisabled} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", unitId); setSelectedUnit(unitId); }}>{unitId}</button>)}{stagedUnits.length === 0 && <small>None</small>}</div>
+          <div className="icb-stage-strip"><span>STAGED OR ON SCENE · DRAG TO A FLOOR</span>{stagedUnits.map((unitId) => <button key={unitId} draggable={!commandDisabled} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", unitId); setSelectedUnit(unitId); }}>{unitId}</button>)}{stagedUnits.length === 0 && <small>Drag an on-scene unit card above</small>}</div>
         </section>
 
         <section className="icb-dark-panel icb-assignment-panel">
@@ -347,7 +363,7 @@ export default function IncidentCommandBoard() {
             <div className="icb-building-stack" aria-label="Selectable stacked building floors">
               {levels.map((level, index) => {
                 const floorUnits = unitsAtLevel(level);
-                return <button key={level} className={`icb-building-floor${activeLevel === level ? " active" : ""}`} style={{ "--floor-order": index } as CSSProperties} onDragOver={(event) => { if (!commandDisabled) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => dropStagedUnit(event, level)} onClick={() => setSelectedLevel(level)}>
+                return <button key={level} className={`icb-building-floor${activeLevel === level ? " active" : ""}`} style={{ "--floor-order": index } as CSSProperties} onDragOver={(event) => { if (!commandDisabled) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => dropUnitOnFloor(event, level)} onClick={() => setSelectedLevel(level)}>
                   <span>LEVEL {levels.length - index}</span>
                   <strong>{level}</strong>
                   <div>{floorUnits.length ? floorUnits.map(([unitId, unit]) => <b key={unitId} title={`${unit.assignment} · Side ${unit.side || "unassigned"}`}>{unitId}<small>{unit.side || "—"}</small></b>) : <em>No crews assigned</em>}</div>

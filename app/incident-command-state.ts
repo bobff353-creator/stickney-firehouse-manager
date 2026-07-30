@@ -48,7 +48,7 @@ export type IncidentCommandState = {
 
 export type CommandAction =
   | { action: "set-radio"; radioChannel: string }
-  | { action: "assign-position"; position: CommandPosition; employeeId: string }
+  | { action: "assign-position"; position: CommandPosition; assignee: string }
   | { action: "assign-unit"; unitId: string; assignment: TacticalAssignment; status?: UnitStatus; floor?: string; side?: CommandUnitState["side"]; crewStrength?: number | null }
   | { action: "set-par-interval"; intervalMinutes: number }
   | { action: "toggle-par" }
@@ -98,7 +98,7 @@ export function normalizeIncidentCommandState(value: unknown): IncidentCommandSt
     ...candidate,
     revision: Math.max(0, Number(candidate.revision) || 0),
     radioChannel: String(candidate.radioChannel ?? "").slice(0, 80),
-    positions: { ...fallback.positions, ...(candidate.positions ?? {}) },
+    positions: Object.fromEntries(commandPositions.map((position) => [position, String(candidate.positions?.[position] ?? "").slice(0, 120)])) as Record<CommandPosition, string>,
     units: candidate.units && typeof candidate.units === "object" ? candidate.units : {},
     par: {
       ...fallback.par,
@@ -135,6 +135,22 @@ function validUnit(value: string, context: ReduceContext) {
   return value;
 }
 
+function validCommandAssignee(value: string, context: ReduceContext) {
+  const assignee = String(value ?? "").trim();
+  if (!assignee) return "";
+  if (context.validPersonnel.has(assignee)) return assignee;
+  if (assignee.startsWith("unit:")) {
+    const unitId = validUnit(assignee.slice(5).trim().toUpperCase(), context);
+    return `unit:${unitId}`;
+  }
+  if (assignee.startsWith("manual:")) {
+    const label = assignee.slice(7).trim().replace(/\s+/g, " ").slice(0, 80);
+    if (!label) throw new Error("Enter a name or unit for the command position.");
+    return `manual:${label}`;
+  }
+  throw new Error("Select an on-scene unit or enter a name or unit.");
+}
+
 function remainingParSeconds(state: IncidentCommandState, now: string) {
   if (state.par.status !== "running" || !state.par.startedAt) return state.par.remainingSeconds;
   const elapsed = Math.max(0, Math.floor((Date.parse(now) - Date.parse(state.par.startedAt)) / 1000));
@@ -151,8 +167,8 @@ export function reduceIncidentCommandState(current: IncidentCommandState, mutati
     summary = state.radioChannel ? `Radio channel set to ${state.radioChannel}` : "Radio channel cleared";
   } else if (mutation.action === "assign-position") {
     const position = oneOf(commandPositions, mutation.position, "command position");
-    state.positions[position] = validEmployee(mutation.employeeId, context);
-    summary = `${position} ${mutation.employeeId ? "assigned" : "cleared"}`;
+    state.positions[position] = validCommandAssignee(mutation.assignee, context);
+    summary = `${position} ${mutation.assignee ? "assigned" : "cleared"}`;
   } else if (mutation.action === "assign-unit") {
     const unitId = validUnit(mutation.unitId, context);
     const existing = state.units[unitId] ?? { assignment: "Staging", status: "Responding", floor: "", side: "", crewStrength: null };

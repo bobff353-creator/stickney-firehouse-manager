@@ -19,15 +19,20 @@ function context() {
   };
 }
 
-test("command state accepts only real CAD units and active personnel", async () => {
+test("command state accepts only real CAD units and valid command-position assignees", async () => {
   const { emptyIncidentCommandState, reduceIncidentCommandState } = await loadCommandModule();
   const empty = emptyIncidentCommandState();
   assert.throws(() => reduceIncidentCommandState(empty, { action: "assign-unit", unitId: "DEMO-1", assignment: "Fire Attack" }, context()), /assigned by CAD/);
-  assert.throws(() => reduceIncidentCommandState(empty, { action: "assign-position", position: "Incident Commander", employeeId: "unknown" }, context()), /active employee/);
-  const assigned = reduceIncidentCommandState(empty, { action: "assign-unit", unitId: "E1201", assignment: "Fire Attack", floor: "Floor 1", side: "A" }, context());
+  const cadPosition = reduceIncidentCommandState(empty, { action: "assign-position", position: "Incident Commander", assignee: "unit:E1201" }, context());
+  assert.equal(cadPosition.state.positions["Incident Commander"], "unit:E1201");
+  const assigned = reduceIncidentCommandState(empty, { action: "assign-unit", unitId: "E1201", assignment: "Fire Attack", status: "On scene", floor: "Floor 1", side: "A" }, context());
   assert.equal(assigned.state.units.E1201.assignment, "Fire Attack");
   assert.equal(assigned.state.units.E1201.floor, "Floor 1");
   assert.equal(assigned.state.revision, 1);
+  const positioned = reduceIncidentCommandState(assigned.state, { action: "assign-position", position: "Incident Commander", assignee: "unit:E1201" }, context());
+  assert.equal(positioned.state.positions["Incident Commander"], "unit:E1201");
+  const manual = reduceIncidentCommandState(positioned.state, { action: "assign-position", position: "Safety", assignee: "manual:Chief Smith / BC-1" }, context());
+  assert.equal(manual.state.positions.Safety, "manual:Chief Smith / BC-1");
 });
 
 test("PAR is confirmed separately for each CAD unit", async () => {
@@ -79,8 +84,10 @@ test("Command Board is under Field, permission gated, durable, and contains no c
   assert.match(migration, /incident_command_event_revision_idx/);
   assert.match(page, /confirm-par-unit/);
   assert.match(page, /requestFullscreen/);
-  assert.match(page, /dropStagedUnit/);
-  assert.match(page, /DRAG TO A FLOOR/);
+  assert.match(page, /dropUnitOnFloor/);
+  assert.match(page, /STAGED OR ON SCENE · DRAG TO A FLOOR/);
+  assert.match(page, /icb-command-assignees/);
+  assert.match(page, /manual:/);
   assert.match(page, /side-a/);
   assert.match(page, /side-b/);
   assert.match(page, /side-c/);
