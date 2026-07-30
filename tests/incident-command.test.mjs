@@ -77,6 +77,11 @@ test("Command Board is under Field, permission gated, durable, and contains no c
   assert.match(route, /expectedRevision/);
   assert.match(bootstrap, /incident_command_events/);
   assert.match(migration, /incident_command_event_revision_idx/);
-  assert.match(page, /Each CAD unit must be confirmed individually/);
+  assert.match(page, /confirm-par-unit/);
+  assert.match(page, /requestFullscreen/);
+  assert.match(page, /side-a/);
+  assert.match(page, /side-b/);
+  assert.match(page, /side-c/);
+  assert.match(page, /side-d/);
   assert.doesNotMatch(page, /360 Incident Command|Command 360|E-201|T-204|DEMO INCIDENT/i);
 });
