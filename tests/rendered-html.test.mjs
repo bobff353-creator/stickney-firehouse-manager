@@ -51,6 +51,10 @@ test("ships a real-photo Fleet digital twin with mobile camera capture", async (
   assert.match(component, /setHotspotCompartmentId\(createdCompartmentId\)/);
   assert.match(component, /saved compartment/);
   assert.match(component, /Operational status always comes from Fleet/);
+  assert.match(component, /Back to Firehouse Manager/);
+  assert.match(component, /Station Duties/);
+  assert.match(component, /InventoryNavIcon/);
+  assert.match(component, /openFleetFilter/);
   assert.match(component, /Fleet: \{titleCase\(selectedApparatus\.status\)\}/);
   assert.match(operations, /Fleet: \{formatStatus\(item\.status\)\}/);
   assert.match(api, /\.from\("department_apparatus"\)/);

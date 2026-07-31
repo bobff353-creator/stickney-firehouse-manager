@@ -13,6 +13,7 @@ import {
 
 type View = "fleet" | "check" | "readiness" | "service" | "stock" | "setup";
 type LoadState = "loading" | "ready" | "unavailable";
+type FleetFilter = "all" | "in-service" | "out-impaired" | "digital-twins";
 
 type SuiteDepartment = {
   id: string;
@@ -221,6 +222,17 @@ function Icon({ children }: { children: React.ReactNode }) {
   return <span className="icon" aria-hidden="true">{children}</span>;
 }
 
+function InventoryNavIcon({ view }: { view: Exclude<View, "setup"> }) {
+  const common = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  return <svg className="inventory-nav-icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" {...common}>
+    {view === "fleet" ? <><path d="M3 15V8h11l4 4h3v3"/><path d="M5 15h14M7 15a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM17 15a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM14 8v4h4"/></> : null}
+    {view === "check" ? <><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3h6v4H9zM8 12l2 2 5-5M8 18h8"/></> : null}
+    {view === "readiness" ? <><path d="M12 3 3 20h18L12 3Z"/><path d="M12 9v5M12 17h.01"/></> : null}
+    {view === "service" ? <><path d="m14 6 4-3 3 3-3 4-4-4ZM14 6 4 16v4h4L18 10"/><path d="m4 20-1 1"/></> : null}
+    {view === "stock" ? <><path d="m4 7 8-4 8 4-8 4-8-4Z"/><path d="M4 7v10l8 4 8-4V7M12 11v10"/></> : null}
+  </svg>;
+}
+
 function StatePill({
   children,
   tone = "neutral",
@@ -260,6 +272,7 @@ export default function Inventory360({
   departmentName: string;
 }) {
   const [view, setView] = useState<View>("fleet");
+  const [fleetFilter, setFleetFilter] = useState<FleetFilter>("all");
   const [suiteState, setSuiteState] = useState<LoadState>("loading");
   const [suite, setSuite] = useState<SuiteContext>({
     configured: false,
@@ -378,6 +391,27 @@ export default function Inventory360({
       || ["inventory", "apparatus", "equipment", "maintenance", "workorder", "stock"]
         .some((term) => eventType.includes(term));
   }), [suite.events]);
+  const visibleApparatus = suite.apparatus.filter((unit) => {
+    if (fleetFilter === "in-service") return normalize(unit.status) === "inservice";
+    if (fleetFilter === "out-impaired") {
+      return normalize(unit.status).includes("outofservice")
+        || normalize(unit.status).includes("impaired");
+    }
+    if (fleetFilter === "digital-twins") return Boolean(matchingTwin(unit, twinData.apparatus));
+    return true;
+  });
+  const fleetFilterLabel = fleetFilter === "in-service"
+    ? "In-service apparatus"
+    : fleetFilter === "out-impaired"
+      ? "Out-of-service or impaired apparatus"
+      : fleetFilter === "digital-twins"
+        ? "Apparatus with digital twins"
+        : "All apparatus";
+
+  function openFleetFilter(filter: FleetFilter) {
+    setFleetFilter(filter);
+    setView("fleet");
+  }
 
   function showToast(message: string) {
     setToast(message);
@@ -395,6 +429,10 @@ export default function Inventory360({
   return (
     <main className="app-shell">
       <header className="topbar">
+        <a className="portal-back" href="/" aria-label="Back to Firehouse Manager">
+          <span aria-hidden="true">←</span>
+          <b>Firehouse Manager</b>
+        </a>
         <button className="brand" onClick={() => setView("fleet")} aria-label="Inventory home">
           <span className="brand-badge">INV</span>
           <span>
@@ -402,6 +440,9 @@ export default function Inventory360({
             <small>READINESS - ASSETS - SERVICE</small>
           </span>
         </button>
+        <span className="inventory-breadcrumb" aria-label="Current location">
+          Station Duties <b>/ Inventory</b>
+        </span>
         <nav className="desktop-nav" aria-label="Inventory sections">
           {([
             ["fleet", "Fleet"],
@@ -474,35 +515,42 @@ export default function Inventory360({
             </span>
           </div>
 
-          <div className="metrics">
-            <article>
+          <div className="metrics inventory-metrics">
+            <button type="button" onClick={() => openFleetFilter("all")}>
               <span>Apparatus records</span>
               <strong>{suite.apparatus.length}</strong>
               <small>Saved for this department</small>
-            </article>
-            <article>
+            </button>
+            <button type="button" onClick={() => openFleetFilter("in-service")}>
               <span>In service</span>
               <strong>{inService}</strong>
               <small>From saved department status</small>
-            </article>
-            <article>
+            </button>
+            <button type="button" onClick={() => openFleetFilter("out-impaired")}>
               <span>Out / impaired</span>
               <strong className={outOfService.length ? "danger-text" : ""}>
                 {outOfService.length}
               </strong>
               <small>No inferred conditions</small>
-            </article>
-            <article>
+            </button>
+            <button type="button" onClick={() => openFleetFilter("digital-twins")}>
               <span>Digital twins linked</span>
               <strong>{twinState === "ready" ? linkedTwinCount : "-"}</strong>
               <small>Saved apparatus records only</small>
-            </article>
-            <article>
+            </button>
+            <button type="button" onClick={() => setView("readiness")}>
               <span>Inventory events</span>
               <strong>{inventoryEvents.length}</strong>
               <small>Connected event records</small>
-            </article>
+            </button>
           </div>
+
+          {suiteState === "ready" && suite.apparatus.length > 0 ? (
+            <div className="fleet-filter-summary" role="status">
+              <span>{fleetFilterLabel} · {visibleApparatus.length} shown</span>
+              {fleetFilter !== "all" ? <button type="button" onClick={() => setFleetFilter("all")}>Clear filter</button> : null}
+            </div>
+          ) : null}
 
           {suiteState === "loading" ? (
             <OperationalState title="Loading department apparatus" kind="loading">
@@ -530,7 +578,7 @@ export default function Inventory360({
 
           {suiteState === "ready" && suite.apparatus.length > 0 ? (
             <div className="fleet-grid">
-              {suite.apparatus.map((unit) => {
+              {visibleApparatus.map((unit) => {
                 const twin = matchingTwin(unit, twinData.apparatus);
                 return (
                   <article className="fleet-card" key={unit.id}>
@@ -728,13 +776,13 @@ export default function Inventory360({
           ["readiness", "Ready"],
           ["service", "Service"],
           ["stock", "Stock"],
-        ] as [View, string][]).map(([id, label]) => (
+        ] as [Exclude<View, "setup">, string][]).map(([id, label]) => (
           <button
             key={id}
             className={view === id ? "active" : ""}
             onClick={() => setView(id)}
           >
-            <Icon>{id === "check" ? "U" : id === "service" ? "M" : id === "stock" ? "S" : id === "readiness" ? "!" : "F"}</Icon>
+            <InventoryNavIcon view={id} />
             {label}
           </button>
         ))}
