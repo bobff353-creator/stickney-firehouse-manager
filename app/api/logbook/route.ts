@@ -113,7 +113,7 @@ export async function POST(request: Request) {
       if (!await hasPermission(request, db, "permissions.manage")) return Response.json({ error: "Administrator permission is required to unlock a closed Daily Log." }, { status: 403 });
       await db.prepare("UPDATE daily_logs SET locked = 1, admin_unlocked = 1, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE log_date = ?").bind(actor, date).run();
       await addRevision(db, date, "Unlocked", "Administrator edit access granted", actor);
-      return Response.json({ ok: true });
+      return Response.json({ ok: true, adminUnlocked: true, autosaveEnabled: true });
     }
     if ((date < operational.lockBeforeDate || existing?.locked) && !existing?.adminUnlocked) return Response.json({ error: "This daily log is locked. An administrator must unlock it before changes can be made." }, { status: 423 });
 

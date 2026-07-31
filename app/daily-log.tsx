@@ -74,6 +74,7 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
   const currentDay = useRef(chicagoOperationalContext().operationalDate);
   const saveInFlight = useRef(false);
   const saveAgain = useRef(false);
+  const autosaveAuthorized = useRef(false);
   const editVersion = useRef(0);
   const latestSave = useRef({ logDate, staffing, calls, shiftNotes });
   const readOnly = locked && !adminUnlocked;
@@ -81,7 +82,7 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
   useEffect(() => { latestSave.current = { logDate, staffing, calls, shiftNotes }; }, [calls, logDate, shiftNotes, staffing]);
 
   const loadLog = useCallback(async (date: string) => {
-    setLoading(true); setMessage(""); loaded.current = false;
+    setLoading(true); setMessage(""); loaded.current = false; autosaveAuthorized.current = false;
     try {
       const response = await fetch(`/api/logbook?date=${date}`); const data = await response.json() as LogPayload;
       if (!response.ok) throw new Error(data.error || "Unable to load log");
@@ -95,7 +96,9 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
       setStaffing(rows); setCalls(callRows); setShiftNotes(restore ? draft!.shiftNotes : data.log?.shiftNotes ?? "");
       setLogAudit(data.log ?? null);
       setAddresses(data.addresses ?? []); setApprovals(data.approvals ?? []); setRecentNotes(data.recentNotes ?? []);
-      setLocked(Boolean(data.log?.locked)); setAdminUnlocked(Boolean(data.log?.adminUnlocked)); setCanUnlock(Boolean(data.canUnlock)); setDirty(restore);
+      const serverLocked = Boolean(data.log?.locked), serverUnlocked = Boolean(data.log?.adminUnlocked);
+      autosaveAuthorized.current = !serverLocked || serverUnlocked;
+      setLocked(serverLocked); setAdminUnlocked(serverUnlocked); setCanUnlock(Boolean(data.canUnlock)); setDirty(restore);
       setSchedulePrefilled(!restore && Boolean(data.schedulePrefilled));
       if (restore) setMessage("Unsaved work restored from this device");
       setLastSynced(data.log?.updatedAt ? new Date(data.log.updatedAt) : new Date());
@@ -120,7 +123,7 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
   useEffect(() => { const update = () => setIsOnline(window.navigator.onLine); update(); window.addEventListener("online", update); window.addEventListener("offline", update); return () => { window.removeEventListener("online", update); window.removeEventListener("offline", update); }; }, []);
 
   const saveLog = useCallback(async (silent = false) => {
-    if (!loaded.current || readOnly) return;
+    if (!loaded.current || !autosaveAuthorized.current) return;
     if (saveInFlight.current) { saveAgain.current = true; return; }
     saveInFlight.current = true;
     setSaving(true); if (!silent) setMessage("");
@@ -142,7 +145,7 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
           saveAgain.current = true;
         }
         setLastSynced(new Date());
-      } while (saveAgain.current && window.navigator.onLine && !readOnly);
+      } while (saveAgain.current && window.navigator.onLine && autosaveAuthorized.current);
       setMessage(silent ? "All changes saved · Timesheets updated" : "Daily log and timesheets saved"); onPayrollSynced?.();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to save log"); }
     finally { saveInFlight.current = false; setSaving(false); }
@@ -208,7 +211,20 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
     const successMessage = handoff.mode === "in" ? "Officer signed in and equipment approved" : "Officer signed out and shift approved";
     setHandoff(null); await loadLog(logDate); setMessage(successMessage);
   }
-  async function adminUnlock() { setUnlocking(true); const response = await fetch("/api/logbook", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "adminUnlock", logDate }) }); if (response.ok) { setAdminUnlocked(true); setUnlockConfirmOpen(false); setLastSynced(new Date()); setMessage("Administrator edit access granted"); } else setMessage("Unable to unlock this log."); setUnlocking(false); }
+  async function adminUnlock() {
+    setUnlocking(true);
+    const response = await fetch("/api/logbook", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "adminUnlock", logDate }) });
+    const result = await response.json().catch(() => ({})) as { error?: string; adminUnlocked?: boolean };
+    if (response.ok && result.adminUnlocked === true) {
+      autosaveAuthorized.current = true;
+      setAdminUnlocked(true);
+      setUnlockConfirmOpen(false);
+      setMessage("Administrator editing enabled · changes save automatically");
+    } else {
+      setMessage(result.error || "Unable to unlock this log.");
+    }
+    setUnlocking(false);
+  }
 
   if (loading) return <section className="daily-log-skeleton" aria-label="Loading daily log" aria-busy="true"><div className="skeleton-heading"><span/><strong/></div><div className="skeleton-shifts"><i/><i/><i/></div><div className="skeleton-log-table"><i/><i/><i/></div></section>;
   return <section className={`logbook-page ${readOnly ? "is-locked" : "is-editable"}`}>
