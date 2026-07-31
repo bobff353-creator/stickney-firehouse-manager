@@ -13,4 +13,6 @@ test("administrator unlock immediately enables Daily Log autosave", async () => 
   assert.match(component, /changes save automatically/);
   assert.match(component, /!loaded\.current \|\| !autosaveAuthorized\.current/);
   assert.match(route, /adminUnlocked: true, autosaveEnabled: true/);
+  assert.doesNotMatch(route, /SET locked = 1, admin_unlocked = 0/);
+  assert.match(route, /\(date < operational\.lockBeforeDate \|\| existing\?\.locked\) && !existing\?\.adminUnlocked/);
 });

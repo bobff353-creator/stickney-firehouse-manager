@@ -51,7 +51,7 @@ export async function GET(request: Request) {
         await projectDispatchIntoDailyLog(db, incident);
       }
     }
-    await db.prepare("UPDATE daily_logs SET locked = 1, admin_unlocked = 0, locked_by = COALESCE(locked_by, 'System · 7:00 AM Lock'), locked_at = COALESCE(locked_at, CURRENT_TIMESTAMP) WHERE log_date < ?").bind(operational.lockBeforeDate).run();
+    await db.prepare("UPDATE daily_logs SET locked = 1, locked_by = COALESCE(locked_by, 'System · 7:00 AM Lock'), locked_at = COALESCE(locked_at, CURRENT_TIMESTAMP) WHERE log_date < ?").bind(operational.lockBeforeDate).run();
     const [log, staffing, calls, addresses, approvals, recentNotes, revisions] = await Promise.all([
       db.prepare("SELECT log_date AS logDate, shift_notes AS shiftNotes, CASE WHEN log_date < ? THEN 1 ELSE locked END AS locked, admin_unlocked AS adminUnlocked, created_by AS createdBy, COALESCE(created_at, updated_at) AS createdAt, updated_by AS updatedBy, updated_at AS updatedAt, locked_by AS lockedBy, locked_at AS lockedAt FROM daily_logs WHERE log_date = ?").bind(operational.lockBeforeDate, date).first(),
       db.prepare("SELECT id, shift_key AS shiftKey, employee_id AS employeeId, time_in AS timeIn, time_out AS timeOut, acting_officer AS actingOfficer, sort_order AS sortOrder FROM daily_log_staffing WHERE log_date = ? ORDER BY shift_key, sort_order").bind(date).all(),
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
     const action = String(body.action ?? "save");
     if (!await hasPermission(request, db, "daily_log.manage")) return Response.json({ error: "Daily Log editing is not enabled for this account." }, { status: 403 });
     const actor = actorFor(request);
-    await db.prepare("UPDATE daily_logs SET locked = 1, admin_unlocked = 0, locked_by = COALESCE(locked_by, 'System · 7:00 AM Lock'), locked_at = COALESCE(locked_at, CURRENT_TIMESTAMP) WHERE log_date < ?").bind(operational.lockBeforeDate).run();
+    await db.prepare("UPDATE daily_logs SET locked = 1, locked_by = COALESCE(locked_by, 'System · 7:00 AM Lock'), locked_at = COALESCE(locked_at, CURRENT_TIMESTAMP) WHERE log_date < ?").bind(operational.lockBeforeDate).run();
     const existing = await db.prepare("SELECT locked, admin_unlocked AS adminUnlocked FROM daily_logs WHERE log_date = ?").bind(date).first<{ locked: number; adminUnlocked: number }>();
 
     if (action === "adminUnlock") {
