@@ -27,8 +27,9 @@ test("Respond prefers exact address matches and allows controlled nearby GPS mat
 });
 
 test("Respond reads existing call and preplan records and exposes requested field views", async () => {
-  const [route, component, shell, styles, settings, board] = await Promise.all([
+  const [route, streetViewRoute, component, shell, styles, settings, board] = await Promise.all([
     readFile(new URL("../app/api/respond/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/respond/street-view/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/respond.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
@@ -45,11 +46,20 @@ test("Respond reads existing call and preplan records and exposes requested fiel
   assert.match(component, /Alpha \/ A Side/);
   assert.match(component, /\?apparatus=/);
   assert.match(component, /APPARATUS RESPOND/);
-  assert.doesNotMatch(component, /Street View|streetView|GoogleStreetView|maps-config/);
+  assert.match(component, /alpha\?<img[^:]+:<StreetViewFallback call=\{call\}/);
+  assert.match(component, /\/api\/respond\/street-view\?location=/);
+  assert.match(component, /Google Street View fallback/);
+  assert.match(component, /Building photo unavailable/);
+  assert.doesNotMatch(component, /respond-360-command/);
+  assert.match(streetViewRoute, /GOOGLE_MAPS_STREET_VIEW_KEY/);
+  assert.match(streetViewRoute, /oai-authenticated-user-email/);
+  assert.match(streetViewRoute, /x-department-id/);
+  assert.match(streetViewRoute, /return_error_code/);
+  assert.match(streetViewRoute, /cache: "no-store"/);
+  assert.doesNotMatch(streetViewRoute, /NEXT_PUBLIC_/);
   assert.match(component, /Monitor View/);
   assert.match(component, /requestFullscreen/);
   assert.match(component, /exitFullscreen/);
-  assert.match(component, /Alpha photo required/);
   assert.match(component, /CAD Notes/);
   assert.match(component, /Footprint/);
   assert.match(component, /type RightView = "cad"\|"footprint"\|"B"\|"C"\|"D"/);

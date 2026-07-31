@@ -39,6 +39,24 @@ function googleNavigation(call:ActiveCall) {
   const destination = call.latitude != null && call.longitude != null ? `${call.latitude},${call.longitude}` : [call.address,call.city].filter(Boolean).join(", ");
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
 }
+function streetViewLocation(call:ActiveCall) {
+  return call.latitude != null && call.longitude != null
+    ? `${call.latitude},${call.longitude}`
+    : [call.address,call.city].filter(Boolean).join(", ");
+}
+function googleLocation(call:ActiveCall) {
+  if (call.latitude != null && call.longitude != null) {
+    return `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${call.latitude},${call.longitude}`;
+  }
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(streetViewLocation(call))}`;
+}
+
+function StreetViewFallback({ call }:{call:ActiveCall}) {
+  const [unavailable,setUnavailable]=useState(false);
+  const location=streetViewLocation(call);
+  if(!location||unavailable)return <div className="respond-empty overlay"><strong>Building photo unavailable</strong><span>No approved Alpha photo or Street View image is available for this address.</span>{location&&<a href={googleLocation(call)} target="_blank" rel="noreferrer" data-test-safe>Open location in Google Maps ↗</a>}</div>;
+  return <><img src={`/api/respond/street-view?location=${encodeURIComponent(location)}`} alt={`Google Street View of ${location}`} onError={()=>setUnavailable(true)}/><a className="respond-street-view-link" href={googleLocation(call)} target="_blank" rel="noreferrer" data-test-safe>Open Street View ↗</a></>;
+}
 
 function FootprintDiagram({ preplan, selectedId, onSelect }:{preplan:Preplan;selectedId:string;onSelect:(item:QuickItem)=>void}) {
   const points = [...preplan.footprint.map((point) => ({ latitude:point.lat, longitude:point.lng })), ...preplan.features];
@@ -100,8 +118,8 @@ export default function Respond({ apparatus = "" }: { apparatus?: string }) {
         {!quickItems.length&&<div className="respond-empty compact"><strong>No building systems entered</strong><span>Add them in Field Preplans.</span></div>}
       </aside>
       <main className="respond-alpha"><header><div><span>PRIMARY VIEW</span><h2>Alpha / A Side</h2></div>{plan&&<span className="record-badge">{plan.status}</span>}</header>
-        <div className="respond-primary-media">{alpha?<img src={alpha.url} alt={alpha.caption||`Alpha side of ${plan?.businessName||call.address}`}/>:<div className="respond-empty overlay"><strong>Alpha photo required</strong><span>No A-side preplan photo has been saved for this building.</span></div>}</div>
-        <footer><strong>{alpha?.caption||plan?.businessName||call.address}</strong><span>{alpha?"Approved preplan photo":"Add the Alpha photo in Field Preplans"}</span></footer>
+        <div className="respond-primary-media">{alpha?<img src={alpha.url} alt={alpha.caption||`Alpha side of ${plan?.businessName||call.address}`}/>:<StreetViewFallback call={call}/>}</div>
+        <footer><strong>{alpha?.caption||plan?.businessName||call.address}</strong><span>{alpha?"Approved Alpha-side preplan photo":"Google Street View fallback · Verify current conditions"}</span></footer>
       </main>
       <aside className="respond-context"><nav>{(["cad","footprint","B","C","D"] as RightView[]).map((item)=><button key={item} className={view===item?"active":""} onClick={()=>setView(item)} data-test-safe>{item==="cad"?"CAD Notes":item==="footprint"?"Footprint":`${item} Side`}</button>)}</nav>
         <div className="respond-context-body">
