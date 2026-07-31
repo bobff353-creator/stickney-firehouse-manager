@@ -48,6 +48,12 @@ function formatDate(input: Row[string]) {
   }).format(date);
 }
 
+function formatStatus(input: Row[string]) {
+  return value({ status: input }, "status")
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase()) || "Not recorded";
+}
+
 export default function InventoryOperations({
   view,
   onSetup,
@@ -187,7 +193,7 @@ export default function InventoryOperations({
                 const form = new FormData(event.currentTarget);
                 submit(event, "start", { action: "start_check", apparatusId: form.get("apparatusId"), shiftId: form.get("shiftId") });
               }}>
-                <label>Apparatus<select name="apparatusId" required>{data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")}</option>)}</select></label>
+                <label>Apparatus<select name="apparatusId" required>{data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")} · Fleet: {formatStatus(item.status)}</option>)}</select></label>
                 <label>Shift or assignment<input name="shiftId" placeholder="Optional shift identifier" /></label>
                 <button className="ops-primary" disabled={Boolean(busy)}>Start check</button>
               </form>
@@ -216,7 +222,7 @@ export default function InventoryOperations({
       {view === "readiness" ? (
         <section className="ops-card">
           <header><div><span>OPEN READINESS EXCEPTIONS</span><h2>Missing and damaged equipment</h2></div><b>{data.exceptions.length} open</b></header>
-          {data.exceptions.length ? <div className="ops-list">{data.exceptions.map((item) => <article key={value(item, "id")}><div><strong>{value(item, "equipment_name") || "Equipment issue"}</strong><small>{value(item, "apparatus_name")} · Reported {formatDate(item.opened_at)}</small></div><span className={`priority-${value(item, "priority")}`}>{value(item, "result")} · {value(item, "priority")}</span><p>{value(item, "notes")}</p></article>)}</div> : <div className="ops-empty"><strong>No open readiness exceptions</strong><p>Missing or damaged check results will appear here automatically.</p></div>}
+          {data.exceptions.length ? <div className="ops-list">{data.exceptions.map((item) => <article key={value(item, "id")}><div><strong>{value(item, "equipment_name") || "Equipment issue"}</strong><small>{value(item, "apparatus_name")} · Fleet: {formatStatus(item.apparatus_status)} · Reported {formatDate(item.opened_at)}</small></div><span className={`priority-${value(item, "priority")}`}>{value(item, "result")} · {value(item, "priority")}</span><p>{value(item, "notes")}</p></article>)}</div> : <div className="ops-empty"><strong>No open readiness exceptions</strong><p>Missing or damaged check results will appear here automatically.</p></div>}
         </section>
       ) : null}
 
@@ -228,7 +234,7 @@ export default function InventoryOperations({
               const form = new FormData(event.currentTarget);
               submit(event, "work-order", { action: "create_work_order", apparatusId: form.get("apparatusId"), priority: form.get("priority"), summary: form.get("summary"), details: form.get("details"), assignedTo: form.get("assignedTo") });
             }}>
-              <label>Apparatus<select name="apparatusId" required>{data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")}</option>)}</select></label>
+              <label>Apparatus<select name="apparatusId" required>{data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")} · Fleet: {formatStatus(item.status)}</option>)}</select></label>
               <label>Priority<select name="priority"><option value="routine">Routine</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select></label>
               <label className="ops-span-2">Summary<input name="summary" required /></label>
               <label className="ops-span-2">Details<textarea name="details" rows={3} /></label>
@@ -238,7 +244,7 @@ export default function InventoryOperations({
           </section>
           <section className="ops-card">
             <header><div><span>WORK ORDERS</span><h2>Maintenance history</h2></div><b>{data.workOrders.filter((item) => value(item, "status") !== "closed").length} open</b></header>
-            {data.workOrders.length ? <div className="ops-list">{data.workOrders.map((item) => <article key={value(item, "id")}><div><strong>{value(item, "summary")}</strong><small>{value(item, "apparatus_name")} · Opened {formatDate(item.opened_at)}</small></div><span className={`priority-${value(item, "priority")}`}>{value(item, "priority")} · {value(item, "status")}</span>{value(item, "details") ? <p>{value(item, "details")}</p> : null}{value(item, "status") !== "closed" ? <button disabled={Boolean(busy)} onClick={() => void action(`close-${value(item, "id")}`, { action: "close_work_order", workOrderId: value(item, "id") })}>Close work order</button> : null}</article>)}</div> : <div className="ops-empty"><strong>No work orders recorded</strong><p>New work orders and closed maintenance history will appear here.</p></div>}
+            {data.workOrders.length ? <div className="ops-list">{data.workOrders.map((item) => <article key={value(item, "id")}><div><strong>{value(item, "summary")}</strong><small>{value(item, "apparatus_name")} · Fleet: {formatStatus(item.apparatus_status)} · Opened {formatDate(item.opened_at)}</small></div><span className={`priority-${value(item, "priority")}`}>{value(item, "priority")} · {value(item, "status")}</span>{value(item, "details") ? <p>{value(item, "details")}</p> : null}{value(item, "status") !== "closed" ? <button disabled={Boolean(busy)} onClick={() => void action(`close-${value(item, "id")}`, { action: "close_work_order", workOrderId: value(item, "id") })}>Close work order</button> : null}</article>)}</div> : <div className="ops-empty"><strong>No work orders recorded</strong><p>New work orders and closed maintenance history will appear here.</p></div>}
           </section>
         </>
       ) : null}

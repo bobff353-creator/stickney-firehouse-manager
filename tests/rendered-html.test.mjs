@@ -45,6 +45,10 @@ test("ships a real-photo Fleet digital twin with mobile camera capture", async (
   assert.match(component, /Save photo for review/);
   assert.match(component, /Save hotspot/);
   assert.match(component, /setPendingHotspot/);
+  assert.match(component, /Operational status always comes from Fleet/);
+  assert.match(component, /Fleet: \{titleCase\(selectedApparatus\.status\)\}/);
+  assert.match(operations, /Fleet: \{formatStatus\(item\.status\)\}/);
+  assert.match(api, /\.from\("department_apparatus"\)/);
   assert.match(component, /placeHotspot/);
   assert.match(component, /Save photo for review/);
   assert.match(component, /Save the apparatus in Step 1 before adding a compartment/);

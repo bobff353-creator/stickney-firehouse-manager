@@ -69,12 +69,27 @@ export async function GET(request: Request) {
   try {
     const supabase = await createInventorySupabaseClient();
     const apparatusId = clean(new URL(request.url).searchParams.get("apparatusId"));
-    const { data: apparatus, error: apparatusError } = await supabase
-      .from("inventory_apparatus_profiles")
-      .select("id,name,asset_type,vin,manufacturer,model,year,created_at")
-      .eq("department_id", session.context.department.id)
-      .order("name");
-    if (apparatusError) throw apparatusError;
+    const [profilesResult, fleetResult] = await Promise.all([
+      supabase
+        .from("inventory_apparatus_profiles")
+        .select("id,name,asset_type,vin,manufacturer,model,year,created_at")
+        .eq("department_id", session.context.department.id)
+        .order("name"),
+      supabase
+        .from("department_apparatus")
+        .select("id,status")
+        .eq("department_id", session.context.department.id),
+    ]);
+    if (profilesResult.error || fleetResult.error) {
+      throw profilesResult.error || fleetResult.error;
+    }
+    const fleetStatuses = new Map(
+      (fleetResult.data || []).map((item) => [item.id, item.status]),
+    );
+    const apparatus = (profilesResult.data || []).map((item) => ({
+      ...item,
+      status: fleetStatuses.get(item.id) || "not_recorded",
+    }));
     if (!apparatusId) {
       return privateJson({
         configured: true,

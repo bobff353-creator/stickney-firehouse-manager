@@ -30,6 +30,7 @@ export async function GET(request: Request) {
     const departmentId = session.context.department.id;
     const [
       apparatusResult,
+      fleetResult,
       compartmentsResult,
       equipmentResult,
       checksResult,
@@ -44,6 +45,10 @@ export async function GET(request: Request) {
         .select("id,name,asset_type")
         .eq("department_id", departmentId)
         .order("name"),
+      supabase
+        .from("department_apparatus")
+        .select("id,status")
+        .eq("department_id", departmentId),
       supabase
         .from("inventory_compartments")
         .select("id,apparatus_id,label,side,sort_order")
@@ -87,6 +92,7 @@ export async function GET(request: Request) {
     ]);
     const firstError = [
       apparatusResult,
+      fleetResult,
       compartmentsResult,
       equipmentResult,
       checksResult,
@@ -98,7 +104,13 @@ export async function GET(request: Request) {
     ].find((result) => result.error)?.error;
     if (firstError) throw firstError;
 
-    const apparatus = apparatusResult.data || [];
+    const fleetStatuses = new Map(
+      (fleetResult.data || []).map((item) => [item.id, item.status]),
+    );
+    const apparatus = (apparatusResult.data || []).map((item) => ({
+      ...item,
+      status: fleetStatuses.get(item.id) || "not_recorded",
+    }));
     const compartments = compartmentsResult.data || [];
     const equipment = (equipmentResult.data || []).map((item) => ({
       ...item,
@@ -107,6 +119,7 @@ export async function GET(request: Request) {
     const checks = (checksResult.data || []).map((check) => ({
       ...check,
       apparatus_name: apparatus.find((row) => row.id === check.apparatus_id)?.name || "",
+      apparatus_status: apparatus.find((row) => row.id === check.apparatus_id)?.status || "not_recorded",
     }));
     const checkItems = (checkItemsResult.data || []).map((item) => {
       const equipmentItem = equipment.find((row) => row.id === item.equipment_id);
@@ -119,11 +132,13 @@ export async function GET(request: Request) {
     const exceptions = (exceptionsResult.data || []).map((item) => ({
       ...item,
       apparatus_name: apparatus.find((row) => row.id === item.apparatus_id)?.name || "",
+      apparatus_status: apparatus.find((row) => row.id === item.apparatus_id)?.status || "not_recorded",
       equipment_name: equipment.find((row) => row.id === item.equipment_id)?.name || "",
     }));
     const workOrders = (workOrdersResult.data || []).map((item) => ({
       ...item,
       apparatus_name: apparatus.find((row) => row.id === item.apparatus_id)?.name || "",
+      apparatus_status: apparatus.find((row) => row.id === item.apparatus_id)?.status || "not_recorded",
       equipment_name: equipment.find((row) => row.id === item.equipment_id)?.name || "",
     }));
     const lots = stockLotsResult.data || [];

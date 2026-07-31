@@ -54,6 +54,7 @@ type TwinApparatus = {
   id: string;
   name: string;
   asset_type: string;
+  status: string;
   vin?: string;
   manufacturer?: string;
   model?: string;
@@ -775,6 +776,9 @@ function DigitalTwinBuilder({
   ));
   const effectiveSourceUnitId = sourceUnitId || unlinkedUnits[0]?.id || "";
   const effectiveApparatusId = apparatusId || data.apparatus[0]?.id || "";
+  const selectedApparatus = data.apparatus.find((item) => (
+    item.id === effectiveApparatusId
+  ));
   const photos = data.photos.filter((photo) => photo.apparatus_id === effectiveApparatusId);
   const compartments = data.compartments.filter((item) => item.apparatus_id === effectiveApparatusId);
   const captured = requiredPhotoViews.filter(([key, state]) => (
@@ -984,7 +988,14 @@ function DigitalTwinBuilder({
               : "Add the first department apparatus"}
           </h2>
         </div>
-        <StatePill tone="success">DURABLE STORAGE READY</StatePill>
+        <div className="builder-status-pills">
+          {selectedApparatus ? (
+            <StatePill tone={statusTone(selectedApparatus.status)}>
+              Fleet: {titleCase(selectedApparatus.status)}
+            </StatePill>
+          ) : null}
+          <StatePill tone="success">DURABLE STORAGE READY</StatePill>
+        </div>
       </div>
       {error ? (
         <div className="builder-error" role="alert">
@@ -996,7 +1007,7 @@ function DigitalTwinBuilder({
         <div>
           <span className="eyebrow">1 - APPARATUS IDENTITY</span>
           <h3>Add and manage department apparatus</h3>
-          <p>Only real department apparatus entered here will be displayed.</p>
+          <p>Only real department apparatus entered here will be displayed. Operational status always comes from Fleet.</p>
         </div>
         {data.apparatus.length > 0 ? (
           <label>
@@ -1009,7 +1020,9 @@ function DigitalTwinBuilder({
               }}
             >
               {data.apparatus.map((unit) => (
-                <option key={unit.id} value={unit.id}>{unit.name} - {unit.id}</option>
+                <option key={unit.id} value={unit.id}>
+                  {unit.name} - {titleCase(unit.status)} - {unit.id}
+                </option>
               ))}
             </select>
           </label>
