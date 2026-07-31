@@ -52,6 +52,7 @@ test("Respond reads existing call and preplan records and exposes requested fiel
   assert.match(component, /Building photo unavailable/);
   assert.doesNotMatch(component, /respond-360-command/);
   assert.match(streetViewRoute, /GOOGLE_MAPS_STREET_VIEW_KEY/);
+  assert.match(streetViewRoute, /Maps Platform API Key/);
   assert.match(streetViewRoute, /oai-authenticated-user-email/);
   assert.match(streetViewRoute, /x-department-id/);
   assert.match(streetViewRoute, /return_error_code/);

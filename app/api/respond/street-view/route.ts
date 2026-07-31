@@ -9,7 +9,8 @@ export async function GET(request: Request) {
     return Response.json({ error: "Verified department access is required." }, { status: 401, headers: noStoreHeaders });
   }
 
-  const key = process.env.GOOGLE_MAPS_STREET_VIEW_KEY?.trim();
+  const key = process.env.GOOGLE_MAPS_STREET_VIEW_KEY?.trim()
+    || process.env["Maps Platform API Key"]?.trim();
   if (!key) {
     return Response.json({ error: "Street View is not configured." }, { status: 503, headers: noStoreHeaders });
   }
