@@ -49,6 +49,10 @@ test("ships a real-photo Fleet digital twin with mobile camera capture", async (
   assert.match(component, /Replace photo/);
   assert.match(component, /Remove photo/);
   assert.match(component, /photoCompartmentId/);
+  assert.match(component, /"state":"closed","label":"Closed"/);
+  assert.match(component, /"state":"open","label":"Open"/);
+  assert.match(component, /2 required photos/);
+  assert.match(component, /PHOTO SET COMPLETE/);
   assert.match(component, /Save photo for review/);
   assert.match(component, /Save hotspot/);
   assert.match(component, /setPendingHotspot/);

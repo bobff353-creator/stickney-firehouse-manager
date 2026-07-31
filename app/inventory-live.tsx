@@ -1298,6 +1298,8 @@ function DigitalTwinBuilder({
         <div className="compartment-manager" aria-label="Saved compartments">
           {compartments.length ? compartments.map((item) => {
             const compartmentPhotos = photos.filter((photo) => photo.compartment_id === item.id);
+            const closedPhoto = compartmentPhotos.find((photo) => photo.door_state === "closed");
+            const openPhoto = compartmentPhotos.find((photo) => photo.door_state === "open");
             const editing = editingCompartmentId === item.id;
             return <article key={item.id}>
               {editing ? <form onSubmit={(event) => void updateCompartment(event, item.id)}>
@@ -1306,8 +1308,15 @@ function DigitalTwinBuilder({
                 <label>Order<input name="sortOrder" type="number" min="0" defaultValue={item.sort_order} /></label>
                 <div><button className="primary" disabled={busy === `compartment-${item.id}`}>{busy === `compartment-${item.id}` ? "Saving..." : "Save changes"}</button><button type="button" className="secondary" onClick={() => setEditingCompartmentId("")}>Cancel</button></div>
               </form> : <>
-                <div><strong>{item.label}</strong><span>{titleCase(item.side)} · {compartmentPhotos.length} photo{compartmentPhotos.length === 1 ? "" : "s"}</span></div>
-                <div className="compartment-actions"><button type="button" onClick={() => setEditingCompartmentId(item.id)}>Edit</button><button type="button" onClick={() => void openCamera("interior", "open", item.id)}>Add photo</button><button type="button" className="danger" onClick={() => void deleteCompartment(item)} disabled={busy === `compartment-${item.id}`}>Delete</button></div>
+                <header><div><strong>{item.label}</strong><span>{titleCase(item.side)} · {[closedPhoto,openPhoto].filter(Boolean).length} of 2 required photos</span></div><b className={closedPhoto && openPhoto ? "complete" : "incomplete"}>{closedPhoto && openPhoto ? "PHOTO SET COMPLETE" : "PHOTOS NEEDED"}</b></header>
+                <div className="compartment-photo-pair">
+                  {([{"state":"closed","label":"Closed","photo":closedPhoto},{"state":"open","label":"Open","photo":openPhoto}] as const).map((slot) => <div className={slot.photo ? "saved" : "required"} key={slot.state}>
+                    {slot.photo ? <Image src={slot.photo.url} alt={`${item.label} ${slot.label.toLowerCase()}`} width={240} height={150} unoptimized /> : <span>PHOTO REQUIRED</span>}
+                    <strong>{slot.label} compartment</strong>
+                    <button type="button" onClick={() => void openCamera("interior", slot.state, item.id)}>{slot.photo ? `Replace ${slot.label.toLowerCase()} photo` : `Take ${slot.label.toLowerCase()} photo`}</button>
+                  </div>)}
+                </div>
+                <div className="compartment-actions"><button type="button" onClick={() => setEditingCompartmentId(item.id)}>Edit compartment</button><button type="button" className="danger" onClick={() => void deleteCompartment(item)} disabled={busy === `compartment-${item.id}`}>Delete compartment</button></div>
               </>}
             </article>;
           }) : <em>No compartments configured.</em>}
