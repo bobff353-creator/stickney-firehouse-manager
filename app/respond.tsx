@@ -2,6 +2,7 @@
 /* eslint-disable @next/next/no-img-element -- preplan photos are protected runtime records. */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { formatRespondTime } from "./respond-time";
 
 type Point = { lat: number; lng: number };
 type Feature = { id:string; featureType:string; label:string; latitude:number; longitude:number; systemType:string; serviceStatus:string; details:string };
@@ -31,11 +32,7 @@ const featureLabels:Record<string,string> = {
 };
 const featureSymbols:Record<string,string> = { alarm:"AL",knox:"K",riser:"R",fdc:"F",sprinkler:"SP",gas:"G",water:"W",electric:"E",propane:"P",elevator:"EV",elevator_room:"ER",standpipe:"ST",access:"A",hazard:"!" };
 
-function displayTime(value:string) {
-  if (!value) return "Not reported";
-  const date = new Date(value);
-  return Number.isNaN(date.valueOf()) ? value : date.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
-}
+const displayTime = formatRespondTime;
 function sidePhoto(preplan:Preplan|null, side:string) {
   return preplan?.photos.find((photo) => photo.side.trim().toUpperCase() === side) ?? null;
 }
