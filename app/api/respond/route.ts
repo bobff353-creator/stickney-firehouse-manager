@@ -1,6 +1,6 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 import { chicagoOperationalContext } from "../../operational-day";
-import { distanceFeet, normalizeResponseAddress, rankPreplanMatch } from "../../respond-match";
+import { distanceFeet, normalizeResponseAddress, rankPreplanMatch, suggestedStickneyBoxCard } from "../../respond-match";
 import { normalizeApparatusUnit, respondingUnitsIncludeUnit } from "../../respond-device";
 import { hasPermission } from "../../server-permissions";
 
@@ -72,14 +72,24 @@ export async function GET(request: Request) {
       cadUpdates.push({ eventType: "Current dispatch", status: "processed", receivedAt: activeCall.receivedAt, narrative: activeCall.narrative || "", respondingUnits: activeCall.respondingUnits || "" });
     }
     const [boxRows, hydrantRows] = await Promise.all([
-      db.prepare("SELECT id,title,address,box_number boxNumber,access_notes accessNotes,status FROM box_cards WHERE status='Active' ORDER BY updated_at DESC").all<Row>(),
+      db.prepare("SELECT id,title,address,box_number boxNumber,access_notes accessNotes,status,department FROM box_cards WHERE status='Active' ORDER BY updated_at DESC").all<Row>(),
       db.prepare("SELECT id,hydrant_number hydrantNumber,address,latitude,longitude,service_status serviceStatus FROM field_hydrants").all<Row>(),
     ]);
     const callAddress = normalizeResponseAddress(String(activeCall.address || ""));
-    const boxCard = callAddress ? boxRows.results.find((card) => normalizeResponseAddress(String(card.address || "")) === callAddress) ?? null : null;
     const point = activeCall.latitude != null && activeCall.longitude != null
       ? { latitude:Number(activeCall.latitude), longitude:Number(activeCall.longitude) }
       : matched ? { latitude:Number(matched.plan.latitude), longitude:Number(matched.plan.longitude) } : null;
+    const suggestedBoxCardId = suggestedStickneyBoxCard({
+      callType: activeCall.callType,
+      category: activeCall.category,
+      address: activeCall.address,
+      longitude: point?.longitude,
+    });
+    const boxCard = (suggestedBoxCardId
+      ? boxRows.results.find((card) => card.id === suggestedBoxCardId && card.department === "Stickney")
+      : undefined)
+      ?? (callAddress ? boxRows.results.find((card) => normalizeResponseAddress(String(card.address || "")) === callAddress) : undefined)
+      ?? null;
     const nearestHydrants = point ? hydrantRows.results.map((hydrant) => ({
       ...hydrant,
       distanceFeet:Math.round(distanceFeet(point,{latitude:Number(hydrant.latitude),longitude:Number(hydrant.longitude)})),

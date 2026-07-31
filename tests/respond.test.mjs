@@ -26,6 +26,17 @@ test("Respond prefers exact address matches and allows controlled nearby GPS mat
   assert.equal(rankPreplanMatch({ address:"Unknown", latitude:42, longitude:-88 }, plans), null);
 });
 
+test("Respond suggests Stickney box cards by incident and Ridgeland side", async () => {
+  const { suggestedStickneyBoxCard } = await loadMatcher();
+  assert.equal(suggestedStickneyBoxCard({ callType:"EMS - difficulty breathing", address:"6700 W 43rd St" }), "sfd-box-399");
+  assert.equal(suggestedStickneyBoxCard({ category:"MCI", address:"4300 Oak Park Ave" }), "sfd-box-399");
+  assert.equal(suggestedStickneyBoxCard({ callType:"Vehicle Accident", longitude:-87.78 }), "sfd-box-303-e");
+  assert.equal(suggestedStickneyBoxCard({ callType:"MVA with injuries", longitude:-87.79 }), "sfd-box-303-w");
+  assert.equal(suggestedStickneyBoxCard({ callType:"Structure Fire", address:"6200 W 41st St" }), "sfd-box-300-e");
+  assert.equal(suggestedStickneyBoxCard({ callType:"Fire Alarm", address:"6800 W Pershing Rd" }), "sfd-box-300-w");
+  assert.equal(suggestedStickneyBoxCard({ callType:"Structure Fire", address:"4200 Ridgeland Ave" }), null);
+});
+
 test("Respond reads existing call and preplan records and exposes requested field views", async () => {
   const [route, streetViewRoute, component, shell, styles, settings, board] = await Promise.all([
     readFile(new URL("../app/api/respond/route.ts", import.meta.url), "utf8"),
