@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import type { IScannerControls } from "@zxing/browser";
 
 type OperationsView = "check" | "readiness" | "service" | "stock";
 type Row = Record<string, string | number | null>;
@@ -54,6 +55,58 @@ function formatStatus(input: Row[string]) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase()) || "Not recorded";
 }
 
+type ScannedEquipment = {
+  name?: string;
+  manufacturer?: string;
+  model?: string;
+  serialNumber?: string;
+  barcode: string;
+};
+
+function parseScannedEquipment(rawValue: string): ScannedEquipment {
+  const raw = rawValue.trim();
+  const fields: ScannedEquipment = { barcode: raw };
+  const assign = (key: string, input: unknown) => {
+    if (typeof input !== "string" && typeof input !== "number") return;
+    const item = String(input).trim();
+    if (!item) return;
+    const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (["name", "equipment", "product", "description"].includes(normalized)) fields.name = item;
+    if (["manufacturer", "maker", "brand"].includes(normalized)) fields.manufacturer = item;
+    if (["model", "modelnumber", "partnumber", "sku"].includes(normalized)) fields.model = item;
+    if (["serial", "serialnumber", "sn"].includes(normalized)) fields.serialNumber = item;
+    if (["barcode", "asset", "assettag", "gtin", "upc", "ean"].includes(normalized)) fields.barcode = item;
+  };
+
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      Object.entries(parsed).forEach(([key, item]) => assign(key, item));
+    }
+  } catch {
+    // Most barcodes are plain text, so JSON parsing is intentionally optional.
+  }
+
+  try {
+    const url = new URL(raw);
+    url.searchParams.forEach((item, key) => assign(key, item));
+  } catch {
+    // A scanned value does not need to be a URL.
+  }
+
+  raw.split(/[\n|;]/).forEach((part) => {
+    const match = part.match(/^\s*([^:=]+)\s*[:=]\s*(.+)\s*$/);
+    if (match) assign(match[1], match[2]);
+  });
+
+  // GS1 application identifiers: (01) GTIN and (21) serial number.
+  const gtin = raw.match(/(?:^|\()01\)?(\d{14})/);
+  const serial = raw.match(/(?:\u001d|\()21\)?([^\u001d(]+)/i);
+  if (gtin) fields.barcode = gtin[1];
+  if (serial) fields.serialNumber = serial[1].trim();
+  return fields;
+}
+
 export default function InventoryOperations({
   view,
   onSetup,
@@ -67,6 +120,81 @@ export default function InventoryOperations({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [accessRequired, setAccessRequired] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerMessage, setScannerMessage] = useState("");
+  const equipmentFormRef = useRef<HTMLFormElement>(null);
+  const scannerVideoRef = useRef<HTMLVideoElement>(null);
+  const scannerControlsRef = useRef<IScannerControls | null>(null);
+
+  const closeScanner = useCallback(() => {
+    scannerControlsRef.current?.stop();
+    scannerControlsRef.current = null;
+    setScannerOpen(false);
+    setScannerMessage("");
+  }, []);
+
+  const fillEquipmentForm = useCallback((scan: ScannedEquipment) => {
+    const form = equipmentFormRef.current;
+    if (!form) return;
+    const fill = (name: string, input?: string) => {
+      if (!input) return;
+      const element = form.elements.namedItem(name);
+      if (element instanceof HTMLInputElement) {
+        element.value = input;
+        element.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    };
+    fill("name", scan.name);
+    fill("manufacturer", scan.manufacturer);
+    fill("model", scan.model);
+    fill("serialNumber", scan.serialNumber);
+    fill("barcode", scan.barcode);
+  }, []);
+
+  useEffect(() => {
+    if (!scannerOpen || !scannerVideoRef.current) return;
+    let cancelled = false;
+    setScannerMessage("Point the rear camera at the equipment barcode.");
+    void import("@zxing/browser").then(async ({ BrowserMultiFormatReader }) => {
+      if (cancelled || !scannerVideoRef.current) return;
+      const reader = new BrowserMultiFormatReader();
+      try {
+        const controls = await reader.decodeFromConstraints(
+          {
+            audio: false,
+            video: {
+              facingMode: { ideal: "environment" },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
+          },
+          scannerVideoRef.current,
+          (result) => {
+            if (!result) return;
+            fillEquipmentForm(parseScannedEquipment(result.getText()));
+            setMessage("Barcode scanned. Review the filled equipment fields, then add the equipment.");
+            closeScanner();
+          },
+        );
+        if (cancelled) {
+          controls.stop();
+        } else {
+          scannerControlsRef.current = controls;
+        }
+      } catch (caught) {
+        setScannerMessage(
+          caught instanceof Error
+            ? `Camera could not start: ${caught.message}`
+            : "Camera could not start. Check camera permission and try again.",
+        );
+      }
+    });
+    return () => {
+      cancelled = true;
+      scannerControlsRef.current?.stop();
+      scannerControlsRef.current = null;
+    };
+  }, [closeScanner, fillEquipmentForm, scannerOpen]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -202,7 +330,7 @@ export default function InventoryOperations({
 
           <section className="ops-card">
             <header><div><span>EQUIPMENT SETUP</span><h2>Add real equipment to an apparatus compartment</h2></div><b>{data.equipment.length} items</b></header>
-            {!data.compartments.length ? <div className="ops-empty"><strong>No compartments configured</strong><p>Create apparatus compartments before adding equipment.</p><button onClick={onSetup}>Manage apparatus setup</button></div> : <form className="ops-form ops-form-wide" onSubmit={(event) => {
+            {!data.compartments.length ? <div className="ops-empty"><strong>No compartments configured</strong><p>Create apparatus compartments before adding equipment.</p><button onClick={onSetup}>Manage apparatus setup</button></div> : <form ref={equipmentFormRef} className="ops-form ops-form-wide" onSubmit={(event) => {
               const form = new FormData(event.currentTarget);
               submit(event, "equipment", { action: "create_equipment", compartmentId: form.get("compartmentId"), name: form.get("name"), manufacturer: form.get("manufacturer"), model: form.get("model"), serialNumber: form.get("serialNumber"), barcode: form.get("barcode"), quantityRequired: form.get("quantityRequired") });
             }}>
@@ -213,6 +341,9 @@ export default function InventoryOperations({
               <label>Serial number<input name="serialNumber" /></label>
               <label>Barcode / asset tag<input name="barcode" /></label>
               <label>Required quantity<input name="quantityRequired" type="number" min="1" defaultValue="1" /></label>
+              <button className="ops-scan-button" type="button" onClick={() => setScannerOpen(true)}>
+                Scan barcode
+              </button>
               <button className="ops-primary" disabled={Boolean(busy)}>Add equipment</button>
             </form>}
           </section>
@@ -277,6 +408,21 @@ export default function InventoryOperations({
             })}</div> : <div className="ops-empty"><strong>No stock records yet</strong><p>Add the first real supply and its current on-hand quantity.</p></div>}
           </section>
         </>
+      ) : null}
+      {scannerOpen ? (
+        <div className="camera-overlay" role="dialog" aria-modal="true" aria-label="Equipment barcode scanner">
+          <div className="camera-panel barcode-scanner-panel">
+            <header>
+              <div><span>LIVE BARCODE SCANNER</span><h3>Scan real equipment</h3></div>
+              <button type="button" onClick={closeScanner}>Cancel</button>
+            </header>
+            <div className="barcode-scanner-view">
+              <video ref={scannerVideoRef} autoPlay playsInline muted />
+              <i aria-hidden="true" />
+            </div>
+            <p role="status">{scannerMessage}</p>
+          </div>
+        </div>
       ) : null}
     </div>
   );

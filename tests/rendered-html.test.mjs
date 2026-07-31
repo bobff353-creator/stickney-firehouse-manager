@@ -59,6 +59,10 @@ test("ships a real-photo Fleet digital twin with mobile camera capture", async (
   assert.match(component, /Save the apparatus in Step 1 before adding a compartment/);
   assert.match(component, /Save apparatus first/);
   assert.match(operations, /Start a shift check/);
+  assert.match(operations, /Scan barcode/);
+  assert.match(operations, /BrowserMultiFormatReader/);
+  assert.match(operations, /facingMode: \{ ideal: "environment" \}/);
+  assert.match(operations, /parseScannedEquipment/);
   assert.match(operations, /Open work order/);
   assert.match(operations, /Return to department portal/);
   assert.match(operations, /Number\(lot\.quantity_on_hand \|\| 0\) <= 0/);
