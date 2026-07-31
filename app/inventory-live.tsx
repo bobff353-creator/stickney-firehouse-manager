@@ -784,6 +784,11 @@ function DigitalTwinBuilder({
   ));
   const photos = data.photos.filter((photo) => photo.apparatus_id === effectiveApparatusId);
   const compartments = data.compartments.filter((item) => item.apparatus_id === effectiveApparatusId);
+  const effectiveHotspotCompartmentId = (
+    compartments.some((item) => item.id === hotspotCompartmentId)
+      ? hotspotCompartmentId
+      : compartments[0]?.id || ""
+  );
   const captured = requiredPhotoViews.filter(([key, state]) => (
     photos.some((photo) => photo.view_key === key && photo.door_state === state)
   )).length;
@@ -866,13 +871,18 @@ function DigitalTwinBuilder({
     setBusy("compartment");
     setError("");
     try {
-      await jsonAction({
+      const result = await jsonAction({
         action: "create_compartment",
         apparatusId: effectiveApparatusId,
         label: form.get("label"),
         side: form.get("side"),
         sortOrder: compartments.length,
       });
+      const compartment = record(result.compartment);
+      const createdCompartmentId = text(compartment?.id, 80);
+      if (createdCompartmentId) {
+        setHotspotCompartmentId(createdCompartmentId);
+      }
       await onReload(effectiveApparatusId);
       event.currentTarget.reset();
       notify("Compartment created with a stable ID.");
@@ -1015,18 +1025,18 @@ function DigitalTwinBuilder({
   }
 
   async function saveHotspot() {
-    if (!selectedHotspotPhoto || !hotspotCompartmentId || !pendingHotspot) {
+    if (!selectedHotspotPhoto || !effectiveHotspotCompartmentId || !pendingHotspot) {
       setError("Select an approved photo and compartment, then tap the photo before saving.");
       return;
     }
-    const compartment = compartments.find((item) => item.id === hotspotCompartmentId);
+    const compartment = compartments.find((item) => item.id === effectiveHotspotCompartmentId);
     setBusy("hotspot");
     setError("");
     try {
       await jsonAction({
         action: "create_hotspot",
         photoViewId: selectedHotspotPhoto.id,
-        compartmentId: hotspotCompartmentId,
+        compartmentId: effectiveHotspotCompartmentId,
         label: compartment?.label || "Compartment",
         xBasisPoints: pendingHotspot.xBasisPoints,
         yBasisPoints: pendingHotspot.yBasisPoints,
@@ -1080,6 +1090,9 @@ function DigitalTwinBuilder({
               value={effectiveApparatusId}
               onChange={(event) => {
                 setApparatusId(event.target.value);
+                setHotspotCompartmentId("");
+                setHotspotPhotoId("");
+                setPendingHotspot(null);
                 void onReload(event.target.value);
               }}
             >
@@ -1317,17 +1330,19 @@ function DigitalTwinBuilder({
           <label>
             Compartment
             <select
-              value={hotspotCompartmentId}
+              value={effectiveHotspotCompartmentId}
               onChange={(event) => {
                 setHotspotCompartmentId(event.target.value);
                 setPendingHotspot(null);
               }}
+              disabled={!compartments.length}
             >
-              <option value="">Select compartment</option>
+              {!compartments.length ? <option value="">No saved compartments</option> : null}
               {compartments.map((item) => (
                 <option key={item.id} value={item.id}>{item.label} - {item.side}</option>
               ))}
             </select>
+            <span>{compartments.length} saved compartment{compartments.length === 1 ? "" : "s"} available</span>
           </label>
         </div>
         {selectedHotspotPhoto ? (
@@ -1388,7 +1403,7 @@ function DigitalTwinBuilder({
           disabled={
             busy === "hotspot"
             || !selectedHotspotPhoto
-            || !hotspotCompartmentId
+            || !effectiveHotspotCompartmentId
             || !pendingHotspot
           }
           onClick={() => void saveHotspot()}
