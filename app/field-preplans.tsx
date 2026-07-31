@@ -18,7 +18,7 @@ type Preplan = {
   footprintSquareFeet:number; floorCount:number; fireFlowCalculationArea:number; constructionType:ConstructionGroup; occupancyFlowCategory:OccupancyFlowCategory; sprinklerStandard:SprinklerStandard; suggestedFireFlowGpm:number; suggestedFireFlowDuration:number;
   status:string; updatedBy:string; updatedAt:string; features:Feature[]; photos:Photo[];
 };
-type ImportedBuilding = { id:string;businessName:string;address:string;sourceFile:string;sourceRow:number;status:string;linkedPreplanId:string|null };
+type ImportedBuilding = { id:string;businessName:string;address:string;sourceFile:string;sourceRow:number;status:string;latitude:number|null;longitude:number|null;geocodeNote:string;linkedPreplanId:string|null };
 type Form = Omit<Preplan,"features"|"photos"|"updatedBy"|"updatedAt">;
 
 const stickney:Point = { lat:41.8189, lng:-87.7734 };
@@ -90,6 +90,7 @@ function FieldMap({ apiKey,center,zoom,imagery,plans,hydrants,selected,draft,mod
 export default function FieldPreplans() {
   const [plans,setPlans]=useState<Preplan[]>([]),[canEdit,setCanEdit]=useState(false),[query,setQuery]=useState(""),[selected,setSelected]=useState(""),[draft,setDraft]=useState<Form|null>(null);
   const [imports,setImports]=useState<ImportedBuilding[]>([]),[selectedImport,setSelectedImport]=useState("");
+  const [importSort,setImportSort]=useState<"street"|"completion">("street"),[geocodeProgress,setGeocodeProgress]=useState("");
   const [hydrants,setHydrants]=useState<Hydrant[]>([]),[hydrantDraft,setHydrantDraft]=useState<Hydrant|null>(null),[hydrantTab,setHydrantTab]=useState<"quick"|"details"|"flush"|"flow">("quick");
   const [center,setCenter]=useState<Point>(stickney),[zoom,setZoom]=useState(19),[imagery,setImagery]=useState<"aerial"|"street">("aerial"),[mode,setMode]=useState(""),[tab,setTab]=useState<"quick"|"details"|"photos">("quick");
   const [footprintAccepted,setFootprintAccepted]=useState(false);
@@ -109,11 +110,32 @@ export default function FieldPreplans() {
   },[load,loadHydrants]);
   const shown=useMemo(()=>{const span=360/(2**zoom)*1.6;return plans.filter((plan)=>Math.abs(plan.longitude-center.lng)<span&&Math.abs(plan.latitude-center.lat)<span&&`${plan.businessName} ${plan.address}`.toLowerCase().includes(query.toLowerCase()));},[plans,query,center,zoom]);
   const shownHydrants=useMemo(()=>{const span=360/(2**zoom)*1.6;return hydrants.filter((item)=>Math.abs(item.longitude-center.lng)<span&&Math.abs(item.latitude-center.lat)<span&&`${item.hydrantNumber} ${item.address}`.toLowerCase().includes(query.toLowerCase()));},[hydrants,query,center,zoom]);
-  const shownImports=useMemo(()=>imports.filter((item)=>`${item.businessName} ${item.address}`.toLowerCase().includes(query.toLowerCase())),[imports,query]);
+  const shownImports=useMemo(()=>imports.filter((item)=>`${item.businessName} ${item.address}`.toLowerCase().includes(query.toLowerCase())).toSorted((a,b)=>{
+    if(importSort==="completion"){const status=Number(a.status==="completed")-Number(b.status==="completed");if(status)return status;}
+    return a.address.localeCompare(b.address,undefined,{numeric:true})||a.businessName.localeCompare(b.businessName);
+  }),[imports,query,importSort]);
+  const groupedImports=useMemo(()=>[...shownImports.reduce((groups,item)=>{const street=item.address.replace(/^\s*\d+[a-z]?\s+/i,"").replace(/\s+(?:rd|road|st|street|ave|avenue)\.?$/i,(value)=>value.trim()).trim()||"Other";const rows=groups.get(street)??[];rows.push(item);groups.set(street,rows);return groups;},new Map<string,ImportedBuilding[]>())],[shownImports]);
   const current=plans.find((plan)=>plan.id===selected);
   const selectedHydrant=hydrantDraft?.id?hydrants.find((item)=>item.id===hydrantDraft.id):null;
   function edit(plan:Preplan){setSelectedImport("");setSelected(plan.id);setDraft({...plan});setFootprintAccepted(true);setCenter({lat:plan.latitude,lng:plan.longitude});setTab("quick");}
-  function startImportedBuilding(item:ImportedBuilding){if(item.linkedPreplanId){const plan=plans.find((record)=>record.id===item.linkedPreplanId);if(plan)edit(plan);return;}const next=empty(center);setSelectedImport(item.id);setSelected("");setHydrantDraft(null);setDraft({...next,businessName:item.businessName,address:item.address,status:"Imported · Location Required"});setFootprintAccepted(false);setTab("quick");setMode("footprint");setMessage("Imported building loaded. Move the map to the building, place its outside corner points, and accept the footprint.");}
+  function startImportedBuilding(item:ImportedBuilding){if(item.linkedPreplanId){const plan=plans.find((record)=>record.id===item.linkedPreplanId);if(plan)edit(plan);return;}const resolved=item.latitude!=null&&item.longitude!=null?{lat:item.latitude,lng:item.longitude}:center;const next=empty(resolved);setCenter(resolved);setSelectedImport(item.id);setSelected("");setHydrantDraft(null);setDraft({...next,businessName:item.businessName,address:item.address,status:item.latitude!=null?"Imported · Footprint Required":"Imported · Location Required"});setFootprintAccepted(false);setTab("quick");setMode("footprint");setMessage(item.latitude!=null?"Address located. Verify the map position, place the building corners, and accept the footprint.":"Address needs manual placement. Move the map to the building, place its corners, and accept the footprint.");}
+  async function batchGeocode(){
+    setBusy(true);setGeocodeProgress("Starting address lookup…");setMessage("");
+    try{
+      let remaining=1,totalGeocoded=0,totalFailed=0;
+      for(let batch=0;batch<8&&remaining>0;batch+=1){
+        const response=await fetch("/api/field-preplans",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"batchGeocodeImports"})});
+        const body=await response.json() as {processed?:number;geocoded?:number;failed?:number;remaining?:number;error?:string};
+        if(!response.ok)throw new Error(body.error||"Unable to locate imported addresses.");
+        totalGeocoded+=body.geocoded??0;totalFailed+=body.failed??0;remaining=body.remaining??0;
+        setGeocodeProgress(`${totalGeocoded} located · ${totalFailed} need review · ${remaining} remaining`);
+        if(!body.processed)break;
+      }
+      await load();
+      setMessage(`${totalGeocoded} imported addresses located. ${totalFailed} require manual review.`);
+    }catch(error){setMessage(error instanceof Error?error.message:"Unable to locate imported addresses.");}
+    finally{setBusy(false);}
+  }
   function locate(){navigator.geolocation?.getCurrentPosition((position)=>{const point={lat:position.coords.latitude,lng:position.coords.longitude};setCenter(point);if(draft)setDraft({...draft,latitude:point.lat,longitude:point.lng});},()=>setMessage("Location permission is unavailable."),{enableHighAccuracy:true});}
   function clickMap(point:Point){
     if(!draft)return;
@@ -140,7 +162,19 @@ export default function FieldPreplans() {
     {message&&<div className="field-message">{message}</div>}
     <div className="field-map-toolbar"><button onClick={locate}>◎ Current location</button><button className={imagery==="aerial"?"active":""} onClick={()=>setImagery("aerial")}>Aerial</button><button className={imagery==="street"?"active":""} onClick={()=>setImagery("street")}>Streets</button><small>Drag to move · wheel or double-click to zoom</small><em className={`map-provider ${mapProvider}`}>{mapProvider==="google"?"Google Maps":mapProvider==="loading"?"Loading map…":"Backup map"}</em><span/><button aria-label="Zoom out" onClick={()=>setZoom(Math.max(14,zoom-1))}>−</button><b>Zoom {zoom}</b><button aria-label="Zoom in" onClick={()=>setZoom(Math.min(21,zoom+1))}>+</button></div>
     <div className="field-map-layout"><FieldMap apiKey={mapsApiKey} center={center} zoom={zoom} imagery={imagery} plans={mapPlans} hydrants={hydrants} selected={selected} draft={draft} mode={mode} footprintAccepted={footprintAccepted} onMapClick={clickMap} onCenter={setCenter} onZoom={setZoom} onProviderChange={setMapProvider} onHydrantSelect={openHydrant} onSelect={(id)=>{const plan=plans.find((item)=>item.id===id);if(plan)edit(plan);}}/><aside><header><b>Records on map</b><span>{shown.length+shownHydrants.length}</span></header>{shown.map((plan)=><button key={plan.id} className={plan.id===selected?"active":""} onClick={()=>edit(plan)}><strong>{plan.businessName}</strong><span>{plan.address||"A-side GPS location"}</span><small>{plan.status} · {plan.features.length} mapped items</small></button>)}{shownHydrants.map((hydrant)=><button key={hydrant.id} className={hydrant.id===hydrantDraft?.id?"active hydrant-record":"hydrant-record"} onClick={()=>openHydrant(hydrant.id)}><strong><i className={hydrant.serviceStatus}/>{hydrant.hydrantNumber||"Hydrant"}</strong><span>{hydrant.address||`${hydrant.latitude.toFixed(5)}, ${hydrant.longitude.toFixed(5)}`}</span><small>{hydrant.serviceStatus.replaceAll("_"," ")} · {hydrant.flowTests[0]?`${Math.round(hydrant.flowTests[0].availableFlow).toLocaleString()} GPM @ ${hydrant.flowTests[0].desiredResidual} psi`:"Not flow tested"}</small></button>)}{!shown.length&&!shownHydrants.length&&<p>No records match this view.</p>}</aside></div>
-    <section className="imported-building-panel"><header><div><span>IMPORTED FROM {imports[0]?.sourceFile||"BUILDING LIST"}</span><h2>Preplan Starters</h2><p>These are the supplied real building names and addresses. No GPS point, footprint, or system information was invented.</p></div><strong>{imports.filter((item)=>item.status!=="completed").length} need location · {imports.filter((item)=>item.status==="completed").length} completed</strong></header><div>{shownImports.map((item)=><article key={item.id} className={item.status==="completed"?"completed":""}><div><strong>{item.businessName}</strong><span>{item.address}</span><small>Spreadsheet row {item.sourceRow} · {item.status==="completed"?"Preplan completed":"Location and footprint required"}</small></div>{canEdit?<button onClick={()=>startImportedBuilding(item)}>{item.status==="completed"?"Open Preplan":"Locate & Build"}</button>:<span>{item.status==="completed"?"Completed":"Awaiting field capture"}</span>}</article>)}</div>{!shownImports.length&&<p>No imported buildings match this search.</p>}</section>
+    <section className="imported-building-panel">
+      <header>
+        <div><span>BUILDING IMPORT</span><h2>Preplan Starters</h2><p>Address matches are automatic; crews verify the location and capture the footprint.</p></div>
+        <strong>{imports.filter((item)=>item.status==="completed").length} of {imports.length} completed</strong>
+      </header>
+      <div className="imported-building-controls">
+        <label>Sort<select value={importSort} onChange={(event)=>setImportSort(event.target.value as "street"|"completion")}><option value="street">By street</option><option value="completion">Needs work first</option></select></label>
+        {canEdit?<button disabled={busy} onClick={()=>void batchGeocode()}>{busy?"Locating addresses…":"Locate imported addresses"}</button>:null}
+        {geocodeProgress?<span role="status">{geocodeProgress}</span>:null}
+      </div>
+      <div className="imported-street-groups">{groupedImports.map(([street,items])=><section key={street}><h3>{street}<span>{items.length}</span></h3>{items.map((item)=><article key={item.id} className={item.status==="completed"?"completed":item.status==="geocode_failed"?"needs-review":""}><div><strong>{item.businessName}</strong><span>{item.address}</span><small>{item.status==="completed"?"Preplan completed":item.status==="geocoded"?"Address located · footprint required":item.status==="geocode_failed"?"Address needs manual review":"Waiting for address lookup"}</small></div>{canEdit?<button onClick={()=>startImportedBuilding(item)}>{item.status==="completed"?"Open Preplan":item.status==="geocoded"?"Verify & Build":"Locate & Build"}</button>:<span>{item.status==="completed"?"Completed":"Awaiting field capture"}</span>}</article>)}</section>)}</div>
+      {!shownImports.length&&<p>No imported buildings match this search.</p>}
+    </section>
     {hydrantDraft&&<section className="hydrant-editor">
       <header><div><span>WATER SUPPLY</span><h2>{hydrantDraft.hydrantNumber||"Quick Add Hydrant"}</h2><p>{hydrantDraft.address||`${hydrantDraft.latitude.toFixed(6)}, ${hydrantDraft.longitude.toFixed(6)}`}</p></div><nav><button className={hydrantTab==="quick"?"active":""} onClick={()=>setHydrantTab("quick")}>Quick Add</button><button disabled={!hydrantDraft.id} className={hydrantTab==="details"?"active":""} onClick={()=>setHydrantTab("details")}>Hydrant Details</button><button disabled={!hydrantDraft.id} className={hydrantTab==="flush"?"active":""} onClick={()=>setHydrantTab("flush")}>Flushing</button><button disabled={!hydrantDraft.id} className={hydrantTab==="flow"?"active":""} onClick={()=>setHydrantTab("flow")}>NFPA 291 Flow Test</button></nav></header>
       {hydrantTab==="quick"&&<div className="hydrant-quick"><article><HydrantIcon outOfService={hydrantDraft.serviceStatus==="out_of_service"}/><div><strong>GPS location captured</strong><span>{hydrantDraft.latitude.toFixed(6)}, {hydrantDraft.longitude.toFixed(6)}</span><button onClick={addHydrant}>Refresh current location</button></div></article><label>Hydrant ID number<input value={hydrantDraft.hydrantNumber} onChange={(event)=>setHydrantDraft({...hydrantDraft,hydrantNumber:event.target.value})}/></label><label>Nearest address, if available<input value={hydrantDraft.address} onChange={(event)=>setHydrantDraft({...hydrantDraft,address:event.target.value})}/></label><label>Service status<select value={hydrantDraft.serviceStatus} onChange={(event)=>setHydrantDraft({...hydrantDraft,serviceStatus:event.target.value})}><option value="in_service">In service</option><option value="out_of_service">Out of service</option></select></label><button className="primary-action hydrant-add" disabled={busy} onClick={()=>void saveHydrant()}>Save Quick Hydrant</button></div>}

@@ -1,6 +1,6 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 import { chicagoOperationalContext } from "../../operational-day";
-import { rankPreplanMatch } from "../../respond-match";
+import { distanceFeet, normalizeResponseAddress, rankPreplanMatch } from "../../respond-match";
 import { normalizeApparatusUnit, respondingUnitsIncludeUnit } from "../../respond-device";
 import { hasPermission } from "../../server-permissions";
 
@@ -25,7 +25,9 @@ export async function GET(request: Request) {
       const dailyLogCalls = await db.prepare("SELECT report_number reportNumber,call_type callType,'' category,address,'' city,'' narrative,responding_units respondingUnits,NULL longitude,NULL latitude,log_date dispatchedAt,time_out timeOut,'Daily Log' source,log_date receivedAt FROM daily_log_calls WHERE log_date=? AND trim(time_out)<>'' AND trim(time_in)='' ORDER BY sort_order DESC LIMIT 24").bind(date).all<Row>();
       activeCall = dailyLogCalls.results.find((call) => respondingUnitsIncludeUnit(call.respondingUnits, apparatus)) ?? null;
     }
-    if (!activeCall) return Response.json({ activeCall: null, preplan: null, match: null, cadUpdates: [], apparatusFilter: apparatus || null, generatedAt: new Date().toISOString() }, { headers: { "cache-control": "no-store" } });
+    const recentRows = await db.prepare("SELECT report_number reportNumber,call_type callType,address,responding_units respondingUnits,time_out timeOut,time_in timeIn,log_date logDate FROM daily_log_calls WHERE trim(time_in)<>'' ORDER BY log_date DESC,sort_order DESC LIMIT 6").all<Row>();
+    const recentCalls = recentRows.results;
+    if (!activeCall) return Response.json({ activeCall: null, preplan: null, match: null, cadUpdates: [], recentCalls, boxCard: null, nearestHydrants: [], apparatusFilter: apparatus || null, generatedAt: new Date().toISOString() }, { headers: { "cache-control": "no-store" } });
 
     const planRows = await db.prepare("SELECT id,business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,footprint_square_feet footprintSquareFeet,floor_count floorCount,construction_type constructionType,suggested_fire_flow_gpm suggestedFireFlowGpm,suggested_fire_flow_duration suggestedFireFlowDuration,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,status,updated_at updatedAt FROM field_preplans ORDER BY updated_at DESC").all<Row>();
     const plans = planRows.results.map((row) => ({
@@ -69,12 +71,28 @@ export async function GET(request: Request) {
     if (!cadUpdates.length && (activeCall.narrative || activeCall.respondingUnits)) {
       cadUpdates.push({ eventType: "Current dispatch", status: "processed", receivedAt: activeCall.receivedAt, narrative: activeCall.narrative || "", respondingUnits: activeCall.respondingUnits || "" });
     }
+    const [boxRows, hydrantRows] = await Promise.all([
+      db.prepare("SELECT id,title,address,box_number boxNumber,access_notes accessNotes,status FROM box_cards WHERE status='Active' ORDER BY updated_at DESC").all<Row>(),
+      db.prepare("SELECT id,hydrant_number hydrantNumber,address,latitude,longitude,service_status serviceStatus FROM field_hydrants").all<Row>(),
+    ]);
+    const callAddress = normalizeResponseAddress(String(activeCall.address || ""));
+    const boxCard = callAddress ? boxRows.results.find((card) => normalizeResponseAddress(String(card.address || "")) === callAddress) ?? null : null;
+    const point = activeCall.latitude != null && activeCall.longitude != null
+      ? { latitude:Number(activeCall.latitude), longitude:Number(activeCall.longitude) }
+      : matched ? { latitude:Number(matched.plan.latitude), longitude:Number(matched.plan.longitude) } : null;
+    const nearestHydrants = point ? hydrantRows.results.map((hydrant) => ({
+      ...hydrant,
+      distanceFeet:Math.round(distanceFeet(point,{latitude:Number(hydrant.latitude),longitude:Number(hydrant.longitude)})),
+    })).toSorted((a,b)=>a.distanceFeet-b.distanceFeet).slice(0,3) : [];
 
     return Response.json({
       activeCall,
       preplan,
       match: matched ? { method: matched.method, distanceFeet: Math.round(matched.distanceFeet) } : null,
       cadUpdates,
+      recentCalls,
+      boxCard,
+      nearestHydrants,
       apparatusFilter: apparatus || null,
       generatedAt: new Date().toISOString(),
     }, { headers: { "cache-control": "no-store" } });

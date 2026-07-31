@@ -18,8 +18,16 @@ test("supplied building workbook becomes 117 traceable preplan starters", async 
   assert.match(api, /imports:imports\.results/);
   assert.match(api, /linked_preplan_id/);
   assert.match(page, /Preplan Starters/);
-  assert.match(page, /No GPS point, footprint, or system information was invented/);
+  assert.match(page, /Address matches are automatic/);
   assert.match(page, /Locate & Build/);
+  assert.match(page, /Locate imported addresses/);
+  assert.match(page, /groupedImports/);
+  assert.match(page, /of \{imports\.length\} completed/);
+  assert.match(api, /batchGeocodeImports/);
+  assert.match(api, /maps\.googleapis\.com\/maps\/api\/geocode\/json/);
+  assert.match(api, /status='geocoded'/);
+  assert.match(bootstrap, /geocode_note/);
+  assert.equal(importedBuildingSeeds.some((item) => /Harlm|Pershong|Persing Rd/i.test(`${item.address} ${item.businessName}`)), false);
 });
 
 test("multi-point overhead footprints calculate ground square footage", () => {

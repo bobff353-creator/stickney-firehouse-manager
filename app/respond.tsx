@@ -13,9 +13,13 @@ type Preplan = {
   status:string; updatedAt:string; features:Feature[]; photos:Photo[];
 };
 type ActiveCall = { reportNumber:string; callType:string; category:string; address:string; city:string; narrative:string; respondingUnits:string; longitude:number|null; latitude:number|null; dispatchedAt:string; timeOut:string; source:string; receivedAt:string };
+type RecentCall = { reportNumber:string; callType:string; address:string; respondingUnits:string; timeOut:string; timeIn:string; logDate:string };
+type BoxCard = { id:string; title:string; address:string; boxNumber:string; accessNotes:string; status:string };
+type NearbyHydrant = { id:string; hydrantNumber:string; address:string; latitude:number; longitude:number; serviceStatus:string; distanceFeet:number };
 type RespondData = {
   activeCall:ActiveCall|null; preplan:Preplan|null; match:{method:"address"|"gps";distanceFeet:number}|null;
   cadUpdates:Array<{eventType:string;status:string;receivedAt:string;narrative:string;respondingUnits:string}>; apparatusFilter:string|null; generatedAt:string;
+  recentCalls:RecentCall[]; boxCard:BoxCard|null; nearestHydrants:NearbyHydrant[];
 };
 type QuickItem = { id:string; label:string; summary:string; details:string; status?:string; latitude?:number; longitude?:number };
 type RightView = "cad"|"footprint"|"B"|"C"|"D";
@@ -78,7 +82,7 @@ function FootprintDiagram({ preplan, selectedId, onSelect }:{preplan:Preplan;sel
   </div>;
 }
 
-export default function Respond({ apparatus = "" }: { apparatus?: string }) {
+export default function Respond({ apparatus = "", onNavigate }: { apparatus?: string; onNavigate?:(page:"Daily Log"|"Field Preplans"|"Box Cards")=>void }) {
   const [data,setData]=useState<RespondData|null>(null), [error,setError]=useState(""), [view,setView]=useState<RightView>("cad"), [selected,setSelected]=useState<QuickItem|null>(null);
   const [monitorMode,setMonitorMode]=useState(false);
   const pageRef=useRef<HTMLElement>(null);
@@ -102,7 +106,10 @@ export default function Respond({ apparatus = "" }: { apparatus?: string }) {
   const call=data?.activeCall??null, plan=data?.preplan??null, alpha=sidePhoto(plan,"A"), selectedSide=view==="B"||view==="C"||view==="D"?sidePhoto(plan,view):null;
   if(!data&&!error)return <section className="respond-page"><div className="respond-empty"><strong>Loading active response…</strong><span>Checking current CAD and preplan records.</span></div></section>;
   if(error&&!data)return <section className="respond-page"><div className="respond-empty danger"><strong>Respond could not load</strong><span>{error}</span><button onClick={()=>void load()}>Try again</button></div></section>;
-  if(!call)return <section ref={pageRef} className={`respond-page${monitorMode?" monitor-view":""}`}><header className="respond-title"><div><span>FIELD · RESPOND</span><h1>Response Workspace</h1>{apparatus&&<b className="respond-apparatus-badge">Apparatus Mode · Unit {apparatus}</b>}</div><div className="respond-title-actions"><small>Checks every 10 seconds</small><button onClick={()=>void toggleMonitor()}>{monitorMode?"Exit Monitor":"Monitor View"}</button></div></header><div className="respond-empty"><strong>No active call{apparatus?` for Unit ${apparatus}`:""}</strong><span>{apparatus?`This device will show a call only when CAD lists Unit ${apparatus} in responding units.`:"When a CAD call or open Daily Log call is active, its incident and matched preplan will appear here automatically."}</span></div></section>;
+  if(!call)return <section ref={pageRef} className={`respond-page${monitorMode?" monitor-view":""}`}><header className="respond-title"><div><span>FIELD · RESPOND</span><h1>Response Workspace</h1>{apparatus&&<b className="respond-apparatus-badge">Apparatus Mode · Unit {apparatus}</b>}</div><div className="respond-title-actions"><small>Checks every 10 seconds</small><button onClick={()=>void toggleMonitor()}>{monitorMode?"Exit Monitor":"Monitor View"}</button></div></header>
+    <div className="respond-idle-actions"><div><strong>No active call{apparatus?` for Unit ${apparatus}`:""}</strong><span>{apparatus?`A call appears when CAD lists Unit ${apparatus}.`:"Start an incident in the Daily Log or search preplans before a response."}</span></div><button onClick={()=>onNavigate?.("Daily Log")}>Start incident</button><button className="secondary" onClick={()=>onNavigate?.("Field Preplans")}>Search preplans</button></div>
+    <section className="respond-recent"><header><div><span>RECENT ACTIVITY</span><h2>Closed calls</h2></div><small>{data?.recentCalls?.length??0} shown</small></header>{data?.recentCalls?.length?<div>{data.recentCalls.map((recent)=><article key={`${recent.reportNumber}-${recent.logDate}`}><time>{recent.logDate}</time><strong>{recent.callType||"Call type not entered"}</strong><span>{recent.address||"Address not entered"}</span><small>{recent.respondingUnits||"Units not entered"} · {displayTime(recent.timeOut)}</small></article>)}</div>:<div className="respond-empty compact"><strong>No recent closed calls</strong><span>Completed Daily Log calls will appear here.</span></div>}</section>
+  </section>;
   return <section ref={pageRef} className={`respond-page${monitorMode?" monitor-view":""}`}>
     {apparatus&&<div className="respond-apparatus-strip"><strong>APPARATUS RESPOND · UNIT {apparatus}</strong><span>Only CAD incidents assigned to this unit are displayed on this device.</span></div>}
     <header className="respond-callbar">
@@ -111,6 +118,10 @@ export default function Respond({ apparatus = "" }: { apparatus?: string }) {
       <div className="respond-call-actions"><button className="respond-monitor" onClick={()=>void toggleMonitor()} data-test-safe>{monitorMode?"Exit Monitor":"Monitor View"}</button><a className="respond-nav" href={googleNavigation(call)} target="_blank" rel="noreferrer" data-test-safe>Open Google Navigation ↗</a></div>
     </header>
     <div className="respond-statusline"><span className={plan?"matched":"unmatched"}>{plan?`Preplan matched by ${data?.match?.method}${data?.match?.method==="gps"?` · ${data.match.distanceFeet} ft`:""}`:"No matching preplan"}</span><span>Updated {displayTime(data?.generatedAt||"")}</span>{error&&<span className="warning">{error}</span>}</div>
+    <section className="respond-glance" aria-label="Matched response records">
+      <article><span>BOX CARD</span><strong>{data?.boxCard?.title||"No matching box card"}</strong><small>{data?.boxCard?`${data.boxCard.boxNumber||"Number pending"} · ${data.boxCard.accessNotes||data.boxCard.address}`:"Search by the incident address."}</small><button onClick={()=>onNavigate?.("Box Cards")}>Open box cards</button></article>
+      <article><span>NEAREST HYDRANTS</span>{data?.nearestHydrants?.length?<div>{data.nearestHydrants.map((hydrant)=><p key={hydrant.id}><b>{hydrant.hydrantNumber||hydrant.address||"Mapped hydrant"}</b><small>{hydrant.distanceFeet.toLocaleString()} ft · {hydrant.serviceStatus.replaceAll("_"," ")}</small></p>)}</div>:<small>No verified hydrants are mapped near this incident.</small>}<button onClick={()=>onNavigate?.("Field Preplans")}>Open preplans & hydrants</button></article>
+    </section>
     <div className="respond-grid">
       <aside className="respond-intel"><header><span>BUILDING INTELLIGENCE</span><h2>{plan?.businessName||"No preplan found"}</h2><p>{plan?.address||"Use the active-call address while en route."}</p></header>
         {plan&&<div className="respond-building-stats"><span>{Math.round(plan.footprintSquareFeet||0).toLocaleString()} sq ft</span><span>{plan.floorCount||1} floor{plan.floorCount===1?"":"s"}</span>{plan.suggestedFireFlowGpm>0&&<span>{Math.round(plan.suggestedFireFlowGpm).toLocaleString()} GPM suggested</span>}</div>}

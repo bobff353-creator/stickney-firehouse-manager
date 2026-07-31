@@ -37,6 +37,23 @@ function footprint(value:unknown) {
   return value.map(point).filter((item):item is Point => Boolean(item)).slice(0, 80);
 }
 
+async function mapsKey() {
+  const processKey = process.env.GOOGLE_MAPS_GEOCODING_KEY?.trim()
+    || process.env.GOOGLE_MAPS_STREET_VIEW_KEY?.trim()
+    || process.env["Maps Platform API Key"]?.trim();
+  if (processKey) return processKey;
+  try {
+    const { env } = await import("cloudflare:workers");
+    const runtime = env as unknown as Record<string,string|undefined>;
+    return runtime.GOOGLE_MAPS_GEOCODING_KEY?.trim()
+      || runtime.GOOGLE_MAPS_STREET_VIEW_KEY?.trim()
+      || runtime["Maps Platform API Key"]?.trim()
+      || "";
+  } catch {
+    return "";
+  }
+}
+
 export async function GET(request:Request) {
   try {
     const db = await ensureDatabase();
@@ -46,7 +63,7 @@ export async function GET(request:Request) {
       db.prepare("SELECT id,business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,COALESCE(footprint_square_feet,0) footprintSquareFeet,COALESCE(floor_count,1) floorCount,COALESCE(fire_flow_calculation_area,0) fireFlowCalculationArea,COALESCE(construction_type,'VB') constructionType,COALESCE(occupancy_flow_category,'other') occupancyFlowCategory,COALESCE(sprinkler_standard,'none') sprinklerStandard,COALESCE(suggested_fire_flow_gpm,0) suggestedFireFlowGpm,COALESCE(suggested_fire_flow_duration,0) suggestedFireFlowDuration,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,status,updated_by updatedBy,updated_at updatedAt FROM field_preplans ORDER BY updated_at DESC").all(),
       db.prepare("SELECT id,preplan_id preplanId,feature_type featureType,label,latitude,longitude,system_type systemType,service_status serviceStatus,details FROM field_preplan_features ORDER BY created_at").all(),
       db.prepare("SELECT id,preplan_id preplanId,feature_id featureId,side,filename,caption,created_at createdAt FROM field_preplan_photos ORDER BY created_at DESC").all(),
-      db.prepare("SELECT id,business_name businessName,address,source_file sourceFile,source_row sourceRow,status,linked_preplan_id linkedPreplanId FROM field_preplan_imports ORDER BY business_name COLLATE NOCASE,address COLLATE NOCASE").all(),
+      db.prepare("SELECT id,business_name businessName,address,source_file sourceFile,source_row sourceRow,status,latitude,longitude,geocode_note geocodeNote,linked_preplan_id linkedPreplanId FROM field_preplan_imports ORDER BY business_name COLLATE NOCASE,address COLLATE NOCASE").all(),
     ]);
     return Response.json({
       canEdit:auth.canEdit,
@@ -63,6 +80,37 @@ export async function POST(request:Request) {
     if (!auth.canEdit) return Response.json({ error:"Field preplan edit permission is required." }, { status:403 });
     const body = await request.json() as Record<string,unknown>;
     const action = text(body.action, 40);
+    if (action === "batchGeocodeImports") {
+      const key = await mapsKey();
+      if (!key) return Response.json({ error:"Google geocoding is not configured." }, { status:503 });
+      const pending = await db.prepare("SELECT id,address FROM field_preplan_imports WHERE linked_preplan_id IS NULL AND status IN ('location_required','geocode_failed') ORDER BY source_row LIMIT 20").all<{id:string;address:string}>();
+      let geocoded = 0, failed = 0;
+      for (const item of pending.results) {
+        const query = /,\s*(IL|Illinois)\b/i.test(item.address) ? item.address : `${item.address}, Stickney, IL`;
+        const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
+        url.searchParams.set("address", query);
+        url.searchParams.set("components", "country:US");
+        url.searchParams.set("key", key);
+        try {
+          const response = await fetch(url, { cache:"no-store" });
+          const result = await response.json() as {status?:string;results?:Array<{formatted_address?:string;geometry?:{location?:{lat?:number;lng?:number}}}>};
+          const location = result.results?.[0]?.geometry?.location;
+          const latitude = Number(location?.lat), longitude = Number(location?.lng);
+          if (response.ok && result.status === "OK" && latitude >= 41 && latitude <= 42.5 && longitude >= -88.5 && longitude <= -87) {
+            await db.prepare("UPDATE field_preplan_imports SET latitude=?,longitude=?,geocode_note=?,status='geocoded',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(latitude,longitude,text(result.results?.[0]?.formatted_address,240),item.id).run();
+            geocoded += 1;
+          } else {
+            await db.prepare("UPDATE field_preplan_imports SET latitude=NULL,longitude=NULL,geocode_note=?,status='geocode_failed',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(text(result.status||"No matching address",240),item.id).run();
+            failed += 1;
+          }
+        } catch {
+          await db.prepare("UPDATE field_preplan_imports SET latitude=NULL,longitude=NULL,geocode_note='Geocoding request failed',status='geocode_failed',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(item.id).run();
+          failed += 1;
+        }
+      }
+      const remaining = await db.prepare("SELECT COUNT(*) total FROM field_preplan_imports WHERE linked_preplan_id IS NULL AND status='location_required'").first<{total:number}>();
+      return Response.json({ ok:true, processed:pending.results.length, geocoded, failed, remaining:Number(remaining?.total||0) });
+    }
     if (action === "savePreplan") {
       const id = text(body.id, 80) || crypto.randomUUID();
       const importId = text(body.importId, 80);

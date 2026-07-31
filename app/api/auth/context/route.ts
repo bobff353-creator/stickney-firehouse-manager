@@ -8,8 +8,13 @@ export async function GET() {
   if (!email || !departmentId) {
     return Response.json({ error: "An approved department account is required." }, { status: 401 });
   }
-  return Response.json(
+  const response = Response.json(
     { email, departmentId, role: role || "member" },
     { headers: { "Cache-Control": "private, no-store, max-age=0" } },
   );
+  response.headers.append(
+    "Set-Cookie",
+    "__Secure-firehouse-access=verified; Path=/; Max-Age=300; SameSite=Lax; Secure",
+  );
+  return response;
 }

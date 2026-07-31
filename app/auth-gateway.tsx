@@ -1,52 +1,97 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import PayrollApp from "./payroll-app";
 import { getSupabaseBrowserClient } from "./supabase-browser";
 
 type Mode = "loading" | "sign-in" | "sign-up" | "checking" | "authorized" | "waiting";
 
-export default function AuthGateway() {
-  const [mode, setMode] = useState<Mode>("loading");
+function clearAccessCache() {
+  document.cookie = "__Secure-firehouse-access=; Path=/; Max-Age=0; SameSite=Lax; Secure";
+}
+
+export default function AuthGateway({
+  initiallyVerified,
+}: {
+  initiallyVerified: boolean;
+}) {
+  const [mode, setMode] = useState<Mode>(initiallyVerified ? "authorized" : "loading");
   const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
+  const accessCheckRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     const client = getSupabaseBrowserClient();
     void client.auth.getUser().then(({ data }) => {
-      if (data.user) void checkAccess(data.user);
-      else setMode("sign-in");
+      if (data.user) void checkAccess(data.user, !initiallyVerified);
+      else {
+        clearAccessCache();
+        setMode("sign-in");
+      }
     });
-    const { data } = client.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) void checkAccess(session.user);
+    const { data } = client.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT" || !session?.user) {
+        if (event === "SIGNED_OUT") {
+          clearAccessCache();
+          setUser(null);
+          setMode("sign-in");
+        }
+        return;
+      }
+      if (event === "SIGNED_IN") {
+        void checkAccess(session.user, !initiallyVerified);
+      } else if (event === "USER_UPDATED" || event === "TOKEN_REFRESHED") {
+        void checkAccess(session.user, false);
+      }
     });
     return () => data.subscription.unsubscribe();
+    // Access checks deliberately key off auth events; routine refreshes stay non-blocking.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function checkAccess(nextUser: User) {
-    setUser(nextUser);
-    setMode("checking");
-    const response = await fetch("/api/auth/context", { cache: "no-store" });
-    if (response.ok) {
-      setMode("authorized");
-      setMessage("");
-      return;
+  async function checkAccess(nextUser: User, blocking = true) {
+    if (accessCheckRef.current) return accessCheckRef.current;
+    const request = (async () => {
+      setUser(nextUser);
+      if (blocking) setMode("checking");
+      try {
+        const response = await fetch("/api/auth/context", { cache: "no-store" });
+        if (response.ok) {
+          setMode("authorized");
+          setMessage("");
+          return;
+        }
+        const payload = await response.json().catch(() => ({})) as { error?: string };
+        if (response.status === 403) {
+          clearAccessCache();
+          setMode("waiting");
+          setMessage(payload.error || "A department administrator must approve access.");
+          return;
+        }
+        if (response.status !== 401 && !blocking) return;
+        clearAccessCache();
+        await getSupabaseBrowserClient().auth.signOut();
+        setUser(null);
+        setMode("sign-in");
+        setMessage(payload.error || "Your session expired. Please sign in again.");
+      } catch {
+        if (blocking) {
+          setMode("sign-in");
+          setMessage("Department access could not be verified. Check the connection and try again.");
+        }
+      }
+    })();
+    accessCheckRef.current = request;
+    try {
+      await request;
+    } finally {
+      accessCheckRef.current = null;
     }
-    const payload = await response.json().catch(() => ({})) as { error?: string };
-    if (response.status === 403) {
-      setMode("waiting");
-      setMessage(payload.error || "Your email is confirmed. A department administrator must approve access.");
-      return;
-    }
-    await getSupabaseBrowserClient().auth.signOut();
-    setUser(null);
-    setMode("sign-in");
-    setMessage(payload.error || "Your session expired. Please sign in again.");
   }
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
@@ -112,6 +157,7 @@ export default function AuthGateway() {
   }
 
   async function signOut() {
+    clearAccessCache();
     await getSupabaseBrowserClient().auth.signOut();
     setUser(null);
     setMode("sign-in");

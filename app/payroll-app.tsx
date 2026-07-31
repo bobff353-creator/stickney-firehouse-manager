@@ -57,7 +57,7 @@ type PayrollData = {
   settings: { overtimeThreshold: number; actingOfficerPremium: number; dpwMultiplier: number };
   viewer: { email: string; isAdmin: boolean; employeeId: string | null; displayName: string };
 };
-type GlobalSearchItem = { id: string; type: "Employee" | "Contact" | "Policy" | "Box Card" | "Important Number"; title: string; detail: string; page: NavItem };
+type GlobalSearchItem = { id: string; type: "Employee" | "Contact" | "Policy" | "Box Card" | "Important Number" | "Preplan" | "Screen"; title: string; detail: string; page: NavItem };
 type IconName = "home" | "log" | "box" | "users" | "phone" | "payroll" | "clock" | "rates" | "document" | "holiday" | "settings" | "search" | "bell" | "menu" | "close" | "filter" | "export" | "back" | "next" | "save" | "warning" | "chevron";
 
 type NavItem = "Dashboard" | "Command Center" | "Operations Board" | "Activity Timeline" | "Respond" | "Command Board" | "Field Preplans" | "Scheduling" | "Payroll" | "Work Details" | "Daily Log" | "Timesheets" | "My Timesheet" | "Employees" | "Employee Contacts" | "Policies" | "Box Cards" | "Holiday Policy" | "Daily Duties" | "Inventory" | "Phone Numbers" | "Rates & Rules" | "Departments" | "Permissions" | "CAD Integration" | "Respond Device Modes" | "Test View";
@@ -75,7 +75,7 @@ const adminNavGroups: Array<{ label: string; icon: IconName; items: Array<{ labe
   { label: "Settings", icon: "settings", items: [{ label: "Departments", page: "Departments" }, { label: "Important Phone Numbers", page: "Phone Numbers" }, { label: "Permissions", page: "Permissions" }, { label: "CIS CAD Integration", page: "CAD Integration" }, { label: "Respond Device Modes", page: "Respond Device Modes" }, { label: "Test as Member", page: "Test View" }] },
 ];
 const navPermission: Partial<Record<NavItem, string>> = { Dashboard: "dashboard.view", "Command Center": "command_center.view", "Operations Board": "operations_board.view", "Activity Timeline": "command_center.view", Respond: "field_preplans.view", "Command Board": "incident_command.view", "Field Preplans": "field_preplans.view", Scheduling: "scheduling.view", Payroll: "payroll.manage", "Work Details": "scheduling.manage", "Daily Log": "daily_log.view", Timesheets: "payroll.manage", "My Timesheet": "payroll.view_own", Employees: "employees.manage", "Employee Contacts": "contacts.view", Policies: "documents.view", "Box Cards": "documents.view", "Holiday Policy": "documents.view", "Daily Duties": "documents.view", Inventory: "documents.view", "Phone Numbers": "settings.manage", "Rates & Rules": "payroll.manage", Departments: "settings.manage", Permissions: "permissions.manage", "CAD Integration": "permissions.manage", "Respond Device Modes": "settings.manage", "Test View": "permissions.manage" };
-const inventoryUrl = "https://inventory-360-command.bobff353.chatgpt.site/";
+const inventoryUrl = "/inventory";
 const memberStationDutyItems = new Set<NavItem>(["Daily Duties", "Inventory"]);
 const emptyEmployee: EmployeeForm = {
   lastName: "", firstName: "", payScaleId: "firefighter", employeeNumber: "", startDate: "", endDate: "", dateOfBirth: "",
@@ -212,6 +212,7 @@ export default function PayrollApp({
   const [employeeDraft, setEmployeeDraft] = useState<EmployeeForm>(emptyEmployee);
   const [profileOpen, setProfileOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [openNavGroups, setOpenNavGroups] = useState<Set<string>>(() => new Set(["Operations", "Field"]));
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
   const [sharedSearchItems, setSharedSearchItems] = useState<GlobalSearchItem[]>([]);
@@ -304,20 +305,42 @@ export default function PayrollApp({
     if (sharedSearchItems.length || globalSearchLoading) return;
     setGlobalSearchLoading(true);
     try {
-      const [policiesResponse, boxCardsResponse, numbersResponse] = await Promise.all([
-        fetch("/api/resources?type=policy"), fetch("/api/resources?type=boxCard"), fetch("/api/phone-numbers"),
+      const [policiesResponse, boxCardsResponse, numbersResponse, preplansResponse] = await Promise.all([
+        fetch("/api/resources?type=policy"), fetch("/api/resources?type=boxCard"), fetch("/api/phone-numbers"), fetch("/api/field-preplans"),
       ]);
-      const [policies, boxCards, numbers] = await Promise.all([policiesResponse.json(), boxCardsResponse.json(), numbersResponse.json()]) as [
-        { items?: Array<Record<string, string>> }, { items?: Array<Record<string, string>> }, { numbers?: Array<Record<string, string>> },
+      const [policies, boxCards, numbers, preplans] = await Promise.all([policiesResponse.json(), boxCardsResponse.json(), numbersResponse.json(), preplansResponse.json()]) as [
+        { items?: Array<Record<string, string>> }, { items?: Array<Record<string, string>> }, { numbers?: Array<Record<string, string>> }, { preplans?: Array<Record<string, string>> },
       ];
+      const searchableScreens = testMember
+        ? adminNavItems.filter((item) => !navPermission[item] || testMember.effectivePermissions.includes(navPermission[item]!))
+        : data?.viewer.isAdmin
+          ? adminNavItems
+          : viewerPermissions
+            ? adminNavItems.filter((item) => !navPermission[item] || viewerPermissions.includes(navPermission[item]!))
+            : employeeNavItems;
       setSharedSearchItems([
+        ...searchableScreens.map((page) => ({ id: `screen-${page}`, type: "Screen" as const, title: page, detail: `Open ${page}`, page })),
         ...(policies.items ?? []).map((item) => ({ id: `policy-${item.id}`, type: "Policy" as const, title: item.title, detail: [item.policyNumber, item.category, item.body].filter(Boolean).join(" · "), page: "Policies" as const })),
         ...(boxCards.items ?? []).map((item) => ({ id: `box-${item.id}`, type: "Box Card" as const, title: item.title, detail: [item.boxNumber, item.address, item.accessNotes, item.details].filter(Boolean).join(" · "), page: "Box Cards" as const })),
         ...(numbers.numbers ?? []).map((item) => ({ id: `phone-${item.id}`, type: "Important Number" as const, title: item.name, detail: [item.emergencyNumber, item.nonEmergencyNumber, item.notes].filter(Boolean).join(" · "), page: "Phone Numbers" as const })),
+        ...(preplans.preplans ?? []).map((item) => ({ id: `preplan-${item.id}`, type: "Preplan" as const, title: item.businessName || item.address, detail: [item.address, item.status].filter(Boolean).join(" · "), page: "Field Preplans" as const })),
       ]);
     } catch { setSharedSearchItems([]); }
     finally { setGlobalSearchLoading(false); }
-  }, [globalSearchLoading, sharedSearchItems.length]);
+  }, [data, globalSearchLoading, sharedSearchItems.length, testMember, viewerPermissions]);
+
+  useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        void openGlobalSearch();
+      } else if (event.key === "Escape") {
+        setGlobalSearchOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleShortcut);
+    return () => window.removeEventListener("keydown", handleShortcut);
+  }, [openGlobalSearch]);
 
   const entryValue = useCallback((employeeId: string, workDate: string, category: Category) => {
     return data?.entries.find((entry) => entry.employeeId === employeeId && entry.workDate === workDate && entry.category === category)?.hours ?? 0;
@@ -605,6 +628,14 @@ export default function PayrollApp({
     setGlobalSearch("");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
+  function toggleNavGroup(group: string) {
+    setOpenNavGroups((current) => {
+      const next = new Set(current);
+      if (next.has(group)) next.delete(group);
+      else next.add(group);
+      return next;
+    });
+  }
   function changeTestMember(member: { id: string; name: string; rank: string; effectivePermissions: string[] } | null) {
     setTestMember(member);
     if (member) {
@@ -630,8 +661,8 @@ export default function PayrollApp({
           {visibleNav.includes("Dashboard") && <button className={activeNav === "Dashboard" ? "current" : ""} onClick={() => navigate("Dashboard")}><Icon name="home"/><span>Dashboard</span></button>}
           {isAdminView ? visibleAdminGroups.map((group) => (
             <section key={group.label}>
-              <h2>{group.label}</h2>
-              {group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><Icon name={navIcons[item.page]}/><span>{item.label}</span></button>)}
+              <button className="sidebar-group-toggle" aria-expanded={openNavGroups.has(group.label)} onClick={() => toggleNavGroup(group.label)}><Icon name={group.icon}/><span>{group.label}</span><Icon name="chevron" size={14}/></button>
+              {openNavGroups.has(group.label) ? <div className="sidebar-group-items">{group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><Icon name={navIcons[item.page]}/><span>{item.label}</span></button>)}</div> : null}
             </section>
           )) : (
             <>
@@ -668,6 +699,16 @@ export default function PayrollApp({
           </div>
         </nav>}
       </header>
+
+      <nav className="mobile-bottom-tabs" aria-label="Primary mobile navigation">
+        {([
+          ["Dashboard", "Dashboard", "home"],
+          ["Scheduling", "Schedule", "clock"],
+          ["Daily Log", "Daily Log", "log"],
+          ["Respond", "Respond", "warning"],
+        ] as Array<[NavItem, string, IconName]>).filter(([page]) => visibleNav.includes(page)).map(([page,label,icon]) => <button key={page} className={activeNav===page?"current":""} onClick={() => navigate(page)}><Icon name={icon}/><span>{label}</span></button>)}
+        <button className={mobileMenuOpen?"current":""} aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen((current) => !current)}><Icon name="menu"/><span>More</span></button>
+      </nav>
 
       {globalSearchOpen && <div className="global-search-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setGlobalSearchOpen(false); }}><section className="global-search-dialog" role="dialog" aria-modal="true" aria-labelledby="global-search-title"><div className="global-search-head"><div><p className="eyebrow">Department-wide search</p><h2 id="global-search-title">Find anything</h2></div><button aria-label="Close search" onClick={() => setGlobalSearchOpen(false)}><Icon name="close"/></button></div><label className="global-search-input"><Icon name="search"/><input autoFocus value={globalSearch} onChange={(event) => setGlobalSearch(event.target.value)} placeholder="Search employees, contacts, policies, Box Cards, or important numbers…" /></label><div className="global-search-results">{globalSearchLoading ? <div className="global-search-empty">Loading shared information…</div> : !globalSearch.trim() ? <div className="global-search-empty">Start typing a name, address, policy, card number, or phone number.</div> : globalSearchResults.length ? globalSearchResults.map((item) => <button key={item.id} onClick={() => navigate(item.page)}><span className={`search-type ${item.type.toLowerCase().replace(" ", "-")}`}>{item.type}</span><strong>{item.title}</strong><small>{item.detail || `Open ${item.page}`}</small><b aria-hidden="true"><Icon name="chevron" size={18}/></b></button>) : <div className="global-search-empty">No results found for “{globalSearch}”.</div>}</div></section></div>}
       <ConfirmDialog open={finalizeConfirmOpen} title="Finalize this payroll period?" description={`This will lock payroll for ${data ? periodLabel(data.period.startDate, data.period.endDate) : "the selected period"}. Timesheets will become read only and additional changes will require an administrator workflow.`} confirmLabel="Finalize Payroll" tone="warning" busy={finalizing} onCancel={() => setFinalizeConfirmOpen(false)} onConfirm={() => void finalizePayroll()} />
@@ -742,7 +783,7 @@ export default function PayrollApp({
           }} />}
 
           {activeNav === "Activity Timeline" && <ActivityTimeline />}
-          {activeNav === "Respond" && <Respond apparatus={respondDeviceSettings.mode === "apparatus" ? respondDeviceSettings.apparatus : ""} />}
+          {activeNav === "Respond" && <Respond apparatus={respondDeviceSettings.mode === "apparatus" ? respondDeviceSettings.apparatus : ""} onNavigate={(page) => navigate(page)} />}
           {activeNav === "Command Board" && <IncidentCommandBoard />}
           {activeNav === "Field Preplans" && <FieldPreplans />}
           {activeNav === "Respond Device Modes" && data.viewer.isAdmin && <RespondDeviceSettingsPage onSaved={(settings) => {
@@ -751,7 +792,7 @@ export default function PayrollApp({
           }} />}
           {respondAlertCallId && activeNav === "Operations Board" && <div className="respond-auto-alert" role="dialog" aria-modal="true" aria-label="New active call Respond view">
             <header><div><strong>NEW ACTIVE CALL · RESPOND</strong><span>Returning to Live Operations in {respondAlertSeconds} seconds</span></div><button type="button" onClick={() => setRespondAlertCallId("")}>Return now</button></header>
-            <Respond />
+            <Respond onNavigate={(page) => navigate(page)} />
           </div>}
 
           {(activeNav === "Timesheets" || activeNav === "My Timesheet") && selectedEmployee && selectedSummary && <div className={data.period.status === "finalized" ? "record-finalized" : "record-editable"}>{data.period.status === "finalized" && <div className="record-state-banner finalized"><span className="state-lock" aria-hidden="true">🔒</span><div><strong>Finalized timesheet · Read only</strong><span>This timesheet belongs to a closed payroll period.</span></div></div>}<section className="content-card timesheet-card">

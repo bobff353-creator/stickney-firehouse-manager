@@ -7,6 +7,8 @@ const payrollApp = readFileSync(new URL("../app/payroll-app.tsx", import.meta.ur
 const styles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 const proxy = readFileSync(new URL("../proxy.ts", import.meta.url), "utf8");
 const confirmation = readFileSync(new URL("../app/auth/confirm/route.ts", import.meta.url), "utf8");
+const authContext = readFileSync(new URL("../app/api/auth/context/route.ts", import.meta.url), "utf8");
+const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 
 test("verified email and password login requires confirmation and department approval", () => {
   assert.match(gateway, /Firehouse Manager/);
@@ -16,6 +18,16 @@ test("verified email and password login requires confirmation and department app
   assert.match(gateway, /department administrator must approve access/i);
   assert.match(confirmation, /exchangeCodeForSession/);
   assert.match(confirmation, /verifyOtp/);
+});
+
+test("recently verified access stays mounted during silent token revalidation", () => {
+  assert.match(authContext, /__Secure-firehouse-access=verified/);
+  assert.match(page, /recentlyVerified/);
+  assert.match(gateway, /initiallyVerified \? "authorized" : "loading"/);
+  assert.match(gateway, /event === "TOKEN_REFRESHED"/);
+  assert.match(gateway, /checkAccess\(session\.user, false\)/);
+  assert.match(gateway, /response\.status !== 401 && !blocking/);
+  assert.doesNotMatch(gateway, /TOKEN_REFRESHED"\) \{\s*setMode\("checking"\)/);
 });
 
 test("verified account sign out lives in the scrolling navigation", () => {

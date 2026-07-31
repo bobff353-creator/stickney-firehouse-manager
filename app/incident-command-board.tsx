@@ -260,14 +260,34 @@ export default function IncidentCommandBoard() {
   };
 
   if (loading && !data) return <section ref={boardRef} className="icb-page"><div className="icb-empty"><strong>Loading Command Board…</strong><span>Checking the active incident and command record.</span></div></section>;
-  if (!data?.incident || !state) return <section ref={boardRef} className="icb-page">
+  if (!data?.incident || !state) return <section ref={boardRef} className="icb-page icb-reference icb-idle">
     <header className="icb-reference-header">
       <button className="icb-brand" onClick={() => { window.location.href = window.location.pathname; }} aria-label="Return to operations portal"><b>SFD</b><span><small>STICKNEY FIRE DEPARTMENT</small><strong>COMMAND BOARD</strong></span></button>
       <div className="icb-no-call">NO ACTIVE INCIDENT</div>
       <button className="icb-fullscreen" onClick={() => void toggleFullscreen()}>{isFullscreen ? "EXIT FULL SCREEN" : "FULL SCREEN"}</button>
     </header>
     {notice && <div className="icb-notice">{notice}<button onClick={() => void load()}>Retry</button></div>}
-    <div className="icb-empty"><strong>Awaiting CAD incident</strong><span>No sample call or unit data has been added.</span></div>
+    <div className="icb-idle-body">
+      <div className="icb-idle-copy">
+        <small>COMMAND WORKSPACE READY</small>
+        <strong>Awaiting CAD incident</strong>
+        <span>The active board will populate from the verified call, assigned units, and department command record.</span>
+        <div>
+          <span><i /> Incident and preplan</span>
+          <span><i /> Units and assignments</span>
+          <span><i /> PAR and benchmarks</span>
+        </div>
+      </div>
+      <section className="icb-idle-preview" aria-label="Command Board active-incident layout preview">
+        <header><span>ACTIVE-INCIDENT LAYOUT</span><b>PREVIEW · NOT ACTIVE</b></header>
+        <div className="icb-preview-address"><small>INCIDENT HEADER</small><strong>CAD address and call type</strong><span>Report number · elapsed time · radio channel</span></div>
+        <div className="icb-preview-grid">
+          <article><small>UNITS & ASSIGNMENTS</small><b>Responding and on-scene crews</b><span>Command roles · staging · tactical location</span></article>
+          <article><small>PAR / ACCOUNTABILITY</small><b>Countdown and crew confirmations</b><span>RIT · rehab · MAYDAY status</span></article>
+          <article><small>TACTICAL BENCHMARKS</small><b>Searches, utilities, and fire control</b><span>Timestamped actions from command</span></article>
+        </div>
+      </section>
+    </div>
   </section>;
 
   const confirmCopy = confirm?.kind === "mayday"

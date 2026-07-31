@@ -39,6 +39,11 @@ test("places Inventory under Station Duties without 360 branding", async () => {
 
   assert.match(source, /label: "Station Duties"/);
   assert.match(source, /\{ label: "Inventory", page: "Inventory" \}/);
-  assert.match(source, /inventory-360-command\.bobff353\.chatgpt\.site/);
+  assert.match(source, /const inventoryUrl = "\/inventory"/);
+  assert.match(source, /sidebar-group-toggle/);
+  assert.match(source, /mobile-bottom-tabs/);
+  assert.match(source, /type: "Preplan"/);
+  assert.match(source, /type: "Screen"/);
+  assert.doesNotMatch(source, /inventory-360-command\.bobff353\.chatgpt\.site/);
   assert.doesNotMatch(source, /label: "Inventory 360"/);
 });
