@@ -769,7 +769,10 @@ function DigitalTwinBuilder({
     xBasisPoints: number;
     yBasisPoints: number;
   } | null>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraVideoRef = useRef<HTMLVideoElement>(null);
 
   const unlinkedUnits = suiteApparatus.filter((unit) => (
     !matchingTwin(unit, data.apparatus)
@@ -913,7 +916,22 @@ function DigitalTwinBuilder({
     }
   }
 
-  function openCamera(nextViewKey?: string, nextDoorState?: string) {
+  useEffect(() => {
+    if (cameraVideoRef.current && cameraStream) {
+      cameraVideoRef.current.srcObject = cameraStream;
+    }
+    return () => {
+      cameraStream?.getTracks().forEach((track) => track.stop());
+    };
+  }, [cameraStream]);
+
+  function closeCamera() {
+    cameraStream?.getTracks().forEach((track) => track.stop());
+    setCameraStream(null);
+    setCameraOpen(false);
+  }
+
+  async function openCamera(nextViewKey?: string, nextDoorState?: string) {
     if (!effectiveApparatusId) {
       setError("Save the apparatus in Step 1 before taking photographs.");
       window.document.getElementById("apparatus-name")?.focus();
@@ -923,10 +941,56 @@ function DigitalTwinBuilder({
     if (nextDoorState) setDoorState(nextDoorState);
     setError("");
     setPhotoFile(null);
-    if (cameraInputRef.current) {
-      cameraInputRef.current.value = "";
-      cameraInputRef.current.click();
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError("Live camera is not supported in this browser. Use Choose existing photo instead.");
+      return;
     }
+    setCameraOpen(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+        audio: false,
+      });
+      setCameraStream(stream);
+    } catch {
+      setCameraOpen(false);
+      setError("Camera access was not allowed. Enable camera permission or use Choose existing photo.");
+    }
+  }
+
+  async function captureCameraPhoto() {
+    const video = cameraVideoRef.current;
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      setError("The camera is still starting. Wait for the preview, then try again.");
+      return;
+    }
+    const canvas = window.document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      setError("The camera image could not be captured.");
+      return;
+    }
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => (
+      canvas.toBlob(resolve, "image/jpeg", 0.92)
+    ));
+    if (!blob) {
+      setError("The camera image could not be captured.");
+      return;
+    }
+    setPhotoFile(new File(
+      [blob],
+      `${viewKey}-${doorState}-${Date.now()}.jpg`,
+      { type: "image/jpeg" },
+    ));
+    closeCamera();
+    notify("Photo captured. Press Save photo for review.");
   }
 
   async function approvePhoto(photoId: string) {
@@ -1134,7 +1198,7 @@ function DigitalTwinBuilder({
                 type="button"
                 key={`${key}-${state}`}
                 className={photo ? "captured" : ""}
-                onClick={() => openCamera(key, state)}
+                onClick={() => void openCamera(key, state)}
                 aria-label={`Take ${label} photo with rear camera`}
               >
                 <b>{photo ? "SAVED" : "PHOTO REQUIRED"}</b>
@@ -1170,21 +1234,28 @@ function DigitalTwinBuilder({
             </select>
           </label>
           <label className="file-field">
-            Take apparatus photo
+            Choose existing apparatus photo
             <input
-              ref={cameraInputRef}
+              ref={fileInputRef}
               type="file"
               accept="image/*"
-              capture="environment"
-              aria-label="Take apparatus photo with rear camera"
+              aria-label="Choose existing apparatus photo"
               onChange={(event) => setPhotoFile(event.target.files?.[0] || null)}
             />
             <small>
               {photoFile
                 ? `${photoFile.name} ready to upload.`
-                : "Phone/iPad: use the rear camera. Desktop: choose an existing image."}
+                : "Use this only when selecting a photo already saved on the device."}
             </small>
           </label>
+          <button
+            type="button"
+            className="secondary"
+            disabled={!effectiveApparatusId}
+            onClick={() => void openCamera()}
+          >
+            Open rear camera
+          </button>
           <button
             className="primary"
             disabled={!effectiveApparatusId || !photoFile || busy === "photo"}
@@ -1305,7 +1376,7 @@ function DigitalTwinBuilder({
             <button
               type="button"
               className="primary"
-              onClick={() => openCamera()}
+              onClick={() => void openCamera()}
             >
               Take photo for hotspots
             </button>
@@ -1325,6 +1396,32 @@ function DigitalTwinBuilder({
           {busy === "hotspot" ? "Saving hotspot..." : "Save hotspot"}
         </button>
       </section>
+      {cameraOpen ? (
+        <div className="camera-overlay" role="dialog" aria-modal="true" aria-label="Rear camera">
+          <div className="camera-panel">
+            <header>
+              <div>
+                <span className="eyebrow">LIVE REAR CAMERA</span>
+                <h3>{titleCase(viewKey)} · {titleCase(doorState)}</h3>
+              </div>
+              <button type="button" onClick={closeCamera}>Cancel</button>
+            </header>
+            {cameraStream ? (
+              <video ref={cameraVideoRef} autoPlay playsInline muted />
+            ) : (
+              <div className="camera-starting" role="status">Starting camera…</div>
+            )}
+            <button
+              type="button"
+              className="primary camera-shutter"
+              disabled={!cameraStream}
+              onClick={() => void captureCameraPhoto()}
+            >
+              Capture photo
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

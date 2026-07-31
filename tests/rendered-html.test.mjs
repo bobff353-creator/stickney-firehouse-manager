@@ -33,13 +33,15 @@ test("ships a real-photo Fleet digital twin with mobile camera capture", async (
 
   assert.match(component, /DIGITAL TWIN BUILDER/);
   assert.match(component, /Photo Required/i);
-  assert.match(component, /Take apparatus photo/);
+  assert.match(component, /Open rear camera/);
+  assert.match(component, /Capture photo/);
   assert.match(component, /accept="image\/\*"/);
-  assert.match(component, /capture="environment"/);
-  assert.match(component, /Phone\/iPad: use the rear camera/);
+  assert.match(component, /navigator\.mediaDevices\.getUserMedia/);
+  assert.match(component, /facingMode: \{ ideal: "environment" \}/);
+  assert.match(component, /Choose existing apparatus photo/);
   assert.match(component, /Take photo for hotspots/);
   assert.match(component, /Tap to open camera/);
-  assert.match(component, /cameraInputRef\.current\.click/);
+  assert.match(component, /cameraVideoRef/);
   assert.match(component, /Save apparatus to Inventory/);
   assert.match(component, /Save compartment/);
   assert.match(component, /Save photo for review/);
