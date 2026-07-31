@@ -30,6 +30,37 @@ type JsonDispatch = {
 
 const clean = (value: unknown) => String(value ?? "").trim();
 
+function chicagoLocalTimestamp(value: string) {
+  const cleaned = value.trim();
+  if (!cleaned) return null;
+  if (/[zZ]$|[+-]\d{2}:?\d{2}$/.test(cleaned)) {
+    const explicit = new Date(cleaned);
+    return Number.isNaN(explicit.getTime()) ? null : explicit;
+  }
+  const match = cleaned.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) {
+    const parsed = new Date(cleaned);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  const requested = {
+    year: Number(match[1]), month: Number(match[2]), day: Number(match[3]),
+    hour: Number(match[4]), minute: Number(match[5]), second: Number(match[6] || 0),
+  };
+  let instant = Date.UTC(requested.year, requested.month - 1, requested.day, requested.hour, requested.minute, requested.second);
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
+  });
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const parts = formatter.formatToParts(new Date(instant));
+    const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((item) => item.type === type)?.value || 0);
+    const shown = Date.UTC(part("year"), part("month") - 1, part("day"), part("hour"), part("minute"), part("second"));
+    instant += Date.UTC(requested.year, requested.month - 1, requested.day, requested.hour, requested.minute, requested.second) - shown;
+  }
+  const parsed = new Date(instant);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function coordinates(value: unknown): [number | null, number | null] {
   if (!Array.isArray(value) || value.length < 2) return [null, null];
   const longitude = Number(value[0]), latitude = Number(value[1]);
@@ -79,7 +110,7 @@ export function parseDispatchText(text: string): DispatchIncident | null {
   const [longitude, latitude] = coordinates(parsedCoordinates);
   const city = fields.get("city") || "";
   const location = fields.get("location") || "";
-  const timestamp = new Date((fields.get("timestamp") || "").replace(" ", "T") + "Z");
+  const timestamp = chicagoLocalTimestamp(fields.get("timestamp") || "");
   return {
     incidentId,
     callType,
@@ -90,6 +121,6 @@ export function parseDispatchText(text: string): DispatchIncident | null {
     units: fields.get("dispatch") || "",
     longitude,
     latitude,
-    dispatchedAt: Number.isNaN(timestamp.getTime()) ? new Date().toISOString() : timestamp.toISOString(),
+    dispatchedAt: timestamp ? timestamp.toISOString() : new Date().toISOString(),
   };
 }
