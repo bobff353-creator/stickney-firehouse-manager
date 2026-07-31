@@ -219,14 +219,18 @@ export async function POST(request: Request) {
         }
       }
 
-      const { data: prior } = await supabase
+      let priorQuery = supabase
         .from("inventory_photo_views")
         .select("id,version_number")
         .eq("department_id", departmentId)
         .eq("apparatus_id", apparatusId)
         .eq("view_key", viewKey)
         .eq("door_state", doorState)
-        .is("replaced_at", null)
+        .is("replaced_at", null);
+      priorQuery = compartmentId
+        ? priorQuery.eq("compartment_id", compartmentId)
+        : priorQuery.is("compartment_id", null);
+      const { data: prior } = await priorQuery
         .order("version_number", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -362,6 +366,73 @@ export async function POST(request: Request) {
       await audit(session.context, "compartment.created", "compartment", id, row, request);
       return privateJson({ compartment: row }, 201);
     }
+    if (action === "update_compartment") {
+      const compartmentId = clean(body.compartmentId, 80);
+      const apparatusId = clean(body.apparatusId, 80);
+      const label = clean(body.label);
+      const side = clean(body.side, 40);
+      if (!compartmentId || !apparatusId || !label || !sides.has(side)) {
+        return privateJson({ error: "Compartment, apparatus, label, and valid side are required." }, 400);
+      }
+      const changes = {
+        label,
+        side,
+        sort_order: Math.max(0, Number(body.sortOrder) || 0),
+      };
+      const { data: compartment, error } = await supabase
+        .from("inventory_compartments")
+        .update(changes)
+        .eq("department_id", departmentId)
+        .eq("apparatus_id", apparatusId)
+        .eq("id", compartmentId)
+        .select("id,apparatus_id,label,side,sort_order")
+        .maybeSingle();
+      if (error) throw error;
+      if (!compartment) return privateJson({ error: "Compartment not found." }, 404);
+      await supabase
+        .from("inventory_photo_hotspots")
+        .update({ label })
+        .eq("department_id", departmentId)
+        .eq("compartment_id", compartmentId);
+      await audit(session.context, "compartment.updated", "compartment", compartmentId, changes, request);
+      return privateJson({ compartment });
+    }
+    if (action === "delete_compartment") {
+      const compartmentId = clean(body.compartmentId, 80);
+      const apparatusId = clean(body.apparatusId, 80);
+      if (!compartmentId || !apparatusId) {
+        return privateJson({ error: "Compartment and apparatus are required." }, 400);
+      }
+      const { data: compartment } = await supabase
+        .from("inventory_compartments")
+        .select("id,apparatus_id,label,side,sort_order")
+        .eq("department_id", departmentId)
+        .eq("apparatus_id", apparatusId)
+        .eq("id", compartmentId)
+        .maybeSingle();
+      if (!compartment) return privateJson({ error: "Compartment not found." }, 404);
+      const { error: hotspotError } = await supabase
+        .from("inventory_photo_hotspots")
+        .delete()
+        .eq("department_id", departmentId)
+        .eq("compartment_id", compartmentId);
+      if (hotspotError) throw hotspotError;
+      const { error: photoError } = await supabase
+        .from("inventory_photo_views")
+        .update({ compartment_id: null })
+        .eq("department_id", departmentId)
+        .eq("compartment_id", compartmentId);
+      if (photoError) throw photoError;
+      const { error } = await supabase
+        .from("inventory_compartments")
+        .delete()
+        .eq("department_id", departmentId)
+        .eq("apparatus_id", apparatusId)
+        .eq("id", compartmentId);
+      if (error) throw error;
+      await audit(session.context, "compartment.deleted", "compartment", compartmentId, compartment, request);
+      return privateJson({ deleted: true });
+    }
     if (action === "create_hotspot") {
       const id = crypto.randomUUID();
       const photoViewId = clean(body.photoViewId);
@@ -435,6 +506,37 @@ export async function POST(request: Request) {
         request,
       );
       return privateJson({ approved: true });
+    }
+    if (action === "delete_photo") {
+      const photoId = clean(body.photoId, 80);
+      const apparatusId = clean(body.apparatusId, 80);
+      if (!photoId || !apparatusId) {
+        return privateJson({ error: "Photo and apparatus are required." }, 400);
+      }
+      const { data: photo } = await supabase
+        .from("inventory_photo_views")
+        .select("id,apparatus_id,compartment_id,view_key,door_state,version_number,object_key")
+        .eq("department_id", departmentId)
+        .eq("apparatus_id", apparatusId)
+        .eq("id", photoId)
+        .is("replaced_at", null)
+        .maybeSingle();
+      if (!photo) return privateJson({ error: "Photo not found." }, 404);
+      const { error: hotspotError } = await supabase
+        .from("inventory_photo_hotspots")
+        .delete()
+        .eq("department_id", departmentId)
+        .eq("photo_view_id", photoId);
+      if (hotspotError) throw hotspotError;
+      const { error } = await supabase
+        .from("inventory_photo_views")
+        .update({ replaced_at: new Date().toISOString() })
+        .eq("department_id", departmentId)
+        .eq("apparatus_id", apparatusId)
+        .eq("id", photoId);
+      if (error) throw error;
+      await audit(session.context, "photo.deleted", "apparatus_photo_view", photoId, photo, request);
+      return privateJson({ deleted: true });
     }
     return privateJson({ error: "Unsupported digital-twin action." }, 400);
   } catch (error) {

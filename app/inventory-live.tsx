@@ -813,6 +813,8 @@ function DigitalTwinBuilder({
   const [error, setError] = useState("");
   const [hotspotPhotoId, setHotspotPhotoId] = useState("");
   const [hotspotCompartmentId, setHotspotCompartmentId] = useState("");
+  const [photoCompartmentId, setPhotoCompartmentId] = useState("");
+  const [editingCompartmentId, setEditingCompartmentId] = useState("");
   const [pendingHotspot, setPendingHotspot] = useState<{
     xBasisPoints: number;
     yBasisPoints: number;
@@ -941,6 +943,47 @@ function DigitalTwinBuilder({
     }
   }
 
+  async function updateCompartment(event: FormEvent<HTMLFormElement>, compartmentId: string) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setBusy(`compartment-${compartmentId}`);
+    setError("");
+    try {
+      await jsonAction({
+        action: "update_compartment",
+        apparatusId: effectiveApparatusId,
+        compartmentId,
+        label: form.get("label"),
+        side: form.get("side"),
+        sortOrder: form.get("sortOrder"),
+      });
+      await onReload(effectiveApparatusId);
+      setEditingCompartmentId("");
+      notify("Compartment updated.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Compartment could not be updated.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function deleteCompartment(compartment: TwinCompartment) {
+    if (!window.confirm(`Delete ${compartment.label}? Its hotspot markers will be removed. Saved photos will remain in the apparatus photo library.`)) return;
+    setBusy(`compartment-${compartment.id}`);
+    setError("");
+    try {
+      await jsonAction({ action: "delete_compartment", apparatusId: effectiveApparatusId, compartmentId: compartment.id });
+      if (photoCompartmentId === compartment.id) setPhotoCompartmentId("");
+      if (hotspotCompartmentId === compartment.id) setHotspotCompartmentId("");
+      await onReload(effectiveApparatusId);
+      notify("Compartment deleted. Saved photos were kept in the apparatus photo library.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Compartment could not be deleted.");
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function uploadPhoto(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!photoFile || !effectiveApparatusId) {
@@ -953,6 +996,7 @@ function DigitalTwinBuilder({
     payload.set("viewKey", viewKey);
     payload.set("doorState", doorState);
     payload.set("viewLevel", viewLevel);
+    if (photoCompartmentId) payload.set("compartmentId", photoCompartmentId);
     setBusy("photo");
     setError("");
     try {
@@ -989,7 +1033,7 @@ function DigitalTwinBuilder({
     setCameraOpen(false);
   }
 
-  async function openCamera(nextViewKey?: string, nextDoorState?: string) {
+  async function openCamera(nextViewKey?: string, nextDoorState?: string, nextCompartmentId?: string) {
     if (!effectiveApparatusId) {
       setError("Save the apparatus in Step 1 before taking photographs.");
       window.document.getElementById("apparatus-name")?.focus();
@@ -997,6 +1041,7 @@ function DigitalTwinBuilder({
     }
     if (nextViewKey) setViewKey(nextViewKey);
     if (nextDoorState) setDoorState(nextDoorState);
+    if (nextCompartmentId !== undefined) setPhotoCompartmentId(nextCompartmentId);
     setError("");
     setPhotoFile(null);
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -1060,6 +1105,22 @@ function DigitalTwinBuilder({
       notify("Photo approved for the apparatus walk-around.");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Photo approval failed.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function deletePhoto(photo: TwinPhoto) {
+    if (!window.confirm(`Remove the ${photo.view_key} ${photo.door_state} photo from this apparatus?`)) return;
+    setBusy(photo.id);
+    setError("");
+    try {
+      await jsonAction({ action: "delete_photo", apparatusId: effectiveApparatusId, photoId: photo.id });
+      if (hotspotPhotoId === photo.id) setHotspotPhotoId("");
+      await onReload(effectiveApparatusId);
+      notify("Photo removed from the active apparatus record.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Photo could not be removed.");
     } finally {
       setBusy("");
     }
@@ -1234,12 +1295,22 @@ function DigitalTwinBuilder({
                 : "Save apparatus first"}
           </button>
         </form>
-        <div className="configured-chips">
-          {compartments.length
-            ? compartments.map((item) => (
-              <span key={item.id}>{item.label} - {item.side}</span>
-            ))
-            : <em>No compartments configured.</em>}
+        <div className="compartment-manager" aria-label="Saved compartments">
+          {compartments.length ? compartments.map((item) => {
+            const compartmentPhotos = photos.filter((photo) => photo.compartment_id === item.id);
+            const editing = editingCompartmentId === item.id;
+            return <article key={item.id}>
+              {editing ? <form onSubmit={(event) => void updateCompartment(event, item.id)}>
+                <label>Label<input name="label" defaultValue={item.label} required /></label>
+                <label>Side<select name="side" defaultValue={item.side}>{["driver","officer","rear","cab","pump","interior"].map((side) => <option key={side}>{side}</option>)}</select></label>
+                <label>Order<input name="sortOrder" type="number" min="0" defaultValue={item.sort_order} /></label>
+                <div><button className="primary" disabled={busy === `compartment-${item.id}`}>{busy === `compartment-${item.id}` ? "Saving..." : "Save changes"}</button><button type="button" className="secondary" onClick={() => setEditingCompartmentId("")}>Cancel</button></div>
+              </form> : <>
+                <div><strong>{item.label}</strong><span>{titleCase(item.side)} · {compartmentPhotos.length} photo{compartmentPhotos.length === 1 ? "" : "s"}</span></div>
+                <div className="compartment-actions"><button type="button" onClick={() => setEditingCompartmentId(item.id)}>Edit</button><button type="button" onClick={() => void openCamera("interior", "open", item.id)}>Add photo</button><button type="button" className="danger" onClick={() => void deleteCompartment(item)} disabled={busy === `compartment-${item.id}`}>Delete</button></div>
+              </>}
+            </article>;
+          }) : <em>No compartments configured.</em>}
         </div>
       </section>
 
@@ -1294,6 +1365,13 @@ function DigitalTwinBuilder({
               <option value="spin">full rotation frame</option>
             </select>
           </label>
+          <label>
+            Compartment
+            <select value={photoCompartmentId} onChange={(event) => setPhotoCompartmentId(event.target.value)}>
+              <option value="">Whole apparatus / exterior</option>
+              {compartments.map((item) => <option key={item.id} value={item.id}>{item.label} - {item.side}</option>)}
+            </select>
+          </label>
           <label className="file-field">
             Choose existing apparatus photo
             <input
@@ -1336,7 +1414,8 @@ function DigitalTwinBuilder({
               />
               <div>
                 <b>{photo.view_key} - {photo.door_state}</b>
-                <small>Version {photo.version_number} - {photo.approval_status}</small>
+                <small>{photo.compartment_id ? compartments.find((item) => item.id === photo.compartment_id)?.label || "Saved compartment" : "Whole apparatus"} · Version {photo.version_number} - {photo.approval_status}</small>
+                <div className="photo-review-actions">
                 {photo.approval_status !== "approved" ? (
                   <button
                     onClick={() => void approvePhoto(photo.id)}
@@ -1345,6 +1424,9 @@ function DigitalTwinBuilder({
                     Approve photo
                   </button>
                 ) : null}
+                  <button type="button" onClick={() => void openCamera(photo.view_key, photo.door_state, photo.compartment_id || "")}>Replace photo</button>
+                  <button type="button" className="danger" onClick={() => void deletePhoto(photo)} disabled={busy === photo.id}>Remove photo</button>
+                </div>
               </div>
             </article>
           ))}

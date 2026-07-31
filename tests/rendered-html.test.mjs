@@ -44,6 +44,11 @@ test("ships a real-photo Fleet digital twin with mobile camera capture", async (
   assert.match(component, /cameraVideoRef/);
   assert.match(component, /Save apparatus to Inventory/);
   assert.match(component, /Save compartment/);
+  assert.match(component, /updateCompartment/);
+  assert.match(component, /deleteCompartment/);
+  assert.match(component, /Replace photo/);
+  assert.match(component, /Remove photo/);
+  assert.match(component, /photoCompartmentId/);
   assert.match(component, /Save photo for review/);
   assert.match(component, /Save hotspot/);
   assert.match(component, /setPendingHotspot/);
@@ -72,6 +77,11 @@ test("ships a real-photo Fleet digital twin with mobile camera capture", async (
   assert.match(operations, /Number\(lot\.quantity_on_hand \|\| 0\) <= 0/);
   assert.match(api, /inventory_photo_views/);
   assert.match(api, /inventory_photo_hotspots/);
+  assert.match(api, /action === "update_compartment"/);
+  assert.match(api, /action === "delete_compartment"/);
+  assert.match(api, /action === "delete_photo"/);
+  assert.match(api, /compartment\.updated/);
+  assert.match(api, /photo\.deleted/);
   assert.match(api, /inventory_audit_events/);
   assert.match(api, /status: "in_service"/);
   assert.doesNotMatch(api, /status: "active"/);
