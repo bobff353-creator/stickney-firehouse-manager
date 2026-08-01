@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import InventoryOperations from "./inventory-operations";
 import {
   FormEvent,
@@ -272,6 +273,7 @@ export default function Inventory360({
   departmentName: string;
 }) {
   const [view, setView] = useState<View>("fleet");
+  const [selectedApparatusId, setSelectedApparatusId] = useState("");
   const [fleetFilter, setFleetFilter] = useState<FleetFilter>("all");
   const [suiteState, setSuiteState] = useState<LoadState>("loading");
   const [suite, setSuite] = useState<SuiteContext>({
@@ -419,6 +421,7 @@ export default function Inventory360({
   }
 
   async function openUnit(unit: SuiteApparatus) {
+    setSelectedApparatusId(unit.id);
     const twin = matchingTwin(unit, twinData.apparatus);
     if (twin && twinState === "ready") await loadTwin(twin.id);
     setView("check");
@@ -429,10 +432,10 @@ export default function Inventory360({
   return (
     <main className="app-shell">
       <header className="topbar">
-        <a className="portal-back" href="/" aria-label="Back to Firehouse Manager">
+        <Link className="portal-back" href="/" aria-label="Back to Firehouse Manager">
           <span aria-hidden="true">←</span>
           <b>Firehouse Manager</b>
-        </a>
+        </Link>
         <button className="brand" onClick={() => setView("fleet")} aria-label="Inventory home">
           <span className="brand-badge">INV</span>
           <span>
@@ -448,7 +451,7 @@ export default function Inventory360({
             ["fleet", "Fleet"],
             ["check", "Apparatus"],
             ["readiness", "Readiness"],
-            ["service", "Maintenance"],
+            ["service", "Repairs"],
             ["stock", "Stock"],
           ] as [View, string][]).map(([id, label]) => (
             <button
@@ -462,7 +465,7 @@ export default function Inventory360({
         </nav>
         <div className="top-actions">
           <button className="photo-setup" onClick={() => setView("setup")}>
-            <Icon>+</Icon> Digital twin setup
+            <Icon>+</Icon> Build Fleet &amp; Inventory
           </button>
           {inventoryEvents.length > 0 ? (
             <button
@@ -498,7 +501,7 @@ export default function Inventory360({
             </div>
             <div className="heading-actions">
               <button className="primary" onClick={() => setView("setup")}>
-                Add or manage apparatus
+                Build Fleet &amp; Inventory
               </button>
             </div>
           </div>
@@ -614,7 +617,7 @@ export default function Inventory360({
                       </div>
                       {unit.notes ? <p className="unit-notes">{unit.notes}</p> : null}
                       <button className="card-action" onClick={() => void openUnit(unit)}>
-                        Open apparatus record <span>-&gt;</span>
+                        Open inspections &amp; inventory <span>-&gt;</span>
                       </button>
                     </div>
                   </article>
@@ -622,7 +625,7 @@ export default function Inventory360({
               })}
               <button className="add-unit-card" onClick={() => setView("setup")}>
                 <Icon>+</Icon>
-                <b>Add or manage apparatus details</b>
+                <b>Build Fleet &amp; Inventory</b>
                 <span>Compartments - real photographs - hotspots</span>
               </button>
             </div>
@@ -640,10 +643,10 @@ export default function Inventory360({
             </div>
             <div className="heading-actions">
               <button className="secondary" onClick={() => setView("fleet")}>Back to fleet</button>
-              <button className="primary" onClick={() => setView("setup")}>Manage apparatus</button>
+              <button className="primary" onClick={() => setView("setup")}>Build Fleet &amp; Inventory</button>
             </div>
           </div>
-          <InventoryOperations view="check" onSetup={() => setView("setup")} />
+          <InventoryOperations view="check" onSetup={() => setView("setup")} initialApparatusId={selectedApparatusId} />
         </section>
       ) : null}
 
@@ -707,9 +710,9 @@ export default function Inventory360({
         <section className="page">
           <div className="page-heading compact">
             <div>
-              <span className="eyebrow">MAINTENANCE CONTROL</span>
-              <h1>Open, assign, and close apparatus work orders.</h1>
-              <p>Maintenance records are saved to the department Inventory with the responsible user and time.</p>
+              <span className="eyebrow">ASSIGNED REPAIRS</span>
+              <h1>Assign, document, and close fleet repairs.</h1>
+              <p>Repair notices appear on assigned employee home pages and Live Ops until the repair is completed.</p>
             </div>
           </div>
           <InventoryOperations view="service" onSetup={() => setView("setup")} />
@@ -733,8 +736,8 @@ export default function Inventory360({
         <section className="setup-page">
           <div className="setup-intro">
             <button onClick={() => setView("fleet")}>Back to fleet</button>
-            <span className="eyebrow">DIGITAL TWIN BUILDER - REAL RECORDS</span>
-            <h1>Connect photographs and compartments to saved apparatus.</h1>
+            <span className="eyebrow">BUILD FLEET &amp; INVENTORY · DIGITAL TWIN BUILDER</span>
+            <h1>Add apparatus, compartments, photographs, and inspection inventory.</h1>
             <p>
               Inventory preserves real apparatus identities, photographs,
               compartments, equipment, and hotspot geometry.
@@ -765,6 +768,7 @@ export default function Inventory360({
                 notify={showToast}
               />
             )}
+            <InventoryOperations view="builder" onSetup={() => setView("setup")} initialApparatusId={selectedApparatusId} />
           </div>
         </section>
       ) : null}
@@ -774,7 +778,7 @@ export default function Inventory360({
           ["fleet", "Fleet"],
           ["check", "Unit"],
           ["readiness", "Ready"],
-          ["service", "Service"],
+          ["service", "Repairs"],
           ["stock", "Stock"],
         ] as [Exclude<View, "setup">, string][]).map(([id, label]) => (
           <button

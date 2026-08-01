@@ -126,3 +126,38 @@ test("defines durable department-scoped inventory without demo inserts", async (
   assert.doesNotMatch(migration, /insert into public\.department_apparatus/);
   assert.doesNotMatch(migration, /insert into public\.inventory_equipment/);
 });
+
+test("connects fleet inspections, employee notices, Live Ops, and repair closeout", async () => {
+  const [component, operationsApi, dashboardApi, noticeApi, evidenceApi, proxy, migration] = await Promise.all([
+    read("app/inventory-operations.tsx"),
+    read("app/api/operations/route.ts"),
+    read("app/api/dashboard/route.ts"),
+    read("app/api/fleet-notices/route.ts"),
+    read("app/api/operations/evidence/route.ts"),
+    read("app/[[...path]]/route.ts"),
+    read("supabase/migrations/20260801200000_fleet_inspections_repairs.sql"),
+  ]);
+
+  for (const label of ["Daily inspection", "Weekly inspection", "Inventory check", "Air pack check"]) {
+    assert.match(component, new RegExp(label));
+  }
+  assert.match(component, /A failed item requires a note and attached photo|Required photo/);
+  assert.match(component, /Vehicle/);
+  assert.match(component, /Air pack/);
+  assert.match(component, /Equipment/);
+  assert.match(component, /MY ASSIGNED REPAIRS/);
+  assert.match(component, /repairDate/);
+  assert.match(component, /repairCost/);
+  assert.match(component, /resolutionNotes/);
+  assert.match(operationsApi, /action === "create_notice"/);
+  assert.match(operationsApi, /linked_exception_id/);
+  assert.match(operationsApi, /status: "resolved"/);
+  assert.match(dashboardApi, /equipmentIssues/);
+  assert.match(noticeApi, /assigned_employee_ids/);
+  assert.match(evidenceApi, /inventory_deficiency_photos/);
+  assert.match(proxy, /fleet-notices\.js/);
+  assert.match(migration, /enable row level security/);
+  assert.match(migration, /inventory_deficiency_photos/);
+  assert.match(migration, /assigned_employee_ids/);
+  assert.match(migration, /repair_cost/);
+});

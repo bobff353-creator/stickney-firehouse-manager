@@ -4,8 +4,9 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import Link from "next/link";
 import type { IScannerControls } from "@zxing/browser";
 
-type OperationsView = "check" | "readiness" | "service" | "stock";
-type Row = Record<string, string | number | null>;
+type OperationsView = "check" | "readiness" | "service" | "stock" | "builder" | "legacy_check" | "legacy_service";
+type Row = Record<string, string | number | string[] | null>;
+type Employee = { id: string; name: string; rank?: string };
 type OperationsData = {
   configured: boolean;
   apparatus: Row[];
@@ -16,6 +17,7 @@ type OperationsData = {
   exceptions: Row[];
   workOrders: Row[];
   stock: Row[];
+  viewer?: { email?: string; role?: string };
   error?: string;
 };
 
@@ -30,6 +32,19 @@ const emptyData: OperationsData = {
   workOrders: [],
   stock: [],
 };
+
+const inspectionTypes = [
+  ["daily", "Daily inspection"],
+  ["weekly", "Weekly inspection"],
+  ["inventory", "Inventory check"],
+  ["air_pack", "Air pack check"],
+] as const;
+
+const categoryOptions = [
+  ["vehicle", "Vehicle"],
+  ["air_pack", "Air pack"],
+  ["equipment", "Equipment"],
+] as const;
 
 function value(row: Row, key: string) {
   const item = row[key];
@@ -110,9 +125,11 @@ function parseScannedEquipment(rawValue: string): ScannedEquipment {
 export default function InventoryOperations({
   view,
   onSetup,
+  initialApparatusId = "",
 }: {
   view: OperationsView;
   onSetup: () => void;
+  initialApparatusId?: string;
 }) {
   const [data, setData] = useState<OperationsData>(emptyData);
   const [loading, setLoading] = useState(true);
@@ -122,6 +139,10 @@ export default function InventoryOperations({
   const [accessRequired, setAccessRequired] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerMessage, setScannerMessage] = useState("");
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [viewerEmployeeId, setViewerEmployeeId] = useState("");
+  const [selectedApparatusId, setSelectedApparatusId] = useState(initialApparatusId);
+  const [deficiencyItem, setDeficiencyItem] = useState<Row | null>(null);
   const equipmentFormRef = useRef<HTMLFormElement>(null);
   const scannerVideoRef = useRef<HTMLVideoElement>(null);
   const scannerControlsRef = useRef<IScannerControls | null>(null);
@@ -199,8 +220,16 @@ export default function InventoryOperations({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/operations", { cache: "no-store" });
-      const payload = await response.json().catch(() => ({})) as Partial<OperationsData>;
+      const [response, dashboardResponse, permissionsResponse] = await Promise.all([
+        fetch("/api/operations", { cache: "no-store" }),
+        fetch("/api/dashboard", { cache: "no-store" }),
+        fetch("/api/permissions", { cache: "no-store" }),
+      ]);
+      const [payload, dashboard, permissions] = await Promise.all([
+        response.json().catch(() => ({})) as Promise<Partial<OperationsData>>,
+        dashboardResponse.json().catch(() => ({})) as Promise<{ viewer?: { employeeId?: string } }>,
+        permissionsResponse.json().catch(() => ({})) as Promise<{ employees?: Employee[] }>,
+      ]);
       if (!response.ok || payload.configured !== true) {
         setAccessRequired(response.status === 401 || response.status === 403);
         throw new Error(payload.error || "Operational records are unavailable.");
@@ -215,7 +244,11 @@ export default function InventoryOperations({
         exceptions: payload.exceptions || [],
         workOrders: payload.workOrders || [],
         stock: payload.stock || [],
+        viewer: payload.viewer,
       });
+      setViewerEmployeeId(dashboard.viewer?.employeeId || "");
+      setEmployees(Array.isArray(permissions.employees) ? permissions.employees : []);
+      setSelectedApparatusId((current) => current || initialApparatusId || payload.apparatus?.[0]?.id?.toString() || "");
       setError("");
       setAccessRequired(false);
     } catch (caught) {
@@ -223,7 +256,7 @@ export default function InventoryOperations({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [initialApparatusId]);
 
   useEffect(() => {
     // Loading is intentionally kicked off once when this operational panel opens.
@@ -254,11 +287,34 @@ export default function InventoryOperations({
     }
   }
 
-  const activeCheck = data.checks.find((check) => value(check, "status") === "in_progress");
+  async function uploadEvidence(apparatusId: string, photo: File, checkItemId?: string) {
+    const form = new FormData();
+    form.set("apparatusId", apparatusId);
+    form.set("photo", photo);
+    if (checkItemId) form.set("checkItemId", checkItemId);
+    const response = await fetch("/api/operations/evidence", { method: "POST", body: form });
+    const payload = await response.json().catch(() => ({})) as { photo?: { id?: string }; error?: string };
+    if (!response.ok || !payload.photo?.id) {
+      throw new Error(payload.error || "The deficiency photo could not be saved.");
+    }
+    return payload.photo.id;
+  }
+
+  const activeCheck = data.checks.find((check) => (
+    value(check, "status") === "in_progress"
+    && (!selectedApparatusId || value(check, "apparatus_id") === selectedApparatusId)
+  ));
   const activeItems = activeCheck
     ? data.checkItems.filter((item) => value(item, "check_id") === value(activeCheck, "id"))
     : [];
   const pendingItems = activeItems.filter((item) => value(item, "result") === "pending").length;
+  const selectedApparatus = data.apparatus.find((item) => value(item, "id") === selectedApparatusId);
+  const myOpenRepairs = data.workOrders.filter((item) => (
+    value(item, "status") !== "closed"
+    && Array.isArray(item.assigned_employee_ids)
+    && Boolean(viewerEmployeeId)
+    && item.assigned_employee_ids.includes(viewerEmployeeId)
+  ));
   const stockRows = useMemo(() => {
     const grouped = new Map<string, { row: Row; total: number; lots: Row[] }>();
     for (const row of data.stock) {
@@ -298,6 +354,72 @@ export default function InventoryOperations({
       {error ? <div className="ops-message ops-error" role="alert">{error}</div> : null}
 
       {view === "check" ? (
+        <section className="ops-card unit-inspection-hub">
+          <header>
+            <div><span>FLEET / APPARATUS RECORD</span><h2>{selectedApparatus ? value(selectedApparatus, "name") : "Choose an apparatus"}</h2></div>
+            {activeCheck ? <b>{pendingItems} remaining</b> : null}
+          </header>
+          {!data.apparatus.length ? (
+            <div className="ops-empty"><strong>No apparatus added</strong><p>Build the fleet before starting inspections.</p><button onClick={onSetup}>Build Fleet &amp; Inventory</button></div>
+          ) : (
+            <label className="unit-picker">Apparatus
+              <select value={selectedApparatusId} onChange={(event) => setSelectedApparatusId(event.target.value)}>
+                {data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")} · Fleet: {formatStatus(item.status)}</option>)}
+              </select>
+            </label>
+          )}
+          {selectedApparatus && !activeCheck ? (
+            <div className="inspection-choice-grid" aria-label="Inspection choices">
+              {inspectionTypes.map(([id, label]) => (
+                <button key={id} type="button" disabled={Boolean(busy)} onClick={() => void action(`start-${id}`, { action: "start_check", apparatusId: selectedApparatusId, checkType: id })}>
+                  <strong>{label}</strong><span>Open {value(selectedApparatus, "name")} checklist</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {activeCheck ? (
+            <div className="check-worklist">
+              <div className="active-inspection-title"><span>{formatStatus(activeCheck.check_type)} inspection in progress</span><small>Pass each item or select Failed to add a required note and photo.</small></div>
+              {activeItems.map((item) => (
+                <article key={value(item, "id")} className={`check-row result-${value(item, "result")}`}>
+                  <div><strong>{value(item, "equipment_name")}</strong><small>{value(item, "compartment_label")}</small></div>
+                  <span>{value(item, "result").replace("_", " ")}</span>
+                  <div className="check-actions">
+                    <button disabled={Boolean(busy)} onClick={() => void action(`item-${value(item, "id")}`, { action: "record_check_item", checkItemId: value(item, "id"), result: "pass" })}>Pass</button>
+                    <button className="failed" disabled={Boolean(busy)} onClick={() => setDeficiencyItem(item)}>Failed</button>
+                    <button disabled={Boolean(busy)} onClick={() => void action(`item-${value(item, "id")}`, { action: "record_check_item", checkItemId: value(item, "id"), result: "not_applicable" })}>N/A</button>
+                  </div>
+                </article>
+              ))}
+              <button className="ops-primary" disabled={Boolean(busy) || pendingItems > 0} onClick={() => void action("complete", { action: "complete_check", checkId: value(activeCheck, "id") })}>Complete {formatStatus(activeCheck.check_type)} inspection</button>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {view === "builder" ? (
+        <section className="ops-card">
+          <header><div><span>BUILD INVENTORY CHECKLISTS</span><h2>Add real equipment and choose its inspections</h2></div><b>{data.equipment.length} items</b></header>
+          {!data.compartments.length ? <div className="ops-empty"><strong>No compartments configured</strong><p>Create apparatus compartments before adding equipment.</p></div> : <form ref={equipmentFormRef} className="ops-form ops-form-wide" onSubmit={(event) => {
+            const form = new FormData(event.currentTarget);
+            submit(event, "equipment", { action: "create_equipment", compartmentId: form.get("compartmentId"), name: form.get("name"), manufacturer: form.get("manufacturer"), model: form.get("model"), serialNumber: form.get("serialNumber"), barcode: form.get("barcode"), quantityRequired: form.get("quantityRequired"), equipmentCategory: form.get("equipmentCategory"), checkTypes: form.getAll("checkTypes") });
+          }}>
+            <label>Compartment<select name="compartmentId" required>{data.compartments.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "label")} · {value(item, "side")}</option>)}</select></label>
+            <label>Equipment or check item name<input name="name" required /></label>
+            <label>Type<select name="equipmentCategory"><option value="vehicle">Vehicle</option><option value="air_pack">Air pack</option><option value="equipment">Equipment</option></select></label>
+            <label>Manufacturer<input name="manufacturer" /></label>
+            <label>Model<input name="model" /></label>
+            <label>Serial number<input name="serialNumber" /></label>
+            <label>Barcode / asset tag<input name="barcode" /></label>
+            <label>Required quantity<input name="quantityRequired" type="number" min="1" defaultValue="1" /></label>
+            <fieldset className="ops-check-grid ops-span-2"><legend>Include in checks</legend>{inspectionTypes.map(([id, label]) => <label key={id}><input type="checkbox" name="checkTypes" value={id} defaultChecked={id === "inventory"} /> {label}</label>)}</fieldset>
+            <button className="ops-scan-button" type="button" onClick={() => setScannerOpen(true)}>Scan barcode</button>
+            <button className="ops-primary" disabled={Boolean(busy)}>Add to Inventory</button>
+          </form>}
+        </section>
+      ) : null}
+
+      {view === "legacy_check" ? (
         <>
           <section className="ops-card">
             <header><div><span>APPARATUS CHECK</span><h2>{activeCheck ? value(activeCheck, "apparatus_name") : "Start a shift check"}</h2></div>{activeCheck ? <b>{pendingItems} remaining</b> : null}</header>
@@ -360,6 +482,50 @@ export default function InventoryOperations({
       {view === "service" ? (
         <>
           <section className="ops-card">
+            <header><div><span>ASSIGN A REPAIR NOTICE</span><h2>Notify selected employees about a fleet deficiency</h2></div></header>
+            {!data.apparatus.length ? <div className="ops-empty"><strong>No apparatus added</strong><button onClick={onSetup}>Build Fleet &amp; Inventory</button></div> : <form className="ops-form ops-form-wide" onSubmit={(event) => {
+              event.preventDefault();
+              const element = event.currentTarget;
+              const form = new FormData(element);
+              const employeeIds = form.getAll("assignedEmployeeIds").map(String);
+              const employeeNames = employeeIds.map((id) => employees.find((employee) => employee.id === id)?.name || "").filter(Boolean);
+              const photo = form.get("photo");
+              void (async () => {
+                try {
+                  setBusy("notice");
+                  const evidencePhotoId = photo instanceof File && photo.size > 0 ? await uploadEvidence(String(form.get("apparatusId")), photo) : "";
+                  const saved = await action("notice", { action: "create_notice", apparatusId: form.get("apparatusId"), priority: form.get("priority"), notes: form.get("notes"), issueCategories: form.getAll("issueCategories"), assignedEmployeeIds: employeeIds, assignedEmployeeNames: employeeNames, evidencePhotoId });
+                  if (saved) element.reset();
+                } catch (caught) {
+                  setError(caught instanceof Error ? caught.message : "The notice could not be saved.");
+                } finally {
+                  setBusy("");
+                }
+              })();
+            }}>
+              <label>Apparatus<select name="apparatusId" required>{data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")} · Fleet: {formatStatus(item.status)}</option>)}</select></label>
+              <label>Priority<select name="priority"><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option><option value="routine">Routine</option></select></label>
+              <fieldset className="ops-check-grid ops-span-2"><legend>Notice type</legend>{categoryOptions.map(([id, label]) => <label key={id}><input type="checkbox" name="issueCategories" value={id} /> {label}</label>)}</fieldset>
+              <fieldset className="ops-check-grid ops-span-2"><legend>Employees to notify</legend>{employees.length ? employees.map((employee) => <label key={employee.id}><input type="checkbox" name="assignedEmployeeIds" value={employee.id} /> {employee.name}{employee.rank ? ` · ${employee.rank}` : ""}</label>) : <p>Employee selection is available to an authorized officer or administrator.</p>}</fieldset>
+              <label className="ops-span-2">Notice / repair details<textarea name="notes" rows={4} required /></label>
+              <label className="ops-span-2">Attach photo (optional)<input name="photo" type="file" accept="image/*" capture="environment" /></label>
+              <button className="ops-primary" disabled={Boolean(busy)}>Assign repair notice</button>
+            </form>}
+          </section>
+          <section className="ops-card assigned-repairs">
+            <header><div><span>MY ASSIGNED REPAIRS</span><h2>Repairs assigned to this employee</h2></div><b>{myOpenRepairs.length} open</b></header>
+            {myOpenRepairs.length ? <div className="ops-list">{myOpenRepairs.map((item) => <article key={value(item, "id")}><div><strong>{value(item, "summary")}</strong><small>{value(item, "apparatus_name")} · Opened {formatDate(item.opened_at)}</small></div><span className={`priority-${value(item, "priority")}`}>{value(item, "priority")}</span><p>{value(item, "details")}</p><RepairCompletionForm item={item} busy={Boolean(busy)} onComplete={action} /></article>)}</div> : <div className="ops-empty"><strong>No repairs assigned to you</strong><p>Open notices assigned to this employee will appear here and on the home page.</p></div>}
+          </section>
+          <section className="ops-card">
+            <header><div><span>ALL REPAIR RECORDS</span><h2>Open repairs and completed history</h2></div><b>{data.workOrders.filter((item) => value(item, "status") !== "closed").length} open</b></header>
+            {data.workOrders.length ? <div className="ops-list">{data.workOrders.map((item) => <article key={value(item, "id")}><div><strong>{value(item, "summary")}</strong><small>{value(item, "apparatus_name")} · Fleet: {formatStatus(item.apparatus_status)} · Opened {formatDate(item.opened_at)}</small></div><span className={`priority-${value(item, "priority")}`}>{value(item, "priority")} · {value(item, "status")}</span>{value(item, "details") ? <p>{value(item, "details")}</p> : null}{Array.isArray(item.assigned_employee_names) && item.assigned_employee_names.length ? <small>Assigned to {item.assigned_employee_names.join(", ")}</small> : null}{value(item, "status") === "closed" ? <p>Repaired {value(item, "repair_date")} · Cost ${Number(item.repair_cost || 0).toFixed(2)}{value(item, "vendor") ? ` · ${value(item, "vendor")}` : ""}<br />{value(item, "resolution_notes")}</p> : <RepairCompletionForm item={item} busy={Boolean(busy)} onComplete={action} />}</article>)}</div> : <div className="ops-empty"><strong>No repair records yet</strong><p>Failed inspections and assigned repair notices create records automatically.</p></div>}
+          </section>
+        </>
+      ) : null}
+
+      {view === "legacy_service" ? (
+        <>
+          <section className="ops-card">
             <header><div><span>NEW WORK ORDER</span><h2>Record maintenance that needs attention</h2></div></header>
             {!data.apparatus.length ? <div className="ops-empty"><strong>No apparatus added</strong><button onClick={onSetup}>Add apparatus</button></div> : <form className="ops-form ops-form-wide" onSubmit={(event) => {
               const form = new FormData(event.currentTarget);
@@ -409,6 +575,41 @@ export default function InventoryOperations({
           </section>
         </>
       ) : null}
+      {deficiencyItem && activeCheck ? (
+        <div className="camera-overlay" role="presentation">
+          <form className="camera-panel deficiency-panel" role="dialog" aria-modal="true" aria-label="Record failed inspection item" onSubmit={(event) => {
+            event.preventDefault();
+            const form = new FormData(event.currentTarget);
+            const photo = form.get("photo");
+            const employeeIds = form.getAll("assignedEmployeeIds").map(String);
+            const employeeNames = employeeIds.map((id) => employees.find((employee) => employee.id === id)?.name || "").filter(Boolean);
+            if (!(photo instanceof File) || !photo.size) {
+              setError("Attach a photo of the failed item.");
+              return;
+            }
+            void (async () => {
+              try {
+                setBusy("deficiency");
+                const evidencePhotoId = await uploadEvidence(selectedApparatusId, photo, value(deficiencyItem, "id"));
+                const saved = await action("deficiency", { action: "record_check_item", checkItemId: value(deficiencyItem, "id"), result: "failed", notes: form.get("notes"), issueCategories: form.getAll("issueCategories"), assignedEmployeeIds: employeeIds, assignedEmployeeNames: employeeNames, evidencePhotoId });
+                if (saved) setDeficiencyItem(null);
+              } catch (caught) {
+                setError(caught instanceof Error ? caught.message : "The deficiency could not be saved.");
+              } finally {
+                setBusy("");
+              }
+            })();
+          }}>
+            <header><div><span>FAILED INSPECTION ITEM</span><h3>{value(deficiencyItem, "equipment_name")}</h3></div><button type="button" onClick={() => setDeficiencyItem(null)}>Cancel</button></header>
+            <p>Describe what failed and attach a picture. This creates the repair notice and Live Ops equipment issue.</p>
+            <fieldset className="ops-check-grid"><legend>Issue type</legend>{categoryOptions.map(([id, label]) => <label key={id}><input type="checkbox" name="issueCategories" value={id} defaultChecked={(value(activeCheck, "check_type") === "air_pack" ? id === "air_pack" : id === "equipment")} /> {label}</label>)}</fieldset>
+            <label>Failure notes<textarea name="notes" rows={4} required placeholder="What failed, where it is located, and whether the unit is impaired" /></label>
+            <label>Required photo<input name="photo" type="file" accept="image/*" capture="environment" required /></label>
+            <fieldset className="ops-check-grid"><legend>Employees to notify</legend>{employees.length ? employees.map((employee) => <label key={employee.id}><input type="checkbox" name="assignedEmployeeIds" value={employee.id} /> {employee.name}{employee.rank ? ` · ${employee.rank}` : ""}</label>) : <p>An officer can assign this repair from the Repairs section.</p>}</fieldset>
+            <button className="ops-primary" disabled={Boolean(busy)}>Save failed item and create repair</button>
+          </form>
+        </div>
+      ) : null}
       {scannerOpen ? (
         <div className="camera-overlay" role="dialog" aria-modal="true" aria-label="Equipment barcode scanner">
           <div className="camera-panel barcode-scanner-panel">
@@ -425,5 +626,30 @@ export default function InventoryOperations({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function RepairCompletionForm({
+  item,
+  busy,
+  onComplete,
+}: {
+  item: Row;
+  busy: boolean;
+  onComplete: (name: string, payload: Record<string, unknown>) => Promise<boolean>;
+}) {
+  return (
+    <form className="repair-completion-form" onSubmit={(event) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      void onComplete(`close-${value(item, "id")}`, { action: "close_work_order", workOrderId: value(item, "id"), repairDate: form.get("repairDate"), repairCost: form.get("repairCost"), vendor: form.get("vendor"), invoiceNumber: form.get("invoiceNumber"), resolutionNotes: form.get("resolutionNotes") });
+    }}>
+      <label>Repair date<input name="repairDate" type="date" required /></label>
+      <label>Cost<input name="repairCost" type="number" min="0" step="0.01" defaultValue="0.00" required /></label>
+      <label>Vendor / repaired by<input name="vendor" /></label>
+      <label>Invoice / PO<input name="invoiceNumber" /></label>
+      <label className="ops-span-2">Repair details<textarea name="resolutionNotes" rows={3} required /></label>
+      <button disabled={busy}>Mark repaired and clear Live Ops issue</button>
+    </form>
   );
 }

@@ -2,7 +2,8 @@ const upstreamOrigin = "https://stickney-payroll-manager.bobff353.chatgpt.site";
 
 const portalEnhancements =
   '<script src="/inventory-route.js" defer></script>' +
-  '<script src="/training-route.js" defer></script>';
+  '<script src="/training-route.js" defer></script>' +
+  '<script src="/fleet-notices.js" defer></script>';
 
 function publicOrigin(request: Request) {
   const url = new URL(request.url);

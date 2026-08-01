@@ -15,6 +15,17 @@ function number(value: unknown, fallback = 0) {
   return Number.isFinite(parsed) ? Math.round(parsed) : fallback;
 }
 
+function stringList(value: unknown, allowed?: Set<string>, limit = 25) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value
+    .map((item) => clean(item, 160))
+    .filter((item) => item && (!allowed || allowed.has(item))))]
+    .slice(0, limit);
+}
+
+const checkTypes = new Set(["daily", "weekly", "inventory", "air_pack"]);
+const issueCategories = new Set(["vehicle", "air_pack", "equipment"]);
+
 function privateJson(value: unknown, status = 200) {
   return Response.json(value, {
     status,
@@ -56,12 +67,12 @@ export async function GET(request: Request) {
         .order("sort_order"),
       supabase
         .from("inventory_equipment")
-        .select("id,apparatus_id,compartment_id,name,manufacturer,model,serial_number,barcode,quantity_required")
+        .select("id,apparatus_id,compartment_id,name,manufacturer,model,serial_number,barcode,quantity_required,equipment_category,check_types")
         .eq("department_id", departmentId)
         .order("name"),
       supabase
         .from("inventory_checks")
-        .select("id,apparatus_id,shift_id,status,started_by,started_at,completed_at")
+        .select("id,apparatus_id,shift_id,check_type,status,started_by,started_at,completed_at")
         .eq("department_id", departmentId)
         .order("started_at", { ascending: false })
         .limit(30),
@@ -71,13 +82,13 @@ export async function GET(request: Request) {
         .eq("department_id", departmentId),
       supabase
         .from("inventory_readiness_exceptions")
-        .select("id,apparatus_id,equipment_id,check_item_id,result,priority,notes,status,out_of_service,opened_by,opened_at")
+        .select("id,apparatus_id,equipment_id,check_item_id,result,priority,notes,status,out_of_service,opened_by,opened_at,issue_categories,assigned_employee_ids,assigned_employee_names,evidence_photo_id,resolved_at,resolved_by,resolution_notes")
         .eq("department_id", departmentId)
         .neq("status", "resolved")
         .order("opened_at", { ascending: false }),
       supabase
         .from("inventory_work_orders")
-        .select("id,apparatus_id,equipment_id,status,priority,summary,details,assigned_to,opened_by,opened_at,due_at,closed_at")
+        .select("id,apparatus_id,equipment_id,status,priority,summary,details,assigned_to,opened_by,opened_at,due_at,closed_at,linked_exception_id,assigned_employee_ids,assigned_employee_names,repair_date,repair_cost,vendor,invoice_number,resolution_notes,closed_by")
         .eq("department_id", departmentId)
         .order("opened_at", { ascending: false }),
       supabase
@@ -174,6 +185,10 @@ export async function GET(request: Request) {
       exceptions,
       workOrders,
       stock,
+      viewer: {
+        email: session.context.user.email,
+        role: session.context.role,
+      },
     });
   } catch {
     return privateJson(
@@ -229,6 +244,12 @@ export async function POST(request: Request) {
         serial_number: clean(body.serialNumber, 120) || null,
         barcode: clean(body.barcode, 120) || null,
         quantity_required: Math.max(1, number(body.quantityRequired, 1)),
+        equipment_category: issueCategories.has(clean(body.equipmentCategory, 40))
+          ? clean(body.equipmentCategory, 40)
+          : "equipment",
+        check_types: stringList(body.checkTypes, checkTypes, 4).length
+          ? stringList(body.checkTypes, checkTypes, 4)
+          : ["inventory"],
       };
       const { error } = await supabase.from("inventory_equipment").insert(record);
       if (error) throw error;
@@ -237,6 +258,10 @@ export async function POST(request: Request) {
 
     if (action === "start_check") {
       const apparatusId = clean(body.apparatusId, 80);
+      const checkType = clean(body.checkType, 40);
+      if (!checkTypes.has(checkType)) {
+        return privateJson({ error: "Choose Daily, Weekly, Inventory, or Air Pack check." }, 400);
+      }
       const { data: apparatus } = await supabase
         .from("inventory_apparatus_profiles")
         .select("id")
@@ -245,15 +270,18 @@ export async function POST(request: Request) {
         .maybeSingle();
       const { data: equipment } = await supabase
         .from("inventory_equipment")
-        .select("id")
+        .select("id,check_types")
         .eq("department_id", departmentId)
         .eq("apparatus_id", apparatusId);
       if (!apparatus) {
         return privateJson({ error: "Select a saved department apparatus." }, 400);
       }
-      if (!equipment?.length) {
+      const includedEquipment = (equipment || []).filter((item) => (
+        Array.isArray(item.check_types) && item.check_types.includes(checkType)
+      ));
+      if (!includedEquipment.length) {
         return privateJson(
-          { error: "Add at least one equipment item before starting a check." },
+          { error: `Add at least one item to the ${checkType.replace("_", " ")} check before starting it.` },
           400,
         );
       }
@@ -263,12 +291,13 @@ export async function POST(request: Request) {
         department_id: departmentId,
         apparatus_id: apparatusId,
         shift_id: clean(body.shiftId, 80) || null,
+        check_type: checkType,
         status: "in_progress",
         started_by: actor,
       });
       if (checkError) throw checkError;
       const { error: itemError } = await supabase.from("inventory_check_items").insert(
-        equipment.map((item) => ({
+        includedEquipment.map((item) => ({
           id: crypto.randomUUID(),
           department_id: departmentId,
           check_id: checkId,
@@ -283,9 +312,9 @@ export async function POST(request: Request) {
     if (action === "record_check_item") {
       const checkItemId = clean(body.checkItemId, 80);
       const result = clean(body.result, 40);
-      if (!["pass", "missing", "damaged", "not_applicable"].includes(result)) {
+      if (!["pass", "failed", "missing", "damaged", "not_applicable"].includes(result)) {
         return privateJson(
-          { error: "Choose Pass, Missing, Damaged, or Not applicable." },
+          { error: "Choose Pass, Failed, Missing, Damaged, or Not applicable." },
           400,
         );
       }
@@ -299,14 +328,14 @@ export async function POST(request: Request) {
       const [{ data: check }, { data: equipment }] = await Promise.all([
         supabase
           .from("inventory_checks")
-          .select("id,apparatus_id,status")
+          .select("id,apparatus_id,status,check_type")
           .eq("department_id", departmentId)
           .eq("id", item.check_id)
           .eq("status", "in_progress")
           .maybeSingle(),
         supabase
           .from("inventory_equipment")
-          .select("id")
+          .select("id,name,equipment_category")
           .eq("department_id", departmentId)
           .eq("id", item.equipment_id)
           .maybeSingle(),
@@ -315,6 +344,28 @@ export async function POST(request: Request) {
         return privateJson({ error: "This active check item was not found." }, 404);
       }
       const notes = clean(body.notes, 500) || null;
+      const evidencePhotoId = clean(body.evidencePhotoId, 80) || null;
+      const assignedEmployeeIds = stringList(body.assignedEmployeeIds);
+      const assignedEmployeeNames = stringList(body.assignedEmployeeNames);
+      const categories = stringList(body.issueCategories, issueCategories, 3);
+      const isFailure = ["failed", "missing", "damaged"].includes(result);
+      if (isFailure && (!notes || !evidencePhotoId)) {
+        return privateJson(
+          { error: "A failed item requires a note and attached photo." },
+          400,
+        );
+      }
+      if (evidencePhotoId) {
+        const { data: evidence } = await supabase
+          .from("inventory_deficiency_photos")
+          .select("id")
+          .eq("department_id", departmentId)
+          .eq("apparatus_id", check.apparatus_id)
+          .eq("check_item_id", checkItemId)
+          .eq("id", evidencePhotoId)
+          .maybeSingle();
+        if (!evidence) return privateJson({ error: "The attached photo does not match this item." }, 400);
+      }
       const { error } = await supabase
         .from("inventory_check_items")
         .update({
@@ -326,7 +377,7 @@ export async function POST(request: Request) {
         .eq("department_id", departmentId)
         .eq("id", checkItemId);
       if (error) throw error;
-      if (["missing", "damaged"].includes(result)) {
+      if (isFailure) {
         const { data: existing } = await supabase
           .from("inventory_readiness_exceptions")
           .select("id")
@@ -334,22 +385,65 @@ export async function POST(request: Request) {
           .eq("check_item_id", checkItemId)
           .neq("status", "resolved")
           .maybeSingle();
+        const exceptionId = existing?.id || crypto.randomUUID();
+        const exceptionRecord = {
+          result,
+          priority: result === "missing" ? "high" : "medium",
+          notes,
+          status: "open",
+          issue_categories: categories.length
+            ? categories
+            : [equipment.equipment_category || (check.check_type === "air_pack" ? "air_pack" : "equipment")],
+          assigned_employee_ids: assignedEmployeeIds,
+          assigned_employee_names: assignedEmployeeNames,
+          evidence_photo_id: evidencePhotoId,
+        };
         if (!existing) {
           const { error: exceptionError } = await supabase
             .from("inventory_readiness_exceptions")
             .insert({
+              id: exceptionId,
               department_id: departmentId,
               apparatus_id: check.apparatus_id,
               equipment_id: item.equipment_id,
               check_item_id: checkItemId,
-              result,
-              priority: result === "missing" ? "high" : "medium",
-              notes: notes || `${result} during apparatus check`,
-              status: "open",
+              ...exceptionRecord,
               out_of_service: false,
               opened_by: actor,
             });
           if (exceptionError) throw exceptionError;
+        } else {
+          const { error: exceptionError } = await supabase
+            .from("inventory_readiness_exceptions")
+            .update(exceptionRecord)
+            .eq("department_id", departmentId)
+            .eq("id", exceptionId);
+          if (exceptionError) throw exceptionError;
+        }
+        const { data: linkedOrder } = await supabase
+          .from("inventory_work_orders")
+          .select("id")
+          .eq("department_id", departmentId)
+          .eq("linked_exception_id", exceptionId)
+          .neq("status", "closed")
+          .maybeSingle();
+        if (!linkedOrder) {
+          const { error: orderError } = await supabase.from("inventory_work_orders").insert({
+            id: crypto.randomUUID(),
+            department_id: departmentId,
+            apparatus_id: check.apparatus_id,
+            equipment_id: item.equipment_id,
+            linked_exception_id: exceptionId,
+            status: "open",
+            priority: exceptionRecord.priority,
+            summary: `${equipment.name} failed ${String(check.check_type).replace("_", " ")} check`,
+            details: notes,
+            assigned_to: assignedEmployeeNames.join(", ") || null,
+            assigned_employee_ids: assignedEmployeeIds,
+            assigned_employee_names: assignedEmployeeNames,
+            opened_by: actor,
+          });
+          if (orderError) throw orderError;
         }
       }
       return privateJson({ saved: true });
@@ -379,6 +473,73 @@ export async function POST(request: Request) {
       return privateJson({ completed: true });
     }
 
+    if (action === "create_notice") {
+      const apparatusId = clean(body.apparatusId, 80);
+      const notes = clean(body.notes, 1000);
+      const categories = stringList(body.issueCategories, issueCategories, 3);
+      const assignedEmployeeIds = stringList(body.assignedEmployeeIds);
+      const assignedEmployeeNames = stringList(body.assignedEmployeeNames);
+      const evidencePhotoId = clean(body.evidencePhotoId, 80) || null;
+      if (!apparatusId || !notes || !categories.length || !assignedEmployeeIds.length) {
+        return privateJson(
+          { error: "Select an apparatus, issue type, employee, and enter the notice details." },
+          400,
+        );
+      }
+      const { data: apparatus } = await supabase
+        .from("inventory_apparatus_profiles")
+        .select("id,name")
+        .eq("department_id", departmentId)
+        .eq("id", apparatusId)
+        .maybeSingle();
+      if (!apparatus) return privateJson({ error: "The selected apparatus was not found." }, 404);
+      if (evidencePhotoId) {
+        const { data: evidence } = await supabase
+          .from("inventory_deficiency_photos")
+          .select("id")
+          .eq("department_id", departmentId)
+          .eq("apparatus_id", apparatusId)
+          .eq("id", evidencePhotoId)
+          .maybeSingle();
+        if (!evidence) return privateJson({ error: "The attached photo does not match this apparatus." }, 400);
+      }
+      const exceptionId = crypto.randomUUID();
+      const { error: exceptionError } = await supabase
+        .from("inventory_readiness_exceptions")
+        .insert({
+          id: exceptionId,
+          department_id: departmentId,
+          apparatus_id: apparatusId,
+          result: "failed",
+          priority: clean(body.priority, 40) || "medium",
+          notes,
+          status: "open",
+          out_of_service: false,
+          opened_by: actor,
+          issue_categories: categories,
+          assigned_employee_ids: assignedEmployeeIds,
+          assigned_employee_names: assignedEmployeeNames,
+          evidence_photo_id: evidencePhotoId,
+        });
+      if (exceptionError) throw exceptionError;
+      const { error: orderError } = await supabase.from("inventory_work_orders").insert({
+        id: crypto.randomUUID(),
+        department_id: departmentId,
+        apparatus_id: apparatusId,
+        linked_exception_id: exceptionId,
+        status: "open",
+        priority: clean(body.priority, 40) || "medium",
+        summary: `${apparatus.name} ${categories.map((item) => item.replace("_", " ")).join(" / ")} notice`,
+        details: notes,
+        assigned_to: assignedEmployeeNames.join(", "),
+        assigned_employee_ids: assignedEmployeeIds,
+        assigned_employee_names: assignedEmployeeNames,
+        opened_by: actor,
+      });
+      if (orderError) throw orderError;
+      return privateJson({ noticeId: exceptionId }, 201);
+    }
+
     if (action === "create_work_order") {
       const apparatusId = clean(body.apparatusId, 80);
       const summary = clean(body.summary);
@@ -396,7 +557,11 @@ export async function POST(request: Request) {
         priority: clean(body.priority, 40) || "routine",
         summary,
         details: clean(body.details, 1000) || null,
-        assigned_to: clean(body.assignedTo, 160) || null,
+        assigned_to: stringList(body.assignedEmployeeNames).join(", ")
+          || clean(body.assignedTo, 160)
+          || null,
+        assigned_employee_ids: stringList(body.assignedEmployeeIds),
+        assigned_employee_names: stringList(body.assignedEmployeeNames),
         opened_by: actor,
       };
       const { error } = await supabase.from("inventory_work_orders").insert(record);
@@ -406,13 +571,53 @@ export async function POST(request: Request) {
 
     if (action === "close_work_order") {
       const workOrderId = clean(body.workOrderId, 80);
+      const repairDate = clean(body.repairDate, 40);
+      const resolutionNotes = clean(body.resolutionNotes, 1000);
+      const repairCost = Number(body.repairCost);
+      if (!repairDate || !resolutionNotes || !Number.isFinite(repairCost) || repairCost < 0) {
+        return privateJson(
+          { error: "Repair date, repair details, and a valid cost are required." },
+          400,
+        );
+      }
+      const { data: workOrder } = await supabase
+        .from("inventory_work_orders")
+        .select("id,linked_exception_id")
+        .eq("department_id", departmentId)
+        .eq("id", workOrderId)
+        .neq("status", "closed")
+        .maybeSingle();
+      if (!workOrder) return privateJson({ error: "This open repair was not found." }, 404);
       const { error } = await supabase
         .from("inventory_work_orders")
-        .update({ status: "closed", closed_at: new Date().toISOString() })
+        .update({
+          status: "closed",
+          closed_at: new Date().toISOString(),
+          repair_date: repairDate,
+          repair_cost: repairCost,
+          vendor: clean(body.vendor, 240) || null,
+          invoice_number: clean(body.invoiceNumber, 120) || null,
+          resolution_notes: resolutionNotes,
+          closed_by: actor,
+        })
         .eq("department_id", departmentId)
         .eq("id", workOrderId)
         .neq("status", "closed");
       if (error) throw error;
+      if (workOrder.linked_exception_id) {
+        const { error: resolveError } = await supabase
+          .from("inventory_readiness_exceptions")
+          .update({
+            status: "resolved",
+            resolved_at: new Date().toISOString(),
+            resolved_by: actor,
+            resolution_notes: resolutionNotes,
+          })
+          .eq("department_id", departmentId)
+          .eq("id", workOrder.linked_exception_id)
+          .neq("status", "resolved");
+        if (resolveError) throw resolveError;
+      }
       return privateJson({ closed: true });
     }
 

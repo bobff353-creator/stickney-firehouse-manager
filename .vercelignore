@@ -13,5 +13,7 @@ worker
 dist
 outputs
 work
+.work
+tmp
 vite.config.ts
 drizzle.config.ts
