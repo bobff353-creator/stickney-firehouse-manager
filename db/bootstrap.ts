@@ -66,6 +66,7 @@ const employeeSeed = [
 ] as const;
 
 let ready = false;
+const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-01-v1";
 
 const policySeedVersion = "stickney-policy-library-2026-07-18";
 const boxCardSeedVersion = "regional-box-cards-structured-2026-07-21-v2";
@@ -286,13 +287,7 @@ async function getDatabaseBinding() {
   return env.DB;
 }
 
-export async function ensureDatabase() {
-  const db = await getDatabaseBinding();
-  if (ready) {
-    await importApproved1203WeeklyCheck(db);
-    await importApproved1204WeeklyCheck(db);
-    return db;
-  }
+async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
   await db.batch([
     db.prepare("CREATE TABLE IF NOT EXISTS pay_scales (id TEXT PRIMARY KEY NOT NULL, label TEXT NOT NULL, regular_rate REAL NOT NULL, overtime_rate REAL NOT NULL, holiday_rate REAL NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0)"),
     db.prepare("CREATE TABLE IF NOT EXISTS pay_rate_history (id TEXT PRIMARY KEY NOT NULL, pay_scale_id TEXT NOT NULL REFERENCES pay_scales(id), effective_date TEXT NOT NULL, regular_rate REAL NOT NULL, overtime_rate REAL NOT NULL, holiday_rate REAL NOT NULL, created_by TEXT NOT NULL DEFAULT 'System', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
@@ -537,6 +532,31 @@ export async function ensureDatabase() {
   await importApproved1204WeeklyCheck(db);
   await seedPolicies(db);
   await seedBoxCards(db);
+  await db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES ('runtime_bootstrap_version', ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind(runtimeBootstrapVersion).run();
   ready = true;
   return db;
+}
+
+let initializationPromise: Promise<Awaited<ReturnType<typeof getDatabaseBinding>>> | null = null;
+
+export async function ensureDatabase() {
+  const db = await getDatabaseBinding();
+  if (ready) return db;
+
+  try {
+    const marker = await db.prepare("SELECT value FROM system_meta WHERE key = 'runtime_bootstrap_version' LIMIT 1").first<{ value: string }>();
+    if (marker?.value === runtimeBootstrapVersion) {
+      ready = true;
+      return db;
+    }
+  } catch {
+    // A new database does not have system_meta yet and needs the full bootstrap.
+  }
+
+  initializationPromise ??= initializeDatabase(db);
+  try {
+    return await initializationPromise;
+  } finally {
+    initializationPromise = null;
+  }
 }
