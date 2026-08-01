@@ -29,6 +29,7 @@ import Respond from "./respond";
 import IncidentCommandBoard from "./incident-command-board";
 import RespondDeviceSettingsPage from "./respond-device-settings";
 import DepartmentSettings from "./department-settings";
+import InventoryPage from "./inventory-page";
 import { defaultRespondDeviceSettings, readRespondDeviceSettings, RESPOND_ALERT_DURATION_SECONDS, type RespondDeviceSettings } from "./respond-device";
 
 type Category = "shift" | "drill" | "workDetail" | "callback" | "actingOfficer" | "holiday" | "dpw";
@@ -75,7 +76,6 @@ const adminNavGroups: Array<{ label: string; icon: IconName; items: Array<{ labe
   { label: "Settings", icon: "settings", items: [{ label: "Departments", page: "Departments" }, { label: "Important Phone Numbers", page: "Phone Numbers" }, { label: "Permissions", page: "Permissions" }, { label: "CIS CAD Integration", page: "CAD Integration" }, { label: "Respond Device Modes", page: "Respond Device Modes" }, { label: "Test as Member", page: "Test View" }] },
 ];
 const navPermission: Partial<Record<NavItem, string>> = { Dashboard: "dashboard.view", "Command Center": "command_center.view", "Operations Board": "operations_board.view", "Activity Timeline": "command_center.view", Respond: "field_preplans.view", "Command Board": "incident_command.view", "Field Preplans": "field_preplans.view", Scheduling: "scheduling.view", Payroll: "payroll.manage", "Work Details": "scheduling.manage", "Daily Log": "daily_log.view", Timesheets: "payroll.manage", "My Timesheet": "payroll.view_own", Employees: "employees.manage", "Employee Contacts": "contacts.view", Policies: "documents.view", "Box Cards": "documents.view", "Holiday Policy": "documents.view", "Daily Duties": "documents.view", Inventory: "documents.view", "Phone Numbers": "settings.manage", "Rates & Rules": "payroll.manage", Departments: "settings.manage", Permissions: "permissions.manage", "CAD Integration": "permissions.manage", "Respond Device Modes": "settings.manage", "Test View": "permissions.manage" };
-const inventoryUrl = "/inventory";
 const memberStationDutyItems = new Set<NavItem>(["Daily Duties", "Inventory"]);
 const emptyEmployee: EmployeeForm = {
   lastName: "", firstName: "", payScaleId: "firefighter", employeeNumber: "", startDate: "", endDate: "", dateOfBirth: "",
@@ -191,11 +191,13 @@ function PortalSkeleton({ page }: { page: NavItem }) {
 export default function PayrollApp({
   accountEmail,
   onSignOut,
+  initialPage = "Dashboard",
 }: {
   accountEmail: string;
   onSignOut: () => void;
+  initialPage?: "Dashboard" | "Inventory";
 }) {
-  const [activeNav, setActiveNav] = useState<NavItem>("Dashboard");
+  const [activeNav, setActiveNav] = useState<NavItem>(initialPage);
   const [tvMode, setTvMode] = useState(false);
   const [periodStart, setPeriodStart] = useState(currentPeriodStart);
   const [data, setData] = useState<PayrollData | null>(null);
@@ -618,10 +620,6 @@ export default function PayrollApp({
     if ((testMember || (data && !data.viewer.isAdmin && viewerPermissions)) && !visibleNav.includes(activeNav)) setActiveNav(homePage);
   }, [activeNav, data, homePage, testMember, viewerPermissions, visibleNav]);
   function navigate(page: NavItem) {
-    if (page === "Inventory") {
-      window.location.assign(inventoryUrl);
-      return;
-    }
     setActiveNav(page);
     setMobileMenuOpen(false);
     setGlobalSearchOpen(false);
@@ -817,6 +815,7 @@ export default function PayrollApp({
 
           {activeNav === "Holiday Policy" && <HolidayPolicy />}
           {activeNav === "Daily Duties" && <DailyDuties />}
+          {activeNav === "Inventory" && <InventoryPage onBack={() => navigate("Daily Duties")} />}
 
           {activeNav === "Phone Numbers" && <PhoneNumbers />}
           {activeNav === "CAD Integration" && data.viewer.isAdmin && <CadIntegrationSettings />}

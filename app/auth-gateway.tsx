@@ -13,8 +13,10 @@ function clearAccessCache() {
 
 export default function AuthGateway({
   initiallyVerified,
+  initialPage,
 }: {
   initiallyVerified: boolean;
+  initialPage?: "Dashboard" | "Inventory";
 }) {
   const [mode, setMode] = useState<Mode>(initiallyVerified ? "authorized" : "loading");
   const [user, setUser] = useState<User | null>(null);
@@ -169,6 +171,7 @@ export default function AuthGateway({
       <PayrollApp
         accountEmail={user?.email || ""}
         onSignOut={signOut}
+        initialPage={initialPage}
       />
     );
   }

@@ -39,7 +39,8 @@ test("places Inventory under Station Duties without 360 branding", async () => {
 
   assert.match(source, /label: "Station Duties"/);
   assert.match(source, /\{ label: "Inventory", page: "Inventory" \}/);
-  assert.match(source, /const inventoryUrl = "\/inventory"/);
+  assert.match(source, /import InventoryPage from "\.\/inventory-page"/);
+  assert.match(source, /activeNav === "Inventory"/);
   assert.match(source, /sidebar-group-toggle/);
   assert.match(source, /mobile-bottom-tabs/);
   assert.match(source, /type: "Preplan"/);
