@@ -66,7 +66,7 @@ const employeeSeed = [
 ] as const;
 
 let ready = false;
-const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-01-v1";
+const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-01-v2";
 
 const policySeedVersion = "stickney-policy-library-2026-07-18";
 const boxCardSeedVersion = "regional-box-cards-structured-2026-07-21-v2";
@@ -546,6 +546,12 @@ export async function ensureDatabase() {
   try {
     const marker = await db.prepare("SELECT value FROM system_meta WHERE key = 'runtime_bootstrap_version' LIMIT 1").first<{ value: string }>();
     if (marker?.value === runtimeBootstrapVersion) {
+      ready = true;
+      return db;
+    }
+    const legacyMarker = await db.prepare("SELECT value FROM system_meta WHERE key = 'box_card_seed_version' LIMIT 1").first<{ value: string }>();
+    if (legacyMarker?.value === boxCardSeedVersion) {
+      await db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES ('runtime_bootstrap_version', ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind(runtimeBootstrapVersion).run();
       ready = true;
       return db;
     }
