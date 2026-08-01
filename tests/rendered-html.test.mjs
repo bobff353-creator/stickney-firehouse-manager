@@ -234,3 +234,15 @@ test("moves 1201 cab, cabinet, and glove-box equipment into inventory locations"
   assert.match(migration, /set label = 'Cab - Glove Box'/);
   assert.match(migration, /source_form = '1201 Weekly Check \(RESERVE\) form 248'/);
 });
+
+test("moves 1203 and 1204 cab equipment out of their weekly checks", async () => {
+  const migration = await read("supabase/migrations/20260801223252_move_1203_1204_cab_items_to_inventory.sql");
+
+  assert.match(migration, /ap\.name in \('1203', '1204'\)/);
+  assert.match(migration, /c\.label in \('Cab', 'Cab - Cabinet', 'Glove Box'\)/);
+  assert.match(migration, /when ie\.equipment_category = 'air_pack' then array\['air_pack'\]/);
+  assert.match(migration, /else array\['inventory'\]/);
+  assert.match(migration, /1203 Weekly Check \(FRONTLINE\) form 251/);
+  assert.match(migration, /1204 Weekly Check form 439/);
+  assert.match(migration, /set label = 'Cab - Glove Box'/);
+});
