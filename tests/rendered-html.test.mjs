@@ -198,3 +198,13 @@ test("loads the distinct 1204 truck form as weekly, inventory, and air-pack reco
   assert.match(migration, /Hardwire battery adapter for Genesis E-Tools/);
   assert.match(migration, /source_key is not null/);
 });
+
+test("adds Engine 1201 to the linked Stickney fleet and inventory records", async () => {
+  const migration = await read("supabase/migrations/20260801220635_add_engine_1201_to_stickney_fleet.sql");
+
+  assert.match(migration, /unit_name = '1201'/);
+  assert.match(migration, /'1201', 'Engine', '1201', 'Stickney Fire Department', 'in_service'/);
+  assert.match(migration, /insert into public\.inventory_apparatus_profiles/);
+  assert.match(migration, /on conflict \(id\) do update/);
+  assert.doesNotMatch(migration, /14a76771-4c24-481b-8def-e6cce005c17b/);
+});
