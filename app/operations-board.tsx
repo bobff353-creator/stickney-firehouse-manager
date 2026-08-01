@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatEmployeeName } from "./employee-names";
 import { formatMilitaryTime } from "./military-time";
+import { nextOperationsShiftChange } from "./operations-shift-time";
 import ChiefBoardPanel from "./chief-board-panel";
 import StaffingRotation, { type NewMember, type StaffingPerson } from "./staffing-rotation";
 
@@ -77,7 +78,6 @@ type AlertTone = typeof alertTones[number]["id"];
 const alertToneIds = new Set<string>(alertTones.map((tone) => tone.id));
 const displayName = formatEmployeeName;
 const shiftLabel = (value: string) => value === "morning" ? "6:00 AM – Noon" : value === "afternoon" ? "Noon – 6:00 PM" : "6:00 PM – 6:00 AM";
-function nextShift(now: Date) { const local = new Date(now.toLocaleString("en-US", { timeZone: "America/Chicago" })); const minutes = local.getHours() * 60 + local.getMinutes(); const target = minutes < 360 ? 360 : minutes < 720 ? 720 : minutes < 1080 ? 1080 : 1800; const remaining = target - minutes; return { label: target === 360 ? "6:00 AM" : target === 720 ? "Noon" : "6:00 PM", remaining: `${Math.floor(remaining / 60)}h ${remaining % 60}m` }; }
 
 function TrainingCourses({ provider, today }: { provider: TrainingProvider; today: string }) {
   const upcoming = provider.courses.filter((course) => course.endDate >= today).slice(0, 5);
@@ -130,7 +130,7 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
   useEffect(() => { onNewActiveCallRef.current = onNewActiveCall; }, [onNewActiveCall]);
   useEffect(() => { const storedTone = window.localStorage.getItem("stickney-call-alert-tone") || ""; const selectedTone = alertToneIds.has(storedTone) ? storedTone as AlertTone : "minitor-two-tone"; const enabled = window.localStorage.getItem("stickney-call-alert-enabled") === "true"; setAlertTone(selectedTone); setAlertEnabled(enabled); alertToneRef.current = selectedTone; alertEnabledRef.current = enabled; }, []);
   useEffect(() => { const initial = window.setTimeout(() => void load(), 0); const refresh = window.setInterval(() => void load(), 30000); const ticker = window.setInterval(() => setClock(new Date()), 1000); const rotate = rotationPaused?0:window.setInterval(() => setRotation((current) => rotationOrder[(rotationOrder.indexOf(current) + 1) % rotationOrder.length]), 12000); const rotateHeader = rotationPaused?0:window.setInterval(() => setHeaderRotation((current) => headerRotationOrder[(headerRotationOrder.indexOf(current) + 1) % headerRotationOrder.length]), 8000); return () => { window.clearTimeout(initial); window.clearInterval(refresh); window.clearInterval(ticker); if(rotate)window.clearInterval(rotate);if(rotateHeader)window.clearInterval(rotateHeader); }; }, [load,rotationPaused]);
-  const next = useMemo(() => nextShift(clock), [clock]);
+  const next = useMemo(() => nextOperationsShiftChange(clock), [clock]);
   const activeCall = data?.activeCalls[0];
   const headerWeather = headerRotation === "today" ? weather?.days[0] : headerRotation === "tomorrow" ? weather?.days[1] : null;
   const today = clock.toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
