@@ -8,6 +8,7 @@ import { holidayForDate } from "../app/holidays";
 import { polygonAreaSquareFeet, suggestedFireFlow, type ConstructionGroup, type OccupancyFlowCategory, type Point, type SprinklerStandard } from "../app/preplan-fire-flow";
 import { importedBuildingSeeds, importedBuildingSource } from "../app/preplan-imported-buildings";
 import { apparatus1203Compartments, apparatus1203Equipment, apparatus1203VehicleChecks } from "../app/inventory-1203-import";
+import { apparatus1204Compartments, apparatus1204Equipment, apparatus1204VehicleChecks } from "../app/inventory-1204-import";
 
 const payScales = [
   ["deputy-chief-1", "Chief — O'Dowd", 31, 46.5, 46.5, 1],
@@ -253,6 +254,23 @@ async function importApproved1203WeeklyCheck(db: Awaited<ReturnType<typeof getDa
   for(let index=0;index<apparatus1203Equipment.length;index++)await db.prepare("INSERT OR IGNORE INTO inventory_weekly_check_items(id,template_id,equipment_id,label,section_name,sort_order) VALUES(?, '1203-weekly-check', ?, ?, ?, ?)").bind(`1203-equipment-check-${index+1}`,`1203-equipment-${index+1}`,apparatus1203Equipment[index].name,apparatus1203Equipment[index].compartment,100+index).run();
 }
 
+async function importApproved1204WeeklyCheck(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
+  const apparatus=await db.prepare("SELECT id FROM fleet_apparatus WHERE unit_number='1204' COLLATE NOCASE LIMIT 1").first<{id:string}>();
+  if(!apparatus)return;
+  const actor="1204 Weekly Check form import - submitted 2026-07-31";
+  for(let index=0;index<apparatus1204Compartments.length;index++){
+    const label=apparatus1204Compartments[index],id=`1204-compartment-${index+1}`;
+    await db.prepare("INSERT OR IGNORE INTO inventory_compartments(id,apparatus_id,label,side,details,sort_order,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?)").bind(id,apparatus.id,label,label.toLowerCase().includes("rear")?"rear":"",`Imported from approved 1204 Weekly Check form.`,index,actor,actor).run();
+  }
+  for(let index=0;index<apparatus1204Equipment.length;index++){
+    const item=apparatus1204Equipment[index],compartmentIndex=apparatus1204Compartments.indexOf(item.compartment as typeof apparatus1204Compartments[number]);if(compartmentIndex<0)continue;
+    await db.prepare("INSERT OR IGNORE INTO inventory_equipment(id,apparatus_id,compartment_id,name,category,quantity,condition,service_status,notes,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(`1204-equipment-${index+1}`,apparatus.id,`1204-compartment-${compartmentIndex+1}`,item.name,item.category||"Apparatus equipment",item.quantity||1,"not_recorded","requires_check","Imported from approved 1204 Weekly Check form; current presence and condition must be confirmed during the next check.",actor,actor).run();
+  }
+  await db.prepare("INSERT OR IGNORE INTO inventory_weekly_check_templates(id,apparatus_id,name,source,active,created_by) VALUES('1204-weekly-check',?,'1204 Weekly Apparatus Check','Stickney Members Only form 439 - submitted 2026-07-31',1,?)").bind(apparatus.id,actor).run();
+  for(let index=0;index<apparatus1204VehicleChecks.length;index++)await db.prepare("INSERT OR IGNORE INTO inventory_weekly_check_items(id,template_id,equipment_id,label,section_name,sort_order) VALUES(?, '1204-weekly-check', NULL, ?, 'Vehicle / pump / tools', ?)").bind(`1204-vehicle-check-${index+1}`,apparatus1204VehicleChecks[index],index).run();
+  for(let index=0;index<apparatus1204Equipment.length;index++)await db.prepare("INSERT OR IGNORE INTO inventory_weekly_check_items(id,template_id,equipment_id,label,section_name,sort_order) VALUES(?, '1204-weekly-check', ?, ?, ?, ?)").bind(`1204-equipment-check-${index+1}`,`1204-equipment-${index+1}`,apparatus1204Equipment[index].name,apparatus1204Equipment[index].compartment,100+index).run();
+}
+
 async function getDatabaseBinding() {
   const { env } = await import("cloudflare:workers");
   return env.DB;
@@ -262,6 +280,7 @@ export async function ensureDatabase() {
   const db = await getDatabaseBinding();
   if (ready) {
     await importApproved1203WeeklyCheck(db);
+    await importApproved1204WeeklyCheck(db);
     return db;
   }
   await db.batch([
@@ -505,6 +524,7 @@ export async function ensureDatabase() {
     db.prepare("CREATE TABLE IF NOT EXISTS inventory_weekly_check_results (id TEXT PRIMARY KEY NOT NULL, check_id TEXT NOT NULL REFERENCES inventory_weekly_checks(id), item_id TEXT NOT NULL REFERENCES inventory_weekly_check_items(id), result TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '', UNIQUE(check_id,item_id))"),
   ]);
   await importApproved1203WeeklyCheck(db);
+  await importApproved1204WeeklyCheck(db);
   await seedPolicies(db);
   await seedBoxCards(db);
   ready = true;

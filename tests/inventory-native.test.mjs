@@ -30,3 +30,10 @@ test("approved 1203 form imports stable real compartments and a separate weekly 
  assert.match(db,/unit_number='1203'/);assert.match(db,/INSERT OR IGNORE INTO inventory_equipment/);assert.match(db,/inventory_weekly_check_templates/);assert.match(api,/save_weekly_check/);assert.match(ui,/weekly apparatus check/);assert.match(ui,/Complete every item to submit/);
  assert.doesNotMatch(source,/demo|sample|fabricated/i);
 });
+
+test("approved 1204 form keeps its own compartments and weekly check",async()=>{
+ const [source,db]=await Promise.all([read("../app/inventory-1204-import.ts"),read("../db/bootstrap.ts")]);
+ for(const compartment of ["Compartment 1 (EMS)","Engineer's Panel (Compartment 3)","Compartment 7 (Rear)","Compartment 13"])assert.match(source,new RegExp(compartment.replace(/[()]/g,"\\$&")));
+ for(const item of ["A-frame ladder","Hydra-Shield hydrant wrench","Genesis E-tool spreader","35-foot extension ladder","Airbag control unit"])assert.match(source,new RegExp(item,"i"));
+ assert.match(db,/unit_number='1204'/);assert.match(db,/1204-weekly-check/);assert.match(db,/importApproved1204WeeklyCheck/);assert.doesNotMatch(source,/1203|demo|sample|fabricated/i);
+});
