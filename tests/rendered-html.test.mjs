@@ -246,3 +246,13 @@ test("moves 1203 and 1204 cab equipment out of their weekly checks", async () =>
   assert.match(migration, /1204 Weekly Check form 439/);
   assert.match(migration, /set label = 'Cab - Glove Box'/);
 });
+
+test("adds Ambulance 1205 to the linked Stickney fleet and inventory records", async () => {
+  const migration = await read("supabase/migrations/20260801223648_add_ambulance_1205_to_stickney_fleet.sql");
+
+  assert.match(migration, /unit_name = '1205'/);
+  assert.match(migration, /'1205', 'Ambulance', '1205', 'Stickney Fire Department', 'in_service'/);
+  assert.match(migration, /insert into public\.inventory_apparatus_profiles/);
+  assert.match(migration, /on conflict \(id\) do update/);
+  assert.doesNotMatch(migration, /14a76771-4c24-481b-8def-e6cce005c17b/);
+});
