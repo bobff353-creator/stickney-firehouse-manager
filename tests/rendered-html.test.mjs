@@ -224,3 +224,13 @@ test("routes 1201 form 248 into separate weekly, air-pack, and inventory checkli
   assert.match(migration, /'Hose','L\.D\.H\. Storz supply',1,'equipment',array\['inventory'\]/);
   assert.doesNotMatch(migration, /array\['weekly','inventory'/);
 });
+
+test("moves 1201 cab, cabinet, and glove-box equipment into inventory locations", async () => {
+  const migration = await read("supabase/migrations/20260801221710_move_1201_cab_items_to_inventory.sql");
+
+  assert.match(migration, /c\.label in \('Cab', 'Cab - Cabinet', 'Glove box'\)/);
+  assert.match(migration, /ie\.check_types = array\['weekly'\]::text\[\]/);
+  assert.match(migration, /set check_types = array\['inventory'\]::text\[\]/);
+  assert.match(migration, /set label = 'Cab - Glove Box'/);
+  assert.match(migration, /source_form = '1201 Weekly Check \(RESERVE\) form 248'/);
+});
