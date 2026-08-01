@@ -218,6 +218,19 @@ export async function POST(request: Request) {
           return privateJson({ error: "Select a compartment from this apparatus." }, 400);
         }
       }
+      if (equipmentId) {
+        const { data: equipment } = await supabase
+          .from("inventory_equipment")
+          .select("id,apparatus_id,compartment_id")
+          .eq("department_id", departmentId)
+          .eq("id", equipmentId)
+          .eq("apparatus_id", apparatusId)
+          .is("retired_at", null)
+          .maybeSingle();
+        if (!equipment || (compartmentId && equipment.compartment_id !== compartmentId)) {
+          return privateJson({ error: "Select equipment from this apparatus and compartment." }, 400);
+        }
+      }
 
       let priorQuery = supabase
         .from("inventory_photo_views")
@@ -230,6 +243,9 @@ export async function POST(request: Request) {
       priorQuery = compartmentId
         ? priorQuery.eq("compartment_id", compartmentId)
         : priorQuery.is("compartment_id", null);
+      priorQuery = equipmentId
+        ? priorQuery.eq("equipment_id", equipmentId)
+        : priorQuery.is("equipment_id", null);
       const { data: prior } = await priorQuery
         .order("version_number", { ascending: false })
         .limit(1)

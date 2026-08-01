@@ -50,6 +50,7 @@ export async function GET(request: Request) {
       workOrdersResult,
       stockItemsResult,
       stockLotsResult,
+      equipmentPhotosResult,
     ] = await Promise.all([
       supabase
         .from("inventory_apparatus_profiles")
@@ -67,8 +68,10 @@ export async function GET(request: Request) {
         .order("sort_order"),
       supabase
         .from("inventory_equipment")
-        .select("id,apparatus_id,compartment_id,name,manufacturer,model,serial_number,barcode,quantity_required,equipment_category,check_types")
+        .select("id,apparatus_id,compartment_id,name,manufacturer,model,serial_number,barcode,quantity_required,equipment_category,check_types,source_form,item_order")
         .eq("department_id", departmentId)
+        .is("retired_at", null)
+        .order("item_order")
         .order("name"),
       supabase
         .from("inventory_checks")
@@ -100,6 +103,13 @@ export async function GET(request: Request) {
         .from("inventory_stock_lots")
         .select("id,stock_item_id,location_type,location_id,lot_number,expires_at,quantity_on_hand")
         .eq("department_id", departmentId),
+      supabase
+        .from("inventory_photo_views")
+        .select("id,equipment_id,captured_at")
+        .eq("department_id", departmentId)
+        .not("equipment_id", "is", null)
+        .is("replaced_at", null)
+        .order("captured_at", { ascending: false }),
     ]);
     const firstError = [
       apparatusResult,
@@ -112,6 +122,7 @@ export async function GET(request: Request) {
       workOrdersResult,
       stockItemsResult,
       stockLotsResult,
+      equipmentPhotosResult,
     ].find((result) => result.error)?.error;
     if (firstError) throw firstError;
 
@@ -126,6 +137,9 @@ export async function GET(request: Request) {
     const equipment = (equipmentResult.data || []).map((item) => ({
       ...item,
       compartment_label: compartments.find((row) => row.id === item.compartment_id)?.label || "",
+      photo_url: equipmentPhotosResult.data?.find((photo) => photo.equipment_id === item.id)
+        ? `/api/digital-twin/media/${equipmentPhotosResult.data.find((photo) => photo.equipment_id === item.id)?.id}`
+        : null,
     }));
     const checks = (checksResult.data || []).map((check) => ({
       ...check,
@@ -138,6 +152,8 @@ export async function GET(request: Request) {
         ...item,
         equipment_name: equipmentItem?.name || "",
         compartment_label: equipmentItem?.compartment_label || "",
+        quantity_required: equipmentItem?.quantity_required || 1,
+        source_form: equipmentItem?.source_form || null,
       };
     });
     const exceptions = (exceptionsResult.data || []).map((item) => ({
@@ -256,6 +272,52 @@ export async function POST(request: Request) {
       return privateJson({ equipment: record }, 201);
     }
 
+    if (action === "update_equipment") {
+      const equipmentId = clean(body.equipmentId, 80);
+      const compartmentId = clean(body.compartmentId, 80);
+      const name = clean(body.name);
+      const [{ data: equipment }, { data: compartment }] = await Promise.all([
+        supabase
+          .from("inventory_equipment")
+          .select("id,apparatus_id")
+          .eq("department_id", departmentId)
+          .eq("id", equipmentId)
+          .is("retired_at", null)
+          .maybeSingle(),
+        supabase
+          .from("inventory_compartments")
+          .select("id,apparatus_id")
+          .eq("department_id", departmentId)
+          .eq("id", compartmentId)
+          .maybeSingle(),
+      ]);
+      if (!equipment || !compartment || equipment.apparatus_id !== compartment.apparatus_id || !name) {
+        return privateJson({ error: "Choose a saved item, its apparatus compartment, and a name." }, 400);
+      }
+      const changes = {
+        compartment_id: compartmentId,
+        name,
+        manufacturer: clean(body.manufacturer) || null,
+        model: clean(body.model) || null,
+        serial_number: clean(body.serialNumber, 120) || null,
+        barcode: clean(body.barcode, 120) || null,
+        quantity_required: Math.max(1, number(body.quantityRequired, 1)),
+        equipment_category: issueCategories.has(clean(body.equipmentCategory, 40))
+          ? clean(body.equipmentCategory, 40)
+          : "equipment",
+        check_types: stringList(body.checkTypes, checkTypes, 4).length
+          ? stringList(body.checkTypes, checkTypes, 4)
+          : ["inventory"],
+      };
+      const { error } = await supabase
+        .from("inventory_equipment")
+        .update(changes)
+        .eq("department_id", departmentId)
+        .eq("id", equipmentId);
+      if (error) throw error;
+      return privateJson({ equipment: { id: equipmentId, ...changes } });
+    }
+
     if (action === "start_check") {
       const apparatusId = clean(body.apparatusId, 80);
       const checkType = clean(body.checkType, 40);
@@ -272,7 +334,8 @@ export async function POST(request: Request) {
         .from("inventory_equipment")
         .select("id,check_types")
         .eq("department_id", departmentId)
-        .eq("apparatus_id", apparatusId);
+        .eq("apparatus_id", apparatusId)
+        .is("retired_at", null);
       if (!apparatus) {
         return privateJson({ error: "Select a saved department apparatus." }, 400);
       }

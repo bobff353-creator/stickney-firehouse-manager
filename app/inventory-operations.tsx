@@ -1,5 +1,8 @@
 "use client";
 
+/* Authenticated inventory images must load directly so the browser sends the department session cookie. */
+/* eslint-disable @next/next/no-img-element */
+
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { IScannerControls } from "@zxing/browser";
@@ -143,7 +146,10 @@ export default function InventoryOperations({
   const [viewerEmployeeId, setViewerEmployeeId] = useState("");
   const [selectedApparatusId, setSelectedApparatusId] = useState(initialApparatusId);
   const [deficiencyItem, setDeficiencyItem] = useState<Row | null>(null);
+  const [editingEquipment, setEditingEquipment] = useState<Row | null>(null);
+  const [scannerTarget, setScannerTarget] = useState<"create" | "edit">("create");
   const equipmentFormRef = useRef<HTMLFormElement>(null);
+  const equipmentEditorRef = useRef<HTMLFormElement>(null);
   const scannerVideoRef = useRef<HTMLVideoElement>(null);
   const scannerControlsRef = useRef<IScannerControls | null>(null);
 
@@ -155,7 +161,7 @@ export default function InventoryOperations({
   }, []);
 
   const fillEquipmentForm = useCallback((scan: ScannedEquipment) => {
-    const form = equipmentFormRef.current;
+    const form = scannerTarget === "edit" ? equipmentEditorRef.current : equipmentFormRef.current;
     if (!form) return;
     const fill = (name: string, input?: string) => {
       if (!input) return;
@@ -170,7 +176,7 @@ export default function InventoryOperations({
     fill("model", scan.model);
     fill("serialNumber", scan.serialNumber);
     fill("barcode", scan.barcode);
-  }, []);
+  }, [scannerTarget]);
 
   useEffect(() => {
     if (!scannerOpen || !scannerVideoRef.current) return;
@@ -193,7 +199,9 @@ export default function InventoryOperations({
           (result) => {
             if (!result) return;
             fillEquipmentForm(parseScannedEquipment(result.getText()));
-            setMessage("Barcode scanned. Review the filled equipment fields, then add the equipment.");
+            setMessage(scannerTarget === "edit"
+              ? "Barcode scanned. Review the item, then save changes."
+              : "Barcode scanned. Review the filled equipment fields, then add the equipment.");
             closeScanner();
           },
         );
@@ -215,7 +223,7 @@ export default function InventoryOperations({
       scannerControlsRef.current?.stop();
       scannerControlsRef.current = null;
     };
-  }, [closeScanner, fillEquipmentForm, scannerOpen]);
+  }, [closeScanner, fillEquipmentForm, scannerOpen, scannerTarget]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -300,6 +308,20 @@ export default function InventoryOperations({
     return payload.photo.id;
   }
 
+  async function uploadEquipmentPhoto(item: Row, photo: File) {
+    const form = new FormData();
+    form.set("apparatusId", value(item, "apparatus_id"));
+    form.set("compartmentId", value(item, "compartment_id"));
+    form.set("equipmentId", value(item, "id"));
+    form.set("viewKey", `interior-equipment-${value(item, "id")}`);
+    form.set("viewLevel", "equipment");
+    form.set("doorState", "not_applicable");
+    form.set("photo", photo);
+    const response = await fetch("/api/digital-twin", { method: "POST", body: form });
+    const payload = await response.json().catch(() => ({})) as { error?: string };
+    if (!response.ok) throw new Error(payload.error || "The equipment photo could not be saved.");
+  }
+
   const activeCheck = data.checks.find((check) => (
     value(check, "status") === "in_progress"
     && (!selectedApparatusId || value(check, "apparatus_id") === selectedApparatusId)
@@ -309,6 +331,7 @@ export default function InventoryOperations({
     : [];
   const pendingItems = activeItems.filter((item) => value(item, "result") === "pending").length;
   const selectedApparatus = data.apparatus.find((item) => value(item, "id") === selectedApparatusId);
+  const selectedEquipment = data.equipment.filter((item) => value(item, "apparatus_id") === selectedApparatusId);
   const myOpenRepairs = data.workOrders.filter((item) => (
     value(item, "status") !== "closed"
     && Array.isArray(item.assigned_employee_ids)
@@ -382,7 +405,7 @@ export default function InventoryOperations({
               <div className="active-inspection-title"><span>{formatStatus(activeCheck.check_type)} inspection in progress</span><small>Pass each item or select Failed to add a required note and photo.</small></div>
               {activeItems.map((item) => (
                 <article key={value(item, "id")} className={`check-row result-${value(item, "result")}`}>
-                  <div><strong>{value(item, "equipment_name")}</strong><small>{value(item, "compartment_label")}</small></div>
+                  <div><strong>{value(item, "equipment_name")}{Number(item.quantity_required || 1) > 1 ? ` × ${item.quantity_required}` : ""}</strong><small>{value(item, "compartment_label")}{value(item, "source_form") ? ` · ${value(item, "source_form")}` : ""}</small></div>
                   <span>{value(item, "result").replace("_", " ")}</span>
                   <div className="check-actions">
                     <button disabled={Boolean(busy)} onClick={() => void action(`item-${value(item, "id")}`, { action: "record_check_item", checkItemId: value(item, "id"), result: "pass" })}>Pass</button>
@@ -398,6 +421,7 @@ export default function InventoryOperations({
       ) : null}
 
       {view === "builder" ? (
+        <>
         <section className="ops-card">
           <header><div><span>BUILD INVENTORY CHECKLISTS</span><h2>Add real equipment and choose its inspections</h2></div><b>{data.equipment.length} items</b></header>
           {!data.compartments.length ? <div className="ops-empty"><strong>No compartments configured</strong><p>Create apparatus compartments before adding equipment.</p></div> : <form ref={equipmentFormRef} className="ops-form ops-form-wide" onSubmit={(event) => {
@@ -413,10 +437,27 @@ export default function InventoryOperations({
             <label>Barcode / asset tag<input name="barcode" /></label>
             <label>Required quantity<input name="quantityRequired" type="number" min="1" defaultValue="1" /></label>
             <fieldset className="ops-check-grid ops-span-2"><legend>Include in checks</legend>{inspectionTypes.map(([id, label]) => <label key={id}><input type="checkbox" name="checkTypes" value={id} defaultChecked={id === "inventory"} /> {label}</label>)}</fieldset>
-            <button className="ops-scan-button" type="button" onClick={() => setScannerOpen(true)}>Scan barcode</button>
+            <button className="ops-scan-button" type="button" onClick={() => { setScannerTarget("create"); setScannerOpen(true); }}>Scan barcode</button>
             <button className="ops-primary" disabled={Boolean(busy)}>Add to Inventory</button>
           </form>}
         </section>
+        <section className="ops-card">
+          <header><div><span>CLICKABLE APPARATUS INVENTORY</span><h2>Edit items, barcodes and photographs</h2></div><b>{selectedEquipment.length} items</b></header>
+          <label className="unit-picker">Apparatus
+            <select value={selectedApparatusId} onChange={(event) => setSelectedApparatusId(event.target.value)}>
+              {data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")}</option>)}
+            </select>
+          </label>
+          {data.compartments.filter((section) => value(section, "apparatus_id") === selectedApparatusId).map((section) => {
+            const items = selectedEquipment.filter((item) => value(item, "compartment_id") === value(section, "id"));
+            if (!items.length) return null;
+            return <div className="equipment-section" key={value(section, "id")}><h3>{value(section, "label")}</h3><div className="equipment-grid">{items.map((item) => <button type="button" key={value(item, "id")} onClick={() => setEditingEquipment(item)}>
+              {value(item, "photo_url") ? <img src={value(item, "photo_url")} alt="" /> : <span className="equipment-photo-required">Photo Required</span>}
+              <strong>{value(item, "name")}</strong><small>Qty {value(item, "quantity_required")} · {value(item, "barcode") || "Barcode not assigned"}</small>
+            </button>)}</div></div>;
+          })}
+        </section>
+        </>
       ) : null}
 
       {view === "legacy_check" ? (
@@ -607,6 +648,47 @@ export default function InventoryOperations({
             <label>Required photo<input name="photo" type="file" accept="image/*" capture="environment" required /></label>
             <fieldset className="ops-check-grid"><legend>Employees to notify</legend>{employees.length ? employees.map((employee) => <label key={employee.id}><input type="checkbox" name="assignedEmployeeIds" value={employee.id} /> {employee.name}{employee.rank ? ` · ${employee.rank}` : ""}</label>) : <p>An officer can assign this repair from the Repairs section.</p>}</fieldset>
             <button className="ops-primary" disabled={Boolean(busy)}>Save failed item and create repair</button>
+          </form>
+        </div>
+      ) : null}
+      {editingEquipment ? (
+        <div className="camera-overlay" role="presentation">
+          <form ref={equipmentEditorRef} className="camera-panel equipment-editor" role="dialog" aria-modal="true" aria-label="Edit inventory item" onSubmit={(event) => {
+            event.preventDefault();
+            const form = new FormData(event.currentTarget);
+            const photo = form.get("photo");
+            void (async () => {
+              try {
+                setBusy("edit-equipment");
+                const saved = await action("edit-equipment", { action: "update_equipment", equipmentId: value(editingEquipment, "id"), compartmentId: form.get("compartmentId"), name: form.get("name"), manufacturer: form.get("manufacturer"), model: form.get("model"), serialNumber: form.get("serialNumber"), barcode: form.get("barcode"), quantityRequired: form.get("quantityRequired"), equipmentCategory: form.get("equipmentCategory"), checkTypes: form.getAll("checkTypes") });
+                if (saved && photo instanceof File && photo.size > 0) {
+                  await uploadEquipmentPhoto(editingEquipment, photo);
+                  await load();
+                }
+                if (saved) setEditingEquipment(null);
+              } catch (caught) {
+                setError(caught instanceof Error ? caught.message : "The equipment could not be saved.");
+              } finally {
+                setBusy("");
+              }
+            })();
+          }}>
+            <header><div><span>EDIT INVENTORY ITEM</span><h3>{value(editingEquipment, "name")}</h3></div><button type="button" onClick={() => setEditingEquipment(null)}>Cancel</button></header>
+            {value(editingEquipment, "photo_url") ? <img className="equipment-editor-photo" src={value(editingEquipment, "photo_url")} alt={value(editingEquipment, "name")} /> : null}
+            <div className="ops-form ops-form-wide">
+              <label>Compartment<select name="compartmentId" defaultValue={value(editingEquipment, "compartment_id")}>{data.compartments.filter((item) => value(item, "apparatus_id") === value(editingEquipment, "apparatus_id")).map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "label")}</option>)}</select></label>
+              <label>Item name<input name="name" defaultValue={value(editingEquipment, "name")} required /></label>
+              <label>Type<select name="equipmentCategory" defaultValue={value(editingEquipment, "equipment_category")}><option value="vehicle">Vehicle</option><option value="air_pack">Air pack</option><option value="equipment">Equipment</option></select></label>
+              <label>Required quantity<input name="quantityRequired" type="number" min="1" defaultValue={value(editingEquipment, "quantity_required")} /></label>
+              <label>Manufacturer<input name="manufacturer" defaultValue={value(editingEquipment, "manufacturer")} /></label>
+              <label>Model<input name="model" defaultValue={value(editingEquipment, "model")} /></label>
+              <label>Serial number<input name="serialNumber" defaultValue={value(editingEquipment, "serial_number")} /></label>
+              <label>Barcode / asset tag<input name="barcode" defaultValue={value(editingEquipment, "barcode")} /></label>
+              <fieldset className="ops-check-grid ops-span-2"><legend>Include in checks</legend>{inspectionTypes.map(([id, label]) => <label key={id}><input type="checkbox" name="checkTypes" value={id} defaultChecked={Array.isArray(editingEquipment.check_types) && editingEquipment.check_types.includes(id)} /> {label}</label>)}</fieldset>
+              <label className="ops-span-2">Take or attach item photo<input name="photo" type="file" accept="image/*" capture="environment" /></label>
+              <button className="ops-scan-button" type="button" onClick={() => { setScannerTarget("edit"); setScannerOpen(true); }}>Scan barcode</button>
+              <button className="ops-primary" disabled={Boolean(busy)}>Save item</button>
+            </div>
           </form>
         </div>
       ) : null}

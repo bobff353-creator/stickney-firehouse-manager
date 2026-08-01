@@ -161,3 +161,26 @@ test("connects fleet inspections, employee notices, Live Ops, and repair closeou
   assert.match(migration, /assigned_employee_ids/);
   assert.match(migration, /repair_cost/);
 });
+
+test("loads the 1203 FRONTLINE checklist as editable weekly, inventory, and air-pack records", async () => {
+  const [operations, operationsApi, digitalTwinApi, migration] = await Promise.all([
+    read("app/inventory-operations.tsx"),
+    read("app/api/operations/route.ts"),
+    read("app/api/digital-twin/route.ts"),
+    read("supabase/migrations/20260801213000_seed_1203_frontline_checklist.sql"),
+  ]);
+
+  assert.match(migration, /1203 Weekly Check \(FRONTLINE\) form 251/);
+  assert.equal((migration.match(/'frontline-251-\d{3}'/g) || []).length, 289);
+  for (const section of ["Vehicle", "Cab - Cabinet", "SCBA", "Compartment 1 (Top)", "Rear Compartment", "Hose"]) {
+    assert.match(migration, new RegExp(section.replace(/[()]/g, "\\$&")));
+  }
+  assert.match(migration, /array\['weekly','inventory','air_pack'\]/);
+  assert.match(migration, /Officer SCBA harness and cylinder at 4500 PSI/);
+  assert.match(migration, /L\.D\.H\. supply \(rear\)/);
+  assert.match(operationsApi, /action === "update_equipment"/);
+  assert.match(operations, /Edit items, barcodes and photographs/);
+  assert.match(operations, /capture="environment"/);
+  assert.match(operations, /interior-equipment-/);
+  assert.match(digitalTwinApi, /Select equipment from this apparatus and compartment/);
+});
