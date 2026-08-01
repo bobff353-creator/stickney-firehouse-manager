@@ -237,9 +237,14 @@ async function seedBoxCards(db: Awaited<ReturnType<typeof getDatabaseBinding>>) 
 }
 
 async function importApproved1203WeeklyCheck(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
-  const apparatus=await db.prepare("SELECT id FROM fleet_apparatus WHERE unit_number='1203' COLLATE NOCASE LIMIT 1").first<{id:string}>();
-  if(!apparatus)return;
   const actor="1203 Weekly Check form import - submitted 2026-07-21";
+  let apparatus=await db.prepare("SELECT id FROM fleet_apparatus WHERE unit_number='1203' COLLATE NOCASE LIMIT 1").first<{id:string}>();
+  if(!apparatus){
+    const id="fleet-1203-approved-form";
+    await db.prepare("INSERT OR IGNORE INTO fleet_apparatus(id,unit_number,name,asset_type,status,notes,created_by,updated_by) VALUES(?, '1203', '1203', 'Apparatus', 'status_not_reported', 'Created from the approved 1203 Weekly Check form; complete Fleet details in Manage Apparatus.', ?, ?)").bind(id,actor,actor).run();
+    apparatus=await db.prepare("SELECT id FROM fleet_apparatus WHERE unit_number='1203' COLLATE NOCASE LIMIT 1").first<{id:string}>();
+  }
+  if(!apparatus)return;
   for(let index=0;index<apparatus1203Compartments.length;index++){
     const label=apparatus1203Compartments[index],id=`1203-compartment-${index+1}`;
     await db.prepare("INSERT OR IGNORE INTO inventory_compartments(id,apparatus_id,label,side,details,sort_order,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?)").bind(id,apparatus.id,label,label.toLowerCase().includes("officer")?"officer":label.toLowerCase().includes("driver")?"driver":label.toLowerCase().includes("rear")?"rear":"",`Imported from approved 1203 Weekly Check form.`,index,actor,actor).run();
@@ -255,9 +260,14 @@ async function importApproved1203WeeklyCheck(db: Awaited<ReturnType<typeof getDa
 }
 
 async function importApproved1204WeeklyCheck(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
-  const apparatus=await db.prepare("SELECT id FROM fleet_apparatus WHERE unit_number='1204' COLLATE NOCASE LIMIT 1").first<{id:string}>();
-  if(!apparatus)return;
   const actor="1204 Weekly Check form import - submitted 2026-07-31";
+  let apparatus=await db.prepare("SELECT id FROM fleet_apparatus WHERE unit_number='1204' COLLATE NOCASE LIMIT 1").first<{id:string}>();
+  if(!apparatus){
+    const id="fleet-1204-approved-form";
+    await db.prepare("INSERT OR IGNORE INTO fleet_apparatus(id,unit_number,name,asset_type,status,notes,created_by,updated_by) VALUES(?, '1204', '1204', 'Apparatus', 'status_not_reported', 'Created from the approved 1204 Weekly Check form; complete Fleet details in Manage Apparatus.', ?, ?)").bind(id,actor,actor).run();
+    apparatus=await db.prepare("SELECT id FROM fleet_apparatus WHERE unit_number='1204' COLLATE NOCASE LIMIT 1").first<{id:string}>();
+  }
+  if(!apparatus)return;
   for(let index=0;index<apparatus1204Compartments.length;index++){
     const label=apparatus1204Compartments[index],id=`1204-compartment-${index+1}`;
     await db.prepare("INSERT OR IGNORE INTO inventory_compartments(id,apparatus_id,label,side,details,sort_order,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?)").bind(id,apparatus.id,label,label.toLowerCase().includes("rear")?"rear":"",`Imported from approved 1204 Weekly Check form.`,index,actor,actor).run();

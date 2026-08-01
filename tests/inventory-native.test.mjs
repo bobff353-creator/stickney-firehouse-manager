@@ -36,4 +36,5 @@ test("approved 1204 form keeps its own compartments and weekly check",async()=>{
  for(const compartment of ["Compartment 1 (EMS)","Engineer's Panel (Compartment 3)","Compartment 7 (Rear)","Compartment 13"])assert.match(source,new RegExp(compartment.replace(/[()]/g,"\\$&")));
  for(const item of ["A-frame ladder","Hydra-Shield hydrant wrench","Genesis E-tool spreader","35-foot extension ladder","Airbag control unit"])assert.match(source,new RegExp(item,"i"));
  assert.match(db,/unit_number='1204'/);assert.match(db,/1204-weekly-check/);assert.match(db,/importApproved1204WeeklyCheck/);assert.doesNotMatch(source,/1203|demo|sample|fabricated/i);
+ assert.match(db,/fleet-1204-approved-form/);assert.match(db,/status_not_reported/);
 });
