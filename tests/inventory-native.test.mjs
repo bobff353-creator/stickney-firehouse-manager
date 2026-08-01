@@ -22,3 +22,11 @@ test("Inventory changes require server permissions and preserve linked history",
  const api=await read("../app/api/inventory/route.ts");
  assert.match(api,/hasPermission\(request, db, "settings\.manage"\)/);assert.match(api,/Linked inventory history prevents deletion/);assert.match(api,/Equipment retired with history preserved/);assert.match(api,/inventory_audit_events/);
 });
+
+test("approved 1203 form imports stable real compartments and a separate weekly check",async()=>{
+ const [source,db,api,ui]=await Promise.all([read("../app/inventory-1203-import.ts"),read("../db/bootstrap.ts"),read("../app/api/inventory/route.ts"),read("../app/inventory-page.tsx")]);
+ for(const compartment of ["Cab","Compartment 1 (Top)","Compartment 1 (Bottom)","Compartment 7","Officer's Side Step","Hose"])assert.match(source,new RegExp(compartment.replace(/[()]/g,"\\$&")));
+ for(const item of ["Thermal imaging camera","RIT bag","Genesis E-tool spreader","24-foot extension ladder","LDH supply - rear"])assert.match(source,new RegExp(item));
+ assert.match(db,/unit_number='1203'/);assert.match(db,/INSERT OR IGNORE INTO inventory_equipment/);assert.match(db,/inventory_weekly_check_templates/);assert.match(api,/save_weekly_check/);assert.match(ui,/weekly apparatus check/);assert.match(ui,/Complete every item to submit/);
+ assert.doesNotMatch(source,/demo|sample|fabricated/i);
+});

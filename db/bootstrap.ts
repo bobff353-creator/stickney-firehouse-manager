@@ -7,6 +7,7 @@ import { dailyLogPayrollEntries, dailyLogPayrollTotals, type PayrollStaffingRow 
 import { holidayForDate } from "../app/holidays";
 import { polygonAreaSquareFeet, suggestedFireFlow, type ConstructionGroup, type OccupancyFlowCategory, type Point, type SprinklerStandard } from "../app/preplan-fire-flow";
 import { importedBuildingSeeds, importedBuildingSource } from "../app/preplan-imported-buildings";
+import { apparatus1203Compartments, apparatus1203Equipment, apparatus1203VehicleChecks } from "../app/inventory-1203-import";
 
 const payScales = [
   ["deputy-chief-1", "Chief — O'Dowd", 31, 46.5, 46.5, 1],
@@ -232,6 +233,24 @@ async function seedBoxCards(db: Awaited<ReturnType<typeof getDatabaseBinding>>) 
     ).bind(card.id, card.title, card.address, card.boxNumber, card.accessNotes, "Structured from the attached approved MABAS Division 11 PDF. The original source remains attached below for verification.", card.department, card.documentUrl, card.documentPage, card.effectiveDate, card.reviewDate, JSON.stringify(card.layout))));
   }
   await db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind("box_card_seed_version", boxCardSeedVersion).run();
+}
+
+async function importApproved1203WeeklyCheck(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
+  const apparatus=await db.prepare("SELECT id FROM fleet_apparatus WHERE unit_number='1203' COLLATE NOCASE LIMIT 1").first<{id:string}>();
+  if(!apparatus)return;
+  const actor="1203 Weekly Check form import - submitted 2026-07-21";
+  for(let index=0;index<apparatus1203Compartments.length;index++){
+    const label=apparatus1203Compartments[index],id=`1203-compartment-${index+1}`;
+    await db.prepare("INSERT OR IGNORE INTO inventory_compartments(id,apparatus_id,label,side,details,sort_order,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?)").bind(id,apparatus.id,label,label.toLowerCase().includes("officer")?"officer":label.toLowerCase().includes("driver")?"driver":label.toLowerCase().includes("rear")?"rear":"",`Imported from approved 1203 Weekly Check form.`,index,actor,actor).run();
+  }
+  for(let index=0;index<apparatus1203Equipment.length;index++){
+    const item=apparatus1203Equipment[index],compartmentIndex=apparatus1203Compartments.indexOf(item.compartment as typeof apparatus1203Compartments[number]);
+    if(compartmentIndex<0)continue;
+    await db.prepare("INSERT OR IGNORE INTO inventory_equipment(id,apparatus_id,compartment_id,name,category,quantity,condition,service_status,notes,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(`1203-equipment-${index+1}`,apparatus.id,`1203-compartment-${compartmentIndex+1}`,item.name,item.category||"Apparatus equipment",item.quantity||1,"not_recorded","requires_check","Imported from approved 1203 Weekly Check form; current presence and condition must be confirmed during the next check.",actor,actor).run();
+  }
+  await db.prepare("INSERT OR IGNORE INTO inventory_weekly_check_templates(id,apparatus_id,name,source,active,created_by) VALUES('1203-weekly-check',?,'1203 Weekly Apparatus Check','Stickney Members Only form 251 - submitted 2026-07-21',1,?)").bind(apparatus.id,actor).run();
+  for(let index=0;index<apparatus1203VehicleChecks.length;index++)await db.prepare("INSERT OR IGNORE INTO inventory_weekly_check_items(id,template_id,equipment_id,label,section_name,sort_order) VALUES(?, '1203-weekly-check', NULL, ?, 'Vehicle / pump', ?)").bind(`1203-vehicle-check-${index+1}`,apparatus1203VehicleChecks[index],index).run();
+  for(let index=0;index<apparatus1203Equipment.length;index++)await db.prepare("INSERT OR IGNORE INTO inventory_weekly_check_items(id,template_id,equipment_id,label,section_name,sort_order) VALUES(?, '1203-weekly-check', ?, ?, ?, ?)").bind(`1203-equipment-check-${index+1}`,`1203-equipment-${index+1}`,apparatus1203Equipment[index].name,apparatus1203Equipment[index].compartment,100+index).run();
 }
 
 async function getDatabaseBinding() {
@@ -477,7 +496,12 @@ export async function ensureDatabase() {
     db.prepare("CREATE TABLE IF NOT EXISTS inventory_hotspots (id TEXT PRIMARY KEY NOT NULL, apparatus_id TEXT NOT NULL REFERENCES fleet_apparatus(id), compartment_id TEXT NOT NULL REFERENCES inventory_compartments(id), photo_id TEXT NOT NULL REFERENCES inventory_photos(id), x_basis_points INTEGER NOT NULL, y_basis_points INTEGER NOT NULL, created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE TABLE IF NOT EXISTS inventory_readiness (id TEXT PRIMARY KEY NOT NULL, apparatus_id TEXT NOT NULL REFERENCES fleet_apparatus(id), status TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '', checked_by TEXT NOT NULL, checked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE TABLE IF NOT EXISTS inventory_audit_events (id TEXT PRIMARY KEY NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL, record_type TEXT NOT NULL, record_id TEXT NOT NULL, summary TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS inventory_weekly_check_templates (id TEXT PRIMARY KEY NOT NULL, apparatus_id TEXT NOT NULL REFERENCES fleet_apparatus(id), name TEXT NOT NULL, source TEXT NOT NULL DEFAULT '', active INTEGER NOT NULL DEFAULT 1, created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS inventory_weekly_check_items (id TEXT PRIMARY KEY NOT NULL, template_id TEXT NOT NULL REFERENCES inventory_weekly_check_templates(id), equipment_id TEXT REFERENCES inventory_equipment(id), label TEXT NOT NULL, section_name TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS inventory_weekly_checks (id TEXT PRIMARY KEY NOT NULL, template_id TEXT NOT NULL REFERENCES inventory_weekly_check_templates(id), apparatus_id TEXT NOT NULL REFERENCES fleet_apparatus(id), status TEXT NOT NULL DEFAULT 'in_progress', performed_by TEXT NOT NULL, started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, completed_at TEXT, notes TEXT NOT NULL DEFAULT '')"),
+    db.prepare("CREATE TABLE IF NOT EXISTS inventory_weekly_check_results (id TEXT PRIMARY KEY NOT NULL, check_id TEXT NOT NULL REFERENCES inventory_weekly_checks(id), item_id TEXT NOT NULL REFERENCES inventory_weekly_check_items(id), result TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '', UNIQUE(check_id,item_id))"),
   ]);
+  await importApproved1203WeeklyCheck(db);
   await seedPolicies(db);
   await seedBoxCards(db);
   ready = true;

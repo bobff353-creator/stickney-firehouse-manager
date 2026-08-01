@@ -12,7 +12,7 @@ async function audit(db: Awaited<ReturnType<typeof ensureDatabase>>, actor: stri
 export async function GET(request: Request) {
   const db = await ensureDatabase();
   if (!await hasPermission(request, db, "documents.view")) return json({ error: "Sign in with an authorized department account." }, 401);
-  const [apparatus, compartments, equipment, photos, hotspots, readiness, events] = await db.batch([
+  const [apparatus, compartments, equipment, photos, hotspots, readiness, events, weeklyItems, weeklyChecks, weeklyResults] = await db.batch([
     db.prepare("SELECT id,unit_number unitNumber,name,asset_type assetType,status,manufacturer,model,year,vin,notes,retired_at retiredAt,updated_at updatedAt FROM fleet_apparatus ORDER BY retired_at IS NOT NULL,unit_number"),
     db.prepare("SELECT id,apparatus_id apparatusId,label,side,details,sort_order sortOrder,updated_at updatedAt FROM inventory_compartments ORDER BY apparatus_id,sort_order,label"),
     db.prepare("SELECT id,apparatus_id apparatusId,compartment_id compartmentId,name,category,manufacturer,model,serial_number serialNumber,asset_number assetNumber,barcode,quantity,condition,service_status serviceStatus,expiration_date expirationDate,inspection_date inspectionDate,notes,retired_at retiredAt,updated_at updatedAt FROM inventory_equipment ORDER BY name"),
@@ -20,8 +20,11 @@ export async function GET(request: Request) {
     db.prepare("SELECT id,apparatus_id apparatusId,compartment_id compartmentId,photo_id photoId,x_basis_points xBasisPoints,y_basis_points yBasisPoints FROM inventory_hotspots ORDER BY created_at"),
     db.prepare("SELECT id,apparatus_id apparatusId,status,notes,checked_by checkedBy,checked_at checkedAt FROM inventory_readiness ORDER BY checked_at DESC LIMIT 100"),
     db.prepare("SELECT id,actor,action,record_type recordType,record_id recordId,summary,created_at createdAt FROM inventory_audit_events ORDER BY created_at DESC LIMIT 100"),
+    db.prepare("SELECT i.id,i.template_id templateId,t.apparatus_id apparatusId,i.equipment_id equipmentId,i.label,i.section_name sectionName,i.sort_order sortOrder FROM inventory_weekly_check_items i JOIN inventory_weekly_check_templates t ON t.id=i.template_id WHERE t.active=1 ORDER BY i.sort_order"),
+    db.prepare("SELECT c.id,c.template_id templateId,c.apparatus_id apparatusId,c.status,c.performed_by performedBy,c.started_at startedAt,c.completed_at completedAt,c.notes FROM inventory_weekly_checks c ORDER BY c.started_at DESC LIMIT 25"),
+    db.prepare("SELECT r.id,r.check_id checkId,r.item_id itemId,r.result,r.notes FROM inventory_weekly_check_results r JOIN inventory_weekly_checks c ON c.id=r.check_id ORDER BY c.started_at DESC"),
   ]);
-  return json({ apparatus: apparatus.results, compartments: compartments.results, equipment: equipment.results, photos: photos.results, hotspots: hotspots.results, readiness: readiness.results, events: events.results });
+  return json({ apparatus: apparatus.results, compartments: compartments.results, equipment: equipment.results, photos: photos.results, hotspots: hotspots.results, readiness: readiness.results, events: events.results, weeklyItems:weeklyItems.results, weeklyChecks:weeklyChecks.results, weeklyResults:weeklyResults.results });
 }
 
 export async function POST(request: Request) {
@@ -73,6 +76,14 @@ export async function POST(request: Request) {
     }
     if(action==="delete_hotspot"){await db.prepare("DELETE FROM inventory_hotspots WHERE id=?").bind(id).run();await audit(db,actor,"hotspot.deleted","hotspot",id,"Hotspot removed");return json({deleted:true});}
     if(action==="save_readiness"){const apparatusId=text(body.apparatusId,80),status=text(body.status,40);if(!apparatusId||!status)return json({error:"Apparatus and readiness status are required."},400);await db.prepare("INSERT INTO inventory_readiness(id,apparatus_id,status,notes,checked_by) VALUES(?,?,?,?,?)").bind(id,apparatusId,status,text(body.notes),actor).run();await audit(db,actor,"readiness.saved","readiness",id,status);return json({id,saved:true});}
+    if(action==="save_weekly_check"){
+      const apparatusId=text(body.apparatusId,80),templateId=text(body.templateId,80),results=Array.isArray(body.results)?body.results as Array<Record<string,unknown>>:[];
+      const template=await db.prepare("SELECT id FROM inventory_weekly_check_templates WHERE id=? AND apparatus_id=? AND active=1").bind(templateId,apparatusId).first();if(!template)return json({error:"The weekly check template was not found for this apparatus."},404);
+      const validItems=await db.prepare("SELECT id FROM inventory_weekly_check_items WHERE template_id=?").bind(templateId).all<{id:string}>(),allowed=new Set(validItems.results.map((row)=>row.id));if(!results.length||results.some((row)=>!allowed.has(text(row.itemId,80))||!["pass","missing","damaged","not_applicable"].includes(text(row.result,30))))return json({error:"Record Pass, Missing, Damaged, or Not applicable for every weekly-check item."},400);
+      const checkId=id,failed=results.filter((row)=>["missing","damaged"].includes(text(row.result,30))).length;
+      const writes=[db.prepare("INSERT INTO inventory_weekly_checks(id,template_id,apparatus_id,status,performed_by,completed_at,notes) VALUES(?,?,?,'completed',?,CURRENT_TIMESTAMP,?)").bind(checkId,templateId,apparatusId,actor,text(body.notes,1000)),...results.map((row,index)=>db.prepare("INSERT INTO inventory_weekly_check_results(id,check_id,item_id,result,notes) VALUES(?,?,?,?,?)").bind(`${checkId}-${index+1}`,checkId,text(row.itemId,80),text(row.result,30),text(row.notes,500)))];await db.batch(writes);
+      await audit(db,actor,"weekly_check.completed","weekly_check",checkId,`${results.length} items checked; ${failed} exceptions`);return json({id:checkId,saved:true,exceptions:failed});
+    }
     return json({error:"Unsupported Inventory action."},400);
   } catch (error) { const message=error instanceof Error&&error.message.includes("UNIQUE")?"That unit number or identifier already exists.":"The Inventory change could not be saved. Your entered information is still available; try again."; return json({error:message},503); }
 }
