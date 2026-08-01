@@ -184,3 +184,17 @@ test("loads the 1203 FRONTLINE checklist as editable weekly, inventory, and air-
   assert.match(operations, /interior-equipment-/);
   assert.match(digitalTwinApi, /Select equipment from this apparatus and compartment/);
 });
+
+test("loads the distinct 1204 truck form as weekly, inventory, and air-pack records", async () => {
+  const migration = await read("supabase/migrations/20260801214500_seed_1204_weekly_checklist.sql");
+
+  assert.match(migration, /1204 Weekly Check form 439/);
+  assert.equal((migration.match(/^      \('/gm) || []).length, 166);
+  for (const section of ["Outrigger stabilizers and aerial operational", "Compartment 1 (EMS)", "SCBA", "Compartment 7 (Rear)", "Rear Hose", "Compartment 13"]) {
+    assert.match(migration, new RegExp(section.replace(/[()]/g, "\\$&")));
+  }
+  assert.match(migration, /array\['weekly','inventory','air_pack'\]/);
+  assert.match(migration, /R\.I\.T\. bag - 60 minute cylinder/);
+  assert.match(migration, /Hardwire battery adapter for Genesis E-Tools/);
+  assert.match(migration, /source_key is not null/);
+});
