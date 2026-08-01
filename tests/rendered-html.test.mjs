@@ -208,3 +208,19 @@ test("adds Engine 1201 to the linked Stickney fleet and inventory records", asyn
   assert.match(migration, /on conflict \(id\) do update/);
   assert.doesNotMatch(migration, /14a76771-4c24-481b-8def-e6cce005c17b/);
 });
+
+test("routes 1201 form 248 into separate weekly, air-pack, and inventory checklists", async () => {
+  const migration = await read("supabase/migrations/20260801220927_seed_1201_classified_checklists.sql");
+
+  assert.match(migration, /1201 Weekly Check \(RESERVE\) form 248/);
+  assert.equal((migration.match(/^      \('/gm) || []).length, 205);
+  assert.equal((migration.match(/array\['weekly'\]/g) || []).length, 59);
+  assert.equal((migration.match(/array\['air_pack'\]/g) || []).length, 15);
+  assert.equal((migration.match(/array\['inventory'\]/g) || []).length, 131);
+  assert.match(migration, /'Vehicle','Record mileage',1,'vehicle',array\['weekly'\]/);
+  assert.match(migration, /'Cab','SCBA harness',4,'air_pack',array\['air_pack'\]/);
+  assert.match(migration, /'Compartment 1 \(Top\)','TFT nozzle with 2\.5 inch adapter',1,'equipment',array\['inventory'\]/);
+  assert.match(migration, /'Compartment 3 \(Top\)','Engineer''s SCBA',1,'air_pack',array\['air_pack'\]/);
+  assert.match(migration, /'Hose','L\.D\.H\. Storz supply',1,'equipment',array\['inventory'\]/);
+  assert.doesNotMatch(migration, /array\['weekly','inventory'/);
+});
