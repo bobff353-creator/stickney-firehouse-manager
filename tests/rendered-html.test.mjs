@@ -256,3 +256,19 @@ test("adds Ambulance 1205 to the linked Stickney fleet and inventory records", a
   assert.match(migration, /on conflict \(id\) do update/);
   assert.doesNotMatch(migration, /14a76771-4c24-481b-8def-e6cce005c17b/);
 });
+
+test("loads 1205 form 272 into separate weekly, air-pack, and ambulance inventory checks", async () => {
+  const migration = await read("supabase/migrations/20260801223847_seed_1205_classified_checklists.sql");
+
+  assert.match(migration, /1205 Weekly Check form 272/);
+  assert.equal((migration.match(/^      \('/gm) || []).length, 298);
+  assert.equal((migration.match(/array\['weekly'\]/g) || []).length, 30);
+  assert.equal((migration.match(/array\['air_pack'\]/g) || []).length, 4);
+  assert.equal((migration.match(/array\['inventory'\]/g) || []).length, 264);
+  assert.match(migration, /'Vehicle','Fuel - fill at or below 3\/4',1,'vehicle',array\['weekly'\]/);
+  assert.match(migration, /'Cab','Run sheets',10,'equipment',array\['inventory'\]/);
+  assert.match(migration, /'Driver''s Side Rear','Driver SCBA pack at 4500 PSI',1,'air_pack',array\['air_pack'\]/);
+  assert.match(migration, /'Cabinet 2','Suction catheters sizes 6, 8, 10, 12, 14, 16 and 18Fr \(each size\)',2,'equipment',array\['inventory'\]/);
+  assert.match(migration, /'Misc\. Interior','Spare O2 cylinders',2,'equipment',array\['inventory'\]/);
+  assert.doesNotMatch(migration, /array\['weekly','inventory'/);
+});
