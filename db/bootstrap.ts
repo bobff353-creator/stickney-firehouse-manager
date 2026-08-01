@@ -260,7 +260,10 @@ async function getDatabaseBinding() {
 
 export async function ensureDatabase() {
   const db = await getDatabaseBinding();
-  if (ready) return db;
+  if (ready) {
+    await importApproved1203WeeklyCheck(db);
+    return db;
+  }
   await db.batch([
     db.prepare("CREATE TABLE IF NOT EXISTS pay_scales (id TEXT PRIMARY KEY NOT NULL, label TEXT NOT NULL, regular_rate REAL NOT NULL, overtime_rate REAL NOT NULL, holiday_rate REAL NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0)"),
     db.prepare("CREATE TABLE IF NOT EXISTS pay_rate_history (id TEXT PRIMARY KEY NOT NULL, pay_scale_id TEXT NOT NULL REFERENCES pay_scales(id), effective_date TEXT NOT NULL, regular_rate REAL NOT NULL, overtime_rate REAL NOT NULL, holiday_rate REAL NOT NULL, created_by TEXT NOT NULL DEFAULT 'System', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
