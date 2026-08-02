@@ -33,12 +33,26 @@ test("opens Locate and Build in a focused Preplan editor", async () => {
     read("public/preplan-route.js"),
   ]);
 
-  assert.match(proxy, /preplan-route\.js\?v=20260802-1/);
+  assert.match(proxy, /preplan-route\.js\?v=20260802-3/);
   assert.match(proxy, /field-preplans-page\.preplan-builder-focused/);
-  assert.match(proxy, />:not\(\.preplan-editor\)\{display:none!important\}/);
+  assert.match(proxy, /grid-template-columns:minmax\(0,2fr\) minmax\(280px,1fr\)/);
+  assert.match(proxy, />\.field-map-layout>aside\{display:none!important\}/);
+  assert.match(proxy, /height:calc\(100dvh - 120px\)!important/);
+  assert.match(proxy, /preplan-quick-grid\{display:block!important\}/);
+  assert.match(proxy, /height:calc\(100dvh - 120px\)/);
+  assert.match(proxy, /min-height:520px;overflow-y:auto/);
+  assert.match(proxy, /preplan-step-selector\{display:grid;position:sticky;top:0/);
+  assert.match(proxy, /data-preplan-active-step="1"/);
+  assert.match(proxy, /data-preplan-active-step="2"/);
+  assert.match(proxy, /data-preplan-active-step="3"/);
   assert.match(navigation, /button\?\.textContent\?\.trim\(\) === "Locate & Build"/);
   assert.match(navigation, /page\.classList\.add\(focusClass\)/);
   assert.match(navigation, /Back to Preplan list/);
+  assert.match(navigation, /Quick Preplan sections/);
+  assert.match(navigation, /Footprint/);
+  assert.match(navigation, /Building Info/);
+  assert.match(navigation, /Systems/);
+  assert.match(navigation, /selectStep\(page, selector, step\.number\)/);
   assert.match(navigation, /editor\.scrollIntoView\(\{ block: "start" \}\)/);
   assert.match(navigation, /page\?\.classList\.remove\(focusClass\)/);
 });

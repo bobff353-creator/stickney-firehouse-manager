@@ -7,18 +7,57 @@ const portalEnhancements =
   'max-height:calc(100dvh - 166px - env(safe-area-inset-bottom))!important;' +
   'overflow-y:auto!important;overscroll-behavior:contain;' +
   '-webkit-overflow-scrolling:touch;scrollbar-gutter:stable}}' +
-  '.field-preplans-page.preplan-builder-focused>:not(.preplan-editor){display:none!important}' +
-  '.field-preplans-page.preplan-builder-focused{display:block!important}' +
+  '.field-preplans-page.preplan-builder-focused>:not(.field-map-layout):not(.preplan-editor){display:none!important}' +
+  '.field-preplans-page.preplan-builder-focused{' +
+  'display:grid!important;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);' +
+  'gap:18px;align-items:start;padding:18px!important}' +
+  '.field-preplans-page.preplan-builder-focused>.field-map-layout{' +
+  'display:block!important;position:sticky;top:86px;min-width:0}' +
+  '.field-preplans-page.preplan-builder-focused>.field-map-layout>aside{display:none!important}' +
+  '.field-preplans-page.preplan-builder-focused .field-map{' +
+  'height:calc(100dvh - 120px)!important;min-height:520px!important;border-radius:10px}' +
   '.field-preplans-page.preplan-builder-focused .preplan-editor{' +
-  'margin:0!important;max-width:none!important;min-height:calc(100dvh - 96px)}' +
+  'margin:0!important;max-width:none!important;min-width:0;height:calc(100dvh - 120px);' +
+  'min-height:520px;overflow-y:auto;scroll-margin-top:86px}' +
+  '.field-preplans-page.preplan-builder-focused .preplan-editor>header{' +
+  'display:grid!important;grid-template-columns:1fr!important;gap:10px!important}' +
+  '.field-preplans-page.preplan-builder-focused .preplan-editor>header>div:nth-child(2){' +
+  'display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:6px!important}' +
+  '.field-preplans-page.preplan-builder-focused .preplan-editor>header button{' +
+  'min-width:0!important;padding-inline:8px!important;white-space:normal!important}' +
+  '.field-preplans-page.preplan-builder-focused .preplan-quick-grid{display:block!important}' +
+  '.field-preplans-page.preplan-builder-focused .preplan-quick-grid>article{' +
+  'width:100%!important;max-width:none!important;box-sizing:border-box}' +
   '.preplan-builder-back{display:inline-flex;align-items:center;justify-content:center;' +
   'min-height:42px;margin:0 0 16px;padding:0 16px;border:1px solid #9a3412;' +
   'border-radius:8px;background:#fff7ed;color:#9a3412;font:700 13px/1 system-ui;' +
   'cursor:pointer}.preplan-builder-back:hover{background:#ffedd5}' +
+  '.preplan-step-selector{display:grid;position:sticky;top:0;z-index:5;' +
+  'grid-template-columns:repeat(3,minmax(0,1fr));' +
+  'gap:8px;margin:0 0 14px;padding:8px;border:1px solid #cbd5e1;border-radius:10px;background:#f8fafc}' +
+  '.preplan-step-button{display:flex;min-width:0;min-height:58px;flex-direction:column;' +
+  'align-items:flex-start;justify-content:center;gap:4px;padding:8px 10px;border:1px solid #cbd5e1;' +
+  'border-radius:8px;background:#fff;color:#334155;cursor:pointer;text-align:left}' +
+  '.preplan-step-button strong{display:grid;width:24px;height:24px;place-items:center;border-radius:999px;' +
+  'background:#e2e8f0;font:800 13px/1 system-ui}.preplan-step-button span{overflow:hidden;' +
+  'max-width:100%;font:700 11px/1.15 system-ui;text-overflow:ellipsis;white-space:nowrap}' +
+  '.preplan-step-button[aria-selected="true"]{border-color:#0f4c5c;background:#e6f4f1;color:#0f4c5c;' +
+  'box-shadow:0 0 0 2px rgba(15,76,92,.12)}' +
+  '.preplan-step-button[aria-selected="true"] strong{background:#0f4c5c;color:#fff}' +
+  '.field-preplans-page.preplan-builder-focused .preplan-quick-grid>article{display:none!important}' +
+  '.field-preplans-page.preplan-builder-focused[data-preplan-active-step="1"] .preplan-quick-grid>article:nth-child(1),' +
+  '.field-preplans-page.preplan-builder-focused[data-preplan-active-step="2"] .preplan-quick-grid>article:nth-child(2),' +
+  '.field-preplans-page.preplan-builder-focused[data-preplan-active-step="3"] .preplan-quick-grid>article:nth-child(3){display:block!important}' +
+  '@media(max-width:760px){.field-preplans-page.preplan-builder-focused{' +
+  'grid-template-columns:1fr!important;padding:10px!important}' +
+  '.field-preplans-page.preplan-builder-focused>.field-map-layout{position:relative;top:auto}' +
+  '.field-preplans-page.preplan-builder-focused .field-map{height:55dvh!important;min-height:360px!important}' +
+  '.field-preplans-page.preplan-builder-focused .preplan-editor{' +
+  'height:auto;min-height:0;overflow:visible;scroll-margin-top:76px}}' +
   '</style>' +
   '<script src="/inventory-route.js" defer></script>' +
   '<script src="/training-route.js?v=20260802-2" defer></script>' +
-  '<script src="/preplan-route.js?v=20260802-1" defer></script>' +
+  '<script src="/preplan-route.js?v=20260802-3" defer></script>' +
   '<script src="/fleet-notices.js" defer></script>';
 
 function publicOrigin(request: Request) {
