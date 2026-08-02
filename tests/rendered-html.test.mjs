@@ -333,3 +333,17 @@ test("adds Utility 1209 to the linked Stickney fleet and inventory records", asy
   assert.match(migration, /on conflict \(id\) do update/);
   assert.doesNotMatch(migration, /14a76771-4c24-481b-8def-e6cce005c17b/);
 });
+
+test("loads 1209 form 269 into separate weekly and utility inventory checks", async () => {
+  const migration = await read("supabase/migrations/20260802001859_seed_1209_classified_checklists.sql");
+
+  assert.match(migration, /1209 Weekly Check form 269/);
+  assert.equal((migration.match(/^      \('/gm) || []).length, 33);
+  assert.equal((migration.match(/array\['weekly'\]/g) || []).length, 24);
+  assert.equal((migration.match(/array\['inventory'\]/g) || []).length, 9);
+  assert.equal((migration.match(/array\['air_pack'\]/g) || []).length, 0);
+  assert.match(migration, /'Vehicle','Transmission fluid \(vehicle must be on and in park\)',1,'vehicle',array\['weekly'\]/);
+  assert.match(migration, /'Disinfection \/ Cleaning','Sweep and mop rear bed of truck',1,'vehicle',array\['weekly'\]/);
+  assert.match(migration, /'Cab','Safety vests',2,'equipment',array\['inventory'\]/);
+  assert.doesNotMatch(migration, /array\['(?:weekly|air_pack|inventory)'\s*,/);
+});
