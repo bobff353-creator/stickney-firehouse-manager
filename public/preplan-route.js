@@ -5,6 +5,8 @@
   const backClass = "preplan-builder-back";
   const stepSelectorClass = "preplan-step-selector";
   const stepButtonClass = "preplan-step-button";
+  const locationControlClass = "preplan-map-location-control";
+  const targetMapZoom = 17;
   const steps = [
     { number: "1", label: "Footprint" },
     { number: "2", label: "Building Info" },
@@ -15,8 +17,86 @@
     const page = document.querySelector(pageSelector);
     page?.classList.remove(focusClass);
     page?.removeAttribute("data-preplan-active-step");
+    page?.removeAttribute("data-current-location-requested");
     page?.querySelector(`.${backClass}`)?.remove();
     page?.scrollIntoView({ block: "start" });
+  }
+
+  function findButton(page, label) {
+    return Array.from(page.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === label,
+    );
+  }
+
+  function currentMapZoom(page) {
+    const text = page.querySelector(".field-map-toolbar")?.textContent || "";
+    const match = text.match(/Zoom\s+(\d+)/i);
+    return match ? Number(match[1]) : null;
+  }
+
+  function widenMap(page, attempts = 0) {
+    const zoom = currentMapZoom(page);
+    if (zoom !== null && zoom > targetMapZoom && attempts < 8) {
+      findButton(page, "\u2212")?.click();
+      window.setTimeout(() => widenMap(page, attempts + 1), 180);
+    }
+  }
+
+  function setLocationStatus(page, message) {
+    const status = page.querySelector(`.${locationControlClass} span`);
+    if (status) status.textContent = message;
+  }
+
+  function centerOnCurrentLocation(page, force = false) {
+    if (!force && page.getAttribute("data-current-location-requested") === "true") return;
+    page.setAttribute("data-current-location-requested", "true");
+    setLocationStatus(page, "Locating\u2026");
+
+    if (!navigator.geolocation) {
+      setLocationStatus(page, "Location unavailable \u00b7 wider view");
+      widenMap(page);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      () => {
+        findButton(page, "\u25ce Current location")?.click();
+        setLocationStatus(page, "Current location \u00b7 aerial view");
+        window.setTimeout(() => widenMap(page), 500);
+      },
+      () => {
+        setLocationStatus(page, "Use current location \u00b7 wider view");
+        widenMap(page);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+    );
+  }
+
+  function ensureLocationControl(page, map) {
+    let control = map.querySelector(`.${locationControlClass}`);
+    if (control) return;
+    control = document.createElement("div");
+    control.className = locationControlClass;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "\u25ce Current location";
+    button.addEventListener("pointerdown", (event) => event.stopPropagation());
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      centerOnCurrentLocation(page, true);
+    });
+    const status = document.createElement("span");
+    status.textContent = "Aerial view \u00b7 wider view";
+    control.append(button, status);
+    map.append(control);
+  }
+
+  function ensureCaptureMap(page) {
+    const map = page.querySelector(".field-map.capture");
+    if (!map) return;
+    ensureLocationControl(page, map);
+    centerOnCurrentLocation(page);
+    window.setTimeout(() => widenMap(page), 250);
   }
 
   function selectStep(page, selector, stepNumber) {
@@ -93,6 +173,7 @@
     }
     ensureStepSelector(page, editor);
     observeEditor(page, editor);
+    ensureCaptureMap(page);
     editor.scrollIntoView({ block: "start" });
     return true;
   }

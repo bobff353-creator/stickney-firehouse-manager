@@ -16,6 +16,15 @@ const portalEnhancements =
   '.field-preplans-page.preplan-builder-focused>.field-map-layout>aside{display:none!important}' +
   '.field-preplans-page.preplan-builder-focused .field-map{' +
   'height:calc(100dvh - 120px)!important;min-height:520px!important;border-radius:10px}' +
+  '.field-preplans-page.preplan-builder-focused .capture-instruction{display:none!important}' +
+  '.field-preplans-page.preplan-builder-focused .field-map.capture .google-map-base{' +
+  'display:none!important}' +
+  '.preplan-map-location-control{position:absolute;top:14px;left:14px;z-index:6;display:flex;' +
+  'align-items:center;gap:10px;max-width:calc(100% - 28px);padding:8px;border-radius:10px;' +
+  'background:rgba(255,255,255,.94);box-shadow:0 4px 16px rgba(15,23,42,.24);color:#334155}' +
+  '.preplan-map-location-control button{min-height:36px;padding:0 12px;border:1px solid #0f4c5c;' +
+  'border-radius:7px;background:#0f4c5c;color:#fff;font:750 12px/1 system-ui;cursor:pointer}' +
+  '.preplan-map-location-control span{font:700 11px/1.25 system-ui}' +
   '.field-preplans-page.preplan-builder-focused .preplan-editor{' +
   'margin:0!important;max-width:none!important;min-width:0;height:calc(100dvh - 120px);' +
   'min-height:520px;overflow-y:auto;scroll-margin-top:86px}' +
@@ -57,7 +66,7 @@ const portalEnhancements =
   '</style>' +
   '<script src="/inventory-route.js" defer></script>' +
   '<script src="/training-route.js?v=20260802-2" defer></script>' +
-  '<script src="/preplan-route.js?v=20260802-3" defer></script>' +
+  '<script src="/preplan-route.js?v=20260802-5" defer></script>' +
   '<script src="/fleet-notices.js" defer></script>';
 
 function publicOrigin(request: Request) {
