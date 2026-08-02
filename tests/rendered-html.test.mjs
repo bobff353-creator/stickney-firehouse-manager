@@ -357,3 +357,18 @@ test("adds Chief Car 1210 to the linked Stickney fleet and inventory records", a
   assert.match(migration, /on conflict \(id\) do update/);
   assert.doesNotMatch(migration, /14a76771-4c24-481b-8def-e6cce005c17b/);
 });
+
+test("loads 1210 form 467 into separate weekly and chief-car inventory checks", async () => {
+  const migration = await read("supabase/migrations/20260802002459_seed_1210_classified_checklists.sql");
+
+  assert.match(migration, /1210 Weekly Check form 467/);
+  assert.equal((migration.match(/^      \('/gm) || []).length, 30);
+  assert.equal((migration.match(/array\['weekly'\]/g) || []).length, 21);
+  assert.equal((migration.match(/array\['inventory'\]/g) || []).length, 9);
+  assert.equal((migration.match(/array\['air_pack'\]/g) || []).length, 0);
+  assert.match(migration, /'Vehicle','Fuel - fill at or below 3\/4',1,'vehicle',array\['weekly'\]/);
+  assert.match(migration, /'Disinfection \/ Cleaning','Wipe down and disinfect all hard surfaces',1,'vehicle',array\['weekly'\]/);
+  assert.match(migration, /'Cab','Fire extinguisher',1,'equipment',array\['inventory'\]/);
+  assert.match(migration, /'Cab','Safety vests',2,'equipment',array\['inventory'\]/);
+  assert.doesNotMatch(migration, /array\['(?:weekly|air_pack|inventory)'\s*,/);
+});
