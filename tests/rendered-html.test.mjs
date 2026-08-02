@@ -313,6 +313,19 @@ test("moves 1201 cab, cabinet, and glove-box equipment into inventory locations"
   assert.match(migration, /source_form = '1201 Weekly Check \(RESERVE\) form 248'/);
 });
 
+test("loads 1201 daily form 256 as a separate clickable daily inspection", async () => {
+  const migration = await read("supabase/migrations/20260802170807_seed_1201_daily_checklist.sql");
+
+  assert.match(migration, /1201 Daily Check form 256/);
+  assert.equal((migration.match(/array\['daily'\]/g) || []).length, 25);
+  assert.match(migration, /'Vehicle','Fuel - must be at least 3\/4',1,'vehicle',array\['daily'\]/);
+  assert.match(migration, /'Pump \/ Booster & Foam Tank','Exercise primer, pressure governor and circulate water',1,'vehicle',array\['daily'\]/);
+  assert.match(migration, /'Cab','R\.I\.T\. bag - cylinder at 4500 PSI',1,'air_pack',array\['daily'\]/);
+  assert.match(migration, /'Tools & Equipment','Run and operate all power tools',1,'equipment',array\['daily'\]/);
+  assert.match(migration, /'form-256-025'/);
+  assert.doesNotMatch(migration, /array\['daily'\s*,/);
+});
+
 test("moves 1203 and 1204 cab equipment out of their weekly checks", async () => {
   const migration = await read("supabase/migrations/20260801223252_move_1203_1204_cab_items_to_inventory.sql");
 
