@@ -61,7 +61,7 @@
     navigator.geolocation.getCurrentPosition(
       () => {
         findButton(page, "\u25ce Current location")?.click();
-        setLocationStatus(page, "Current location \u00b7 aerial view");
+        setLocationStatus(page, "Current location \u00b7 Google map");
         window.setTimeout(() => widenMap(page), 500);
       },
       () => {
@@ -86,7 +86,7 @@
       centerOnCurrentLocation(page, true);
     });
     const status = document.createElement("span");
-    status.textContent = "Aerial view \u00b7 wider view";
+    status.textContent = "Google map \u00b7 wider view";
     control.append(button, status);
     map.append(control);
   }

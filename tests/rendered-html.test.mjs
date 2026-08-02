@@ -33,7 +33,7 @@ test("opens Locate and Build in a focused Preplan editor", async () => {
     read("public/preplan-route.js"),
   ]);
 
-  assert.match(proxy, /preplan-route\.js\?v=20260802-5/);
+  assert.match(proxy, /preplan-route\.js\?v=20260802-6/);
   assert.match(proxy, /field-preplans-page\.preplan-builder-focused/);
   assert.match(proxy, /grid-template-columns:minmax\(0,2fr\) minmax\(280px,1fr\)/);
   assert.match(proxy, />\.field-map-layout>aside\{display:none!important\}/);
@@ -45,7 +45,8 @@ test("opens Locate and Build in a focused Preplan editor", async () => {
   assert.match(proxy, /capture-instruction\{display:none!important\}/);
   assert.match(proxy, /preplan-map-location-control/);
   assert.match(proxy, /field-map\.capture \.google-map-base/);
-  assert.match(proxy, /display:none!important/);
+  assert.match(proxy, /google-map-base\{' \+\s*'display:block!important/);
+  assert.match(proxy, /field-map\.capture>\.map-credit/);
   assert.match(proxy, /data-preplan-active-step="1"/);
   assert.match(proxy, /data-preplan-active-step="2"/);
   assert.match(proxy, /data-preplan-active-step="3"/);
@@ -61,6 +62,7 @@ test("opens Locate and Build in a focused Preplan editor", async () => {
   assert.match(navigation, /targetMapZoom = 17/);
   assert.match(navigation, /findButton\(page, "\\u25ce Current location"\)\?\.click\(\)/);
   assert.match(navigation, /ensureCaptureMap\(page\)/);
+  assert.match(navigation, /Current location \\u00b7 Google map/);
   assert.match(navigation, /editor\.scrollIntoView\(\{ block: "start" \}\)/);
   assert.match(navigation, /page\?\.classList\.remove\(focusClass\)/);
 });

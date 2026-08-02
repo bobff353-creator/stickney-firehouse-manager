@@ -18,6 +18,8 @@ const portalEnhancements =
   'height:calc(100dvh - 120px)!important;min-height:520px!important;border-radius:10px}' +
   '.field-preplans-page.preplan-builder-focused .capture-instruction{display:none!important}' +
   '.field-preplans-page.preplan-builder-focused .field-map.capture .google-map-base{' +
+  'display:block!important}' +
+  '.field-preplans-page.preplan-builder-focused .field-map.capture>.map-credit{' +
   'display:none!important}' +
   '.preplan-map-location-control{position:absolute;top:14px;left:14px;z-index:6;display:flex;' +
   'align-items:center;gap:10px;max-width:calc(100% - 28px);padding:8px;border-radius:10px;' +
@@ -66,7 +68,7 @@ const portalEnhancements =
   '</style>' +
   '<script src="/inventory-route.js" defer></script>' +
   '<script src="/training-route.js?v=20260802-2" defer></script>' +
-  '<script src="/preplan-route.js?v=20260802-5" defer></script>' +
+  '<script src="/preplan-route.js?v=20260802-6" defer></script>' +
   '<script src="/fleet-notices.js" defer></script>';
 
 function publicOrigin(request: Request) {
