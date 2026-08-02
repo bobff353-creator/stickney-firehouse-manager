@@ -1,7 +1,15 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
+import Script from "next/script";
 import "./globals.css";
 import "./suite-theme.css";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0b2b40",
+};
 
 export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();
@@ -13,7 +21,22 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "Inventory | Stickney Fire Department",
     description: "Visual apparatus checks, equipment inventory, maintenance, stock, and readiness workflows built for fire and EMS operations.",
-    icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
+    applicationName: "Stickney Firehouse Manager",
+    manifest: "/manifest.webmanifest",
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: "black-translucent",
+      title: "Stickney Firehouse",
+    },
+    formatDetection: { telephone: false },
+    icons: {
+      icon: [
+        { url: "/icons/pwa-96.png", type: "image/png", sizes: "96x96" },
+        { url: "/icons/pwa-192.png", type: "image/png", sizes: "192x192" },
+      ],
+      shortcut: "/icons/pwa-96.png",
+      apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    },
     openGraph: {
       title: "Inventory",
       description: "See it. Check it. Keep it ready.",
@@ -31,5 +54,10 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body>{children}</body></html>;
+  return (
+    <html lang="en">
+      <body>{children}</body>
+      <Script src="/pwa-register.js" strategy="afterInteractive" />
+    </html>
+  );
 }

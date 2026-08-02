@@ -1,5 +1,15 @@
 const upstreamOrigin = "https://stickney-payroll-manager.bobff353.chatgpt.site";
 
+const portalHeadEnhancements =
+  '<link rel="manifest" href="/manifest.webmanifest">' +
+  '<meta name="theme-color" content="#0b2b40">' +
+  '<meta name="mobile-web-app-capable" content="yes">' +
+  '<meta name="apple-mobile-web-app-capable" content="yes">' +
+  '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">' +
+  '<meta name="apple-mobile-web-app-title" content="Stickney Firehouse">' +
+  '<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">' +
+  '<link rel="icon" type="image/png" sizes="192x192" href="/icons/pwa-192.png">';
+
 const portalEnhancements =
   '<style id="stickney-mobile-navigation-fix">' +
   '@media(max-width:980px){#mobile-navigation.mobile-nav-panel{' +
@@ -69,7 +79,8 @@ const portalEnhancements =
   '<script src="/inventory-route.js" defer></script>' +
   '<script src="/training-route.js?v=20260802-2" defer></script>' +
   '<script src="/preplan-route.js?v=20260802-6" defer></script>' +
-  '<script src="/fleet-notices.js" defer></script>';
+  '<script src="/fleet-notices.js" defer></script>' +
+  '<script src="/pwa-register.js" defer></script>';
 
 function publicOrigin(request: Request) {
   const url = new URL(request.url);
@@ -126,6 +137,9 @@ async function proxy(request: Request) {
   const contentType = headers.get("content-type") || "";
   if (method === "GET" && contentType.includes("text/html")) {
     let html = await upstream.text();
+    html = html.includes("</head>")
+      ? html.replace("</head>", `${portalHeadEnhancements}</head>`)
+      : `${portalHeadEnhancements}${html}`;
     html = html.includes("</body>")
       ? html.replace("</body>", `${portalEnhancements}</body>`)
       : `${html}${portalEnhancements}`;

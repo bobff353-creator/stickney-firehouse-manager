@@ -27,6 +27,46 @@ test("keeps Inventory on the Stickney site", async () => {
   assert.match(inventoryPage, /<Inventory360/);
 });
 
+test("makes the Stickney portal installable without caching operational records", async () => {
+  const [layout, proxy, nextConfig, manifestText, serviceWorker, register, offline] = await Promise.all([
+    read("app/layout.tsx"),
+    read("app/[[...path]]/route.ts"),
+    read("next.config.ts"),
+    read("public/manifest.webmanifest"),
+    read("public/sw.js"),
+    read("public/pwa-register.js"),
+    read("public/offline.html"),
+  ]);
+  const manifest = JSON.parse(manifestText);
+
+  assert.equal(manifest.name, "Stickney Firehouse Manager");
+  assert.equal(manifest.display, "standalone");
+  assert.equal(manifest.start_url, "/");
+  assert.equal(manifest.scope, "/");
+  assert.ok(manifest.icons.some((icon) => icon.sizes === "512x512" && icon.purpose === "maskable"));
+  assert.match(layout, /manifest: "\/manifest\.webmanifest"/);
+  assert.match(layout, /appleWebApp/);
+  assert.match(layout, /pwa-register\.js/);
+  assert.match(proxy, /portalHeadEnhancements/);
+  assert.match(proxy, /apple-mobile-web-app-capable/);
+  assert.match(proxy, /pwa-register\.js/);
+  assert.match(nextConfig, /Service-Worker-Allowed/);
+  assert.match(serviceWorker, /request\.mode === "navigate"/);
+  assert.match(serviceWorker, /fetch\(request\)\.catch\(\(\) => caches\.match\(OFFLINE_URL\)\)/);
+  assert.doesNotMatch(serviceWorker, /\/api\//);
+  assert.match(register, /beforeinstallprompt/);
+  assert.match(register, /Install Stickney FD App/);
+  assert.match(offline, /does not display possibly outdated department data/);
+
+  await Promise.all([
+    "public/icons/pwa-96.png",
+    "public/icons/pwa-192.png",
+    "public/icons/pwa-512.png",
+    "public/icons/pwa-maskable-512.png",
+    "public/icons/apple-touch-icon.png",
+  ].map((path) => access(new URL(path, root))));
+});
+
 test("opens Locate and Build in a focused Preplan editor", async () => {
   const [proxy, navigation] = await Promise.all([
     read("app/[[...path]]/route.ts"),

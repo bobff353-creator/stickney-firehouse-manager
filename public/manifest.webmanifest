@@ -1,0 +1,49 @@
+{
+  "id": "/",
+  "name": "Stickney Firehouse Manager",
+  "short_name": "Stickney FD",
+  "description": "Official Stickney Fire Department operations, fleet, inspections, readiness, scheduling, and field tools.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "background_color": "#f4f5f2",
+  "theme_color": "#0b2b40",
+  "orientation": "any",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/pwa-96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/pwa-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/pwa-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/pwa-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Fleet and Inventory",
+      "short_name": "Fleet",
+      "description": "Open apparatus inspections and inventory",
+      "url": "/inventory",
+      "icons": [{ "src": "/icons/pwa-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}
