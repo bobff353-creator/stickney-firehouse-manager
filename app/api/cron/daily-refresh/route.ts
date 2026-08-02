@@ -33,6 +33,13 @@ export async function GET(request: Request) {
         ? training.value.providers.filter((provider) => provider.available)
             .length
         : 0,
+    upcomingTrainingItems:
+      training.status === "fulfilled"
+        ? training.value.providers.reduce(
+            (total, provider) => total + provider.upcoming.length,
+            0,
+          )
+        : 0,
     closeCallsUpdated: news.status === "fulfilled",
     trainingUpdated: training.status === "fulfilled",
   };

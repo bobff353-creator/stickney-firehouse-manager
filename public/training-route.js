@@ -19,14 +19,32 @@
     }).format(date);
   }
 
-  function resourceLink(resource) {
+  function formatCourseDates(course) {
+    const start = new Date(`${course.startDate}T12:00:00`);
+    const end = new Date(`${course.endDate || course.startDate}T12:00:00`);
+    if (Number.isNaN(start.getTime())) return "UPCOMING";
+    const startLabel = new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+    }).format(start);
+    if (Number.isNaN(end.getTime()) || course.endDate === course.startDate) {
+      return startLabel;
+    }
+    const endLabel = new Intl.DateTimeFormat("en-US", {
+      month: start.getMonth() === end.getMonth() ? undefined : "short",
+      day: "numeric",
+    }).format(end);
+    return `${startLabel}–${endLabel}`;
+  }
+
+  function resourceLink(resource, isCourse = false) {
     const link = document.createElement("a");
     link.href = resource.url;
     link.target = "_blank";
     link.rel = "noreferrer";
 
     const time = document.createElement("time");
-    time.textContent = "CURRENT";
+    time.textContent = isCourse ? formatCourseDates(resource) : "CURRENT";
     const detail = document.createElement("small");
     detail.textContent = "DAILY";
     time.append(detail);
@@ -35,7 +53,7 @@
     const title = document.createElement("strong");
     title.textContent = resource.title;
     const description = document.createElement("span");
-    description.textContent = resource.detail;
+    description.textContent = resource.detail || resource.location || "Official provider schedule";
     content.append(title, description);
 
     const arrow = document.createElement("b");
@@ -65,10 +83,16 @@
       const list = panel.querySelector(".training-course-list");
       if (list) {
         list.replaceChildren();
-        if (provider.available && provider.resources.length) {
-          for (const resource of provider.resources) {
-            list.append(resourceLink(resource));
+        if (provider.available && provider.upcoming?.length) {
+          for (const course of provider.upcoming.slice(0, 6)) {
+            list.append(resourceLink(course, true));
           }
+        } else if (provider.available) {
+          const empty = document.createElement("p");
+          empty.className = "board-empty";
+          empty.textContent =
+            "No future classes were listed on today's official schedule. Use the source link below.";
+          list.append(empty);
         } else {
           const unavailable = document.createElement("p");
           unavailable.className = "board-empty";
@@ -77,6 +101,9 @@
           list.append(unavailable);
         }
       }
+
+      const source = panel.querySelector(".training-source");
+      if (source && provider.sourceUrl) source.href = provider.sourceUrl;
 
       panel.dataset.dailyFeedVersion = provider.checkedAt;
     }

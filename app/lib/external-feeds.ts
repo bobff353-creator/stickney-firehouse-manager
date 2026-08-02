@@ -1,4 +1,11 @@
 import { unstable_cache } from "next/cache";
+import {
+  parseIfsiSchedule,
+  parseNipstaCourseNames,
+  parseNipstaEvents,
+  parseRomeovilleActivity,
+  type UpcomingTrainingCourse,
+} from "./training-parsers";
 
 export type CloseCallItem = {
   title: string;
@@ -20,6 +27,7 @@ export type TrainingProvider = {
   sourceUrl: string;
   checkedAt: string;
   resources: TrainingResource[];
+  upcoming: UpcomingTrainingCourse[];
   available: boolean;
 };
 
@@ -51,6 +59,11 @@ const trainingSources = [
     sourceUrl: "https://nipsta.org/175/Fire-Technical-Rescue-Training",
   },
 ] as const;
+
+const nipstaCalendarUrl =
+  "https://secure.rec1.com/IL/nipsta-il/Public-Calendar-Main-Calendar/76202fcal";
+const nipstaCalendarEndpoint =
+  "https://secure.rec1.com/IL/nipsta-il/cal_ajax.php?request=publicCalendar";
 
 function decodeHtml(value: string) {
   return value
@@ -101,6 +114,112 @@ async function fetchText(url: string) {
     throw new Error(`Source returned ${response.status}`);
   }
   return response.text();
+}
+
+function chicagoDate() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}`;
+}
+
+async function mapLimited<T, R>(
+  values: T[],
+  limit: number,
+  task: (value: T) => Promise<R>,
+) {
+  const results = new Array<R>(values.length);
+  let index = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, values.length) }, async () => {
+    while (index < values.length) {
+      const current = index++;
+      results[current] = await task(values[current]);
+    }
+  }));
+  return results;
+}
+
+async function romeovilleUpcoming(html: string, sourceUrl: string, today: string) {
+  const activities = anchors(html, sourceUrl).filter(({ url }) =>
+    url.hostname === "www.romeoville.org"
+    && url.pathname.includes("/Activities/Activity/Detail/"),
+  );
+  const courses = await mapLimited(activities, 6, async ({ title, url }) => {
+    try {
+      return parseRomeovilleActivity(
+        await fetchText(url.toString()),
+        url.toString(),
+        title,
+        today,
+      );
+    } catch {
+      return [];
+    }
+  });
+  return courses.flat().sort((a, b) =>
+    a.startDate.localeCompare(b.startDate) || a.title.localeCompare(b.title),
+  );
+}
+
+function cookieHeader(response: Response) {
+  const headers = response.headers as Headers & { getSetCookie?: () => string[] };
+  const cookies = headers.getSetCookie?.() || [];
+  return cookies.map((cookie) => cookie.split(";", 1)[0]).join("; ");
+}
+
+async function nipstaUpcoming(today: string) {
+  const page = await fetch(nipstaCalendarUrl, {
+    headers: {
+      "user-agent":
+        "Stickney Fire Department Operations Portal/2.0 (+https://stickney-firehouse-manager.vercel.app)",
+    },
+    signal: AbortSignal.timeout(12_000),
+    cache: "no-store",
+  });
+  if (!page.ok) throw new Error(`NIPSTA calendar returned ${page.status}`);
+  const html = await page.text();
+  const csrfToken = html.match(/<meta name="csrf-token" content="([^"]+)"/i)?.[1] || "";
+  const csrfKey = html.match(/<meta name="csrf-key" content="([^"]+)"/i)?.[1] || "";
+  const cookies = cookieHeader(page);
+  if (!csrfToken || !csrfKey || !cookies) throw new Error("NIPSTA calendar session is unavailable");
+
+  const start = Math.floor(new Date(`${today}T00:00:00Z`).getTime() / 1000);
+  const end = start + 370 * 86_400;
+  const body = new URLSearchParams({
+    start: String(start),
+    end: String(end),
+    "facilities[]": "76202",
+    eventsBubbled: "true",
+    eventLabelStyle: "1",
+  });
+  const response = await fetch(nipstaCalendarEndpoint, {
+    method: "POST",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
+      cookie: cookies,
+      referer: nipstaCalendarUrl,
+      "user-agent":
+        "Stickney Fire Department Operations Portal/2.0 (+https://stickney-firehouse-manager.vercel.app)",
+      "x-csrf-key": csrfKey,
+      "x-csrf-token": csrfToken,
+      "x-requested-with": "XMLHttpRequest",
+    },
+    body,
+    signal: AbortSignal.timeout(12_000),
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`NIPSTA event feed returned ${response.status}`);
+  const payload = await response.json() as { events?: Array<{ title?: unknown; start?: unknown; end?: unknown }> };
+  return parseNipstaEvents(
+    Array.isArray(payload.events) ? payload.events : [],
+    parseNipstaCourseNames(html),
+    nipstaCalendarUrl,
+    today,
+  );
 }
 
 async function loadCloseCallNews() {
@@ -289,22 +408,30 @@ function resourcesFor(
 
 async function loadTrainingSites() {
   const checkedAt = new Date().toISOString();
+  const today = chicagoDate();
   const providers = await Promise.all(
     trainingSources.map(async (provider): Promise<TrainingProvider> => {
       try {
         const html = await fetchText(provider.sourceUrl);
         const resources = resourcesFor(provider, html);
+        const upcoming = provider.id === "romeoville"
+          ? await romeovilleUpcoming(html, provider.sourceUrl, today)
+          : provider.id === "ifsi"
+            ? parseIfsiSchedule(html, provider.sourceUrl, today)
+            : await nipstaUpcoming(today);
         return {
           ...provider,
           checkedAt,
           resources,
-          available: resources.length > 0,
+          upcoming,
+          available: resources.length > 0 || upcoming.length > 0,
         };
       } catch {
         return {
           ...provider,
           checkedAt,
           resources: [],
+          upcoming: [],
           available: false,
         };
       }
@@ -321,6 +448,6 @@ export const getCloseCallNews = unstable_cache(
 
 export const getTrainingSites = unstable_cache(
   loadTrainingSites,
-  ["stickney-training-sites-v1"],
+  ["stickney-training-sites-v2"],
   { revalidate: 86_400, tags: [dailyFeedTag] },
 );

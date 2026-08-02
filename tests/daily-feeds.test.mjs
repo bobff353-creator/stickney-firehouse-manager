@@ -40,6 +40,11 @@ test("checks each official training provider daily", async () => {
   assert.match(bridge, /fetch\("\/api\/training-sites"/);
   assert.match(bridge, /MutationObserver/);
   assert.match(bridge, /Official site checked/);
+  assert.match(bridge, /provider\.upcoming\.slice\(0, 6\)/);
+  assert.match(feeds, /parseRomeovilleActivity/);
+  assert.match(feeds, /parseIfsiSchedule/);
+  assert.match(feeds, /parseNipstaEvents/);
+  assert.match(feeds, /stickney-training-sites-v2/);
   assert.match(proxy, /training-route\.js/);
 });
 
@@ -55,6 +60,7 @@ test("protects and schedules the daily refresh", async () => {
     /request\.headers\.get\("authorization"\) !== `Bearer \$\{cronSecret\}`/,
   );
   assert.match(cron, /revalidateTag\(externalFeedCacheTag/);
+  assert.match(cron, /upcomingTrainingItems/);
   assert.match(config, /"path": "\/api\/cron\/daily-refresh"/);
   assert.match(config, /"schedule": "15 9 \* \* \*"/);
 });
