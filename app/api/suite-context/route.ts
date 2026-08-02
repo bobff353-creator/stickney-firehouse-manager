@@ -24,10 +24,16 @@ export async function GET(request: Request) {
       .eq("department_id", session.context.department.id)
       .order("unit_name");
     if (error) throw error;
+    const apparatus = (data || []).map((unit) => ({
+      ...unit,
+      unitNumber: unit.unit_name || unit.call_sign || "",
+      name: unit.unit_type || unit.call_sign || unit.unit_name || "",
+      callSign: unit.call_sign || "",
+    }));
     return privateJson({
       configured: true,
       department: session.context.department,
-      apparatus: data || [],
+      apparatus,
       events: [],
     });
   } catch {

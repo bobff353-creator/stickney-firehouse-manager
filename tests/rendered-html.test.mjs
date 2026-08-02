@@ -28,11 +28,12 @@ test("keeps Inventory on the Stickney site", async () => {
 });
 
 test("ships a real-photo Fleet digital twin with mobile camera capture", async () => {
-  const [component, operations, api, mediaApi] = await Promise.all([
+  const [component, operations, api, mediaApi, suiteContext] = await Promise.all([
     read("app/inventory-live.tsx"),
     read("app/inventory-operations.tsx"),
     read("app/api/digital-twin/route.ts"),
     read("app/api/digital-twin/media/[id]/route.ts"),
+    read("app/api/suite-context/route.ts"),
   ]);
 
   assert.match(component, /DIGITAL TWIN BUILDER/);
@@ -76,6 +77,8 @@ test("ships a real-photo Fleet digital twin with mobile camera capture", async (
   assert.doesNotMatch(component, /titleCase\(unit\.status\)\} - \{unit\.id\}/);
   assert.match(operations, /Fleet: \{formatStatus\(item\.status\)\}/);
   assert.match(api, /\.from\("department_apparatus"\)/);
+  assert.match(suiteContext, /unitNumber: unit\.unit_name \|\| unit\.call_sign \|\| ""/);
+  assert.match(suiteContext, /name: unit\.unit_type \|\| unit\.call_sign \|\| unit\.unit_name \|\| ""/);
   assert.match(component, /placeHotspot/);
   assert.match(component, /Save photo for review/);
   assert.match(component, /Save the apparatus in Step 1 before adding a compartment/);
