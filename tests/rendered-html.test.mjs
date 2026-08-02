@@ -347,3 +347,13 @@ test("loads 1209 form 269 into separate weekly and utility inventory checks", as
   assert.match(migration, /'Cab','Safety vests',2,'equipment',array\['inventory'\]/);
   assert.doesNotMatch(migration, /array\['(?:weekly|air_pack|inventory)'\s*,/);
 });
+
+test("adds Chief Car 1210 to the linked Stickney fleet and inventory records", async () => {
+  const migration = await read("supabase/migrations/20260802002243_add_chief_car_1210_to_stickney_fleet.sql");
+
+  assert.match(migration, /unit_name = '1210'/);
+  assert.match(migration, /'1210', 'Chief Car', '1210', 'Stickney Fire Department', 'in_service'/);
+  assert.match(migration, /insert into public\.inventory_apparatus_profiles/);
+  assert.match(migration, /on conflict \(id\) do update/);
+  assert.doesNotMatch(migration, /14a76771-4c24-481b-8def-e6cce005c17b/);
+});
