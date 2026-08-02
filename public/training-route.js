@@ -71,7 +71,7 @@
       const id = providerIds[(heading.textContent || "").trim()];
       if (!id) continue;
       const provider = payload.providers.find((item) => item.id === id);
-      const panel = heading.parentElement?.querySelector(".training-board");
+      const panel = heading.closest(".rotating-panel")?.querySelector(".training-board");
       if (!provider || !panel) continue;
       if (panel.dataset.dailyFeedVersion === provider.checkedAt) continue;
 

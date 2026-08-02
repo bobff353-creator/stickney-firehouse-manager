@@ -41,11 +41,12 @@ test("checks each official training provider daily", async () => {
   assert.match(bridge, /MutationObserver/);
   assert.match(bridge, /Official site checked/);
   assert.match(bridge, /provider\.upcoming\.slice\(0, 6\)/);
+  assert.match(bridge, /heading\.closest\("\.rotating-panel"\)/);
   assert.match(feeds, /parseRomeovilleActivity/);
   assert.match(feeds, /parseIfsiSchedule/);
   assert.match(feeds, /parseNipstaEvents/);
   assert.match(feeds, /stickney-training-sites-v2/);
-  assert.match(proxy, /training-route\.js\?v=20260802-1/);
+  assert.match(proxy, /training-route\.js\?v=20260802-2/);
 });
 
 test("protects and schedules the daily refresh", async () => {
