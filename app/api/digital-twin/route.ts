@@ -27,6 +27,7 @@ const sides = new Set([
   "spin",
 ]);
 const doorStates = new Set(["closed", "open", "not_applicable"]);
+const apparatusStatuses = new Set(["in_service", "out_of_service", "impaired"]);
 
 function clean(value: unknown, limit = 160) {
   return typeof value === "string" ? value.trim().slice(0, limit) : "";
@@ -350,6 +351,36 @@ export async function POST(request: Request) {
       if (error) throw error;
       await audit(session.context, "apparatus.created", "apparatus", id, profile, request);
       return privateJson({ apparatus: profile }, 201);
+    }
+    if (action === "update_apparatus_status") {
+      const apparatusId = clean(body.apparatusId, 80);
+      const status = clean(body.status, 40);
+      if (!apparatusId || !apparatusStatuses.has(status)) {
+        return privateJson({ error: "Apparatus and a valid Fleet status are required." }, 400);
+      }
+      const changes = {
+        status,
+        updated_by: session.context.user.id,
+        updated_at: new Date().toISOString(),
+      };
+      const { data: apparatus, error } = await supabase
+        .from("department_apparatus")
+        .update(changes)
+        .eq("department_id", departmentId)
+        .eq("id", apparatusId)
+        .select("id,status")
+        .maybeSingle();
+      if (error) throw error;
+      if (!apparatus) return privateJson({ error: "Apparatus not found." }, 404);
+      await audit(
+        session.context,
+        "apparatus.status_updated",
+        "apparatus",
+        apparatusId,
+        changes,
+        request,
+      );
+      return privateJson({ apparatus });
     }
     if (action === "create_compartment") {
       const id = clean(body.id, 80) || crypto.randomUUID();

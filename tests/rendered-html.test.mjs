@@ -65,6 +65,11 @@ test("ships a real-photo Fleet digital twin with mobile camera capture", async (
   assert.match(component, /InventoryNavIcon/);
   assert.match(component, /openFleetFilter/);
   assert.match(component, /Fleet: \{titleCase\(selectedApparatus\.status\)\}/);
+  assert.match(component, /Fleet status/);
+  assert.match(component, /Save Fleet status/);
+  assert.match(component, /value="out_of_service">Out of Service/);
+  assert.match(component, /value="impaired">Impaired/);
+  assert.doesNotMatch(component, /titleCase\(unit\.status\)\} - \{unit\.id\}/);
   assert.match(operations, /Fleet: \{formatStatus\(item\.status\)\}/);
   assert.match(api, /\.from\("department_apparatus"\)/);
   assert.match(component, /placeHotspot/);
@@ -82,6 +87,8 @@ test("ships a real-photo Fleet digital twin with mobile camera capture", async (
   assert.match(api, /inventory_photo_views/);
   assert.match(api, /inventory_photo_hotspots/);
   assert.match(api, /action === "update_compartment"/);
+  assert.match(api, /action === "update_apparatus_status"/);
+  assert.match(api, /apparatus\.status_updated/);
   assert.match(api, /action === "delete_compartment"/);
   assert.match(api, /action === "delete_photo"/);
   assert.match(api, /compartment\.updated/);

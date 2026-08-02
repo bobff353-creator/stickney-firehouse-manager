@@ -329,14 +329,12 @@ export default function Inventory360({
     }
   }, []);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    async function loadSuite() {
-      try {
-        const response = await fetch("/api/suite-context", {
-          cache: "no-store",
-          signal: controller.signal,
-        });
+  const loadSuite = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const response = await fetch("/api/suite-context", {
+        cache: "no-store",
+        signal,
+      });
         const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
         if (!response.ok || payload.configured !== true) {
           throw new Error(
@@ -359,23 +357,26 @@ export default function Inventory360({
           apparatus,
           events: eventRows(payload.events),
         });
-        setSuiteState("ready");
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setSuite((current) => ({
-          ...current,
-          configured: false,
-          error: error instanceof Error
-            ? error.message
-            : "Department apparatus could not be loaded.",
-        }));
-        setSuiteState("unavailable");
-      }
+      setSuiteState("ready");
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setSuite((current) => ({
+        ...current,
+        configured: false,
+        error: error instanceof Error
+          ? error.message
+          : "Department apparatus could not be loaded.",
+      }));
+      setSuiteState("unavailable");
     }
-    void loadSuite();
+  }, [departmentId, departmentName]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadSuite(controller.signal);
     void loadTwin(undefined, controller.signal);
     return () => controller.abort();
-  }, [departmentId, departmentName, loadTwin]);
+  }, [loadSuite, loadTwin]);
 
   const linkedTwinCount = suite.apparatus.filter((unit) => (
     Boolean(matchingTwin(unit, twinData.apparatus))
@@ -765,6 +766,7 @@ export default function Inventory360({
                 data={twinData}
                 suiteApparatus={suite.apparatus}
                 onReload={loadTwin}
+                onFleetReload={loadSuite}
                 notify={showToast}
               />
             )}
@@ -800,11 +802,13 @@ function DigitalTwinBuilder({
   data,
   suiteApparatus,
   onReload,
+  onFleetReload,
   notify,
 }: {
   data: TwinData;
   suiteApparatus: SuiteApparatus[];
   onReload: (apparatusId?: string) => Promise<void>;
+  onFleetReload: () => Promise<void>;
   notify: (message: string) => void;
 }) {
   const [apparatusId, setApparatusId] = useState("");
@@ -909,6 +913,30 @@ function DigitalTwinBuilder({
       window.location.reload();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Apparatus could not be created.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function updateFleetStatus(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!effectiveApparatusId) return;
+    const form = new FormData(event.currentTarget);
+    setBusy("fleet-status");
+    setError("");
+    try {
+      await jsonAction({
+        action: "update_apparatus_status",
+        apparatusId: effectiveApparatusId,
+        status: form.get("status"),
+      });
+      await Promise.all([
+        onReload(effectiveApparatusId),
+        onFleetReload(),
+      ]);
+      notify("Fleet status updated.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Fleet status could not be updated.");
     } finally {
       setBusy("");
     }
@@ -1211,11 +1239,30 @@ function DigitalTwinBuilder({
             >
               {data.apparatus.map((unit) => (
                 <option key={unit.id} value={unit.id}>
-                  {unit.name} - {titleCase(unit.status)} - {unit.id}
+                  {unit.name} - {titleCase(unit.status)}
                 </option>
               ))}
             </select>
           </label>
+        ) : null}
+        {selectedApparatus ? (
+          <form className="builder-form fleet-status-form" onSubmit={updateFleetStatus}>
+            <label>
+              Fleet status
+              <select
+                key={`${selectedApparatus.id}-${selectedApparatus.status}`}
+                name="status"
+                defaultValue={selectedApparatus.status}
+              >
+                <option value="in_service">In Service</option>
+                <option value="out_of_service">Out of Service</option>
+                <option value="impaired">Impaired</option>
+              </select>
+            </label>
+            <button className="primary" disabled={busy === "fleet-status"}>
+              {busy === "fleet-status" ? "Saving..." : "Save Fleet status"}
+            </button>
+          </form>
         ) : null}
         {unlinkedUnits.length ? (
           <div className="builder-form identity-source-form">
