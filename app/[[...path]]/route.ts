@@ -1,6 +1,13 @@
 const upstreamOrigin = "https://stickney-payroll-manager.bobff353.chatgpt.site";
 
 const portalEnhancements =
+  '<style id="stickney-mobile-navigation-fix">' +
+  '@media(max-width:980px){#mobile-navigation.mobile-nav-panel{' +
+  'top:calc(100% + 8px)!important;bottom:auto!important;' +
+  'max-height:calc(100dvh - 166px - env(safe-area-inset-bottom))!important;' +
+  'overflow-y:auto!important;overscroll-behavior:contain;' +
+  '-webkit-overflow-scrolling:touch;scrollbar-gutter:stable}}' +
+  '</style>' +
   '<script src="/inventory-route.js" defer></script>' +
   '<script src="/training-route.js" defer></script>' +
   '<script src="/fleet-notices.js" defer></script>';

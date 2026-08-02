@@ -13,6 +13,10 @@ test("keeps Inventory on the Stickney site", async () => {
   ]);
 
   assert.match(proxy, /inventory-route\.js/);
+  assert.match(proxy, /stickney-mobile-navigation-fix/);
+  assert.match(proxy, /#mobile-navigation\.mobile-nav-panel/);
+  assert.match(proxy, /top:calc\(100% \+ 8px\)!important;bottom:auto!important/);
+  assert.match(proxy, /overflow-y:auto!important;overscroll-behavior:contain/);
   assert.match(proxy, /headers\.set\(\s*"location"/);
   assert.match(proxy, /headers\.delete\("content-encoding"\)/);
   assert.match(proxy, /headers\.delete\("content-length"\)/);
