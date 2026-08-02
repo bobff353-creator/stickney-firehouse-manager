@@ -27,6 +27,22 @@ test("keeps Inventory on the Stickney site", async () => {
   assert.match(inventoryPage, /<Inventory360/);
 });
 
+test("opens Locate and Build in a focused Preplan editor", async () => {
+  const [proxy, navigation] = await Promise.all([
+    read("app/[[...path]]/route.ts"),
+    read("public/preplan-route.js"),
+  ]);
+
+  assert.match(proxy, /preplan-route\.js\?v=20260802-1/);
+  assert.match(proxy, /field-preplans-page\.preplan-builder-focused/);
+  assert.match(proxy, />:not\(\.preplan-editor\)\{display:none!important\}/);
+  assert.match(navigation, /button\?\.textContent\?\.trim\(\) === "Locate & Build"/);
+  assert.match(navigation, /page\.classList\.add\(focusClass\)/);
+  assert.match(navigation, /Back to Preplan list/);
+  assert.match(navigation, /editor\.scrollIntoView\(\{ block: "start" \}\)/);
+  assert.match(navigation, /page\?\.classList\.remove\(focusClass\)/);
+});
+
 test("ships a real-photo Fleet digital twin with mobile camera capture", async () => {
   const [component, operations, api, mediaApi, suiteContext] = await Promise.all([
     read("app/inventory-live.tsx"),

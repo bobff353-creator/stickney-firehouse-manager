@@ -7,9 +7,18 @@ const portalEnhancements =
   'max-height:calc(100dvh - 166px - env(safe-area-inset-bottom))!important;' +
   'overflow-y:auto!important;overscroll-behavior:contain;' +
   '-webkit-overflow-scrolling:touch;scrollbar-gutter:stable}}' +
+  '.field-preplans-page.preplan-builder-focused>:not(.preplan-editor){display:none!important}' +
+  '.field-preplans-page.preplan-builder-focused{display:block!important}' +
+  '.field-preplans-page.preplan-builder-focused .preplan-editor{' +
+  'margin:0!important;max-width:none!important;min-height:calc(100dvh - 96px)}' +
+  '.preplan-builder-back{display:inline-flex;align-items:center;justify-content:center;' +
+  'min-height:42px;margin:0 0 16px;padding:0 16px;border:1px solid #9a3412;' +
+  'border-radius:8px;background:#fff7ed;color:#9a3412;font:700 13px/1 system-ui;' +
+  'cursor:pointer}.preplan-builder-back:hover{background:#ffedd5}' +
   '</style>' +
   '<script src="/inventory-route.js" defer></script>' +
   '<script src="/training-route.js?v=20260802-2" defer></script>' +
+  '<script src="/preplan-route.js?v=20260802-1" defer></script>' +
   '<script src="/fleet-notices.js" defer></script>';
 
 function publicOrigin(request: Request) {
