@@ -45,7 +45,7 @@ test("checks each official training provider daily", async () => {
   assert.match(feeds, /parseIfsiSchedule/);
   assert.match(feeds, /parseNipstaEvents/);
   assert.match(feeds, /stickney-training-sites-v2/);
-  assert.match(proxy, /training-route\.js/);
+  assert.match(proxy, /training-route\.js\?v=20260802-1/);
 });
 
 test("protects and schedules the daily refresh", async () => {

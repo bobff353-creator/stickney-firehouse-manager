@@ -9,7 +9,7 @@ const portalEnhancements =
   '-webkit-overflow-scrolling:touch;scrollbar-gutter:stable}}' +
   '</style>' +
   '<script src="/inventory-route.js" defer></script>' +
-  '<script src="/training-route.js" defer></script>' +
+  '<script src="/training-route.js?v=20260802-1" defer></script>' +
   '<script src="/fleet-notices.js" defer></script>';
 
 function publicOrigin(request: Request) {
