@@ -33,6 +33,21 @@ function privateJson(value: unknown, status = 200) {
   });
 }
 
+const pageSize = 1000;
+
+async function collectPages<T>(
+  fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+) {
+  const data: T[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const page = await fetchPage(from, from + pageSize - 1);
+    if (page.error) return { data, error: page.error };
+    const rows = page.data || [];
+    data.push(...rows);
+    if (rows.length < pageSize) return { data, error: null };
+  }
+}
+
 export async function GET(request: Request) {
   const session = await verifyInventoryRequest(request);
   if (!session.ok) return sessionFailureResponse(session);
@@ -66,23 +81,24 @@ export async function GET(request: Request) {
         .select("id,apparatus_id,label,side,sort_order")
         .eq("department_id", departmentId)
         .order("sort_order"),
-      supabase
+      collectPages((from, to) => supabase
         .from("inventory_equipment")
-        .select("id,apparatus_id,compartment_id,name,manufacturer,model,serial_number,barcode,quantity_required,equipment_category,check_types,source_form,item_order")
+        .select("id,apparatus_id,compartment_id,name,manufacturer,model,serial_number,barcode,quantity_required,equipment_category,check_types,source_form,item_order,retired_at")
         .eq("department_id", departmentId)
-        .is("retired_at", null)
         .order("item_order")
-        .order("name"),
+        .order("name")
+        .range(from, to)),
       supabase
         .from("inventory_checks")
         .select("id,apparatus_id,shift_id,check_type,status,started_by,started_at,completed_at")
         .eq("department_id", departmentId)
-        .order("started_at", { ascending: false })
-        .limit(30),
-      supabase
+        .eq("status", "in_progress")
+        .order("started_at", { ascending: false }),
+      collectPages((from, to) => supabase
         .from("inventory_check_items")
         .select("id,check_id,equipment_id,result,notes,checked_by,checked_at")
-        .eq("department_id", departmentId),
+        .eq("department_id", departmentId)
+        .range(from, to)),
       supabase
         .from("inventory_readiness_exceptions")
         .select("id,apparatus_id,equipment_id,check_item_id,result,priority,notes,status,out_of_service,opened_by,opened_at,issue_categories,assigned_employee_ids,assigned_employee_names,evidence_photo_id,resolved_at,resolved_by,resolution_notes")
@@ -134,20 +150,21 @@ export async function GET(request: Request) {
       status: fleetStatuses.get(item.id) || "not_recorded",
     }));
     const compartments = compartmentsResult.data || [];
-    const equipment = (equipmentResult.data || []).map((item) => ({
+    const allEquipment = (equipmentResult.data || []).map((item) => ({
       ...item,
       compartment_label: compartments.find((row) => row.id === item.compartment_id)?.label || "",
       photo_url: equipmentPhotosResult.data?.find((photo) => photo.equipment_id === item.id)
         ? `/api/digital-twin/media/${equipmentPhotosResult.data.find((photo) => photo.equipment_id === item.id)?.id}`
         : null,
     }));
+    const equipment = allEquipment.filter((item) => !item.retired_at);
     const checks = (checksResult.data || []).map((check) => ({
       ...check,
       apparatus_name: apparatus.find((row) => row.id === check.apparatus_id)?.name || "",
       apparatus_status: apparatus.find((row) => row.id === check.apparatus_id)?.status || "not_recorded",
     }));
     const checkItems = (checkItemsResult.data || []).map((item) => {
-      const equipmentItem = equipment.find((row) => row.id === item.equipment_id);
+      const equipmentItem = allEquipment.find((row) => row.id === item.equipment_id);
       return {
         ...item,
         equipment_name: equipmentItem?.name || "",
@@ -339,6 +356,19 @@ export async function POST(request: Request) {
       if (!apparatus) {
         return privateJson({ error: "Select a saved department apparatus." }, 400);
       }
+      const { data: existingCheck } = await supabase
+        .from("inventory_checks")
+        .select("id")
+        .eq("department_id", departmentId)
+        .eq("apparatus_id", apparatusId)
+        .eq("check_type", checkType)
+        .eq("status", "in_progress")
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (existingCheck) {
+        return privateJson({ checkId: existingCheck.id, resumed: true });
+      }
       const includedEquipment = (equipment || []).filter((item) => (
         Array.isArray(item.check_types) && item.check_types.includes(checkType)
       ));
@@ -358,6 +388,19 @@ export async function POST(request: Request) {
         status: "in_progress",
         started_by: actor,
       });
+      if (checkError?.code === "23505") {
+        const { data: concurrentCheck } = await supabase
+          .from("inventory_checks")
+          .select("id")
+          .eq("department_id", departmentId)
+          .eq("apparatus_id", apparatusId)
+          .eq("check_type", checkType)
+          .eq("status", "in_progress")
+          .maybeSingle();
+        if (concurrentCheck) {
+          return privateJson({ checkId: concurrentCheck.id, resumed: true });
+        }
+      }
       if (checkError) throw checkError;
       const { error: itemError } = await supabase.from("inventory_check_items").insert(
         includedEquipment.map((item) => ({

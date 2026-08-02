@@ -145,6 +145,9 @@ export default function InventoryOperations({
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [viewerEmployeeId, setViewerEmployeeId] = useState("");
   const [selectedApparatusId, setSelectedApparatusId] = useState(initialApparatusId);
+  const [selectedCheckId, setSelectedCheckId] = useState("");
+  const [inspectionMenuOpen, setInspectionMenuOpen] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
   const [deficiencyItem, setDeficiencyItem] = useState<Row | null>(null);
   const [editingEquipment, setEditingEquipment] = useState<Row | null>(null);
   const [scannerTarget, setScannerTarget] = useState<"create" | "edit">("create");
@@ -225,21 +228,17 @@ export default function InventoryOperations({
     };
   }, [closeScanner, fillEquipmentForm, scannerOpen, scannerTarget]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async ({ background = false }: { background?: boolean } = {}) => {
+    if (!background) setLoading(true);
     try {
-      const [response, dashboardResponse, permissionsResponse] = await Promise.all([
-        fetch("/api/operations", { cache: "no-store" }),
+      const contextPromise = background ? null : Promise.all([
         fetch("/api/dashboard", { cache: "no-store" }),
         fetch("/api/permissions", { cache: "no-store" }),
       ]);
-      const [payload, dashboard, permissions] = await Promise.all([
-        response.json().catch(() => ({})) as Promise<Partial<OperationsData>>,
-        dashboardResponse.json().catch(() => ({})) as Promise<{ viewer?: { employeeId?: string } }>,
-        permissionsResponse.json().catch(() => ({})) as Promise<{ employees?: Employee[] }>,
-      ]);
+      const response = await fetch("/api/operations", { cache: "no-store" });
+      const payload = await response.json().catch(() => ({})) as Partial<OperationsData>;
       if (!response.ok || payload.configured !== true) {
-        setAccessRequired(response.status === 401 || response.status === 403);
+        if (!background) setAccessRequired(response.status === 401 || response.status === 403);
         throw new Error(payload.error || "Operational records are unavailable.");
       }
       setData({
@@ -254,15 +253,25 @@ export default function InventoryOperations({
         stock: payload.stock || [],
         viewer: payload.viewer,
       });
-      setViewerEmployeeId(dashboard.viewer?.employeeId || "");
-      setEmployees(Array.isArray(permissions.employees) ? permissions.employees : []);
+      if (contextPromise) {
+        const [dashboardResponse, permissionsResponse] = await contextPromise;
+        const [dashboard, permissions] = await Promise.all([
+          dashboardResponse.json().catch(() => ({})) as Promise<{ viewer?: { employeeId?: string } }>,
+          permissionsResponse.json().catch(() => ({})) as Promise<{ employees?: Employee[] }>,
+        ]);
+        setViewerEmployeeId(dashboard.viewer?.employeeId || "");
+        setEmployees(Array.isArray(permissions.employees) ? permissions.employees : []);
+      }
       setSelectedApparatusId((current) => current || initialApparatusId || payload.apparatus?.[0]?.id?.toString() || "");
+      setLastSyncedAt(Date.now());
       setError("");
       setAccessRequired(false);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Operational records are unavailable.");
+      if (!background) {
+        setError(caught instanceof Error ? caught.message : "Operational records are unavailable.");
+      }
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   }, [initialApparatusId]);
 
@@ -270,6 +279,18 @@ export default function InventoryOperations({
     // Loading is intentionally kicked off once when this operational panel opens.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
+    const refresh = () => void load({ background: true });
+    const interval = window.setInterval(refresh, 5000);
+    window.addEventListener("focus", refresh);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [load]);
 
   async function action(name: string, payload: Record<string, unknown>) {
@@ -322,14 +343,19 @@ export default function InventoryOperations({
     if (!response.ok) throw new Error(payload.error || "The equipment photo could not be saved.");
   }
 
-  const activeCheck = data.checks.find((check) => (
+  const apparatusActiveChecks = data.checks.filter((check) => (
     value(check, "status") === "in_progress"
     && (!selectedApparatusId || value(check, "apparatus_id") === selectedApparatusId)
   ));
+  const activeCheck = apparatusActiveChecks.find((check) => value(check, "id") === selectedCheckId)
+    || apparatusActiveChecks[0];
   const activeItems = activeCheck
     ? data.checkItems.filter((item) => value(item, "check_id") === value(activeCheck, "id"))
     : [];
   const pendingItems = activeItems.filter((item) => value(item, "result") === "pending").length;
+  const remainingForCheck = (checkId: string) => data.checkItems.filter((item) => (
+    value(item, "check_id") === checkId && value(item, "result") === "pending"
+  )).length;
   const selectedApparatus = data.apparatus.find((item) => value(item, "id") === selectedApparatusId);
   const selectedEquipment = data.equipment.filter((item) => value(item, "apparatus_id") === selectedApparatusId);
   const myOpenRepairs = data.workOrders.filter((item) => (
@@ -380,33 +406,71 @@ export default function InventoryOperations({
         <section className="ops-card unit-inspection-hub">
           <header>
             <div><span>FLEET / APPARATUS RECORD</span><h2>{selectedApparatus ? value(selectedApparatus, "name") : "Choose an apparatus"}</h2></div>
-            {activeCheck ? <b>{pendingItems} remaining</b> : null}
+            {activeCheck && !inspectionMenuOpen ? <b>{pendingItems} remaining</b> : null}
           </header>
           {!data.apparatus.length ? (
             <div className="ops-empty"><strong>No apparatus added</strong><p>Build the fleet before starting inspections.</p><button onClick={onSetup}>Build Fleet &amp; Inventory</button></div>
           ) : (
             <label className="unit-picker">Apparatus
-              <select value={selectedApparatusId} onChange={(event) => setSelectedApparatusId(event.target.value)}>
+              <select value={selectedApparatusId} onChange={(event) => {
+                setSelectedApparatusId(event.target.value);
+                setSelectedCheckId("");
+                setInspectionMenuOpen(false);
+              }}>
                 {data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")} · Fleet: {formatStatus(item.status)}</option>)}
               </select>
             </label>
           )}
-          {selectedApparatus && !activeCheck ? (
-            <div className="inspection-choice-grid" aria-label="Inspection choices">
-              {inspectionTypes.map(([id, label]) => (
-                <button key={id} type="button" disabled={Boolean(busy)} onClick={() => void action(`start-${id}`, { action: "start_check", apparatusId: selectedApparatusId, checkType: id })}>
-                  <strong>{label}</strong><span>Open {value(selectedApparatus, "name")} checklist</span>
-                </button>
-              ))}
+          {selectedApparatus && (inspectionMenuOpen || !activeCheck) ? (
+            <div className="inspection-menu">
+              <div className="inspection-menu-note" role="status">
+                <strong>Choose a checklist</strong>
+                <span>Inspections save item by item. You can leave, answer a call, switch sections, and resume later.</span>
+              </div>
+              <div className="inspection-choice-grid" aria-label="Inspection choices">
+                {inspectionTypes.map(([id, label]) => {
+                  const inProgress = apparatusActiveChecks.find((check) => value(check, "check_type") === id);
+                  const remaining = inProgress ? remainingForCheck(value(inProgress, "id")) : 0;
+                  return (
+                    <button key={id} type="button" disabled={Boolean(busy)} onClick={() => {
+                      if (inProgress) {
+                        setSelectedCheckId(value(inProgress, "id"));
+                        setInspectionMenuOpen(false);
+                        return;
+                      }
+                      void action(`start-${id}`, { action: "start_check", apparatusId: selectedApparatusId, checkType: id }).then((saved) => {
+                        if (saved) {
+                          setSelectedCheckId("");
+                          setInspectionMenuOpen(false);
+                        }
+                      });
+                    }}>
+                      <strong>{inProgress ? `Resume ${label}` : label}</strong>
+                      <span>{inProgress ? `${remaining} items remaining · shared crew progress` : `Start ${value(selectedApparatus, "name")} checklist`}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           ) : null}
-          {activeCheck ? (
+          {activeCheck && !inspectionMenuOpen ? (
             <div className="check-worklist">
-              <div className="active-inspection-title"><span>{formatStatus(activeCheck.check_type)} inspection in progress</span><small>Pass each item or select Failed to add a required note and photo.</small></div>
+              <div className="inspection-workflow-actions">
+                <button type="button" onClick={() => setInspectionMenuOpen(true)}>Back to inspection types</button>
+                <button type="button" disabled={Boolean(busy)} onClick={() => void load({ background: true })}>Refresh crew progress</button>
+              </div>
+              <div className="active-inspection-title">
+                <span>{formatStatus(activeCheck.check_type)} inspection in progress</span>
+                <small>Shared department inspection · updates refresh every 5 seconds{lastSyncedAt ? ` · synced ${formatDate(lastSyncedAt)}` : ""}</small>
+                <small>Pass each item or select Failed to add a required note and photo. You may leave and resume at any time.</small>
+              </div>
               {activeItems.map((item) => (
                 <article key={value(item, "id")} className={`check-row result-${value(item, "result")}`}>
                   <div><strong>{value(item, "equipment_name")}{Number(item.quantity_required || 1) > 1 ? ` × ${item.quantity_required}` : ""}</strong><small>{value(item, "compartment_label")}{value(item, "source_form") ? ` · ${value(item, "source_form")}` : ""}</small></div>
-                  <span>{value(item, "result").replace("_", " ")}</span>
+                  <div className="check-result">
+                    <span>{value(item, "result").replace("_", " ")}</span>
+                    {value(item, "result") !== "pending" && value(item, "checked_by") ? <small>By {value(item, "checked_by")} · {formatDate(item.checked_at)}</small> : null}
+                  </div>
                   <div className="check-actions">
                     <button disabled={Boolean(busy)} onClick={() => void action(`item-${value(item, "id")}`, { action: "record_check_item", checkItemId: value(item, "id"), result: "pass" })}>Pass</button>
                     <button className="failed" disabled={Boolean(busy)} onClick={() => setDeficiencyItem(item)}>Failed</button>

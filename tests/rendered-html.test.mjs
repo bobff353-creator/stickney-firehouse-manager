@@ -162,6 +162,30 @@ test("connects fleet inspections, employee notices, Live Ops, and repair closeou
   assert.match(migration, /repair_cost/);
 });
 
+test("keeps large shared inspections named, resumable, and live across crew devices", async () => {
+  const [component, operationsApi, migration] = await Promise.all([
+    read("app/inventory-operations.tsx"),
+    read("app/api/operations/route.ts"),
+    read("supabase/migrations/20260802003513_support_shared_resumable_inspections.sql"),
+  ]);
+
+  assert.match(operationsApi, /function collectPages/);
+  assert.match(operationsApi, /\.range\(from, to\)/);
+  assert.match(operationsApi, /retired_at/);
+  assert.match(operationsApi, /const allEquipment/);
+  assert.match(operationsApi, /const equipmentItem = allEquipment\.find/);
+  assert.match(operationsApi, /\.eq\("status", "in_progress"\)/);
+  assert.match(operationsApi, /existingCheck/);
+  assert.match(component, /window\.setInterval\(refresh, 5000\)/);
+  assert.match(component, /Back to inspection types/);
+  assert.match(component, /Refresh crew progress/);
+  assert.match(component, /Resume \$\{label\}/);
+  assert.match(component, /Completed by|By \{value\(item, "checked_by"\)\}/);
+  assert.match(component, /leave, answer a call, switch sections, and resume later/);
+  assert.match(migration, /create unique index if not exists inventory_checks_one_active_type_idx/);
+  assert.match(migration, /where status = 'in_progress'/);
+});
+
 test("loads the 1203 FRONTLINE checklist as editable weekly, inventory, and air-pack records", async () => {
   const [operations, operationsApi, digitalTwinApi, migration] = await Promise.all([
     read("app/inventory-operations.tsx"),
