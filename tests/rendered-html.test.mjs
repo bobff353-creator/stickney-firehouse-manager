@@ -298,3 +298,13 @@ test("loads 1207 form 233 into separate weekly, air-pack, and ambulance inventor
   assert.match(migration, /'Misc\. Interior','Spare O2 cylinders',2,'equipment',array\['inventory'\]/);
   assert.doesNotMatch(migration, /1205|form 272|form-272-/);
 });
+
+test("adds Utility 1208 to the linked Stickney fleet and inventory records", async () => {
+  const migration = await read("supabase/migrations/20260802000624_add_utility_1208_to_stickney_fleet.sql");
+
+  assert.match(migration, /unit_name = '1208'/);
+  assert.match(migration, /'1208', 'Utility', '1208', 'Stickney Fire Department', 'in_service'/);
+  assert.match(migration, /insert into public\.inventory_apparatus_profiles/);
+  assert.match(migration, /on conflict \(id\) do update/);
+  assert.doesNotMatch(migration, /14a76771-4c24-481b-8def-e6cce005c17b/);
+});
