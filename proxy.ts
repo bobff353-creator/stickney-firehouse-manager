@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { getPublicSupabaseConfig } from "./app/supabase-config";
 
 const publicApiPaths = new Set([
   "/api/close-call-news",
@@ -15,11 +16,7 @@ const signedWebhookPaths = new Set([
 ]);
 
 function configuration() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/[\uFEFF\r\n]/g, "").trim();
-  const key = (
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-      || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )?.replace(/[\uFEFF\r\n]/g, "").trim();
+  const { url, key } = getPublicSupabaseConfig();
   const departmentId = process.env.PAYROLL_DEPARTMENT_ID?.trim();
   return { url, key, departmentId };
 }
