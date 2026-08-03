@@ -29,3 +29,17 @@ test("operations panels rotate without rendering carousel indicator bars", async
   assert.doesNotMatch(source, /rotates every/i);
   assert.match(board, /Pause rotation/);
 });
+
+test("TV rotation keeps every operations slide mounted and preserves the last good board on refresh errors", async () => {
+  const [styles, board] = await Promise.all([
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/operations-board.tsx", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(board, /className="rotation-slide" hidden=\{rotation !== "equipment"\}/);
+  assert.match(board, /className="rotation-slide" hidden=\{rotation !== "duty"\}/);
+  assert.match(board, /className="rotation-slide" hidden=\{rotation !== "news"\}/);
+  assert.match(board, /className="rotation-slide" hidden=\{rotation !== "fatalities"\}/);
+  assert.match(styles, /\.rotation-slide\[hidden\] \{ display: none !important; \}/);
+  assert.match(board, /The last confirmed board remains on screen/);
+});

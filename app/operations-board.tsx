@@ -126,7 +126,53 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
       segmentStart += segment.duration;
     });
   }, []);
-  const load = useCallback(async () => { const [dashboardResponse, dutiesResponse, newsResponse, fatalitiesResponse, weatherResponse, fleetResponse] = await Promise.all([fetch("/api/dashboard"), fetch("/api/daily-duties"), fetch("/api/close-call-news"), fetch("/api/usfa-fatalities"), fetch("/api/weather"), fetch("/api/suite-context")]); const result = await dashboardResponse.json() as BoardData; const duties = await dutiesResponse.json() as { currentDuty?: CurrentDuty | null }; const reports = await newsResponse.json() as { items?: CloseCallReport[] }; const usfa = await fatalitiesResponse.json() as UsfaData; const forecast = await weatherResponse.json() as WeatherData; const fleet = await fleetResponse.json().catch(()=>({})) as {apparatus?:FleetApparatus[]}; if (dashboardResponse.ok) { const incomingIds = new Set(result.activeCalls.map((call) => call.reportNumber).filter(Boolean)); if (seenCallIdsRef.current) { const newCall = result.activeCalls.find((call) => call.reportNumber && !seenCallIdsRef.current?.has(call.reportNumber)); if (newCall && alertEnabledRef.current) void playAlert(); if (newCall) onNewActiveCallRef.current?.(newCall); incomingIds.forEach((id) => seenCallIdsRef.current?.add(id)); } else { seenCallIdsRef.current = incomingIds; } const committed=new Set(result.activeCalls.flatMap((call)=>call.respondingUnits.split(/[\s,;/]+/)).filter(Boolean)); const fleetStatuses=(fleet.apparatus??[]).map((unit)=>({unit:unit.unitNumber||unit.name,status:committed.has(unit.unitNumber)?"Committed to call":unit.status.toLowerCase().replaceAll(/[\s_-]/g,"")==="inservice"?"Available":unit.status||"Status not reported"})); setData({...result,apparatus:fleetStatuses.length?fleetStatuses:result.apparatus}); setLastRefresh(new Date()); setError(""); } else setError(result.error || "Unable to load live operations"); if (dutiesResponse.ok) setCurrentDuty(duties.currentDuty ?? null); if (newsResponse.ok) setNews(reports.items ?? []); if (fatalitiesResponse.ok) setFatalities(usfa); if (weatherResponse.ok) setWeather(forecast); }, [playAlert]);
+  const load = useCallback(async () => {
+    try {
+      const [dashboardResponse, dutiesResponse, newsResponse, fatalitiesResponse, weatherResponse, fleetResponse] = await Promise.all([
+        fetch("/api/dashboard"),
+        fetch("/api/daily-duties"),
+        fetch("/api/close-call-news"),
+        fetch("/api/usfa-fatalities"),
+        fetch("/api/weather"),
+        fetch("/api/suite-context"),
+      ]);
+      const [result, duties, reports, usfa, forecast, fleet] = await Promise.all([
+        dashboardResponse.json() as Promise<BoardData>,
+        dutiesResponse.json().catch(() => ({})) as Promise<{ currentDuty?: CurrentDuty | null }>,
+        newsResponse.json().catch(() => ({})) as Promise<{ items?: CloseCallReport[] }>,
+        fatalitiesResponse.json().catch(() => null) as Promise<UsfaData | null>,
+        weatherResponse.json().catch(() => null) as Promise<WeatherData | null>,
+        fleetResponse.json().catch(() => ({})) as Promise<{ apparatus?: FleetApparatus[] }>,
+      ]);
+      if (!dashboardResponse.ok) {
+        setError(result.error || "Unable to load live operations");
+        return;
+      }
+      const incomingIds = new Set(result.activeCalls.map((call) => call.reportNumber).filter(Boolean));
+      if (seenCallIdsRef.current) {
+        const newCall = result.activeCalls.find((call) => call.reportNumber && !seenCallIdsRef.current?.has(call.reportNumber));
+        if (newCall && alertEnabledRef.current) void playAlert();
+        if (newCall) onNewActiveCallRef.current?.(newCall);
+        incomingIds.forEach((id) => seenCallIdsRef.current?.add(id));
+      } else {
+        seenCallIdsRef.current = incomingIds;
+      }
+      const committed = new Set(result.activeCalls.flatMap((call) => call.respondingUnits.split(/[\s,;/]+/)).filter(Boolean));
+      const fleetStatuses = (fleet.apparatus ?? []).map((unit) => ({
+        unit: unit.unitNumber || unit.name,
+        status: committed.has(unit.unitNumber) ? "Committed to call" : unit.status.toLowerCase().replaceAll(/[\s_-]/g, "") === "inservice" ? "Available" : unit.status || "Status not reported",
+      }));
+      setData({ ...result, apparatus: fleetStatuses.length ? fleetStatuses : result.apparatus });
+      setLastRefresh(new Date());
+      setError("");
+      if (dutiesResponse.ok) setCurrentDuty(duties.currentDuty ?? null);
+      if (newsResponse.ok) setNews(reports.items ?? []);
+      if (fatalitiesResponse.ok && usfa) setFatalities(usfa);
+      if (weatherResponse.ok && forecast) setWeather(forecast);
+    } catch {
+      setError("Live updates are temporarily delayed. The last confirmed board remains on screen.");
+    }
+  }, [playAlert]);
   useEffect(() => { onNewActiveCallRef.current = onNewActiveCall; }, [onNewActiveCall]);
   useEffect(() => { const storedTone = window.localStorage.getItem("stickney-call-alert-tone") || ""; const selectedTone = alertToneIds.has(storedTone) ? storedTone as AlertTone : "minitor-two-tone"; const enabled = window.localStorage.getItem("stickney-call-alert-enabled") === "true"; setAlertTone(selectedTone); setAlertEnabled(enabled); alertToneRef.current = selectedTone; alertEnabledRef.current = enabled; }, []);
   useEffect(() => { const initial = window.setTimeout(() => void load(), 0); const refresh = window.setInterval(() => void load(), 30000); const ticker = window.setInterval(() => setClock(new Date()), 1000); const rotate = rotationPaused?0:window.setInterval(() => setRotation((current) => rotationOrder[(rotationOrder.indexOf(current) + 1) % rotationOrder.length]), 12000); const rotateHeader = rotationPaused?0:window.setInterval(() => setHeaderRotation((current) => headerRotationOrder[(headerRotationOrder.indexOf(current) + 1) % headerRotationOrder.length]), 8000); return () => { window.clearTimeout(initial); window.clearInterval(refresh); window.clearInterval(ticker); if(rotate)window.clearInterval(rotate);if(rotateHeader)window.clearInterval(rotateHeader); }; }, [load,rotationPaused]);
@@ -180,11 +226,11 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
           <span>{rotation === "equipment" ? `${data?.equipmentIssues.length ?? 0} reported` : rotation === "duty" ? `${clock.toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "long" })} · ${shiftLabel(currentDuty?.shiftKey ?? data?.currentShift ?? "night")}` : rotation === "news" ? "Newest 3 · updates automatically" : rotation === "fatalities" ? "USFA · latest 5" : "Upcoming classes · official links"}</span>
         </header>
         <div className="rotation-content">
-          {rotation === "equipment" ? data?.equipmentIssues.length ? data.equipmentIssues.map((issue) => <article key={issue.item}><b>{issue.item}</b><strong>{issue.status}</strong><p>{issue.detail || "No details entered"}</p></article>) : <p className="board-empty clear">✓ No equipment issues reported</p>
-            : rotation === "duty" ? currentDuty ? <article className="current-duty-card"><span>NOW</span><b>{currentDuty.shiftKey[0].toUpperCase() + currentDuty.shiftKey.slice(1)} duty</b><p>{currentDuty.duty}</p></article> : <p className="board-empty">No duty is entered for the current shift.</p>
-            : rotation === "news" ? news.length ? <div className="close-call-list">{news.map((report) => <a href={report.url} target="_blank" rel="noreferrer" key={report.url} aria-label={`${report.title}. Open the full Firefighter Close Calls report.`}><time><span>Posted</span>{new Date(report.publishedAt).toLocaleDateString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", year: "numeric" })}</time><div><span className="close-call-kicker">Incident report</span><strong>{report.title}</strong>{report.excerpt && <p>{report.excerpt}</p>}<small>Read the complete report <b aria-hidden="true">↗</b></small></div></a>)}</div> : <p className="board-empty">Latest reports are temporarily unavailable.</p>
-            : rotation === "fatalities" ? fatalities ? <div className="fatality-board"><div className="fatality-total"><strong>{fatalities.total}</strong><div><b>firefighter deaths in {fatalities.year}</b><span>{fatalities.stale ? "Last confirmed USFA data" : "Current USFA reported total"}</span></div></div><div className="fatality-list">{fatalities.items.map((person) => <a href={person.url} target="_blank" rel="noreferrer" key={person.id}><time>{new Date(person.deathDate).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" })}</time><div><strong>{person.name}</strong><span>{person.department}</span><small>{person.location}</small></div><b aria-hidden="true">↗</b></a>)}</div><p className="fatality-source">Provisional on-duty fatality information from the U.S. Fire Administration.</p></div> : <p className="board-empty">USFA fatality information is temporarily unavailable.</p>
-            : <TrainingCourses provider={trainingProviders[rotation]} today={today} />}
+          <div className="rotation-slide" hidden={rotation !== "equipment"}>{data?.equipmentIssues.length ? data.equipmentIssues.map((issue) => <article key={issue.item}><b>{issue.item}</b><strong>{issue.status}</strong><p>{issue.detail || "No details entered"}</p></article>) : <p className="board-empty clear">✓ No equipment issues reported</p>}</div>
+          <div className="rotation-slide" hidden={rotation !== "duty"}>{currentDuty ? <article className="current-duty-card"><span>NOW</span><b>{currentDuty.shiftKey[0].toUpperCase() + currentDuty.shiftKey.slice(1)} duty</b><p>{currentDuty.duty}</p></article> : <p className="board-empty">No duty is entered for the current shift.</p>}</div>
+          <div className="rotation-slide" hidden={rotation !== "news"}>{news.length ? <div className="close-call-list">{news.map((report) => <a href={report.url} target="_blank" rel="noreferrer" key={report.url} aria-label={`${report.title}. Open the full Firefighter Close Calls report.`}><time><span>Posted</span>{new Date(report.publishedAt).toLocaleDateString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", year: "numeric" })}</time><div><span className="close-call-kicker">Incident report</span><strong>{report.title}</strong>{report.excerpt && <p>{report.excerpt}</p>}<small>Read the complete report <b aria-hidden="true">↗</b></small></div></a>)}</div> : <p className="board-empty">Latest reports are temporarily unavailable.</p>}</div>
+          <div className="rotation-slide" hidden={rotation !== "fatalities"}>{fatalities ? <div className="fatality-board"><div className="fatality-total"><strong>{fatalities.total}</strong><div><b>firefighter deaths in {fatalities.year}</b><span>{fatalities.stale ? "Last confirmed USFA data" : "Current USFA reported total"}</span></div></div><div className="fatality-list">{fatalities.items.map((person) => <a href={person.url} target="_blank" rel="noreferrer" key={person.id}><time>{new Date(person.deathDate).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" })}</time><div><strong>{person.name}</strong><span>{person.department}</span><small>{person.location}</small></div><b aria-hidden="true">↗</b></a>)}</div><p className="fatality-source">Provisional on-duty fatality information from the U.S. Fire Administration.</p></div> : <p className="board-empty">USFA fatality information is temporarily unavailable.</p>}</div>
+          {(["romeoville", "ifsi", "nipsta"] as const).map((providerId) => <div className="rotation-slide" hidden={rotation !== providerId} key={providerId}><TrainingCourses provider={trainingProviders[providerId]} today={today} /></div>)}
         </div>
       </section></div>
     <section className="board-panel apparatus apparatus-wide"><header><h2>Apparatus status</h2><span>Fleet + active CAD calls</span></header><div>{data?.apparatus.map((unit) => <article className={unit.status === "Committed to call" ? "committed" : unit.status === "Available" ? "available" : "unknown"} key={unit.unit}><b>Unit {unit.unit}</b><span>{unit.status}</span></article>)}</div><p className="board-source-note">Fleet status with active CAD commitment shown in red.</p></section>

@@ -914,6 +914,8 @@ td strong { font-size: 16px; }
 .board-panel.equipment strong { color: #f2b94e; }
 .rotating-panel { position: relative; }
 .rotating-panel > .rotation-content { min-height: 190px; animation: board-panel-fade .35s ease; }
+.rotation-slide { min-height: inherit; display: grid; align-content: start; gap: 9px; }
+.rotation-slide[hidden] { display: none !important; }
 .rotating-panel.duty { border-color: #8b6c2f; background: linear-gradient(145deg,#172a32,#24291f); }
 .rotating-panel.news { border-color: #6e8798; background: linear-gradient(145deg,#132733,#192b35); }
 .rotating-panel.fatalities { border-color: #955b5b; background: linear-gradient(145deg,#1e252d,#2a2023); }
