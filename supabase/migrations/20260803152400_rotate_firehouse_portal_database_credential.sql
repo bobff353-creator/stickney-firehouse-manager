@@ -1,54 +1,48 @@
-CREATE OR REPLACE FUNCTION firehouse.execute_portal_sql(p_secret text, p_statement text)
+DROP FUNCTION IF EXISTS firehouse.execute_portal_sql(text, text);
+
+CREATE OR REPLACE FUNCTION firehouse.execute_portal_sql(
+  p_sql text,
+  p_mode text DEFAULT 'all',
+  p_secret text DEFAULT NULL
+)
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = pg_catalog, firehouse, extensions
+SET search_path = firehouse, extensions, pg_temp
 AS $$
 DECLARE
-  v_sql text := btrim(coalesce(p_statement, ''));
-  v_result jsonb;
+  result jsonb;
+  affected bigint;
 BEGIN
   IF p_secret IS NULL
-     OR encode(extensions.digest(p_secret, 'sha256'), 'hex') <> 'e24dbd461a03c2cb420496b13d7d50657d7c8396cfa10951cc00257fb9abdc37' THEN
+     OR encode(extensions.digest(p_secret, 'sha256'), 'hex') <> 'a89a58356c716fa66e1293ade8cd4255f401e26f3b2b978c24e45adb658ed8f4' THEN
     RAISE EXCEPTION 'Invalid portal database credential' USING ERRCODE = '42501';
   END IF;
-
-  IF v_sql = '' OR length(v_sql) > 200000 THEN
-    RAISE EXCEPTION 'Invalid portal query' USING ERRCODE = '22023';
+  IF p_sql IS NULL OR length(p_sql) > 200000 OR p_sql ~ '(;|--|/\*|\*/)' THEN
+    RAISE EXCEPTION 'Unsafe portal query';
+  END IF;
+  IF p_sql ~* '\m(public|auth|storage|extensions|vault|realtime|graphql)\s*\.' THEN
+    RAISE EXCEPTION 'Cross-schema portal query denied';
+  END IF;
+  IF p_sql !~* '^\s*(select|insert|update|delete|with)\M'
+     OR p_sql ~* '\m(create|alter|drop|truncate|grant|revoke|copy|call|do|set|show|reset|listen|notify|vacuum|analyze)\M' THEN
+    RAISE EXCEPTION 'Unsupported portal query';
   END IF;
 
-  IF v_sql ~ ';[[:space:]]*[^[:space:]]' OR v_sql ~ '--' OR v_sql ~ '/\*' OR v_sql ~ '\*/' THEN
-    RAISE EXCEPTION 'Multiple statements and comments are not allowed' USING ERRCODE = '42501';
+  IF p_mode = 'all' THEN
+    EXECUTE 'SELECT COALESCE(jsonb_agg(to_jsonb(portal_row)), ''[]''::jsonb) FROM (' || p_sql || ') AS portal_row' INTO result;
+    RETURN COALESCE(result, '[]'::jsonb);
+  ELSIF p_mode = 'first' THEN
+    EXECUTE 'SELECT to_jsonb(portal_row) FROM (' || p_sql || ') AS portal_row LIMIT 1' INTO result;
+    RETURN result;
+  ELSIF p_mode = 'run' THEN
+    EXECUTE p_sql;
+    GET DIAGNOSTICS affected = ROW_COUNT;
+    RETURN jsonb_build_object('success', true, 'meta', jsonb_build_object('changes', affected));
   END IF;
-
-  IF lower(v_sql) !~ '^(select|insert|update|delete|with)[[:space:]]' THEN
-    RAISE EXCEPTION 'Unsupported portal query' USING ERRCODE = '42501';
-  END IF;
-
-  IF lower(v_sql) ~ '(copy|alter|create|drop|truncate|grant|revoke|comment|vacuum|analyze|refresh|reindex|cluster|listen|notify|do)[[:space:]]' THEN
-    RAISE EXCEPTION 'Unsafe portal query' USING ERRCODE = '42501';
-  END IF;
-
-  IF lower(v_sql) !~ '(^|[^a-z0-9_])firehouse\.' THEN
-    RAISE EXCEPTION 'Portal query must target the firehouse schema' USING ERRCODE = '42501';
-  END IF;
-
-  IF lower(v_sql) ~ '(^|[^a-z0-9_])(auth|storage|vault|pg_catalog|information_schema|public)\.' THEN
-    RAISE EXCEPTION 'Portal query references a restricted schema' USING ERRCODE = '42501';
-  END IF;
-
-  IF lower(v_sql) ~ '^select[[:space:]]' OR lower(v_sql) ~ '^with[[:space:]]' THEN
-    EXECUTE format('SELECT coalesce(jsonb_agg(to_jsonb(q)), ''[]''::jsonb) FROM (%s) q', v_sql)
-      INTO v_result;
-    RETURN coalesce(v_result, '[]'::jsonb);
-  END IF;
-
-  EXECUTE v_sql;
-  RETURN jsonb_build_object('rowsAffected', 1);
+  RAISE EXCEPTION 'Unknown portal query mode';
 END;
 $$;
 
-REVOKE ALL ON FUNCTION firehouse.execute_portal_sql(text, text) FROM PUBLIC;
-REVOKE ALL ON FUNCTION firehouse.execute_portal_sql(text, text) FROM anon;
-REVOKE ALL ON FUNCTION firehouse.execute_portal_sql(text, text) FROM authenticated;
-GRANT EXECUTE ON FUNCTION firehouse.execute_portal_sql(text, text) TO service_role;
+REVOKE ALL ON FUNCTION firehouse.execute_portal_sql(text, text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION firehouse.execute_portal_sql(text, text, text) TO anon, authenticated;
