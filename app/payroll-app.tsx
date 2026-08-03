@@ -657,7 +657,7 @@ export default function PayrollApp({
     <main className={`app-shell${tvMode ? " tv-shell" : ""}`}>
       {!tvMode && <PwaInstall />}
       <aside className="desktop-sidebar">
-        <button className="sidebar-brand" onClick={() => navigate(homePage)} aria-label="Stickney Fire Department Operations Portal home"><img className="brand-patch" src="/stickney-fd-patch.jpg?v=2" alt="Stickney Fire Department patch" width="64" height="64" /><span><strong>Stickney Fire Department</strong><small>Operations Portal</small></span></button>
+        <button className="sidebar-brand" onClick={() => navigate(homePage)} aria-label="Stickney Fire Department Operations Portal home"><img className="brand-patch" src="/stickney-fd-patch.png?v=3" alt="Stickney Fire Department patch" width="64" height="64" /><span><strong>Stickney Fire Department</strong><small>Operations Portal</small></span></button>
         <nav className="sidebar-nav" aria-label="Primary navigation">
           {visibleNav.includes("Dashboard") && <button className={activeNav === "Dashboard" ? "current" : ""} onClick={() => navigate("Dashboard")}><Icon name="home"/><span>Dashboard</span></button>}
           {isAdminView ? visibleAdminGroups.map((group) => (
@@ -685,7 +685,7 @@ export default function PayrollApp({
         <div className="sidebar-footer"><span className="system-dot"/>System ready<small>Portal v1.0</small></div>
       </aside>
       <header className="topbar">
-        <button className="mobile-brand" onClick={() => navigate(homePage)} aria-label="Stickney Fire Department Operations Portal home"><img src="/stickney-fd-patch.jpg?v=2" alt="Stickney Fire Department patch" width="44" height="44" /><strong>Stickney FD Operations Portal</strong></button>
+        <button className="mobile-brand" onClick={() => navigate(homePage)} aria-label="Stickney Fire Department Operations Portal home"><img src="/stickney-fd-patch.png?v=3" alt="Stickney Fire Department patch" width="44" height="44" /><strong>Stickney FD Operations Portal</strong></button>
         <div className="topbar-context"><span>Stickney Fire Department</span><strong>{activeNav}</strong></div>
         <div className="topbar-utilities"><div className={`sync-indicator ${syncLabel.toLowerCase()}`}><Icon name={syncLabel === "Offline" ? "warning" : "save"} size={16}/><span><strong>{syncLabel}</strong><small>Last synced {syncTime}</small></span></div><button className="global-search-trigger" onClick={() => void openGlobalSearch()}><Icon name="search"/><span>Search</span><kbd>⌘ K</kbd></button><SmartAlerts icon={<Icon name="bell"/>} onNavigate={(page) => navigate(page as NavItem)} /><div className="profile"><span className="avatar">{(testMember?.name ?? data?.viewer.displayName ?? "").split(/[ ,]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span><span className="profile-copy"><strong>{testMember ? displayName(testMember.name) : data ? displayName(data.viewer.displayName) : "Signed in"}</strong><small>{testMember ? `Test view · ${testMember.rank}` : data?.viewer.isAdmin ? "Administrator" : "Employee"}</small></span><Icon name="chevron" size={15}/></div><button className="mobile-menu-toggle" aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen((current) => !current)} aria-label="Open navigation"><Icon name={mobileMenuOpen ? "close" : "menu"}/></button></div>
       </header>
@@ -879,7 +879,7 @@ export default function PayrollApp({
           </section>}
         </>}
       </section>
-      <footer className="portal-footer"><div className="footer-identity"><img src="/stickney-fd-patch.jpg?v=2" alt="Official Stickney Fire Department patch" width="56" height="56" /><div><strong>Stickney Fire Department Operations Portal</strong><span>Stickney, Illinois</span><a href="tel:+17089747721">Cicero Consolidated Dispatch · (708) 974-7721</a></div></div><div className="footer-links"><button onClick={() => navigate("Phone Numbers")}>Department Directory</button><button onClick={() => navigate("Phone Numbers")}>Portal Support</button><button className="portal-version" title="Open support and department contact information" onClick={() => navigate("Phone Numbers")}>Version 1.1 · Support</button></div><p>© {new Date().getFullYear()} Stickney Fire Department · Official department system · Authorized use only</p></footer>
+      <footer className="portal-footer"><div className="footer-identity"><img src="/stickney-fd-patch.png?v=3" alt="Official Stickney Fire Department patch" width="56" height="56" /><div><strong>Stickney Fire Department Operations Portal</strong><span>Stickney, Illinois</span><a href="tel:+17089747721">Cicero Consolidated Dispatch · (708) 974-7721</a></div></div><div className="footer-links"><button onClick={() => navigate("Phone Numbers")}>Department Directory</button><button onClick={() => navigate("Phone Numbers")}>Portal Support</button><button className="portal-version" title="Open support and department contact information" onClick={() => navigate("Phone Numbers")}>Version 1.1 · Support</button></div><p>© {new Date().getFullYear()} Stickney Fire Department · Official department system · Authorized use only</p></footer>
     </main>
   );
 }
