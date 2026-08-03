@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import Script from "next/script";
 import "./globals.css";
-import "./suite-theme.css";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -19,8 +18,8 @@ export async function generateMetadata(): Promise<Metadata> {
   const socialImage = `${origin}/og.png`;
 
   return {
-    title: "Inventory | Stickney Fire Department",
-    description: "Visual apparatus checks, equipment inventory, maintenance, stock, and readiness workflows built for fire and EMS operations.",
+    title: "Stickney Firehouse Manager",
+    description: "The secure operations portal for Stickney Fire Department staffing, scheduling, daily logs, field operations, fleet, inventory, and readiness.",
     applicationName: "Stickney Firehouse Manager",
     manifest: "/manifest.webmanifest",
     appleWebApp: {
@@ -38,16 +37,16 @@ export async function generateMetadata(): Promise<Metadata> {
       apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
     },
     openGraph: {
-      title: "Inventory",
-      description: "See it. Check it. Keep it ready.",
+      title: "Stickney Firehouse Manager",
+      description: "Staffing, field operations, fleet, inventory, and readiness in one secure portal.",
       type: "website",
       url: origin,
       images: [{ url: socialImage, width: 1748, height: 915, alt: "Stickney Fire Department Inventory" }],
     },
     twitter: {
       card: "summary_large_image",
-      title: "Inventory",
-      description: "See it. Check it. Keep it ready.",
+      title: "Stickney Firehouse Manager",
+      description: "Staffing, field operations, fleet, inventory, and readiness in one secure portal.",
       images: [socialImage],
     },
   };
@@ -56,8 +55,13 @@ export async function generateMetadata(): Promise<Metadata> {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
-      <Script src="/pwa-register.js" strategy="afterInteractive" />
+      <body>
+        {children}
+        <Script src="/pwa-register.js" strategy="afterInteractive" />
+        <Script src="/training-route.js" strategy="afterInteractive" />
+        <Script src="/fleet-notices.js" strategy="afterInteractive" />
+        <Script src="/preplan-route.js" strategy="afterInteractive" />
+      </body>
     </html>
   );
 }

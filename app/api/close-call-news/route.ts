@@ -7,15 +7,11 @@ export async function GET() {
     const data = await getCloseCallNews();
     return Response.json(data, {
       headers: {
-        "Cache-Control":
-          "public, max-age=300, s-maxage=86400, stale-while-revalidate=604800",
+        "Cache-Control": "public, max-age=300, s-maxage=86400, stale-while-revalidate=604800",
       },
     });
   } catch (error) {
-    console.error(
-      "Close-call refresh failed:",
-      error instanceof Error ? error.message : "Unknown source error",
-    );
+    console.error("Close-call refresh failed:", error instanceof Error ? error.message : "Unknown source error");
     return Response.json(
       {
         items: [],
@@ -24,10 +20,7 @@ export async function GET() {
         stale: true,
         error: "The latest close-call reports are temporarily unavailable.",
       },
-      {
-        status: 503,
-        headers: { "Cache-Control": "public, max-age=60" },
-      },
+      { status: 503, headers: { "Cache-Control": "public, max-age=60" } },
     );
   }
 }

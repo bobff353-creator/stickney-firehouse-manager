@@ -1,15 +1,15 @@
 import { createInventorySupabaseClient } from "../../lib/supabase-server";
 import { sessionFailureResponse, verifyInventoryRequest } from "../../lib/inventory-session";
-import { fetchUpstream } from "../../lib/upstream-portal";
-
-type UpstreamDashboard = { viewer?: { employeeId?: string } };
+import { ensureDatabase } from "../../../db/bootstrap";
 
 export async function GET(request: Request) {
   const session = await verifyInventoryRequest(request);
   if (!session.ok) return sessionFailureResponse(session);
-  const upstream = await fetchUpstream(request, "/api/dashboard");
-  const dashboard = upstream.ok ? await upstream.json() as UpstreamDashboard : {};
-  const employeeId = dashboard.viewer?.employeeId || "";
+  const portalDb = await ensureDatabase();
+  const profile = await portalDb.prepare(
+    "SELECT employee_id AS employeeId FROM employee_profiles WHERE lower(email) = ? LIMIT 1",
+  ).bind(session.context.user.email).first<{ employeeId: string }>();
+  const employeeId = profile?.employeeId || "";
   if (!employeeId) return Response.json({ notices: [] });
 
   const supabase = await createInventorySupabaseClient();

@@ -24,10 +24,10 @@ test("refreshes Firefighter Close Calls from the official RSS feed", async () =>
 });
 
 test("checks each official training provider daily", async () => {
-  const [feeds, bridge, proxy] = await Promise.all([
+  const [feeds, bridge, layout] = await Promise.all([
     read("app/lib/external-feeds.ts"),
     read("public/training-route.js"),
-    read("app/[[...path]]/route.ts"),
+    read("app/layout.tsx"),
   ]);
 
   for (const source of [
@@ -46,7 +46,7 @@ test("checks each official training provider daily", async () => {
   assert.match(feeds, /parseIfsiSchedule/);
   assert.match(feeds, /parseNipstaEvents/);
   assert.match(feeds, /stickney-training-sites-v2/);
-  assert.match(proxy, /training-route\.js\?v=20260802-2/);
+  assert.match(layout, /training-route\.js/);
 });
 
 test("protects and schedules the daily refresh", async () => {

@@ -43,7 +43,9 @@ app/*.prototype.txt
 
 # typescript
 next-env.d.ts
+*.tsbuildinfo
 /dist/
 /.wrangler/
 /outputs/
 /work/
+.env*

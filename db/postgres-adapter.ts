@@ -1,0 +1,147 @@
+import { getSupabaseServerClient } from "../app/supabase-server";
+
+type BoundValue = string | number | boolean | null | undefined;
+type QueryMode = "all" | "first" | "run";
+
+function sqlLiteral(value: BoundValue) {
+  if (value == null) return "NULL";
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new Error("A database value was not finite.");
+    return String(value);
+  }
+  if (typeof value === "boolean") return value ? "1" : "0";
+  return `'${value.replaceAll("\0", "").replaceAll("'", "''")}'`;
+}
+
+function bindSql(sql: string, values: BoundValue[]) {
+  let output = "";
+  let valueIndex = 0;
+  let quote: "'" | '"' | null = null;
+  for (let index = 0; index < sql.length; index += 1) {
+    const character = sql[index];
+    if (quote) {
+      output += character;
+      if (character === quote) {
+        if (sql[index + 1] === quote) output += sql[++index];
+        else quote = null;
+      }
+      continue;
+    }
+    if (character === "'" || character === '"') {
+      quote = character;
+      output += character;
+    } else if (character === "?") {
+      if (valueIndex >= values.length) throw new Error("A portal query is missing a bound value.");
+      output += sqlLiteral(values[valueIndex++]);
+    } else {
+      output += character;
+    }
+  }
+  if (valueIndex !== values.length) throw new Error("A portal query received too many bound values.");
+  return output;
+}
+
+function quoteCamelCaseIdentifiers(sql: string) {
+  let output = "";
+  let quote: "'" | '"' | null = null;
+  for (let index = 0; index < sql.length;) {
+    const character = sql[index];
+    if (quote) {
+      output += character;
+      index += 1;
+      if (character === quote) {
+        if (sql[index] === quote) output += sql[index++];
+        else quote = null;
+      }
+      continue;
+    }
+    if (character === "'" || character === '"') {
+      quote = character;
+      output += character;
+      index += 1;
+      continue;
+    }
+    const identifier = sql.slice(index).match(/^[A-Za-z_][A-Za-z0-9_]*/)?.[0];
+    if (identifier) {
+      output += /[a-z][A-Z]/.test(identifier) ? `"${identifier}"` : identifier;
+      index += identifier.length;
+      continue;
+    }
+    output += character;
+    index += 1;
+  }
+  return output;
+}
+
+function translateSql(sql: string, values: BoundValue[]) {
+  let translated = bindSql(sql, values).trim();
+  const ignoredInsert = /^\s*INSERT\s+OR\s+IGNORE\s+INTO\b/i.test(translated);
+  translated = translated.replace(/^\s*INSERT\s+OR\s+IGNORE\s+INTO\b/i, "INSERT INTO");
+  translated = translated.replace(/\s+COLLATE\s+NOCASE\b/gi, "");
+  translated = translated.replace(/\bGROUP_CONCAT\(([^,()]+),\s*('(?:''|[^'])*')\)/gi, "STRING_AGG($1, $2)");
+  translated = translated.replace(/\bdatetime\(\s*'now'\s*,\s*'(-?\d+)\s+(hours?|days?)'\s*\)/gi, "(CURRENT_TIMESTAMP + interval '$1 $2')");
+  translated = translated.replace(/\bdatetime\(\s*'now'\s*\)/gi, "CURRENT_TIMESTAMP");
+  translated = translated.replace(/\bdate\(\s*'now'\s*,\s*'(-?\d+)\s+(days?)'\s*\)/gi, "(CURRENT_DATE + interval '$1 $2')::date");
+  translated = translated.replace(/\bdate\(\s*'now'\s*\)/gi, "CURRENT_DATE");
+  translated = translated.replace(/\bdate\(\s*([^,()]+)\s*,\s*'(-?\d+)\s+(days?)'\s*\)/gi, "(($1)::date + interval '$2 $3')::date");
+  translated = translated.replace(/\bdatetime\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)/gi, "($1)::timestamptz");
+  translated = translated.replace(/\bdate\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)/gi, "($1)::date");
+  translated = translated.replace(/\browid\b/gi, "ctid");
+  translated = translated.replace(/\bLIKE\b/gi, "ILIKE");
+  if (ignoredInsert && !/\bON\s+CONFLICT\b/i.test(translated)) {
+    const returning = translated.match(/\s+RETURNING\s+/i);
+    translated = returning
+      ? `${translated.slice(0, returning.index)} ON CONFLICT DO NOTHING${translated.slice(returning.index!)}`
+      : `${translated} ON CONFLICT DO NOTHING`;
+  }
+  return quoteCamelCaseIdentifiers(translated);
+}
+
+async function execute(sql: string, values: BoundValue[], mode: QueryMode) {
+  const secret = process.env.FIREHOUSE_DATABASE_SECRET;
+  if (!secret) throw new Error("FIREHOUSE_DATABASE_SECRET is not configured.");
+  const supabase = await getSupabaseServerClient();
+  const { data, error } = await supabase.rpc("firehouse_sql", {
+    p_sql: translateSql(sql, values),
+    p_mode: mode,
+    p_secret: secret,
+  });
+  if (error) throw new Error(`Portal database query failed: ${error.message}`);
+  return data;
+}
+
+export class PostgresD1Statement {
+  constructor(private readonly sql: string, private readonly values: BoundValue[] = []) {}
+
+  bind(...values: BoundValue[]) {
+    return new PostgresD1Statement(this.sql, values);
+  }
+
+  async all<T = Record<string, unknown>>() {
+    return { results: (await execute(this.sql, this.values, "all")) as T[] };
+  }
+
+  async first<T = Record<string, unknown>>() {
+    return (await execute(this.sql, this.values, "first")) as T | null;
+  }
+
+  async run() {
+    return (await execute(this.sql, this.values, "run")) as { success: boolean; meta: { changes: number } };
+  }
+}
+
+export class PostgresD1Adapter {
+  prepare(sql: string) {
+    return new PostgresD1Statement(sql);
+  }
+
+  async batch(statements: PostgresD1Statement[]) {
+    const results = [];
+    for (const statement of statements) results.push(await statement.run());
+    return results;
+  }
+}
+
+export function createPostgresD1Adapter() {
+  return new PostgresD1Adapter();
+}
