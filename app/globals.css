@@ -795,10 +795,6 @@ td strong { font-size: 16px; }
 .new-member-spotlight dt { color: #718390; font-size: 9px; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; }
 .new-member-spotlight dd { margin: 0; color: #24475f; font-size: 12px; font-weight: 850; }
 .new-member-spotlight > div > small { color: #2e7951; font-weight: 850; }
-.staffing-rotation-controls { display: flex; align-items: center; gap: 6px; }
-.staffing-rotation-controls button { width: 8px; height: 8px; padding: 0; border: 0; border-radius: 50%; background: #a8b7c1; cursor: pointer; }
-.staffing-rotation-controls button.active { background: #bc7a0c; box-shadow: 0 0 0 3px rgba(188,122,12,.13); }
-.staffing-rotation-controls > span { margin-left: 4px; color: #81919c; font-size: 9px; }
 .staffing-meter { height: 8px; margin: 20px 0 10px; border-radius: 999px; background: #e5eaed; overflow: hidden; }
 .staffing-meter i { height: 100%; border-radius: inherit; background: #267548; display: block; }
 .needs-attention .staffing-meter i { background: #bd7a0b; }
@@ -858,7 +854,7 @@ td strong { font-size: 16px; }
 .board-header p { margin: 0 0 5px; color: #f1b84b; font-size: 12px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
 .board-header h1 { color: white; font-size: clamp(34px,4vw,56px); }
 .board-header > div > span { margin-top: 8px; color: #aebdc7; display: block; }
-.board-header-rotation { position: relative; min-width: min(720px, 68vw); min-height: 126px; padding-bottom: 20px; }
+.board-header-rotation { position: relative; min-width: min(720px, 68vw); min-height: 126px; }
 .board-title-slide, .board-weather-slide { animation: board-panel-fade .35s ease; }
 .board-weather-slide .weather-day { color: #8fd6aa; font-size: 12px; font-weight: 900; letter-spacing: .09em; text-transform: uppercase; }
 .board-weather-slide h1 { margin-top: 3px; }
@@ -869,10 +865,6 @@ td strong { font-size: 16px; }
 .board-weather-slide > div small { padding-left: 9px; border-left: 1px solid #536775; color: #d5e1e7; font-size: 12px; }
 .board-weather-slide > a { margin-top: 6px; color: #9ed5ef; display: inline-block; font-size: 10px; font-weight: 850; text-decoration: none; }
 .board-weather-slide > a:hover { color: white; text-decoration: underline; }
-.board-header-dots { position: absolute; bottom: 0; left: 0; display: flex; align-items: center; gap: 7px; }
-.board-header-dots button { width: 9px; height: 9px; padding: 0; border: 0; border-radius: 50%; background: #526772; }
-.board-header-dots button.active { background: #f1b84b; box-shadow: 0 0 0 3px rgba(241,184,75,.14); }
-.board-header-dots span { margin-left: 4px; color: #7f919c; font-size: 9px; }
 .board-clock { text-align: right; }
 .board-clock strong { font-size: clamp(30px,3.5vw,46px); font-variant-numeric: tabular-nums; display: block; }
 .board-clock > span { color: #aebdc7; font-size: 12px; }
@@ -920,7 +912,7 @@ td strong { font-size: 16px; }
 .apparatus-wide > div { grid-template-columns: repeat(5,minmax(0,1fr)) !important; }
 .board-source-note { margin: 0; padding: 0 15px 15px; color: #8fa1ad; font-size: 10px; }
 .board-panel.equipment strong { color: #f2b94e; }
-.rotating-panel { position: relative; padding-bottom: 38px; }
+.rotating-panel { position: relative; }
 .rotating-panel > .rotation-content { min-height: 190px; animation: board-panel-fade .35s ease; }
 .rotating-panel.duty { border-color: #8b6c2f; background: linear-gradient(145deg,#172a32,#24291f); }
 .rotating-panel.news { border-color: #6e8798; background: linear-gradient(145deg,#132733,#192b35); }
@@ -930,10 +922,6 @@ td strong { font-size: 16px; }
 .current-duty-card > span { width: fit-content; padding: 4px 8px; border-radius: 999px; background: #f1b84b; color: #18252b; font-size: 9px; font-weight: 950; letter-spacing: .12em; }
 .current-duty-card > b { color: #f3c76e; font-size: 15px; text-transform: uppercase; letter-spacing: .06em; }
 .current-duty-card > p { margin: 0 !important; color: white; font-size: clamp(18px,2vw,25px); font-weight: 750; line-height: 1.35; }
-.rotation-indicator { position: absolute; right: 16px; bottom: 12px; left: 16px; display: flex; align-items: center; gap: 7px; }
-.rotation-indicator button { width: 9px; height: 9px; padding: 0; border: 0; border-radius: 50%; background: #52646f; }
-.rotation-indicator button.active { background: #f1b84b; box-shadow: 0 0 0 3px rgba(241,184,75,.15); }
-.rotation-indicator span { margin-left: auto; color: #81939e; font-size: 9px; }
 .rotating-panel.news > .rotation-content { min-height: 540px; }
 .close-call-list { display: grid; grid-template-rows: repeat(3,minmax(0,1fr)); gap: 10px; min-height: 510px; }
 .close-call-list a { height: 100%; min-height: 0; padding: 15px 16px; border: 1px solid #4a6373; border-left: 5px solid #e35951; border-radius: 8px; background: #192e3a; color: white; display: grid; grid-template-columns: 76px minmax(0,1fr); align-items: start; gap: 15px; text-decoration: none; }
@@ -980,10 +968,8 @@ td strong { font-size: 16px; }
 .board-grid.redesigned .rotating-panel > .rotation-content { min-height: 440px; align-content: start; }
 .board-grid.redesigned .current-duty-card { min-height: 400px; }
 .board-grid.redesigned .current-duty-card > p { font-size: clamp(23px,2.4vw,34px); }
-.staffing-rotation-panel { position: relative; padding-bottom: 42px; }
+.staffing-rotation-panel { position: relative; }
 .staffing-rotation-panel > .staffing-rotation-body { align-content: start; }
-.staffing-rotation-panel > footer { position: absolute; right: 15px; bottom: 11px; left: 15px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.staffing-rotation-panel > footer > a { color: #9ed5ef; font-size: 10px; font-weight: 850; text-decoration: none; }
 .staffing-rotation-panel .staffing-current-list, .staffing-rotation-panel .schedule-24-list, .staffing-rotation-panel .new-member-spotlight { margin-top: 0; }
 .staffing-rotation-panel .staffing-current-list > div, .staffing-rotation-panel .schedule-24-list > div { border: 1px solid #344854; background: #192f3c; }
 .staffing-rotation-panel .staffing-current-list span, .staffing-rotation-panel .schedule-24-list strong { color: white; }
@@ -1000,9 +986,6 @@ td strong { font-size: 16px; }
 .staffing-rotation-panel .new-member-spotlight dt { color: #8fa3af; }
 .staffing-rotation-panel .new-member-spotlight dd { color: #e2ebef; }
 .staffing-rotation-panel .new-member-spotlight > div > small { color: #8ed4a7; }
-.staffing-rotation-panel .staffing-rotation-controls button { background: #52646f; }
-.staffing-rotation-panel .staffing-rotation-controls button.active { background: #f1b84b; box-shadow: 0 0 0 3px rgba(241,184,75,.15); }
-.staffing-rotation-panel .staffing-rotation-controls > span { color: #81939e; }
 @keyframes board-panel-fade { from { opacity: .25; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .board-empty { margin: 0; padding: 28px 12px; color: #aebdc7; text-align: center; grid-column: 1/-1; }
 .board-empty.clear { color: #7bd39b; }
@@ -1048,9 +1031,6 @@ td strong { font-size: 16px; }
 .chief-file > span { grid-row: 1 / 3; color: #82bddb; }
 .chief-file strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
 .chief-file small { color: #9fb0bb; font-size: 8px; }
-.chief-rotation-dots { position: absolute; right: 16px; bottom: 10px; left: 16px; display: flex; gap: 6px; }
-.chief-rotation-dots button { width: 8px; height: 8px; padding: 0; border: 0; border-radius: 50%; background: #536772; }
-.chief-rotation-dots button.active { background: #f1b84b; }
 .chief-board-message { position: absolute; right: 12px; bottom: 9px; max-width: 70%; color: #8fd6aa; font-size: 9px; }
 .chief-editor-backdrop { position: fixed; z-index: 240; inset: 0; padding: 22px; background: rgba(5,18,29,.82); display: grid; place-items: center; }
 .chief-editor { width: min(620px,100%); max-height: calc(100vh - 44px); padding: 23px; border: 1px solid #b8c5cd; border-radius: 12px; background: #f7f8f6; color: #183950; box-shadow: 0 24px 80px rgba(0,0,0,.42); overflow-y: auto; }
@@ -1486,7 +1466,6 @@ td strong { font-size: 16px; }
   .new-member-photo { width: 90px; height: 116px; }
   .new-member-spotlight strong { font-size: 20px; }
   .staffing-rotation-card > footer { align-items: flex-start; flex-direction: column; }
-  .staffing-rotation-controls > span { display: none; }
   .dashboard-metrics, .dashboard-columns, .dashboard-quick > div { grid-template-columns: 1fr; }
   .dashboard-metrics article { min-height: 112px; }
   .dashboard-stat-list, .dashboard-stat-list.four { grid-template-columns: 1fr 1fr; }

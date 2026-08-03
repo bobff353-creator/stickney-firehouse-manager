@@ -154,8 +154,6 @@ export default function ChiefBoardPanel() {
         </div>}
       </article> : <div className="board-empty"><strong>No Chief Notes or Events</strong><p>Administrators can use the + button to post information here.</p></div>}
     </div>
-    {slideCount > 1 && <footer className="chief-rotation-dots">{items.map((entry, index) => <button key={entry.id} className={index === current ? "active" : ""} aria-label={`Show ${entry.title}`} onClick={() => setCurrent(index)}/>)}
-      <button className={riverActive ? "active" : ""} aria-label="Show live Des Plaines River level" onClick={() => setCurrent(items.length)}/></footer>}
     {message && <div className="chief-board-message" role="status">{message}</div>}
     {draft && <div className="chief-editor-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) closeEditor(); }}>
       <form className="chief-editor" onSubmit={(event) => void save(event)}>
