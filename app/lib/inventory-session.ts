@@ -1,4 +1,5 @@
 import { createInventorySupabaseClient } from "./supabase-server";
+import { cookies } from "next/headers";
 
 export const INVENTORY_MODULE_ID = "inventory";
 export const STICKNEY_DEPARTMENT_SLUG = "stickney-fire-department";
@@ -84,6 +85,19 @@ async function verifiedSession(): Promise<InventorySessionResult> {
         status: 403,
         error: "A Stickney administrator must approve Inventory access for this account.",
       };
+    }
+
+    const cookieStore = await cookies();
+    const unlockToken = cookieStore.get("__Secure-firehouse-pin")?.value ?? "";
+    const { data: pinRows, error: pinError } = await supabase.rpc("portal_pin_status", {
+      p_unlock_token: unlockToken || null,
+    });
+    if (pinError) {
+      return { ok: false, status: 503, error: "Portal PIN security could not be verified." };
+    }
+    const pinStatus = (Array.isArray(pinRows) ? pinRows[0] : pinRows) as { configured?: boolean; unlocked?: boolean } | null;
+    if (pinStatus?.configured && !pinStatus.unlocked) {
+      return { ok: false, status: 423, error: "Open the Operations Portal and enter your PIN before opening Inventory." };
     }
 
     return {

@@ -15,6 +15,11 @@ const signedWebhookPaths = new Set([
   "/api/admin/migration-export",
 ]);
 
+const pinSetupPaths = new Set([
+  "/api/auth/context",
+  "/api/auth/pin",
+]);
+
 function configuration() {
   const { url, key } = getPublicSupabaseConfig();
   const departmentId = process.env.PAYROLL_DEPARTMENT_ID?.trim();
@@ -85,9 +90,23 @@ export async function proxy(request: NextRequest) {
     );
   }
 
+  const unlockToken = request.cookies.get("__Secure-firehouse-pin")?.value ?? "";
+  const { data: pinRows, error: pinError } = await client.rpc("portal_pin_status", {
+    p_unlock_token: unlockToken || null,
+  });
+  if (pinError) return jsonError("Portal PIN security could not be verified.", 503);
+  const pinStatus = (Array.isArray(pinRows) ? pinRows[0] : pinRows) as { configured?: boolean; unlocked?: boolean } | null;
+  const pinConfigured = Boolean(pinStatus?.configured);
+  const pinUnlocked = !pinConfigured || Boolean(pinStatus?.unlocked);
+  if (!pinUnlocked && !pinSetupPaths.has(pathname)) {
+    return jsonError("Enter your portal PIN to unlock department records.", 423);
+  }
+
   requestHeaders.set("oai-authenticated-user-email", user.email.toLowerCase());
   requestHeaders.set("x-department-id", departmentId);
   requestHeaders.set("x-department-role", isOwner ? "owner" : membership?.role || "member");
+  requestHeaders.set("x-portal-pin-configured", String(pinConfigured));
+  requestHeaders.set("x-portal-pin-unlocked", String(pinUnlocked));
   response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Cache-Control", "private, no-store, max-age=0");
   return response;

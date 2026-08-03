@@ -5,7 +5,7 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 import PayrollApp from "./payroll-app";
 import { getSupabaseBrowserClient } from "./supabase-browser";
 
-type Mode = "loading" | "sign-in" | "sign-up" | "checking" | "authorized" | "waiting";
+type Mode = "loading" | "sign-in" | "sign-up" | "checking" | "pin" | "authorized" | "waiting";
 
 function clearAccessCache() {
   document.cookie = "__Secure-firehouse-access=; Path=/; Max-Age=0; SameSite=Lax; Secure";
@@ -23,6 +23,7 @@ export default function AuthGateway({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [pin, setPin] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
   const accessCheckRef = useRef<Promise<void> | null>(null);
@@ -64,6 +65,13 @@ export default function AuthGateway({
       try {
         const response = await fetch("/api/auth/context", { cache: "no-store" });
         if (response.ok) {
+          const payload = await response.json() as { pinConfigured?: boolean; pinUnlocked?: boolean };
+          if (payload.pinConfigured && !payload.pinUnlocked) {
+            setPin("");
+            setMode("pin");
+            setMessage("");
+            return;
+          }
           setMode("authorized");
           setMessage("");
           return;
@@ -158,8 +166,44 @@ export default function AuthGateway({
     setMessage(error ? error.message : "If that account exists, a password reset email was sent.");
   }
 
+  async function emailSignInLink() {
+    if (!email.trim()) {
+      setMessage("Enter your invited email address first.");
+      return;
+    }
+    const callback = new URL("/auth/confirm", window.location.origin);
+    const { error } = await getSupabaseBrowserClient().auth.signInWithOtp({
+      email: email.trim(),
+      options: { shouldCreateUser: false, emailRedirectTo: callback.toString() },
+    });
+    setMessage(error ? error.message : "Secure sign-in email sent. Open the link, then enter your portal PIN.");
+  }
+
+  async function unlockWithPin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!/^\d{4,6}$/.test(pin)) {
+      setMessage("Enter your 4 to 6 digit PIN.");
+      return;
+    }
+    setMessage("Unlocking department records...");
+    const response = await fetch("/api/auth/pin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "verify", pin }),
+    });
+    const payload = await response.json().catch(() => ({})) as { error?: string };
+    if (!response.ok) {
+      setMessage(payload.error || "The PIN could not be verified.");
+      return;
+    }
+    setPin("");
+    setMessage("");
+    setMode("authorized");
+  }
+
   async function signOut() {
     clearAccessCache();
+    await fetch("/api/auth/pin", { method: "DELETE" }).catch(() => undefined);
     await getSupabaseBrowserClient().auth.signOut();
     setUser(null);
     setMode("sign-in");
@@ -189,6 +233,25 @@ export default function AuthGateway({
             <div><dt>Records</dt><dd>Protected until approved</dd></div>
           </dl>
           <button type="button" className="login-primary" onClick={() => user && checkAccess(user)}>Check again</button>
+          <button type="button" className="login-link-button" onClick={signOut}>Use a different account</button>
+        </section>
+      </main>
+    );
+  }
+
+  if (mode === "pin") {
+    return (
+      <main className="login-shell">
+        <section className="login-card login-waiting-card">
+          <span className="login-app-mark" aria-hidden="true">SFD</span>
+          <p className="login-eyebrow">VERIFIED ACCOUNT</p>
+          <h1>Enter your portal PIN</h1>
+          <p>Your email session is verified. Enter the 4 to 6 digit PIN you created when joining the department app.</p>
+          <form onSubmit={unlockWithPin}>
+            <label>Portal PIN<input autoFocus type="password" inputMode="numeric" autoComplete="current-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
+            {message ? <p className="login-message" role="status">{message}</p> : null}
+            <button className="login-primary" type="submit">Unlock app</button>
+          </form>
           <button type="button" className="login-link-button" onClick={signOut}>Use a different account</button>
         </section>
       </main>
@@ -239,11 +302,9 @@ export default function AuthGateway({
           {message ? <p className="login-message" role="status">{message}</p> : null}
           <button className="login-primary" type="submit">{creating ? "Create account and email confirmation" : "Sign in"}</button>
         </form>
-        {!creating ? <button type="button" className="login-link-button" onClick={resetPassword}>Forgot password?</button> : null}
+        {!creating ? <><button type="button" className="login-link-button" onClick={resetPassword}>Forgot password?</button><button type="button" className="login-link-button" onClick={() => void emailSignInLink()}>Email me a secure sign-in link</button></> : null}
         <div className="login-divider"><span>{creating ? "Already have an account?" : "Need an account?"}</span></div>
-        <button type="button" className="login-secondary" onClick={() => { setMode(creating ? "sign-in" : "sign-up"); setMessage(""); }}>
-          {creating ? "Return to sign in" : "Create a verified account"}
-        </button>
+        {creating ? <button type="button" className="login-secondary" onClick={() => { setMode("sign-in"); setMessage(""); }}>Return to sign in</button> : <p className="login-invite-note">A department administrator must add your employee email and send your app invitation.</p>}
       </section>
     </main>
   );

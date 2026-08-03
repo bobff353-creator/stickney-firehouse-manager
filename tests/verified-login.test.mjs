@@ -9,6 +9,10 @@ const proxy = readFileSync(new URL("../proxy.ts", import.meta.url), "utf8");
 const confirmation = readFileSync(new URL("../app/auth/confirm/route.ts", import.meta.url), "utf8");
 const authContext = readFileSync(new URL("../app/api/auth/context/route.ts", import.meta.url), "utf8");
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const inviteRoute = readFileSync(new URL("../app/api/auth/invites/route.ts", import.meta.url), "utf8");
+const pinRoute = readFileSync(new URL("../app/api/auth/pin/route.ts", import.meta.url), "utf8");
+const acceptInvite = readFileSync(new URL("../app/accept-invite/page.tsx", import.meta.url), "utf8");
+const pinMigration = readFileSync(new URL("../supabase/migrations/20260803211245_member_invites_and_pin_unlock.sql", import.meta.url), "utf8");
 
 test("verified email and password login requires confirmation and department approval", () => {
   assert.match(gateway, /Firehouse Manager/);
@@ -51,4 +55,30 @@ test("signed dispatch webhook paths remain available without an employee session
   assert.match(proxy, /\/api\/resend-dispatch/);
   assert.match(proxy, /pathname === "\/api\/cad\/cis"/);
   assert.match(proxy, /request\.method === "POST"/);
+});
+
+test("administrators send employee-bound invitations that confirm email before PIN setup", () => {
+  assert.match(inviteRoute, /hasPermission\(request, db, "employees\.manage"\)/);
+  assert.match(inviteRoute, /employee_profiles/);
+  assert.match(inviteRoute, /department_invites/);
+  assert.match(inviteRoute, /signInWithOtp/);
+  assert.match(inviteRoute, /shouldCreateUser: true/);
+  assert.match(inviteRoute, /next", "\/accept-invite"/);
+  assert.doesNotMatch(inviteRoute, /service_role|SUPABASE_SERVICE_ROLE|secret[_ -]?key/i);
+  assert.match(acceptInvite, /accept_department_invite/);
+  assert.match(acceptInvite, /pattern="\[0-9\]\{4,6\}"/);
+  assert.match(acceptInvite, /action: "set"/);
+});
+
+test("portal PINs are hashed, attempt-limited, and enforced through a secure unlock cookie", () => {
+  assert.match(pinMigration, /crypt\(p_pin, gen_salt\('bf', 12\)\)/);
+  assert.match(pinMigration, /next_failed_attempts >= 5/);
+  assert.match(pinMigration, /interval '15 minutes'/);
+  assert.match(pinMigration, /interval '12 hours'/);
+  assert.match(pinMigration, /ENABLE ROW LEVEL SECURITY/);
+  assert.match(pinRoute, /httpOnly: true/);
+  assert.match(pinRoute, /secure: true/);
+  assert.match(proxy, /portal_pin_status/);
+  assert.match(proxy, /records\.", 423\)/);
+  assert.match(gateway, /Enter your portal PIN/);
 });

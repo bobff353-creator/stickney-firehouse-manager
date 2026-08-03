@@ -224,6 +224,8 @@ export default function PayrollApp({
   const [finalizing, setFinalizing] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
   const [deletingEmployee, setDeletingEmployee] = useState(false);
+  const [invitingEmail, setInvitingEmail] = useState("");
+  const [inviteMessage, setInviteMessage] = useState("");
   const [employeePhotoFile, setEmployeePhotoFile] = useState<File | null>(null);
   const [employeePhotoPreview, setEmployeePhotoPreview] = useState("");
   const [removeEmployeePhoto, setRemoveEmployeePhoto] = useState(false);
@@ -570,6 +572,30 @@ export default function PayrollApp({
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to save employee"); }
   }
 
+  async function sendEmployeeInvite(employee: Employee) {
+    const email = employee.email?.trim().toLowerCase() ?? "";
+    if (!email) {
+      setInviteMessage(`Add a login email to ${displayName(employee.name)} before sending an invite.`);
+      return;
+    }
+    setInvitingEmail(email);
+    setInviteMessage(`Sending a secure app invitation to ${email}...`);
+    try {
+      const response = await fetch("/api/auth/invites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const payload = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "The invitation could not be sent.");
+      setInviteMessage(`Invitation sent to ${email}. They must confirm the email and create a 4 to 6 digit PIN.`);
+    } catch (caught) {
+      setInviteMessage(caught instanceof Error ? caught.message : "The invitation could not be sent.");
+    } finally {
+      setInvitingEmail("");
+    }
+  }
+
   function chooseEmployeePhoto(file: File | null) {
     if (!file) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
@@ -832,6 +858,7 @@ export default function PayrollApp({
 
           {activeNav === "Employees" && <section className="employee-page">
             <div className="standard-page-header"><div><span className="page-icon"><Icon name="users" size={25}/></span><div><p className="eyebrow">Personnel administration</p><h1>Employees</h1><p>Manage employment, contact, access, driver status, and emergency information.</p></div></div><button type="button" className="primary-action" onClick={() => editEmployee()}>Add Employee</button></div>
+            {inviteMessage && <div className="employee-invite-message" role="status">{inviteMessage}<button type="button" aria-label="Dismiss invitation message" onClick={() => setInviteMessage("")}>×</button></div>}
             {profileOpen && <form className="content-card employee-profile-form" onSubmit={(event) => void saveEmployeeProfile(event)}>
               <div className="section-header"><div><h2>{employeeDraft.id ? `Edit ${employeeNameFromParts(employeeDraft.lastName, employeeDraft.firstName)}` : "Add employee"}</h2><p>Personnel, payroll eligibility, and emergency contact information.</p></div><div className="employee-form-actions">{employeeDraft.id && <button type="button" className="quiet-button" onClick={() => editEmployee()}>New Employee</button>}<button className="primary-action compact" type="submit">{employeeDraft.id ? "Save Changes" : "Add Employee"}</button></div></div>
               <fieldset><legend>Employment</legend><div className="employee-photo-editor"><div className="employee-photo-preview">{employeePhotoPreview ? <img src={employeePhotoPreview} alt="Employee photo preview" /> : <span>{employeeNameFromParts(employeeDraft.lastName, employeeDraft.firstName).split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span>}</div><div><strong>Employee photo</strong><p>Used for new-member announcements and personnel displays.</p><div><label className="employee-photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => chooseEmployeePhoto(event.target.files?.[0] ?? null)} /><span>{employeePhotoPreview ? "Choose a different photo" : "Choose photo"}</span></label>{employeePhotoPreview && <button type="button" className="quiet-button" onClick={() => { setEmployeePhotoFile(null); setEmployeePhotoPreview(""); setRemoveEmployeePhoto(Boolean(employeeDraft.id)); }}>Remove photo</button>}</div><small>JPG, PNG, or WebP · maximum 3 MB</small></div></div><div className="employee-fields three-col">
@@ -868,7 +895,7 @@ export default function PayrollApp({
               {data.employees.length === 0 && <div className="action-empty-state"><Icon name="users" size={28}/><div><strong>No employees yet</strong><p>Add the first employee to begin staffing, timesheets, and payroll.</p></div><button className="quiet-button" onClick={() => editEmployee()}>Add Employee</button></div>}
               <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Employee #</th><th>Pay Scale</th><th>Driver</th><th>Acting Officer</th><th>Phone</th><th>Start</th><th>Last Day</th><th>Status</th><th></th></tr></thead><tbody>{[...data.employees].sort((a, b) => compareEmployeeNames(a.name, b.name)).map((employee) => {
                 const payrollStatus = employee.startDate && employee.startDate > data.period.endDate ? "Scheduled" : employee.endDate && employee.endDate < data.period.startDate ? "Ended" : "Active";
-                return <tr key={employee.id}><td data-label="Employee"><span className="person-icon employee-list-photo">{employee.photoUpdatedAt ? <img src={`/api/employee-photo/${employee.id}?v=${encodeURIComponent(employee.photoUpdatedAt)}`} alt="" /> : <Icon name="users"/>}</span><strong>{displayName(employee.name)}</strong></td><td data-label="Employee #">{employee.employeeNumber || "—"}</td><td data-label="Pay Scale">{employee.rank}</td><td data-label="Driver">{employee.driverStatus || "—"}</td><td data-label="Acting Officer"><span className={`ao-eligibility ${employee.actingOfficerEligible ? "eligible" : ""}`}>{employee.actingOfficerEligible ? "Eligible" : "Not eligible"}</span></td><td data-label="Phone">{employee.phone || "—"}</td><td data-label="Start">{employee.startDate || "—"}</td><td data-label="Last Day">{employee.endDate || "—"}</td><td data-label="Status"><span className={`employment-status ${payrollStatus.toLowerCase()}`}>{payrollStatus}</span></td><td data-label="Actions"><div className="employee-row-actions"><button className="edit-employee" onClick={() => editEmployee(employee)}>Edit</button><button className="delete-employee" onClick={() => setEmployeeToDelete(employee)}>Delete</button></div></td></tr>;
+                return <tr key={employee.id}><td data-label="Employee"><span className="person-icon employee-list-photo">{employee.photoUpdatedAt ? <img src={`/api/employee-photo/${employee.id}?v=${encodeURIComponent(employee.photoUpdatedAt)}`} alt="" /> : <Icon name="users"/>}</span><strong>{displayName(employee.name)}</strong></td><td data-label="Employee #">{employee.employeeNumber || "—"}</td><td data-label="Pay Scale">{employee.rank}</td><td data-label="Driver">{employee.driverStatus || "—"}</td><td data-label="Acting Officer"><span className={`ao-eligibility ${employee.actingOfficerEligible ? "eligible" : ""}`}>{employee.actingOfficerEligible ? "Eligible" : "Not eligible"}</span></td><td data-label="Phone">{employee.phone || "—"}</td><td data-label="Start">{employee.startDate || "—"}</td><td data-label="Last Day">{employee.endDate || "—"}</td><td data-label="Status"><span className={`employment-status ${payrollStatus.toLowerCase()}`}>{payrollStatus}</span></td><td data-label="Actions"><div className="employee-row-actions"><button className="invite-employee" disabled={!employee.email || Boolean(invitingEmail)} onClick={() => void sendEmployeeInvite(employee)}>{invitingEmail === employee.email?.trim().toLowerCase() ? "Sending..." : "Invite"}</button><button className="edit-employee" onClick={() => editEmployee(employee)}>Edit</button><button className="delete-employee" onClick={() => setEmployeeToDelete(employee)}>Delete</button></div></td></tr>;
               })}</tbody></table></div>
             </section>
           </section>}
