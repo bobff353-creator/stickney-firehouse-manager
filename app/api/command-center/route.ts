@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   try {
     const db = await ensureDatabase(); if (!await isAdmin(request, db)) return Response.json({ error: "Administrator privileges are required." }, { status: 403 });
     const [staffing, calls, callTiming, approvals, entries, settings] = await Promise.all([
-      db.prepare("SELECT l.log_date AS date, s.shift_key AS shiftKey, COUNT(s.employee_id) AS filled FROM daily_logs l CROSS JOIN (SELECT 'morning' AS shift_key UNION ALL SELECT 'afternoon' UNION ALL SELECT 'overnight') shifts LEFT JOIN daily_log_staffing s ON s.log_date = l.log_date AND s.shift_key = shifts.shift_key AND s.employee_id IS NOT NULL WHERE date(l.log_date) >= date('now', '-365 day') GROUP BY l.log_date, shifts.shift_key").all(),
+      db.prepare("SELECT l.log_date AS date, shifts.shift_key AS shiftKey, COUNT(s.employee_id) AS filled FROM daily_logs l CROSS JOIN (SELECT 'morning' AS shift_key UNION ALL SELECT 'afternoon' UNION ALL SELECT 'overnight') shifts LEFT JOIN daily_log_staffing s ON s.log_date = l.log_date AND s.shift_key = shifts.shift_key AND s.employee_id IS NOT NULL WHERE date(l.log_date) >= date('now', '-365 day') GROUP BY l.log_date, shifts.shift_key").all(),
       db.prepare("SELECT log_date AS date, call_type AS callType, COUNT(*) AS count FROM daily_log_calls WHERE date(log_date) >= date('now', '-365 day') GROUP BY log_date, call_type").all(),
       db.prepare("SELECT log_date AS date, time_out AS timeOut FROM daily_log_calls WHERE date(log_date) >= date('now', '-365 day') ORDER BY log_date, time_out").all(),
       db.prepare("SELECT log_date AS date, sign_in_equipment AS signInEquipment, sign_out_equipment AS signOutEquipment FROM daily_log_approvals WHERE date(log_date) >= date('now', '-365 day')").all(),
