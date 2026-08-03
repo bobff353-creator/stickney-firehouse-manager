@@ -1,5 +1,5 @@
 import { ensureDatabase } from "../../../db/bootstrap";
-import { weeklyDutyCheckMap, type FleetDutyCheck } from "../../lib/fleet-projections";
+import { pendingDailyFleetChecks, weeklyDutyCheckMap, type FleetDailyCheck, type FleetDutyCheck } from "../../lib/fleet-projections";
 import { createInventorySupabaseClient } from "../../lib/supabase-server";
 
 const ownerAdminEmails = ["bobff353@gmail.com"];
@@ -30,10 +30,15 @@ export async function GET(request: Request) {
     const rows = await db.prepare("SELECT id, day_of_week AS dayOfWeek, shift_key AS shiftKey, duty, updated_by AS updatedBy, updated_at AS updatedAt FROM daily_duties ORDER BY CASE day_of_week WHEN 1 THEN 1 WHEN 2 THEN 2 WHEN 3 THEN 3 WHEN 4 THEN 4 WHEN 5 THEN 5 WHEN 6 THEN 6 ELSE 7 END, CASE shift_key WHEN 'morning' THEN 1 WHEN 'afternoon' THEN 2 ELSE 3 END").all();
     const dutyRows = rows.results as Array<{ id: string; dayOfWeek: number; shiftKey: string; duty: string; updatedBy: string; updatedAt: string }>;
     let fleetChecks = new Map<string, FleetDutyCheck[]>();
+    let dailyFleetChecks: FleetDailyCheck[] = [];
     const departmentId = request.headers.get("x-department-id")?.trim() || "";
     if (departmentId) {
       try {
-        fleetChecks = await weeklyDutyCheckMap(await createInventorySupabaseClient(), departmentId, dutyRows);
+        const supabase = await createInventorySupabaseClient();
+        [fleetChecks, dailyFleetChecks] = await Promise.all([
+          weeklyDutyCheckMap(supabase, departmentId, dutyRows),
+          pendingDailyFleetChecks(supabase, departmentId),
+        ]);
       } catch (error) {
         console.error("Daily Duties fleet projection failed", error);
       }
@@ -44,7 +49,7 @@ export async function GET(request: Request) {
     }));
     const current = chicagoNow();
     const currentDuty = items.find((row) => Number(row.dayOfWeek) === current.day && row.shiftKey === current.shift) ?? null;
-    return Response.json({ items, currentDuty, canEdit });
+    return Response.json({ items, currentDuty, dailyFleetChecks, canEdit });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Unable to load daily duties" }, { status: 500 });
   }

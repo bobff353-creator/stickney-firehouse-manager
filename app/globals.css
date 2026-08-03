@@ -13,6 +13,28 @@
   --ink: #142c45;
 }
 
+.rotating-panel.duty.daily-check-alert {
+  border-color: #ff6b5e;
+  background: linear-gradient(145deg, #5d1717, #351416);
+  box-shadow: inset 0 0 0 2px #ff6b5e55, 0 0 24px #b51f2440;
+}
+.current-duty-card.daily-check-alert {
+  border-left-color: #ff7468 !important;
+  background: linear-gradient(135deg, #681d1d, #3d1618) !important;
+}
+.current-duty-card.daily-check-alert > span {
+  background: #ff7468;
+  color: #260708;
+}
+.current-duty-card.daily-check-alert > b,
+.board-duty-checks.daily b {
+  color: #ffd5d1;
+}
+.board-duty-checks.daily a {
+  border-color: #b86b66;
+  background: #361b1c;
+}
+
 /* Verified account access */
 .login-shell { min-height: 100vh; padding: clamp(22px,5vw,70px); background: radial-gradient(circle at 20% 10%,rgba(48,103,140,.24),transparent 34%),linear-gradient(135deg,#0b2235 0%,#143c59 56%,#0e2b41 100%); color: white; display: grid; grid-template-columns: minmax(320px,1fr) minmax(360px,520px); align-items: stretch; gap: clamp(22px,5vw,72px); }
 .login-brand-panel { min-height: 620px; padding: clamp(18px,3vw,38px); display: flex; flex-direction: column; justify-content: space-between; }

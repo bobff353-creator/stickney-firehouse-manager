@@ -6,9 +6,11 @@ import { formatMilitaryTime } from "./military-time";
 import { nextOperationsShiftChange } from "./operations-shift-time";
 import ChiefBoardPanel from "./chief-board-panel";
 import StaffingRotation, { type NewMember, type StaffingPerson } from "./staffing-rotation";
+import { dailyFleetCheckUrgency } from "./lib/fleet-projections";
 
 type BoardData = { asOf: string; currentShift: string; onDuty: StaffingPerson[]; newMembers: NewMember[]; officerInCharge: string | null; staffing: { filled: number; required: number; complete: boolean }; equipmentIssues: Array<{ id?: string; item: string; status: string; detail: string }>; activeCalls: Array<{ reportNumber: string; timeOut: string; respondingUnits: string; address: string; callType: string; narrative?: string; source?: string }>; apparatus: Array<{ unit: string; status: string }>; error?: string };
 type CurrentDuty = { dayOfWeek: number; shiftKey: "morning" | "afternoon" | "night"; duty: string; fleetChecks?: Array<{ apparatusId: string; unit: string; status: "pending" | "in_progress" | "completed" }> };
+type DailyFleetCheck = { apparatusId: string; unit: string; status: "pending" | "in_progress"; startedAt: string | null };
 type CloseCallReport = { title: string; url: string; publishedAt: string; excerpt: string };
 type UsfaFatality = { id: number; name: string; department: string; location: string; deathDate: string; url: string };
 type UsfaData = { year: number; total: number; items: UsfaFatality[]; stale?: boolean };
@@ -90,7 +92,7 @@ function TrainingCourses({ provider, today }: { provider: TrainingProvider; toda
 }
 
 export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewActiveCall }: { tvMode?: boolean; onTvModeChange?: (enabled: boolean) => void; onNewActiveCall?: (call: BoardData["activeCalls"][number]) => void }) {
-  const [data, setData] = useState<BoardData | null>(null), [currentDuty, setCurrentDuty] = useState<CurrentDuty | null>(null), [news, setNews] = useState<CloseCallReport[]>([]), [fatalities, setFatalities] = useState<UsfaData | null>(null), [weather, setWeather] = useState<WeatherData | null>(null), [error, setError] = useState(""), [clock, setClock] = useState(new Date()), [rotation, setRotation] = useState<Rotation>("equipment"), [headerRotation, setHeaderRotation] = useState<HeaderRotation>("title");
+  const [data, setData] = useState<BoardData | null>(null), [currentDuty, setCurrentDuty] = useState<CurrentDuty | null>(null), [dailyFleetChecks, setDailyFleetChecks] = useState<DailyFleetCheck[]>([]), [news, setNews] = useState<CloseCallReport[]>([]), [fatalities, setFatalities] = useState<UsfaData | null>(null), [weather, setWeather] = useState<WeatherData | null>(null), [error, setError] = useState(""), [clock, setClock] = useState(new Date()), [rotation, setRotation] = useState<Rotation>("equipment"), [headerRotation, setHeaderRotation] = useState<HeaderRotation>("title");
   const [alertEnabled, setAlertEnabled] = useState(false), [alertTone, setAlertTone] = useState<AlertTone>("minitor-two-tone"), [alertPanelOpen, setAlertPanelOpen] = useState(false);
   const [rotationPaused,setRotationPaused]=useState(false),[lastRefresh,setLastRefresh]=useState<Date|null>(null);
   const alertEnabledRef = useRef(false), alertToneRef = useRef<AlertTone>("minitor-two-tone"), seenCallIdsRef = useRef<Set<string> | null>(null), audioContextRef = useRef<AudioContext | null>(null), onNewActiveCallRef = useRef(onNewActiveCall);
@@ -138,7 +140,7 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
       ]);
       const [result, duties, reports, usfa, forecast, fleet] = await Promise.all([
         dashboardResponse.json() as Promise<BoardData>,
-        dutiesResponse.json().catch(() => ({})) as Promise<{ currentDuty?: CurrentDuty | null }>,
+        dutiesResponse.json().catch(() => ({})) as Promise<{ currentDuty?: CurrentDuty | null; dailyFleetChecks?: DailyFleetCheck[] }>,
         newsResponse.json().catch(() => ({})) as Promise<{ items?: CloseCallReport[] }>,
         fatalitiesResponse.json().catch(() => null) as Promise<UsfaData | null>,
         weatherResponse.json().catch(() => null) as Promise<WeatherData | null>,
@@ -165,7 +167,10 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
       setData({ ...result, apparatus: fleetStatuses.length ? fleetStatuses : result.apparatus });
       setLastRefresh(new Date());
       setError("");
-      if (dutiesResponse.ok) setCurrentDuty(duties.currentDuty ?? null);
+      if (dutiesResponse.ok) {
+        setCurrentDuty(duties.currentDuty ?? null);
+        setDailyFleetChecks(duties.dailyFleetChecks ?? []);
+      }
       if (newsResponse.ok) setNews(reports.items ?? []);
       if (fatalitiesResponse.ok && usfa) setFatalities(usfa);
       if (weatherResponse.ok && forecast) setWeather(forecast);
@@ -180,6 +185,10 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
   const activeCall = data?.activeCalls[0];
   const headerWeather = headerRotation === "today" ? weather?.days[0] : headerRotation === "tomorrow" ? weather?.days[1] : null;
   const today = clock.toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+  const chicagoTimeParts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(clock);
+  const chicagoMinutes = Number(chicagoTimeParts.find((part) => part.type === "hour")?.value || 0) * 60 + Number(chicagoTimeParts.find((part) => part.type === "minute")?.value || 0);
+  const dailyCheckUrgency = dailyFleetCheckUrgency(chicagoMinutes);
+  const dailyChecksNeedAttention = dailyFleetChecks.length > 0 && dailyCheckUrgency !== "scheduled";
   const feedDegraded=Boolean(error)||!lastRefresh||clock.getTime()-lastRefresh.getTime()>75000;
   async function enterTvMode() {
     onTvModeChange?.(true);
@@ -220,14 +229,14 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
     <div className="board-summary"><article className={data?.staffing.complete ? "clear" : "warning"}><span>Staffing</span><strong>{data?.staffing.filled ?? "—"} / {data?.staffing.required ?? 4}</strong><small>{data?.staffing.complete ? "Complete" : "Coverage needs attention"}</small></article><article className={data?.officerInCharge ? "clear" : "warning"}><span>Officer in charge</span><strong>{data?.officerInCharge ? displayName(data.officerInCharge) : "Not signed in"}</strong><small>Current shift command</small></article><article className={`active-call-summary ${activeCall ? "active" : "clear"}`}><span>{data?.activeCalls.length ? `Active call${data.activeCalls.length > 1 ? ` · ${data.activeCalls.length} total` : ""}` : "Active call"}</span>{activeCall ? <><strong>{activeCall.callType}</strong><b>{activeCall.address || "Address not entered"}</b>{activeCall.narrative && <em>{activeCall.narrative}</em>}<small>{activeCall.respondingUnits || "Units pending"} · {activeCall.timeOut ? formatMilitaryTime(activeCall.timeOut) : "Time pending"}{activeCall.source ? ` · ${activeCall.source}` : ""}</small></> : <><strong>None</strong><small>No open calls</small></>}</article><article><span>Next shift change</span><strong>{next.label}</strong><small>In {next.remaining}</small></article></div>
     <div className="board-grid redesigned"><ChiefBoardPanel />
       <StaffingRotation mode="board" onDuty={data?.onDuty ?? []} newMembers={data?.newMembers ?? []} />
-      <section className={`board-panel equipment rotating-panel ${rotation}`} aria-live="polite">
+      <section className={`board-panel equipment rotating-panel ${rotation}${rotation === "duty" && dailyChecksNeedAttention ? " daily-check-alert" : ""}`} aria-live="polite">
         <header>
-          <h2>{rotation === "equipment" ? "Equipment issues" : rotation === "duty" ? "Current daily duty" : rotation === "news" ? "Firefighter Close Calls" : rotation === "fatalities" ? "U.S. Firefighter Line-of-Duty Deaths" : trainingProviders[rotation].name}</h2>
-          <span>{rotation === "equipment" ? `${data?.equipmentIssues.length ?? 0} reported` : rotation === "duty" ? `${clock.toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "long" })} · ${shiftLabel(currentDuty?.shiftKey ?? data?.currentShift ?? "night")}` : rotation === "news" ? "Newest 3 · updates automatically" : rotation === "fatalities" ? "USFA · latest 5" : "Upcoming classes · official links"}</span>
+          <h2>{rotation === "equipment" ? "Equipment issues" : rotation === "duty" ? dailyFleetChecks.length ? "Daily vehicle checks" : "Current daily duty" : rotation === "news" ? "Firefighter Close Calls" : rotation === "fatalities" ? "U.S. Firefighter Line-of-Duty Deaths" : trainingProviders[rotation].name}</h2>
+          <span>{rotation === "equipment" ? `${data?.equipmentIssues.length ?? 0} reported` : rotation === "duty" ? dailyFleetChecks.length ? dailyCheckUrgency === "overdue" ? "OVERDUE · Due by 7:00 AM" : dailyCheckUrgency === "due_soon" ? "DUE WITHIN 1 HOUR · 7:00 AM" : "Scheduled · Due by 7:00 AM" : `${clock.toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "long" })} · ${shiftLabel(currentDuty?.shiftKey ?? data?.currentShift ?? "night")}` : rotation === "news" ? "Newest 3 · updates automatically" : rotation === "fatalities" ? "USFA · latest 5" : "Upcoming classes · official links"}</span>
         </header>
         <div className="rotation-content">
           <div className="rotation-slide" hidden={rotation !== "equipment"}>{data?.equipmentIssues.length ? data.equipmentIssues.map((issue) => <article key={issue.id || issue.item}><b>{issue.item}</b><strong>{issue.status}</strong><p>{issue.detail || "No details entered"}</p></article>) : <p className="board-empty clear">✓ No equipment issues reported</p>}</div>
-          <div className="rotation-slide" hidden={rotation !== "duty"}>{currentDuty ? <article className="current-duty-card"><span>NOW</span><b>{currentDuty.shiftKey[0].toUpperCase() + currentDuty.shiftKey.slice(1)} duty</b><p>{currentDuty.duty}</p>{currentDuty.fleetChecks?.length ? <div className="board-duty-checks">{currentDuty.fleetChecks.map((check) => <a key={check.apparatusId} href={`/inventory?apparatus=${encodeURIComponent(check.apparatusId)}&check=weekly`}><b>{check.unit}</b><span>{check.status === "completed" ? "✓ Weekly check complete" : check.status === "in_progress" ? "↻ Weekly check in progress" : "Weekly check pending"}</span></a>)}</div> : null}</article> : <p className="board-empty">No duty is entered for the current shift.</p>}</div>
+          <div className="rotation-slide" hidden={rotation !== "duty"}>{dailyFleetChecks.length || currentDuty ? <article className={`current-duty-card${dailyChecksNeedAttention ? " daily-check-alert" : ""}`}><span>{dailyFleetChecks.length ? dailyCheckUrgency === "overdue" ? "OVERDUE" : dailyCheckUrgency === "due_soon" ? "DUE WITHIN 1 HOUR" : "DAILY CHECKS" : "NOW"}</span><b>{dailyFleetChecks.length ? "Fleet daily vehicle checks" : `${currentDuty?.shiftKey[0].toUpperCase()}${currentDuty?.shiftKey.slice(1)} duty`}</b>{currentDuty?.duty ? <p>{currentDuty.duty}</p> : dailyFleetChecks.length ? <p>Complete each vehicle check in Fleet. Finished checks clear from this board automatically.</p> : null}{dailyFleetChecks.length ? <div className="board-duty-checks daily">{dailyFleetChecks.map((check) => <a key={check.apparatusId} href={`/inventory?apparatus=${encodeURIComponent(check.apparatusId)}&check=daily`}><b>{check.unit}</b><span>{check.status === "in_progress" ? "↻ Resume daily check" : "Start daily check"} · Due by 7:00 AM</span></a>)}</div> : null}{currentDuty?.fleetChecks?.length ? <div className="board-duty-checks">{currentDuty.fleetChecks.map((check) => <a key={check.apparatusId} href={`/inventory?apparatus=${encodeURIComponent(check.apparatusId)}&check=weekly`}><b>{check.unit}</b><span>{check.status === "completed" ? "✓ Weekly check complete" : check.status === "in_progress" ? "↻ Weekly check in progress" : "Weekly check pending"}</span></a>)}</div> : null}</article> : <p className="board-empty">No duty is entered for the current shift.</p>}</div>
           <div className="rotation-slide" hidden={rotation !== "news"}>{news.length ? <div className="close-call-list">{news.map((report) => <a href={report.url} target="_blank" rel="noreferrer" key={report.url} aria-label={`${report.title}. Open the full Firefighter Close Calls report.`}><time><span>Posted</span>{new Date(report.publishedAt).toLocaleDateString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", year: "numeric" })}</time><div><span className="close-call-kicker">Incident report</span><strong>{report.title}</strong>{report.excerpt && <p>{report.excerpt}</p>}<small>Read the complete report <b aria-hidden="true">↗</b></small></div></a>)}</div> : <p className="board-empty">Latest reports are temporarily unavailable.</p>}</div>
           <div className="rotation-slide" hidden={rotation !== "fatalities"}>{fatalities ? <div className="fatality-board"><div className="fatality-total"><strong>{fatalities.total}</strong><div><b>firefighter deaths in {fatalities.year}</b><span>{fatalities.stale ? "Last confirmed USFA data" : "Current USFA reported total"}</span></div></div><div className="fatality-list">{fatalities.items.map((person) => <a href={person.url} target="_blank" rel="noreferrer" key={person.id}><time>{new Date(person.deathDate).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" })}</time><div><strong>{person.name}</strong><span>{person.department}</span><small>{person.location}</small></div><b aria-hidden="true">↗</b></a>)}</div><p className="fatality-source">Provisional on-duty fatality information from the U.S. Fire Administration.</p></div> : <p className="board-empty">USFA fatality information is temporarily unavailable.</p>}</div>
           {(["romeoville", "ifsi", "nipsta"] as const).map((providerId) => <div className="rotation-slide" hidden={rotation !== providerId} key={providerId}><TrainingCourses provider={trainingProviders[providerId]} today={today} /></div>)}

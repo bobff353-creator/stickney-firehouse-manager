@@ -8,6 +8,13 @@ export type FleetDutyCheck = {
   completedAt: string | null;
 };
 
+export type FleetDailyCheck = {
+  apparatusId: string;
+  unit: string;
+  status: "pending" | "in_progress";
+  startedAt: string | null;
+};
+
 export type DailyLogApparatusCheck = {
   id: string;
   apparatusId: string;
@@ -50,6 +57,12 @@ export function currentChicagoWeek() {
     start: addUtcDays(today, -mondayOffset),
     end: addUtcDays(today, 7 - mondayOffset),
   };
+}
+
+export function dailyFleetCheckUrgency(minutes: number) {
+  if (minutes < 6 * 60) return "scheduled" as const;
+  if (minutes < 7 * 60) return "due_soon" as const;
+  return "overdue" as const;
 }
 
 function unitsInDuty(duty: string) {
@@ -109,6 +122,58 @@ export async function weeklyDutyCheckMap(
     result.set(dutyId, links);
   }
   return result;
+}
+
+export async function pendingDailyFleetChecks(
+  supabase: SupabaseClient,
+  departmentId: string,
+): Promise<FleetDailyCheck[]> {
+  if (!departmentId) return [];
+  const [{ data: configuredItems, error: itemError }, { data: apparatus, error: apparatusError }, { data: checks, error: checksError }] = await Promise.all([
+    supabase
+      .from("inventory_equipment")
+      .select("apparatus_id")
+      .eq("department_id", departmentId)
+      .contains("check_types", ["daily"])
+      .is("retired_at", null),
+    supabase
+      .from("inventory_apparatus_profiles")
+      .select("id,name,status")
+      .eq("department_id", departmentId),
+    supabase
+      .from("inventory_checks")
+      .select("id,apparatus_id,status,started_at,completed_at")
+      .eq("department_id", departmentId)
+      .eq("check_type", "daily")
+      .in("status", ["in_progress", "completed"])
+      .order("started_at", { ascending: false })
+      .limit(500),
+  ]);
+  if (itemError || apparatusError || checksError) throw itemError || apparatusError || checksError;
+
+  const configuredApparatusIds = new Set(
+    (configuredItems || []).map((item) => String(item.apparatus_id || "")).filter(Boolean),
+  );
+  const today = chicagoCalendarDate(new Date());
+  return (apparatus || []).flatMap((vehicle) => {
+    const apparatusId = String(vehicle.id || "");
+    const normalizedStatus = String(vehicle.status || "").toLowerCase().replaceAll(/[\s_-]/g, "");
+    if (!configuredApparatusIds.has(apparatusId) || ["outofservice", "retired"].includes(normalizedStatus)) return [];
+    const vehicleChecks = (checks || []).filter((check) => check.apparatus_id === vehicle.id);
+    const completedToday = vehicleChecks.some((check) => (
+      check.status === "completed"
+      && check.completed_at
+      && chicagoCalendarDate(check.completed_at) === today
+    ));
+    if (completedToday) return [];
+    const inProgress = vehicleChecks.find((check) => check.status === "in_progress");
+    return [{
+      apparatusId,
+      unit: String(vehicle.name || "Apparatus"),
+      status: inProgress ? "in_progress" as const : "pending" as const,
+      startedAt: inProgress?.started_at ? String(inProgress.started_at) : null,
+    }];
+  }).sort((left, right) => left.unit.localeCompare(right.unit, undefined, { numeric: true }));
 }
 
 export async function completedApparatusChecksForDate(
@@ -198,4 +263,3 @@ export async function openFleetEquipmentIssues(
     };
   });
 }
-
