@@ -43,7 +43,7 @@ export async function GET(request: Request) {
   }
   const [employees, ranks, rankRows, overrideRows] = await Promise.all([
     db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.is_admin,0) isAdmin FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 ORDER BY e.name COLLATE NOCASE").all<{ id: string; name: string; rank: string; isAdmin: number }>(),
-    db.prepare("SELECT DISTINCT label rank FROM pay_scales ORDER BY sort_order,label").all<{ rank: string }>(),
+    db.prepare("SELECT label rank, MIN(sort_order) sortOrder FROM pay_scales GROUP BY label ORDER BY sortOrder,label").all<{ rank: string; sortOrder: number }>(),
     db.prepare("SELECT rank,permission_key permissionKey,allowed FROM rank_permissions").all<RankRow>(),
     db.prepare("SELECT employee_id employeeId,permission_key permissionKey,effect FROM employee_permission_overrides").all<OverrideRow>(),
   ]);
