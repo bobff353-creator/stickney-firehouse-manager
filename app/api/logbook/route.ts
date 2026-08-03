@@ -6,6 +6,8 @@ import { holidayForDate } from "../../holidays";
 import { chicagoOperationalContext } from "../../operational-day";
 import { dailyLogPayrollEntries, dailyLogPayrollTotals } from "../../payroll-hours";
 import { hasPermission } from "../../server-permissions";
+import { completedApparatusChecksForDate } from "../../lib/fleet-projections";
+import { createInventorySupabaseClient } from "../../lib/supabase-server";
 
 const shifts = ["morning", "afternoon", "overnight"];
 const actorFor = (request: Request) => request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() || "System";
@@ -75,6 +77,19 @@ export async function GET(request: Request) {
         schedulePrefilled = true;
       }
     }
+    let apparatusChecks: Awaited<ReturnType<typeof completedApparatusChecksForDate>> = [];
+    const departmentId = request.headers.get("x-department-id")?.trim() || "";
+    if (departmentId) {
+      try {
+        apparatusChecks = await completedApparatusChecksForDate(
+          await createInventorySupabaseClient(),
+          departmentId,
+          date,
+        );
+      } catch (error) {
+        console.error("Daily Log fleet projection failed", error);
+      }
+    }
     return Response.json({
       log: { ...(log as object), revisions: revisions.results },
       staffing: staffingRows,
@@ -84,6 +99,7 @@ export async function GET(request: Request) {
       approvals: approvals.results,
       recentNotes: recentNotes.results,
       addresses: addresses.results.map((row) => String((row as { address: string }).address)),
+      apparatusChecks,
       operationalDay: {
         date: operational.operationalDate,
         changesAt: "06:00",

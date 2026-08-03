@@ -268,12 +268,16 @@ function OperationalState({
 export default function Inventory360({
   departmentId,
   departmentName,
+  initialApparatusId = "",
+  initialCheckType = "",
 }: {
   departmentId: string;
   departmentName: string;
+  initialApparatusId?: string;
+  initialCheckType?: "daily" | "weekly" | "inventory" | "air_pack" | "";
 }) {
-  const [view, setView] = useState<View>("fleet");
-  const [selectedApparatusId, setSelectedApparatusId] = useState("");
+  const [view, setView] = useState<View>(() => initialApparatusId && initialCheckType ? "check" : "fleet");
+  const [selectedApparatusId, setSelectedApparatusId] = useState(initialApparatusId);
   const [fleetFilter, setFleetFilter] = useState<FleetFilter>("all");
   const [suiteState, setSuiteState] = useState<LoadState>("loading");
   const [suite, setSuite] = useState<SuiteContext>({
@@ -647,7 +651,7 @@ export default function Inventory360({
               <button className="primary" onClick={() => setView("setup")}>Build Fleet &amp; Inventory</button>
             </div>
           </div>
-          <InventoryOperations view="check" onSetup={() => setView("setup")} initialApparatusId={selectedApparatusId} />
+          <InventoryOperations view="check" onSetup={() => setView("setup")} initialApparatusId={selectedApparatusId} initialCheckType={initialCheckType} />
         </section>
       ) : null}
 

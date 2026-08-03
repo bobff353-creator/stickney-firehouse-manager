@@ -1,6 +1,8 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 import { chicagoOperationalContext } from "../../operational-day";
 import { syncRecentResendDispatches } from "../../resend-dispatch-sync";
+import { openFleetEquipmentIssues } from "../../lib/fleet-projections";
+import { createInventorySupabaseClient } from "../../lib/supabase-server";
 
 function chicagoParts() {
   const context = chicagoOperationalContext();
@@ -12,7 +14,7 @@ function equipmentIssues(raw: unknown) {
   try { return Object.entries(JSON.parse(String(raw || "{}")) as Record<string, { status?: string; detail?: string }>).filter(([, item]) => item.status && item.status !== "Present").map(([key, item]) => ({ item: key, status: item.status || "Issue", detail: item.detail || "" })); } catch { return []; }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const db = await ensureDatabase();
     try { await syncRecentResendDispatches(db); } catch (error) { console.error("Direct Resend dispatch sync failed", error); }
@@ -32,6 +34,18 @@ export async function GET() {
     const currentApproval = approvalRows.find((row) => row.shiftKey === currentShift);
     const priorApproval = approvalRows.find((row) => row.shiftKey === priorShift);
     const issues = equipmentIssues(currentApproval?.signOutEquipment || currentApproval?.signInEquipment);
+    const departmentId = request.headers.get("x-department-id")?.trim() || "";
+    let fleetIssues: Awaited<ReturnType<typeof openFleetEquipmentIssues>> = [];
+    if (departmentId) {
+      try {
+        fleetIssues = await openFleetEquipmentIssues(
+          await createInventorySupabaseClient(),
+          departmentId,
+        );
+      } catch (error) {
+        console.error("Live Operations fleet issue projection failed", error);
+      }
+    }
     const callRows = calls.results as Array<Record<string, unknown>>;
     const manualActiveCalls = callRows.filter((call) => call.timeOut && !call.timeIn);
     const localEmailActiveCalls = dispatchCalls.results as Array<Record<string, unknown>>;
@@ -45,7 +59,7 @@ export async function GET() {
       onDuty: staffing.results,
       officerInCharge: currentApproval?.officerName || null,
       staffing: { filled: staffing.results.length, required: 4, complete: staffing.results.length >= 4 && Boolean(currentApproval?.signInAt) },
-      equipmentIssues: issues,
+      equipmentIssues: [...fleetIssues, ...issues.map((issue, index) => ({ id: `handoff-${index}-${issue.item}`, ...issue }))],
       activeCalls,
       apparatus,
       newMembers: newMembers.results,

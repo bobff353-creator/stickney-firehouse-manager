@@ -129,10 +129,12 @@ export default function InventoryOperations({
   view,
   onSetup,
   initialApparatusId = "",
+  initialCheckType = "",
 }: {
   view: OperationsView;
   onSetup: () => void;
   initialApparatusId?: string;
+  initialCheckType?: "daily" | "weekly" | "inventory" | "air_pack" | "";
 }) {
   const [data, setData] = useState<OperationsData>(emptyData);
   const [loading, setLoading] = useState(true);
@@ -155,6 +157,7 @@ export default function InventoryOperations({
   const equipmentEditorRef = useRef<HTMLFormElement>(null);
   const scannerVideoRef = useRef<HTMLVideoElement>(null);
   const scannerControlsRef = useRef<IScannerControls | null>(null);
+  const requestedCheckOpenedRef = useRef(false);
 
   const closeScanner = useCallback(() => {
     scannerControlsRef.current?.stop();
@@ -292,6 +295,58 @@ export default function InventoryOperations({
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [load]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void (async () => {
+      if (
+        loading
+        || requestedCheckOpenedRef.current
+        || !initialCheckType
+        || !selectedApparatusId
+        || !data.configured
+      ) return;
+      requestedCheckOpenedRef.current = true;
+      const existing = data.checks.find((check) => (
+        value(check, "apparatus_id") === selectedApparatusId
+        && value(check, "check_type") === initialCheckType
+        && value(check, "status") === "in_progress"
+      ));
+      if (existing) {
+        setSelectedCheckId(value(existing, "id"));
+        setInspectionMenuOpen(false);
+        setMessage(`Resumed the shared ${value(data.apparatus.find((item) => value(item, "id") === selectedApparatusId) || {}, "name")} ${initialCheckType.replace("_", " ")} inspection.`);
+        return;
+      }
+      const configuredItems = data.equipment.filter((item) => (
+        value(item, "apparatus_id") === selectedApparatusId
+        && Array.isArray(item.check_types)
+        && item.check_types.includes(initialCheckType)
+      )).length;
+      if (!configuredItems) {
+        setError(`This apparatus does not have any items configured for its ${initialCheckType.replace("_", " ")} inspection.`);
+        return;
+      }
+      setBusy(`start-${initialCheckType}-duty`);
+      try {
+        const response = await fetch("/api/operations", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ action: "start_check", apparatusId: selectedApparatusId, checkType: initialCheckType }),
+        });
+        const result = await response.json().catch(() => ({})) as { checkId?: string; error?: string };
+        if (!response.ok || !result.checkId) throw new Error(result.error || "The apparatus inspection could not be opened.");
+        await load();
+        setSelectedCheckId(result.checkId);
+        setInspectionMenuOpen(false);
+        setMessage("Apparatus duty opened. Progress is shared with the crew and saves item by item.");
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "The apparatus inspection could not be opened.");
+      } finally {
+        setBusy("");
+      }
+    })(), 0);
+    return () => window.clearTimeout(timer);
+  }, [data, initialCheckType, load, loading, selectedApparatusId]);
 
   async function action(name: string, payload: Record<string, unknown>) {
     setBusy(name);

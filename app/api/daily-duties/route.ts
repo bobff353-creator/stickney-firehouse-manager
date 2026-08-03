@@ -1,4 +1,6 @@
 import { ensureDatabase } from "../../../db/bootstrap";
+import { weeklyDutyCheckMap, type FleetDutyCheck } from "../../lib/fleet-projections";
+import { createInventorySupabaseClient } from "../../lib/supabase-server";
 
 const ownerAdminEmails = ["bobff353@gmail.com"];
 const shifts = ["morning", "afternoon", "night"] as const;
@@ -26,9 +28,23 @@ export async function GET(request: Request) {
     const db = await ensureDatabase();
     const canEdit = await isAdmin(request, db);
     const rows = await db.prepare("SELECT id, day_of_week AS dayOfWeek, shift_key AS shiftKey, duty, updated_by AS updatedBy, updated_at AS updatedAt FROM daily_duties ORDER BY CASE day_of_week WHEN 1 THEN 1 WHEN 2 THEN 2 WHEN 3 THEN 3 WHEN 4 THEN 4 WHEN 5 THEN 5 WHEN 6 THEN 6 ELSE 7 END, CASE shift_key WHEN 'morning' THEN 1 WHEN 'afternoon' THEN 2 ELSE 3 END").all();
+    const dutyRows = rows.results as Array<{ id: string; dayOfWeek: number; shiftKey: string; duty: string; updatedBy: string; updatedAt: string }>;
+    let fleetChecks = new Map<string, FleetDutyCheck[]>();
+    const departmentId = request.headers.get("x-department-id")?.trim() || "";
+    if (departmentId) {
+      try {
+        fleetChecks = await weeklyDutyCheckMap(await createInventorySupabaseClient(), departmentId, dutyRows);
+      } catch (error) {
+        console.error("Daily Duties fleet projection failed", error);
+      }
+    }
+    const items = dutyRows.map((row) => ({
+      ...row,
+      fleetChecks: fleetChecks.get(row.id) || [],
+    }));
     const current = chicagoNow();
-    const currentDuty = rows.results.find((row) => Number((row as { dayOfWeek: number }).dayOfWeek) === current.day && (row as { shiftKey: string }).shiftKey === current.shift) ?? null;
-    return Response.json({ items: rows.results, currentDuty, canEdit });
+    const currentDuty = items.find((row) => Number(row.dayOfWeek) === current.day && row.shiftKey === current.shift) ?? null;
+    return Response.json({ items, currentDuty, canEdit });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Unable to load daily duties" }, { status: 500 });
   }
