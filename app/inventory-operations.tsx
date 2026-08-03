@@ -146,7 +146,7 @@ export default function InventoryOperations({
   const [viewerEmployeeId, setViewerEmployeeId] = useState("");
   const [selectedApparatusId, setSelectedApparatusId] = useState(initialApparatusId);
   const [selectedCheckId, setSelectedCheckId] = useState("");
-  const [inspectionMenuOpen, setInspectionMenuOpen] = useState(false);
+  const [inspectionMenuOpen, setInspectionMenuOpen] = useState(true);
   const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
   const [deficiencyItem, setDeficiencyItem] = useState<Row | null>(null);
   const [editingEquipment, setEditingEquipment] = useState<Row | null>(null);
@@ -358,6 +358,10 @@ export default function InventoryOperations({
   )).length;
   const selectedApparatus = data.apparatus.find((item) => value(item, "id") === selectedApparatusId);
   const selectedEquipment = data.equipment.filter((item) => value(item, "apparatus_id") === selectedApparatusId);
+  const selectedCompartments = data.compartments.filter((item) => value(item, "apparatus_id") === selectedApparatusId);
+  const configuredItemsFor = (checkType: string) => selectedEquipment.filter((item) => (
+    Array.isArray(item.check_types) && item.check_types.includes(checkType)
+  )).length;
   const myOpenRepairs = data.workOrders.filter((item) => (
     value(item, "status") !== "closed"
     && Array.isArray(item.assigned_employee_ids)
@@ -415,7 +419,7 @@ export default function InventoryOperations({
               <select value={selectedApparatusId} onChange={(event) => {
                 setSelectedApparatusId(event.target.value);
                 setSelectedCheckId("");
-                setInspectionMenuOpen(false);
+                setInspectionMenuOpen(true);
               }}>
                 {data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")} · Fleet: {formatStatus(item.status)}</option>)}
               </select>
@@ -431,8 +435,10 @@ export default function InventoryOperations({
                 {inspectionTypes.map(([id, label]) => {
                   const inProgress = apparatusActiveChecks.find((check) => value(check, "check_type") === id);
                   const remaining = inProgress ? remainingForCheck(value(inProgress, "id")) : 0;
+                  const configuredItems = configuredItemsFor(id);
+                  const unavailable = !inProgress && configuredItems === 0;
                   return (
-                    <button key={id} type="button" disabled={Boolean(busy)} onClick={() => {
+                    <button key={id} type="button" disabled={Boolean(busy) || unavailable} onClick={() => {
                       if (inProgress) {
                         setSelectedCheckId(value(inProgress, "id"));
                         setInspectionMenuOpen(false);
@@ -446,7 +452,11 @@ export default function InventoryOperations({
                       });
                     }}>
                       <strong>{inProgress ? `Resume ${label}` : label}</strong>
-                      <span>{inProgress ? `${remaining} items remaining · shared crew progress` : `Start ${value(selectedApparatus, "name")} checklist`}</span>
+                      <span>{inProgress
+                        ? `${remaining} items remaining · shared crew progress`
+                        : unavailable
+                          ? "Not configured for this apparatus"
+                          : `${configuredItems} configured items · start checklist`}</span>
                     </button>
                   );
                 })}
@@ -488,11 +498,16 @@ export default function InventoryOperations({
         <>
         <section className="ops-card">
           <header><div><span>BUILD INVENTORY CHECKLISTS</span><h2>Add real equipment and choose its inspections</h2></div><b>{data.equipment.length} items</b></header>
-          {!data.compartments.length ? <div className="ops-empty"><strong>No compartments configured</strong><p>Create apparatus compartments before adding equipment.</p></div> : <form ref={equipmentFormRef} className="ops-form ops-form-wide" onSubmit={(event) => {
+          <label className="unit-picker">Apparatus
+            <select value={selectedApparatusId} onChange={(event) => setSelectedApparatusId(event.target.value)}>
+              {data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")}</option>)}
+            </select>
+          </label>
+          {!selectedCompartments.length ? <div className="ops-empty"><strong>No compartments configured for this apparatus</strong><p>Create a compartment for {selectedApparatus ? value(selectedApparatus, "name") : "the selected apparatus"} before adding equipment.</p></div> : <form ref={equipmentFormRef} className="ops-form ops-form-wide" onSubmit={(event) => {
             const form = new FormData(event.currentTarget);
             submit(event, "equipment", { action: "create_equipment", compartmentId: form.get("compartmentId"), name: form.get("name"), manufacturer: form.get("manufacturer"), model: form.get("model"), serialNumber: form.get("serialNumber"), barcode: form.get("barcode"), quantityRequired: form.get("quantityRequired"), equipmentCategory: form.get("equipmentCategory"), checkTypes: form.getAll("checkTypes") });
           }}>
-            <label>Compartment<select name="compartmentId" required>{data.compartments.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "label")} · {value(item, "side")}</option>)}</select></label>
+            <label>Compartment<select name="compartmentId" required>{selectedCompartments.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "label")} · {value(item, "side")}</option>)}</select></label>
             <label>Equipment or check item name<input name="name" required /></label>
             <label>Type<select name="equipmentCategory"><option value="vehicle">Vehicle</option><option value="air_pack">Air pack</option><option value="equipment">Equipment</option></select></label>
             <label>Manufacturer<input name="manufacturer" /></label>
@@ -507,12 +522,7 @@ export default function InventoryOperations({
         </section>
         <section className="ops-card">
           <header><div><span>CLICKABLE APPARATUS INVENTORY</span><h2>Edit items, barcodes and photographs</h2></div><b>{selectedEquipment.length} items</b></header>
-          <label className="unit-picker">Apparatus
-            <select value={selectedApparatusId} onChange={(event) => setSelectedApparatusId(event.target.value)}>
-              {data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")}</option>)}
-            </select>
-          </label>
-          {data.compartments.filter((section) => value(section, "apparatus_id") === selectedApparatusId).map((section) => {
+          {selectedCompartments.map((section) => {
             const items = selectedEquipment.filter((item) => value(item, "compartment_id") === value(section, "id"));
             if (!items.length) return null;
             return <div className="equipment-section" key={value(section, "id")}><h3>{value(section, "label")}</h3><div className="equipment-grid">{items.map((item) => <button type="button" key={value(item, "id")} onClick={() => setEditingEquipment(item)}>

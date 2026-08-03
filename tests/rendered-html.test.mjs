@@ -276,6 +276,10 @@ test("keeps large shared inspections named, resumable, and live across crew devi
   assert.match(component, /Resume \$\{label\}/);
   assert.match(component, /Completed by|By \{value\(item, "checked_by"\)\}/);
   assert.match(component, /leave, answer a call, switch sections, and resume later/);
+  assert.match(component, /Not configured for this apparatus/);
+  assert.match(component, /const unavailable = !inProgress && configuredItems === 0/);
+  assert.match(component, /const selectedCompartments = data\.compartments\.filter/);
+  assert.match(component, /name="compartmentId" required>\{selectedCompartments\.map/);
   assert.match(migration, /create unique index if not exists inventory_checks_one_active_type_idx/);
   assert.match(migration, /where status = 'in_progress'/);
 });
