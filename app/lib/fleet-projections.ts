@@ -138,7 +138,7 @@ export async function pendingDailyFleetChecks(
       .is("retired_at", null),
     supabase
       .from("inventory_apparatus_profiles")
-      .select("id,name,status")
+      .select("id,name")
       .eq("department_id", departmentId),
     supabase
       .from("inventory_checks")
@@ -157,8 +157,7 @@ export async function pendingDailyFleetChecks(
   const today = chicagoCalendarDate(new Date());
   return (apparatus || []).flatMap((vehicle) => {
     const apparatusId = String(vehicle.id || "");
-    const normalizedStatus = String(vehicle.status || "").toLowerCase().replaceAll(/[\s_-]/g, "");
-    if (!configuredApparatusIds.has(apparatusId) || ["outofservice", "retired"].includes(normalizedStatus)) return [];
+    if (!configuredApparatusIds.has(apparatusId)) return [];
     const vehicleChecks = (checks || []).filter((check) => check.apparatus_id === vehicle.id);
     const completedToday = vehicleChecks.some((check) => (
       check.status === "completed"

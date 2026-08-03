@@ -35,12 +35,16 @@ export async function GET(request: Request) {
     if (departmentId) {
       try {
         const supabase = await createInventorySupabaseClient();
-        [fleetChecks, dailyFleetChecks] = await Promise.all([
+        const [weeklyResult, dailyResult] = await Promise.allSettled([
           weeklyDutyCheckMap(supabase, departmentId, dutyRows),
           pendingDailyFleetChecks(supabase, departmentId),
         ]);
+        if (weeklyResult.status === "fulfilled") fleetChecks = weeklyResult.value;
+        else console.error("Daily Duties weekly Fleet projection failed", weeklyResult.reason);
+        if (dailyResult.status === "fulfilled") dailyFleetChecks = dailyResult.value;
+        else console.error("Daily Duties daily Fleet projection failed", dailyResult.reason);
       } catch (error) {
-        console.error("Daily Duties fleet projection failed", error);
+        console.error("Daily Duties Fleet client failed", error);
       }
     }
     const items = dutyRows.map((row) => ({
