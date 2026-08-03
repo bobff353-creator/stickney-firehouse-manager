@@ -98,13 +98,11 @@ function translateSql(sql: string, values: BoundValue[]) {
 }
 
 async function execute(sql: string, values: BoundValue[], mode: QueryMode) {
-  const secret = process.env.FIREHOUSE_DATABASE_SECRET;
-  if (!secret) throw new Error("FIREHOUSE_DATABASE_SECRET is not configured.");
   const supabase = await getSupabaseServerClient();
   const { data, error } = await supabase.rpc("firehouse_sql", {
     p_sql: translateSql(sql, values),
     p_mode: mode,
-    p_secret: secret,
+    p_secret: null,
   });
   if (error) throw new Error(`Portal database query failed: ${error.message}`);
   return data;
