@@ -27,6 +27,32 @@ test("keeps Inventory on the Stickney site", async () => {
   assert.match(inventoryPage, /<Inventory360/);
 });
 
+test("hardens the market release against upstream stalls and native crashes", async () => {
+  const [proxy, upstream, confirm, nextConfig, errorPage, globalError] = await Promise.all([
+    read("app/[[...path]]/route.ts"),
+    read("app/lib/upstream-portal.ts"),
+    read("app/auth/confirm/route.ts"),
+    read("next.config.ts"),
+    read("app/error.tsx"),
+    read("app/global-error.tsx"),
+  ]);
+
+  assert.match(proxy, /AbortSignal\.timeout\(upstreamTimeoutMs\)/);
+  assert.match(proxy, /portalUnavailableResponse/);
+  assert.match(proxy, /maximumProxyBodyBytes/);
+  assert.match(proxy, /employee-page\{grid-template-columns:minmax\(0,1fr\)!important\}/);
+  assert.match(proxy, /main\.app-shell:has\(\.icb-page\)>nav\.mobile-bottom-tabs/);
+  assert.match(upstream, /AbortSignal\.timeout\(upstreamTimeoutMs\)/);
+  assert.match(upstream, /status: 503/);
+  assert.match(confirm, /AbortSignal\.timeout\(upstreamTimeoutMs\)/);
+  assert.match(confirm, /headers\.delete\("content-encoding"\)/);
+  assert.match(nextConfig, /X-Content-Type-Options/);
+  assert.match(nextConfig, /Permissions-Policy/);
+  assert.match(errorPage, /Inventory could not finish loading/);
+  assert.match(errorPage, /onClick=\{reset\}/);
+  assert.match(globalError, /The application stopped unexpectedly/);
+});
+
 test("makes the Stickney portal installable without caching operational records", async () => {
   const [layout, proxy, nextConfig, manifestText, serviceWorker, register, offline] = await Promise.all([
     read("app/layout.tsx"),

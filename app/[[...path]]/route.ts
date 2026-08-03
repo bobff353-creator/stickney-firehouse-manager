@@ -1,4 +1,6 @@
 const upstreamOrigin = "https://stickney-payroll-manager.bobff353.chatgpt.site";
+const upstreamTimeoutMs = 15_000;
+const maximumProxyBodyBytes = 10 * 1024 * 1024;
 
 const portalHeadEnhancements =
   '<link rel="manifest" href="/manifest.webmanifest">' +
@@ -17,6 +19,12 @@ const portalEnhancements =
   'max-height:calc(100dvh - 166px - env(safe-area-inset-bottom))!important;' +
   'overflow-y:auto!important;overscroll-behavior:contain;' +
   '-webkit-overflow-scrolling:touch;scrollbar-gutter:stable}}' +
+  '@media(max-width:980px){.employee-page{grid-template-columns:minmax(0,1fr)!important}' +
+  '.employee-page>*{min-width:0!important;max-width:100%!important}' +
+  '.employee-page .table-wrap{width:100%!important;max-width:100%!important}' +
+  '.employee-page .standard-page-header{flex-wrap:wrap!important}}' +
+  'main.app-shell:has(.icb-page)>nav.mobile-bottom-tabs,' +
+  'main.app-shell:has(.icb-page) button[aria-label="Open navigation"]{display:none!important}' +
   '.field-preplans-page.preplan-builder-focused>:not(.field-map-layout):not(.preplan-editor){display:none!important}' +
   '.field-preplans-page.preplan-builder-focused{' +
   'display:grid!important;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);' +
@@ -119,20 +127,75 @@ function responseHeaders(request: Request, upstream: Response) {
       );
     }
   }
+  headers.set("x-content-type-options", "nosniff");
+  headers.set("referrer-policy", "strict-origin-when-cross-origin");
+  headers.set("x-frame-options", "SAMEORIGIN");
+  headers.set(
+    "permissions-policy",
+    "camera=(self), geolocation=(self), microphone=()",
+  );
   return headers;
+}
+
+function portalUnavailableResponse(request: Request) {
+  const acceptsHtml = (request.headers.get("accept") || "").includes("text/html");
+  if (!acceptsHtml) {
+    return Response.json(
+      { error: "The department portal is temporarily unavailable. Please retry." },
+      { status: 503, headers: { "cache-control": "private, no-store, max-age=0" } },
+    );
+  }
+  return new Response(
+    '<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+      '<meta name="theme-color" content="#0b2b40"><title>Portal temporarily unavailable</title>' +
+      '<body style="margin:0;background:#eef3f5;color:#102a3a;font-family:system-ui,sans-serif">' +
+      '<main style="min-height:100vh;display:grid;place-items:center;padding:24px;box-sizing:border-box">' +
+      '<section style="max-width:560px;background:#fff;border:1px solid #cbd5e1;border-radius:12px;padding:28px;box-shadow:0 16px 40px #0b2b4020">' +
+      '<p style="margin:0 0 8px;color:#b42318;font-weight:800;letter-spacing:.08em">STICKNEY FIRE DEPARTMENT</p>' +
+      '<h1 style="margin:0 0 12px">The operations portal is temporarily unavailable</h1>' +
+      '<p style="line-height:1.55">Your request was stopped safely because the portal did not respond in time. No form was submitted twice.</p>' +
+      '<button onclick="location.reload()" style="min-height:44px;padding:0 18px;border:0;border-radius:8px;background:#0b2b40;color:#fff;font-weight:800;cursor:pointer">Try again</button>' +
+      '</section></main></body></html>',
+    {
+      status: 503,
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "private, no-store, max-age=0",
+        "retry-after": "5",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "strict-origin-when-cross-origin",
+        "x-frame-options": "SAMEORIGIN",
+      },
+    },
+  );
 }
 
 async function proxy(request: Request) {
   const method = request.method.toUpperCase();
-  const upstream = await fetch(upstreamUrl(request), {
-    method,
-    headers: forwardedHeaders(request),
-    body: method === "GET" || method === "HEAD"
-      ? undefined
-      : await request.arrayBuffer(),
-    redirect: "manual",
-    cache: "no-store",
-  });
+  const declaredLength = Number(request.headers.get("content-length") || 0);
+  if (declaredLength > maximumProxyBodyBytes) {
+    return new Response("Request body is too large.", { status: 413 });
+  }
+  let requestBody: ArrayBuffer | undefined;
+  if (method !== "GET" && method !== "HEAD") {
+    requestBody = await request.arrayBuffer();
+    if (requestBody.byteLength > maximumProxyBodyBytes) {
+      return new Response("Request body is too large.", { status: 413 });
+    }
+  }
+  let upstream: Response;
+  try {
+    upstream = await fetch(upstreamUrl(request), {
+      method,
+      headers: forwardedHeaders(request),
+      body: requestBody,
+      redirect: "manual",
+      cache: "no-store",
+      signal: AbortSignal.timeout(upstreamTimeoutMs),
+    });
+  } catch {
+    return portalUnavailableResponse(request);
+  }
   const headers = responseHeaders(request, upstream);
   const contentType = headers.get("content-type") || "";
   if (method === "GET" && contentType.includes("text/html")) {
