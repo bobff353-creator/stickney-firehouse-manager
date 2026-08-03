@@ -15,6 +15,10 @@ export type FleetDailyCheck = {
   startedAt: string | null;
 };
 
+export type RequiredFleetCheck = FleetDailyCheck & {
+  checkType: "daily" | "weekly";
+};
+
 export type DailyLogApparatusCheck = {
   id: string;
   apparatusId: string;
@@ -49,14 +53,17 @@ function addUtcDays(date: string, days: number) {
   return value.toISOString().slice(0, 10);
 }
 
-export function currentChicagoWeek() {
-  const today = chicagoCalendarDate(new Date());
-  const anchor = new Date(`${today}T12:00:00Z`);
+export function chicagoWeekForDate(date: string) {
+  const anchor = new Date(`${date}T12:00:00Z`);
   const mondayOffset = (anchor.getUTCDay() + 6) % 7;
   return {
-    start: addUtcDays(today, -mondayOffset),
-    end: addUtcDays(today, 7 - mondayOffset),
+    start: addUtcDays(date, -mondayOffset),
+    end: addUtcDays(date, 7 - mondayOffset),
   };
+}
+
+export function currentChicagoWeek() {
+  return chicagoWeekForDate(chicagoCalendarDate(new Date()));
 }
 
 export function dailyFleetCheckUrgency(minutes: number) {
@@ -127,6 +134,7 @@ export async function weeklyDutyCheckMap(
 export async function pendingDailyFleetChecks(
   supabase: SupabaseClient,
   departmentId: string,
+  date = chicagoCalendarDate(new Date()),
 ): Promise<FleetDailyCheck[]> {
   if (!departmentId) return [];
   const [{ data: configuredItems, error: itemError }, { data: apparatus, error: apparatusError }, { data: checks, error: checksError }] = await Promise.all([
@@ -154,7 +162,6 @@ export async function pendingDailyFleetChecks(
   const configuredApparatusIds = new Set(
     (configuredItems || []).map((item) => String(item.apparatus_id || "")).filter(Boolean),
   );
-  const today = chicagoCalendarDate(new Date());
   return (apparatus || []).flatMap((vehicle) => {
     const apparatusId = String(vehicle.id || "");
     if (!configuredApparatusIds.has(apparatusId)) return [];
@@ -162,7 +169,7 @@ export async function pendingDailyFleetChecks(
     const completedToday = vehicleChecks.some((check) => (
       check.status === "completed"
       && check.completed_at
-      && chicagoCalendarDate(check.completed_at) === today
+      && chicagoCalendarDate(check.completed_at) === date
     ));
     if (completedToday) return [];
     const inProgress = vehicleChecks.find((check) => check.status === "in_progress");
@@ -173,6 +180,63 @@ export async function pendingDailyFleetChecks(
       startedAt: inProgress?.started_at ? String(inProgress.started_at) : null,
     }];
   }).sort((left, right) => left.unit.localeCompare(right.unit, undefined, { numeric: true }));
+}
+
+export async function incompleteRequiredFleetChecks(
+  supabase: SupabaseClient,
+  departmentId: string,
+  date: string,
+  weeklyDuties: Array<{ duty?: unknown }>,
+): Promise<RequiredFleetCheck[]> {
+  const daily = await pendingDailyFleetChecks(supabase, departmentId, date);
+  const weeklyUnits = [...new Set(
+    weeklyDuties
+      .filter((row) => String(row.duty || "").toLowerCase().includes("weekly"))
+      .flatMap((row) => unitsInDuty(String(row.duty || ""))),
+  )];
+  if (!weeklyUnits.length) return daily.map((check) => ({ ...check, checkType: "daily" as const }));
+
+  const [{ data: apparatus, error: apparatusError }, { data: checks, error: checksError }] = await Promise.all([
+    supabase
+      .from("inventory_apparatus_profiles")
+      .select("id,name")
+      .eq("department_id", departmentId),
+    supabase
+      .from("inventory_checks")
+      .select("id,apparatus_id,status,started_at,completed_at")
+      .eq("department_id", departmentId)
+      .eq("check_type", "weekly")
+      .in("status", ["in_progress", "completed"])
+      .order("started_at", { ascending: false })
+      .limit(500),
+  ]);
+  if (apparatusError || checksError) throw apparatusError || checksError;
+
+  const week = chicagoWeekForDate(date);
+  const weekly = weeklyUnits.flatMap((unit) => {
+    const vehicle = (apparatus || []).find((item) => String(item.name).trim() === unit);
+    if (!vehicle) return [];
+    const vehicleChecks = (checks || []).filter((check) => check.apparatus_id === vehicle.id);
+    const completed = vehicleChecks.some((check) => (
+      check.status === "completed"
+      && check.completed_at
+      && chicagoCalendarDate(check.completed_at) >= week.start
+      && chicagoCalendarDate(check.completed_at) < week.end
+    ));
+    if (completed) return [];
+    const inProgress = vehicleChecks.find((check) => check.status === "in_progress");
+    return [{
+      apparatusId: String(vehicle.id),
+      unit,
+      checkType: "weekly" as const,
+      status: inProgress ? "in_progress" as const : "pending" as const,
+      startedAt: inProgress?.started_at ? String(inProgress.started_at) : null,
+    }];
+  });
+  return [
+    ...daily.map((check) => ({ ...check, checkType: "daily" as const })),
+    ...weekly,
+  ];
 }
 
 export async function completedApparatusChecksForDate(

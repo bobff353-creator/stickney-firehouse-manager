@@ -1199,7 +1199,11 @@ td strong { font-size: 16px; }
 .officer-actions button { min-height: 40px; padding: 0 11px; border: 1px solid #879dab; border-radius: 7px; background: white; color: var(--navy); font-size: 12px; font-weight: 850; }
 .officer-actions button:last-child { margin-left: auto; }
 .officer-actions button.approved { border-color: #78aa8c; background: #edf8f1; color: var(--green); }
+.officer-actions button.fleet-blocked { border-color: #cf756d; background: #fff0ee; color: #9a2f27; }
 .officer-actions button:disabled { cursor: not-allowed; opacity: .45; }
+.officer-fleet-lock { margin-top: 8px; padding: 9px 10px; border-left: 4px solid #c4483d; border-radius: 5px; background: #fff0ee; color: #872b25; display: grid; gap: 3px; }
+.officer-fleet-lock strong { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
+.officer-fleet-lock span { font-size: 11px; font-weight: 750; }
 .calls-card { overflow: hidden; }
 .call-list { display: grid; gap: 12px; }
 .call-row { position: relative; padding: 14px 46px 14px 14px; border: 1px solid #d6dee4; border-radius: 9px; background: #f9fbfc; display: grid; grid-template-columns: 34px .75fr 1.05fr 1.05fr 1fr 2fr 1.2fr; gap: 11px; align-items: end; }

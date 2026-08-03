@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { chicagoCalendarDate, currentChicagoWeek, dailyFleetCheckUrgency } from "../app/lib/fleet-projections.ts";
+import { chicagoCalendarDate, chicagoWeekForDate, currentChicagoWeek, dailyFleetCheckUrgency } from "../app/lib/fleet-projections.ts";
 
 const root = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, root), "utf8");
@@ -20,6 +20,11 @@ test("daily Fleet checks warn during the hour before the 7 AM due time", () => {
   assert.equal(dailyFleetCheckUrgency(6 * 60), "due_soon");
   assert.equal(dailyFleetCheckUrgency(6 * 60 + 59), "due_soon");
   assert.equal(dailyFleetCheckUrgency(7 * 60), "overdue");
+});
+
+test("resolves the scheduled weekly check window for the Daily Log date", () => {
+  assert.deepEqual(chicagoWeekForDate("2026-08-03"), { start: "2026-08-03", end: "2026-08-10" });
+  assert.deepEqual(chicagoWeekForDate("2026-08-09"), { start: "2026-08-03", end: "2026-08-10" });
 });
 
 test("links weekly duties to Fleet, Daily Log, and Live Operations", async () => {
@@ -45,4 +50,20 @@ test("links weekly duties to Fleet, Daily Log, and Live Operations", async () =>
   assert.match(board, /check=daily/);
   assert.match(board, /dailyChecksNeedAttention/);
   assert.match(dailyDutyRoute, /pendingDailyFleetChecks/);
+});
+
+test("blocks Officer Sign Out until required daily and scheduled weekly Fleet checks are complete", async () => {
+  const [route, dailyLog, projections] = await Promise.all([
+    read("app/api/logbook/route.ts"),
+    read("app/daily-log.tsx"),
+    read("app/lib/fleet-projections.ts"),
+  ]);
+  assert.match(route, /mode === "out"/);
+  assert.match(route, /incompleteRequiredFleetChecks/);
+  assert.match(route, /status: 409/);
+  assert.match(route, /Fleet checklist status could not be verified/);
+  assert.match(dailyLog, /fleetRequirementsOnly=1/);
+  assert.match(dailyLog, /Fleet checks required before sign out/);
+  assert.match(projections, /checkType: "weekly"/);
+  assert.match(projections, /checkType: "daily"/);
 });

@@ -6,7 +6,7 @@ import { holidayForDate } from "../../holidays";
 import { chicagoOperationalContext } from "../../operational-day";
 import { dailyLogPayrollEntries, dailyLogPayrollTotals } from "../../payroll-hours";
 import { hasPermission } from "../../server-permissions";
-import { completedApparatusChecksForDate } from "../../lib/fleet-projections";
+import { completedApparatusChecksForDate, incompleteRequiredFleetChecks, type RequiredFleetCheck } from "../../lib/fleet-projections";
 import { createInventorySupabaseClient } from "../../lib/supabase-server";
 
 const shifts = ["morning", "afternoon", "overnight"];
@@ -30,6 +30,32 @@ function payrollPeriodEnd(start: string) {
   else { parsed.setUTCMonth(parsed.getUTCMonth() + 1); parsed.setUTCDate(10); }
   return parsed.toISOString().slice(0, 10);
 }
+async function fleetRequirementsForDate(
+  request: Request,
+  db: Awaited<ReturnType<typeof ensureDatabase>>,
+  date: string,
+): Promise<{ available: boolean; incomplete: RequiredFleetCheck[] }> {
+  const departmentId = request.headers.get("x-department-id")?.trim() || "";
+  if (!departmentId) return { available: false, incomplete: [] };
+  const dayOfWeek = new Date(`${date}T12:00:00Z`).getUTCDay();
+  const duties = await db.prepare(
+    "SELECT duty FROM daily_duties WHERE day_of_week = ? AND lower(duty) LIKE '%weekly%'",
+  ).bind(dayOfWeek).all<{ duty: string }>();
+  try {
+    return {
+      available: true,
+      incomplete: await incompleteRequiredFleetChecks(
+        await createInventorySupabaseClient(),
+        departmentId,
+        date,
+        duties.results,
+      ),
+    };
+  } catch (error) {
+    console.error("Daily Log Fleet sign-out verification failed", error);
+    return { available: false, incomplete: [] };
+  }
+}
 export async function GET(request: Request) {
   try {
     const db = await ensureDatabase();
@@ -37,6 +63,13 @@ export async function GET(request: Request) {
     const canUnlock = await hasPermission(request, db, "permissions.manage");
     const operational = chicagoOperationalContext();
     const date = cleanDate(new URL(request.url).searchParams.get("date"), operational.operationalDate);
+    if (new URL(request.url).searchParams.get("fleetRequirementsOnly") === "1") {
+      const requirements = await fleetRequirementsForDate(request, db, date);
+      return Response.json({
+        fleetVerificationAvailable: requirements.available,
+        incompleteFleetChecks: requirements.incomplete,
+      });
+    }
     await db.prepare("INSERT OR IGNORE INTO daily_logs (log_date) VALUES (?)").bind(date).run();
     const unprojectedDispatches = await db.prepare(
       "SELECT incident_id AS reportNumber, dispatched_at AS dispatchedAt, time_out AS timeOut, responding_units AS respondingUnits, address, call_type AS callType FROM dispatch_incidents WHERE NOT EXISTS (SELECT 1 FROM daily_log_calls WHERE daily_log_calls.report_number = dispatch_incidents.incident_id) ORDER BY datetime(dispatched_at)"
@@ -78,6 +111,7 @@ export async function GET(request: Request) {
       }
     }
     let apparatusChecks: Awaited<ReturnType<typeof completedApparatusChecksForDate>> = [];
+    const fleetRequirements = await fleetRequirementsForDate(request, db, date);
     const departmentId = request.headers.get("x-department-id")?.trim() || "";
     if (departmentId) {
       try {
@@ -100,6 +134,8 @@ export async function GET(request: Request) {
       recentNotes: recentNotes.results,
       addresses: addresses.results.map((row) => String((row as { address: string }).address)),
       apparatusChecks,
+      fleetVerificationAvailable: fleetRequirements.available,
+      incompleteFleetChecks: fleetRequirements.incomplete,
       operationalDay: {
         date: operational.operationalDate,
         changesAt: "06:00",
@@ -140,6 +176,19 @@ export async function POST(request: Request) {
       const equipment = JSON.stringify(body.equipment ?? {});
       const note = String(body.note ?? "").trim();
       if (!shifts.includes(shiftKey) || !["in", "out"].includes(mode) || !officerId) return Response.json({ error: "Select the officer completing this approval." }, { status: 400 });
+      if (mode === "out") {
+        const requirements = await fleetRequirementsForDate(request, db, date);
+        if (!requirements.available) {
+          return Response.json({ error: "Officer sign out is blocked because Fleet checklist status could not be verified. Try again before signing out." }, { status: 503 });
+        }
+        if (requirements.incomplete.length) {
+          const list = requirements.incomplete.map((check) => `${check.unit} ${check.checkType}`).join(", ");
+          return Response.json({
+            error: `Officer sign out is blocked. Complete the required Fleet checks first: ${list}.`,
+            incompleteFleetChecks: requirements.incomplete,
+          }, { status: 409 });
+        }
+      }
       await db.prepare("INSERT OR IGNORE INTO daily_log_approvals (id, log_date, shift_key) VALUES (?, ?, ?)").bind(crypto.randomUUID(), date, shiftKey).run();
       if (mode === "in") {
         if (!body.reviewedNotes) return Response.json({ error: "Review and accept the previous seven days of notes first." }, { status: 400 });

@@ -14,7 +14,8 @@ type CallRow = { id: string; reportNumber: string; timeOut: string; timeIn: stri
 type Approval = { shiftKey: string; signInOfficerId?: string; signInAt?: string; signOutOfficerId?: string; signOutAt?: string; signOutNote?: string };
 type RecentNote = { logDate: string; note: string };
 type ApparatusCheck = { id: string; apparatusId: string; unit: string; checkType: string; completedAt: string; completedBy: string; failedItems: number };
-type LogPayload = { log: { shiftNotes: string; locked: number; adminUnlocked: number; createdBy?: string; createdAt?: string; updatedBy?: string; updatedAt: string; lockedBy?: string; lockedAt?: string; revisions?: Revision[] }; staffing: StaffingRow[]; staffingSource?: "department_schedule" | "daily_log"; schedulePrefilled?: boolean; calls: CallRow[]; approvals: Approval[]; recentNotes: RecentNote[]; addresses: string[]; apparatusChecks?: ApparatusCheck[]; canUnlock?: boolean; error?: string };
+type RequiredFleetCheck = { apparatusId: string; unit: string; checkType: "daily" | "weekly"; status: "pending" | "in_progress"; startedAt: string | null };
+type LogPayload = { log: { shiftNotes: string; locked: number; adminUnlocked: number; createdBy?: string; createdAt?: string; updatedBy?: string; updatedAt: string; lockedBy?: string; lockedAt?: string; revisions?: Revision[] }; staffing: StaffingRow[]; staffingSource?: "department_schedule" | "daily_log"; schedulePrefilled?: boolean; calls: CallRow[]; approvals: Approval[]; recentNotes: RecentNote[]; addresses: string[]; apparatusChecks?: ApparatusCheck[]; fleetVerificationAvailable?: boolean; incompleteFleetChecks?: RequiredFleetCheck[]; canUnlock?: boolean; error?: string };
 type Handoff = { shiftKey: string; shiftTitle: string; mode: "in" | "out" };
 type OfflineDraft = { savedAt: string; logDate: string; staffing: StaffingRow[]; calls: CallRow[]; shiftNotes: string };
 const draftKey = (date: string) => `sfd-daily-log-draft:${date}`;
@@ -45,6 +46,7 @@ function blankStaff(shiftKey: string, timeIn: string, timeOut: string, actingOff
 function blankCall(): CallRow { return { id: clientId(), reportNumber: "", timeOut: "", timeIn: "", respondingUnits: "", address: "", callType: "EMS" }; }
 const displayName = formatEmployeeName;
 function shiftMinutes(value: string, shiftKey: string) { const [hours, minutes] = value.split(":").map(Number); const total = hours * 60 + minutes; return shiftKey === "overnight" && total <= 360 ? total + 1440 : total; }
+const fleetCheckList = (checks: RequiredFleetCheck[]) => checks.map((check) => `${check.unit} ${check.checkType}`).join(", ");
 export default function DailyLog({ employees, onPayrollSynced }: { employees: LogEmployee[]; onPayrollSynced?: () => void }) {
   const [logDate, setLogDate] = useState(() => chicagoOperationalContext().operationalDate);
   const [staffing, setStaffing] = useState<StaffingRow[]>([]);
@@ -54,6 +56,8 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [recentNotes, setRecentNotes] = useState<RecentNote[]>([]);
   const [apparatusChecks, setApparatusChecks] = useState<ApparatusCheck[]>([]);
+  const [incompleteFleetChecks, setIncompleteFleetChecks] = useState<RequiredFleetCheck[]>([]);
+  const [fleetVerificationAvailable, setFleetVerificationAvailable] = useState(false);
   const [locked, setLocked] = useState(false);
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [canUnlock, setCanUnlock] = useState(false);
@@ -97,7 +101,7 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
       const callRows = [...(restore ? draft!.calls : data.calls)]; while (callRows.length < 2) callRows.push(blankCall());
       setStaffing(rows); setCalls(callRows); setShiftNotes(restore ? draft!.shiftNotes : data.log?.shiftNotes ?? "");
       setLogAudit(data.log ?? null);
-      setAddresses(data.addresses ?? []); setApprovals(data.approvals ?? []); setRecentNotes(data.recentNotes ?? []); setApparatusChecks(data.apparatusChecks ?? []);
+      setAddresses(data.addresses ?? []); setApprovals(data.approvals ?? []); setRecentNotes(data.recentNotes ?? []); setApparatusChecks(data.apparatusChecks ?? []); setIncompleteFleetChecks(data.incompleteFleetChecks ?? []); setFleetVerificationAvailable(Boolean(data.fleetVerificationAvailable));
       const serverLocked = Boolean(data.log?.locked), serverUnlocked = Boolean(data.log?.adminUnlocked);
       autosaveAuthorized.current = !serverLocked || serverUnlocked;
       setLocked(serverLocked); setAdminUnlocked(serverUnlocked); setCanUnlock(Boolean(data.canUnlock)); setDirty(restore);
@@ -200,7 +204,30 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
     if (normalized === null) return setMessage("Enter four-digit military time from 0000 through 2359.");
     updateCall(id, { [field]: normalized });
   }
-  function openHandoff(shiftKey: string, shiftTitle: string, mode: "in" | "out") { setHandoff({ shiftKey, shiftTitle, mode }); setOfficerId(""); setEquipment(cleanEquipment()); setHandoffNote(""); setAcceptedNotes(false); }
+  async function refreshFleetRequirements() {
+    try {
+      const response = await fetch(`/api/logbook?date=${encodeURIComponent(logDate)}&fleetRequirementsOnly=1`, { cache: "no-store" });
+      const result = await response.json() as { fleetVerificationAvailable?: boolean; incompleteFleetChecks?: RequiredFleetCheck[]; error?: string };
+      if (!response.ok) throw new Error(result.error || "Unable to verify Fleet check status.");
+      const available = Boolean(result.fleetVerificationAvailable);
+      const incomplete = result.incompleteFleetChecks ?? [];
+      setFleetVerificationAvailable(available);
+      setIncompleteFleetChecks(incomplete);
+      return { available, incomplete };
+    } catch {
+      setFleetVerificationAvailable(false);
+      return { available: false, incomplete: [] as RequiredFleetCheck[] };
+    }
+  }
+  async function openHandoff(shiftKey: string, shiftTitle: string, mode: "in" | "out") {
+    if (mode === "out") {
+      setMessage("Checking required Fleet inspections…");
+      const requirements = await refreshFleetRequirements();
+      if (!requirements.available) return setMessage("Officer sign out is blocked because Fleet checklist status could not be verified. Try again.");
+      if (requirements.incomplete.length) return setMessage(`Officer sign out is blocked. Complete these Fleet checks first: ${fleetCheckList(requirements.incomplete)}.`);
+    }
+    setMessage(""); setHandoff({ shiftKey, shiftTitle, mode }); setOfficerId(""); setEquipment(cleanEquipment()); setHandoffNote(""); setAcceptedNotes(false);
+  }
   async function submitHandoff() {
     if (!handoff) return;
     const hasIssueWithoutDetail = Object.values(equipment).some((item) => item.status !== "Present" && !item.detail.trim());
@@ -209,7 +236,7 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
     if (hasIssueWithoutDetail) return setMessage("Add details for all missing or out-of-service equipment.");
     if (Object.values(equipment).some((item) => item.status !== "Present") && !handoffNote.trim()) return setMessage("Add a handoff note for the equipment issue.");
     const response = await fetch("/api/logbook", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "handoff", logDate, shiftKey: handoff.shiftKey, mode: handoff.mode, officerId, equipment, note: handoffNote, reviewedNotes: handoff.mode === "in" ? acceptedNotes : true }) });
-    const result = await response.json() as { error?: string }; if (!response.ok) return setMessage(result.error || "Unable to save approval");
+    const result = await response.json() as { error?: string; incompleteFleetChecks?: RequiredFleetCheck[] }; if (!response.ok) { if (result.incompleteFleetChecks) setIncompleteFleetChecks(result.incompleteFleetChecks); return setMessage(result.error || "Unable to save approval"); }
     const successMessage = handoff.mode === "in" ? "Officer signed in and equipment approved" : "Officer signed out and shift approved";
     setHandoff(null); await loadLog(logDate); setMessage(successMessage);
   }
@@ -243,7 +270,7 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
       <div className="shift-card-grid">{shiftSections.map((shift) => { const rows = staffing.filter((row) => row.shiftKey === shift.key); const approval = approvals.find((item) => item.shiftKey === shift.key); return <article className="content-card shift-card" key={shift.key}>
         <div className="shift-title"><div><span>Staffing</span><h3>{shift.title}</h3></div><button aria-label={`Add person to ${shift.title}`} onClick={() => { setStaffing((current) => [...current, blankStaff(shift.key, shift.defaultIn, shift.defaultOut)]); markDirty(); }}>＋</button></div>
         <div className="staff-labels"><span>In</span><span>Employee</span><span>AO</span><span>Out</span></div><div className="staff-rows">{rows.map((row) => { const employee = activeEmployees.find((item) => item.id === row.employeeId); return <div className={row.actingOfficer ? "staff-row ao-row" : "staff-row"} key={row.id}><select aria-label="Time in" value={row.timeIn} onChange={(event) => setStaffTimeIn(row.id, event.target.value)}>{timeOptions.map((time) => <option key={time.value} value={time.value}>{time.label}</option>)}</select><select aria-label="Employee name" value={row.employeeId} onChange={(event) => selectStaffEmployee(row.id, event.target.value)}><option value="">Select employee…</option>{activeEmployees.map((item) => <option key={item.id} value={item.id}>{displayName(item.name)}</option>)}</select><label className={row.actingOfficer ? "ao-check visible" : "ao-check"} title="Apply Acting Officer pay for this employee and time"><input aria-label={`Acting Officer pay for ${employee ? displayName(employee.name) : "selected employee"}`} type="checkbox" checked={row.actingOfficer} disabled={!row.employeeId} onChange={(event) => setActingOfficer(row.id, event.target.checked)} /><span>AO</span></label><select aria-label="Time out" value={row.timeOut} onChange={(event) => setStaffTimeOut(row.id, event.target.value)}>{timeOptions.map((time) => <option key={time.value} value={time.value}>{time.label}</option>)}</select>{rows.length > 4 && <button className="remove-row" aria-label="Remove staffing row" onClick={() => { setStaffing((current) => current.filter((item) => item.id !== row.id)); markDirty(); }}>×</button>}</div>; })}</div>
-        <div className="officer-actions"><button className={approval?.signInAt ? "approved" : ""} onClick={() => openHandoff(shift.key, shift.title, "in")}>{approval?.signInAt ? "✓ Officer Signed In" : "Officer Sign In"}</button><button className={approval?.signOutAt ? "approved" : ""} disabled={!approval?.signInAt} onClick={() => openHandoff(shift.key, shift.title, "out")}>{approval?.signOutAt ? "✓ Shift Approved" : "Officer Sign Out"}</button></div>
+        <div className="officer-actions"><button className={approval?.signInAt ? "approved" : ""} onClick={() => void openHandoff(shift.key, shift.title, "in")}>{approval?.signInAt ? "✓ Officer Signed In" : "Officer Sign In"}</button><button className={approval?.signOutAt ? "approved" : incompleteFleetChecks.length || !fleetVerificationAvailable ? "fleet-blocked" : ""} disabled={!approval?.signInAt} title={approval?.signInAt && !approval?.signOutAt && incompleteFleetChecks.length ? `Complete ${fleetCheckList(incompleteFleetChecks)} before signing out.` : undefined} onClick={() => void openHandoff(shift.key, shift.title, "out")}>{approval?.signOutAt ? "✓ Shift Approved" : "Officer Sign Out"}</button></div>{approval?.signInAt && !approval?.signOutAt && (!fleetVerificationAvailable || incompleteFleetChecks.length > 0) ? <div className="officer-fleet-lock"><strong>Fleet checks required before sign out</strong><span>{fleetVerificationAvailable ? fleetCheckList(incompleteFleetChecks) : "Fleet checklist status is temporarily unavailable"}</span></div> : null}
       </article>; })}</div>
 
       <article className="content-card calls-card"><div className="section-header"><div><h2>Calls & Responses</h2><p>Times use four-digit military format. Tap Now for the current time, then adjust it if needed.</p></div><button className="add-call" onClick={() => { setCalls((current) => [...current, blankCall()]); markDirty(); }}>＋ Add Call</button></div><datalist id="known-addresses">{addresses.map((address) => <option key={address} value={address} />)}</datalist><div className="call-list">{calls.map((call, index) => <div className="call-row" key={call.id}><div className="call-number">{index + 1}</div><label className="call-report"><span>Report #</span><input value={call.reportNumber} onChange={(event) => updateCall(call.id, { reportNumber: event.target.value })} /></label><label className="call-time-out"><span>Time out (military)</span><div className="time-now"><input type="text" inputMode="numeric" maxLength={4} pattern="(?:[01]\d|2[0-3])[0-5]\d" placeholder="0000" aria-label="Time out in four-digit military time" value={formatMilitaryTime(call.timeOut)} onChange={(event) => updateCall(call.id, { timeOut: event.target.value.replace(/\D/g, "").slice(0, 4) })} onBlur={(event) => finishMilitaryTime(call.id, "timeOut", event.target.value)} /><button onClick={() => updateCall(call.id, { timeOut: nowTime() })}>Now</button></div></label><label className="call-time-in"><span>Time in (military)</span><div className="time-now"><input type="text" inputMode="numeric" maxLength={4} pattern="(?:[01]\d|2[0-3])[0-5]\d" placeholder="0000" aria-label="Time in in four-digit military time" value={formatMilitaryTime(call.timeIn)} onChange={(event) => updateCall(call.id, { timeIn: event.target.value.replace(/\D/g, "").slice(0, 4) })} onBlur={(event) => finishMilitaryTime(call.id, "timeIn", event.target.value)} /><button onClick={() => updateCall(call.id, { timeIn: nowTime() })}>Now</button></div></label><label className="call-units"><span>Responding units</span><input placeholder="1203, 1205…" value={call.respondingUnits} onChange={(event) => updateCall(call.id, { respondingUnits: event.target.value })} /></label><label className="call-address"><span>Address</span><input list="known-addresses" autoComplete="street-address" placeholder="Start typing an address…" value={call.address} onChange={(event) => updateCall(call.id, { address: event.target.value })} /></label><label className="call-type"><span>Type</span><select value={call.callType} onChange={(event) => updateCall(call.id, { callType: event.target.value })}>{call.callType && !callTypes.includes(call.callType) && <option>{call.callType}</option>}{callTypes.map((type) => <option key={type}>{type}</option>)}</select></label>{calls.length > 1 && <button className="remove-call" aria-label={`Remove call ${index + 1}`} onClick={() => { setCalls((current) => current.filter((item) => item.id !== call.id)); markDirty(); }}>×</button>}</div>)}</div><button className="add-call bottom" onClick={() => { setCalls((current) => [...current, blankCall()]); markDirty(); }}>＋ Add Another Call</button></article>
