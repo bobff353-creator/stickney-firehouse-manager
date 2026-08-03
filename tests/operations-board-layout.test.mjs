@@ -15,3 +15,17 @@ test("TV mode reserves complete rows for weather and apparatus status", async ()
   assert.match(styles, /\.tv-display \.apparatus-wide \{[^}]*height: 148px;[^}]*display: grid;[^}]*grid-template-rows: 38px minmax\(0,1fr\) auto/);
   assert.match(styles, /\.tv-display \.apparatus-wide > div \{[^}]*grid-auto-rows: minmax\(0,1fr\);[^}]*overflow: hidden/);
 });
+
+test("operations panels rotate without rendering carousel indicator bars", async () => {
+  const [styles, board, staffing, chief] = await Promise.all([
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/operations-board.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/staffing-rotation.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/chief-board-panel.tsx", import.meta.url), "utf8"),
+  ]);
+  const source = [styles, board, staffing, chief].join("\n");
+
+  assert.doesNotMatch(source, /board-header-dots|staffing-rotation-controls|rotation-indicator|chief-rotation-dots/);
+  assert.doesNotMatch(source, /Rotates every/);
+  assert.match(board, /Pause rotation/);
+});

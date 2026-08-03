@@ -45,3 +45,9 @@ test("keeps the installable advanced fleet and inventory module", async () => {
   assert.match(operations, /Air pack check/);
   assert.doesNotMatch(serviceWorker, /\/api\//);
 });
+
+test("formats SQLite-style CURRENT_TIMESTAMP values for migrated text columns", async () => {
+  const adapter = await read("db/postgres-adapter.ts");
+
+  assert.match(adapter, /CURRENT_TIMESTAMP\\b\/gi, "to_char\(CURRENT_TIMESTAMP AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS'\)"/);
+});
