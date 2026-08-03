@@ -1684,6 +1684,9 @@ td strong { font-size: 16px; }
   .mobile-bottom-tabs button{min-height:58px;font-size:10px;gap:4px}
   .mobile-bottom-tabs .line-icon{width:22px;height:22px}
   .mobile-nav-panel{left:8px;right:8px;bottom:calc(70px + env(safe-area-inset-bottom));max-height:calc(100dvh - 150px - env(safe-area-inset-bottom))}
+  .schedule-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible}
+  .schedule-tabs button{min-width:0;padding:7px 8px;white-space:normal}
+  .schedule-date-button{min-width:32px;min-height:32px;padding:4px}
   .schedule-weekdays,.schedule-calendar.view-month{min-width:0}
   .schedule-weekdays b{padding:7px 1px;font-size:9px}
   .schedule-calendar.view-month>article{min-height:88px;padding:3px}
