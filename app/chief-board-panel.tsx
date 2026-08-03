@@ -124,7 +124,7 @@ export default function ChiefBoardPanel() {
 
   return <section className="board-panel chief-board-panel" aria-live="polite">
     <header>
-      <div><h2>{riverActive ? "Des Plaines River · Lyons" : "Chief Notes & Events"}</h2><span>{current + 1} of {slideCount} · rotates every 12 seconds</span></div>
+      <div><h2>{riverActive ? "Des Plaines River · Lyons" : "Chief Notes & Events"}</h2><span>{current + 1} of {slideCount}</span></div>
       {canEdit && <button className="chief-add-button" aria-label="Add Chief Note or Event" onClick={() => { setDraft({ ...emptyDraft }); setSelectedFiles([]); }}>+</button>}
     </header>
     <div className="chief-board-content">

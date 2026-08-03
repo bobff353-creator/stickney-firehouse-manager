@@ -26,6 +26,6 @@ test("operations panels rotate without rendering carousel indicator bars", async
   const source = [styles, board, staffing, chief].join("\n");
 
   assert.doesNotMatch(source, /board-header-dots|staffing-rotation-controls|rotation-indicator|chief-rotation-dots/);
-  assert.doesNotMatch(source, /Rotates every/);
+  assert.doesNotMatch(source, /rotates every/i);
   assert.match(board, /Pause rotation/);
 });
