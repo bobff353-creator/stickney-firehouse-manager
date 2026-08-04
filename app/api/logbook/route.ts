@@ -72,7 +72,7 @@ export async function GET(request: Request) {
     }
     await db.prepare("INSERT OR IGNORE INTO daily_logs (log_date) VALUES (?)").bind(date).run();
     const unprojectedDispatches = await db.prepare(
-      "SELECT incident_id AS reportNumber, dispatched_at AS dispatchedAt, time_out AS timeOut, responding_units AS respondingUnits, address, call_type AS callType FROM dispatch_incidents WHERE NOT EXISTS (SELECT 1 FROM daily_log_calls WHERE daily_log_calls.report_number = dispatch_incidents.incident_id) ORDER BY datetime(dispatched_at)"
+      "SELECT incident_id AS reportNumber, dispatched_at AS dispatchedAt, time_out AS timeOut, responding_units AS respondingUnits, address, call_type AS callType FROM dispatch_incidents WHERE NOT EXISTS (SELECT 1 FROM daily_log_calls WHERE trim(daily_log_calls.report_number) = trim(dispatch_incidents.incident_id)) ORDER BY datetime(dispatched_at)"
     ).all<{
       reportNumber: string;
       dispatchedAt: string;
@@ -218,7 +218,7 @@ export async function POST(request: Request) {
       logWrites.push(db.prepare("INSERT INTO daily_log_calls (id, log_date, report_number, time_out, time_in, responding_units, address, call_type, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(String(row.id || crypto.randomUUID()), date, String(row.reportNumber ?? ""), String(row.timeOut ?? ""), String(row.timeIn ?? ""), String(row.respondingUnits ?? ""), String(row.address ?? ""), callType || "Special", index));
     }
     for (const reportNumber of completedDispatchReportNumbers(calls)) {
-      logWrites.push(db.prepare("UPDATE dispatch_incidents SET active = 0, cleared_at = COALESCE(cleared_at, CURRENT_TIMESTAMP) WHERE incident_id = ?").bind(reportNumber));
+      logWrites.push(db.prepare("UPDATE dispatch_incidents SET active = 0, cleared_at = COALESCE(cleared_at, CURRENT_TIMESTAMP) WHERE trim(incident_id) = trim(?)").bind(reportNumber));
     }
     const holiday = holidayForDate(date);
     const totals = dailyLogPayrollTotals(staffing, holiday);
