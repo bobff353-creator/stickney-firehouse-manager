@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-img-element -- preplan photos are protected runtime records. */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { formatRespondTime } from "./respond-time";
+import { formatRespondMilitaryTime, formatRespondTime } from "./respond-time";
 
 type Point = { lat: number; lng: number };
 type Feature = { id:string; featureType:string; label:string; latitude:number; longitude:number; systemType:string; serviceStatus:string; details:string };
@@ -105,13 +105,13 @@ export default function Respond({ apparatus = "", onNavigate }: { apparatus?: st
   if(error&&!data)return <section className="respond-page"><div className="respond-empty danger"><strong>Respond could not load</strong><span>{error}</span><button onClick={()=>void load()}>Try again</button></div></section>;
   if(!call)return <section ref={pageRef} className={`respond-page${monitorMode?" monitor-view":""}`}><header className="respond-title"><div><span>FIELD · RESPOND</span><h1>Response Workspace</h1>{apparatus&&<b className="respond-apparatus-badge">Apparatus Mode · Unit {apparatus}</b>}</div><div className="respond-title-actions"><small>Checks every 10 seconds</small><button onClick={()=>void toggleMonitor()}>{monitorMode?"Exit Monitor":"Monitor View"}</button></div></header>
     <div className="respond-idle-actions"><div><strong>No active call{apparatus?` for Unit ${apparatus}`:""}</strong><span>{apparatus?`A call appears when CAD lists Unit ${apparatus}.`:"Start an incident in the Daily Log or search preplans before a response."}</span></div><button onClick={()=>onNavigate?.("Daily Log")}>Start incident</button><button className="secondary" onClick={()=>onNavigate?.("Field Preplans")}>Search preplans</button></div>
-    <section className="respond-recent"><header><div><span>RECENT ACTIVITY</span><h2>Closed calls</h2></div><small>{data?.recentCalls?.length??0} shown</small></header>{data?.recentCalls?.length?<div>{data.recentCalls.map((recent)=><article key={`${recent.reportNumber}-${recent.logDate}`}><time>{recent.logDate}</time><strong>{recent.callType||"Call type not entered"}</strong><span>{recent.address||"Address not entered"}</span><small>{recent.respondingUnits||"Units not entered"} · {displayTime(recent.timeOut)}</small></article>)}</div>:<div className="respond-empty compact"><strong>No recent closed calls</strong><span>Completed Daily Log calls will appear here.</span></div>}</section>
+    <section className="respond-recent"><header><div><span>RECENT ACTIVITY</span><h2>Closed calls</h2></div><small>{data?.recentCalls?.length??0} shown</small></header>{data?.recentCalls?.length?<div>{data.recentCalls.map((recent)=><article key={`${recent.reportNumber}-${recent.logDate}`}><time>{recent.logDate}</time><strong>{recent.callType||"Call type not entered"}</strong><span>{recent.address||"Address not entered"}</span><small>{recent.respondingUnits||"Units not entered"} · {formatRespondMilitaryTime(recent.timeOut)}</small></article>)}</div>:<div className="respond-empty compact"><strong>No recent closed calls</strong><span>Completed Daily Log calls will appear here.</span></div>}</section>
   </section>;
   return <section ref={pageRef} className={`respond-page${monitorMode?" monitor-view":""}`}>
     {apparatus&&<div className="respond-apparatus-strip"><strong>APPARATUS RESPOND · UNIT {apparatus}</strong><span>Only CAD incidents assigned to this unit are displayed on this device.</span></div>}
     <header className="respond-callbar">
       <div><span>ACTIVE CALL · {call.source||"CAD"}</span><h1>{call.callType||call.category||"Call type not reported"}</h1><p>{[call.address,call.city].filter(Boolean).join(", ")||"Address not reported"}</p></div>
-      <dl><div><dt>Call #</dt><dd>{call.reportNumber||"Pending"}</dd></div><div><dt>Time out</dt><dd>{displayTime(call.timeOut||call.dispatchedAt)}</dd></div><div><dt>Units</dt><dd>{call.respondingUnits||"Not reported"}</dd></div></dl>
+      <dl><div><dt>Call #</dt><dd>{call.reportNumber||"Pending"}</dd></div><div><dt>Time out</dt><dd>{formatRespondMilitaryTime(call.timeOut||call.dispatchedAt)}</dd></div><div><dt>Units</dt><dd>{call.respondingUnits||"Not reported"}</dd></div></dl>
       <div className="respond-call-actions"><button className="respond-monitor" onClick={()=>void toggleMonitor()} data-test-safe>{monitorMode?"Exit Monitor":"Monitor View"}</button><a className="respond-nav" href={googleNavigation(call)} target="_blank" rel="noreferrer" data-test-safe>Open Google Navigation ↗</a></div>
     </header>
     <div className="respond-statusline"><span className={plan?"matched":"unmatched"}>{plan?`Preplan matched by ${data?.match?.method}${data?.match?.method==="gps"?` · ${data.match.distanceFeet} ft`:""}`:"No matching preplan"}</span><span>Updated {displayTime(data?.generatedAt||"")}</span>{error&&<span className="warning">{error}</span>}</div>
