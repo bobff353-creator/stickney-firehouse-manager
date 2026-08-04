@@ -114,7 +114,7 @@ test("shift references recur on the calendar and support weekend and holiday sta
   assert.equal(api.includes('override.conditionType === "holiday"'), true);
   for (const name of ["Red 2", "Black 2", "Gold 2", "A", "B", "C", "D"]) assert.equal(screen.includes(`"${name}"`), true);
   assert.equal(screen.includes("Repeats every *"), true);
-  assert.equal(screen.includes("schedule-pattern-chip"), true);
+  assert.equal(screen.includes("data-shift-color"), true);
 });
 
 test("rotating shifts use named colors and admin staffing positions", async () => {
@@ -201,4 +201,17 @@ test("calendar supports day week and month views with transparent shift colors",
   assert.equal(styles.includes("rgba(180,59,59,.10)"), true);
   assert.equal(styles.includes(".schedule-calendar.view-day"), true);
   assert.equal(styles.includes(".schedule-calendar.view-week"), true);
+});
+
+test("calendar uses shift-colored day cells and prioritizes readable employee names", async () => {
+  const [screen, styles] = await Promise.all([
+    readFile(new URL("../app/scheduling.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.equal(screen.includes('className="schedule-pattern-chip"'), false);
+  assert.equal(styles.includes('border-top-color:#a92f38;background:#f8dfe1'), true);
+  assert.equal(styles.includes('border-top-color:#26313a;background:#e1e5e8'), true);
+  assert.equal(styles.includes('border-top-color:#a87509;background:#fff0c7'), true);
+  assert.equal(styles.includes("font-size:11px;line-height:1.25"), true);
+  assert.equal(styles.includes(".schedule-calendar.view-month span small{display:none}"), true);
 });

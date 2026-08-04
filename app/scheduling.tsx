@@ -342,7 +342,6 @@ export default function Scheduling({ testMember = null }:{ testMember?:TestMembe
             const patterns = data?.shiftPatterns.filter((pattern) => patternOccurs(pattern, date)) ?? [];
             return <article key={date} data-shift-color={patterns[0]?.color || "none"} className={`${date.slice(0, 7) === month || viewMode !== "month" ? "" : "outside"} ${date === today() ? "today" : ""} ${gaps.length ? "understaffed" : ""}`}>
               <header><button className="schedule-date-button" aria-label={`Open day view for ${friendlyDate(date)}`} onClick={() => { setSelectedDate(date); setMonth(date.slice(0, 7)); setViewMode("day"); }}>{viewMode === "day" ? friendlyDate(date) : Number(date.slice(8))}</button>{gaps.length > 0 && <b title={gaps.map((gap) => `${gap.role}: short ${gap.shortBy}`).join(", ")}>−{gaps.reduce((sum, gap) => sum + gap.shortBy, 0)} staff</b>}</header>
-              {patterns.length > 0 && <div className="schedule-patterns">{patterns.map((pattern) => <span className="schedule-pattern-chip" data-color={pattern.color} key={pattern.id}><strong>{pattern.name}</strong><small>{pattern.startTime}–{pattern.endTime}</small></span>)}</div>}
               <div>{filteredAssignments.filter((item) => item.workDate === date).map((item) => <span key={item.id} className={`${item.status} ${item.emergency ? "emergency" : ""}`}>
                 <strong>{item.status === "open" ? "OPEN" : formatEmployeeName(item.employeeName || "")}</strong>
                 <small>{item.role} · {item.startTime}-{item.endTime}</small>
