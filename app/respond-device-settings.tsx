@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   APPARATUS_UNITS,
   defaultRespondDeviceSettings,
+  normalizeFleetApparatusName,
   readRespondDeviceSettings,
   RESPOND_ALERT_DURATION_SECONDS,
   type RespondDeviceMode,
@@ -13,10 +14,29 @@ import {
 
 export default function RespondDeviceSettingsPage({ onSaved }: { onSaved: (settings: RespondDeviceSettings) => void }) {
   const [draft, setDraft] = useState<RespondDeviceSettings>(defaultRespondDeviceSettings);
+  const [fleetUnits, setFleetUnits] = useState<string[]>([...APPARATUS_UNITS]);
   const [saved, setSaved] = useState(false);
   useEffect(() => {
-    const timer = window.setTimeout(() => setDraft(readRespondDeviceSettings(window.localStorage)), 0);
-    return () => window.clearTimeout(timer);
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      const stored = readRespondDeviceSettings(window.localStorage);
+      setDraft(stored);
+      void fetch("/api/digital-twin", { cache: "no-store", signal: controller.signal })
+        .then(async (response) => {
+          if (!response.ok) return;
+          const payload = await response.json() as { apparatus?: Array<{ name?: unknown }> };
+          const units = [...new Set((payload.apparatus ?? [])
+            .map((item) => normalizeFleetApparatusName(item.name))
+            .filter(Boolean))]
+            .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+          if (units.length) setFleetUnits(units);
+        })
+        .catch(() => undefined);
+    }, 0);
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
   }, []);
 
   function chooseMode(mode: RespondDeviceMode) {
@@ -55,7 +75,7 @@ export default function RespondDeviceSettingsPage({ onSaved }: { onSaved: (setti
 
     <div className="respond-device-fields">
       <label><span>Device name</span><input value={draft.deviceName} onChange={(event) => { setSaved(false); setDraft((current) => ({ ...current, deviceName: event.target.value })); }} placeholder="Example: 1204 iPad or Bay TV" maxLength={60}/><small>Optional label to help identify what you configured.</small></label>
-      {draft.mode === "apparatus" && <label><span>Assigned apparatus</span><input list="respond-apparatus-units" value={draft.apparatus} onChange={(event) => { setSaved(false); setDraft((current) => ({ ...current, apparatus: event.target.value })); }} placeholder="Enter the exact CAD unit ID"/><datalist id="respond-apparatus-units">{APPARATUS_UNITS.map((unit) => <option value={unit} key={unit}>Unit {unit}</option>)}</datalist><small>Choose a listed rig or enter its exact CAD unit ID.</small></label>}
+      {draft.mode === "apparatus" && <label><span>Assigned apparatus</span><select value={draft.apparatus} onChange={(event) => { setSaved(false); setDraft((current) => ({ ...current, apparatus: event.target.value })); }}>{!fleetUnits.includes(draft.apparatus) && <option value={draft.apparatus}>Unit {draft.apparatus}</option>}{fleetUnits.map((unit) => <option value={unit} key={unit}>Unit {unit}</option>)}</select><small>Choose from every apparatus currently saved in Fleet.</small></label>}
     </div>
 
     <footer className="respond-device-actions">
