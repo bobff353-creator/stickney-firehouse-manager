@@ -215,3 +215,15 @@ test("calendar uses shift-colored day cells and prioritizes readable employee na
   assert.equal(styles.includes("font-size:11px;line-height:1.25"), true);
   assert.equal(styles.includes(".schedule-calendar.view-month span small{display:none}"), true);
 });
+
+test("clicking a date opens an employee day workspace with dated schedule actions", async () => {
+  const screen = await readFile(new URL("../app/scheduling.tsx", import.meta.url), "utf8");
+  assert.equal(screen.includes('className="employee-day-workspace"'), true);
+  assert.equal(screen.includes('startSelectedDayRequest("availability")'), true);
+  assert.equal(screen.includes('startSelectedDayRequest("trade")'), true);
+  assert.equal(screen.includes("selectedDayOpenShifts"), true);
+  assert.equal(screen.includes("selectedDayIncomingTrades"), true);
+  assert.equal(screen.includes("Request Open Shift"), true);
+  assert.equal(screen.includes("Pick Up Trade"), true);
+  assert.equal(screen.indexOf('className="employee-day-workspace"') < screen.indexOf("schedule-calendar view-${viewMode}"), true);
+});

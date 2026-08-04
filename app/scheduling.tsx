@@ -199,6 +199,9 @@ export default function Scheduling({ testMember = null }:{ testMember?:TestMembe
   const eligibleTradeEmployees = (data?.employees ?? []).filter((employee) => eligibleTradeEmployeeIds.has(employee.id));
   const portalIsEligibleForTrade = (item:Request) => Boolean(item.assignmentId && portalEmployeeId && data?.tradeEligibility?.[item.assignmentId]?.includes(portalEmployeeId));
   const incomingTrades = portalRequests.filter((item) => item.requestType === "trade" && item.status === "pending" && (item.targetEmployeeId === portalEmployeeId || (!item.targetEmployeeId && portalIsEligibleForTrade(item))));
+  const selectedDayOwnAssignments = ownAssignments.filter((item) => item.workDate === selectedDate);
+  const selectedDayOpenShifts = openShifts.filter((item) => item.workDate === selectedDate);
+  const selectedDayIncomingTrades = incomingTrades.filter((item) => item.startDate === selectedDate);
   const upcomingGaps = data?.coverageGaps.filter((gap) => gap.date >= today()).slice(0, 20) ?? [];
   const ranks = [...new Set(data?.employees.map((employee) => employee.rank) ?? [])].sort();
   const unread = data?.notifications.filter((item) => !item.readAt).length ?? 0;
@@ -275,6 +278,23 @@ export default function Scheduling({ testMember = null }:{ testMember?:TestMembe
     return <div className="schedule-page employee-schedule-portal"><section className="content-card"><p>{error || "Loading department schedule…"}</p></section></div>;
   }
 
+  function startSelectedDayRequest(requestType:"availability"|"trade") {
+    const assignment = selectedDayOwnAssignments[0];
+    setRequest((current) => ({
+      ...current,
+      requestType,
+      assignmentId: requestType === "trade" ? assignment?.id || "" : "",
+      targetEmployeeId: "",
+      startDate: selectedDate,
+      endDate: selectedDate,
+      startTime: assignment?.startTime || current.startTime,
+      endTime: assignment?.endTime || current.endTime,
+      role: assignment?.role || current.role,
+      repeatMode: "none",
+    }));
+    setTab("request");
+  }
+
   return <div className="schedule-page employee-schedule-portal" data-test-interactive={testMember ? "true" : undefined}>
     <datalist id="schedule-position-options">{departmentPositions.map((position) => <option key={position} value={position}/>)}</datalist>
     <section className="schedule-hero">
@@ -336,6 +356,17 @@ export default function Scheduling({ testMember = null }:{ testMember?:TestMembe
       </div>
       {viewMode !== "agenda" ? <>
         {viewMode !== "day" && <div className="schedule-weekdays">{weekdayLabels.map((label) => <b key={label}>{label}</b>)}</div>}
+        {viewMode === "day" && !isCommandView && <section className="employee-day-workspace" aria-label={`Schedule actions for ${friendlyDate(selectedDate)}`}>
+          <header><div><span>Selected day</span><h3>{friendlyDate(selectedDate)}</h3><p>Review your assignment, submit a request, or respond to an available shift.</p></div><button onClick={() => setViewMode("month")}>Back to month</button></header>
+          <div className="employee-day-actions">
+            <button onClick={() => startSelectedDayRequest("availability")}><strong>Request Schedule</strong><span>Offer availability or request to work this day</span></button>
+            <button disabled={!selectedDayOwnAssignments.length} title={selectedDayOwnAssignments.length ? undefined : "You do not have an assigned shift on this date."} onClick={() => startSelectedDayRequest("trade")}><strong>Request Trade</strong><span>{selectedDayOwnAssignments.length ? "Offer your assigned shift to an eligible member" : "No assigned shift is available to trade"}</span></button>
+          </div>
+          <div className="employee-day-opportunities">
+            <section><header><h4>Open shifts</h4><b>{selectedDayOpenShifts.length}</b></header>{selectedDayOpenShifts.length ? selectedDayOpenShifts.map((item) => { const eligible = qualifiedForPosition({ rank: portalRank, actingOfficerEligible: portalActingOfficerEligible ? 1 : 0 }, item.role); return <article key={item.id}><div><strong>{item.role}</strong><span>{item.startTime}-{item.endTime}{item.requiredRank ? ` · ${item.requiredRank} required` : ""}</span></div><button disabled={busy || !eligible} onClick={() => void act({ action: "submitRequest", requestType: "shift_claim", assignmentId: item.id, startDate: item.workDate, endDate: item.workDate, startTime: item.startTime, endTime: item.endTime, role: item.role }, "Shift request sent")}>{eligible ? "Request Open Shift" : "Not eligible"}</button></article>; }) : <p>No open shifts are posted for this date.</p>}</section>
+            <section><header><h4>Available trades</h4><b>{selectedDayIncomingTrades.length}</b></header>{selectedDayIncomingTrades.length ? selectedDayIncomingTrades.map((item) => <article key={item.id}><div><strong>{item.role}</strong><span>Offered by {formatEmployeeName(item.employeeName)}{item.notes ? ` · ${item.notes}` : ""}</span></div><button disabled={busy} onClick={() => void act({ action: "respondTrade", id: item.id, decision: "accepted" }, "Trade accepted and sent for chief approval")}>Pick Up Trade</button></article>) : <p>No eligible trades are offered for this date.</p>}</section>
+          </div>
+        </section>}
         <div className={`schedule-calendar view-${viewMode}`}>
           {visibleDays.map((date) => {
             const gaps = data?.coverageGaps.filter((gap) => gap.date === date) ?? [];
