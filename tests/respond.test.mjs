@@ -68,6 +68,9 @@ test("Respond reads existing call and preplan records and exposes requested fiel
   assert.match(streetViewRoute, /x-department-id/);
   assert.match(streetViewRoute, /return_error_code/);
   assert.match(streetViewRoute, /cache: "no-store"/);
+  assert.match(streetViewRoute, /Referer: googleReferer/);
+  assert.match(streetViewRoute, /parsedReferer\.origin === requestOrigin/);
+  assert.match(streetViewRoute, /Google Street View request failed/);
   assert.doesNotMatch(streetViewRoute, /NEXT_PUBLIC_/);
   assert.match(component, /Monitor View/);
   assert.match(component, /requestFullscreen/);
