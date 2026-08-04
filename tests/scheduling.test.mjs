@@ -155,14 +155,23 @@ test("Acting Officer eligibility gates officer scheduling workflows", async () =
   assert.equal(profile.includes("Eligible to work Acting Officer shifts"), true);
   assert.equal(api.includes("qualifiedForRole(requiredPosition.role"), true);
   assert.equal(api.includes("qualifiedForRole(openShift.role"), true);
-  assert.equal(api.includes("The selected member is not eligible to work this Officer/AO shift."), true);
-  assert.equal(api.includes("The requested member is not eligible for this Officer/AO shift."), true);
+  assert.equal(api.includes("employeeEligibleForAssignment"), true);
+  assert.equal(api.includes("The selected member is not qualified and available for this shift."), true);
+  assert.equal(api.includes("The requested member is no longer qualified and available for this shift."), true);
 });
 
 test("trades require member acceptance before admin approval", async () => {
-  const source = await readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8");
+  const [source, screen] = await Promise.all([
+    readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/scheduling.tsx", import.meta.url), "utf8"),
+  ]);
   assert.equal(source.includes('action === "respondTrade"'), true);
   assert.equal(source.includes('item.targetStatus !== "accepted"'), true);
+  assert.equal(source.includes("eligibleTradeCandidates"), true);
+  assert.equal(source.includes("assignmentsOverlap"), true);
+  assert.equal(source.includes("target_employee_id IS NULL AND status='pending' AND target_status='open'"), true);
+  assert.equal(screen.includes("Anyone eligible"), true);
+  assert.equal(screen.includes("not already working an overlapping shift"), true);
 });
 
 test("rotations can end without changing past schedule history", async () => {

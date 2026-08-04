@@ -19,6 +19,7 @@ type ShiftPattern = {
 type StaffingOverride = {
   id: string; patternId: string; name: string; conditionType: string; role: string; minimumStaff: number; active: number;
 };
+type EligibleEmployee = { id:string; rank:string; actingOfficerEligible:number };
 const officerRole = (role: string) => /\b(officer|acting\s+officer|ao|oic)\b/i.test(role);
 const officerRank = (rank: string) => /\b(chief|captain|lieutenant)\b/i.test(rank);
 const qualifiedForRole = (role: string, rank: string, actingOfficerEligible: number | boolean) =>
@@ -48,6 +49,29 @@ const addDays = (value: string, count: number) => {
   return date.toISOString().slice(0, 10);
 };
 const spanDays = (a: string, b: string) => Math.floor((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86400000);
+const assignmentWindow = (assignment: Pick<Assignment,"workDate"|"startTime"|"endTime">) => {
+  const start = Date.parse(`${assignment.workDate}T${assignment.startTime}:00Z`);
+  let end = Date.parse(`${assignment.workDate}T${assignment.endTime}:00Z`);
+  if (end <= start) end += 86400000;
+  return { start, end };
+};
+const assignmentsOverlap = (left: Pick<Assignment,"workDate"|"startTime"|"endTime">, right: Pick<Assignment,"workDate"|"startTime"|"endTime">) => {
+  const a = assignmentWindow(left), b = assignmentWindow(right);
+  return a.start < b.end && b.start < a.end;
+};
+const employeeEligibleForAssignment = (employee: EligibleEmployee, assignment: Assignment, ownerId: string, busyAssignments: Assignment[]) =>
+  employee.id !== ownerId &&
+  (!assignment.requiredRank || employee.rank.trim().toLowerCase() === assignment.requiredRank.trim().toLowerCase()) &&
+  qualifiedForRole(assignment.role, employee.rank, employee.actingOfficerEligible) &&
+  !busyAssignments.some((busy) => busy.employeeId === employee.id && busy.id !== assignment.id && assignmentsOverlap(busy, assignment));
+
+async function eligibleTradeCandidates(db: Db, assignment: Assignment, ownerId: string) {
+  const [employees, busyAssignments] = await Promise.all([
+    db.prepare("SELECT e.id,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1").all<EligibleEmployee>(),
+    db.prepare("SELECT id,employee_id employeeId,work_date workDate,start_time startTime,end_time endTime,role,source,status,emergency,required_rank requiredRank,claim_deadline claimDeadline,notes FROM schedule_assignments WHERE status='assigned' AND date(work_date) BETWEEN date(?,'-1 day') AND date(?,'+1 day')").bind(assignment.workDate, assignment.workDate).all<Assignment>(),
+  ]);
+  return employees.results.filter((employee) => employeeEligibleForAssignment(employee, assignment, ownerId, busyAssignments.results));
+}
 const patternOccurs = (pattern: ShiftPattern, date: string) => {
   const offset = spanDays(pattern.startDate, date);
   return Boolean(pattern.active) && offset >= 0 && offset % pattern.recurrenceDays === 0;
@@ -142,7 +166,7 @@ export async function GET(request: Request) {
     if (!current.isAdmin && !current.employeeId) return Response.json({ error: "Your login is not connected to an employee record." }, { status: 403 });
     const requestedTestEmployeeId = current.isAdmin ? new URL(request.url).searchParams.get("testEmployeeId") ?? "" : "";
     const employeeId = requestedTestEmployeeId || current.employeeId || "";
-    const [employees, assignments, rotations, requests, notifications, rules, patterns, overrides, notificationRules] = await Promise.all([
+    const [employees, assignments, rotations, requests, notifications, rules, patterns, overrides, notificationRules, tradeBusyAssignments] = await Promise.all([
       db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.email,'') email,COALESCE(ep.phone,'') phone,COALESCE(ep.schedule_sms_opt_in,0) scheduleSmsOptIn,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 ORDER BY e.name COLLATE NOCASE").all(),
       current.isAdmin
         ? db.prepare("SELECT a.id,a.employee_id employeeId,e.name employeeName,a.work_date workDate,a.start_time startTime,a.end_time endTime,a.role,a.source,a.status,a.emergency,a.required_rank requiredRank,a.claim_deadline claimDeadline,a.notes FROM schedule_assignments a LEFT JOIN employees e ON e.id=a.employee_id WHERE date(a.work_date)>=date('now','-45 day') ORDER BY a.work_date,a.start_time").all<Assignment>()
@@ -150,7 +174,7 @@ export async function GET(request: Request) {
       db.prepare("SELECT r.id,r.name,r.start_date startDate,r.end_date endDate,r.start_time startTime,r.end_time endTime,r.cycle_days cycleDays,r.duty_days dutyDays,r.role,r.coverage_plan_id coveragePlanId,r.active,GROUP_CONCAT(e.name,', ') members FROM schedule_rotations r LEFT JOIN schedule_rotation_members m ON m.rotation_id=r.id LEFT JOIN employees e ON e.id=m.employee_id GROUP BY r.id ORDER BY r.active DESC,r.start_date DESC").all(),
       current.isAdmin
         ? db.prepare("SELECT q.id,q.request_type requestType,q.employee_id employeeId,e.name employeeName,q.assignment_id assignmentId,q.target_employee_id targetEmployeeId,te.name targetEmployeeName,q.start_date startDate,q.end_date endDate,q.start_time startTime,q.end_time endTime,q.role,q.repeat_mode repeatMode,q.repeat_interval repeatInterval,q.status,q.target_status targetStatus,q.notes,q.reviewed_by reviewedBy,q.created_at createdAt FROM schedule_requests q JOIN employees e ON e.id=q.employee_id LEFT JOIN employees te ON te.id=q.target_employee_id ORDER BY CASE q.status WHEN 'pending' THEN 0 ELSE 1 END,q.created_at DESC LIMIT 150").all()
-        : db.prepare("SELECT q.id,q.request_type requestType,q.employee_id employeeId,e.name employeeName,q.assignment_id assignmentId,q.target_employee_id targetEmployeeId,te.name targetEmployeeName,q.start_date startDate,q.end_date endDate,q.start_time startTime,q.end_time endTime,q.role,q.repeat_mode repeatMode,q.repeat_interval repeatInterval,q.status,q.target_status targetStatus,q.notes,q.reviewed_by reviewedBy,q.created_at createdAt FROM schedule_requests q JOIN employees e ON e.id=q.employee_id LEFT JOIN employees te ON te.id=q.target_employee_id WHERE q.employee_id=? OR q.target_employee_id=? ORDER BY q.created_at DESC").bind(employeeId, employeeId).all(),
+        : db.prepare("SELECT q.id,q.request_type requestType,q.employee_id employeeId,e.name employeeName,q.assignment_id assignmentId,q.target_employee_id targetEmployeeId,te.name targetEmployeeName,q.start_date startDate,q.end_date endDate,q.start_time startTime,q.end_time endTime,q.role,q.repeat_mode repeatMode,q.repeat_interval repeatInterval,q.status,q.target_status targetStatus,q.notes,q.reviewed_by reviewedBy,q.created_at createdAt FROM schedule_requests q JOIN employees e ON e.id=q.employee_id LEFT JOIN employees te ON te.id=q.target_employee_id WHERE q.employee_id=? OR q.target_employee_id=? OR (q.request_type='trade' AND q.target_employee_id IS NULL AND q.status='pending') ORDER BY q.created_at DESC").bind(employeeId, employeeId).all(),
       employeeId
         ? db.prepare("SELECT id,title,message,email,sms,delivery_status deliveryStatus,read_at readAt,created_at createdAt FROM schedule_notifications WHERE employee_id=? ORDER BY created_at DESC LIMIT 50").bind(employeeId).all()
         : Promise.resolve({ results: [] }),
@@ -164,7 +188,21 @@ export async function GET(request: Request) {
       current.isAdmin
         ? db.prepare("SELECT event_type eventType,label,active,email_enabled emailEnabled,sms_enabled smsEnabled,delivery_timings deliveryTimings,updated_at updatedAt FROM schedule_notification_rules ORDER BY label").all()
         : Promise.resolve({ results: [] }),
+      employeeId
+        ? db.prepare("SELECT id,employee_id employeeId,work_date workDate,start_time startTime,end_time endTime,role,source,status,emergency,required_rank requiredRank,claim_deadline claimDeadline,notes FROM schedule_assignments WHERE status='assigned' AND date(work_date)>=date('now','-1 day')").all<Assignment>()
+        : Promise.resolve({ results: [] as Assignment[] }),
     ]);
+    const employeeEligibility = employees.results as EligibleEmployee[];
+    const broadcastAssignmentIds = new Set((requests.results as Array<{assignmentId?:string;requestType?:string;targetEmployeeId?:string|null;status?:string}>)
+      .filter((item) => item.requestType === "trade" && !item.targetEmployeeId && item.status === "pending" && item.assignmentId)
+      .map((item) => item.assignmentId!));
+    const eligibilityAssignments = new Map<string,Assignment>();
+    for (const assignment of assignments.results.filter((item) => item.employeeId === employeeId && item.status === "assigned" && item.workDate >= chicagoNow().slice(0, 10))) eligibilityAssignments.set(assignment.id, assignment);
+    for (const assignment of tradeBusyAssignments.results.filter((item) => broadcastAssignmentIds.has(item.id))) eligibilityAssignments.set(assignment.id, assignment);
+    const tradeEligibility = Object.fromEntries([...eligibilityAssignments.values()]
+      .map((assignment) => [assignment.id, employeeEligibility
+        .filter((employee) => employeeEligibleForAssignment(employee, assignment, assignment.employeeId ?? employeeId, tradeBusyAssignments.results))
+        .map((employee) => employee.id)]));
     return Response.json({
       viewer: current,
       employees: employees.results,
@@ -176,6 +214,7 @@ export async function GET(request: Request) {
       shiftPatterns: patterns.results,
       staffingOverrides: overrides.results,
       notificationRules: notificationRules.results,
+      tradeEligibility,
       coverageGaps: current.isAdmin ? coverageGaps(assignments.results, rules.results, patterns.results, overrides.results) : [],
     });
   } catch (error) {
@@ -400,14 +439,15 @@ export async function POST(request: Request) {
       if (["availability", "time_off"].includes(requestType) && (spanDays(startDate, endDate) < 0 || (repeatMode === "interval" && (!Number.isInteger(repeatInterval) || repeatInterval < 2 || repeatInterval > 365)) || !["none", "interval"].includes(repeatMode))) {
         return Response.json({ error: "Choose a valid date range and a repeat interval from 2 to 365 days." }, { status: 400 });
       }
-      if (requestType === "trade" && (!assignmentId || !targetEmployeeId || targetEmployeeId === employeeId)) {
-        return Response.json({ error: "Choose your shift and the member who must accept the trade." }, { status: 400 });
+      if (requestType === "trade" && (!assignmentId || targetEmployeeId === employeeId)) {
+        return Response.json({ error: "Choose your shift and either one eligible member or anyone eligible." }, { status: 400 });
       }
       if (requestType === "trade") {
-        const ownedShift = await db.prepare("SELECT id,role FROM schedule_assignments WHERE id=? AND employee_id=? AND status='assigned'").bind(assignmentId, employeeId).first<{id:string;role:string}>();
+        const ownedShift = await db.prepare("SELECT id,employee_id employeeId,work_date workDate,start_time startTime,end_time endTime,role,source,status,emergency,required_rank requiredRank,claim_deadline claimDeadline,notes FROM schedule_assignments WHERE id=? AND employee_id=? AND status='assigned'").bind(assignmentId, employeeId).first<Assignment>();
         if (!ownedShift) return Response.json({ error: "Choose one of your currently assigned shifts." }, { status: 403 });
-        const targetEmployee = await db.prepare("SELECT p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1").bind(targetEmployeeId).first<{rank:string;actingOfficerEligible:number}>();
-        if (!targetEmployee || !qualifiedForRole(ownedShift.role, targetEmployee.rank, targetEmployee.actingOfficerEligible)) return Response.json({ error: "The selected member is not eligible to work this Officer/AO shift." }, { status: 403 });
+        const eligible = await eligibleTradeCandidates(db, ownedShift, employeeId);
+        if (!eligible.length) return Response.json({ error: "No qualified, available employees can work this shift." }, { status: 409 });
+        if (targetEmployeeId && !eligible.some((employee) => employee.id === targetEmployeeId)) return Response.json({ error: "The selected member is not qualified and available for this shift." }, { status: 409 });
       }
       if (requestType === "shift_claim") {
         const openShift = await db.prepare("SELECT a.status,a.role,a.required_rank requiredRank,a.claim_deadline claimDeadline,p.label employeeRank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM schedule_assignments a JOIN employees e ON e.id=? JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE a.id=?").bind(employeeId, assignmentId).first<{status:string;role:string;requiredRank:string;claimDeadline:string;employeeRank:string;actingOfficerEligible:number}>();
@@ -418,11 +458,13 @@ export async function POST(request: Request) {
         const existing = await db.prepare("SELECT id FROM schedule_requests WHERE assignment_id=? AND employee_id=? AND request_type='shift_claim' AND status='pending'").bind(assignmentId, employeeId).first();
         if (existing) return Response.json({ error: "You already requested this shift." }, { status: 409 });
       }
-      const targetStatus = requestType === "trade" ? "pending" : "not_required";
+      const targetStatus = requestType === "trade" ? (targetEmployeeId ? "pending" : "open") : "not_required";
       await db.prepare("INSERT INTO schedule_requests(id,request_type,employee_id,assignment_id,target_employee_id,start_date,end_date,start_time,end_time,role,repeat_mode,repeat_interval,status,target_status,notes) VALUES(?,?,?,NULLIF(?,''),NULLIF(?,''),?,?,?,?,?,?,?,'pending',?,?)")
         .bind(crypto.randomUUID(), requestType, employeeId, assignmentId, targetEmployeeId, startDate, endDate, String(payload.startTime ?? ""), String(payload.endTime ?? ""), String(payload.role ?? ""), repeatMode, repeatInterval, targetStatus, String(payload.notes ?? "")).run();
       if (requestType === "trade") {
-        await notify(db, [targetEmployeeId], "Trade needs your response", `${actingName} requested a shift trade for ${startDate}. Accept or decline it in Scheduling.`, "trade", `${startDate}T12:00:00-05:00`);
+        const ownedShift = await db.prepare("SELECT id,employee_id employeeId,work_date workDate,start_time startTime,end_time endTime,role,source,status,emergency,required_rank requiredRank,claim_deadline claimDeadline,notes FROM schedule_assignments WHERE id=? AND employee_id=?").bind(assignmentId, employeeId).first<Assignment>();
+        const recipients = targetEmployeeId ? [targetEmployeeId] : ownedShift ? (await eligibleTradeCandidates(db, ownedShift, employeeId)).map((employee) => employee.id) : [];
+        await notify(db, recipients, targetEmployeeId ? "Trade needs your response" : "Trade available to eligible members", `${actingName} offered ${startDate} ${String(payload.startTime ?? "")}-${String(payload.endTime ?? "")} ${String(payload.role ?? "")}. ${targetEmployeeId ? "Accept or decline" : "The first eligible member to accept sends it for chief approval"} in Scheduling.`, "trade", `${startDate}T12:00:00-05:00`);
       }
       await notify(db, await admins(db), "New schedule request", `${actingName} submitted a ${requestType.replace("_", " ")} request for ${startDate}.`, "shift_request", `${startDate}T12:00:00-05:00`);
       return Response.json({ ok: true });
@@ -432,10 +474,18 @@ export async function POST(request: Request) {
       const id = String(payload.id ?? "");
       const decision = String(payload.decision ?? "");
       if (!actingEmployeeId || !["accepted", "declined"].includes(decision)) return Response.json({ error: "Choose accept or decline." }, { status: 400 });
-      const trade = await db.prepare("SELECT q.employee_id employeeId,a.role,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM schedule_requests q JOIN schedule_assignments a ON a.id=q.assignment_id JOIN employees e ON e.id=q.target_employee_id JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE q.id=? AND q.request_type='trade' AND q.target_employee_id=? AND q.status='pending' AND q.target_status='pending'").bind(id, actingEmployeeId).first<{employeeId:string;role:string;rank:string;actingOfficerEligible:number}>();
+      const trade = await db.prepare("SELECT q.employee_id employeeId,q.target_employee_id targetEmployeeId,a.id,a.work_date workDate,a.start_time startTime,a.end_time endTime,a.role,a.source,a.status,a.emergency,a.required_rank requiredRank,a.claim_deadline claimDeadline,a.notes FROM schedule_requests q JOIN schedule_assignments a ON a.id=q.assignment_id WHERE q.id=? AND q.request_type='trade' AND q.status='pending' AND (q.target_employee_id=? OR (q.target_employee_id IS NULL AND q.target_status='open'))").bind(id, actingEmployeeId).first<Assignment & {employeeId:string;targetEmployeeId:string|null}>();
       if (!trade) return Response.json({ error: "This trade is no longer waiting for your response." }, { status: 409 });
-      if (decision === "accepted" && !qualifiedForRole(trade.role, trade.rank, trade.actingOfficerEligible)) return Response.json({ error: "Your employee record is not eligible for this Officer/AO shift." }, { status: 403 });
-      await db.prepare(`UPDATE schedule_requests SET target_status=?${decision === "declined" ? ",status='denied'" : ""} WHERE id=?`).bind(decision, id).run();
+      if (trade.employeeId === actingEmployeeId) return Response.json({ error: "You cannot accept your own trade." }, { status: 403 });
+      if (!trade.targetEmployeeId && decision === "declined") return Response.json({ error: "An offer sent to anyone eligible stays open until someone accepts it." }, { status: 400 });
+      if (decision === "accepted") {
+        const eligible = await eligibleTradeCandidates(db, trade, trade.employeeId);
+        if (!eligible.some((employee) => employee.id === actingEmployeeId)) return Response.json({ error: "You are not qualified and available for this shift." }, { status: 409 });
+      }
+      const result = trade.targetEmployeeId
+        ? await db.prepare(`UPDATE schedule_requests SET target_status=?${decision === "declined" ? ",status='denied'" : ""} WHERE id=? AND target_employee_id=? AND status='pending' AND target_status='pending'`).bind(decision, id, actingEmployeeId).run()
+        : await db.prepare("UPDATE schedule_requests SET target_employee_id=?,target_status='accepted' WHERE id=? AND target_employee_id IS NULL AND status='pending' AND target_status='open'").bind(actingEmployeeId, id).run();
+      if (!result.meta.changes) return Response.json({ error: "Another eligible member already accepted this trade." }, { status: 409 });
       await notify(db, [trade.employeeId, ...(decision === "accepted" ? await admins(db) : [])], `Trade ${decision}`, `${actingName} ${decision} the proposed trade.`, "trade");
       return Response.json({ ok: true });
     }
@@ -456,8 +506,9 @@ export async function POST(request: Request) {
         if (!result.meta.changes) return Response.json({ error: "That shift was already filled." }, { status: 409 });
       }
       if (decision === "approved" && item.assignmentId && item.requestType === "trade" && item.targetEmployeeId) {
-        const qualification = await db.prepare("SELECT a.role,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM schedule_assignments a JOIN employees e ON e.id=? JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE a.id=?").bind(item.targetEmployeeId, item.assignmentId).first<{role:string;rank:string;actingOfficerEligible:number}>();
-        if (!qualification || !qualifiedForRole(qualification.role, qualification.rank, qualification.actingOfficerEligible)) return Response.json({ error: "The requested member is not eligible for this Officer/AO shift." }, { status: 403 });
+        const assignment = await db.prepare("SELECT id,employee_id employeeId,work_date workDate,start_time startTime,end_time endTime,role,source,status,emergency,required_rank requiredRank,claim_deadline claimDeadline,notes FROM schedule_assignments WHERE id=? AND employee_id=? AND status='assigned'").bind(item.assignmentId, item.employeeId).first<Assignment>();
+        const eligible = assignment ? await eligibleTradeCandidates(db, assignment, item.employeeId) : [];
+        if (!eligible.some((employee) => employee.id === item.targetEmployeeId)) return Response.json({ error: "The requested member is no longer qualified and available for this shift." }, { status: 409 });
         await db.prepare("UPDATE schedule_assignments SET employee_id=? WHERE id=? AND employee_id=?").bind(item.targetEmployeeId, item.assignmentId, item.employeeId).run();
       }
       await db.prepare("UPDATE schedule_requests SET status=?,reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP WHERE id=?").bind(decision, current.name, id).run();

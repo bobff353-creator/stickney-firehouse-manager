@@ -34,6 +34,7 @@ type ScheduleData = {
   viewer:{ employeeId:string|null; isAdmin:boolean; rank:string; profileEmail:string; phone:string; smsOptIn:boolean; actingOfficerEligible:boolean };
   employees:Employee[]; assignments:Assignment[]; rotations:Rotation[]; requests:Request[]; notifications:Notification[];
   coverageRules:CoverageRule[]; coverageGaps:CoverageGap[]; shiftPatterns:ShiftPattern[]; staffingOverrides:StaffingOverride[]; notificationRules:NotificationRule[];
+  tradeEligibility:Record<string,string[]>;
 };
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
@@ -182,7 +183,7 @@ export default function Scheduling({ testMember = null }:{ testMember?:TestMembe
   const portalRank = testMember?.rank ?? data?.viewer.rank ?? "";
   const portalActingOfficerEligible = Boolean(portalEmployee?.actingOfficerEligible ?? data?.viewer.actingOfficerEligible);
   const portalAssignments = useMemo(() => (data?.assignments ?? []).filter((item) => isCommandView || item.employeeId === portalEmployeeId || item.status === "open"), [data, isCommandView, portalEmployeeId]);
-  const portalRequests = useMemo(() => (data?.requests ?? []).filter((item) => isCommandView || item.employeeId === portalEmployeeId || item.targetEmployeeId === portalEmployeeId), [data, isCommandView, portalEmployeeId]);
+  const portalRequests = useMemo(() => (data?.requests ?? []).filter((item) => isCommandView || item.employeeId === portalEmployeeId || item.targetEmployeeId === portalEmployeeId || (item.requestType === "trade" && !item.targetEmployeeId && Boolean(item.assignmentId && portalEmployeeId && data?.tradeEligibility?.[item.assignmentId]?.includes(portalEmployeeId)))), [data, isCommandView, portalEmployeeId]);
   const roles = useMemo(() => [...new Set(portalAssignments.map((item) => item.role).filter(Boolean))].sort(), [portalAssignments]);
   const filteredAssignments = useMemo(() => portalAssignments.filter((item) =>
     (!employeeFilter || item.employeeId === employeeFilter) &&
@@ -193,7 +194,11 @@ export default function Scheduling({ testMember = null }:{ testMember?:TestMembe
   const openShifts = portalAssignments.filter((item) => item.status === "open");
   const ownAssignments = portalAssignments.filter((item) => item.employeeId === portalEmployeeId);
   const upcomingOwnAssignments = ownAssignments.filter((item) => item.workDate >= today());
-  const incomingTrades = portalRequests.filter((item) => item.requestType === "trade" && item.targetEmployeeId === portalEmployeeId && item.status === "pending");
+  const selectedTradeAssignment = ownAssignments.find((item) => item.id === request.assignmentId);
+  const eligibleTradeEmployeeIds = new Set(data?.tradeEligibility?.[request.assignmentId] ?? []);
+  const eligibleTradeEmployees = (data?.employees ?? []).filter((employee) => eligibleTradeEmployeeIds.has(employee.id));
+  const portalIsEligibleForTrade = (item:Request) => Boolean(item.assignmentId && portalEmployeeId && data?.tradeEligibility?.[item.assignmentId]?.includes(portalEmployeeId));
+  const incomingTrades = portalRequests.filter((item) => item.requestType === "trade" && item.status === "pending" && (item.targetEmployeeId === portalEmployeeId || (!item.targetEmployeeId && portalIsEligibleForTrade(item))));
   const upcomingGaps = data?.coverageGaps.filter((gap) => gap.date >= today()).slice(0, 20) ?? [];
   const ranks = [...new Set(data?.employees.map((employee) => employee.rank) ?? [])].sort();
   const unread = data?.notifications.filter((item) => !item.readAt).length ?? 0;
@@ -498,7 +503,7 @@ export default function Scheduling({ testMember = null }:{ testMember?:TestMembe
         <div className="section-header"><div><h2>Trades offered to me</h2><p>Accepting sends the trade to chief approval; it does not change the schedule by itself.</p></div></div>
         <div className="request-list">
           {!incomingTrades.length && <p className="schedule-empty">No open trades are waiting for you.</p>}
-          {incomingTrades.map((item) => <article key={item.id}><header><div><strong>Trade offer</strong><span>{formatEmployeeName(item.employeeName)} · {friendlyDate(item.startDate)}</span></div><b className={item.status}>{item.targetStatus}</b></header><p>{item.role}{item.notes ? ` · ${item.notes}` : ""}</p>{item.targetStatus === "pending" && <footer><button disabled={busy} onClick={() => void act({ action: "respondTrade", id: item.id, decision: "declined" }, "Trade declined")}>Decline</button><button disabled={busy} onClick={() => void act({ action: "respondTrade", id: item.id, decision: "accepted" }, "Trade accepted and sent for chief approval")}>Accept & Send for Approval</button></footer>}</article>)}
+          {incomingTrades.map((item) => { const offeredToAnyone = !item.targetEmployeeId; return <article key={item.id}><header><div><strong>{offeredToAnyone ? "Trade open to eligible members" : "Trade offer"}</strong><span>{formatEmployeeName(item.employeeName)} · {friendlyDate(item.startDate)}</span></div><b className={item.status}>{offeredToAnyone ? "eligible" : item.targetStatus}</b></header><p>{item.role}{item.notes ? ` · ${item.notes}` : ""}</p>{["pending", "open"].includes(item.targetStatus) && <footer>{!offeredToAnyone && <button disabled={busy} onClick={() => void act({ action: "respondTrade", id: item.id, decision: "declined" }, "Trade declined")}>Decline</button>}<button disabled={busy} onClick={() => void act({ action: "respondTrade", id: item.id, decision: "accepted" }, "Trade accepted and sent for chief approval")}>Accept & Send for Approval</button></footer>}</article>; })}
         </div>
       </article>}
     </section>}
@@ -507,10 +512,10 @@ export default function Scheduling({ testMember = null }:{ testMember?:TestMembe
       {!isCommandView && <article className="content-card schedule-form">
         <div className="section-header"><div><h2>Build and submit my schedule</h2><p>Enter when you can work or need time off. Recurring requests remain pending until reviewed.</p></div></div>
         <div className="schedule-fields">
-          <label><span>Request type</span><select value={request.requestType} onChange={(event) => setRequest({ ...request, requestType: event.target.value, assignmentId: "" })}>{Object.entries(requestLabels).filter(([key]) => key !== "shift_claim").map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+          <label><span>Request type</span><select value={request.requestType} onChange={(event) => setRequest({ ...request, requestType: event.target.value, assignmentId: "", targetEmployeeId: "" })}>{Object.entries(requestLabels).filter(([key]) => key !== "shift_claim").map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
           {request.requestType === "trade" && <>
-            <label><span>Your shift *</span><select value={request.assignmentId} onChange={(event) => { const assignment = ownAssignments.find((item) => item.id === event.target.value); setRequest({ ...request, assignmentId: event.target.value, startDate: assignment?.workDate || today(), endDate: assignment?.workDate || today(), startTime: assignment?.startTime || "", endTime: assignment?.endTime || "", role: assignment?.role || "" }); }}><option value="">Select shift</option>{ownAssignments.map((item) => <option key={item.id} value={item.id}>{item.workDate} · {item.startTime}-{item.endTime} · {item.role}</option>)}</select></label>
-            <label><span>Requested member *</span><select value={request.targetEmployeeId} onChange={(event) => setRequest({ ...request, targetEmployeeId: event.target.value })}><option value="">Select member</option>{data.employees.filter((employee) => employee.id !== portalEmployeeId && qualifiedForPosition(employee, request.role)).map((employee) => <option key={employee.id} value={employee.id}>{formatEmployeeName(employee.name)} · {employee.rank}{employee.actingOfficerEligible ? " · AO eligible" : ""}</option>)}</select></label>
+            <label><span>Your shift *</span><select value={request.assignmentId} onChange={(event) => { const assignment = ownAssignments.find((item) => item.id === event.target.value); setRequest({ ...request, assignmentId: event.target.value, targetEmployeeId: "", startDate: assignment?.workDate || today(), endDate: assignment?.workDate || today(), startTime: assignment?.startTime || "", endTime: assignment?.endTime || "", role: assignment?.role || "" }); }}><option value="">Select shift</option>{upcomingOwnAssignments.map((item) => <option key={item.id} value={item.id}>{item.workDate} · {item.startTime}-{item.endTime} · {item.role}</option>)}</select></label>
+            <label><span>Send request to *</span><select disabled={!selectedTradeAssignment || eligibleTradeEmployees.length === 0} value={request.targetEmployeeId} onChange={(event) => setRequest({ ...request, targetEmployeeId: event.target.value })}><option value="">{!selectedTradeAssignment ? "Select your shift first" : eligibleTradeEmployees.length ? `Anyone eligible (${eligibleTradeEmployees.length})` : "No eligible employees available"}</option>{eligibleTradeEmployees.map((employee) => <option key={employee.id} value={employee.id}>{formatEmployeeName(employee.name)} · {employee.rank}{employee.actingOfficerEligible ? " · AO eligible" : ""}</option>)}</select><small>Only members cleared for this role and not already working an overlapping shift are listed.</small></label>
           </>}
           {["availability", "time_off"].includes(request.requestType) && <>
             {[["Start date", "startDate", "date"], ["End date", "endDate", "date"], ["From", "startTime", "time"], ["To", "endTime", "time"], ["Position", "role", "text"]].map(([label, key, type]) => <label key={key}><span>{label}</span><input type={type} value={String(request[key as keyof typeof request])} onChange={(event) => setRequest({ ...request, [key]: event.target.value })}/></label>)}
@@ -519,14 +524,14 @@ export default function Scheduling({ testMember = null }:{ testMember?:TestMembe
           </>}
           <label className="wide"><span>Notes</span><textarea rows={4} value={request.notes} onChange={(event) => setRequest({ ...request, notes: event.target.value })}/></label>
         </div>
-        <button className="primary-action" disabled={busy || (request.repeatMode === "interval" && (Number(request.repeatInterval) < 2 || Number(request.repeatInterval) > 365))} onClick={() => void act({ action: "submitRequest", ...request, repeatInterval: Number(request.repeatInterval) }, "Schedule request submitted for review")}>Submit My Schedule Request</button>
+        <button className="primary-action" disabled={busy || (request.requestType === "trade" && (!selectedTradeAssignment || eligibleTradeEmployees.length === 0)) || (request.repeatMode === "interval" && (Number(request.repeatInterval) < 2 || Number(request.repeatInterval) > 365))} onClick={() => void act({ action: "submitRequest", ...request, repeatInterval: Number(request.repeatInterval) }, request.requestType === "trade" && !request.targetEmployeeId ? "Trade request sent to all eligible members" : "Schedule request submitted for review")}>Submit My Schedule Request</button>
       </article>}
       <article className="content-card">
         <div className="section-header"><div><h2>{isCommandView ? "All employee requests" : "My requests and trades"}</h2></div></div>
         <div className="request-list">{portalRequests.map((item) => {
           const needsMyTradeResponse = item.requestType === "trade" && item.targetEmployeeId === portalEmployeeId && item.status === "pending" && item.targetStatus === "pending";
           return <article key={item.id}><header><div><strong>{requestLabels[item.requestType] || item.requestType}</strong><span>{formatEmployeeName(item.employeeName)} · {item.startDate}</span></div><b className={item.status}>{item.status}</b></header>
-            <p>{item.role}{item.repeatMode === "interval" && item.repeatInterval ? ` · repeats every ${item.repeatInterval} days through ${item.endDate}` : ""}{item.targetEmployeeName ? ` · requested member: ${formatEmployeeName(item.targetEmployeeName)}` : ""}{item.notes ? ` · ${item.notes}` : ""}</p>
+            <p>{item.role}{item.repeatMode === "interval" && item.repeatInterval ? ` · repeats every ${item.repeatInterval} days through ${item.endDate}` : ""}{item.requestType === "trade" ? ` · requested member: ${item.targetEmployeeName ? formatEmployeeName(item.targetEmployeeName) : "Anyone eligible"}` : ""}{item.notes ? ` · ${item.notes}` : ""}</p>
             {item.requestType === "trade" && <small className={`trade-status ${item.targetStatus}`}>Member response: {item.targetStatus.replace("_", " ")}</small>}
             {needsMyTradeResponse && <footer><button onClick={() => void act({ action: "respondTrade", id: item.id, decision: "declined" }, "Trade declined")}>Decline Trade</button><button onClick={() => void act({ action: "respondTrade", id: item.id, decision: "accepted" }, "Trade accepted and sent for chief approval")}>Accept Trade</button></footer>}
             {isCommandView && item.status === "pending" && <footer><button onClick={() => void act({ action: "reviewRequest", id: item.id, decision: "denied" }, "Request denied")}>Deny</button><button disabled={item.requestType === "trade" && item.targetStatus !== "accepted"} title={item.requestType === "trade" && item.targetStatus !== "accepted" ? "Waiting for requested member" : ""} onClick={() => void act({ action: "reviewRequest", id: item.id, decision: "approved" }, "Request approved")}>Approve</button></footer>}
