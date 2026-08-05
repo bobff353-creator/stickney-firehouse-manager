@@ -1,6 +1,7 @@
 import Inventory360 from "../inventory-live";
 import { InventoryAccessGate } from "../components/InventoryAccessGate";
 import { verifyInventoryServerSession } from "../lib/inventory-session";
+import SessionIdleLock from "../session-idle-lock";
 
 export const dynamic = "force-dynamic";
 
@@ -26,11 +27,13 @@ export default async function Home({
     ? query.check as "daily" | "weekly" | "inventory" | "air_pack"
     : "";
   return (
-    <Inventory360
-      departmentId={session.context.department.id}
-      departmentName={session.context.department.name}
-      initialApparatusId={initialApparatusId}
-      initialCheckType={initialCheckType}
-    />
+    <SessionIdleLock>
+      <Inventory360
+        departmentId={session.context.department.id}
+        departmentName={session.context.department.name}
+        initialApparatusId={initialApparatusId}
+        initialCheckType={initialCheckType}
+      />
+    </SessionIdleLock>
   );
 }

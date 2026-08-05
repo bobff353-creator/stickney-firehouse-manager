@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const gateway = readFileSync(new URL("../app/auth-gateway.tsx", import.meta.url), "utf8");
+const sessionIdleLock = readFileSync(new URL("../app/session-idle-lock.tsx", import.meta.url), "utf8");
+const inventoryPage = readFileSync(new URL("../app/inventory/page.tsx", import.meta.url), "utf8");
 const payrollApp = readFileSync(new URL("../app/payroll-app.tsx", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 const proxy = readFileSync(new URL("../proxy.ts", import.meta.url), "utf8");
@@ -14,10 +16,12 @@ const pinRoute = readFileSync(new URL("../app/api/auth/pin/route.ts", import.met
 const acceptInvite = readFileSync(new URL("../app/accept-invite/page.tsx", import.meta.url), "utf8");
 const pinMigration = readFileSync(new URL("../supabase/migrations/20260803211245_member_invites_and_pin_unlock.sql", import.meta.url), "utf8");
 
-test("verified email and password login requires confirmation and department approval", () => {
+test("verified invited email login requires confirmation and department approval", () => {
   assert.match(gateway, /Firehouse Manager/);
   assert.match(gateway, /signInWithPassword/);
-  assert.match(gateway, /auth\.signUp/);
+  assert.doesNotMatch(gateway, /auth\.signUp/);
+  assert.match(gateway, /signInWithOtp/);
+  assert.match(gateway, /shouldCreateUser: false/);
   assert.match(gateway, /emailRedirectTo/);
   assert.match(gateway, /department administrator must approve access/i);
   assert.match(confirmation, /exchangeCodeForSession/);
@@ -78,7 +82,20 @@ test("portal PINs are hashed, attempt-limited, and enforced through a secure unl
   assert.match(pinMigration, /ENABLE ROW LEVEL SECURITY/);
   assert.match(pinRoute, /httpOnly: true/);
   assert.match(pinRoute, /secure: true/);
+  assert.match(pinRoute, /const unlockSeconds = 30 \* 60/);
+  assert.match(pinRoute, /export async function PATCH/);
   assert.match(proxy, /portal_pin_status/);
   assert.match(proxy, /records\.", 423\)/);
   assert.match(gateway, /Enter your portal PIN/);
+});
+
+test("30 minutes of inactivity locks without unmounting unfinished work", () => {
+  assert.match(sessionIdleLock, /const inactivityLimitMs = 30 \* 60 \* 1000/);
+  assert.match(sessionIdleLock, /The app locked after 30 minutes without activity\. Your unfinished work is still here\./);
+  assert.match(sessionIdleLock, /<div aria-hidden=\{locked\}[\s\S]*\{children\}[\s\S]*\{locked \? <main className="session-lock-overlay"/);
+  assert.match(sessionIdleLock, /method: "PATCH"/);
+  assert.match(sessionIdleLock, /Unlock and continue/);
+  assert.match(gateway, /<SessionIdleLock onSignOut=\{signOut\}>[\s\S]*<PayrollApp/);
+  assert.match(inventoryPage, /<SessionIdleLock>[\s\S]*<Inventory360/);
+  assert.match(styles, /\.session-lock-overlay \{ position: fixed; inset: 0; z-index: 1000/);
 });

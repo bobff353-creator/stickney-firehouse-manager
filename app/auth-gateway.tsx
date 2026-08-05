@@ -3,9 +3,10 @@
 import type { User } from "@supabase/supabase-js";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import PayrollApp from "./payroll-app";
+import SessionIdleLock from "./session-idle-lock";
 import { getSupabaseBrowserClient } from "./supabase-browser";
 
-type Mode = "loading" | "sign-in" | "sign-up" | "checking" | "pin" | "authorized" | "waiting";
+type Mode = "loading" | "sign-in" | "checking" | "pin" | "authorized" | "waiting";
 
 function clearAccessCache() {
   document.cookie = "__Secure-firehouse-access=; Path=/; Max-Age=0; SameSite=Lax; Secure";
@@ -22,8 +23,8 @@ export default function AuthGateway({
   const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [pin, setPin] = useState("");
+  const [usePasswordSignIn, setUsePasswordSignIn] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
   const accessCheckRef = useRef<Promise<void> | null>(null);
@@ -120,39 +121,6 @@ export default function AuthGateway({
     await checkAccess(data.user);
   }
 
-  async function signUp(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (password.length < 8) {
-      setMessage("Use at least 8 characters for your password.");
-      return;
-    }
-    if (password !== confirmPassword) {
-      setMessage("The two passwords do not match.");
-      return;
-    }
-    setMode("checking");
-    setMessage("Creating your account...");
-    const callback = new URL("/auth/confirm", window.location.origin);
-    const { data, error } = await getSupabaseBrowserClient().auth.signUp({
-      email: email.trim(),
-      password,
-      options: { emailRedirectTo: callback.toString() },
-    });
-    if (error) {
-      setMode("sign-up");
-      setMessage(error.message);
-      return;
-    }
-    if (data.session && data.user) {
-      await checkAccess(data.user);
-      return;
-    }
-    setMode("sign-in");
-    setPassword("");
-    setConfirmPassword("");
-    setMessage("Confirmation email sent. Open it to verify your address, then return here to sign in.");
-  }
-
   async function resetPassword() {
     if (!email.trim()) {
       setMessage("Enter your email address first.");
@@ -205,6 +173,7 @@ export default function AuthGateway({
     clearAccessCache();
     await fetch("/api/auth/pin", { method: "DELETE" }).catch(() => undefined);
     await getSupabaseBrowserClient().auth.signOut();
+    setPin("");
     setUser(null);
     setMode("sign-in");
     setMessage("Signed out.");
@@ -212,11 +181,13 @@ export default function AuthGateway({
 
   if (mode === "authorized") {
     return (
-      <PayrollApp
-        accountEmail={user?.email || ""}
-        onSignOut={signOut}
-        initialPage={initialPage}
-      />
+      <SessionIdleLock onSignOut={signOut}>
+        <PayrollApp
+          accountEmail={user?.email || ""}
+          onSignOut={signOut}
+          initialPage={initialPage}
+        />
+      </SessionIdleLock>
     );
   }
 
@@ -271,7 +242,6 @@ export default function AuthGateway({
     );
   }
 
-  const creating = mode === "sign-up";
   return (
     <main className="login-shell">
       <section className="login-brand-panel">
@@ -287,24 +257,23 @@ export default function AuthGateway({
         <small>Department records are separated from unapproved accounts.</small>
       </section>
       <section className="login-card">
-        <p className="login-eyebrow">{creating ? "CREATE ACCOUNT" : "WELCOME BACK"}</p>
-        <h2>{creating ? "Set up your verified login" : "Sign in to the portal"}</h2>
-        <p>{creating ? "We will email you a confirmation link before the account can be used." : "Use the email and password connected to your department account."}</p>
-        <form onSubmit={creating ? signUp : signIn}>
+        <p className="login-eyebrow">WELCOME BACK</p>
+        <h2>{usePasswordSignIn ? "Sign in with your password" : "Open the app with your PIN"}</h2>
+        <p>{usePasswordSignIn ? "Use the email and password connected to your department account." : "Enter your invited email. If your verified email session has expired, we will send a secure link; after opening it, enter your portal PIN."}</p>
+        <form onSubmit={usePasswordSignIn ? signIn : (event) => { event.preventDefault(); void emailSignInLink(); }}>
           <label>Email address<input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
-          <label>Password
+          {usePasswordSignIn ? <label>Password
             <span className="login-password-field">
-              <input type={showPassword ? "text" : "password"} autoComplete={creating ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} minLength={creating ? 8 : undefined} required />
+              <input type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
               <button type="button" onClick={() => setShowPassword((current) => !current)}>{showPassword ? "Hide" : "Show"}</button>
             </span>
-          </label>
-          {creating ? <label>Confirm password<input type={showPassword ? "text" : "password"} autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} minLength={8} required /></label> : null}
+          </label> : null}
           {message ? <p className="login-message" role="status">{message}</p> : null}
-          <button className="login-primary" type="submit">{creating ? "Create account and email confirmation" : "Sign in"}</button>
+          <button className="login-primary" type="submit">{usePasswordSignIn ? "Sign in" : "Send secure sign-in link"}</button>
         </form>
-        {!creating ? <><button type="button" className="login-link-button" onClick={resetPassword}>Forgot password?</button><button type="button" className="login-link-button" onClick={() => void emailSignInLink()}>Email me a secure sign-in link</button></> : null}
-        <div className="login-divider"><span>{creating ? "Already have an account?" : "Need an account?"}</span></div>
-        {creating ? <button type="button" className="login-secondary" onClick={() => { setMode("sign-in"); setMessage(""); }}>Return to sign in</button> : <p className="login-invite-note">A department administrator must add your employee email and send your app invitation.</p>}
+        {usePasswordSignIn ? <><button type="button" className="login-link-button" onClick={resetPassword}>Forgot password?</button><button type="button" className="login-link-button" onClick={() => { setUsePasswordSignIn(false); setMessage(""); }}>Use secure email link and PIN</button></> : <button type="button" className="login-link-button" onClick={() => { setUsePasswordSignIn(true); setMessage(""); }}>Use email and password instead</button>}
+        <div className="login-divider"><span>Need an account?</span></div>
+        <p className="login-invite-note">A department administrator must add your employee email and send your app invitation.</p>
       </section>
     </main>
   );

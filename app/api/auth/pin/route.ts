@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { getSupabaseServerClient } from "../../../supabase-server";
 
 const pinCookie = "__Secure-firehouse-pin";
-const unlockSeconds = 12 * 60 * 60;
+const unlockSeconds = 30 * 60;
 
 function withUnlockCookie(payload: object, token: string) {
   const response = NextResponse.json(payload, {
@@ -62,4 +63,26 @@ export async function DELETE() {
     maxAge: 0,
   });
   return response;
+}
+
+export async function PATCH() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(pinCookie)?.value ?? "";
+  if (!token) {
+    return Response.json({ error: "Enter your portal PIN to continue." }, { status: 423 });
+  }
+
+  const client = await getSupabaseServerClient();
+  const { data, error } = await client.rpc("portal_pin_status", { p_unlock_token: token });
+  const status = (Array.isArray(data) ? data[0] : data) as { configured?: boolean; unlocked?: boolean } | null;
+  if (error) {
+    return Response.json({ error: "Portal PIN security could not be verified." }, { status: 503 });
+  }
+  if (!status?.configured) {
+    return Response.json({ ok: true, configured: false, unlocked: true });
+  }
+  if (!status.unlocked) {
+    return Response.json({ error: "Enter your portal PIN to continue." }, { status: 423 });
+  }
+  return withUnlockCookie({ ok: true, configured: true, unlocked: true }, token);
 }
