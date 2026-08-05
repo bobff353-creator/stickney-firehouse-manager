@@ -623,7 +623,11 @@ export default function Inventory360({
                       </div>
                       {unit.notes ? <p className="unit-notes">{unit.notes}</p> : null}
                       <button className="card-action" onClick={() => void openUnit(unit)}>
-                        Open inspections &amp; inventory <span>-&gt;</span>
+                        <span className="card-action-copy">
+                          <strong>Open Unit Checks &amp; Inventory</strong>
+                          <small>Daily · Weekly · Inventory · Air Pack</small>
+                        </span>
+                        <span className="card-action-arrow" aria-hidden="true">→</span>
                       </button>
                     </div>
                   </article>

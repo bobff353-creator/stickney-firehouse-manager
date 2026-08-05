@@ -506,6 +506,7 @@ export default function InventoryOperations({
                         }
                       });
                     }}>
+                      <small className="inspection-choice-action">{inProgress ? "Tap to resume" : "Tap to open"}</small>
                       <strong>{inProgress ? `Resume ${label}` : label}</strong>
                       <span>{inProgress
                         ? `${remaining} items remaining · shared crew progress`
