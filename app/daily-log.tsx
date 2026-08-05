@@ -11,7 +11,7 @@ import { chicagoOperationalContext, dailyLogDateIsAutoLocked } from "./operation
 type LogEmployee = { id: string; name: string; rank: string; startDate?: string | null; endDate?: string | null };
 type StaffingRow = { id: string; shiftKey: string; employeeId: string; timeIn: string; timeOut: string; actingOfficer: boolean };
 type CallRow = { id: string; reportNumber: string; timeOut: string; timeIn: string; respondingUnits: string; address: string; callType: string };
-type Approval = { shiftKey: string; signInOfficerId?: string; signInAt?: string; signOutOfficerId?: string; signOutAt?: string; signOutNote?: string };
+type Approval = { shiftKey: string; signInOfficerId?: string; signInAt?: string; signOutOfficerId?: string; signOutAt?: string; signOutNote?: string; fleetDutiesAcknowledged?: number };
 type RecentNote = { logDate: string; note: string };
 type ApparatusCheck = { id: string; apparatusId: string; unit: string; checkType: string; completedAt: string; completedBy: string; failedItems: number };
 type RequiredFleetCheck = { apparatusId: string; unit: string; checkType: "daily" | "weekly"; status: "pending" | "in_progress"; startedAt: string | null };
@@ -70,6 +70,7 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
   const [equipment, setEquipment] = useState(cleanEquipment);
   const [handoffNote, setHandoffNote] = useState("");
   const [acceptedNotes, setAcceptedNotes] = useState(false);
+  const [acceptedFleetDuties, setAcceptedFleetDuties] = useState(false);
   const [unlockConfirmOpen, setUnlockConfirmOpen] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
@@ -155,7 +156,7 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
       setMessage(silent ? "All changes saved · Timesheets updated" : "Daily log and timesheets saved"); onPayrollSynced?.();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to save log"); }
     finally { saveInFlight.current = false; setSaving(false); }
-  }, [onPayrollSynced, readOnly]);
+  }, [onPayrollSynced]);
   useEffect(() => { if (!dirty || readOnly) return; const timer = window.setTimeout(() => { void saveLog(true); }, 900); return () => window.clearTimeout(timer); }, [dirty, readOnly, saveLog]);
   useEffect(() => { if (!dirty || readOnly) return; window.localStorage.setItem(draftKey(logDate), JSON.stringify({ savedAt: new Date().toISOString(), logDate, staffing: staffing.filter((row) => row.employeeId), calls, shiftNotes })); }, [calls, dirty, logDate, readOnly, shiftNotes, staffing]);
   useEffect(() => { if (!isOnline || !dirty || readOnly) return; const timer = window.setTimeout(() => void saveLog(true), 250); return () => window.clearTimeout(timer); }, [dirty, isOnline, readOnly, saveLog]);
@@ -226,16 +227,17 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
       if (!requirements.available) return setMessage("Officer sign out is blocked because Fleet checklist status could not be verified. Try again.");
       if (requirements.incomplete.length) return setMessage(`Officer sign out is blocked. Complete these Fleet checks first: ${fleetCheckList(requirements.incomplete)}.`);
     }
-    setMessage(""); setHandoff({ shiftKey, shiftTitle, mode }); setOfficerId(""); setEquipment(cleanEquipment()); setHandoffNote(""); setAcceptedNotes(false);
+    setMessage(""); setHandoff({ shiftKey, shiftTitle, mode }); setOfficerId(""); setEquipment(cleanEquipment()); setHandoffNote(""); setAcceptedNotes(false); setAcceptedFleetDuties(false);
   }
   async function submitHandoff() {
     if (!handoff) return;
     const hasIssueWithoutDetail = Object.values(equipment).some((item) => item.status !== "Present" && !item.detail.trim());
     if (!officerId) return setMessage("Select the officer completing the approval.");
     if (handoff.mode === "in" && !acceptedNotes) return setMessage("Review and accept the previous seven days of notes.");
+    if (handoff.mode === "out" && !acceptedFleetDuties) return setMessage("Acknowledge that all required Fleet checks and assigned duties are complete.");
     if (hasIssueWithoutDetail) return setMessage("Add details for all missing or out-of-service equipment.");
     if (Object.values(equipment).some((item) => item.status !== "Present") && !handoffNote.trim()) return setMessage("Add a handoff note for the equipment issue.");
-    const response = await fetch("/api/logbook", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "handoff", logDate, shiftKey: handoff.shiftKey, mode: handoff.mode, officerId, equipment, note: handoffNote, reviewedNotes: handoff.mode === "in" ? acceptedNotes : true }) });
+    const response = await fetch("/api/logbook", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "handoff", logDate, shiftKey: handoff.shiftKey, mode: handoff.mode, officerId, equipment, note: handoffNote, reviewedNotes: handoff.mode === "in" ? acceptedNotes : true, fleetDutiesAcknowledged: handoff.mode === "out" ? acceptedFleetDuties : false }) });
     const result = await response.json() as { error?: string; incompleteFleetChecks?: RequiredFleetCheck[] }; if (!response.ok) { if (result.incompleteFleetChecks) setIncompleteFleetChecks(result.incompleteFleetChecks); return setMessage(result.error || "Unable to save approval"); }
     const successMessage = handoff.mode === "in" ? "Officer signed in and equipment approved" : "Officer signed out and shift approved";
     setHandoff(null); await loadLog(logDate); setMessage(successMessage);
@@ -281,9 +283,10 @@ export default function DailyLog({ employees, onPayrollSynced }: { employees: Lo
     {handoff && <div className="handoff-backdrop" role="presentation"><section className="handoff-modal" role="dialog" aria-modal="true" aria-labelledby="handoff-title"><div className="handoff-header"><div><p className="eyebrow">{handoff.shiftTitle}</p><h2 id="handoff-title">Officer Sign {handoff.mode === "in" ? "In" : "Out"}</h2></div><button aria-label="Close officer approval" onClick={() => setHandoff(null)}>×</button></div>
       <label className="handoff-officer"><span>Officer completing approval</span><select value={officerId} onChange={(event) => setOfficerId(event.target.value)}><option value="">Select employee…</option>{activeEmployees.map((employee) => <option key={employee.id} value={employee.id}>{displayName(employee.name)}</option>)}</select></label>
       {handoff.mode === "in" && <section className="review-notes"><h3>Review previous 7 days of notes</h3><p>Review all notes below, then check the box to accept the shift.</p><div className="notes-scroll">{recentNotes.length ? recentNotes.map((item, index) => <article key={`${item.logDate}-${index}`}><strong>{item.logDate}</strong><p>{item.note}</p></article>) : <article><strong>No prior notes</strong><p>There are no notes recorded in the previous seven days.</p></article>}<div className="scroll-end">End of seven-day notes</div></div><label className={acceptedNotes ? "accept-check ready" : "accept-check"}><input type="checkbox" checked={acceptedNotes} onChange={(event) => setAcceptedNotes(event.target.checked)} /><span>I reviewed and accept the previous shift notes.</span></label></section>}
+      {handoff.mode === "out" && <section className="review-notes duty-acknowledgment"><h3>Required duties</h3><p>Fleet status was rechecked and all required Daily and scheduled Weekly vehicle checks are complete.</p><label className={acceptedFleetDuties ? "accept-check ready" : "accept-check"}><input type="checkbox" checked={acceptedFleetDuties} onChange={(event) => setAcceptedFleetDuties(event.target.checked)} /><span>I acknowledge that all required Fleet checks and assigned duties for this shift are complete.</span></label></section>}
       <section className="equipment-check"><div><h3>Equipment accountability</h3><p>Confirm each item is present or document anything missing/out of service.</p></div>{equipmentItems.map((item) => <div className="equipment-row" key={item.key}><div><strong>{item.name}</strong><span>{item.detail}</span></div><select aria-label={`${item.name} status`} value={equipment[item.key].status} onChange={(event) => setEquipment((current) => ({ ...current, [item.key]: { ...current[item.key], status: event.target.value } }))}><option>Present</option><option>Missing</option><option>Out of Service</option></select>{equipment[item.key].status !== "Present" && <input aria-label={`${item.name} details`} placeholder="What is missing/OOS? Include unit…" value={equipment[item.key].detail} onChange={(event) => setEquipment((current) => ({ ...current, [item.key]: { ...current[item.key], detail: event.target.value } }))} />}</div>)}</section>
       <label className="handoff-note"><span>{handoff.mode === "in" ? "Officer notes" : "Closing shift note"}</span><textarea rows={3} placeholder={handoff.mode === "in" ? "Add coverage, equipment, or follow-up information…" : "Add the final handoff note for the next officer…"} value={handoffNote} onChange={(event) => setHandoffNote(event.target.value)} /></label>
-      <div className="handoff-footer"><button className="quiet-button" onClick={() => setHandoff(null)}>Cancel</button><button className="primary-action compact" disabled={!officerId || (handoff.mode === "in" && !acceptedNotes)} onClick={() => void submitHandoff()}>{handoff.mode === "in" ? "Accept Shift & Sign In" : "Approve Equipment & Sign Out"}</button></div>
+      <div className="handoff-footer"><button className="quiet-button" onClick={() => setHandoff(null)}>Cancel</button><button className="primary-action compact" disabled={!officerId || (handoff.mode === "in" && !acceptedNotes) || (handoff.mode === "out" && !acceptedFleetDuties)} onClick={() => void submitHandoff()}>{handoff.mode === "in" ? "Accept Shift & Sign In" : "Acknowledge Duties & Sign Out"}</button></div>
     </section></div>}
   </section>;
 }

@@ -32,15 +32,11 @@ function payrollPeriodEnd(start: string) {
 }
 async function fleetRequirementsForDate(
   request: Request,
-  db: Awaited<ReturnType<typeof ensureDatabase>>,
+  _db: Awaited<ReturnType<typeof ensureDatabase>>,
   date: string,
 ): Promise<{ available: boolean; incomplete: RequiredFleetCheck[] }> {
   const departmentId = request.headers.get("x-department-id")?.trim() || "";
   if (!departmentId) return { available: false, incomplete: [] };
-  const dayOfWeek = new Date(`${date}T12:00:00Z`).getUTCDay();
-  const duties = await db.prepare(
-    "SELECT duty FROM daily_duties WHERE day_of_week = ? AND lower(duty) LIKE '%weekly%'",
-  ).bind(dayOfWeek).all<{ duty: string }>();
   try {
     return {
       available: true,
@@ -48,7 +44,6 @@ async function fleetRequirementsForDate(
         await createInventorySupabaseClient(),
         departmentId,
         date,
-        duties.results,
       ),
     };
   } catch (error) {
@@ -92,7 +87,7 @@ export async function GET(request: Request) {
       db.prepare("SELECT id, shift_key AS shiftKey, employee_id AS employeeId, time_in AS timeIn, time_out AS timeOut, acting_officer AS actingOfficer, sort_order AS sortOrder FROM daily_log_staffing WHERE log_date = ? ORDER BY shift_key, sort_order").bind(date).all(),
       db.prepare("SELECT id, report_number AS reportNumber, time_out AS timeOut, time_in AS timeIn, responding_units AS respondingUnits, address, call_type AS callType, sort_order AS sortOrder FROM daily_log_calls WHERE log_date = ? ORDER BY sort_order").bind(date).all(),
       db.prepare("SELECT address FROM daily_log_calls WHERE address <> '' GROUP BY address ORDER BY MAX(log_date) DESC, MAX(sort_order) DESC LIMIT 50").all(),
-      db.prepare("SELECT shift_key AS shiftKey, sign_in_officer_id AS signInOfficerId, sign_in_at AS signInAt, sign_in_equipment AS signInEquipment, sign_in_note AS signInNote, reviewed_notes AS reviewedNotes, sign_out_officer_id AS signOutOfficerId, sign_out_at AS signOutAt, sign_out_equipment AS signOutEquipment, sign_out_note AS signOutNote FROM daily_log_approvals WHERE log_date = ?").bind(date).all(),
+      db.prepare("SELECT shift_key AS shiftKey, sign_in_officer_id AS signInOfficerId, sign_in_at AS signInAt, sign_in_equipment AS signInEquipment, sign_in_note AS signInNote, reviewed_notes AS reviewedNotes, sign_out_officer_id AS signOutOfficerId, sign_out_at AS signOutAt, sign_out_equipment AS signOutEquipment, sign_out_note AS signOutNote, fleet_duties_acknowledged AS fleetDutiesAcknowledged FROM daily_log_approvals WHERE log_date = ?").bind(date).all(),
       db.prepare("SELECT log_date AS logDate, shift_notes AS note FROM daily_logs WHERE log_date < ? AND date(log_date) >= date(?, '-7 day') AND shift_notes <> '' UNION ALL SELECT log_date AS logDate, sign_out_note AS note FROM daily_log_approvals WHERE log_date < ? AND date(log_date) >= date(?, '-7 day') AND sign_out_note <> '' ORDER BY logDate DESC").bind(date, date, date, date).all(),
       db.prepare("SELECT revision_number AS revisionNumber, action, summary, actor, changed_at AS changedAt FROM record_revisions WHERE record_type = 'dailyLog' AND record_id = ? ORDER BY revision_number DESC").bind(date).all(),
     ]);
@@ -188,13 +183,16 @@ export async function POST(request: Request) {
             incompleteFleetChecks: requirements.incomplete,
           }, { status: 409 });
         }
+        if (body.fleetDutiesAcknowledged !== true) {
+          return Response.json({ error: "Acknowledge that all required Fleet checks and assigned duties are complete before signing out." }, { status: 400 });
+        }
       }
       await db.prepare("INSERT OR IGNORE INTO daily_log_approvals (id, log_date, shift_key) VALUES (?, ?, ?)").bind(crypto.randomUUID(), date, shiftKey).run();
       if (mode === "in") {
         if (!body.reviewedNotes) return Response.json({ error: "Review and accept the previous seven days of notes first." }, { status: 400 });
         await db.prepare("UPDATE daily_log_approvals SET sign_in_officer_id = ?, sign_in_at = CURRENT_TIMESTAMP, sign_in_equipment = ?, sign_in_note = ?, reviewed_notes = 1 WHERE log_date = ? AND shift_key = ?").bind(officerId, equipment, note, date, shiftKey).run();
       } else {
-        await db.prepare("UPDATE daily_log_approvals SET sign_out_officer_id = ?, sign_out_at = CURRENT_TIMESTAMP, sign_out_equipment = ?, sign_out_note = ? WHERE log_date = ? AND shift_key = ?").bind(officerId, equipment, note, date, shiftKey).run();
+        await db.prepare("UPDATE daily_log_approvals SET sign_out_officer_id = ?, sign_out_at = CURRENT_TIMESTAMP, sign_out_equipment = ?, sign_out_note = ?, fleet_duties_acknowledged = 1 WHERE log_date = ? AND shift_key = ?").bind(officerId, equipment, note, date, shiftKey).run();
       }
       await db.prepare("UPDATE daily_logs SET updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE log_date = ?").bind(actor, date).run();
       await addRevision(db, date, mode === "in" ? "Officer signed in" : "Shift approved", `${shiftKey} officer handoff completed`, actor);

@@ -18,7 +18,13 @@ export default function DailyDuties() {
     setItems(result.items ?? []); setCanEdit(Boolean(result.canEdit));
   }, []);
   useEffect(() => { const timer = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(timer); }, [load]);
-  const grouped = useMemo(() => orderedDays.map((day) => ({ day, duties: items.filter((item) => item.dayOfWeek === day) })), [items]);
+  const grouped = useMemo(() => orderedDays.map((day) => {
+    const duties = items.filter((item) => item.dayOfWeek === day);
+    const weeklyChecks = [...new Map(
+      duties.flatMap((item) => item.fleetChecks ?? []).map((check) => [check.apparatusId, check]),
+    ).values()];
+    return { day, duties, weeklyChecks };
+  }), [items]);
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
@@ -32,7 +38,7 @@ export default function DailyDuties() {
   return <section className="daily-duties-page">
     <div className="standard-page-header"><div><span className="page-icon">DUTY</span><div><p className="eyebrow">Documents</p><h1>Daily Duties</h1><p>The Live Operations Board automatically shows only the duty for the current day and shift.</p></div></div>{canEdit ? <span className="admin-edit-badge">Administrator editing enabled</span> : <span className="read-only-badge">View only</span>}</div>
     {message && <div className="phone-message" role="status">{message}</div>}
-    <div className="daily-duty-schedule">{grouped.map(({ day, duties }) => <article className="content-card duty-day-card" key={day}><header><span>{days[day].slice(0, 3).toUpperCase()}</span><h2>{days[day]}</h2></header><div>{duties.map((item) => <section key={item.id}><div><strong>{shiftLabels[item.shiftKey]}</strong><p>{item.duty}</p>{item.fleetChecks?.length ? <div className="duty-fleet-links">{item.fleetChecks.map((check) => <Link key={check.apparatusId} className={`duty-fleet-link ${check.status}`} href={`/inventory?apparatus=${encodeURIComponent(check.apparatusId)}&check=weekly`}><b>{check.status === "completed" ? "✓" : check.status === "in_progress" ? "↻" : "→"} {check.unit}</b><span>{check.status === "completed" ? "Weekly check completed" : check.status === "in_progress" ? "Resume shared weekly check" : "Start weekly check"}</span></Link>)}</div> : null}</div>{canEdit && <button className="edit-employee no-print" onClick={() => setDraft({ ...item })}>Edit</button>}</section>)}</div></article>)}</div>
+    <div className="daily-duty-schedule">{grouped.map(({ day, duties, weeklyChecks }) => <article className="content-card duty-day-card" key={day}><header><span>{days[day].slice(0, 3).toUpperCase()}</span><h2>{days[day]}</h2></header><div>{weeklyChecks.length ? <section className="day-fleet-duty"><div><strong>Fleet weekly checks</strong><p>These checks are assigned from each vehicle&apos;s Fleet settings.</p><div className="duty-fleet-links">{weeklyChecks.map((check) => <Link key={check.apparatusId} className={`duty-fleet-link ${check.status}`} href={`/inventory?apparatus=${encodeURIComponent(check.apparatusId)}&check=weekly`}><b>{check.status === "completed" ? "✓" : check.status === "in_progress" ? "↻" : "→"} {check.unit}</b><span>{check.status === "completed" ? "Weekly check completed" : check.status === "in_progress" ? "Resume shared weekly check" : "Start weekly check"}</span></Link>)}</div></div></section> : null}{duties.map((item) => <section key={item.id}><div><strong>{shiftLabels[item.shiftKey]}</strong><p>{item.duty}</p></div>{canEdit && <button className="edit-employee no-print" onClick={() => setDraft({ ...item })}>Edit</button>}</section>)}</div></article>)}</div>
     {draft && <div className="duty-editor-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setDraft(null); }}><form className="content-card duty-editor" onSubmit={(event) => void save(event)}><div className="section-header"><div><p className="eyebrow">Administrator approval</p><h2>Edit {days[draft.dayOfWeek]} duty</h2><p>{shiftLabels[draft.shiftKey]}</p></div><button type="button" className="quiet-button" onClick={() => setDraft(null)}>Cancel</button></div><label><span>Duty instructions</span><textarea required rows={7} value={draft.duty} onChange={(event) => setDraft({ ...draft, duty: event.target.value })} /></label><div className="duty-editor-actions"><small>Saving publishes this approved wording to Documents and the rotating Live Operations Board.</small><button className="primary-action compact" type="submit">Approve & Save</button></div></form></div>}
   </section>;
 }

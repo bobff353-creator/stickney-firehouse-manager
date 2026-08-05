@@ -72,25 +72,19 @@ export function dailyFleetCheckUrgency(minutes: number) {
   return "overdue" as const;
 }
 
-function unitsInDuty(duty: string) {
-  return [...new Set(duty.match(/\b\d{4}\b/g) || [])];
-}
-
 export async function weeklyDutyCheckMap(
   supabase: SupabaseClient,
   departmentId: string,
-  duties: Array<{ id?: unknown; duty?: unknown }>,
+  duties: Array<{ id?: unknown; dayOfWeek?: unknown }>,
+  date = chicagoCalendarDate(new Date()),
 ) {
-  const requestedUnits = new Set(
-    duties.flatMap((duty) => unitsInDuty(String(duty.duty || ""))),
-  );
   const result = new Map<string, FleetDutyCheck[]>();
-  if (!departmentId || requestedUnits.size === 0) return result;
+  if (!departmentId) return result;
 
   const [{ data: apparatus, error: apparatusError }, { data: checks, error: checksError }] = await Promise.all([
     supabase
       .from("inventory_apparatus_profiles")
-      .select("id,name")
+      .select("id,name,weekly_due_day")
       .eq("department_id", departmentId),
     supabase
       .from("inventory_checks")
@@ -103,12 +97,12 @@ export async function weeklyDutyCheckMap(
   ]);
   if (apparatusError || checksError) throw apparatusError || checksError;
 
-  const week = currentChicagoWeek();
+  const week = chicagoWeekForDate(date);
   for (const duty of duties) {
     const dutyId = String(duty.id || "");
-    const links = unitsInDuty(String(duty.duty || "")).flatMap((unit) => {
-      const vehicle = (apparatus || []).find((item) => String(item.name).trim() === unit);
-      if (!vehicle) return [];
+    const dueDay = Number(duty.dayOfWeek);
+    const links = (apparatus || []).filter((vehicle) => vehicle.weekly_due_day !== null && Number(vehicle.weekly_due_day) === dueDay).map((vehicle) => {
+      const unit = String(vehicle.name || "Apparatus");
       const vehicleChecks = (checks || []).filter((check) => check.apparatus_id === vehicle.id);
       const completed = vehicleChecks.find((check) => (
         check.status === "completed"
@@ -118,14 +112,14 @@ export async function weeklyDutyCheckMap(
       ));
       const inProgress = vehicleChecks.find((check) => check.status === "in_progress");
       const active = completed || inProgress;
-      return [{
+      return {
         apparatusId: String(vehicle.id),
         unit,
         status: completed ? "completed" as const : inProgress ? "in_progress" as const : "pending" as const,
         startedAt: active?.started_at ? String(active.started_at) : null,
         completedAt: completed?.completed_at ? String(completed.completed_at) : null,
-      }];
-    });
+      };
+    }).sort((left, right) => left.unit.localeCompare(right.unit, undefined, { numeric: true }));
     result.set(dutyId, links);
   }
   return result;
@@ -186,21 +180,16 @@ export async function incompleteRequiredFleetChecks(
   supabase: SupabaseClient,
   departmentId: string,
   date: string,
-  weeklyDuties: Array<{ duty?: unknown }>,
 ): Promise<RequiredFleetCheck[]> {
   const daily = await pendingDailyFleetChecks(supabase, departmentId, date);
-  const weeklyUnits = [...new Set(
-    weeklyDuties
-      .filter((row) => String(row.duty || "").toLowerCase().includes("weekly"))
-      .flatMap((row) => unitsInDuty(String(row.duty || ""))),
-  )];
-  if (!weeklyUnits.length) return daily.map((check) => ({ ...check, checkType: "daily" as const }));
+  const dueDay = new Date(`${date}T12:00:00Z`).getUTCDay();
 
   const [{ data: apparatus, error: apparatusError }, { data: checks, error: checksError }] = await Promise.all([
     supabase
       .from("inventory_apparatus_profiles")
-      .select("id,name")
-      .eq("department_id", departmentId),
+      .select("id,name,weekly_due_day")
+      .eq("department_id", departmentId)
+      .eq("weekly_due_day", dueDay),
     supabase
       .from("inventory_checks")
       .select("id,apparatus_id,status,started_at,completed_at")
@@ -213,9 +202,8 @@ export async function incompleteRequiredFleetChecks(
   if (apparatusError || checksError) throw apparatusError || checksError;
 
   const week = chicagoWeekForDate(date);
-  const weekly = weeklyUnits.flatMap((unit) => {
-    const vehicle = (apparatus || []).find((item) => String(item.name).trim() === unit);
-    if (!vehicle) return [];
+  const weekly = (apparatus || []).flatMap((vehicle) => {
+    const unit = String(vehicle.name || "Apparatus");
     const vehicleChecks = (checks || []).filter((check) => check.apparatus_id === vehicle.id);
     const completed = vehicleChecks.some((check) => (
       check.status === "completed"

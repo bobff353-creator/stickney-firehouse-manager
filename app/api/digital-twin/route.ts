@@ -73,7 +73,7 @@ export async function GET(request: Request) {
     const [profilesResult, fleetResult] = await Promise.all([
       supabase
         .from("inventory_apparatus_profiles")
-        .select("id,name,asset_type,vin,manufacturer,model,year,created_at")
+        .select("id,name,asset_type,vin,manufacturer,model,year,weekly_due_day,created_at")
         .eq("department_id", session.context.department.id)
         .order("name"),
       supabase
@@ -380,6 +380,26 @@ export async function POST(request: Request) {
         changes,
         request,
       );
+      return privateJson({ apparatus });
+    }
+    if (action === "update_weekly_due_day") {
+      const apparatusId = clean(body.apparatusId, 80);
+      const rawDueDay = body.weeklyDueDay;
+      const weeklyDueDay = rawDueDay === "" || rawDueDay === null ? null : Number(rawDueDay);
+      if (!apparatusId || (weeklyDueDay !== null && (!Number.isInteger(weeklyDueDay) || weeklyDueDay < 0 || weeklyDueDay > 6))) {
+        return privateJson({ error: "Apparatus and a valid weekly due day are required." }, 400);
+      }
+      const changes = { weekly_due_day: weeklyDueDay };
+      const { data: apparatus, error } = await supabase
+        .from("inventory_apparatus_profiles")
+        .update(changes)
+        .eq("department_id", departmentId)
+        .eq("id", apparatusId)
+        .select("id,name,weekly_due_day")
+        .maybeSingle();
+      if (error) throw error;
+      if (!apparatus) return privateJson({ error: "Apparatus not found." }, 404);
+      await audit(session.context, "apparatus.weekly_due_day_updated", "apparatus", apparatusId, changes, request);
       return privateJson({ apparatus });
     }
     if (action === "create_compartment") {

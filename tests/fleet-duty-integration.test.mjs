@@ -27,10 +27,11 @@ test("resolves the scheduled weekly check window for the Daily Log date", () => 
   assert.deepEqual(chicagoWeekForDate("2026-08-09"), { start: "2026-08-03", end: "2026-08-10" });
 });
 
-test("links weekly duties to Fleet, Daily Log, and Live Operations", async () => {
-  const [duties, dailyDutyRoute, inventory, operations, logbook, dailyLog, dashboard, board] = await Promise.all([
+test("links Fleet weekly due days to Duties, Daily Log, and Live Operations", async () => {
+  const [duties, dailyDutyRoute, digitalTwinRoute, inventory, operations, logbook, dailyLog, dashboard, board] = await Promise.all([
     read("app/daily-duties.tsx"),
     read("app/api/daily-duties/route.ts"),
+    read("app/api/digital-twin/route.ts"),
     read("app/inventory-live.tsx"),
     read("app/inventory-operations.tsx"),
     read("app/api/logbook/route.ts"),
@@ -40,6 +41,9 @@ test("links weekly duties to Fleet, Daily Log, and Live Operations", async () =>
   ]);
   assert.match(duties, /check=weekly/);
   assert.match(duties, /Resume shared weekly check/);
+  assert.match(duties, /Fleet weekly checks/);
+  assert.match(digitalTwinRoute, /update_weekly_due_day/);
+  assert.match(inventory, /Weekly check due day/);
   assert.match(inventory, /initialCheckType/);
   assert.match(operations, /start_check/);
   assert.match(operations, /requestedCheckOpenedRef/);
@@ -49,6 +53,8 @@ test("links weekly duties to Fleet, Daily Log, and Live Operations", async () =>
   assert.match(board, /board-duty-checks/);
   assert.match(board, /check=daily/);
   assert.match(board, /dailyChecksNeedAttention/);
+  assert.match(board, /activeWeeklyChecks/);
+  assert.match(board, /scheduled weekly vehicle checks are completed/);
   assert.match(dailyDutyRoute, /pendingDailyFleetChecks/);
 });
 
@@ -62,8 +68,13 @@ test("blocks Officer Sign Out until required daily and scheduled weekly Fleet ch
   assert.match(route, /incompleteRequiredFleetChecks/);
   assert.match(route, /status: 409/);
   assert.match(route, /Fleet checklist status could not be verified/);
+  assert.match(route, /fleetDutiesAcknowledged !== true/);
+  assert.match(route, /fleet_duties_acknowledged = 1/);
   assert.match(dailyLog, /fleetRequirementsOnly=1/);
   assert.match(dailyLog, /Fleet checks required before sign out/);
+  assert.match(dailyLog, /acceptedFleetDuties/);
+  assert.match(dailyLog, /I acknowledge that all required Fleet checks and assigned duties/);
   assert.match(projections, /checkType: "weekly"/);
   assert.match(projections, /checkType: "daily"/);
+  assert.match(projections, /weekly_due_day/);
 });

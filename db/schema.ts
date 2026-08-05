@@ -253,6 +253,7 @@ export const dailyLogApprovals = sqliteTable("daily_log_approvals", {
   signOutAt: text("sign_out_at"),
   signOutEquipment: text("sign_out_equipment").notNull().default("{}"),
   signOutNote: text("sign_out_note").notNull().default(""),
+  fleetDutiesAcknowledged: integer("fleet_duties_acknowledged", { mode: "boolean" }).notNull().default(false),
 }, (table) => [uniqueIndex("log_approval_date_shift_idx").on(table.logDate, table.shiftKey)]);
 
 export const importantPhoneNumbers = sqliteTable("important_phone_numbers", {

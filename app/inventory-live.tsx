@@ -61,6 +61,7 @@ type TwinApparatus = {
   manufacturer?: string;
   model?: string;
   year?: number;
+  weekly_due_day?: number | null;
 };
 
 type TwinCompartment = {
@@ -946,6 +947,27 @@ function DigitalTwinBuilder({
     }
   }
 
+  async function updateWeeklyDueDay(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!effectiveApparatusId) return;
+    const form = new FormData(event.currentTarget);
+    setBusy("weekly-due-day");
+    setError("");
+    try {
+      await jsonAction({
+        action: "update_weekly_due_day",
+        apparatusId: effectiveApparatusId,
+        weeklyDueDay: form.get("weeklyDueDay"),
+      });
+      await onReload(effectiveApparatusId);
+      notify("Weekly check due day updated.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Weekly check due day could not be updated.");
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function createCompartment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!effectiveApparatusId) {
@@ -1250,6 +1272,7 @@ function DigitalTwinBuilder({
           </label>
         ) : null}
         {selectedApparatus ? (
+          <div className="builder-fleet-settings">
           <form className="builder-form fleet-status-form" onSubmit={updateFleetStatus}>
             <label>
               Fleet status
@@ -1267,6 +1290,30 @@ function DigitalTwinBuilder({
               {busy === "fleet-status" ? "Saving..." : "Save Fleet status"}
             </button>
           </form>
+          <form className="builder-form fleet-status-form" onSubmit={updateWeeklyDueDay}>
+            <label>
+              Weekly check due day
+              <select
+                key={`${selectedApparatus.id}-${selectedApparatus.weekly_due_day ?? "none"}`}
+                name="weeklyDueDay"
+                defaultValue={selectedApparatus.weekly_due_day ?? ""}
+              >
+                <option value="">No weekly check scheduled</option>
+                <option value="0">Sunday</option>
+                <option value="1">Monday</option>
+                <option value="2">Tuesday</option>
+                <option value="3">Wednesday</option>
+                <option value="4">Thursday</option>
+                <option value="5">Friday</option>
+                <option value="6">Saturday</option>
+              </select>
+              <small>The weekly check appears in Duties and Live Operations on this day.</small>
+            </label>
+            <button className="primary" disabled={busy === "weekly-due-day"}>
+              {busy === "weekly-due-day" ? "Saving..." : "Save weekly due day"}
+            </button>
+          </form>
+          </div>
         ) : null}
         {unlinkedUnits.length ? (
           <div className="builder-form identity-source-form">
