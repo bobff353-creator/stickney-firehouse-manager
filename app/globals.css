@@ -1528,6 +1528,9 @@ td strong { font-size: 16px; }
   .payroll-table tr, .employee-roster-card tr, .contact-table tr, .contact-table tbody tr:nth-child(even) { padding: 15px; border: 1px solid #ccd7de; border-radius: 10px; background: white; box-shadow: 0 3px 10px rgba(16,40,61,.06); display: grid; gap: 0; }
   .payroll-table td, .employee-roster-card td, .contact-table td, .contact-table td:first-child { min-height: 42px; height: auto; padding: 9px 0; border-bottom: 1px solid #e5eaed; display: grid; grid-template-columns: minmax(92px, .7fr) minmax(0, 1.3fr); align-items: center; gap: 10px; text-align: right; }
   .payroll-table td::before, .employee-roster-card td::before, .contact-table td::before { content: attr(data-label); color: var(--slate); font-size: 11px; font-weight: 900; letter-spacing: .05em; text-align: left; text-transform: uppercase; }
+  .employee-roster-card tbody tr, .employee-roster-card td, .employee-roster-card td strong { color: #17324d; }
+  .employee-roster-card td::before { color: #5b7180; }
+  .employee-roster-card .invite-employee:disabled { border-color: #b7c2c9; background: #e7ecef; color: #5f707c; opacity: 1; }
   .payroll-table td:first-child, .employee-roster-card td:first-child { min-height: 52px; grid-template-columns: minmax(92px, .7fr) minmax(0, 1.3fr); }
   .payroll-table td:first-child .person-icon, .employee-roster-card td:first-child .person-icon { display: none; }
   .payroll-table td:last-child, .employee-roster-card td:last-child, .contact-table td:last-child { border-bottom: 0; }
