@@ -1776,6 +1776,18 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
   .staff-row select,.schedule-calendar-head button,.schedule-view-toggle button.active,.schedule-filters select,.schedule-filters button{background:#f8fafb;color:#17324d}
   .ao-check{background:#162f3d;color:#d4e0e6}
   .officer-actions button,.shift-title button,.add-call{background:#f8fafb;color:#17324d}
+  /* Daily Log uses a dark phone workspace; keep every working label and state legible. */
+  .logbook-page,.logbook-heading h2,.logbook-heading .eyebrow,.logbook-heading p:last-child,.log-date-actions label,.shift-title h3,.notes-card label>span,.apparatus-check-log .section-header h2{color:#eef4f7}
+  .logbook-heading p:last-child,.log-date-actions label>span,.shift-title span,.staff-labels,.call-row label,.notes-card label,.apparatus-check-log .section-header p,.logbook-savebar span{color:#c8d5dc}
+  .log-date-actions input,.staff-row select,.call-row input,.call-row select,.notes-card textarea{border-color:#7f97a5;background:#f8fafb;color:#102a43}
+  .autosave-state{border-color:#82b997;background:#e8f6ed;color:#175c3a}
+  .autosave-state small{color:#3f6652}
+  .log-message{border-color:#e29a92;background:#fff0ed;color:#84251f}
+  .apparatus-check-log>.section-header>b{background:#dceaf2;color:#173e57}
+  .apparatus-check-empty{border:1px solid #6f8794;background:#183443;color:#e1ebf0}
+  .officer-actions{border-top-color:#536b78}
+  .officer-actions button:disabled{border-color:#80939e;background:#d8e0e4;color:#4e5d65;opacity:.78}
+  .calls-card .helper-note{color:#c8d5dc}
   .schedule-calendar>article,.schedule-calendar>article[data-shift-color]{color:#17324d}
   .schedule-calendar>article.outside{color:#5f6e78}
 }
@@ -1803,6 +1815,11 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .schedule-calendar span small{margin-top:2px;color:#405b6d;font-size:9px;font-weight:700;line-height:1.25}
 .schedule-calendar>article.outside{opacity:.56}
 @media(max-width:680px){
+  .logbook-heading h2{font-size:32px;line-height:1.08}
+  .logbook-heading p:last-child{font-size:14px;line-height:1.5}
+  .log-date-actions label,.call-row label,.notes-card label{font-size:13px}
+  .shift-title span,.staff-labels{font-size:11px}
+  .apparatus-check-log .section-header p,.apparatus-check-empty{font-size:13px;line-height:1.5}
   .schedule-calendar.view-month>article{min-height:104px;padding:4px}
   .schedule-calendar.view-month .schedule-date-button{width:28px;min-width:28px;height:28px;min-height:28px;font-size:12px}
   .schedule-calendar.view-month>article>div>span{padding:4px 3px;border-left-width:3px}

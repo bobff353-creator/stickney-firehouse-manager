@@ -59,10 +59,12 @@ test("links Fleet weekly due days to Duties, Daily Log, and Live Operations", as
 });
 
 test("blocks Officer Sign Out until required daily and scheduled weekly Fleet checks are complete", async () => {
-  const [route, dailyLog, projections] = await Promise.all([
+  const [route, dailyLog, projections, migration, styles] = await Promise.all([
     read("app/api/logbook/route.ts"),
     read("app/daily-log.tsx"),
     read("app/lib/fleet-projections.ts"),
+    read("supabase/migrations/20260805112045_add_fleet_duties_acknowledgement.sql"),
+    read("app/globals.css"),
   ]);
   assert.match(route, /mode === "out"/);
   assert.match(route, /incompleteRequiredFleetChecks/);
@@ -77,4 +79,7 @@ test("blocks Officer Sign Out until required daily and scheduled weekly Fleet ch
   assert.match(projections, /checkType: "weekly"/);
   assert.match(projections, /checkType: "daily"/);
   assert.match(projections, /weekly_due_day/);
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS fleet_duties_acknowledged integer NOT NULL DEFAULT 0/);
+  assert.match(styles, /Daily Log uses a dark phone workspace/);
+  assert.match(styles, /\.officer-actions button:disabled\{[^}]*opacity:\.78/);
 });
