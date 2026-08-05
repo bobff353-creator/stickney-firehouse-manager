@@ -96,6 +96,9 @@ async function verifiedSession(): Promise<InventorySessionResult> {
       return { ok: false, status: 503, error: "Portal PIN security could not be verified." };
     }
     const pinStatus = (Array.isArray(pinRows) ? pinRows[0] : pinRows) as { configured?: boolean; unlocked?: boolean } | null;
+    if (!pinStatus?.configured) {
+      return { ok: false, status: 423, error: "Open the Operations Portal and create your 4 to 6 digit PIN before opening Inventory." };
+    }
     if (pinStatus?.configured && !pinStatus.unlocked) {
       return { ok: false, status: 423, error: "Open the Operations Portal and enter your PIN before opening Inventory." };
     }

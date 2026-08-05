@@ -5,6 +5,7 @@ import test from "node:test";
 const gateway = readFileSync(new URL("../app/auth-gateway.tsx", import.meta.url), "utf8");
 const sessionIdleLock = readFileSync(new URL("../app/session-idle-lock.tsx", import.meta.url), "utf8");
 const inventoryPage = readFileSync(new URL("../app/inventory/page.tsx", import.meta.url), "utf8");
+const inventorySession = readFileSync(new URL("../app/lib/inventory-session.ts", import.meta.url), "utf8");
 const payrollApp = readFileSync(new URL("../app/payroll-app.tsx", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 const proxy = readFileSync(new URL("../proxy.ts", import.meta.url), "utf8");
@@ -87,6 +88,10 @@ test("portal PINs are hashed, attempt-limited, and enforced through a secure unl
   assert.match(proxy, /portal_pin_status/);
   assert.match(proxy, /records\.", 423\)/);
   assert.match(gateway, /Enter your portal PIN/);
+  assert.match(gateway, /if \(!payload\.pinConfigured\)/);
+  assert.match(gateway, /setMode\("set-pin"\)/);
+  assert.match(gateway, /Your approved account existed before PIN login was added/);
+  assert.match(gateway, /action: "set"/);
 });
 
 test("30 minutes of inactivity locks without unmounting unfinished work", () => {
@@ -98,4 +103,10 @@ test("30 minutes of inactivity locks without unmounting unfinished work", () => 
   assert.match(gateway, /<SessionIdleLock onSignOut=\{signOut\}>[\s\S]*<PayrollApp/);
   assert.match(inventoryPage, /<SessionIdleLock>[\s\S]*<Inventory360/);
   assert.match(styles, /\.session-lock-overlay \{ position: fixed; inset: 0; z-index: 1000/);
+});
+
+test("approved legacy accounts must create a PIN before opening Inventory", () => {
+  assert.match(inventorySession, /if \(!pinStatus\?\.configured\)/);
+  assert.match(inventorySession, /create your 4 to 6 digit PIN before opening Inventory/);
+  assert.match(inventorySession, /status: 423/);
 });

@@ -6,7 +6,7 @@ import PayrollApp from "./payroll-app";
 import SessionIdleLock from "./session-idle-lock";
 import { getSupabaseBrowserClient } from "./supabase-browser";
 
-type Mode = "loading" | "sign-in" | "checking" | "pin" | "authorized" | "waiting";
+type Mode = "loading" | "sign-in" | "checking" | "set-pin" | "pin" | "authorized" | "waiting";
 
 function clearAccessCache() {
   document.cookie = "__Secure-firehouse-access=; Path=/; Max-Age=0; SameSite=Lax; Secure";
@@ -24,6 +24,7 @@ export default function AuthGateway({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pin, setPin] = useState("");
+  const [pinConfirmation, setPinConfirmation] = useState("");
   const [usePasswordSignIn, setUsePasswordSignIn] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
@@ -67,6 +68,13 @@ export default function AuthGateway({
         const response = await fetch("/api/auth/context", { cache: "no-store" });
         if (response.ok) {
           const payload = await response.json() as { pinConfigured?: boolean; pinUnlocked?: boolean };
+          if (!payload.pinConfigured) {
+            setPin("");
+            setPinConfirmation("");
+            setMode("set-pin");
+            setMessage("");
+            return;
+          }
           if (payload.pinConfigured && !payload.pinUnlocked) {
             setPin("");
             setMode("pin");
@@ -169,6 +177,33 @@ export default function AuthGateway({
     setMode("authorized");
   }
 
+  async function createPin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!/^\d{4,6}$/.test(pin)) {
+      setMessage("Choose a PIN containing 4 to 6 digits.");
+      return;
+    }
+    if (pin !== pinConfirmation) {
+      setMessage("The two PIN entries do not match.");
+      return;
+    }
+    setMessage("Saving your portal PIN...");
+    const response = await fetch("/api/auth/pin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "set", pin }),
+    });
+    const payload = await response.json().catch(() => ({})) as { error?: string };
+    if (!response.ok) {
+      setMessage(payload.error || "The PIN could not be saved.");
+      return;
+    }
+    setPin("");
+    setPinConfirmation("");
+    setMessage("");
+    setMode("authorized");
+  }
+
   async function signOut() {
     clearAccessCache();
     await fetch("/api/auth/pin", { method: "DELETE" }).catch(() => undefined);
@@ -204,6 +239,27 @@ export default function AuthGateway({
             <div><dt>Records</dt><dd>Protected until approved</dd></div>
           </dl>
           <button type="button" className="login-primary" onClick={() => user && checkAccess(user)}>Check again</button>
+          <button type="button" className="login-link-button" onClick={signOut}>Use a different account</button>
+        </section>
+      </main>
+    );
+  }
+
+  if (mode === "set-pin") {
+    return (
+      <main className="login-shell">
+        <section className="login-card login-waiting-card">
+          <span className="login-app-mark" aria-hidden="true">SFD</span>
+          <p className="login-eyebrow">EMAIL VERIFIED · ONE-TIME SETUP</p>
+          <h1>Create your portal PIN</h1>
+          <p>Your approved account existed before PIN login was added. Create 4 to 6 digits now; no department records or unfinished work will be removed.</p>
+          <dl className="invite-account-summary"><div><dt>Verified account</dt><dd>{user?.email}</dd></div><div><dt>Department</dt><dd>Stickney Fire Department</dd></div></dl>
+          <form onSubmit={createPin}>
+            <label>New PIN<input autoFocus type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
+            <label>Confirm PIN<input type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pinConfirmation} onChange={(event) => setPinConfirmation(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
+            {message ? <p className="login-message" role="status">{message}</p> : null}
+            <button className="login-primary" type="submit">Save PIN and open the app</button>
+          </form>
           <button type="button" className="login-link-button" onClick={signOut}>Use a different account</button>
         </section>
       </main>
