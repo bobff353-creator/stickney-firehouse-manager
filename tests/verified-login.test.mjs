@@ -75,6 +75,14 @@ test("administrators send employee-bound invitations that confirm email before P
   assert.match(acceptInvite, /action: "set"/);
 });
 
+test("a confirmed administrator invite is redeemed even when the email returns to the app root", () => {
+  assert.match(proxy, /if \(!membership && !isOwner\)/);
+  assert.match(proxy, /client\.rpc\("accept_department_invite"\)/);
+  assert.match(proxy, /const membershipRetry = await client/);
+  assert.match(proxy, /membership = membershipRetry\.data/);
+  assert.match(proxy, /administrator must approve access before records can open/);
+});
+
 test("portal PINs are hashed, attempt-limited, and enforced through a secure unlock cookie", () => {
   assert.match(pinMigration, /crypt\(p_pin, gen_salt\('bf', 12\)\)/);
   assert.match(pinMigration, /next_failed_attempts >= 5/);

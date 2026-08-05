@@ -82,7 +82,24 @@ export async function proxy(request: NextRequest) {
   }
 
   const isOwner = ownerResult.data === true;
-  const membership = membershipResult.data as { role?: string } | null;
+  let membership = membershipResult.data as { role?: string } | null;
+  if (!membership && !isOwner) {
+    // Confirmation links can legitimately return to either the dedicated invite
+    // page or the app root, depending on the email template/provider. Redeem a
+    // matching, unexpired administrator invitation before denying access.
+    await client.rpc("accept_department_invite");
+    const membershipRetry = await client
+      .from("department_memberships")
+      .select("role,status")
+      .eq("department_id", departmentId)
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .maybeSingle();
+    if (membershipRetry.error) {
+      return jsonError("Department authorization could not be verified.", 503);
+    }
+    membership = membershipRetry.data as { role?: string } | null;
+  }
   if (!membership && !isOwner) {
     return jsonError(
       "Your email is confirmed. A department administrator must approve access before records can open.",
