@@ -180,27 +180,25 @@ test("rotations can end without changing past schedule history", async () => {
   assert.equal(source.includes("past schedule history was preserved"), true);
 });
 
-test("schedule includes agenda filters and coverage command views", async () => {
+test("schedule includes month filters and coverage command views", async () => {
   const source = await readFile(new URL("../app/scheduling.tsx", import.meta.url), "utf8");
-  assert.equal(source.includes('"agenda"'), true);
+  assert.equal(source.includes("One-month view"), true);
   assert.equal(source.includes("schedule-filters"), true);
   assert.equal(source.includes("Saved staffing plans"), true);
 });
 
-test("calendar supports day week and month views with transparent shift colors", async () => {
+test("calendar stays in a single full month with readable shift-colored days", async () => {
   const [screen, styles] = await Promise.all([
     readFile(new URL("../app/scheduling.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
-  for (const view of ["day", "week", "month"]) {
-    assert.equal(screen.includes(`viewMode === "${view}"`), true);
-    assert.equal(screen.includes(`setViewMode("${view}")`), true);
-  }
+  assert.equal(screen.includes('className="schedule-calendar view-month"'), true);
+  assert.equal(screen.includes("setViewMode("), false);
+  assert.equal(screen.includes("schedule-empty-day"), true);
   assert.equal(screen.includes("data-shift-color"), true);
   assert.equal(styles.includes('article[data-shift-color="red"]'), true);
-  assert.equal(styles.includes("rgba(180,59,59,.10)"), true);
-  assert.equal(styles.includes(".schedule-calendar.view-day"), true);
-  assert.equal(styles.includes(".schedule-calendar.view-week"), true);
+  assert.equal(styles.includes(".workspace:has(.schedule-page.calendar-active){width:100%;max-width:none}"), true);
+  assert.equal(styles.includes("min-height:clamp(180px,11vw,230px)"), true);
 });
 
 test("calendar uses shift-colored day cells and prioritizes readable employee names", async () => {
@@ -225,5 +223,6 @@ test("clicking a date opens an employee day workspace with dated schedule action
   assert.equal(screen.includes("selectedDayIncomingTrades"), true);
   assert.equal(screen.includes("Request Open Shift"), true);
   assert.equal(screen.includes("Pick Up Trade"), true);
-  assert.equal(screen.indexOf('className="employee-day-workspace"') < screen.indexOf("schedule-calendar view-${viewMode}"), true);
+  assert.equal(screen.includes("setSelectedDayPanelOpen(true)"), true);
+  assert.equal(screen.indexOf('className="employee-day-workspace"') < screen.indexOf('className="schedule-calendar view-month"'), true);
 });
