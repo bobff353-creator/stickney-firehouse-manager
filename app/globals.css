@@ -1,4 +1,7 @@
 @import "tailwindcss";
+@import "./station-roster.css";
+
+main.app-shell:has(.station-roster-scope) > .mobile-bottom-tabs { display: none; }
 
 :root {
   --navy: #17324d;

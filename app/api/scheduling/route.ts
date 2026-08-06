@@ -207,7 +207,7 @@ export async function GET(request: Request) {
     if (!current.isAdmin && !current.employeeId) return Response.json({ error: "Your login is not connected to an employee record." }, { status: 403 });
     const requestedTestEmployeeId = current.isAdmin ? new URL(request.url).searchParams.get("testEmployeeId") ?? "" : "";
     const employeeId = requestedTestEmployeeId || current.employeeId || "";
-    const [employees, assignments, rotations, requests, notifications, rules, patterns, overrides, notificationRules, tradeBusyAssignments] = await Promise.all([
+    const [employees, assignments, rotations, requests, notifications, rules, patterns, overrides, notificationRules, tradeBusyAssignments, visibilitySetting] = await Promise.all([
       db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.email,'') email,COALESCE(ep.phone,'') phone,COALESCE(ep.schedule_sms_opt_in,0) scheduleSmsOptIn,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 ORDER BY e.name COLLATE NOCASE").all(),
       current.isAdmin
         ? db.prepare("SELECT a.id,a.employee_id employeeId,e.name employeeName,a.work_date workDate,a.start_time startTime,a.end_time endTime,a.role,a.source,a.status,a.emergency,a.required_rank requiredRank,a.claim_deadline claimDeadline,a.notes FROM schedule_assignments a LEFT JOIN employees e ON e.id=a.employee_id WHERE date(a.work_date)>=date('now','-45 day') AND a.status<>'cancelled' ORDER BY a.work_date,a.start_time").all<Assignment>()
@@ -223,12 +223,18 @@ export async function GET(request: Request) {
       db.prepare("SELECT id,name,color,start_date startDate,start_time startTime,end_time endTime,recurrence_days recurrenceDays,coverage_plan_id coveragePlanId,active FROM schedule_shift_patterns WHERE active=1 ORDER BY start_date,name COLLATE NOCASE").all<ShiftPattern>(),
       db.prepare("SELECT id,pattern_id patternId,name,condition_type conditionType,role,minimum_staff minimumStaff,active FROM schedule_staffing_overrides WHERE active=1 ORDER BY name COLLATE NOCASE,role").all<StaffingOverride>(),
       current.isAdmin
-        ? db.prepare("SELECT event_type eventType,label,active,email_enabled emailEnabled,sms_enabled smsEnabled,delivery_timings deliveryTimings,updated_at updatedAt FROM schedule_notification_rules ORDER BY label").all()
+        ? db.prepare("SELECT event_type eventType,label,active,email_enabled emailEnabled,sms_enabled smsEnabled,delivery_timings deliveryTimings,updated_at updatedAt FROM schedule_notification_rules WHERE event_type<>'open_shift_visibility' ORDER BY label").all()
         : Promise.resolve({ results: [] }),
       employeeId
         ? db.prepare("SELECT id,employee_id employeeId,work_date workDate,start_time startTime,end_time endTime,role,source,status,emergency,required_rank requiredRank,claim_deadline claimDeadline,notes FROM schedule_assignments WHERE status='assigned' AND date(work_date)>=date('now','-1 day')").all<Assignment>()
         : Promise.resolve({ results: [] as Assignment[] }),
+      db.prepare("SELECT delivery_timings deliveryTimings FROM schedule_notification_rules WHERE event_type='open_shift_visibility' LIMIT 1").first<{deliveryTimings:string}>(),
     ]);
+    let openShiftsVisibleThrough = addDays(chicagoNow().slice(0, 10), 120);
+    try {
+      const savedCutoff = JSON.parse(visibilitySetting?.deliveryTimings || "[]")[0];
+      if (iso.test(String(savedCutoff))) openShiftsVisibleThrough = String(savedCutoff);
+    } catch { /* Keep the safe 120-day default. */ }
     const employeeEligibility = employees.results as EligibleEmployee[];
     const selectedEmployee = employeeEligibility.find((employee) => employee.id === employeeId);
     const staffingAssignments = current.isAdmin
@@ -261,6 +267,7 @@ export async function GET(request: Request) {
       shiftPatterns: patterns.results,
       staffingOverrides: current.isAdmin ? overrides.results : [],
       notificationRules: notificationRules.results,
+      settings: { openShiftsVisibleThrough },
       tradeEligibility,
       coverageGaps: current.isAdmin ? coverageGaps(staffingAssignments, rules.results, patterns.results, overrides.results) : [],
     });
@@ -283,6 +290,16 @@ export async function POST(request: Request) {
       : null;
     if (testEmployeeId && !actingEmployee) return Response.json({ error: "The selected Test View employee is unavailable." }, { status: 404 });
     const actingName = actingEmployee?.name ?? current.name;
+
+    if (action === "saveScheduleSettings") {
+      if (!current.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
+      const openShiftsVisibleThrough = String(payload.openShiftsVisibleThrough ?? "");
+      const days = spanDays(chicagoNow().slice(0, 10), openShiftsVisibleThrough);
+      if (!iso.test(openShiftsVisibleThrough) || days < 0 || days > 730) return Response.json({ error: "Choose an open-shift visibility date from today through the next two years." }, { status: 400 });
+      await db.prepare("INSERT INTO schedule_notification_rules(event_type,label,active,email_enabled,sms_enabled,delivery_timings,updated_by) VALUES('open_shift_visibility','Open-shift visibility cutoff',1,0,0,?,?) ON CONFLICT(event_type) DO UPDATE SET delivery_timings=excluded.delivery_timings,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP")
+        .bind(JSON.stringify([openShiftsVisibleThrough]), current.name).run();
+      return Response.json({ ok: true });
+    }
 
     if (action === "saveNotificationRules") {
       if (!current.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
@@ -401,7 +418,7 @@ export async function POST(request: Request) {
       const startDate = String(payload.startDate ?? "");
       const recurrenceDays = Number(payload.recurrenceDays);
       const coveragePlanId = String(payload.coveragePlanId ?? "");
-      const allowedColors = ["red", "black", "gold", "blue", "green", "purple", "orange"];
+      const allowedColors = ["red", "black", "gold", "blue", "green", "purple", "orange", "#c83e32", "#e25a45", "#c9942e", "#e0b24c", "#172126", "#303a3f"];
       const plan = await db.prepare("SELECT MIN(start_time) startTime,MIN(end_time) endTime FROM schedule_coverage_rules WHERE active=1 AND (plan_id=? OR id=?)").bind(coveragePlanId, coveragePlanId).first<{startTime:string;endTime:string}>();
       if (!name || !allowedColors.includes(color) || !iso.test(startDate) || !Number.isInteger(recurrenceDays) || recurrenceDays < 1 || recurrenceDays > 365 || !plan?.startTime || !plan?.endTime) {
         return Response.json({ error: "Enter a shift reference, color, start date, recurrence from 1 to 365 days, and an active staffing plan." }, { status: 400 });

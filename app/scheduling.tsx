@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { formatEmployeeName } from "./employee-names";
 import { matchingTimeBlock, scheduleTimeBlocks } from "./schedule-time";
 import { qualifiedForScheduleRole } from "./schedule-eligibility";
@@ -36,6 +36,7 @@ type ScheduleData = {
   employees:Employee[]; assignments:Assignment[]; rotations:Rotation[]; requests:Request[]; notifications:Notification[];
   coverageRules:CoverageRule[]; coverageGaps:CoverageGap[]; shiftPatterns:ShiftPattern[]; staffingOverrides:StaffingOverride[]; notificationRules:NotificationRule[];
   tradeEligibility:Record<string,string[]>;
+  settings:{ openShiftsVisibleThrough:string };
 };
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
@@ -48,6 +49,19 @@ const requestLabels:Record<string,string> = {
   availability: "Availability", time_off: "Time Off", shift_claim: "Open Shift", trade: "Trade / Give Away",
 };
 const weekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const stationRosterMarks:Record<string,string> = {
+  calendar: "▦", patterns: "◫", coverage: "◆", rotations: "↻", open: "+", requests: "⇄", request: "✓", alerts: "●",
+};
+const stationShiftColors = [
+  { name: "Engine red", value: "#C83E32", family: "Red" },
+  { name: "Ember red", value: "#E25A45", family: "Red" },
+  { name: "Brass gold", value: "#C9942E", family: "Gold" },
+  { name: "Station gold", value: "#E0B24C", family: "Gold" },
+  { name: "Midnight black", value: "#172126", family: "Black" },
+  { name: "Graphite black", value: "#303A3F", family: "Black" },
+] as const;
+const stationColor = (value:string) => ({ red: "#C83E32", gold: "#C9942E", black: "#172126", blue: "#2D6CDF", green: "#168A70", purple: "#6B5CA5", orange: "#D97832" }[value.toLowerCase()] || value || "#303A3F");
+const initials = (value:string) => value.split(/\s|@/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "FD";
 const departmentPositions = [
   "Duty Crew",
   "Chief Officer",
@@ -71,6 +85,12 @@ const patternOccurs = (pattern:ShiftPattern, date:string) => {
 };
 const qualifiedForPosition = (employee:Pick<Employee,"rank"|"actingOfficerEligible"|"driverStatus">, role:string) =>
   qualifiedForScheduleRole(employee, role);
+const employeeQualificationLabels = (employee:Employee) => {
+  const labels = [employee.rank || "Member"];
+  if (employee.actingOfficerEligible) labels.push("Acting Officer");
+  if (employee.driverStatus) labels.push(employee.driverStatus);
+  return [...new Set(labels.filter(Boolean))];
+};
 
 function TimeBlockSelect({ startTime, endTime, onChange }:{ startTime:string; endTime:string; onChange:(startTime:string,endTime:string)=>void }) {
   return <label className="wide"><span>Quick time block</span><select value={matchingTimeBlock(startTime, endTime)} onChange={(event) => {
@@ -114,7 +134,7 @@ export default function Scheduling({ testMember = null }:{ testMember?:TestMembe
   ]);
   const [coverageDays, setCoverageDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
   const [shiftPattern, setShiftPattern] = useState({
-    name: "Red", color: "red", startDate: today(), recurrenceDays: "3", coveragePlanId: "",
+    name: "Red", color: "#C83E32", startDate: today(), recurrenceDays: "3", coveragePlanId: "",
   });
   const [staffingOverride, setStaffingOverride] = useState({
     patternId: "", conditionType: "weekend", role: "Firefighter", minimumStaff: "5",
@@ -178,7 +198,8 @@ export default function Scheduling({ testMember = null }:{ testMember?:TestMembe
     (!roleFilter || item.role === roleFilter) &&
     (!statusFilter || item.status === statusFilter)
   ), [employeeFilter, portalAssignments, roleFilter, statusFilter]);
-  const openShifts = portalAssignments.filter((item) => item.status === "open");
+  const openShiftsVisibleThrough = data?.settings?.openShiftsVisibleThrough ?? plusDays(today(), 120);
+  const openShifts = portalAssignments.filter((item) => item.status === "open" && (isCommandView || item.workDate <= openShiftsVisibleThrough));
   const ownAssignments = portalAssignments.filter((item) => item.employeeId === portalEmployeeId);
   const upcomingOwnAssignments = ownAssignments.filter((item) => item.workDate >= today());
   const selectedTradeAssignment = ownAssignments.find((item) => item.id === request.assignmentId);
@@ -203,8 +224,8 @@ export default function Scheduling({ testMember = null }:{ testMember?:TestMembe
   const selectedRotationPlan = coveragePlans.find(([, rules]) => (rules[0].planId || rules[0].id) === rotation.coveragePlanId)?.[1] ?? [];
   const selectedRotationRule = selectedRotationPlan.find((rule) => rule.role === rotation.role) ?? selectedRotationPlan[0];
   const tabs = isCommandView
-    ? [["calendar", "Department Schedule"], ["patterns", "Shift Patterns"], ["coverage", "Coverage"], ["rotations", "Employee Rotations"], ["open", "Add / Open Shifts"], ["requests", "Requests & Trades"], ["alerts", `Notifications${unread ? ` (${unread})` : ""}`]]
-    : [["calendar", "My Schedule"], ["request", "Build & Submit Schedule"], ["open", `Open Shifts & Trades${incomingTrades.length ? ` (${incomingTrades.length})` : ""}`], ["alerts", `My Alerts${unread ? ` (${unread})` : ""}`]];
+    ? [["calendar", "Schedule"], ["patterns", "Shift editor"], ["open", "Open shifts"], ["requests", "Requests & trades"], ["alerts", "Personnel & reminders"]]
+    : [["calendar", "Calendar"], ["request", "Requests"], ["open", "Open shifts & trades"], ["alerts", "Reminder settings"]];
 
   function changeMonth(offset:number) {
     const date = new Date(`${month}-01T12:00:00`);
@@ -278,27 +299,33 @@ export default function Scheduling({ testMember = null }:{ testMember?:TestMembe
     setTab("request");
   }
 
-  return <div className={`schedule-page employee-schedule-portal ${tab === "calendar" ? "calendar-active" : ""}`} data-test-interactive={testMember ? "true" : undefined}>
-    <datalist id="schedule-position-options">{departmentPositions.map((position) => <option key={position} value={position}/>)}</datalist>
-    <section className="schedule-hero">
-      <div>
-        <p className="eyebrow">Department scheduling</p>
-        <h1>{isCommandView ? "Scheduling Command" : "Employee Schedule Portal"}</h1>
-        <p>{isCommandView
-          ? "Control rotations, watch staffing coverage, qualify open shifts, approve requests, and notify members."
-          : "Your private scheduling page for assignments, recurring availability, open shifts, trades, and alert preferences."}</p>
-      </div>
-      <div className="schedule-metrics">
-        <span><b>{isCommandView ? data?.assignments.filter((item) => item.workDate >= today()).length ?? 0 : upcomingOwnAssignments.length}</b>upcoming</span>
-        <span><b>{openShifts.length}</b>open</span>
-        <span className={data?.coverageGaps.length ? "warning" : ""}><b>{data?.coverageGaps.length ?? 0}</b>coverage gaps</span>
-        <span><b>{data?.requests.filter((item) => item.status === "pending").length ?? 0}</b>pending</span>
-      </div>
-    </section>
+  const pendingRequests = data.requests.filter((item) => item.status === "pending").length;
+  const profileName = portalEmployee?.name || data.viewer.profileEmail || "Signed-in member";
 
-    <nav className="schedule-tabs">
-      {tabs.map(([key, label]) => <button key={key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>{label}</button>)}
-    </nav>
+  return <div className={`station-roster-scope schedule-page employee-schedule-portal ${tab === "calendar" ? "calendar-active" : ""}`} data-test-interactive={testMember ? "true" : undefined}>
+    <datalist id="schedule-position-options">{departmentPositions.map((position) => <option key={position} value={position}/>)}</datalist>
+    <main className="app-shell">
+      <aside className="sidebar">
+        <div className="brand-row"><div className="brand-mark">SR</div><div><strong>Station Roster</strong><span>Fire & EMS scheduling</span></div></div>
+        <div className="workspace-label">Workspace</div>
+        <nav className="main-nav" aria-label={isCommandView ? "Administrator scheduling" : "Employee scheduling"}>
+          {tabs.map(([key, label]) => {
+            const count = key === "requests" ? pendingRequests : key === "open" ? openShifts.length + incomingTrades.length : key === "alerts" ? unread : 0;
+            return <button key={key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}><span className="nav-mark">{stationRosterMarks[key] || "•"}</span><span>{label}</span>{count > 0 && <b>{count}</b>}</button>;
+          })}
+        </nav>
+        {isCommandView && <div className="readiness-card"><span className="live-dot"/><strong>Live department roster</strong><p>{data.employees.length} active members and {data.shiftPatterns.length} repeating shift rules.</p><div className="progress"><i style={{ width: `${Math.min(100, 35 + data.shiftPatterns.length * 8)}%` }}/></div></div>}
+        <div className="sidebar-bottom"><div className="profile-row"><div className="avatar">{initials(profileName)}</div><div><strong>{formatEmployeeName(profileName)}</strong><span>{isCommandView ? "Administrator" : portalRank || "Employee"}</span></div><span aria-hidden="true">•••</span></div></div>
+      </aside>
+      <section className="content-area">
+        <header className="topbar"><div><span className="mobile-brand">Station Roster</span><h1>{isCommandView ? "Scheduling command" : "My schedule"}</h1><p>{isCommandView ? "Build the roster, fill vacancies, and keep every seat covered." : "See your shifts, request openings, and manage trades."}</p></div><div className="top-actions"><button className="notice-button" aria-label="Scheduling notifications" onClick={() => setTab("alerts")}>●{unread > 0 && <span>{unread}</span>}</button>{isCommandView && <button className="primary-button" onClick={() => setTab("patterns")}>+ New shift</button>}</div></header>
+
+        <div className="metric-grid">
+          <button className="metric-card" onClick={() => setTab("calendar")}><span className="metric-icon coral">▦</span><div><span>{isCommandView ? "Active personnel" : "Upcoming shifts"}</span><strong>{isCommandView ? data.employees.length : upcomingOwnAssignments.length}</strong><small>{isCommandView ? "Roster available" : "Confirmed assignments"}</small></div></button>
+          <button className="metric-card" onClick={() => setTab(isCommandView ? "requests" : "request")}><span className="metric-icon blue">✓</span><div><span>Pending requests</span><strong>{pendingRequests}</strong><small>Awaiting review</small></div></button>
+          <button className="metric-card" onClick={() => setTab("open")}><span className="metric-icon gold">⇄</span><div><span>Open opportunities</span><strong>{openShifts.length + incomingTrades.length}</strong><small>Shifts and eligible trades</small></div></button>
+          <button className="metric-card" onClick={() => setTab("alerts")}><span className="metric-icon green">◷</span><div><span>Reminder settings</span><strong>{unread}</strong><small>Unread scheduling notices</small></div></button>
+        </div>
     {error && <div className="error-banner">{error}</div>}
     {message && <div className="work-detail-message">{message}</div>}
 
@@ -350,7 +377,7 @@ export default function Scheduling({ testMember = null }:{ testMember?:TestMembe
             if (date.slice(0, 7) !== month) return <article key={date} className="outside schedule-empty-day" aria-hidden="true"/>;
             const gaps = data?.coverageGaps.filter((gap) => gap.date === date) ?? [];
             const patterns = data?.shiftPatterns.filter((pattern) => patternOccurs(pattern, date)) ?? [];
-            return <article key={date} data-shift-color={patterns[0]?.color || "none"} className={`${date === today() ? "today" : ""} ${gaps.length ? "understaffed" : ""}`}>
+            return <article key={date} data-shift-color={patterns[0]?.color || "none"} style={{ "--station-shift-color": stationColor(patterns[0]?.color || "") } as CSSProperties} className={`${date === today() ? "today" : ""} ${gaps.length ? "understaffed" : ""}`}>
               <header><button className="schedule-date-button" aria-label={`Open details for ${friendlyDate(date)}`} onClick={() => { setSelectedDate(date); setSelectedDayPanelOpen(true); }}>{Number(date.slice(8))}</button>{gaps.length > 0 && <b title={gaps.map((gap) => `${gap.role}: short ${gap.shortBy}`).join(", ")}>−{gaps.reduce((sum, gap) => sum + gap.shortBy, 0)} staff</b>}</header>
               <div>{filteredAssignments.filter((item) => item.workDate === date).map((item) => <span key={item.id} className={`${item.status} ${item.emergency ? "emergency" : ""}`}>
                 <strong>{item.status === "open" ? "OPEN" : formatEmployeeName(item.employeeName || "")}</strong>
@@ -365,10 +392,9 @@ export default function Scheduling({ testMember = null }:{ testMember?:TestMembe
     {tab === "patterns" && isCommandView && <section className="shift-pattern-command">
       <article className="content-card schedule-form">
         <div className="section-header"><div><p className="eyebrow">Step 1</p><h2>Create shift reference</h2><p>Name and color the shift, choose its first day, then set how often it repeats.</p></div></div>
-        <div className="shift-reference-presets">{["Red","Black","Gold","Red 2","Black 2","Gold 2","A","B","C","D"].map((name) => <button type="button" className={shiftPattern.name === name ? "active" : ""} key={name} onClick={() => setShiftPattern((current) => ({ ...current, name, color: name.toLowerCase().startsWith("black") ? "black" : name.toLowerCase().startsWith("gold") ? "gold" : name.toLowerCase().startsWith("red") ? "red" : "blue" }))}>{name}</button>)}</div>
         <div className="schedule-fields">
           <label><span>Shift reference *</span><input value={shiftPattern.name} onChange={(event) => setShiftPattern({ ...shiftPattern, name: event.target.value })}/><small>Use a preset or enter a department-specific name.</small></label>
-          <label><span>Calendar color *</span><select value={shiftPattern.color} onChange={(event) => setShiftPattern({ ...shiftPattern, color: event.target.value })}><option value="red">Red</option><option value="black">Black</option><option value="gold">Gold</option><option value="blue">Blue</option><option value="green">Green</option><option value="purple">Purple</option><option value="orange">Orange</option></select></label>
+          <fieldset className="color-palette-fieldset wide"><legend>Calendar color *</legend><div className="color-palette">{stationShiftColors.map((color) => <label key={color.value} className={shiftPattern.color === color.value ? "selected" : ""}><input type="radio" name="shift-pattern-color" value={color.value} checked={shiftPattern.color === color.value} onChange={() => setShiftPattern({ ...shiftPattern, color: color.value })}/><span className="color-swatch" style={{ background: color.value }}><i>✓</i></span><strong>{color.name}</strong><small>{color.family}</small></label>)}</div></fieldset>
           <label><span>First assigned day *</span><input type="date" value={shiftPattern.startDate} onChange={(event) => setShiftPattern({ ...shiftPattern, startDate: event.target.value })}/></label>
           <label><span>Repeats every *</span><div className="input-unit"><input type="number" min="1" max="365" value={shiftPattern.recurrenceDays} onChange={(event) => setShiftPattern({ ...shiftPattern, recurrenceDays: event.target.value })}/><b>days</b></div><small>Examples: 3, 4, 5, or 6 days.</small></label>
           <label className="wide"><span>Shift requirements *</span><select value={shiftPattern.coveragePlanId} onChange={(event) => setShiftPattern({ ...shiftPattern, coveragePlanId: event.target.value })}><option value="">Select minimum staffing plan</option>{coveragePlans.map(([planId, rules]) => <option key={planId} value={rules[0].planId || rules[0].id}>{rules[0].name} · {rules.map((rule) => `${rule.minimumStaff} ${rule.role}`).join(", ")}</option>)}</select><small>The selected plan controls required positions and staffing for every occurrence.</small></label>
@@ -392,12 +418,12 @@ export default function Scheduling({ testMember = null }:{ testMember?:TestMembe
         {data.shiftPatterns.length ? data.shiftPatterns.map((pattern) => {
           const requirements = data.coverageRules.filter((rule) => rule.active && (rule.planId || rule.id) === pattern.coveragePlanId);
           const specials = data.staffingOverrides.filter((item) => item.patternId === pattern.id);
-          return <div className="shift-pattern-row" key={pattern.id}><i data-color={pattern.color}/><div><strong>{pattern.name}</strong><span>Starts {friendlyDate(pattern.startDate)} · every {pattern.recurrenceDays} days · {pattern.startTime}–{pattern.endTime}</span><small>{requirements.map((rule) => `${rule.minimumStaff} ${rule.role}`).join(" · ") || "Staffing plan unavailable"}</small>{specials.map((item) => <em key={item.id}>{item.conditionType}: {item.minimumStaff} {item.role}<button aria-label={`Remove ${item.name}`} onClick={() => void act({ action: "deleteStaffingOverride", id: item.id }, "Special staffing rule removed")}>×</button></em>)}</div><button className="danger-link" onClick={() => void act({ action: "deactivateShiftPattern", id: pattern.id }, "Shift reference ended")}>End pattern</button></div>;
+          return <div className="shift-pattern-row" key={pattern.id}><i data-color={pattern.color} style={{ background: stationColor(pattern.color) }}/><div><strong>{pattern.name}</strong><span>Starts {friendlyDate(pattern.startDate)} · every {pattern.recurrenceDays} days · {pattern.startTime}–{pattern.endTime}</span><small>{requirements.map((rule) => `${rule.minimumStaff} ${rule.role}`).join(" · ") || "Staffing plan unavailable"}</small>{specials.map((item) => <em key={item.id}>{item.conditionType}: {item.minimumStaff} {item.role}<button aria-label={`Remove ${item.name}`} onClick={() => void act({ action: "deleteStaffingOverride", id: item.id }, "Special staffing rule removed")}>×</button></em>)}</div><button className="danger-link" onClick={() => void act({ action: "deactivateShiftPattern", id: pattern.id }, "Shift reference ended")}>End pattern</button></div>;
         }) : <p className="schedule-empty">No shift references have been created yet.</p>}
       </article>
     </section>}
 
-    {tab === "coverage" && isCommandView && <section className="schedule-two-col">
+    {tab === "patterns" && isCommandView && <section className="schedule-two-col station-riding-assignments">
       <article className="content-card schedule-form">
         <div className="section-header"><div><h2>Create minimum staffing plan</h2><p>Each save creates a separate plan. Add as many plans as the department needs.</p></div></div>
         <div className="schedule-fields">
@@ -438,7 +464,7 @@ export default function Scheduling({ testMember = null }:{ testMember?:TestMembe
       </article>
     </section>}
 
-    {tab === "rotations" && isCommandView && <section className="schedule-two-col">
+    {tab === "patterns" && isCommandView && <section className="schedule-two-col station-repeating-shifts">
       <article className="content-card schedule-form">
         <div className="section-header"><div><h2>Add employee rotation</h2><p>Pick the employee and staffing plan, choose the first day and repeat interval, then fill the schedule automatically.</p></div></div>
         {!coveragePlans.length && <div className="schedule-setup-callout"><strong>Create a minimum staffing plan first.</strong><span>Employee rotations use the plan’s positions and working hours.</span><button onClick={() => setTab("coverage")}>Go to Coverage</button></div>}
@@ -544,12 +570,20 @@ export default function Scheduling({ testMember = null }:{ testMember?:TestMembe
 
     {tab === "alerts" && <section className="content-card">
       <div className="section-header"><div><h2>Scheduling notifications</h2><p>Choose each alert, its channels, and more than one delivery time when needed.</p></div></div>
+      {isCommandView && <section className="station-personnel-card" aria-label="Scheduling personnel">
+        <div className="section-header"><div><h3>Personnel & qualifications</h3><p>Current employee eligibility used by riding assignments, open shifts, and trades. Employee identity records remain managed in the portal Personnel area.</p></div><b>{data.employees.length} members</b></div>
+        <div className="station-personnel-list">{data.employees.map((employee) => <article key={employee.id}>
+          <span className="person-avatar">{initials(employee.name)}</span>
+          <div><strong>{formatEmployeeName(employee.name)}</strong><small>{employee.email || "No email on file"}</small><div className="tag-list">{employeeQualificationLabels(employee).map((label) => <span key={label}>{label}</span>)}</div></div>
+        </article>)}</div>
+      </section>}
       {!isCommandView && <div className="employee-alert-preferences">
         <div><span>Email updates</span><strong>{(testMember ? portalEmployee?.email : data?.viewer.profileEmail) || "No employee email saved"}</strong><small>{(testMember ? portalEmployee?.email : data?.viewer.profileEmail) ? "Shift assignments, open-shift responses, trades, and request decisions use this saved employee email automatically." : "Ask an administrator to add your login email in Employee Information."}</small></div>
         <label className={!(testMember ? portalEmployee?.phone : data?.viewer.phone) ? "disabled" : ""}><input type="checkbox" checked={testMember ? Boolean(portalEmployee?.scheduleSmsOptIn) : Boolean(data?.viewer.smsOptIn)} disabled={!(testMember ? portalEmployee?.phone : data?.viewer.phone) || busy} onChange={(event) => data && setData(testMember ? { ...data, employees: data.employees.map((employee) => employee.id === testMember.id ? { ...employee, scheduleSmsOptIn: event.target.checked ? 1 : 0 } : employee) } : { ...data, viewer: { ...data.viewer, smsOptIn: event.target.checked } })}/><span><strong>Text updates</strong><small>{(testMember ? portalEmployee?.phone : data?.viewer.phone) ? `Send eligible scheduling texts to ${testMember ? portalEmployee?.phone : data?.viewer.phone}.` : "A mobile number must be saved before text updates can be enabled."}</small></span></label>
         <button className="primary-action compact" disabled={busy} onClick={() => data && void act({ action: "saveMyNotificationPreferences", smsOptIn: testMember ? Boolean(portalEmployee?.scheduleSmsOptIn) : data.viewer.smsOptIn }, "My alert preferences saved")}>Save My Alert Preferences</button>
       </div>}
       {isCommandView && <div className="schedule-notification-setup">
+        <div className="visibility-setting"><label>Employees can view open shifts through<input type="date" min={today()} value={data.settings.openShiftsVisibleThrough} onChange={(event) => setData({ ...data, settings: { ...data.settings, openShiftsVisibleThrough: event.target.value } })}/></label><p>Open positions after this date remain available to administrators but are hidden from employee open-shift lists.</p><button className="primary-action compact" disabled={busy} onClick={() => void act({ action: "saveScheduleSettings", openShiftsVisibleThrough: data.settings.openShiftsVisibleThrough }, "Open-shift visibility cutoff saved")}>Save Visibility Cutoff</button></div>
         <div className="notification-setup-head"><div><strong>Notification setup</strong><p>Text is queued only for employees who elected to receive texts in their Employee profile.</p></div><button className="primary-action compact" disabled={busy} onClick={() => void act({ action: "saveNotificationRules", rules: data.notificationRules.map((rule) => ({ ...rule, deliveryTimings: JSON.parse(rule.deliveryTimings) })) }, "Notification setup saved")}>Save Notification Setup</button></div>
         <div className="notification-rule-list">{data.notificationRules.map((rule) => {
           const timings = new Set<string>(JSON.parse(rule.deliveryTimings || '["immediate"]'));
@@ -565,5 +599,7 @@ export default function Scheduling({ testMember = null }:{ testMember?:TestMembe
       <h3 className="notification-history-title">Notification history</h3>
       <div className="notification-list">{data?.notifications.map((item) => <article key={item.id} className={item.readAt ? "read" : ""}><div><strong>{item.title}</strong><p>{item.message}</p><small>In-app{item.email ? " · Email queued" : ""}{item.sms ? " · Text queued" : ""}</small></div>{!item.readAt && <button onClick={() => void act({ action: "markRead", id: item.id }, "Marked read")}>Mark Read</button>}</article>)}</div>
     </section>}
+      </section>
+    </main>
   </div>;
 }

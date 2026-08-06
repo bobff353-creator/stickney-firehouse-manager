@@ -43,9 +43,9 @@ test("employees have a private schedule portal with recurring requests and self-
     readFile(new URL("../db/bootstrap.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /Employee Schedule Portal/);
-  assert.match(page, /Build & Submit Schedule/);
-  assert.match(page, /Open Shifts & Trades/);
+  assert.match(page, /Station Roster/);
+  assert.match(page, /Build and submit my schedule/);
+  assert.match(page, /Open shifts & trades/);
   assert.match(page, /repeatInterval/);
   assert.match(page, /Save My Alert Preferences/);
   assert.match(route, /saveMyNotificationPreferences/);
@@ -112,7 +112,7 @@ test("shift references recur on the calendar and support weekend and holiday sta
   assert.equal(api.includes('action === "saveStaffingOverride"'), true);
   assert.equal(api.includes('override.conditionType === "weekend"'), true);
   assert.equal(api.includes('override.conditionType === "holiday"'), true);
-  for (const name of ["Red 2", "Black 2", "Gold 2", "A", "B", "C", "D"]) assert.equal(screen.includes(`"${name}"`), true);
+  for (const name of ["Engine red", "Ember red", "Brass gold", "Station gold", "Midnight black", "Graphite black"]) assert.equal(screen.includes(`"${name}"`), true);
   assert.equal(screen.includes("Repeats every *"), true);
   assert.equal(screen.includes("data-shift-color"), true);
 });
@@ -145,6 +145,17 @@ test("open shifts enforce rank and response deadlines", async () => {
   assert.equal(source.includes("required_rank requiredRank"), true);
   assert.equal(source.includes("claimDeadline < chicagoNow()"), true);
   assert.equal(source.includes("employeeEligibleForAssignment(employee, openShift"), true);
+});
+
+test("Station Roster persists an employee open-shift visibility cutoff", async () => {
+  const [api, screen] = await Promise.all([
+    readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/scheduling.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(api, /saveScheduleSettings/);
+  assert.match(api, /open_shift_visibility/);
+  assert.match(screen, /Employees can view open shifts through/);
+  assert.match(screen, /Save Visibility Cutoff/);
 });
 
 test("Acting Officer eligibility gates officer scheduling workflows", async () => {
