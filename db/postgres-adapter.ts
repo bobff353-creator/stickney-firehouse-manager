@@ -12,7 +12,9 @@ function sqlLiteral(value: BoundValue) {
     return String(value);
   }
   if (typeof value === "boolean") return value ? "1" : "0";
-  return `'${value.replaceAll("\0", "").replaceAll("'", "''")}'`;
+  const bytes = new TextEncoder().encode(value.replaceAll("\0", ""));
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `convert_from(decode('${hex}', 'hex'), 'UTF8')`;
 }
 
 function bindSql(sql: string, values: BoundValue[]) {
