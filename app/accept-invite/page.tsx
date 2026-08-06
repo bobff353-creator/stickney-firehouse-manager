@@ -11,6 +11,7 @@ export default function AcceptInvitePage() {
   const [email, setEmail] = useState("");
   const [pin, setPin] = useState("");
   const [confirmation, setConfirmation] = useState("");
+  const [temporaryPin, setTemporaryPin] = useState("");
   const [message, setMessage] = useState("Confirming your department invitation...");
   const [saving, setSaving] = useState(false);
 
@@ -51,12 +52,16 @@ export default function AcceptInvitePage() {
       setMessage("The two PIN entries do not match.");
       return;
     }
+    if (!/^\d{4,6}$/.test(temporaryPin)) {
+      setMessage("Enter your 4 to 6 digit employee number as the temporary PIN.");
+      return;
+    }
     setSaving(true);
     setMessage("Saving your secure device PIN...");
     const response = await fetch("/api/auth/pin", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "set", pin }),
+      body: JSON.stringify({ action: "activate", temporaryPin, pin }),
     });
     const payload = await response.json().catch(() => ({})) as { error?: string };
     if (!response.ok) {
@@ -81,16 +86,17 @@ export default function AcceptInvitePage() {
           <p className="login-message" role="alert">{message}</p>
           <Link className="login-text-link" href="/">Return to secure sign-in</Link>
         </> : <>
-          <h1>Create your portal PIN</h1>
-          <p>Your email is confirmed and your department access is active. Choose 4 to 6 digits for quick unlock on trusted devices.</p>
+          <h1>Activate your portal login</h1>
+          <p>Your Stickney email is your username. Enter your employee number once, then replace it with a private 4 to 6 digit PIN.</p>
           <dl className="invite-account-summary"><div><dt>Confirmed account</dt><dd>{email}</dd></div><div><dt>Department</dt><dd>Stickney Fire Department</dd></div></dl>
           <form onSubmit={savePin}>
-            <label>New PIN<input type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
+            <label>Temporary PIN (your employee number)<input autoFocus type="password" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={temporaryPin} onChange={(event) => setTemporaryPin(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
+            <label>New private PIN<input type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
             <label>Confirm PIN<input type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={confirmation} onChange={(event) => setConfirmation(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
             {message ? <p className="login-message" role="status">{message}</p> : null}
-            <button className="login-primary" type="submit" disabled={saving}>{saving ? "Saving PIN..." : "Save PIN and open the app"}</button>
+            <button className="login-primary" type="submit" disabled={saving}>{saving ? "Activating login..." : "Create private PIN and open app"}</button>
           </form>
-          <small className="pin-security-note">Five incorrect attempts lock PIN entry for 15 minutes. A full verified email sign-in is still required when your secure session expires.</small>
+          <small className="pin-security-note">Your employee number works only for activation and is never stored as your portal PIN. Five incorrect PIN attempts lock entry for 15 minutes.</small>
         </>}
       </section>
     </main>

@@ -16,6 +16,7 @@ const inviteRoute = readFileSync(new URL("../app/api/auth/invites/route.ts", imp
 const pinRoute = readFileSync(new URL("../app/api/auth/pin/route.ts", import.meta.url), "utf8");
 const acceptInvite = readFileSync(new URL("../app/accept-invite/page.tsx", import.meta.url), "utf8");
 const pinMigration = readFileSync(new URL("../supabase/migrations/20260803211245_member_invites_and_pin_unlock.sql", import.meta.url), "utf8");
+const emailHook = readFileSync(new URL("../app/api/auth/send-email-hook/route.ts", import.meta.url), "utf8");
 
 test("verified invited email login requires confirmation and department approval", () => {
   assert.match(gateway, /Firehouse Manager/);
@@ -69,10 +70,26 @@ test("administrators send employee-bound invitations that confirm email before P
   assert.match(inviteRoute, /signInWithOtp/);
   assert.match(inviteRoute, /shouldCreateUser: true/);
   assert.match(inviteRoute, /next", "\/accept-invite"/);
+  assert.match(inviteRoute, /employee_number/);
+  assert.match(inviteRoute, /@stickneyfire\.com/);
+  assert.match(inviteRoute, /4 to 6 digit Employee #/);
   assert.doesNotMatch(inviteRoute, /service_role|SUPABASE_SERVICE_ROLE|secret[_ -]?key/i);
   assert.match(acceptInvite, /accept_department_invite/);
   assert.match(acceptInvite, /pattern="\[0-9\]\{4,6\}"/);
-  assert.match(acceptInvite, /action: "set"/);
+  assert.match(acceptInvite, /Temporary PIN \(your employee number\)/);
+  assert.match(acceptInvite, /action: "activate"/);
+  assert.match(pinRoute, /timingSafeEqual/);
+});
+
+test("Supabase authentication emails use the signed Resend hook instead of the two-per-hour demo mailer", () => {
+  assert.match(proxy, /\/api\/auth\/send-email-hook/);
+  assert.match(emailHook, /new Webhook\(secret\)\.verify/);
+  assert.match(emailHook, /SUPABASE_SEND_EMAIL_HOOK_SECRET/);
+  assert.match(emailHook, /RESEND_API_KEY/);
+  assert.match(emailHook, /AUTH_EMAIL_FROM/);
+  assert.doesNotMatch(emailHook, /DISPATCH_EMAIL_FROM/);
+  assert.match(emailHook, /https:\/\/api\.resend\.com\/emails/);
+  assert.match(emailHook, /\/auth\/v1\/verify/);
 });
 
 test("a confirmed administrator invite is redeemed even when the email returns to the app root", () => {

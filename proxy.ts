@@ -13,6 +13,7 @@ const signedWebhookPaths = new Set([
   "/api/dispatch-bridge",
   "/api/resend-dispatch",
   "/api/admin/migration-export",
+  "/api/auth/send-email-hook",
 ]);
 
 const pinSetupPaths = new Set([

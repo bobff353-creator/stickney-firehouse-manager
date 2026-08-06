@@ -9,6 +9,8 @@ function normalizedEmail(value: unknown) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "";
 }
 
+const employeeNumberPattern = /^\d{4,6}$/;
+
 export async function GET(request: Request) {
   const db = await ensureDatabase();
   if (!await hasPermission(request, db, "employees.manage")) {
@@ -35,10 +37,16 @@ export async function POST(request: Request) {
   if (!email) return Response.json({ error: "Enter a valid employee email address." }, { status: 400 });
 
   const employee = await db.prepare(
-    "SELECT e.id,e.name,COALESCE(p.is_admin,0) AS isAdmin FROM employees e JOIN employee_profiles p ON p.employee_id=e.id WHERE e.active=1 AND lower(trim(p.email))=? LIMIT 1",
-  ).bind(email).first<{ id: string; name: string; isAdmin: number }>();
+    "SELECT e.id,e.name,COALESCE(p.is_admin,0) AS isAdmin,TRIM(COALESCE(p.employee_number,'')) AS employeeNumber FROM employees e JOIN employee_profiles p ON p.employee_id=e.id WHERE e.active=1 AND lower(trim(p.email))=? LIMIT 1",
+  ).bind(email).first<{ id: string; name: string; isAdmin: number; employeeNumber: string }>();
   if (!employee) {
     return Response.json({ error: "Save this email on an active employee record before sending an app invite." }, { status: 409 });
+  }
+  if (!email.endsWith("@stickneyfire.com")) {
+    return Response.json({ error: "App invitations must use the employee's @stickneyfire.com email address." }, { status: 409 });
+  }
+  if (!employeeNumberPattern.test(employee.employeeNumber)) {
+    return Response.json({ error: "Add a 4 to 6 digit Employee # to this employee record before sending the invite." }, { status: 409 });
   }
 
   const departmentId = request.headers.get("x-department-id") ?? "";
@@ -75,5 +83,11 @@ export async function POST(request: Request) {
     return Response.json({ error: `The invitation was saved, but the email could not be sent: ${mailError.message}` }, { status: 502 });
   }
 
-  return Response.json({ ok: true, email, employeeName: employee.name, expiresAt });
+  return Response.json({
+    ok: true,
+    email,
+    employeeName: employee.name,
+    expiresAt,
+    activation: "The employee number is the one-time activation PIN. The member must replace it with a private PIN.",
+  });
 }

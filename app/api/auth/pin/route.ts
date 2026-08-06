@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { timingSafeEqual } from "node:crypto";
+import { ensureDatabase } from "../../../../db/bootstrap";
 import { getSupabaseServerClient } from "../../../supabase-server";
 
 const pinCookie = "__Secure-firehouse-pin";
@@ -20,18 +22,46 @@ function withUnlockCookie(payload: object, token: string) {
 }
 
 export async function POST(request: Request) {
-  const payload = await request.json().catch(() => ({})) as { action?: string; pin?: string };
-  const action = payload.action === "set" ? "set" : "verify";
+  const payload = await request.json().catch(() => ({})) as { action?: string; pin?: string; temporaryPin?: string };
+  const action = payload.action === "set" || payload.action === "activate" ? payload.action : "verify";
   const pin = String(payload.pin ?? "").trim();
   if (!/^\d{4,6}$/.test(pin)) {
     return Response.json({ error: "Enter a 4 to 6 digit PIN." }, { status: 400 });
   }
 
   const client = await getSupabaseServerClient();
+  if (action === "activate") {
+    const temporaryPin = String(payload.temporaryPin ?? "").trim();
+    if (!/^\d{4,6}$/.test(temporaryPin)) {
+      return Response.json({ error: "Enter your 4 to 6 digit employee number as the temporary PIN." }, { status: 400 });
+    }
+    if (temporaryPin === pin) {
+      return Response.json({ error: "Choose a new private PIN that is different from your employee number." }, { status: 400 });
+    }
+    const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
+    const db = await ensureDatabase();
+    const employee = email ? await db.prepare(
+      "SELECT TRIM(COALESCE(p.employee_number,'')) AS employeeNumber FROM employees e JOIN employee_profiles p ON p.employee_id=e.id WHERE e.active=1 AND lower(trim(p.email))=? LIMIT 1",
+    ).bind(email).first<{ employeeNumber: string }>() : null;
+    const expected = employee?.employeeNumber ?? "";
+    const matches = expected.length === temporaryPin.length
+      && timingSafeEqual(Buffer.from(expected), Buffer.from(temporaryPin));
+    if (!matches) {
+      return Response.json({ error: "That temporary PIN does not match your employee number. Ask an administrator to verify your employee record." }, { status: 401 });
+    }
+  }
   if (action === "set") {
     const { data, error } = await client.rpc("set_portal_pin", { p_pin: pin });
     if (error || typeof data !== "string" || !data) {
       return Response.json({ error: error?.message || "The PIN could not be saved." }, { status: 400 });
+    }
+    return withUnlockCookie({ ok: true, configured: true, unlocked: true }, data);
+  }
+
+  if (action === "activate") {
+    const { data, error } = await client.rpc("set_portal_pin", { p_pin: pin });
+    if (error || typeof data !== "string" || !data) {
+      return Response.json({ error: error?.message || "The private PIN could not be saved." }, { status: 400 });
     }
     return withUnlockCookie({ ok: true, configured: true, unlocked: true }, data);
   }

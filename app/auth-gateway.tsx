@@ -314,8 +314,8 @@ export default function AuthGateway({
       </section>
       <section className="login-card">
         <p className="login-eyebrow">WELCOME BACK</p>
-        <h2>{usePasswordSignIn ? "Sign in with your password" : "Open the app with your PIN"}</h2>
-        <p>{usePasswordSignIn ? "Use the email and password connected to your department account." : "Enter your invited email. If your verified email session has expired, we will send a secure link; after opening it, enter your portal PIN."}</p>
+        <h2>{usePasswordSignIn ? "Sign in with your password" : "Sign in with your Stickney email"}</h2>
+        <p>{usePasswordSignIn ? "Use the email and password connected to your department account." : "Your Stickney email is your username. New members confirm it once, activate with their employee number, and then create a private portal PIN."}</p>
         <form onSubmit={usePasswordSignIn ? signIn : (event) => { event.preventDefault(); void emailSignInLink(); }}>
           <label>Email address<input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
           {usePasswordSignIn ? <label>Password
@@ -325,7 +325,7 @@ export default function AuthGateway({
             </span>
           </label> : null}
           {message ? <p className="login-message" role="status">{message}</p> : null}
-          <button className="login-primary" type="submit">{usePasswordSignIn ? "Sign in" : "Send secure sign-in link"}</button>
+          <button className="login-primary" type="submit">{usePasswordSignIn ? "Sign in" : "Email my secure login link"}</button>
         </form>
         {usePasswordSignIn ? <><button type="button" className="login-link-button" onClick={resetPassword}>Forgot password?</button><button type="button" className="login-link-button" onClick={() => { setUsePasswordSignIn(false); setMessage(""); }}>Use secure email link and PIN</button></> : <button type="button" className="login-link-button" onClick={() => { setUsePasswordSignIn(true); setMessage(""); }}>Use email and password instead</button>}
         <div className="login-divider"><span>Need an account?</span></div>
