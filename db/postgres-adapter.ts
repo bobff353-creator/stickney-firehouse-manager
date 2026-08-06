@@ -2,6 +2,8 @@ import { getSupabaseServerClient } from "../app/supabase-server";
 
 type BoundValue = string | number | boolean | null | undefined;
 type QueryMode = "all" | "first" | "run";
+type SupabaseClientFactory = typeof getSupabaseServerClient;
+type PortalRpc = "firehouse_sql" | "firehouse_server_sql";
 
 function sqlLiteral(value: BoundValue) {
   if (value == null) return "NULL";
@@ -98,40 +100,59 @@ function translateSql(sql: string, values: BoundValue[]) {
   return quoteCamelCaseIdentifiers(translated);
 }
 
-async function execute(sql: string, values: BoundValue[], mode: QueryMode) {
-  const supabase = await getSupabaseServerClient();
-  const { data, error } = await supabase.rpc("firehouse_sql", {
+async function execute(
+  sql: string,
+  values: BoundValue[],
+  mode: QueryMode,
+  clientFactory: SupabaseClientFactory,
+  rpc: PortalRpc,
+  databaseSecret: string | null,
+) {
+  const supabase = await clientFactory();
+  const { data, error } = await supabase.rpc(rpc, {
     p_sql: translateSql(sql, values),
     p_mode: mode,
-    p_secret: null,
+    p_secret: databaseSecret,
   });
   if (error) throw new Error(`Portal database query failed: ${error.message}`);
   return data;
 }
 
 export class PostgresD1Statement {
-  constructor(private readonly sql: string, private readonly values: BoundValue[] = []) {}
+  constructor(
+    private readonly sql: string,
+    private readonly values: BoundValue[] = [],
+    private readonly clientFactory: SupabaseClientFactory = getSupabaseServerClient,
+    private readonly rpc: PortalRpc = "firehouse_sql",
+    private readonly databaseSecret: string | null = null,
+  ) {}
 
   bind(...values: BoundValue[]) {
-    return new PostgresD1Statement(this.sql, values);
+    return new PostgresD1Statement(this.sql, values, this.clientFactory, this.rpc, this.databaseSecret);
   }
 
   async all<T = Record<string, unknown>>() {
-    return { results: (await execute(this.sql, this.values, "all")) as T[] };
+    return { results: (await execute(this.sql, this.values, "all", this.clientFactory, this.rpc, this.databaseSecret)) as T[] };
   }
 
   async first<T = Record<string, unknown>>() {
-    return (await execute(this.sql, this.values, "first")) as T | null;
+    return (await execute(this.sql, this.values, "first", this.clientFactory, this.rpc, this.databaseSecret)) as T | null;
   }
 
   async run() {
-    return (await execute(this.sql, this.values, "run")) as { success: boolean; meta: { changes: number } };
+    return (await execute(this.sql, this.values, "run", this.clientFactory, this.rpc, this.databaseSecret)) as { success: boolean; meta: { changes: number } };
   }
 }
 
 export class PostgresD1Adapter {
+  constructor(
+    private readonly clientFactory: SupabaseClientFactory = getSupabaseServerClient,
+    private readonly rpc: PortalRpc = "firehouse_sql",
+    private readonly databaseSecret: string | null = null,
+  ) {}
+
   prepare(sql: string) {
-    return new PostgresD1Statement(sql);
+    return new PostgresD1Statement(sql, [], this.clientFactory, this.rpc, this.databaseSecret);
   }
 
   async batch(statements: PostgresD1Statement[]) {
@@ -141,6 +162,10 @@ export class PostgresD1Adapter {
   }
 }
 
-export function createPostgresD1Adapter() {
-  return new PostgresD1Adapter();
+export function createPostgresD1Adapter(
+  clientFactory: SupabaseClientFactory = getSupabaseServerClient,
+  rpc: PortalRpc = "firehouse_sql",
+  databaseSecret: string | null = null,
+) {
+  return new PostgresD1Adapter(clientFactory, rpc, databaseSecret);
 }

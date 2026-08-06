@@ -14,5 +14,6 @@ outputs
 work
 .work
 tmp
+supabase/.temp
 vite.config.ts
 drizzle.config.ts
