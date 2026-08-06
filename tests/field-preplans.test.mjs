@@ -57,7 +57,7 @@ test("IFC Appendix B advisory flow uses total levels and sprinkler assumptions",
 });
 
 test("Field Preplans provides map-first quick and detailed capture", async () => {
-  const [page, api, bootstrap, shell, permissions, googleMap, mapsConfig] = await Promise.all([
+  const [page, api, bootstrap, shell, permissions, googleMap, mapsConfig, styles] = await Promise.all([
     readFile(new URL("../app/field-preplans.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/field-preplans/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/bootstrap.ts", import.meta.url), "utf8"),
@@ -65,6 +65,7 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
     readFile(new URL("../app/permissions.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/google-field-map.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/maps-config/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
   assert.match(shell, /label: "Field"/);
   assert.match(shell, /activeNav === "Field Preplans"/);
@@ -91,7 +92,9 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(bootstrap, /CREATE TABLE IF NOT EXISTS field_preplan_features/);
   assert.match(bootstrap, /CREATE TABLE IF NOT EXISTS field_preplan_photos/);
   assert.match(page, /Google Maps/);
+  assert.match(page, /Google Maps ·/);
   assert.match(page, /Backup map/);
+  assert.match(styles, /\.field-map\.google-active \.field-map-tiles\{visibility:hidden\}/);
   assert.match(googleMap, /maps\.googleapis\.com\/maps\/api\/js/);
   assert.match(googleMap, /loading=async/);
   assert.match(googleMap, /auth_referrer_policy=origin/);
