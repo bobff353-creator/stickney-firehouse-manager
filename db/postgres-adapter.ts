@@ -91,6 +91,7 @@ function translateSql(sql: string, values: BoundValue[]) {
   translated = translated.replace(/\bdate\(\s*'now'\s*,\s*'(-?\d+)\s+(days?)'\s*\)/gi, "(CURRENT_DATE + interval '$1 $2')::date");
   translated = translated.replace(/\bdate\(\s*'now'\s*\)/gi, "CURRENT_DATE");
   translated = translated.replace(/\bdate\(\s*([^,()]+)\s*,\s*'(-?\d+)\s+(days?)'\s*\)/gi, "(($1)::date + interval '$2 $3')::date");
+  translated = translated.replace(/\bdate\(\s*('(?:''|[^'])*')\s*\)/gi, "($1)::date");
   translated = translated.replace(/\bdatetime\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)/gi, "($1)::timestamptz");
   translated = translated.replace(/\bdate\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)/gi, "($1)::date");
   translated = translated.replace(/\browid\b/gi, "ctid");

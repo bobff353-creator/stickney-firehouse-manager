@@ -51,3 +51,10 @@ test("formats SQLite-style CURRENT_TIMESTAMP values for migrated text columns", 
 
   assert.match(adapter, /CURRENT_TIMESTAMP\\b\/gi, "to_char\(CURRENT_TIMESTAMP AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS'\)"/);
 });
+
+test("translates bound SQLite date values for Postgres", async () => {
+  const adapter = await read("db/postgres-adapter.ts");
+
+  assert.match(adapter, /if \(!\/\(;\|--\|\\\/\\\*\|\\\*\\\/\)\/\.test\(sanitized\)\) return `\x27\$\{sanitized\.replaceAll\("\x27", "\x27\x27"\)\}\x27`/);
+  assert.match(adapter, /date\\\(\\s\*\(\x27\(\?:\x27\x27\|\[\^\x27\]\)\*\x27\)\\s\*\\\)\/gi, "\(\$1\)::date"/);
+});
