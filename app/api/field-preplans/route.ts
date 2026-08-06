@@ -1,5 +1,6 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 import { defaultPermissionsForRank } from "../../permissions";
+import { getPortalStorage } from "../../portal-storage";
 import { polygonAreaSquareFeet, suggestedFireFlow, type ConstructionGroup, type OccupancyFlowCategory, type SprinklerStandard } from "../../preplan-fire-flow";
 
 type Point = { lat:number; lng:number };
@@ -9,6 +10,7 @@ const featureTypes = new Set(["alarm","knox","riser","fdc","sprinkler","gas","wa
 const constructionTypes = new Set<ConstructionGroup>(["IA_IB","IIA_IIIA","IV_VA","IIB_IIIB","VB"]);
 const occupancyFlowCategories = new Set<OccupancyFlowCategory>(["other","dwelling"]);
 const sprinklerStandards = new Set<SprinklerStandard>(["none","nfpa13","nfpa13r","residential"]);
+type Bucket = { delete(key:string):Promise<void> };
 
 async function access(request:Request, db:Db) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
@@ -70,6 +72,16 @@ export async function POST(request:Request) {
     if (!auth.canEdit) return Response.json({ error:"Field preplan edit permission is required." }, { status:403 });
     const body = await request.json() as Record<string,unknown>;
     const action = text(body.action, 40);
+    if (action === "deletePreplan") {
+      const id = text(body.id, 80), confirmation = text(body.confirmation, 20);
+      if (!id || confirmation !== "DELETE") return Response.json({ error:"Confirm Delete is required before a preplan can be removed." }, { status:400 });
+      const photos = await db.prepare("SELECT object_key objectKey FROM field_preplan_photos WHERE preplan_id=?").bind(id).all<{objectKey:string}>();
+      const removed = await db.prepare("WITH unlinked_imports AS (UPDATE field_preplan_imports SET linked_preplan_id=NULL,status=CASE WHEN latitude IS NOT NULL AND longitude IS NOT NULL THEN 'geocoded' ELSE 'location_required' END,updated_at=CURRENT_TIMESTAMP WHERE linked_preplan_id=?), deleted_photos AS (DELETE FROM field_preplan_photos WHERE preplan_id=?), deleted_features AS (DELETE FROM field_preplan_features WHERE preplan_id=?) DELETE FROM field_preplans WHERE id=? RETURNING id").bind(id,id,id,id).all<{id:string}>();
+      if (!removed.results.length) return Response.json({ error:"Preplan not found." }, { status:404 });
+      const storage = getPortalStorage() as Bucket | null;
+      const cleanup = storage ? await Promise.allSettled(photos.results.map((photo) => storage.delete(photo.objectKey))) : [];
+      return Response.json({ ok:true, id, photoCleanupPending:cleanup.some((result) => result.status === "rejected") });
+    }
     if (action === "batchGeocodeImports") {
       const key = await mapsKey();
       if (!key) return Response.json({ error:"Google geocoding is not configured." }, { status:503 });
