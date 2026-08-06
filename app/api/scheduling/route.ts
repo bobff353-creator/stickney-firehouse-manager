@@ -1,5 +1,6 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 import { holidayForDate } from "../../holidays";
+import { qualifiedForScheduleRole } from "../../schedule-eligibility";
 import { normalizeScheduleTime } from "../../schedule-time";
 
 const ownerAdminEmails = ["bobff353@gmail.com"];
@@ -19,16 +20,14 @@ type ShiftPattern = {
 type StaffingOverride = {
   id: string; patternId: string; name: string; conditionType: string; role: string; minimumStaff: number; active: number;
 };
-type EligibleEmployee = { id:string; rank:string; actingOfficerEligible:number };
-const officerRole = (role: string) => /\b(officer|acting\s+officer|ao|oic)\b/i.test(role);
-const officerRank = (rank: string) => /\b(chief|captain|lieutenant)\b/i.test(rank);
-const qualifiedForRole = (role: string, rank: string, actingOfficerEligible: number | boolean) =>
-  !officerRole(role) || officerRank(rank) || Boolean(actingOfficerEligible);
+type EligibleEmployee = { id:string; rank:string; actingOfficerEligible:number; driverStatus:string };
+const qualifiedForRole = (role: string, employee: Pick<EligibleEmployee,"rank"|"actingOfficerEligible"|"driverStatus">) =>
+  qualifiedForScheduleRole(employee, role);
 
 async function viewer(db: Db, request: Request) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
   const employee = email
-    ? await db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.email,'') profileEmail,COALESCE(ep.phone,'') phone,COALESCE(ep.schedule_sms_opt_in,0) smsOptIn,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.is_admin,0) isAdmin FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(ep.email)=? LIMIT 1").bind(email).first<{id:string;name:string;rank:string;profileEmail:string;phone:string;smsOptIn:number;actingOfficerEligible:number;isAdmin:number}>()
+    ? await db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.email,'') profileEmail,COALESCE(ep.phone,'') phone,COALESCE(ep.schedule_sms_opt_in,0) smsOptIn,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus,COALESCE(ep.is_admin,0) isAdmin FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(ep.email)=? LIMIT 1").bind(email).first<{id:string;name:string;rank:string;profileEmail:string;phone:string;smsOptIn:number;actingOfficerEligible:number;driverStatus:string;isAdmin:number}>()
     : null;
   return {
     email,
@@ -39,6 +38,7 @@ async function viewer(db: Db, request: Request) {
     phone: employee?.phone ?? "",
     smsOptIn: Boolean(employee?.smsOptIn),
     actingOfficerEligible: Boolean(employee?.actingOfficerEligible),
+    driverStatus: employee?.driverStatus ?? "",
     isAdmin: ownerAdminEmails.includes(email) || Boolean(employee?.isAdmin),
   };
 }
@@ -62,12 +62,12 @@ const assignmentsOverlap = (left: Pick<Assignment,"workDate"|"startTime"|"endTim
 const employeeEligibleForAssignment = (employee: EligibleEmployee, assignment: Assignment, ownerId: string, busyAssignments: Assignment[]) =>
   employee.id !== ownerId &&
   (!assignment.requiredRank || employee.rank.trim().toLowerCase() === assignment.requiredRank.trim().toLowerCase()) &&
-  qualifiedForRole(assignment.role, employee.rank, employee.actingOfficerEligible) &&
+  qualifiedForRole(assignment.role, employee) &&
   !busyAssignments.some((busy) => busy.employeeId === employee.id && busy.id !== assignment.id && assignmentsOverlap(busy, assignment));
 
 async function eligibleTradeCandidates(db: Db, assignment: Assignment, ownerId: string) {
   const [employees, busyAssignments] = await Promise.all([
-    db.prepare("SELECT e.id,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1").all<EligibleEmployee>(),
+    db.prepare("SELECT e.id,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1").all<EligibleEmployee>(),
     db.prepare("SELECT id,employee_id employeeId,work_date workDate,start_time startTime,end_time endTime,role,source,status,emergency,required_rank requiredRank,claim_deadline claimDeadline,notes FROM schedule_assignments WHERE status='assigned' AND date(work_date) BETWEEN date(?,'-1 day') AND date(?,'+1 day')").bind(assignment.workDate, assignment.workDate).all<Assignment>(),
   ]);
   return employees.results.filter((employee) => employeeEligibleForAssignment(employee, assignment, ownerId, busyAssignments.results));
@@ -110,9 +110,11 @@ async function admins(db: Db) {
   return rows.results.map((row) => row.id);
 }
 
-function coverageGaps(assignments: Assignment[], rules: CoverageRule[], patterns: ShiftPattern[], overrides: StaffingOverride[]) {
+type CoverageGap = { date:string; ruleId:string; patternId:string; patternName:string; name:string; role:string; startTime:string; endTime:string; minimumStaff:number; scheduled:number; shortBy:number };
+
+function coverageGaps(assignments: Assignment[], rules: CoverageRule[], patterns: ShiftPattern[], overrides: StaffingOverride[], horizonDays = 62) {
   const today = chicagoNow().slice(0, 10);
-  const gaps: Array<{date:string;ruleId:string;name:string;role:string;startTime:string;endTime:string;minimumStaff:number;scheduled:number;shortBy:number}> = [];
+  const gaps: CoverageGap[] = [];
   const minutes = (value:string) => Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5));
   const overlaps = (assignment:Assignment, rule:CoverageRule) => {
     const assignmentStart = minutes(assignment.startTime);
@@ -121,7 +123,7 @@ function coverageGaps(assignments: Assignment[], rules: CoverageRule[], patterns
     const ruleEnd = minutes(rule.endTime) <= ruleStart ? minutes(rule.endTime) + 1440 : minutes(rule.endTime);
     return assignmentStart < ruleEnd && ruleStart < assignmentEnd;
   };
-  for (let offset = 0; offset <= 62; offset += 1) {
+  for (let offset = 0; offset <= horizonDays; offset += 1) {
     const date = addDays(today, offset);
     const day = new Date(`${date}T12:00:00Z`).getUTCDay();
     const occurringPatterns = patterns.filter((pattern) => patternOccurs(pattern, date));
@@ -150,13 +152,52 @@ function coverageGaps(assignments: Assignment[], rules: CoverageRule[], patterns
         item.workDate === date && item.status === "assigned" && item.employeeId &&
         item.role.trim().toLowerCase() === rule.role.trim().toLowerCase() && overlaps(item, rule),
       ).map((item) => item.employeeId)).size;
+      const pattern = occurringPatterns.find((item) => item.coveragePlanId === (rule.planId || rule.id));
       if (scheduled < rule.minimumStaff) gaps.push({
-        date, ruleId: rule.id, name: rule.name, role: rule.role, startTime: rule.startTime, endTime: rule.endTime,
+        date, ruleId: rule.id, patternId: pattern?.id ?? "", patternName: pattern?.name ?? "", name: rule.name, role: rule.role, startTime: rule.startTime, endTime: rule.endTime,
         minimumStaff: rule.minimumStaff, scheduled, shortBy: rule.minimumStaff - scheduled,
       });
     }
   }
   return gaps;
+}
+
+function generatedPatternOpenings(assignments: Assignment[], rules: CoverageRule[], patterns: ShiftPattern[], overrides: StaffingOverride[]) {
+  const openings: Assignment[] = [];
+  for (const gap of coverageGaps(assignments, rules, patterns, overrides, 120).filter((item) => item.patternId)) {
+    const matchingOpen = assignments.filter((item) => item.status === "open" && item.workDate === gap.date && item.role.trim().toLowerCase() === gap.role.trim().toLowerCase() && item.startTime === gap.startTime && item.endTime === gap.endTime);
+    let remaining = Math.max(0, gap.shortBy - matchingOpen.length);
+    const existingIds = new Set(matchingOpen.map((item) => item.id));
+    for (let slot = 1; remaining > 0 && slot <= gap.minimumStaff; slot += 1) {
+      const id = `pattern-open-${gap.patternId}-${gap.ruleId}-${gap.date}-${slot}`;
+      if (existingIds.has(id)) continue;
+      openings.push({
+        id, employeeId: null, workDate: gap.date, startTime: gap.startTime, endTime: gap.endTime, role: gap.role,
+        source: `shift-pattern:${gap.patternId}`, status: "open", emergency: 0, requiredRank: "", claimDeadline: "",
+        notes: `Generated by ${gap.patternName} shift pattern`,
+      });
+      remaining -= 1;
+    }
+  }
+  return openings;
+}
+
+async function resolveOpenAssignment(db: Db, assignmentId: string, createdBy: string) {
+  const existing = await db.prepare("SELECT id,employee_id employeeId,work_date workDate,start_time startTime,end_time endTime,role,source,status,emergency,required_rank requiredRank,claim_deadline claimDeadline,notes FROM schedule_assignments WHERE id=?").bind(assignmentId).first<Assignment>();
+  if (existing || !assignmentId.startsWith("pattern-open-")) return existing;
+  const [assignments, rules, patterns, overrides] = await Promise.all([
+    db.prepare("SELECT id,employee_id employeeId,work_date workDate,start_time startTime,end_time endTime,role,source,status,emergency,required_rank requiredRank,claim_deadline claimDeadline,notes FROM schedule_assignments WHERE date(work_date)>=date('now')").all<Assignment>(),
+    db.prepare("SELECT id,plan_id planId,name,role,minimum_staff minimumStaff,start_time startTime,end_time endTime,days_of_week daysOfWeek,active FROM schedule_coverage_rules WHERE active=1").all<CoverageRule>(),
+    db.prepare("SELECT id,name,color,start_date startDate,start_time startTime,end_time endTime,recurrence_days recurrenceDays,coverage_plan_id coveragePlanId,active FROM schedule_shift_patterns WHERE active=1").all<ShiftPattern>(),
+    db.prepare("SELECT id,pattern_id patternId,name,condition_type conditionType,role,minimum_staff minimumStaff,active FROM schedule_staffing_overrides WHERE active=1").all<StaffingOverride>(),
+  ]);
+  const opening = generatedPatternOpenings(assignments.results, rules.results, patterns.results, overrides.results).find((item) => item.id === assignmentId);
+  if (!opening) return null;
+  try {
+    await db.prepare("INSERT INTO schedule_assignments(id,employee_id,work_date,start_time,end_time,role,source,status,emergency,required_rank,claim_deadline,notes,created_by) VALUES(?,NULL,?,?,?,?,?,'open',0,'','',?,?)")
+      .bind(opening.id, opening.workDate, opening.startTime, opening.endTime, opening.role, opening.source, opening.notes, createdBy).run();
+  } catch { /* Another request may have materialized the same generated opening. */ }
+  return db.prepare("SELECT id,employee_id employeeId,work_date workDate,start_time startTime,end_time endTime,role,source,status,emergency,required_rank requiredRank,claim_deadline claimDeadline,notes FROM schedule_assignments WHERE id=?").bind(assignmentId).first<Assignment>();
 }
 
 export async function GET(request: Request) {
@@ -167,10 +208,10 @@ export async function GET(request: Request) {
     const requestedTestEmployeeId = current.isAdmin ? new URL(request.url).searchParams.get("testEmployeeId") ?? "" : "";
     const employeeId = requestedTestEmployeeId || current.employeeId || "";
     const [employees, assignments, rotations, requests, notifications, rules, patterns, overrides, notificationRules, tradeBusyAssignments] = await Promise.all([
-      db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.email,'') email,COALESCE(ep.phone,'') phone,COALESCE(ep.schedule_sms_opt_in,0) scheduleSmsOptIn,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 ORDER BY e.name COLLATE NOCASE").all(),
+      db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.email,'') email,COALESCE(ep.phone,'') phone,COALESCE(ep.schedule_sms_opt_in,0) scheduleSmsOptIn,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 ORDER BY e.name COLLATE NOCASE").all(),
       current.isAdmin
-        ? db.prepare("SELECT a.id,a.employee_id employeeId,e.name employeeName,a.work_date workDate,a.start_time startTime,a.end_time endTime,a.role,a.source,a.status,a.emergency,a.required_rank requiredRank,a.claim_deadline claimDeadline,a.notes FROM schedule_assignments a LEFT JOIN employees e ON e.id=a.employee_id WHERE date(a.work_date)>=date('now','-45 day') ORDER BY a.work_date,a.start_time").all<Assignment>()
-        : db.prepare("SELECT a.id,a.employee_id employeeId,e.name employeeName,a.work_date workDate,a.start_time startTime,a.end_time endTime,a.role,a.source,a.status,a.emergency,a.required_rank requiredRank,a.claim_deadline claimDeadline,a.notes FROM schedule_assignments a LEFT JOIN employees e ON e.id=a.employee_id WHERE date(a.work_date)>=date('now','-45 day') AND (a.employee_id=? OR a.status='open') ORDER BY a.work_date,a.start_time").bind(employeeId).all<Assignment>(),
+        ? db.prepare("SELECT a.id,a.employee_id employeeId,e.name employeeName,a.work_date workDate,a.start_time startTime,a.end_time endTime,a.role,a.source,a.status,a.emergency,a.required_rank requiredRank,a.claim_deadline claimDeadline,a.notes FROM schedule_assignments a LEFT JOIN employees e ON e.id=a.employee_id WHERE date(a.work_date)>=date('now','-45 day') AND a.status<>'cancelled' ORDER BY a.work_date,a.start_time").all<Assignment>()
+        : db.prepare("SELECT a.id,a.employee_id employeeId,e.name employeeName,a.work_date workDate,a.start_time startTime,a.end_time endTime,a.role,a.source,a.status,a.emergency,a.required_rank requiredRank,a.claim_deadline claimDeadline,a.notes FROM schedule_assignments a LEFT JOIN employees e ON e.id=a.employee_id WHERE date(a.work_date)>=date('now','-45 day') AND a.status<>'cancelled' AND (a.employee_id=? OR a.status='open') ORDER BY a.work_date,a.start_time").bind(employeeId).all<Assignment>(),
       db.prepare("SELECT r.id,r.name,r.start_date startDate,r.end_date endDate,r.start_time startTime,r.end_time endTime,r.cycle_days cycleDays,r.duty_days dutyDays,r.role,r.coverage_plan_id coveragePlanId,r.active,GROUP_CONCAT(e.name,', ') members FROM schedule_rotations r LEFT JOIN schedule_rotation_members m ON m.rotation_id=r.id LEFT JOIN employees e ON e.id=m.employee_id GROUP BY r.id ORDER BY r.active DESC,r.start_date DESC").all(),
       current.isAdmin
         ? db.prepare("SELECT q.id,q.request_type requestType,q.employee_id employeeId,e.name employeeName,q.assignment_id assignmentId,q.target_employee_id targetEmployeeId,te.name targetEmployeeName,q.start_date startDate,q.end_date endDate,q.start_time startTime,q.end_time endTime,q.role,q.repeat_mode repeatMode,q.repeat_interval repeatInterval,q.status,q.target_status targetStatus,q.notes,q.reviewed_by reviewedBy,q.created_at createdAt FROM schedule_requests q JOIN employees e ON e.id=q.employee_id LEFT JOIN employees te ON te.id=q.target_employee_id ORDER BY CASE q.status WHEN 'pending' THEN 0 ELSE 1 END,q.created_at DESC LIMIT 150").all()
@@ -178,13 +219,9 @@ export async function GET(request: Request) {
       employeeId
         ? db.prepare("SELECT id,title,message,email,sms,delivery_status deliveryStatus,read_at readAt,created_at createdAt FROM schedule_notifications WHERE employee_id=? ORDER BY created_at DESC LIMIT 50").bind(employeeId).all()
         : Promise.resolve({ results: [] }),
-      current.isAdmin
-        ? db.prepare("SELECT id,plan_id planId,name,role,minimum_staff minimumStaff,start_time startTime,end_time endTime,days_of_week daysOfWeek,active FROM schedule_coverage_rules ORDER BY active DESC,name COLLATE NOCASE").all<CoverageRule>()
-        : Promise.resolve({ results: [] as CoverageRule[] }),
+      db.prepare("SELECT id,plan_id planId,name,role,minimum_staff minimumStaff,start_time startTime,end_time endTime,days_of_week daysOfWeek,active FROM schedule_coverage_rules ORDER BY active DESC,name COLLATE NOCASE").all<CoverageRule>(),
       db.prepare("SELECT id,name,color,start_date startDate,start_time startTime,end_time endTime,recurrence_days recurrenceDays,coverage_plan_id coveragePlanId,active FROM schedule_shift_patterns WHERE active=1 ORDER BY start_date,name COLLATE NOCASE").all<ShiftPattern>(),
-      current.isAdmin
-        ? db.prepare("SELECT id,pattern_id patternId,name,condition_type conditionType,role,minimum_staff minimumStaff,active FROM schedule_staffing_overrides WHERE active=1 ORDER BY name COLLATE NOCASE,role").all<StaffingOverride>()
-        : Promise.resolve({ results: [] as StaffingOverride[] }),
+      db.prepare("SELECT id,pattern_id patternId,name,condition_type conditionType,role,minimum_staff minimumStaff,active FROM schedule_staffing_overrides WHERE active=1 ORDER BY name COLLATE NOCASE,role").all<StaffingOverride>(),
       current.isAdmin
         ? db.prepare("SELECT event_type eventType,label,active,email_enabled emailEnabled,sms_enabled smsEnabled,delivery_timings deliveryTimings,updated_at updatedAt FROM schedule_notification_rules ORDER BY label").all()
         : Promise.resolve({ results: [] }),
@@ -193,6 +230,16 @@ export async function GET(request: Request) {
         : Promise.resolve({ results: [] as Assignment[] }),
     ]);
     const employeeEligibility = employees.results as EligibleEmployee[];
+    const selectedEmployee = employeeEligibility.find((employee) => employee.id === employeeId);
+    const staffingAssignments = current.isAdmin
+      ? assignments.results
+      : [...tradeBusyAssignments.results, ...assignments.results.filter((item) => item.status === "open")];
+    const patternOpenings = generatedPatternOpenings(staffingAssignments, rules.results, patterns.results, overrides.results);
+    const combinedAssignments = [...assignments.results, ...patternOpenings];
+    const actingAsMember = !current.isAdmin || Boolean(requestedTestEmployeeId);
+    const visibleAssignments = actingAsMember
+      ? combinedAssignments.filter((assignment) => assignment.employeeId === employeeId || (assignment.status === "open" && selectedEmployee && employeeEligibleForAssignment(selectedEmployee, assignment, "", tradeBusyAssignments.results)))
+      : combinedAssignments;
     const broadcastAssignmentIds = new Set((requests.results as Array<{assignmentId?:string;requestType?:string;targetEmployeeId?:string|null;status?:string}>)
       .filter((item) => item.requestType === "trade" && !item.targetEmployeeId && item.status === "pending" && item.assignmentId)
       .map((item) => item.assignmentId!));
@@ -206,16 +253,16 @@ export async function GET(request: Request) {
     return Response.json({
       viewer: current,
       employees: employees.results,
-      assignments: assignments.results,
+      assignments: visibleAssignments,
       rotations: rotations.results,
       requests: requests.results,
       notifications: notifications.results,
-      coverageRules: rules.results,
+      coverageRules: current.isAdmin ? rules.results : [],
       shiftPatterns: patterns.results,
-      staffingOverrides: overrides.results,
+      staffingOverrides: current.isAdmin ? overrides.results : [],
       notificationRules: notificationRules.results,
       tradeEligibility,
-      coverageGaps: current.isAdmin ? coverageGaps(assignments.results, rules.results, patterns.results, overrides.results) : [],
+      coverageGaps: current.isAdmin ? coverageGaps(staffingAssignments, rules.results, patterns.results, overrides.results) : [],
     });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Unable to load scheduling" }, { status: 500 });
@@ -278,9 +325,9 @@ export async function POST(request: Request) {
       }
       const requiredPosition = await db.prepare("SELECT id,plan_id planId,name,start_time startTime,end_time endTime,role FROM schedule_coverage_rules WHERE active=1 AND lower(role)=lower(?) AND ((plan_id<>'' AND plan_id=?) OR id=?) LIMIT 1").bind(role, coveragePlanId, coveragePlanId).first<{id:string;planId:string;name:string;startTime:string;endTime:string;role:string}>();
       if (!requiredPosition) return Response.json({ error: "Choose a position from the selected active minimum staffing plan." }, { status: 400 });
-      const employee = await db.prepare("SELECT e.id,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1").bind(employeeIds[0]).first<{id:string;rank:string;actingOfficerEligible:number}>();
+      const employee = await db.prepare("SELECT e.id,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1").bind(employeeIds[0]).first<EligibleEmployee>();
       if (!employee) return Response.json({ error: "Choose an active employee." }, { status: 400 });
-      if (!qualifiedForRole(requiredPosition.role, employee.rank, employee.actingOfficerEligible)) return Response.json({ error: "This employee is not eligible to work the selected Officer/AO position." }, { status: 403 });
+      if (!qualifiedForRole(requiredPosition.role, employee)) return Response.json({ error: "This employee is not cleared to work the selected position." }, { status: 403 });
       const rotationId = crypto.randomUUID();
       await db.prepare("INSERT INTO schedule_rotations(id,name,start_date,end_date,start_time,end_time,cycle_days,duty_days,role,coverage_plan_id,created_by) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
         .bind(rotationId, name, startDate, endDate, requiredPosition.startTime, requiredPosition.endTime, cycleDays, "0", requiredPosition.role, requiredPosition.planId || requiredPosition.id, current.name).run();
@@ -367,9 +414,11 @@ export async function POST(request: Request) {
     if (action === "deactivateShiftPattern") {
       if (!current.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
       const id = String(payload.id ?? "");
+      const today = chicagoNow().slice(0, 10);
       await db.batch([
         db.prepare("UPDATE schedule_shift_patterns SET active=0 WHERE id=?").bind(id),
         db.prepare("UPDATE schedule_staffing_overrides SET active=0 WHERE pattern_id=?").bind(id),
+        db.prepare("UPDATE schedule_assignments SET status='cancelled' WHERE source=? AND status='open' AND work_date>=?").bind(`shift-pattern:${id}`, today),
       ]);
       return Response.json({ ok: true });
     }
@@ -411,15 +460,20 @@ export async function POST(request: Request) {
         return Response.json({ error: "Enter a date, times, position, and a valid response deadline." }, { status: 400 });
       }
       if (employeeId) {
-        const employee = await db.prepare("SELECT p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1").bind(employeeId).first<{rank:string;actingOfficerEligible:number}>();
+        const employee = await db.prepare("SELECT e.id,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1").bind(employeeId).first<EligibleEmployee>();
         if (!employee) return Response.json({ error: "Choose an active employee." }, { status: 400 });
-        if (!qualifiedForRole(role, employee.rank, employee.actingOfficerEligible)) return Response.json({ error: "This employee is not eligible to work an Officer/AO assignment." }, { status: 403 });
+        if (!qualifiedForRole(role, employee)) return Response.json({ error: "This employee is not cleared to work this position." }, { status: 403 });
       }
       await db.prepare("INSERT INTO schedule_assignments(id,employee_id,work_date,start_time,end_time,role,source,status,emergency,required_rank,claim_deadline,notes,created_by) VALUES(?,NULLIF(?,''),?,?,?,?,'manual',?,?,?,?,?,?)")
         .bind(crypto.randomUUID(), employeeId, workDate, startTime, endTime, role, employeeId ? "assigned" : "open", emergency ? 1 : 0, requiredRank, claimDeadline, notes, current.name).run();
-      const recipients = employeeId
-        ? [employeeId]
-        : (await db.prepare("SELECT e.id FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND (?='' OR lower(p.label)=lower(?)) AND (?=0 OR lower(p.label) LIKE '%chief%' OR lower(p.label) LIKE '%captain%' OR lower(p.label) LIKE '%lieutenant%' OR COALESCE(ep.acting_officer_eligible,0)=1)").bind(requiredRank, requiredRank, officerRole(role) ? 1 : 0).all<{id:string}>()).results.map((row) => row.id);
+      const recipients = employeeId ? [employeeId] : await (async () => {
+        const opening: Assignment = { id: "new-open-shift", employeeId: null, workDate, startTime, endTime, role, source: "manual", status: "open", emergency: emergency ? 1 : 0, requiredRank, claimDeadline, notes };
+        const [candidates, busyAssignments] = await Promise.all([
+          db.prepare("SELECT e.id,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1").all<EligibleEmployee>(),
+          db.prepare("SELECT id,employee_id employeeId,work_date workDate,start_time startTime,end_time endTime,role,source,status,emergency,required_rank requiredRank,claim_deadline claimDeadline,notes FROM schedule_assignments WHERE status='assigned' AND date(work_date) BETWEEN date(?,'-1 day') AND date(?,'+1 day')").bind(workDate, workDate).all<Assignment>(),
+        ]);
+        return candidates.results.filter((candidate) => employeeEligibleForAssignment(candidate, opening, "", busyAssignments.results)).map((candidate) => candidate.id);
+      })();
       await notify(db, recipients, emergency ? "Emergency coverage needed" : employeeId ? "Schedule assignment" : "Open shift available", `${workDate} ${startTime}-${endTime} · ${role}${requiredRank ? ` · ${requiredRank} required` : ""}${notes ? ` · ${notes}` : ""}`, employeeId ? "schedule_assignment" : "open_shift", `${workDate}T${startTime}:00-05:00`);
       return Response.json({ ok: true });
     }
@@ -450,11 +504,14 @@ export async function POST(request: Request) {
         if (targetEmployeeId && !eligible.some((employee) => employee.id === targetEmployeeId)) return Response.json({ error: "The selected member is not qualified and available for this shift." }, { status: 409 });
       }
       if (requestType === "shift_claim") {
-        const openShift = await db.prepare("SELECT a.status,a.role,a.required_rank requiredRank,a.claim_deadline claimDeadline,p.label employeeRank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM schedule_assignments a JOIN employees e ON e.id=? JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE a.id=?").bind(employeeId, assignmentId).first<{status:string;role:string;requiredRank:string;claimDeadline:string;employeeRank:string;actingOfficerEligible:number}>();
+        const [openShift, employee, busyAssignments] = await Promise.all([
+          resolveOpenAssignment(db, assignmentId, actingName),
+          db.prepare("SELECT e.id,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1").bind(employeeId).first<EligibleEmployee>(),
+          db.prepare("SELECT id,employee_id employeeId,work_date workDate,start_time startTime,end_time endTime,role,source,status,emergency,required_rank requiredRank,claim_deadline claimDeadline,notes FROM schedule_assignments WHERE status='assigned' AND employee_id=? AND date(work_date)>=date('now','-1 day')").bind(employeeId).all<Assignment>(),
+        ]);
         if (!openShift || openShift.status !== "open") return Response.json({ error: "That shift is no longer open." }, { status: 409 });
         if (openShift.claimDeadline && openShift.claimDeadline < chicagoNow()) return Response.json({ error: "The response deadline for that shift has passed." }, { status: 409 });
-        if (openShift.requiredRank && openShift.requiredRank.toLowerCase() !== openShift.employeeRank.toLowerCase()) return Response.json({ error: `This shift requires ${openShift.requiredRank}.` }, { status: 403 });
-        if (!qualifiedForRole(openShift.role, openShift.employeeRank, openShift.actingOfficerEligible)) return Response.json({ error: "Your employee record is not marked eligible for Officer/AO shifts." }, { status: 403 });
+        if (!employee || !employeeEligibleForAssignment(employee, openShift, "", busyAssignments.results)) return Response.json({ error: "You are not cleared and available for this open position." }, { status: 403 });
         const existing = await db.prepare("SELECT id FROM schedule_requests WHERE assignment_id=? AND employee_id=? AND request_type='shift_claim' AND status='pending'").bind(assignmentId, employeeId).first();
         if (existing) return Response.json({ error: "You already requested this shift." }, { status: 409 });
       }
@@ -500,8 +557,12 @@ export async function POST(request: Request) {
       if (!item) return Response.json({ error: "Request is no longer pending." }, { status: 409 });
       if (decision === "approved" && item.requestType === "trade" && item.targetStatus !== "accepted") return Response.json({ error: "The requested member must accept the trade before approval." }, { status: 409 });
       if (decision === "approved" && item.assignmentId && item.requestType === "shift_claim") {
-        const qualification = await db.prepare("SELECT a.role,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM schedule_assignments a JOIN employees e ON e.id=? JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE a.id=?").bind(item.employeeId, item.assignmentId).first<{role:string;rank:string;actingOfficerEligible:number}>();
-        if (!qualification || !qualifiedForRole(qualification.role, qualification.rank, qualification.actingOfficerEligible)) return Response.json({ error: "The employee is not eligible for this Officer/AO shift." }, { status: 403 });
+        const [assignment, qualification, busyAssignments] = await Promise.all([
+          db.prepare("SELECT id,employee_id employeeId,work_date workDate,start_time startTime,end_time endTime,role,source,status,emergency,required_rank requiredRank,claim_deadline claimDeadline,notes FROM schedule_assignments WHERE id=?").bind(item.assignmentId).first<Assignment>(),
+          db.prepare("SELECT e.id,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1").bind(item.employeeId).first<EligibleEmployee>(),
+          db.prepare("SELECT id,employee_id employeeId,work_date workDate,start_time startTime,end_time endTime,role,source,status,emergency,required_rank requiredRank,claim_deadline claimDeadline,notes FROM schedule_assignments WHERE status='assigned' AND employee_id=? AND date(work_date)>=date('now','-1 day')").bind(item.employeeId).all<Assignment>(),
+        ]);
+        if (!assignment || !qualification || !employeeEligibleForAssignment(qualification, assignment, "", busyAssignments.results)) return Response.json({ error: "The employee is no longer cleared and available for this open position." }, { status: 403 });
         const result = await db.prepare("UPDATE schedule_assignments SET employee_id=?,status='assigned' WHERE id=? AND status='open'").bind(item.employeeId, item.assignmentId).run();
         if (!result.meta.changes) return Response.json({ error: "That shift was already filled." }, { status: 409 });
       }

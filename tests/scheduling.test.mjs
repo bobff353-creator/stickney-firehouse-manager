@@ -144,7 +144,7 @@ test("open shifts enforce rank and response deadlines", async () => {
   const source = await readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8");
   assert.equal(source.includes("required_rank requiredRank"), true);
   assert.equal(source.includes("claimDeadline < chicagoNow()"), true);
-  assert.equal(source.includes("This shift requires"), true);
+  assert.equal(source.includes("employeeEligibleForAssignment(employee, openShift"), true);
 });
 
 test("Acting Officer eligibility gates officer scheduling workflows", async () => {
@@ -154,7 +154,7 @@ test("Acting Officer eligibility gates officer scheduling workflows", async () =
   assert.equal(schema.includes('actingOfficerEligible: integer("acting_officer_eligible"'), true);
   assert.equal(profile.includes("Eligible to work Acting Officer shifts"), true);
   assert.equal(api.includes("qualifiedForRole(requiredPosition.role"), true);
-  assert.equal(api.includes("qualifiedForRole(openShift.role"), true);
+  assert.equal(api.includes("qualifiedForScheduleRole(employee, role)"), true);
   assert.equal(api.includes("employeeEligibleForAssignment"), true);
   assert.equal(api.includes("The selected member is not qualified and available for this shift."), true);
   assert.equal(api.includes("The requested member is no longer qualified and available for this shift."), true);
@@ -172,6 +172,17 @@ test("trades require member acceptance before admin approval", async () => {
   assert.equal(source.includes("target_employee_id IS NULL AND status='pending' AND target_status='open'"), true);
   assert.equal(screen.includes("Anyone eligible"), true);
   assert.equal(screen.includes("not already working an overlapping shift"), true);
+});
+
+test("open shifts include employee driver clearance in every eligibility decision", async () => {
+  const [page, api] = await Promise.all([
+    readFile(new URL("../app/scheduling.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8"),
+  ]);
+  assert.equal(page.includes("portalDriverStatus"), true);
+  assert.equal(page.includes("qualifiedForScheduleRole"), true);
+  assert.equal(api.includes("driverStatus FROM employees"), true);
+  assert.equal(api.includes("generatedPatternOpenings"), true);
 });
 
 test("rotations can end without changing past schedule history", async () => {

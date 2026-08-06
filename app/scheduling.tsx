@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatEmployeeName } from "./employee-names";
 import { matchingTimeBlock, scheduleTimeBlocks } from "./schedule-time";
+import { qualifiedForScheduleRole } from "./schedule-eligibility";
 
-type Employee = { id:string; name:string; rank:string; email:string; phone:string; scheduleSmsOptIn:number; actingOfficerEligible:number };
+type Employee = { id:string; name:string; rank:string; email:string; phone:string; scheduleSmsOptIn:number; actingOfficerEligible:number; driverStatus:string };
 type TestMember = { id:string; name:string; rank:string; effectivePermissions:string[] };
 type Assignment = {
   id:string; employeeId:string|null; employeeName?:string; workDate:string; startTime:string; endTime:string; role:string;
@@ -68,10 +69,8 @@ const patternOccurs = (pattern:ShiftPattern, date:string) => {
   const offset = daysBetween(pattern.startDate, date);
   return Boolean(pattern.active) && offset >= 0 && offset % pattern.recurrenceDays === 0;
 };
-const isOfficerPosition = (role:string) => /\b(officer|acting\s+officer|ao|oic)\b/i.test(role);
-const isOfficerRank = (rank:string) => /\b(chief|captain|lieutenant)\b/i.test(rank);
-const qualifiedForPosition = (employee:Pick<Employee,"rank"|"actingOfficerEligible">, role:string) =>
-  !isOfficerPosition(role) || isOfficerRank(employee.rank) || Boolean(employee.actingOfficerEligible);
+const qualifiedForPosition = (employee:Pick<Employee,"rank"|"actingOfficerEligible"|"driverStatus">, role:string) =>
+  qualifiedForScheduleRole(employee, role);
 
 function TimeBlockSelect({ startTime, endTime, onChange }:{ startTime:string; endTime:string; onChange:(startTime:string,endTime:string)=>void }) {
   return <label className="wide"><span>Quick time block</span><select value={matchingTimeBlock(startTime, endTime)} onChange={(event) => {
@@ -170,6 +169,7 @@ export default function Scheduling({ testMember = null }:{ testMember?:TestMembe
   const portalEmployee = data?.employees.find((employee) => employee.id === portalEmployeeId);
   const portalRank = testMember?.rank ?? data?.viewer.rank ?? "";
   const portalActingOfficerEligible = Boolean(portalEmployee?.actingOfficerEligible ?? data?.viewer.actingOfficerEligible);
+  const portalDriverStatus = portalEmployee?.driverStatus ?? "";
   const portalAssignments = useMemo(() => (data?.assignments ?? []).filter((item) => isCommandView || item.employeeId === portalEmployeeId || item.status === "open"), [data, isCommandView, portalEmployeeId]);
   const portalRequests = useMemo(() => (data?.requests ?? []).filter((item) => isCommandView || item.employeeId === portalEmployeeId || item.targetEmployeeId === portalEmployeeId || (item.requestType === "trade" && !item.targetEmployeeId && Boolean(item.assignmentId && portalEmployeeId && data?.tradeEligibility?.[item.assignmentId]?.includes(portalEmployeeId)))), [data, isCommandView, portalEmployeeId]);
   const roles = useMemo(() => [...new Set(portalAssignments.map((item) => item.role).filter(Boolean))].sort(), [portalAssignments]);
@@ -341,7 +341,7 @@ export default function Scheduling({ testMember = null }:{ testMember?:TestMembe
             <button disabled={!selectedDayOwnAssignments.length} title={selectedDayOwnAssignments.length ? undefined : "You do not have an assigned shift on this date."} onClick={() => startSelectedDayRequest("trade")}><strong>Request Trade</strong><span>{selectedDayOwnAssignments.length ? "Offer your assigned shift to an eligible member" : "No assigned shift is available to trade"}</span></button>
           </div>
           <div className="employee-day-opportunities">
-            <section><header><h4>Open shifts</h4><b>{selectedDayOpenShifts.length}</b></header>{selectedDayOpenShifts.length ? selectedDayOpenShifts.map((item) => { const eligible = qualifiedForPosition({ rank: portalRank, actingOfficerEligible: portalActingOfficerEligible ? 1 : 0 }, item.role); return <article key={item.id}><div><strong>{item.role}</strong><span>{item.startTime}-{item.endTime}{item.requiredRank ? ` · ${item.requiredRank} required` : ""}</span></div><button disabled={busy || !eligible} onClick={() => void act({ action: "submitRequest", requestType: "shift_claim", assignmentId: item.id, startDate: item.workDate, endDate: item.workDate, startTime: item.startTime, endTime: item.endTime, role: item.role }, "Shift request sent")}>{eligible ? "Request Open Shift" : "Not eligible"}</button></article>; }) : <p>No open shifts are posted for this date.</p>}</section>
+            <section><header><h4>Open shifts</h4><b>{selectedDayOpenShifts.length}</b></header>{selectedDayOpenShifts.length ? selectedDayOpenShifts.map((item) => { const eligible = qualifiedForPosition({ rank: portalRank, actingOfficerEligible: portalActingOfficerEligible ? 1 : 0, driverStatus: portalDriverStatus }, item.role); return <article key={item.id}><div><strong>{item.role}</strong><span>{item.startTime}-{item.endTime}{item.requiredRank ? ` · ${item.requiredRank} required` : ""}</span></div><button disabled={busy || !eligible} onClick={() => void act({ action: "submitRequest", requestType: "shift_claim", assignmentId: item.id, startDate: item.workDate, endDate: item.workDate, startTime: item.startTime, endTime: item.endTime, role: item.role }, "Shift request sent")}>{eligible ? "Request Open Shift" : "Not eligible"}</button></article>; }) : <p>No open shifts are posted for this date.</p>}</section>
             <section><header><h4>Available trades</h4><b>{selectedDayIncomingTrades.length}</b></header>{selectedDayIncomingTrades.length ? selectedDayIncomingTrades.map((item) => <article key={item.id}><div><strong>{item.role}</strong><span>Offered by {formatEmployeeName(item.employeeName)}{item.notes ? ` · ${item.notes}` : ""}</span></div><button disabled={busy} onClick={() => void act({ action: "respondTrade", id: item.id, decision: "accepted" }, "Trade accepted and sent for chief approval")}>Pick Up Trade</button></article>) : <p>No eligible trades are offered for this date.</p>}</section>
           </div>
         </section>}
@@ -498,7 +498,7 @@ export default function Scheduling({ testMember = null }:{ testMember?:TestMembe
             <span>{item.emergency ? "Emergency coverage" : "Open shift"}</span><strong>{item.workDate} · {item.startTime}-{item.endTime}</strong>
             <p>{item.role}{item.requiredRank ? ` · ${item.requiredRank} required` : ""}{item.notes ? ` · ${item.notes}` : ""}</p>
             {item.claimDeadline && <small>Respond by {item.claimDeadline.replace("T", " ")}</small>}
-          </div>{!isCommandView && (() => { const eligible = qualifiedForPosition({ rank: portalRank, actingOfficerEligible: portalActingOfficerEligible ? 1 : 0 }, item.role); return <button disabled={busy || !eligible} title={eligible ? undefined : "Your employee record is not marked Acting Officer eligible."} onClick={() => void act({ action: "submitRequest", requestType: "shift_claim", assignmentId: item.id, startDate: item.workDate, endDate: item.workDate, startTime: item.startTime, endTime: item.endTime, role: item.role }, "Shift request sent")}>{eligible ? "Request Shift" : "AO eligibility required"}</button>; })()}</article>)}
+          </div>{!isCommandView && (() => { const eligible = qualifiedForPosition({ rank: portalRank, actingOfficerEligible: portalActingOfficerEligible ? 1 : 0, driverStatus: portalDriverStatus }, item.role); return <button disabled={busy || !eligible} title={eligible ? undefined : "Your employee record is not cleared for this position."} onClick={() => void act({ action: "submitRequest", requestType: "shift_claim", assignmentId: item.id, startDate: item.workDate, endDate: item.workDate, startTime: item.startTime, endTime: item.endTime, role: item.role }, "Shift request sent")}>{eligible ? "Request Shift" : "Not eligible"}</button>; })()}</article>)}
         </div>
       </article>
       {!isCommandView && <article className="content-card">
