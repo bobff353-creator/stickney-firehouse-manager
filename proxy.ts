@@ -17,6 +17,7 @@ const signedWebhookPaths = new Set([
 ]);
 
 const publicAuthPostPaths = new Set([
+  "/api/auth/activate",
   "/api/auth/login",
 ]);
 

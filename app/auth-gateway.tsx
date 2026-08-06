@@ -6,7 +6,7 @@ import PayrollApp from "./payroll-app";
 import SessionIdleLock from "./session-idle-lock";
 import { getSupabaseBrowserClient } from "./supabase-browser";
 
-type Mode = "loading" | "sign-in" | "checking" | "set-pin" | "pin" | "authorized" | "waiting";
+type Mode = "loading" | "sign-in" | "new-user" | "checking" | "set-pin" | "pin" | "authorized" | "waiting";
 
 function clearAccessCache() {
   document.cookie = "__Secure-firehouse-access=; Path=/; Max-Age=0; SameSite=Lax; Secure";
@@ -24,6 +24,7 @@ export default function AuthGateway({
   const [email, setEmail] = useState("");
   const [pin, setPin] = useState("");
   const [pinConfirmation, setPinConfirmation] = useState("");
+  const [employeeNumber, setEmployeeNumber] = useState("");
   const [message, setMessage] = useState("");
   const accessCheckRef = useRef<Promise<void> | null>(null);
   const pinLoginRef = useRef(false);
@@ -203,6 +204,43 @@ export default function AuthGateway({
     setMode("authorized");
   }
 
+  async function activateNewUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!/^\d{4,6}$/.test(employeeNumber)) {
+      setMessage("Enter your 4 to 6 digit employee number.");
+      return;
+    }
+    if (!/^\d{4,6}$/.test(pin)) {
+      setMessage("Choose a new private PIN containing 4 to 6 digits.");
+      return;
+    }
+    if (employeeNumber === pin) {
+      setMessage("Choose a private PIN that is different from your employee number.");
+      return;
+    }
+    if (pin !== pinConfirmation) {
+      setMessage("The two private PIN entries do not match.");
+      return;
+    }
+    setMode("checking");
+    setMessage("Creating your secure employee login...");
+    const response = await fetch("/api/auth/activate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.trim().toLowerCase(), employeeNumber, pin }),
+    });
+    const payload = await response.json().catch(() => ({})) as { error?: string };
+    if (!response.ok) {
+      setMode("new-user");
+      setMessage(payload.error || "Your employee login could not be created.");
+      return;
+    }
+    setPin("");
+    setPinConfirmation("");
+    setEmployeeNumber("");
+    window.location.reload();
+  }
+
   async function signOut() {
     clearAccessCache();
     await fetch("/api/auth/pin", { method: "DELETE" }).catch(() => undefined);
@@ -284,6 +322,29 @@ export default function AuthGateway({
     );
   }
 
+  if (mode === "new-user") {
+    return (
+      <main className="login-shell">
+        <section className="login-card login-reset-card">
+          <span className="login-app-mark" aria-hidden="true">SFD</span>
+          <p className="login-eyebrow">NEW EMPLOYEE</p>
+          <h1>Create your login</h1>
+          <p>Use the Stickney email and employee number already saved on your employee record. Then choose the private PIN you will use from now on.</p>
+          <form onSubmit={activateNewUser}>
+            <label>Stickney email<input autoFocus type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
+            <label>Employee number<input type="password" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={employeeNumber} onChange={(event) => setEmployeeNumber(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
+            <label>New private PIN<input type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
+            <label>Enter private PIN again<input type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pinConfirmation} onChange={(event) => setPinConfirmation(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
+            {message ? <p className="login-message" role="status">{message}</p> : null}
+            <button className="login-primary" type="submit">Create login and open app</button>
+          </form>
+          <small className="pin-security-note">Your employee number is checked once and is never saved as your private PIN.</small>
+          <button type="button" className="login-secondary login-back-button" onClick={() => { setMessage(""); setPin(""); setPinConfirmation(""); setEmployeeNumber(""); setMode("sign-in"); }}>Back to Sign In</button>
+        </section>
+      </main>
+    );
+  }
+
   if (mode === "loading" || mode === "checking") {
     return (
       <main className="login-shell">
@@ -321,9 +382,10 @@ export default function AuthGateway({
           {message ? <p className="login-message" role="status">{message}</p> : null}
           <button className="login-primary" type="submit">Sign in</button>
         </form>
-        <button type="button" className="login-link-button" onClick={() => void emailSignInLink()}>First activation or older PIN account? Email one-time upgrade link</button>
-        <div className="login-divider"><span>Need an account?</span></div>
-        <p className="login-invite-note">A department administrator must add your employee email and send your app invitation.</p>
+        <div className="login-divider"><span>NEW EMPLOYEE?</span></div>
+        <button type="button" className="login-secondary login-new-user-button" onClick={() => { setMessage(""); setPin(""); setMode("new-user"); }}>New User — Create Login</button>
+        <p className="login-invite-note">Your administrator must first save your Stickney email and employee number on your active employee record.</p>
+        <button type="button" className="login-link-button" onClick={() => void emailSignInLink()}>Older account only: send one-time upgrade email</button>
       </section>
     </main>
   );

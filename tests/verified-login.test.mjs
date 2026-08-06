@@ -20,6 +20,9 @@ const emailHook = readFileSync(new URL("../app/api/auth/send-email-hook/route.ts
 const portalPinPassword = readFileSync(new URL("../app/lib/portal-pin-password.ts", import.meta.url), "utf8");
 const pinLoginRoute = readFileSync(new URL("../app/api/auth/login/route.ts", import.meta.url), "utf8");
 const primaryPinMigration = readFileSync(new URL("../supabase/migrations/20260806160437_portal_pin_primary_login.sql", import.meta.url), "utf8");
+const activationRoute = readFileSync(new URL("../app/api/auth/activate/route.ts", import.meta.url), "utf8");
+const activationMigration = readFileSync(new URL("../supabase/migrations/20260806164801_roster_pin_self_activation.sql", import.meta.url), "utf8");
+const supabaseAdmin = readFileSync(new URL("../app/supabase-admin.ts", import.meta.url), "utf8");
 
 test("verified invited email login confirms once and then uses email plus PIN", () => {
   assert.match(gateway, /Firehouse Manager/);
@@ -29,7 +32,7 @@ test("verified invited email login confirms once and then uses email plus PIN", 
   assert.match(gateway, /shouldCreateUser: false/);
   assert.match(gateway, /emailRedirectTo/);
   assert.match(gateway, /Sign in with email and PIN/);
-  assert.match(gateway, /First activation or older PIN account\? Email one-time upgrade link/);
+  assert.match(gateway, /Older account only: send one-time upgrade email/);
   assert.match(gateway, /fetch\("\/api\/auth\/login"/);
   assert.match(pinLoginRoute, /verify_portal_login/);
   assert.match(pinLoginRoute, /verify_portal_pin/);
@@ -106,6 +109,29 @@ test("administrators send employee-bound invitations that confirm email before P
   assert.match(acceptInvite, /Temporary PIN \(your employee number\)/);
   assert.match(acceptInvite, /action: "activate"/);
   assert.match(pinRoute, /timingSafeEqual/);
+});
+
+test("new employees self-activate with roster email and employee number before choosing a PIN", () => {
+  assert.match(gateway, /New User — Create Login/);
+  assert.match(gateway, /Create your login/);
+  assert.match(gateway, /Employee number/);
+  assert.match(gateway, /Enter private PIN again/);
+  assert.match(gateway, /fetch\("\/api\/auth\/activate"/);
+  assert.match(proxy, /"\/api\/auth\/activate"/);
+  assert.match(supabaseAdmin, /SUPABASE_SECRET_KEY/);
+  assert.match(supabaseAdmin, /import "server-only"/);
+  assert.match(activationRoute, /employee_profiles/);
+  assert.match(activationRoute, /timingSafeEqual/);
+  assert.match(activationRoute, /portal_activation_attempts/);
+  assert.match(activationRoute, /admin\.auth\.admin\.createUser/);
+  assert.match(activationRoute, /email_confirm: true/);
+  assert.match(activationRoute, /activate_roster_portal_user/);
+  assert.match(activationRoute, /signInWithPassword/);
+  assert.doesNotMatch(gateway, /SUPABASE_SECRET_KEY|derivePortalPassword/);
+  assert.match(activationMigration, /CREATE TABLE IF NOT EXISTS firehouse\.portal_activation_attempts/);
+  assert.match(activationMigration, /REVOKE ALL ON TABLE firehouse\.portal_activation_attempts/);
+  assert.match(activationMigration, /GRANT EXECUTE ON FUNCTION public\.activate_roster_portal_user[\s\S]*TO service_role/);
+  assert.match(activationMigration, /extensions\.crypt\(p_pin, extensions\.gen_salt\('bf', 12\)\)/);
 });
 
 test("Supabase authentication emails use the signed Resend hook instead of the two-per-hour demo mailer", () => {

@@ -61,6 +61,9 @@
 .login-primary, .login-secondary { min-height: 49px; padding: 0 16px; border-radius: 8px; font-weight: 900; }
 .login-primary { border: 1px solid #164d70; background: #164d70; color: white; }
 .login-primary:hover { background: #0f3b58; }
+.login-new-user-button, .login-back-button { width: 100%; border: 2px solid #164d70; background: #eef7fb; color: #123f5c; }
+.login-new-user-button:hover, .login-back-button:hover { background: #dceef6; }
+.login-back-button { margin-top: 14px; }
 .login-secondary { width: 100%; border: 1px solid #9eb1bd; background: white; color: #244c66; }
 .login-link-button { margin: 14px auto 0; padding: 4px; border: 0; background: transparent; color: #24678c; display: block; font-size: 12px; font-weight: 850; }
 .login-divider { margin: 23px 0; border-top: 1px solid #dbe3e8; text-align: center; }
