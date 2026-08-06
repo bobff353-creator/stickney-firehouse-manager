@@ -22,6 +22,14 @@ type RuntimeEnv = {
   FIREHOUSE_DATABASE_SECRET?: string;
 };
 
+function cleanDatabaseSecret(value: string | undefined) {
+  let cleaned = value?.replace(/[\uFEFF\r\n]/g, "").trim() ?? "";
+  if ((cleaned.startsWith('"') && cleaned.endsWith('"')) || (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+    cleaned = cleaned.slice(1, -1).trim();
+  }
+  return cleaned;
+}
+
 function safeEqual(left: Uint8Array, right: Uint8Array) {
   if (left.length !== right.length) return false;
   let mismatch = 0;
@@ -83,7 +91,8 @@ async function retrieveIncident(event: ResendEvent, apiKey: string): Promise<{ i
 export async function POST(request: Request) {
   try {
     const runtime = process.env as RuntimeEnv;
-    if (!runtime.RESEND_API_KEY || !runtime.RESEND_WEBHOOK_SECRET || !runtime.DISPATCH_EMAIL_FROM || !runtime.DISPATCH_EMAIL_TO || !runtime.FIREHOUSE_DATABASE_SECRET) {
+    const databaseSecret = cleanDatabaseSecret(runtime.FIREHOUSE_DATABASE_SECRET);
+    if (!runtime.RESEND_API_KEY || !runtime.RESEND_WEBHOOK_SECRET || !runtime.DISPATCH_EMAIL_FROM || !runtime.DISPATCH_EMAIL_TO || !databaseSecret) {
       return Response.json({ error: "Dispatch email integration is not configured" }, { status: 503 });
     }
     const body = await request.text();
@@ -106,7 +115,7 @@ export async function POST(request: Request) {
     const db = createPostgresD1Adapter(
       getSupabaseSystemClient,
       "firehouse_server_sql",
-      runtime.FIREHOUSE_DATABASE_SECRET,
+      databaseSecret,
     );
     const timeOut = chicagoMilitaryTime(incident.dispatchedAt);
     await db.prepare(
