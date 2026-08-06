@@ -82,7 +82,6 @@ function FieldMap({ apiKey,center,zoom,imagery,plans,hydrants,selected,draft,mod
       onPointerCancel={()=>{gesture.current=null;setDragging(false);}}
       onDoubleClick={(event)=>{event.preventDefault();onCenter(mapPoint(event.currentTarget,event.clientX,event.clientY));onZoom(Math.min(21,zoom+1));}}
       onWheel={(event)=>{event.preventDefault();onZoom(Math.max(14,Math.min(21,zoom+(event.deltaY<0?1:-1))));}}/>}
-    {mode && <div className="capture-instruction">{mode === "footprint" ? `Place corner ${draft?.footprint.length ? draft.footprint.length + 1 : 1} · use as many points as the building needs` : mode === "aSide" ? "Click the A-side apparatus approach" : `Drop ${pinMeta[mode]?.label ?? "feature"}`}</div>}
     {!googleReady&&<small className="map-credit">{imagery === "aerial" ? "Esri World Imagery" : "© OpenStreetMap contributors"}</small>}
   </div>;
 }
