@@ -22,13 +22,11 @@ export default function AuthGateway({
   const [mode, setMode] = useState<Mode>(initiallyVerified ? "authorized" : "loading");
   const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [pin, setPin] = useState("");
   const [pinConfirmation, setPinConfirmation] = useState("");
-  const [usePasswordSignIn, setUsePasswordSignIn] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
   const accessCheckRef = useRef<Promise<void> | null>(null);
+  const pinLoginRef = useRef(false);
 
   useEffect(() => {
     const client = getSupabaseBrowserClient();
@@ -49,6 +47,7 @@ export default function AuthGateway({
         return;
       }
       if (event === "SIGNED_IN") {
+        if (pinLoginRef.current) return;
         void checkAccess(session.user, !initiallyVerified);
       } else if (event === "USER_UPDATED" || event === "TOKEN_REFRESHED") {
         void checkAccess(session.user, false);
@@ -115,31 +114,31 @@ export default function AuthGateway({
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!/^\d{4,6}$/.test(pin)) {
+      setMessage("Enter your 4 to 6 digit private PIN.");
+      return;
+    }
     setMode("checking");
     setMessage("Signing in...");
-    const { data, error } = await getSupabaseBrowserClient().auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-    if (error || !data.user) {
-      setMode("sign-in");
-      setMessage(error?.message || "Sign-in could not be completed.");
-      return;
+    pinLoginRef.current = true;
+    try {
+      const normalizedEmail = email.trim().toLowerCase();
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: normalizedEmail, pin }),
+      });
+      const responsePayload = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) {
+        setMode("sign-in");
+        setMessage(responsePayload.error || "That email or PIN is not correct.");
+        return;
+      }
+      setPin("");
+      window.location.reload();
+    } finally {
+      pinLoginRef.current = false;
     }
-    await checkAccess(data.user);
-  }
-
-  async function resetPassword() {
-    if (!email.trim()) {
-      setMessage("Enter your email address first.");
-      return;
-    }
-    const callback = new URL("/auth/confirm", window.location.origin);
-    callback.searchParams.set("next", "/reset-password");
-    const { error } = await getSupabaseBrowserClient().auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: callback.toString(),
-    });
-    setMessage(error ? error.message : "If that account exists, a password reset email was sent.");
   }
 
   async function emailSignInLink() {
@@ -152,7 +151,7 @@ export default function AuthGateway({
       email: email.trim(),
       options: { shouldCreateUser: false, emailRedirectTo: callback.toString() },
     });
-    setMessage(error ? error.message : "Secure sign-in email sent. Open the link, then enter your portal PIN.");
+    setMessage(error ? error.message : "One-time activation or upgrade email sent. Open it and enter your existing PIN once; future logins will use email and PIN only.");
   }
 
   async function unlockWithPin(event: FormEvent<HTMLFormElement>) {
@@ -314,20 +313,15 @@ export default function AuthGateway({
       </section>
       <section className="login-card">
         <p className="login-eyebrow">WELCOME BACK</p>
-        <h2>{usePasswordSignIn ? "Sign in with your password" : "Sign in with your Stickney email"}</h2>
-        <p>{usePasswordSignIn ? "Use the email and password connected to your department account." : "Your Stickney email is your username. New members confirm it once, activate with their employee number, and then create a private portal PIN."}</p>
-        <form onSubmit={usePasswordSignIn ? signIn : (event) => { event.preventDefault(); void emailSignInLink(); }}>
+        <h2>Sign in with email and PIN</h2>
+        <p>Your Stickney email is your username. After the one-time email confirmation, use your private PIN for every sign-in.</p>
+        <form onSubmit={signIn}>
           <label>Email address<input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
-          {usePasswordSignIn ? <label>Password
-            <span className="login-password-field">
-              <input type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
-              <button type="button" onClick={() => setShowPassword((current) => !current)}>{showPassword ? "Hide" : "Show"}</button>
-            </span>
-          </label> : null}
+          <label>Private PIN<input type="password" inputMode="numeric" autoComplete="current-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
           {message ? <p className="login-message" role="status">{message}</p> : null}
-          <button className="login-primary" type="submit">{usePasswordSignIn ? "Sign in" : "Email my secure login link"}</button>
+          <button className="login-primary" type="submit">Sign in</button>
         </form>
-        {usePasswordSignIn ? <><button type="button" className="login-link-button" onClick={resetPassword}>Forgot password?</button><button type="button" className="login-link-button" onClick={() => { setUsePasswordSignIn(false); setMessage(""); }}>Use secure email link and PIN</button></> : <button type="button" className="login-link-button" onClick={() => { setUsePasswordSignIn(true); setMessage(""); }}>Use email and password instead</button>}
+        <button type="button" className="login-link-button" onClick={() => void emailSignInLink()}>First activation or older PIN account? Email one-time upgrade link</button>
         <div className="login-divider"><span>Need an account?</span></div>
         <p className="login-invite-note">A department administrator must add your employee email and send your app invitation.</p>
       </section>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { timingSafeEqual } from "node:crypto";
 import { ensureDatabase } from "../../../../db/bootstrap";
+import { derivePortalPassword } from "../../../lib/portal-pin-password";
 import { getSupabaseServerClient } from "../../../supabase-server";
 
 const pinCookie = "__Secure-firehouse-pin";
@@ -19,6 +20,15 @@ function withUnlockCookie(payload: object, token: string) {
     maxAge: unlockSeconds,
   });
   return response;
+}
+
+async function syncPasswordLogin(client: Awaited<ReturnType<typeof getSupabaseServerClient>>, email: string, pin: string) {
+  const password = derivePortalPassword(email, pin);
+  const { error } = await client.auth.updateUser({
+    password,
+    data: { portal_pin_password_version: 1 },
+  });
+  return error;
 }
 
 export async function POST(request: Request) {
@@ -55,6 +65,11 @@ export async function POST(request: Request) {
     if (error || typeof data !== "string" || !data) {
       return Response.json({ error: error?.message || "The PIN could not be saved." }, { status: 400 });
     }
+    const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
+    const passwordError = email ? await syncPasswordLogin(client, email, pin) : new Error("Verified email is unavailable.");
+    if (passwordError) {
+      return Response.json({ error: "The PIN was saved, but repeat login could not be enabled. Try saving it again." }, { status: 503 });
+    }
     return withUnlockCookie({ ok: true, configured: true, unlocked: true }, data);
   }
 
@@ -62,6 +77,11 @@ export async function POST(request: Request) {
     const { data, error } = await client.rpc("set_portal_pin", { p_pin: pin });
     if (error || typeof data !== "string" || !data) {
       return Response.json({ error: error?.message || "The private PIN could not be saved." }, { status: 400 });
+    }
+    const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
+    const passwordError = email ? await syncPasswordLogin(client, email, pin) : new Error("Verified email is unavailable.");
+    if (passwordError) {
+      return Response.json({ error: "The private PIN was saved, but repeat login could not be enabled. Try activating it again." }, { status: 503 });
     }
     return withUnlockCookie({ ok: true, configured: true, unlocked: true }, data);
   }
@@ -79,6 +99,14 @@ export async function POST(request: Request) {
       },
       { status: result?.locked_until ? 429 : 401 },
     );
+  }
+  const { data: userData } = await client.auth.getUser();
+  const passwordVersion = Number(userData.user?.user_metadata?.portal_pin_password_version ?? 0);
+  if (passwordVersion < 1 && userData.user?.email) {
+    const passwordError = await syncPasswordLogin(client, userData.user.email, pin);
+    if (passwordError) {
+      return Response.json({ error: "Your PIN is correct, but this older account still needs its one-time login upgrade. Try again from the email link." }, { status: 503 });
+    }
   }
   return withUnlockCookie({ ok: true, configured: true, unlocked: true }, result.unlock_token);
 }

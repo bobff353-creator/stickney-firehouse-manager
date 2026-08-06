@@ -17,14 +17,27 @@ const pinRoute = readFileSync(new URL("../app/api/auth/pin/route.ts", import.met
 const acceptInvite = readFileSync(new URL("../app/accept-invite/page.tsx", import.meta.url), "utf8");
 const pinMigration = readFileSync(new URL("../supabase/migrations/20260803211245_member_invites_and_pin_unlock.sql", import.meta.url), "utf8");
 const emailHook = readFileSync(new URL("../app/api/auth/send-email-hook/route.ts", import.meta.url), "utf8");
+const portalPinPassword = readFileSync(new URL("../app/lib/portal-pin-password.ts", import.meta.url), "utf8");
+const pinLoginRoute = readFileSync(new URL("../app/api/auth/login/route.ts", import.meta.url), "utf8");
+const primaryPinMigration = readFileSync(new URL("../supabase/migrations/20260806160437_portal_pin_primary_login.sql", import.meta.url), "utf8");
 
-test("verified invited email login requires confirmation and department approval", () => {
+test("verified invited email login confirms once and then uses email plus PIN", () => {
   assert.match(gateway, /Firehouse Manager/);
-  assert.match(gateway, /signInWithPassword/);
+  assert.match(pinLoginRoute, /signInWithPassword/);
   assert.doesNotMatch(gateway, /auth\.signUp/);
   assert.match(gateway, /signInWithOtp/);
   assert.match(gateway, /shouldCreateUser: false/);
   assert.match(gateway, /emailRedirectTo/);
+  assert.match(gateway, /Sign in with email and PIN/);
+  assert.match(gateway, /First activation or older PIN account\? Email one-time upgrade link/);
+  assert.match(gateway, /fetch\("\/api\/auth\/login"/);
+  assert.match(pinLoginRoute, /verify_portal_login/);
+  assert.match(pinLoginRoute, /verify_portal_pin/);
+  assert.match(portalPinPassword, /import "server-only"/);
+  assert.match(portalPinPassword, /createHmac\("sha256", pepper\)/);
+  assert.match(portalPinPassword, /PORTAL_PIN_PASSWORD_PEPPER/);
+  assert.match(pinRoute, /portal_pin_password_version: 1/);
+  assert.match(pinRoute, /syncPasswordLogin/);
   assert.match(gateway, /department administrator must approve access/i);
   assert.match(confirmation, /exchangeCodeForSession/);
   assert.match(confirmation, /verifyOtp/);
@@ -61,6 +74,20 @@ test("signed dispatch webhook paths remain available without an employee session
   assert.match(proxy, /\/api\/resend-dispatch/);
   assert.match(proxy, /pathname === "\/api\/cad\/cis"/);
   assert.match(proxy, /request\.method === "POST"/);
+});
+
+test("PIN sign-in route is public only for POST and keeps derivation server-side", () => {
+  assert.match(proxy, /publicAuthPostPaths/);
+  assert.match(proxy, /"\/api\/auth\/login"/);
+  assert.match(proxy, /request\.method === "POST" && publicAuthPostPaths\.has\(pathname\)/);
+  assert.doesNotMatch(gateway, /derivePortalPassword|PORTAL_PIN_PASSWORD_PEPPER/);
+  assert.match(pinLoginRoute, /firehouse_server_sql/);
+  assert.match(pinLoginRoute, /Too many attempts/);
+  assert.match(gateway, /window\.location\.reload\(\)/);
+  assert.match(primaryPinMigration, /CREATE OR REPLACE FUNCTION firehouse\.verify_portal_login/);
+  assert.match(primaryPinMigration, /extensions\.crypt\(p_pin, credentials\.pin_hash\)/);
+  assert.match(primaryPinMigration, /next_failed_attempts >= 5/);
+  assert.match(primaryPinMigration, /REVOKE ALL ON FUNCTION firehouse\.verify_portal_login[\s\S]*FROM anon/);
 });
 
 test("administrators send employee-bound invitations that confirm email before PIN setup", () => {

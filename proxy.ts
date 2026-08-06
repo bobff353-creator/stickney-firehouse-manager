@@ -16,6 +16,10 @@ const signedWebhookPaths = new Set([
   "/api/auth/send-email-hook",
 ]);
 
+const publicAuthPostPaths = new Set([
+  "/api/auth/login",
+]);
+
 const pinSetupPaths = new Set([
   "/api/auth/context",
   "/api/auth/pin",
@@ -38,7 +42,8 @@ export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const signedWebhookRequest = request.method === "POST"
     && (signedWebhookPaths.has(pathname) || pathname === "/api/cad/cis");
-  if (publicApiPaths.has(pathname) || signedWebhookRequest) {
+  const publicAuthRequest = request.method === "POST" && publicAuthPostPaths.has(pathname);
+  if (publicApiPaths.has(pathname) || signedWebhookRequest || publicAuthRequest) {
     return NextResponse.next();
   }
 
