@@ -97,8 +97,9 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(styles, /\.field-map\.google-active \.field-map-tiles\{visibility:hidden\}/);
   assert.match(googleMap, /maps\.googleapis\.com\/maps\/api\/js/);
   assert.match(googleMap, /loading=async/);
-  assert.match(googleMap, /auth_referrer_policy=origin/);
+  assert.doesNotMatch(googleMap, /auth_referrer_policy=origin/);
   assert.match(googleMap, /gm_authFailure/);
+  assert.match(page, /apiKey&&!googleFailed&&<GoogleFieldMap/);
   assert.match(googleMap, /gestureHandling/);
   assert.match(googleMap, /featureType: "poi"/);
   assert.match(googleMap, /"satellite"/);
