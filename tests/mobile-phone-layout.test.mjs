@@ -12,6 +12,8 @@ test("phone layout keeps navigation visible and content above the safe area", as
   assert.match(styles, /\.mobile-brand strong\{display:none\}/);
   assert.match(styles, /\.mobile-nav-panel\{position:fixed;z-index:100;left:8px;right:8px;bottom:64px/);
   assert.match(shell, /<\/header>\s*\{mobileMenuOpen && <nav id="mobile-navigation"/);
+  assert.match(shell, /mobile-station-roster-nav/);
+  assert.doesNotMatch(styles, /main\.app-shell:has\(\.station-roster-scope\) > \.mobile-bottom-tabs \{ display: none; \}/);
   assert.match(styles, /\.schedule-tabs\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\);overflow:visible\}/);
   assert.match(styles, /\.schedule-date-button\{min-width:32px;min-height:32px/);
 });

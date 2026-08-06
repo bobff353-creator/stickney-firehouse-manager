@@ -197,6 +197,8 @@ export default function PayrollApp({
   initialPage?: "Dashboard" | "Inventory";
 }) {
   const [activeNav, setActiveNav] = useState<NavItem>(initialPage);
+  const [schedulingSection, setSchedulingSection] = useState("calendar");
+  const [scheduleEmployeePreview, setScheduleEmployeePreview] = useState(false);
   const [tvMode, setTvMode] = useState(false);
   const [periodStart, setPeriodStart] = useState(currentPeriodStart);
   const [data, setData] = useState<PayrollData | null>(null);
@@ -655,6 +657,12 @@ export default function PayrollApp({
     setGlobalSearch("");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
+  function openSchedulingSection(section:string) {
+    setSchedulingSection(section);
+    setActiveNav("Scheduling");
+    setMobileMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
   function toggleNavGroup(group: string) {
     setOpenNavGroups((current) => {
       const next = new Set(current);
@@ -689,13 +697,14 @@ export default function PayrollApp({
           {isAdminView ? visibleAdminGroups.map((group) => (
             <section key={group.label}>
               <button className="sidebar-group-toggle" aria-expanded={openNavGroups.has(group.label)} onClick={() => toggleNavGroup(group.label)}><Icon name={group.icon}/><span>{group.label}</span><Icon name="chevron" size={14}/></button>
-              {openNavGroups.has(group.label) ? <div className="sidebar-group-items">{group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><Icon name={navIcons[item.page]}/><span>{item.label}</span></button>)}</div> : null}
+              {openNavGroups.has(group.label) ? <div className="sidebar-group-items">{group.items.map((item) => <div key={item.page}>{<button className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><Icon name={navIcons[item.page]}/><span>{item.label}</span></button>}{item.page === "Scheduling" && activeNav === "Scheduling" && <div className="station-roster-portal-nav">{(scheduleEmployeePreview ? [["calendar","Calendar"],["open","Open shifts"],["open","Trade board"],["calendar","My schedule"]] : [["calendar","Schedule"],["requests","Shift requests"],["requests","Trade approvals"],["people","Personnel"],["patterns","Rules & reminders"]]).map(([key,label], index) => <button key={`${key}-${label}-${index}`} className={schedulingSection === key ? "current" : ""} onClick={() => openSchedulingSection(key)}>{label}</button>)}<button onClick={() => { setScheduleEmployeePreview((current) => !current); openSchedulingSection("calendar"); }}>{scheduleEmployeePreview ? "↗ Admin console" : "↙ Employee view"}<small>Open scheduling workspace</small></button></div>}</div>)}</div> : null}
             </section>
           )) : (
             <>
               <section>
                 <h2>{testMember ? `Testing · ${testMember.rank}` : "My Portal"}</h2>
                 {visibleNav.filter((item) => item !== "Dashboard" && !memberStationDutyItems.has(item)).map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => navigate(item)}><Icon name={navIcons[item]}/><span>{item === "Scheduling" ? "Employee Schedule Portal" : item}</span></button>)}
+                {activeNav === "Scheduling" && <div className="station-roster-portal-nav">{[["calendar","Calendar"],["open","Open shifts"],["open","Trade board"],["calendar","My schedule"]].map(([key,label], index) => <button key={`${key}-${label}-${index}`} className={schedulingSection === key ? "current" : ""} onClick={() => openSchedulingSection(key)}>{label}</button>)}</div>}
               </section>
               {visibleNav.some((item) => memberStationDutyItems.has(item)) && <section>
                 <h2>Station Duties</h2>
@@ -721,6 +730,7 @@ export default function PayrollApp({
             <section><h2>My Portal</h2>{visibleNav.filter((item) => item !== "Dashboard" && !memberStationDutyItems.has(item)).map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => navigate(item)}><Icon name={navIcons[item]}/>{item === "Scheduling" ? "Employee Schedule Portal" : item}</button>)}</section>
             {visibleNav.some((item) => memberStationDutyItems.has(item)) && <section><h2>Station Duties</h2>{visibleNav.filter((item) => memberStationDutyItems.has(item)).map((item) => <button key={item} onClick={() => navigate(item)}><Icon name={navIcons[item]}/>{item}</button>)}</section>}
           </>}
+          {activeNav === "Scheduling" && <section className="mobile-station-roster-nav"><h2>Station Roster</h2>{(isAdminView && !scheduleEmployeePreview ? [["calendar","Schedule"],["requests","Shift requests"],["requests","Trade approvals"],["people","Personnel"],["patterns","Rules & reminders"]] : [["calendar","Calendar"],["open","Open shifts"],["open","Trade board"],["calendar","My schedule"]]).map(([key,label], index) => <button key={`${key}-${label}-${index}`} className={schedulingSection === key ? "current" : ""} onClick={() => openSchedulingSection(key)}>{label}</button>)}{isAdminView && <button onClick={() => { setScheduleEmployeePreview((current) => !current); openSchedulingSection("calendar"); }}>{scheduleEmployeePreview ? "Admin console" : "Employee view"}</button>}</section>}
           <div className="account-session-bar mobile-account-session">
             <span><b>Verified account</b>{accountEmail}</span>
             <button type="button" onClick={onSignOut}>Sign out</button>
@@ -794,7 +804,7 @@ export default function PayrollApp({
 
           {activeNav === "Command Center" && <CommandCenter />}
           {activeNav === "Work Details" && <WorkDetails onPayrollChanged={(approvedPeriodStart) => { if (approvedPeriodStart === periodStart) void loadPayroll(periodStart); else setPeriodStart(approvedPeriodStart); }} />}
-          {activeNav === "Scheduling" && <Scheduling testMember={testMember} />}
+          {activeNav === "Scheduling" && <Scheduling testMember={testMember} requestedTab={schedulingSection} forceEmployeeView={scheduleEmployeePreview} onTabChange={setSchedulingSection} />}
 
           {activeNav === "Operations Board" && <OperationsBoard tvMode={tvMode} onTvModeChange={(enabled) => {
             setTvMode(enabled);

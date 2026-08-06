@@ -158,6 +158,34 @@ test("Station Roster persists an employee open-shift visibility cutoff", async (
   assert.match(screen, /Save Visibility Cutoff/);
 });
 
+test("Station Roster admin tools use the portal sidebar and real employee records", async () => {
+  const [screen, shell, payrollApi] = await Promise.all([
+    readFile(new URL("../app/scheduling.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/payroll/route.ts", import.meta.url), "utf8"),
+  ]);
+  for (const label of ["Full name", "Email address", "Mobile number", "Seniority rank", "Recurring shift", "Eligible roles"]) assert.match(screen, new RegExp(label));
+  assert.match(shell, /station-roster-portal-nav/);
+  assert.match(shell, /mobile-station-roster-nav/);
+  assert.match(shell, /Rules & reminders/);
+  assert.match(shell, /Employee view/);
+  assert.match(payrollApi, /sortOrder/);
+  assert.match(payrollApi, /That email address is already assigned to another employee/);
+});
+
+test("shift editor and reminder rules match the Station Roster workflow", async () => {
+  const [screen, api] = await Promise.all([
+    readFile(new URL("../app/scheduling.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8"),
+  ]);
+  for (const label of ["Shift name", "Calendar label", "First shift date", "Repeat this shift", "Required riding assignments", "Distribution hierarchy", "Open-shift visibility & reminders"]) assert.match(screen, new RegExp(label));
+  assert.match(screen, /48 hours before/);
+  assert.match(screen, /12 hours before/);
+  assert.match(api, /createShiftTemplate/);
+  assert.match(api, /saveDistributionOrder/);
+  assert.match(api, /schedule_distribution_order/);
+});
+
 test("Acting Officer eligibility gates officer scheduling workflows", async () => {
   const api = await readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8");
   const profile = await readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8");
