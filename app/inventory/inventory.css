@@ -24,7 +24,7 @@ html { scroll-behavior: smooth; }
 body { margin: 0; background: var(--paper); color: var(--ink); }
 button, input, textarea, select { font: inherit; }
 button { color: inherit; }
-.app-shell { min-height: 100vh; }
+.inventory-app-shell { display: block; width: 100%; min-width: 0; min-height: 100vh; }
 .icon { display: inline-grid; place-items: center; font-family: var(--font-geist-mono), monospace; font-style: normal; }
 
 .topbar {

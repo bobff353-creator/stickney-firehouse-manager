@@ -21,3 +21,14 @@ test("fleet cards clearly open unit checks and stay readable on dark phones", as
   assert.match(styles, /@media\(max-width:820px\)\{\.fleet-page \.page-heading p\{[^}]*font-size:14px/);
   assert.match(styles, /@media\(prefers-color-scheme:dark\)\{\.fleet-page \.page-heading p\{color:#c8d5d9/);
 });
+
+test("inventory uses its own full-width shell instead of the portal sidebar grid", async () => {
+  const [styles, inventory] = await Promise.all([
+    readFile(new URL("../app/inventory/inventory.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/inventory-live.tsx", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(inventory, /<main className="inventory-app-shell">/);
+  assert.doesNotMatch(inventory, /<main className="app-shell">/);
+  assert.match(styles, /\.inventory-app-shell \{ display: block; width: 100%; min-width: 0; min-height: 100vh; \}/);
+});

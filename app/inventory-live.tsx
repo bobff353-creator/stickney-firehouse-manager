@@ -436,7 +436,7 @@ export default function Inventory360({
   const activeDepartmentName = suite.department?.name || departmentName;
 
   return (
-    <main className="app-shell">
+    <main className="inventory-app-shell">
       <header className="topbar">
         <Link className="portal-back" href="/" aria-label="Back to Firehouse Manager">
           <span aria-hidden="true">←</span>
