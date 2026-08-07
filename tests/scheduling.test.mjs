@@ -6,7 +6,8 @@ test("scheduling is separate from payroll for admins and employees", async () =>
   const source = await readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8");
   assert.equal(source.includes('{ label: "Scheduling", icon: "clock"'), true);
   assert.equal(source.includes('"Scheduling", "My Timesheet"'), true);
-  assert.equal(source.includes('activeNav === "Scheduling" && <Scheduling'), true);
+  assert.equal(source.includes('activeNav === "Scheduling" && <div className="schedule-workspace-shell"'), true);
+  assert.equal(source.includes('<Scheduling testMember={testMember}'), true);
 });
 
 test("custom rotations generate assignments", async () => {
@@ -165,8 +166,8 @@ test("Station Roster admin tools use the portal sidebar and real employee record
     readFile(new URL("../app/api/payroll/route.ts", import.meta.url), "utf8"),
   ]);
   for (const label of ["Full name", "Email address", "Mobile number", "Seniority rank", "Recurring shift", "Eligible roles"]) assert.match(screen, new RegExp(label));
-  assert.match(shell, /station-roster-portal-nav/);
-  assert.match(shell, /mobile-station-roster-nav/);
+  assert.match(shell, /schedule-page-tabs/);
+  assert.doesNotMatch(shell, /station-roster-portal-nav/);
   assert.match(shell, /Rules & reminders/);
   assert.match(shell, /Employee view/);
   assert.match(shell, /activeNav !== "Scheduling" && <footer className="portal-footer"/);
