@@ -96,6 +96,15 @@ test("API route implements the full admin and employee action set", async () => 
   assert.equal(route.includes("not your scheduled shift days"), true);
 });
 
+test("scheduler date range casts stored text dates before Postgres comparison", async () => {
+  const route = await read("../app/api/station-scheduler/route.ts");
+
+  assert.equal(route.includes("WHERE date(entry_date)>=date(?, '-45 day')"), true);
+  assert.equal(route.includes("WHERE date(en.entry_date)>=date(?, '-45 day')"), true);
+  assert.equal(route.includes("WHERE entry_date>=date(?, '-45 day')"), false);
+  assert.equal(route.includes("WHERE en.entry_date>=date(?, '-45 day')"), false);
+});
+
 test("standing assignments backfill open slots and time off writes unavailability", async () => {
   const route = await read("../app/api/station-scheduler/route.ts");
   assert.equal(route.includes("UPDATE station_shift_slots SET employee_id=?,status='filled' WHERE status='open' AND role=?"), true);
