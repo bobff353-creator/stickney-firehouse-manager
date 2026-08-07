@@ -187,6 +187,17 @@ test("shift editor and reminder rules match the Station Roster workflow", async 
   assert.match(api, /schedule_distribution_order/);
 });
 
+test("rules and reminders use short top-level workspaces instead of one long page", async () => {
+  const [screen, styles] = await Promise.all([
+    readFile(new URL("../app/scheduling.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/station-roster.css", import.meta.url), "utf8"),
+  ]);
+  for (const label of ["Shift types", "Staffing plans", "Weekend / holiday", "Active shifts", "Employee rotations", "Distribution", "Reminders"]) assert.match(screen, new RegExp(label));
+  assert.match(screen, /rulesSection === "active"/);
+  assert.match(screen, /rulesSection === "reminders"/);
+  assert.match(styles, /\.rules-workspace-tabs \{ position:sticky/);
+});
+
 test("Acting Officer eligibility gates officer scheduling workflows", async () => {
   const api = await readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8");
   const profile = await readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8");

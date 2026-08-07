@@ -117,6 +117,7 @@ export default function Scheduling({ testMember = null, requestedTab = "calendar
   const [busy, setBusy] = useState(false);
   const [showEmployeeForm, setShowEmployeeForm] = useState(false);
   const [showShiftForm, setShowShiftForm] = useState(false);
+  const [rulesSection, setRulesSection] = useState<"shift-types"|"staffing"|"special"|"active"|"rotations"|"distribution"|"reminders">("shift-types");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [rotation, setRotation] = useState({
@@ -453,8 +454,18 @@ export default function Scheduling({ testMember = null, requestedTab = "calendar
       </>
     </section>}
 
-    {tab === "patterns" && isCommandView && <section className="shift-pattern-command">
-      <article className="content-card schedule-form">
+    {tab === "patterns" && isCommandView && <>
+      <section className="rules-workspace-header">
+        <div><span className="eyebrow">Department setup</span><h2>Rules & reminders</h2><p>Open one scheduling workspace at a time.</p></div>
+        <button className="primary-button" onClick={() => setShowShiftForm(true)}>+ Add shift type</button>
+      </section>
+      <nav className="rules-workspace-tabs" aria-label="Rules and reminders sections">
+        {[["shift-types","Shift types"],["staffing","Staffing plans"],["special","Weekend / holiday"],["active","Active shifts"],["rotations","Employee rotations"],["distribution","Distribution"],["reminders","Reminders"]].map(([key,label]) => <button key={key} className={rulesSection === key ? "active" : ""} aria-pressed={rulesSection === key} onClick={() => setRulesSection(key as typeof rulesSection)}>{label}</button>)}
+      </nav>
+    </>}
+
+    {tab === "patterns" && isCommandView && rulesSection === "shift-types" && <section className="shift-pattern-command single-workspace">
+       <article className="content-card schedule-form">
         <div className="section-header"><div><p className="eyebrow">Step 1</p><h2>Create shift reference</h2><p>Name and color the shift, choose its first day, then set how often it repeats.</p></div></div>
         <div className="schedule-fields">
           <label><span>Shift reference *</span><input value={shiftPattern.name} onChange={(event) => setShiftPattern({ ...shiftPattern, name: event.target.value })}/><small>Use a preset or enter a department-specific name.</small></label>
@@ -463,10 +474,12 @@ export default function Scheduling({ testMember = null, requestedTab = "calendar
           <label><span>Repeats every *</span><div className="input-unit"><input type="number" min="1" max="365" value={shiftPattern.recurrenceDays} onChange={(event) => setShiftPattern({ ...shiftPattern, recurrenceDays: event.target.value })}/><b>days</b></div><small>Examples: 3, 4, 5, or 6 days.</small></label>
           <label className="wide"><span>Shift requirements *</span><select value={shiftPattern.coveragePlanId} onChange={(event) => setShiftPattern({ ...shiftPattern, coveragePlanId: event.target.value })}><option value="">Select minimum staffing plan</option>{coveragePlans.map(([planId, rules]) => <option key={planId} value={rules[0].planId || rules[0].id}>{rules[0].name} · {rules.map((rule) => `${rule.minimumStaff} ${rule.role}`).join(", ")}</option>)}</select><small>The selected plan controls required positions and staffing for every occurrence.</small></label>
         </div>
-        <button className="primary-action" disabled={busy} onClick={() => void act({ action: "saveShiftPattern", ...shiftPattern, recurrenceDays: Number(shiftPattern.recurrenceDays) }, "Shift reference added to calendar")}>Save Shift Pattern</button>
-      </article>
+         <button className="primary-action" disabled={busy} onClick={() => void act({ action: "saveShiftPattern", ...shiftPattern, recurrenceDays: Number(shiftPattern.recurrenceDays) }, "Shift reference added to calendar")}>Save Shift Pattern</button>
+       </article>
+    </section>}
 
-      <article className="content-card schedule-form">
+    {tab === "patterns" && isCommandView && rulesSection === "special" && <section className="shift-pattern-command single-workspace">
+       <article className="content-card schedule-form">
         <div className="section-header"><div><p className="eyebrow">Step 2</p><h2>Weekend & holiday staffing</h2><p>Set a higher minimum when this shift falls on a weekend or department holiday.</p></div></div>
         <div className="schedule-fields">
           <label className="wide"><span>Shift reference *</span><select value={staffingOverride.patternId} onChange={(event) => setStaffingOverride({ ...staffingOverride, patternId: event.target.value })}><option value="">Select shift reference</option>{data.shiftPatterns.map((pattern) => <option key={pattern.id} value={pattern.id}>{pattern.name} · every {pattern.recurrenceDays} days</option>)}</select></label>
@@ -474,20 +487,22 @@ export default function Scheduling({ testMember = null, requestedTab = "calendar
           <label><span>Position *</span><input list="schedule-position-options" value={staffingOverride.role} onChange={(event) => setStaffingOverride({ ...staffingOverride, role: event.target.value })}/></label>
           <label><span>Required minimum *</span><input type="number" min="1" max="50" value={staffingOverride.minimumStaff} onChange={(event) => setStaffingOverride({ ...staffingOverride, minimumStaff: event.target.value })}/></label>
         </div>
-        <button className="primary-action" disabled={busy} onClick={() => void act({ action: "saveStaffingOverride", ...staffingOverride, minimumStaff: Number(staffingOverride.minimumStaff) }, "Special staffing rule saved")}>Add Special Requirement</button>
-      </article>
+         <button className="primary-action" disabled={busy} onClick={() => void act({ action: "saveStaffingOverride", ...staffingOverride, minimumStaff: Number(staffingOverride.minimumStaff) }, "Special staffing rule saved")}>Add Special Requirement</button>
+       </article>
+    </section>}
 
-      <article className="content-card shift-pattern-list">
+    {tab === "patterns" && isCommandView && rulesSection === "active" && <section className="shift-pattern-command single-workspace">
+       <article className="content-card shift-pattern-list">
         <div className="section-header"><div><h2>Active shift references</h2><p>These labels are painted onto the Department Schedule calendar.</p></div></div>
         {data.shiftPatterns.length ? data.shiftPatterns.map((pattern) => {
           const requirements = data.coverageRules.filter((rule) => rule.active && (rule.planId || rule.id) === pattern.coveragePlanId);
           const specials = data.staffingOverrides.filter((item) => item.patternId === pattern.id);
           return <div className="shift-pattern-row" key={pattern.id}><i data-color={pattern.color} style={{ background: stationColor(pattern.color) }}/><div><strong>{pattern.name}</strong><span>Starts {friendlyDate(pattern.startDate)} · every {pattern.recurrenceDays} days · {pattern.startTime}–{pattern.endTime}</span><small>{requirements.map((rule) => `${rule.minimumStaff} ${rule.role}`).join(" · ") || "Staffing plan unavailable"}</small>{specials.map((item) => <em key={item.id}>{item.conditionType}: {item.minimumStaff} {item.role}<button aria-label={`Remove ${item.name}`} onClick={() => void act({ action: "deleteStaffingOverride", id: item.id }, "Special staffing rule removed")}>×</button></em>)}</div><button className="danger-link" onClick={() => void act({ action: "deactivateShiftPattern", id: pattern.id }, "Shift reference ended")}>End pattern</button></div>;
-        }) : <p className="schedule-empty">No shift references have been created yet.</p>}
-      </article>
+         }) : <p className="schedule-empty">No shift references have been created yet.</p>}
+       </article>
     </section>}
 
-    {tab === "patterns" && isCommandView && <section className="schedule-two-col station-riding-assignments">
+    {tab === "patterns" && isCommandView && rulesSection === "staffing" && <section className="schedule-two-col station-riding-assignments">
       <article className="content-card schedule-form">
         <div className="section-header"><div><h2>Create minimum staffing plan</h2><p>Each save creates a separate plan. Add as many plans as the department needs.</p></div></div>
         <div className="schedule-fields">
@@ -528,7 +543,7 @@ export default function Scheduling({ testMember = null, requestedTab = "calendar
       </article>
     </section>}
 
-    {tab === "patterns" && isCommandView && <section className="schedule-two-col station-repeating-shifts">
+    {tab === "patterns" && isCommandView && rulesSection === "rotations" && <section className="schedule-two-col station-repeating-shifts">
       <article className="content-card schedule-form">
         <div className="section-header"><div><h2>Add employee rotation</h2><p>Pick the employee and staffing plan, choose the first day and repeat interval, then fill the schedule automatically.</p></div></div>
         {!coveragePlans.length && <div className="schedule-setup-callout"><strong>Create a minimum staffing plan first.</strong><span>Employee rotations use the plan’s positions and working hours.</span><button onClick={() => selectTab("patterns")}>Open staffing setup</button></div>}
@@ -562,9 +577,10 @@ export default function Scheduling({ testMember = null, requestedTab = "calendar
       </article>
     </section>}
 
-    {tab === "patterns" && isCommandView && <section className="rules-grid station-rules-grid">
-      <div className="section-intro"><div><span className="eyebrow">Department setup</span><h2>Rules & reminders</h2><p>Configure shift types, eligibility order, visibility, and multiple reminder times.</p></div><button className="primary-button" onClick={() => setShowShiftForm(true)}>+ Add shift type</button></div>
+    {tab === "patterns" && isCommandView && rulesSection === "distribution" && <section className="rules-grid station-rules-grid single-workspace">
       <section className="settings-card"><div className="settings-title"><div><span className="settings-icon blue">↕</span><div><h3>Distribution hierarchy</h3><p>Rank eligible members for a selected period.</p></div></div></div><ol className="priority-list">{data.settings.distributionOrder.map((rule,index) => <li key={rule}><b>{index + 1}</b><span>{rule}</span><span className="priority-actions"><button disabled={index === 0} aria-label={`Move ${rule} up`} onClick={() => moveDistributionRule(index,-1)}>↑</button><button disabled={index === data.settings.distributionOrder.length - 1} aria-label={`Move ${rule} down`} onClick={() => moveDistributionRule(index,1)}>↓</button></span></li>)}</ol><button className="full-button" disabled={busy} onClick={() => void act({ action:"saveDistributionOrder", distributionOrder:data.settings.distributionOrder }, "Distribution hierarchy saved")}>Save hierarchy</button></section>
+    </section>}
+    {tab === "patterns" && isCommandView && rulesSection === "reminders" && <section className="rules-grid station-rules-grid single-workspace">
       <section className="settings-card"><div className="settings-title"><div><span className="settings-icon green">◷</span><div><h3>Open-shift visibility & reminders</h3><p>Control the employee vacancy window and choose multiple reminders for every event.</p></div></div></div><div className="visibility-setting"><label>Employees can view open shifts through<input type="date" min={today()} value={data.settings.openShiftsVisibleThrough} onChange={(event) => setData({ ...data, settings:{ ...data.settings, openShiftsVisibleThrough:event.target.value } })}/></label><p>Every open position through this date appears in the employee Open Shifts list.</p></div><div className="compact-reminder-list">{data.notificationRules.map((rule) => { const timings = new Set<string>(JSON.parse(rule.deliveryTimings || '["immediate"]')); return <article key={rule.eventType}><header><label><input type="checkbox" checked={Boolean(rule.active)} onChange={(event) => updateNotificationRule(rule.eventType,{ active:event.target.checked })}/><strong>{rule.label}</strong></label></header><div className="notification-timings">{[["immediate","Immediately"],["48_hours_before","48 hours before"],["24_hours_before","24 hours before"],["12_hours_before","12 hours before"],["2_hours_before","2 hours before"]].map(([value,label]) => <label key={value}><input type="checkbox" checked={timings.has(value)} onChange={() => toggleNotificationTiming(rule,value)}/>{label}</label>)}</div><div className="notification-channels"><label><input type="checkbox" checked={Boolean(rule.emailEnabled)} onChange={(event) => updateNotificationRule(rule.eventType,{ emailEnabled:event.target.checked })}/>Email</label><label><input type="checkbox" checked={Boolean(rule.smsEnabled)} onChange={(event) => updateNotificationRule(rule.eventType,{ smsEnabled:event.target.checked })}/>Text</label></div></article>; })}</div><div className="rules-save-actions"><button className="full-button" disabled={busy} onClick={() => void act({ action:"saveScheduleSettings", openShiftsVisibleThrough:data.settings.openShiftsVisibleThrough }, "Open-shift visibility saved")}>Save visibility</button><button className="full-button" disabled={busy} onClick={() => void act({ action:"saveNotificationRules", rules:data.notificationRules.map((rule) => ({ ...rule, deliveryTimings:JSON.parse(rule.deliveryTimings) })) }, "Reminder settings saved")}>Save all reminders</button></div></section>
     </section>}
 
