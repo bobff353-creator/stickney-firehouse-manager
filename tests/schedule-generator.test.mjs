@@ -75,15 +75,8 @@ test("qualification and time-off requests remain hard safety gates", () => {
   assert.deepEqual(result.slots[0].eligibleEmployeeIds, []);
 });
 
-test("Scheduling exposes a fifth generator tab and server-validated publish action", async () => {
-  const [shell, scheduling, route] = await Promise.all([
-    readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/scheduling.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8"),
-  ]);
-  assert.match(shell, /\["generate","Generate schedule"\]/);
-  assert.match(scheduling, /Automatic assignments use only employees who submitted matching availability requests/);
-  assert.match(scheduling, /Save & publish schedule/);
+test("the preserved schedule API validates generated schedule publication", async () => {
+  const route = await readFile(new URL("../app/api/scheduling/route.ts", import.meta.url), "utf8");
   assert.match(route, /action === "saveGeneratedSchedule"/);
   assert.match(route, /generateScheduleDraft/);
   assert.match(route, /overlapping generated shifts/);

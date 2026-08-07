@@ -85,7 +85,7 @@ export default function RespondDeviceSettingsPage({ onSaved }: { onSaved: (setti
 
     <aside className="respond-device-safety">
       <strong>Interruption protection</strong>
-      <p>Operations Alert can take over only when this device is already displaying Live Operations. It will not interrupt Scheduling, Daily Log, Payroll, Preplans, employee forms, or any other page.</p>
+      <p>Operations Alert can take over only when this device is already displaying Live Operations. It will not interrupt Daily Log, Payroll, Preplans, employee forms, or any other page.</p>
     </aside>
   </section>;
 }
