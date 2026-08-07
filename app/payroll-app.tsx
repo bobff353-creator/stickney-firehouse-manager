@@ -867,7 +867,11 @@ export default function PayrollApp({
           {activeNav === "Holiday Policy" && <HolidayPolicy />}
           {activeNav === "EMS" && <section className="ems-documents-page">
             <div className="standard-page-header"><div><span className="page-icon"><Icon name="document" size={25}/></span><div><p className="eyebrow">Documents</p><h1>EMS</h1><p>Approved emergency medical services documents and references.</p></div></div></div>
-            <article className="content-card action-empty-state resource-action-empty"><span aria-hidden="true">EMS</span><div><strong>No EMS documents have been added yet.</strong><p>Approved EMS documents will appear here when they are added later.</p></div></article>
+            <article className="content-card ems-document-card">
+              <span className="ems-document-mark" aria-hidden="true">PDF</span>
+              <div><p className="eyebrow">Fillable EMS form</p><h2>Refusal of Medical Advice</h2><p>Advocate Christ Medical Center Emergency Medical Services System waiver of rights for Stickney Fire Department.</p><small>One-page fillable PDF · Patient, witness, guardian, and physician signature fields</small></div>
+              <div className="ems-document-actions"><a className="primary-action compact" href="/ems/stickney-refusal-of-medical-advice.pdf" target="_blank" rel="noreferrer">Open fillable PDF</a><a className="quiet-button" href="/ems/stickney-refusal-of-medical-advice.pdf" download>Download</a></div>
+            </article>
           </section>}
           {activeNav === "Daily Duties" && <DailyDuties />}
           {activeNav === "Phone Numbers" && <PhoneNumbers />}
