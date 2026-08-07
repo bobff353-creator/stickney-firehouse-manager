@@ -67,7 +67,7 @@ const employeeSeed = [
 ] as const;
 
 let ready = false;
-const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-07-station-scheduler-v1";
+const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-07-station-scheduler-v2";
 
 const policySeedVersion = "stickney-policy-library-2026-07-18";
 const boxCardSeedVersion = "regional-box-cards-structured-2026-07-21-v2";
@@ -371,7 +371,7 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
     db.prepare("CREATE TABLE IF NOT EXISTS record_revisions (id TEXT PRIMARY KEY NOT NULL, record_type TEXT NOT NULL, record_id TEXT NOT NULL, revision_number INTEGER NOT NULL, action TEXT NOT NULL, summary TEXT NOT NULL DEFAULT '', actor TEXT NOT NULL, changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS record_revision_number_idx ON record_revisions(record_type, record_id, revision_number)"),
     // Station Scheduler
-    db.prepare("CREATE TABLE IF NOT EXISTS station_shift_types (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, start_time TEXT NOT NULL, end_time TEXT NOT NULL, color TEXT NOT NULL DEFAULT 'red', active INTEGER NOT NULL DEFAULT 1, sort_order INTEGER NOT NULL DEFAULT 0, created_by TEXT NOT NULL DEFAULT 'System', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_shift_types (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, start_time TEXT NOT NULL, end_time TEXT NOT NULL, anchor_date TEXT NOT NULL DEFAULT '', repeat_every_days INTEGER NOT NULL DEFAULT 0 CHECK(repeat_every_days BETWEEN 0 AND 365), color TEXT NOT NULL DEFAULT 'red', active INTEGER NOT NULL DEFAULT 1, sort_order INTEGER NOT NULL DEFAULT 0, created_by TEXT NOT NULL DEFAULT 'System', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE INDEX IF NOT EXISTS station_shift_types_active_idx ON station_shift_types(active, sort_order)"),
     db.prepare("CREATE TABLE IF NOT EXISTS station_shift_type_roles (id TEXT PRIMARY KEY NOT NULL, shift_type_id TEXT NOT NULL REFERENCES station_shift_types(id), role TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 1, UNIQUE(shift_type_id, role))"),
     db.prepare("CREATE TABLE IF NOT EXISTS station_schedule_entries (id TEXT PRIMARY KEY NOT NULL, entry_date TEXT NOT NULL, shift_type_id TEXT NOT NULL REFERENCES station_shift_types(id), created_by TEXT NOT NULL DEFAULT 'System', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(entry_date, shift_type_id))"),
@@ -571,6 +571,10 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
     "ALTER TABLE employee_profiles ADD COLUMN station_consecutive_mandatory INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE employee_profiles ADD COLUMN station_notify_email INTEGER NOT NULL DEFAULT 1",
     "ALTER TABLE employee_profiles ADD COLUMN station_notify_text INTEGER NOT NULL DEFAULT 0",
+  ]) { try { await db.prepare(sql).run(); } catch { /* Column already exists after migration. */ } }
+  for (const sql of [
+    "ALTER TABLE station_shift_types ADD COLUMN anchor_date TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE station_shift_types ADD COLUMN repeat_every_days INTEGER NOT NULL DEFAULT 0",
   ]) { try { await db.prepare(sql).run(); } catch { /* Column already exists after migration. */ } }
   await db.batch([
     db.prepare("INSERT OR IGNORE INTO station_ot_settings(mode, exempt_declined, priority_order, custom_rules) VALUES('voluntary', 1, '[\"leastOT\",\"mostSeniority\"]', '[]')"),

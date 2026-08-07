@@ -51,6 +51,34 @@ export function daysBetween(a: string, b: string): number {
 }
 
 /**
+ * Return every occurrence of a repeating shift inside an inclusive window.
+ * Dates are handled at noon UTC so daylight-saving changes cannot move a
+ * shift to the prior or following calendar day.
+ */
+export function recurringShiftDates(
+  anchorDate: string,
+  repeatEveryDays: number,
+  throughDate: string,
+  fromDate = anchorDate,
+): string[] {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(anchorDate) || !/^\d{4}-\d{2}-\d{2}$/.test(throughDate) ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(fromDate) || !Number.isInteger(repeatEveryDays) || repeatEveryDays < 1 || repeatEveryDays > 365) return [];
+  const throughOffset = daysBetween(anchorDate, throughDate);
+  if (Number.isNaN(throughOffset) || throughOffset < 0) return [];
+  const fromOffset = Math.max(0, daysBetween(anchorDate, fromDate));
+  if (Number.isNaN(fromOffset)) return [];
+  const firstOffset = Math.ceil(fromOffset / repeatEveryDays) * repeatEveryDays;
+  const dates: string[] = [];
+  const anchor = new Date(`${anchorDate}T12:00:00Z`);
+  for (let offset = firstOffset; offset <= throughOffset && dates.length < 500; offset += repeatEveryDays) {
+    const date = new Date(anchor);
+    date.setUTCDate(date.getUTCDate() + offset);
+    dates.push(date.toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
+/**
  * A seniority score where larger = more senior. Earlier start dates yield a
  * larger number. Falls back to 0 when the date is missing/invalid so those
  * employees sort as least senior.

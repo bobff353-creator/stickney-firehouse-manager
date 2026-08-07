@@ -6,6 +6,7 @@ import {
   classifyAward,
   daysBetween,
   rankByCriteria,
+  recurringShiftDates,
   seniorityFromStartDate,
   type DistributionEmployee,
   type OpenSlot,
@@ -18,6 +19,7 @@ import {
 const ownerAdminEmails = ["bobff353@gmail.com"];
 const iso = /^\d{4}-\d{2}-\d{2}$/;
 type Db = Awaited<ReturnType<typeof ensureDatabase>>;
+type ScheduleBoundValue = string | number | null;
 
 const STATION_ROLES = ["Officer/AO", "Engine Driver", "Ambulance Driver", "FF/Attendant"] as const;
 type StationRole = (typeof STATION_ROLES)[number];
@@ -124,7 +126,7 @@ export async function GET(request: Request) {
     const employees = await loadEmployees(db);
 
     const [shiftTypes, shiftTypeRoles, entries, slots, standing, trades, claims, timeOff, timeOffDates, reminderRules, timing, weights, interest, offers] = await Promise.all([
-      db.prepare("SELECT id,name,start_time startTime,end_time endTime,color,active,sort_order sortOrder FROM station_shift_types ORDER BY active DESC,sort_order,name COLLATE NOCASE").all(),
+      db.prepare("SELECT id,name,start_time startTime,end_time endTime,anchor_date anchorDate,repeat_every_days repeatEveryDays,color,active,sort_order sortOrder FROM station_shift_types ORDER BY active DESC,sort_order,name COLLATE NOCASE").all(),
       db.prepare("SELECT id,shift_type_id shiftTypeId,role,count FROM station_shift_type_roles").all(),
       db.prepare("SELECT id,entry_date entryDate,shift_type_id shiftTypeId FROM station_schedule_entries WHERE date(entry_date)>=date(?, '-45 day') ORDER BY entry_date").bind(today).all(),
       db.prepare("SELECT s.id,s.entry_id entryId,s.role,s.employee_id employeeId,e.name employeeName,s.status,s.sort_order sortOrder,en.entry_date entryDate,en.shift_type_id shiftTypeId FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id LEFT JOIN employees e ON e.id=s.employee_id WHERE date(en.entry_date)>=date(?, '-45 day') ORDER BY en.entry_date,s.sort_order").bind(today).all(),
@@ -264,6 +266,8 @@ async function saveShiftType(db: Db, current: Viewer, payload: Record<string, un
   const name = String(payload.name ?? "").trim();
   const startTime = normalizeScheduleTime(String(payload.startTime ?? ""));
   const endTime = normalizeScheduleTime(String(payload.endTime ?? ""));
+  const anchorDate = String(payload.anchorDate ?? "").trim();
+  const repeatEveryDays = Number(payload.repeatEveryDays);
   const color = String(payload.color ?? "red").trim().toLowerCase();
   const roleReqs = Array.isArray(payload.roleRequirements) ? payload.roleRequirements : [];
   const allowedColors = ["red", "black", "gold", "blue", "green", "purple", "orange"];
@@ -271,16 +275,43 @@ async function saveShiftType(db: Db, current: Viewer, payload: Record<string, un
     const r = item as Record<string, unknown>;
     return { role: String(r.role ?? "").trim(), count: Number(r.count) };
   }).filter((r) => r.role);
-  if (!name || !startTime || !endTime || !allowedColors.includes(color) || !normalized.length ||
+  if (!name || !startTime || !endTime || !iso.test(anchorDate) || !Number.isInteger(repeatEveryDays) || repeatEveryDays < 1 || repeatEveryDays > 365 || !allowedColors.includes(color) || !normalized.length ||
     normalized.some((r) => !isStationRole(r.role) || !Number.isInteger(r.count) || r.count < 1 || r.count > 20) ||
     new Set(normalized.map((r) => r.role)).size !== normalized.length) {
-    return bad("Enter a name, valid times, a color, and at least one role requirement (each role once).");
+    return bad("Enter a name, valid times, a start day, a repeat pattern from 1 to 365 days, a color, and at least one role requirement (each role once).");
   }
-  await db.prepare("INSERT INTO station_shift_types(id,name,start_time,end_time,color,created_by) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,start_time=excluded.start_time,end_time=excluded.end_time,color=excluded.color")
-    .bind(id, name, startTime, endTime, color, current.name).run();
+  await db.prepare("INSERT INTO station_shift_types(id,name,start_time,end_time,anchor_date,repeat_every_days,color,created_by) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,start_time=excluded.start_time,end_time=excluded.end_time,anchor_date=excluded.anchor_date,repeat_every_days=excluded.repeat_every_days,color=excluded.color")
+    .bind(id, name, startTime, endTime, anchorDate, repeatEveryDays, color, current.name).run();
   await db.prepare("DELETE FROM station_shift_type_roles WHERE shift_type_id=?").bind(id).run();
   await db.batch(normalized.map((r) => db.prepare("INSERT INTO station_shift_type_roles(id,shift_type_id,role,count) VALUES(?,?,?,?)").bind(crypto.randomUUID(), id, r.role, r.count)));
-  return ok({ id });
+  const today = chicagoToday();
+  const horizonBase = anchorDate > today ? anchorDate : today;
+  const horizon = new Date(`${horizonBase}T12:00:00Z`);
+  horizon.setUTCDate(horizon.getUTCDate() + 366);
+  const throughDate = horizon.toISOString().slice(0, 10);
+  const dates = recurringShiftDates(anchorDate, repeatEveryDays, throughDate, today);
+  const existing = new Set((await db.prepare("SELECT entry_date entryDate FROM station_schedule_entries WHERE shift_type_id=? AND entry_date>=? AND entry_date<=?").bind(id, today, throughDate).all<{ entryDate: string }>()).results.map((row) => row.entryDate));
+  const standingByRole = await loadStandingByRole(db, id);
+  const entryRows: ScheduleBoundValue[][] = [];
+  const slotRows: ScheduleBoundValue[][] = [];
+  for (const entryDate of dates) {
+    if (existing.has(entryDate)) continue;
+    const entryId = crypto.randomUUID();
+    entryRows.push([entryId, entryDate, id, current.name]);
+    let sortOrder = 0;
+    for (const requirement of normalized) {
+      const fillers = standingByRole.get(requirement.role) ?? [];
+      for (let seat = 0; seat < requirement.count; seat += 1) {
+        const employeeId = fillers[seat] ?? null;
+        slotRows.push([crypto.randomUUID(), entryId, requirement.role, employeeId, employeeId ? "filled" : "open", sortOrder]);
+        sortOrder += 1;
+      }
+    }
+  }
+  await insertRowsChunked(db, "station_schedule_entries", ["id", "entry_date", "shift_type_id", "created_by"], entryRows, 50);
+  await insertRowsChunked(db, "station_shift_slots", ["id", "entry_id", "role", "employee_id", "status", "sort_order"], slotRows, 100);
+  const created = entryRows.length;
+  return ok({ id, created, note: created ? `${created} recurring shift dates added through ${throughDate}.` : "Shift pattern saved. Existing dates were kept." });
 }
 
 async function deactivateShiftType(db: Db, payload: Record<string, unknown>, requireAdmin: () => void) {
@@ -301,14 +332,33 @@ async function createEntry(db: Db, current: Viewer, payload: Record<string, unkn
   if (existing) return bad("That shift is already on the calendar for this day.", 409);
   const roleReqs = await db.prepare("SELECT role,count FROM station_shift_type_roles WHERE shift_type_id=?").bind(shiftTypeId).all<{ role: string; count: number }>();
   if (!roleReqs.results.length) return bad("Add role requirements to this shift type first.");
+  const standingByRole = await loadStandingByRole(db, shiftTypeId);
+  const writes: Array<ReturnType<Db["prepare"]>> = [];
+  const entryId = appendEntryWrites(db, writes, entryDate, shiftTypeId, current.name, roleReqs.results, standingByRole);
+  await db.batch(writes);
+  return ok({ entryId });
+}
+
+async function loadStandingByRole(db: Db, shiftTypeId: string) {
   const standing = await db.prepare("SELECT sa.employee_id employeeId,sa.role FROM station_standing_assignments sa JOIN employees e ON e.id=sa.employee_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE sa.shift_type_id=? AND sa.active=1 AND e.active=1 AND COALESCE(TRIM(ep.end_date),'')=''").bind(shiftTypeId).all<{ employeeId: string; role: string }>();
   const standingByRole = new Map<string, string[]>();
   for (const row of standing.results) (standingByRole.get(row.role) ?? standingByRole.set(row.role, []).get(row.role)!).push(row.employeeId);
+  return standingByRole;
+}
 
+function appendEntryWrites(
+  db: Db,
+  writes: Array<ReturnType<Db["prepare"]>>,
+  entryDate: string,
+  shiftTypeId: string,
+  actor: string,
+  roleReqs: Array<{ role: string; count: number }>,
+  standingByRole: Map<string, string[]>,
+) {
   const entryId = crypto.randomUUID();
-  const writes = [db.prepare("INSERT INTO station_schedule_entries(id,entry_date,shift_type_id,created_by) VALUES(?,?,?,?)").bind(entryId, entryDate, shiftTypeId, current.name)];
+  writes.push(db.prepare("INSERT INTO station_schedule_entries(id,entry_date,shift_type_id,created_by) VALUES(?,?,?,?)").bind(entryId, entryDate, shiftTypeId, actor));
   let sortOrder = 0;
-  for (const req of roleReqs.results) {
+  for (const req of roleReqs) {
     const fillers = [...(standingByRole.get(req.role) ?? [])];
     for (let seat = 0; seat < req.count; seat += 1) {
       const employeeId = fillers[seat] ?? null;
@@ -317,8 +367,15 @@ async function createEntry(db: Db, current: Viewer, payload: Record<string, unkn
       sortOrder += 1;
     }
   }
-  await db.batch(writes);
-  return ok({ entryId });
+  return entryId;
+}
+
+async function insertRowsChunked(db: Db, table: string, columns: string[], rows: ScheduleBoundValue[][], chunkSize: number) {
+  for (let index = 0; index < rows.length; index += chunkSize) {
+    const chunk = rows.slice(index, index + chunkSize);
+    const placeholders = chunk.map(() => `(${columns.map(() => "?").join(",")})`).join(",");
+    await db.prepare(`INSERT INTO ${table}(${columns.join(",")}) VALUES ${placeholders}`).bind(...chunk.flat()).run();
+  }
 }
 
 async function deleteEntry(db: Db, payload: Record<string, unknown>, requireAdmin: () => void) {

@@ -30,7 +30,7 @@ test("station scheduler tables exist in schema and bootstrap", async () => {
     assert.equal(bootstrap.includes(`CREATE TABLE IF NOT EXISTS ${table}`), true, `bootstrap creates ${table}`);
   }
   assert.equal(schema.includes('sqliteTable("station_shift_slots"'), true);
-  assert.equal(bootstrap.includes("station-scheduler-v1"), true, "bootstrap version bumped for station tables");
+  assert.equal(bootstrap.includes("station-scheduler-v2"), true, "bootstrap version bumped for shift recurrence");
   // Employee scheduler columns are added additively.
   assert.equal(bootstrap.includes("ADD COLUMN station_roles"), true);
   assert.equal(bootstrap.includes("ADD COLUMN station_ot_hours"), true);
@@ -50,6 +50,8 @@ test("scheduler uses the scoped Stickney mobile workspace instead of prototype b
   assert.equal(component.includes("scheduler-month"), true);
   assert.equal(component.includes("shift-type-card"), true);
   assert.equal(component.includes('Start (24-hour)'), true);
+  assert.equal(component.includes('First shift day'), true);
+  assert.equal(component.includes('Repeat every'), true);
   assert.equal(component.includes('inputMode="numeric"'), true);
   assert.equal(component.includes('disabled={busy} onClick={save}'), true, "save remains clickable so validation can explain missing fields");
   assert.equal(styles.includes("Stickney Station Scheduler - deliberately scoped"), true);
@@ -76,6 +78,23 @@ test("production migrations install the scheduler before runtime bootstrap", asy
   assert.equal(markerMigration.includes("stickney-runtime-bootstrap-2026-08-07-station-scheduler-v1"), true);
 });
 
+test("shift patterns are durable and generate recurring calendar entries without duplicates", async () => {
+  const [route, schema, bootstrap, migration] = await Promise.all([
+    read("../app/api/station-scheduler/route.ts"),
+    read("../db/schema.ts"),
+    read("../db/bootstrap.ts"),
+    read("../supabase/migrations/20260807163537_add_station_shift_recurrence.sql"),
+  ]);
+  for (const source of [schema, bootstrap, migration]) {
+    assert.equal(source.includes("anchor_date"), true);
+    assert.equal(source.includes("repeat_every_days"), true);
+  }
+  assert.equal(route.includes("recurringShiftDates(anchorDate, repeatEveryDays"), true);
+  assert.equal(route.includes("existing.has(entryDate)"), true);
+  assert.equal(route.includes("recurring shift dates added"), true);
+  assert.equal(migration.includes("between 0 and 365"), true);
+});
+
 test("consumers read filled station slots instead of legacy assignments", async () => {
   const [dept, logbook] = await Promise.all([read("../app/api/department-schedule/route.ts"), read("../app/api/logbook/route.ts")]);
   assert.equal(dept.includes("FROM station_shift_slots"), true);
@@ -91,6 +110,7 @@ test("OT logic exposes ranking, exemptions, award windows, and distribution", as
   assert.equal(logic.includes("export function buildCallList"), true);
   assert.equal(logic.includes("export function classifyAward"), true);
   assert.equal(logic.includes("export function autoDistribute"), true);
+  assert.equal(logic.includes("export function recurringShiftDates"), true);
   // Criteria comparators are all present.
   for (const criterion of ["leastOT", "leastMandatory", "mostSeniority", "leastSeniority"]) {
     assert.equal(logic.includes(criterion), true, `criterion ${criterion}`);

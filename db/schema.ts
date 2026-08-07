@@ -391,6 +391,8 @@ export const stationShiftTypes = sqliteTable("station_shift_types", {
   name: text("name").notNull(),
   startTime: text("start_time").notNull(),
   endTime: text("end_time").notNull(),
+  anchorDate: text("anchor_date").notNull().default(""),
+  repeatEveryDays: integer("repeat_every_days").notNull().default(0),
   color: text("color").notNull().default("red"),
   active: integer("active", { mode: "boolean" }).notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),

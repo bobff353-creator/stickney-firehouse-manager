@@ -2006,6 +2006,10 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .scheduler .role-badges span, .scheduler .chip { padding: 5px 8px; border: 1px solid #3a4757; border-radius: 5px; background: #202b39; color: #cbd4dd; font-size: 10px; }
 .scheduler .two-field-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .scheduler .form-help { margin: -5px 0 14px; color: #aab6c3; font-size: 11px; line-height: 1.45; }
+.scheduler .shift-pattern-fields { margin: 0 0 14px; }
+.scheduler .shift-pattern-fields .form-help { margin: 8px 0 0; }
+.scheduler .number-with-suffix { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 9px; }
+.scheduler .number-with-suffix b { color: #e7eef5; font-size: 12px; }
 .scheduler .form-error { margin: 0 0 12px; padding: 10px 12px; border: 1px solid #8b3640; border-radius: 6px; background: #381b22; color: #ffb8be; font-size: 12px; font-weight: 750; }
 .scheduler .color-picker { padding: 7px 0 4px; border: 0; display: flex; flex-wrap: wrap; gap: 9px; }
 .scheduler .color-picker legend { width: 100%; margin-bottom: 5px; }

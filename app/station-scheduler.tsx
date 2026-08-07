@@ -10,7 +10,7 @@ type Employee = {
   otHours?: number; mandatoryHours?: number; hoursThisPeriod?: number;
   notifyEmail?: number; notifyText?: number; startDate?: string;
 };
-type ShiftType = { id: string; name: string; startTime: string; endTime: string; color: string; active: number; sortOrder: number };
+type ShiftType = { id: string; name: string; startTime: string; endTime: string; anchorDate: string; repeatEveryDays: number; color: string; active: number; sortOrder: number };
 type ShiftTypeRole = { id: string; shiftTypeId: string; role: string; count: number };
 type Entry = { id: string; entryDate: string; shiftTypeId: string };
 type Slot = { id: string; entryId: string; role: string; employeeId: string | null; employeeName?: string; status: string; sortOrder: number; entryDate: string; shiftTypeId: string };
@@ -291,6 +291,8 @@ function ShiftBuilder({ data, act, busy }: { data: Data; act: (b: Record<string,
   const [name, setName] = useState("");
   const [startTime, setStartTime] = useState("0600");
   const [endTime, setEndTime] = useState("0600");
+  const [anchorDate, setAnchorDate] = useState(todayIso());
+  const [repeatEveryDays, setRepeatEveryDays] = useState(1);
   const [color, setColor] = useState("red");
   const staffingDefaults = useCallback(() => Object.fromEntries(data.roles.map((role) => [role, role === "FF/Attendant" ? 2 : 1])), [data.roles]);
   const [roleCounts, setRoleCounts] = useState<Record<string, number>>(() => staffingDefaults());
@@ -302,9 +304,11 @@ function ShiftBuilder({ data, act, busy }: { data: Data; act: (b: Record<string,
     const normStart = normalizeScheduleTime(startTime), normEnd = normalizeScheduleTime(endTime);
     if (!name.trim()) { setFormError("Enter a shift name before saving."); return; }
     if (!normStart || !normEnd) { setFormError("Enter Start and End as four-digit 24-hour times, such as 0600 or 1800."); return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(anchorDate)) { setFormError("Choose the first day this shift pattern starts."); return; }
+    if (!Number.isInteger(repeatEveryDays) || repeatEveryDays < 1 || repeatEveryDays > 365) { setFormError("Repeat every must be a whole number from 1 to 365 days."); return; }
     if (!roleReqs.length) { setFormError("Set at least one required role before saving."); return; }
-    const result = await act({ action: "saveShiftType", name: name.trim(), startTime: normStart, endTime: normEnd, color, roleRequirements: roleReqs });
-    if (result) { setName(""); setStartTime("0600"); setEndTime("0600"); setRoleCounts(staffingDefaults()); }
+    const result = await act({ action: "saveShiftType", name: name.trim(), startTime: normStart, endTime: normEnd, anchorDate, repeatEveryDays, color, roleRequirements: roleReqs });
+    if (result) { setName(""); setStartTime("0600"); setEndTime("0600"); setAnchorDate(todayIso()); setRepeatEveryDays(1); setRoleCounts(staffingDefaults()); }
   };
 
   return (
@@ -314,7 +318,7 @@ function ShiftBuilder({ data, act, busy }: { data: Data; act: (b: Record<string,
         {!data.shiftTypes.filter((s) => s.active).length && <p className="muted">No shift types yet.</p>}
         {data.shiftTypes.filter((s) => s.active).map((s) => (
           <div key={s.id} className="entry-card shift-type-card" style={{ borderLeftColor: shiftColorHex[s.color] ?? s.color }}>
-            <div className="entry-head"><div><strong>{s.name}</strong><span>{fourDigitTime(s.startTime)}–{fourDigitTime(s.endTime)}</span></div>
+            <div className="entry-head"><div><strong>{s.name}</strong><span>{fourDigitTime(s.startTime)}–{fourDigitTime(s.endTime)}</span>{s.anchorDate && s.repeatEveryDays > 0 && <span>Starts {friendlyDate(s.anchorDate)} · repeats every {s.repeatEveryDays} {s.repeatEveryDays === 1 ? "day" : "days"}</span>}</div>
               <button className="link danger" aria-label={`Retire ${s.name}`} disabled={busy} onClick={() => act({ action: "deactivateShiftType", id: s.id })}>Retire</button>
             </div>
             <div className="role-badges">{data.shiftTypeRoles.filter((r) => r.shiftTypeId === s.id).map((r) => <span key={r.id}>{r.count}× {r.role}</span>)}</div>
@@ -327,6 +331,13 @@ function ShiftBuilder({ data, act, busy }: { data: Data; act: (b: Record<string,
         <div className="two-field-row"><label><span>Start (24-hour)</span><input value={startTime} onChange={(e) => setStartTime(e.target.value.replace(/\D/g, "").slice(0, 4))} inputMode="numeric" maxLength={4} placeholder="0600" aria-describedby="shift-time-help" /></label>
           <label><span>End (24-hour)</span><input value={endTime} onChange={(e) => setEndTime(e.target.value.replace(/\D/g, "").slice(0, 4))} inputMode="numeric" maxLength={4} placeholder="0600" aria-describedby="shift-time-help" /></label></div>
         <p id="shift-time-help" className="form-help">Enter four digits: 0600 is 6:00 AM and 1800 is 6:00 PM. Matching Start and End creates a 24-hour shift.</p>
+        <fieldset className="shift-pattern-fields"><legend>Shift pattern</legend>
+          <div className="two-field-row">
+            <label><span>First shift day</span><input type="date" value={anchorDate} onChange={(e) => setAnchorDate(e.target.value)} /></label>
+            <label><span>Repeat every</span><span className="number-with-suffix"><input type="number" min={1} max={365} step={1} value={repeatEveryDays} onChange={(e) => setRepeatEveryDays(Number(e.target.value))} /><b>{repeatEveryDays === 1 ? "day" : "days"}</b></span></label>
+          </div>
+          <p className="form-help">Use 1 for every day, 2 for every other day, 3 for every third day, and so on.</p>
+        </fieldset>
         <fieldset className="color-picker"><legend>Color</legend>
           {["red", "blue", "green", "orange", "purple", "gold", "black"].map((c) => <button key={c} type="button" className={color === c ? "selected" : ""} style={{ background: shiftColorHex[c] }} aria-label={`Use ${c}`} onClick={() => setColor(c)} />)}
         </fieldset>
