@@ -169,6 +169,7 @@ test("Station Roster admin tools use the portal sidebar and real employee record
   assert.match(shell, /mobile-station-roster-nav/);
   assert.match(shell, /Rules & reminders/);
   assert.match(shell, /Employee view/);
+  assert.match(shell, /activeNav !== "Scheduling" && <footer className="portal-footer"/);
   assert.match(payrollApi, /sortOrder/);
   assert.match(payrollApi, /That email address is already assigned to another employee/);
 });

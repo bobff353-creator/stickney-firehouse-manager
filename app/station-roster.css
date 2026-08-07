@@ -95,7 +95,7 @@
   .station-roster-scope .station-personnel-list { grid-template-columns: 1fr; }
 }
 
-.station-roster-scope .app-shell { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr); background: var(--paper); }
+.station-roster-scope .app-shell { min-height: 0; height: auto; display: block; background: var(--paper); }
 .station-roster-scope .app-shell > .sidebar { display: none; }
 .station-roster-scope .sidebar { position: sticky; top: 0; height: 100vh; background: var(--nav); color: #fff; padding: 24px 16px 18px; display: flex; flex-direction: column; z-index: 10; }
 .station-roster-scope .brand-row { display: flex; align-items: center; gap: 11px; padding: 0 8px 24px; }
