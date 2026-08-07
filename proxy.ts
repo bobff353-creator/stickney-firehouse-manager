@@ -35,7 +35,7 @@ function jsonError(error: string, status: number) {
   );
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const signedWebhookRequest = request.method === "POST"
     && (signedWebhookPaths.has(pathname) || pathname === "/api/cad/cis");
