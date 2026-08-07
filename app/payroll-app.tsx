@@ -21,7 +21,7 @@ import { roundPayrollUpToCent } from "./payroll-rounding";
 import { ACTING_OFFICER_STIPEND_PER_HOUR, calculateGrossPay } from "./payroll-calculation";
 import { payrollExportRows } from "./payroll-export";
 import WorkDetails from "./work-details";
-import Scheduling from "./scheduling";
+import Scheduling from "./station-scheduler";
 import PermissionSettings from "./permission-settings";
 import FieldPreplans from "./field-preplans";
 import CadIntegrationSettings from "./cad-integration-settings";
