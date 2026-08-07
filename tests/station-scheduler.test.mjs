@@ -128,3 +128,13 @@ test("standing assignments backfill open slots and time off writes unavailabilit
   assert.equal(route.includes("UPDATE station_shift_slots SET employee_id=?,status='filled' WHERE status='open' AND role=?"), true);
   assert.equal(route.includes("INSERT INTO station_unavailability"), true);
 });
+
+test("employees with a Last Day are excluded from every active scheduling path", async () => {
+  const route = await read("../app/api/station-scheduler/route.ts");
+
+  assert.equal(route.includes("WHERE e.active=1 AND COALESCE(TRIM(ep.end_date),'')='' ORDER BY e.name COLLATE NOCASE"), true);
+  assert.equal(route.includes("async function isSchedulableEmployee"), true);
+  assert.equal(route.includes("That employee has a Last Day and is no longer available for scheduling."), true);
+  assert.equal(route.includes("sa.active=1 AND e.active=1 AND COALESCE(TRIM(ep.end_date),'')=''"), true);
+  assert.equal(route.includes("WHERE sa.shift_type_id=? AND sa.active=1 AND e.active=1 AND COALESCE(TRIM(ep.end_date),'')=''"), true);
+});
