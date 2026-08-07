@@ -36,6 +36,25 @@ test("station scheduler tables exist in schema and bootstrap", async () => {
   assert.equal(bootstrap.includes("ADD COLUMN station_ot_hours"), true);
 });
 
+test("production migrations install the scheduler before runtime bootstrap", async () => {
+  const [schemaMigration, markerMigration] = await Promise.all([
+    read("../supabase/migrations/20260807144541_add_station_scheduler_schema.sql"),
+    read("../supabase/migrations/20260807144707_mark_station_scheduler_bootstrap_ready.sql"),
+  ]);
+
+  for (const table of [
+    "station_shift_types", "station_schedule_entries", "station_shift_slots",
+    "station_trade_requests", "station_time_off_requests", "station_ot_offers",
+  ]) {
+    assert.equal(schemaMigration.includes(`create table if not exists firehouse.${table}`), true);
+    assert.equal(schemaMigration.includes(`alter table firehouse.${table} enable row level security`), true);
+  }
+
+  assert.equal(schemaMigration.includes("from firehouse.schedule_assignments"), true);
+  assert.equal(schemaMigration.includes("on conflict (id) do nothing"), true);
+  assert.equal(markerMigration.includes("stickney-runtime-bootstrap-2026-08-07-station-scheduler-v1"), true);
+});
+
 test("consumers read filled station slots instead of legacy assignments", async () => {
   const [dept, logbook] = await Promise.all([read("../app/api/department-schedule/route.ts"), read("../app/api/logbook/route.ts")]);
   assert.equal(dept.includes("FROM station_shift_slots"), true);
