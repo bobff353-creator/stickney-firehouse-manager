@@ -67,7 +67,7 @@ const employeeSeed = [
 ] as const;
 
 let ready = false;
-const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-01-v2";
+const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-07-station-scheduler-v1";
 
 const policySeedVersion = "stickney-policy-library-2026-07-18";
 const boxCardSeedVersion = "regional-box-cards-structured-2026-07-21-v2";
@@ -370,6 +370,33 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
     db.prepare("CREATE INDEX IF NOT EXISTS box_cards_title_idx ON box_cards(title)"),
     db.prepare("CREATE TABLE IF NOT EXISTS record_revisions (id TEXT PRIMARY KEY NOT NULL, record_type TEXT NOT NULL, record_id TEXT NOT NULL, revision_number INTEGER NOT NULL, action TEXT NOT NULL, summary TEXT NOT NULL DEFAULT '', actor TEXT NOT NULL, changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS record_revision_number_idx ON record_revisions(record_type, record_id, revision_number)"),
+    // Station Scheduler
+    db.prepare("CREATE TABLE IF NOT EXISTS station_shift_types (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, start_time TEXT NOT NULL, end_time TEXT NOT NULL, color TEXT NOT NULL DEFAULT 'red', active INTEGER NOT NULL DEFAULT 1, sort_order INTEGER NOT NULL DEFAULT 0, created_by TEXT NOT NULL DEFAULT 'System', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS station_shift_types_active_idx ON station_shift_types(active, sort_order)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_shift_type_roles (id TEXT PRIMARY KEY NOT NULL, shift_type_id TEXT NOT NULL REFERENCES station_shift_types(id), role TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 1, UNIQUE(shift_type_id, role))"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_schedule_entries (id TEXT PRIMARY KEY NOT NULL, entry_date TEXT NOT NULL, shift_type_id TEXT NOT NULL REFERENCES station_shift_types(id), created_by TEXT NOT NULL DEFAULT 'System', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(entry_date, shift_type_id))"),
+    db.prepare("CREATE INDEX IF NOT EXISTS station_schedule_entry_date_idx ON station_schedule_entries(entry_date)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_shift_slots (id TEXT PRIMARY KEY NOT NULL, entry_id TEXT NOT NULL REFERENCES station_schedule_entries(id), role TEXT NOT NULL, employee_id TEXT REFERENCES employees(id), status TEXT NOT NULL DEFAULT 'open', sort_order INTEGER NOT NULL DEFAULT 0)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS station_shift_slot_entry_idx ON station_shift_slots(entry_id, sort_order)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS station_shift_slot_employee_idx ON station_shift_slots(employee_id)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_standing_assignments (id TEXT PRIMARY KEY NOT NULL, employee_id TEXT NOT NULL REFERENCES employees(id), shift_type_id TEXT NOT NULL REFERENCES station_shift_types(id), role TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_by TEXT NOT NULL DEFAULT 'System', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(employee_id, shift_type_id, role))"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_trade_requests (id TEXT PRIMARY KEY NOT NULL, slot_id TEXT NOT NULL REFERENCES station_shift_slots(id), role TEXT NOT NULL, from_employee_id TEXT NOT NULL REFERENCES employees(id), target_employee_id TEXT REFERENCES employees(id), accepted_by_employee_id TEXT REFERENCES employees(id), note TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, reviewed_by TEXT, reviewed_at TEXT)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS station_trade_status_idx ON station_trade_requests(status, created_at)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_shift_claims (id TEXT PRIMARY KEY NOT NULL, slot_id TEXT NOT NULL REFERENCES station_shift_slots(id), role TEXT NOT NULL, employee_id TEXT NOT NULL REFERENCES employees(id), note TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, reviewed_by TEXT, reviewed_at TEXT)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS station_shift_claim_status_idx ON station_shift_claims(status, created_at)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS station_shift_claim_slot_idx ON station_shift_claims(slot_id)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_time_off_requests (id TEXT PRIMARY KEY NOT NULL, employee_id TEXT NOT NULL REFERENCES employees(id), type TEXT NOT NULL, approver_employee_id TEXT NOT NULL REFERENCES employees(id), note TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, reviewed_at TEXT)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS station_time_off_status_idx ON station_time_off_requests(status, created_at)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_time_off_dates (request_id TEXT NOT NULL REFERENCES station_time_off_requests(id), off_date TEXT NOT NULL, UNIQUE(request_id, off_date))"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_unavailability (id TEXT PRIMARY KEY NOT NULL, employee_id TEXT NOT NULL REFERENCES employees(id), off_date TEXT NOT NULL, source TEXT NOT NULL DEFAULT 'time_off', request_id TEXT REFERENCES station_time_off_requests(id), UNIQUE(employee_id, off_date))"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_reminder_rules (id TEXT PRIMARY KEY NOT NULL, type TEXT NOT NULL, label TEXT NOT NULL DEFAULT '', offsets TEXT NOT NULL DEFAULT '[]', email_enabled INTEGER NOT NULL DEFAULT 1, text_enabled INTEGER NOT NULL DEFAULT 0, target TEXT NOT NULL DEFAULT '', enabled INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_ot_settings (mode TEXT PRIMARY KEY NOT NULL, exempt_off_duty INTEGER NOT NULL DEFAULT 1, exempt_already_scheduled INTEGER NOT NULL DEFAULT 1, exempt_declined INTEGER NOT NULL DEFAULT 1, exempt_recently_mandated INTEGER NOT NULL DEFAULT 1, recent_days INTEGER NOT NULL DEFAULT 14, exempt_max_consecutive INTEGER NOT NULL DEFAULT 1, max_consecutive INTEGER NOT NULL DEFAULT 2, priority_order TEXT NOT NULL DEFAULT '[]', custom_rules TEXT NOT NULL DEFAULT '[]', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_ot_timing (id INTEGER PRIMARY KEY NOT NULL, award_days_out INTEGER NOT NULL DEFAULT 7, complete_by_days_out INTEGER NOT NULL DEFAULT 2, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_ot_interest (id TEXT PRIMARY KEY NOT NULL, slot_id TEXT NOT NULL REFERENCES station_shift_slots(id), employee_id TEXT NOT NULL REFERENCES employees(id), response TEXT NOT NULL, responded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(slot_id, employee_id))"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_ot_offers (id TEXT PRIMARY KEY NOT NULL, slot_id TEXT NOT NULL REFERENCES station_shift_slots(id), employee_id TEXT NOT NULL REFERENCES employees(id), mode TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'offered', rank INTEGER NOT NULL DEFAULT 0, offered_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, responded_at TEXT)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS station_ot_offer_slot_idx ON station_ot_offers(slot_id, rank)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS station_ot_offer_employee_idx ON station_ot_offers(employee_id, status)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_distribution_weights (id INTEGER PRIMARY KEY NOT NULL, seniority_weight REAL NOT NULL DEFAULT 1, hours_weight REAL NOT NULL DEFAULT 1, custom_weight REAL NOT NULL DEFAULT 0, custom_label TEXT NOT NULL DEFAULT 'Cross-trained', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
   ]);
   for (let index=0; index<importedBuildingSeeds.length; index+=40) {
     await db.batch(importedBuildingSeeds.slice(index,index+40).map((item) => db.prepare("INSERT INTO field_preplan_imports(id,business_name,address,source_file,source_row) VALUES(?,?,?,?,?) ON CONFLICT(source_file,source_row) DO UPDATE SET business_name=excluded.business_name,address=excluded.address,updated_at=CURRENT_TIMESTAMP").bind(`coopy-buildings-${String(item.sourceRow).padStart(3,"0")}`,item.businessName.trim(),item.address.trim(),importedBuildingSource,item.sourceRow)));
@@ -533,6 +560,29 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
   await importApproved1204WeeklyCheck(db);
   await seedPolicies(db);
   await seedBoxCards(db);
+  // Station Scheduler: employee scheduler attributes + singleton defaults.
+  for (const sql of [
+    "ALTER TABLE employee_profiles ADD COLUMN station_roles TEXT NOT NULL DEFAULT '[]'",
+    "ALTER TABLE employee_profiles ADD COLUMN station_hours_this_period REAL NOT NULL DEFAULT 0",
+    "ALTER TABLE employee_profiles ADD COLUMN station_ot_hours REAL NOT NULL DEFAULT 0",
+    "ALTER TABLE employee_profiles ADD COLUMN station_mandatory_hours REAL NOT NULL DEFAULT 0",
+    "ALTER TABLE employee_profiles ADD COLUMN station_off_duty INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE employee_profiles ADD COLUMN station_last_mandated TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE employee_profiles ADD COLUMN station_consecutive_mandatory INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE employee_profiles ADD COLUMN station_notify_email INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE employee_profiles ADD COLUMN station_notify_text INTEGER NOT NULL DEFAULT 0",
+  ]) { try { await db.prepare(sql).run(); } catch { /* Column already exists after migration. */ } }
+  await db.batch([
+    db.prepare("INSERT OR IGNORE INTO station_ot_settings(mode, exempt_declined, priority_order, custom_rules) VALUES('voluntary', 1, '[\"leastOT\",\"mostSeniority\"]', '[]')"),
+    db.prepare("INSERT OR IGNORE INTO station_ot_settings(mode, exempt_declined, priority_order, custom_rules) VALUES('mandatory', 0, '[\"leastMandatory\",\"leastSeniority\"]', '[]')"),
+    db.prepare("INSERT OR IGNORE INTO station_ot_timing(id, award_days_out, complete_by_days_out) VALUES(1, 7, 2)"),
+    db.prepare("INSERT OR IGNORE INTO station_distribution_weights(id, seniority_weight, hours_weight, custom_weight, custom_label) VALUES(1, 1, 1, 0.5, 'Cross-trained')"),
+  ]);
+  await db.batch([
+    ["station-shift-request", "shift_request", "Shift request updates", '["7 days before","2 days before"]', 1, 0, "Requesting member and approvers", 1],
+    ["station-request-deadline", "request_deadline", "Response deadline reminders", '["2 days before","1 day before"]', 1, 1, "Eligible members only", 1],
+    ["station-open-shift-blast", "open_shift_blast", "Open shift blasts", '["immediate","2 days before"]', 1, 1, "Eligible members only", 1],
+  ].map((rule) => db.prepare("INSERT OR IGNORE INTO station_reminder_rules(id, type, label, offsets, email_enabled, text_enabled, target, enabled) VALUES(?,?,?,?,?,?,?,?)").bind(...rule)));
   await db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES ('runtime_bootstrap_version', ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind(runtimeBootstrapVersion).run();
   ready = true;
   return db;
@@ -550,12 +600,10 @@ export async function ensureDatabase() {
       ready = true;
       return db;
     }
-    const legacyMarker = await db.prepare("SELECT value FROM system_meta WHERE key = 'box_card_seed_version' LIMIT 1").first<{ value: string }>();
-    if (legacyMarker?.value === boxCardSeedVersion) {
-      await db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES ('runtime_bootstrap_version', ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind(runtimeBootstrapVersion).run();
-      ready = true;
-      return db;
-    }
+    // A stale (or missing) runtime marker falls through to initializeDatabase,
+    // which is fully idempotent (CREATE TABLE IF NOT EXISTS / ALTER guards /
+    // marker-gated seeds) and runs once per version bump to apply new schema —
+    // e.g. the Station Scheduler station_* tables added on 2026-08-07.
   } catch {
     // A new database does not have system_meta yet and needs the full bootstrap.
   }

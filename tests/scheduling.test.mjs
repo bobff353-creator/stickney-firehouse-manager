@@ -2,14 +2,14 @@ import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 
-test("the current scheduling interface is removed from the portal", async () => {
+test("the Claude Station Scheduler replaces the removed scheduling interface", async () => {
   const [shell, styles] = await Promise.all([
     readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
-  assert.doesNotMatch(shell, /import Scheduling from/);
-  assert.doesNotMatch(shell, /page: "Scheduling"/);
-  assert.doesNotMatch(shell, /activeNav === "Scheduling"/);
+  assert.match(shell, /import StationScheduler from "\.\/station-scheduler"/);
+  assert.match(shell, /page: "Scheduling"/);
+  assert.match(shell, /activeNav === "Scheduling" && <StationScheduler/);
   assert.doesNotMatch(shell, /Employee Schedule Portal/);
   assert.doesNotMatch(styles, /@import "\.\/station-roster\.css"/);
   await assert.rejects(access(new URL("../app/scheduling.tsx", import.meta.url)));
