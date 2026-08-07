@@ -36,6 +36,24 @@ test("station scheduler tables exist in schema and bootstrap", async () => {
   assert.equal(bootstrap.includes("ADD COLUMN station_ot_hours"), true);
 });
 
+test("scheduler uses the scoped Stickney mobile workspace instead of prototype branding", async () => {
+  const [component, styles] = await Promise.all([
+    read("../app/station-scheduler.tsx"),
+    read("../app/globals.css"),
+  ]);
+
+  assert.equal(component.includes("Stickney Scheduler"), true);
+  assert.equal(component.includes("Station 14"), false);
+  for (const label of ["Calendar", "Shift Builder", "Roster & Assignments", "Trades", "Requests", "Auto-Distribution", "Overtime", "Time Off", "Reminders"]) {
+    assert.equal(component.includes(`\"${label}\"`), true, `${label} remains available`);
+  }
+  assert.equal(component.includes("scheduler-month"), true);
+  assert.equal(component.includes("shift-type-card"), true);
+  assert.equal(styles.includes("Stickney Station Scheduler - deliberately scoped"), true);
+  assert.equal(styles.includes(".scheduler-month"), true);
+  assert.equal(styles.includes("@media (max-width: 390px)"), true);
+});
+
 test("production migrations install the scheduler before runtime bootstrap", async () => {
   const [schemaMigration, markerMigration] = await Promise.all([
     read("../supabase/migrations/20260807144541_add_station_scheduler_schema.sql"),

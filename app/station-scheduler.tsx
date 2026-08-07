@@ -65,6 +65,12 @@ const parseRoles = (value: string): string[] => { try { const p = JSON.parse(val
 const friendlyDate = (value: string) => new Date(`${value}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 const todayIso = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
 const windowLabel: Record<string, string> = { early: "Early interest", award: "Award window", overdue: "Overdue" };
+const shiftColorHex: Record<string, string> = {
+  red: "#ef3340", black: "#2d3744", gold: "#f0a51a", blue: "#3182bd",
+  green: "#22a55b", purple: "#805ad5", orange: "#ed8936",
+};
+const monthTitle = (value: string) => new Date(`${value.slice(0, 7)}-01T12:00:00`).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+const shiftInitial = (name: string) => name.trim().charAt(0).toUpperCase() || "S";
 
 export default function StationScheduler({ testMember = null }: { testMember?: TestMember | null }) {
   const [data, setData] = useState<Data | null>(null);
@@ -114,8 +120,8 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
   const isAdmin = data.viewer.isAdmin;
   const adminTabs = [
     ["calendar", "Calendar"], ["shiftTypes", "Shift Builder"], ["roster", "Roster & Assignments"],
-    ["requests", "Requests & Trades"], ["timeoff", "Time Off"], ["overtime", "Overtime"],
-    ["distribution", "Auto-Distribution"], ["reminders", "Reminders"],
+    ["trades", "Trades"], ["requests", "Requests"], ["distribution", "Auto-Distribution"],
+    ["overtime", "Overtime"], ["timeoff", "Time Off"], ["reminders", "Reminders"],
   ] as const;
   const employeeTabs = [
     ["calendar", "Calendar"], ["myrequests", "My Requests"], ["otlist", "Overtime List"], ["timeoff", "Time Off"],
@@ -124,7 +130,20 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
 
   return (
     <div className="scheduler">
-      <NoticeStrip notice={data.notice} />
+      <header className="scheduler-brand">
+        <div className="scheduler-brand-mark" aria-hidden="true">S</div>
+        <div>
+          <strong>Stickney Scheduler</strong>
+          <span>Fire · EMS · Department staffing</span>
+        </div>
+        <span className="scheduler-live-dot" title="Connected to department records" aria-label="Connected to department records" />
+      </header>
+      <div className="scheduler-view-bar" aria-label="Current scheduler view">
+        <span className={isAdmin ? "current" : ""}>Admin</span>
+        <span className={!isAdmin ? "current" : ""}>Employee</span>
+        <strong>{data.viewer.name || "Department member"}</strong>
+      </div>
+      <NoticeStrip notice={data.notice} isAdmin={isAdmin} upcoming={data.slots.filter((s) => s.employeeId === data.viewer.employeeId && s.entryDate >= data.today).length} />
       {error && <p className="error">{error}</p>}
       {notice && <p className="success">{notice}</p>}
       <nav className="scheduler-tabs">
@@ -136,7 +155,8 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
       {tab === "calendar" && <CalendarScreen data={data} isAdmin={isAdmin} selectedDate={selectedDate} setSelectedDate={setSelectedDate} act={act} busy={busy} employeeName={employeeName} shiftTypeName={shiftTypeName} />}
       {tab === "shiftTypes" && isAdmin && <ShiftBuilder data={data} act={act} busy={busy} />}
       {tab === "roster" && isAdmin && <RosterScreen data={data} act={act} busy={busy} shiftTypeName={shiftTypeName} />}
-      {tab === "requests" && isAdmin && <RequestsScreen data={data} act={act} busy={busy} employeeName={employeeName} />}
+      {tab === "requests" && isAdmin && <RequestsScreen data={data} act={act} busy={busy} employeeName={employeeName} mode="claims" />}
+      {tab === "trades" && isAdmin && <RequestsScreen data={data} act={act} busy={busy} employeeName={employeeName} mode="trades" />}
       {tab === "timeoff" && <TimeOffScreen data={data} isAdmin={isAdmin} act={act} busy={busy} />}
       {tab === "overtime" && isAdmin && <OvertimeScreen data={data} act={act} busy={busy} employeeName={employeeName} />}
       {tab === "distribution" && isAdmin && <DistributionScreen data={data} act={act} busy={busy} />}
@@ -147,21 +167,20 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
   );
 }
 
-function NoticeStrip({ notice }: { notice: Notice }) {
-  const items = [
-    notice.openShifts ? `${notice.openShifts} open shift${notice.openShifts === 1 ? "" : "s"}` : "",
-    notice.overdueShifts ? `${notice.overdueShifts} overdue` : "",
-    notice.pendingTrades ? `${notice.pendingTrades} trade${notice.pendingTrades === 1 ? "" : "s"} pending` : "",
-    notice.pendingClaims ? `${notice.pendingClaims} claim${notice.pendingClaims === 1 ? "" : "s"} pending` : "",
-    notice.pendingTimeOff ? `${notice.pendingTimeOff} time-off pending` : "",
-  ].filter(Boolean);
-  if (!items.length) return <div className="scheduler-notice">No open shifts or pending items.</div>;
-  return <div className={`scheduler-notice${notice.overdueShifts ? " urgent" : ""}`}>{items.join(" · ")}</div>;
-}
-
-function slotsForDay(data: Data, date: string): Slot[] {
-  const entryIds = new Set(data.entries.filter((e) => e.entryDate === date).map((e) => e.id));
-  return data.slots.filter((s) => entryIds.has(s.entryId));
+function NoticeStrip({ notice, isAdmin, upcoming }: { notice: Notice; isAdmin: boolean; upcoming: number }) {
+  const chips = isAdmin ? [
+    ["open", "Open shifts", notice.openShifts],
+    ["trades", "Trades awaiting review", notice.pendingTrades],
+    ["requests", "Pending requests", notice.pendingClaims + notice.pendingTimeOff],
+  ] : [
+    ["open", "Open shifts", notice.openShifts],
+    ["trades", "Open trades", notice.pendingTrades],
+    ["upcoming", "My upcoming shifts", upcoming],
+  ];
+  return <div className={`scheduler-notice${notice.overdueShifts ? " urgent" : ""}`}>
+    {chips.map(([tone, label, count]) => <span key={String(tone)} className={`notice-chip ${tone}`}>{label}<b>{count}</b></span>)}
+    {notice.overdueShifts > 0 && <span className="notice-overdue">{notice.overdueShifts} past deadline</span>}
+  </div>;
 }
 
 function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, busy, employeeName, shiftTypeName }: {
@@ -169,32 +188,67 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
   act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean; employeeName: (id: string | null | undefined) => string; shiftTypeName: (id: string) => string;
 }) {
   const [newShiftType, setNewShiftType] = useState("");
-  const daySlots = slotsForDay(data, selectedDate);
   const myId = data.viewer.employeeId;
   const eligibleRoles = data.viewer.roles;
+  const entriesByDate = useMemo(() => {
+    const grouped = new Map<string, Entry[]>();
+    for (const entry of data.entries) grouped.set(entry.entryDate, [...(grouped.get(entry.entryDate) ?? []), entry]);
+    return grouped;
+  }, [data.entries]);
+  const slotsByDate = useMemo(() => {
+    const grouped = new Map<string, Slot[]>();
+    for (const slot of data.slots) grouped.set(slot.entryDate, [...(grouped.get(slot.entryDate) ?? []), slot]);
+    return grouped;
+  }, [data.slots]);
+  const daySlots = slotsByDate.get(selectedDate) ?? [];
+  const monthKey = selectedDate.slice(0, 7);
+  const firstDay = new Date(`${monthKey}-01T12:00:00`);
+  const daysInMonth = new Date(firstDay.getFullYear(), firstDay.getMonth() + 1, 0).getDate();
+  const cells = Array.from({ length: firstDay.getDay() + daysInMonth }, (_, index) => index < firstDay.getDay() ? null : index - firstDay.getDay() + 1);
+  const dateForDay = (day: number) => `${monthKey}-${String(day).padStart(2, "0")}`;
+  const changeMonth = (delta: number) => {
+    const next = new Date(firstDay.getFullYear(), firstDay.getMonth() + delta, 1, 12);
+    setSelectedDate(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-01`);
+  };
 
   return (
     <div className="scheduler-grid">
-      <section>
-        <h3>Day</h3>
-        <label><span>Date</span><input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} /></label>
-        {isAdmin && (
-          <div className="inline-form">
-            <label className="wide"><span>Add shift to this day</span>
-              <select value={newShiftType} onChange={(e) => setNewShiftType(e.target.value)}>
-                <option value="">Select shift type…</option>
-                {data.shiftTypes.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.name} · {s.startTime}–{s.endTime}</option>)}
-              </select>
-            </label>
-            <button disabled={busy || !newShiftType} onClick={async () => { await act({ action: "createEntry", date: selectedDate, shiftTypeId: newShiftType }); setNewShiftType(""); }}>Add shift</button>
-          </div>
-        )}
+      <section className="wide scheduler-month-card">
+        <div className="scheduler-month-head">
+          <h3>{monthTitle(selectedDate)}</h3>
+          <div><button type="button" aria-label="Previous month" onClick={() => changeMonth(-1)}>‹</button><button type="button" aria-label="Next month" onClick={() => changeMonth(1)}>›</button></div>
+        </div>
+        <div className="scheduler-legend">
+          {data.shiftTypes.filter((s) => s.active).slice(0, 5).map((s) => <span key={s.id}><i style={{ background: shiftColorHex[s.color] ?? s.color }} />{s.name} · {s.startTime}–{s.endTime}</span>)}
+          <span><i className="open-dot" />Open slot</span>
+        </div>
+        <div className="scheduler-weekdays" aria-hidden="true">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => <span key={d}>{d}</span>)}</div>
+        <div className="scheduler-month" role="grid" aria-label={monthTitle(selectedDate)}>
+          {cells.map((day, index) => {
+            if (!day) return <span className="calendar-blank" key={`blank-${index}`} />;
+            const date = dateForDay(day);
+            const entries = entriesByDate.get(date) ?? [];
+            const slots = slotsByDate.get(date) ?? [];
+            const hasOpen = slots.some((slot) => slot.status === "open");
+            return <button type="button" role="gridcell" key={date} className={`${date === selectedDate ? "selected " : ""}${date === data.today ? "today" : ""}`} onClick={() => setSelectedDate(date)} aria-label={`Open ${friendlyDate(date)}`}>
+              <span>{day}{hasOpen && <i className="open-dot" />}</span>
+              <em>{entries.slice(0, 2).map((entry) => { const shift = data.shiftTypes.find((s) => s.id === entry.shiftTypeId); return <b key={entry.id} style={{ color: shiftColorHex[shift?.color ?? ""] ?? shift?.color }}>{shiftInitial(shift?.name ?? "Shift")}</b>; })}</em>
+            </button>;
+          })}
+        </div>
       </section>
 
-      <section className="wide">
-        <h3>{friendlyDate(selectedDate)}</h3>
+      <section className="wide scheduler-day-card">
+        <div className="entry-head"><div><span className="section-kicker">Selected day</span><h3>{friendlyDate(selectedDate)}</h3></div><input aria-label="Choose another date" type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} /></div>
+        {isAdmin && <div className="inline-form add-day-shift">
+          <select aria-label="Shift type to add" value={newShiftType} onChange={(e) => setNewShiftType(e.target.value)}>
+            <option value="">Add a shift to this day…</option>
+            {data.shiftTypes.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.name} · {s.startTime}–{s.endTime}</option>)}
+          </select>
+          <button disabled={busy || !newShiftType} onClick={async () => { await act({ action: "createEntry", date: selectedDate, shiftTypeId: newShiftType }); setNewShiftType(""); }}>Add shift</button>
+        </div>}
         {!daySlots.length && <p className="muted">No shifts scheduled for this day.</p>}
-        {data.entries.filter((e) => e.entryDate === selectedDate).map((entry) => {
+        {(entriesByDate.get(selectedDate) ?? []).map((entry) => {
           const slots = daySlots.filter((s) => s.entryId === entry.id);
           return (
             <div key={entry.id} className="entry-card">
@@ -249,16 +303,26 @@ function ShiftBuilder({ data, act, busy }: { data: Data; act: (b: Record<string,
 
   return (
     <div className="scheduler-grid">
-      <section>
+      <section className="wide shift-type-list">
+        <h3>Existing shift types</h3>
+        {!data.shiftTypes.filter((s) => s.active).length && <p className="muted">No shift types yet.</p>}
+        {data.shiftTypes.filter((s) => s.active).map((s) => (
+          <div key={s.id} className="entry-card shift-type-card" style={{ borderLeftColor: shiftColorHex[s.color] ?? s.color }}>
+            <div className="entry-head"><div><strong>{s.name}</strong><span>{s.startTime}–{s.endTime}</span></div>
+              <button className="link danger" aria-label={`Retire ${s.name}`} disabled={busy} onClick={() => act({ action: "deactivateShiftType", id: s.id })}>Retire</button>
+            </div>
+            <div className="role-badges">{data.shiftTypeRoles.filter((r) => r.shiftTypeId === s.id).map((r) => <span key={r.id}>{r.count}× {r.role}</span>)}</div>
+          </div>
+        ))}
+      </section>
+      <section className="wide new-shift-card">
         <h3>New shift type</h3>
         <label><span>Name</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Day shift" /></label>
-        <label><span>Start</span><input value={startTime} onChange={(e) => setStartTime(e.target.value)} placeholder="06:00" /></label>
-        <label><span>End</span><input value={endTime} onChange={(e) => setEndTime(e.target.value)} placeholder="06:00" /></label>
-        <label><span>Color</span>
-          <select value={color} onChange={(e) => setColor(e.target.value)}>
-            {["red", "black", "gold", "blue", "green", "purple", "orange"].map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </label>
+        <div className="two-field-row"><label><span>Start</span><input value={startTime} onChange={(e) => setStartTime(e.target.value)} placeholder="06:00" /></label>
+          <label><span>End</span><input value={endTime} onChange={(e) => setEndTime(e.target.value)} placeholder="06:00" /></label></div>
+        <fieldset className="color-picker"><legend>Color</legend>
+          {["red", "blue", "green", "orange", "purple", "gold", "black"].map((c) => <button key={c} type="button" className={color === c ? "selected" : ""} style={{ background: shiftColorHex[c] }} aria-label={`Use ${c}`} onClick={() => setColor(c)} />)}
+        </fieldset>
         <fieldset><legend>Role requirements</legend>
           {data.roles.map((role) => (
             <label key={role} className="row"><span>{role}</span>
@@ -267,18 +331,6 @@ function ShiftBuilder({ data, act, busy }: { data: Data; act: (b: Record<string,
           ))}
         </fieldset>
         <button disabled={busy || !name || !roleReqs.length} onClick={save}>Save shift type</button>
-      </section>
-      <section className="wide">
-        <h3>Shift types</h3>
-        {!data.shiftTypes.filter((s) => s.active).length && <p className="muted">No shift types yet.</p>}
-        {data.shiftTypes.filter((s) => s.active).map((s) => (
-          <div key={s.id} className="entry-card">
-            <div className="entry-head"><strong>{s.name}</strong> <span>{s.startTime}–{s.endTime} · {s.color}</span>
-              <button className="link danger" disabled={busy} onClick={() => act({ action: "deactivateShiftType", id: s.id })}>Retire</button>
-            </div>
-            <p className="muted">{data.shiftTypeRoles.filter((r) => r.shiftTypeId === s.id).map((r) => `${r.count}× ${r.role}`).join(" · ")}</p>
-          </div>
-        ))}
       </section>
     </div>
   );
@@ -335,11 +387,11 @@ function RosterScreen({ data, act, busy, shiftTypeName }: { data: Data; act: (b:
   );
 }
 
-function RequestsScreen({ data, act, busy, employeeName }: { data: Data; act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean; employeeName: (id: string | null | undefined) => string }) {
+function RequestsScreen({ data, act, busy, employeeName, mode }: { data: Data; act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean; employeeName: (id: string | null | undefined) => string; mode: "claims" | "trades" }) {
   const slotDate = (slotId: string) => data.slots.find((s) => s.id === slotId)?.entryDate ?? "";
   return (
     <div className="scheduler-grid">
-      <section className="wide">
+      {mode === "claims" && <section className="wide">
         <h3>Open-shift claims</h3>
         {!data.claims.filter((c) => c.status === "pending").length && <p className="muted">No pending claims.</p>}
         {data.claims.filter((c) => c.status === "pending").map((c) => (
@@ -352,8 +404,8 @@ function RequestsScreen({ data, act, busy, employeeName }: { data: Data; act: (b
             </div>
           </div>
         ))}
-      </section>
-      <section className="wide">
+      </section>}
+      {mode === "trades" && <section className="wide">
         <h3>Trades</h3>
         {!data.trades.filter((t) => ["pending", "awaiting_acceptance"].includes(t.status)).length && <p className="muted">No pending trades.</p>}
         {data.trades.filter((t) => ["pending", "awaiting_acceptance"].includes(t.status)).map((t) => (
@@ -366,7 +418,7 @@ function RequestsScreen({ data, act, busy, employeeName }: { data: Data; act: (b
             </div>
           </div>
         ))}
-      </section>
+      </section>}
     </div>
   );
 }
