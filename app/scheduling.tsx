@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import { formatEmployeeName } from "./employee-names";
+import { generateScheduleDraft, scheduleItemsOverlap, type GeneratedScheduleSlot } from "./schedule-generator";
 import { matchingTimeBlock, scheduleTimeBlocks } from "./schedule-time";
 import { qualifiedForScheduleRole } from "./schedule-eligibility";
 
@@ -18,7 +19,7 @@ type Rotation = {
 };
 type Request = {
   id:string; requestType:string; employeeId:string; employeeName:string; assignmentId?:string; targetEmployeeId?:string;
-  targetEmployeeName?:string; startDate:string; endDate:string; role:string; repeatMode:string; repeatInterval:number; status:string; targetStatus:string; notes:string;
+  targetEmployeeName?:string; startDate:string; endDate:string; startTime:string; endTime:string; role:string; repeatMode:string; repeatInterval:number; status:string; targetStatus:string; notes:string; createdAt?:string;
 };
 type Notification = { id:string; title:string; message:string; email:number; sms:number; deliveryStatus:string; readAt?:string; createdAt:string };
 type NotificationRule = { eventType:string; label:string; active:number|boolean; emailEnabled:number|boolean; smsEnabled:number|boolean; deliveryTimings:string; updatedAt:string };
@@ -117,6 +118,8 @@ export default function Scheduling({ testMember = null, requestedTab = "calendar
   const [busy, setBusy] = useState(false);
   const [showEmployeeForm, setShowEmployeeForm] = useState(false);
   const [showShiftForm, setShowShiftForm] = useState(false);
+  const [generatorRange, setGeneratorRange] = useState({ startDate: today(), endDate: plusDays(today(), 30) });
+  const [generatedSlots, setGeneratedSlots] = useState<GeneratedScheduleSlot[]>([]);
   const [rulesSection, setRulesSection] = useState<"shift-types"|"staffing"|"special"|"active"|"rotations"|"distribution"|"reminders">("shift-types");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -280,8 +283,18 @@ export default function Scheduling({ testMember = null, requestedTab = "calendar
   const draftRank = data?.payScales.find((scale) => scale.id === employeeDraft.payScaleId)?.label || "Firefighter";
   const recurringRoleOptions = selectedEmployeePattern ? (data?.coverageRules ?? []).filter((rule) => rule.active && (rule.planId || rule.id) === selectedEmployeePattern.coveragePlanId && qualifiedForPosition({ rank: draftRank, actingOfficerEligible: employeeDraft.qualifications.includes("Officer/AO") ? 1 : 0, driverStatus: draftDriverStatus }, rule.role)).map((rule) => rule.role) : [];
   const tabs = isCommandView
-    ? [["calendar", "Schedule"], ["patterns", "Shift editor"], ["open", "Open shifts"], ["requests", "Requests & trades"], ["alerts", "Personnel & reminders"]]
+    ? [["calendar", "Schedule"], ["patterns", "Shift editor"], ["open", "Open shifts"], ["requests", "Requests & trades"], ["alerts", "Personnel & reminders"], ["generate", "Generate schedule"]]
     : [["calendar", "Calendar"], ["request", "Requests"], ["open", "Open shifts & trades"], ["alerts", "Reminder settings"]];
+  const generatedGroups = useMemo(() => {
+    const groups = new Map<string, { workDate:string; patternId:string; patternName:string; color:string; slots:GeneratedScheduleSlot[] }>();
+    for (const slot of generatedSlots) {
+      const key = `${slot.workDate}|${slot.patternId}`;
+      const group = groups.get(key) ?? { workDate:slot.workDate, patternId:slot.patternId, patternName:slot.patternName, color:slot.color, slots:[] };
+      group.slots.push(slot);
+      groups.set(key, group);
+    }
+    return [...groups.values()].sort((left, right) => left.workDate.localeCompare(right.workDate) || left.patternName.localeCompare(right.patternName));
+  }, [generatedSlots]);
 
   function changeMonth(offset:number) {
     const date = new Date(`${month}-01T12:00:00`);
@@ -321,6 +334,62 @@ export default function Scheduling({ testMember = null, requestedTab = "calendar
     setSelectedDate(current);
     setMonth(current.slice(0, 7));
     setSelectedDayPanelOpen(false);
+  }
+
+  function buildGeneratedSchedule() {
+    setError("");
+    setMessage("");
+    const rangeDays = daysBetween(generatorRange.startDate, generatorRange.endDate);
+    if (!generatorRange.startDate || !generatorRange.endDate || generatorRange.startDate < today() || rangeDays < 0 || rangeDays > 62) {
+      setError("Choose a schedule range from today through the next 63 days.");
+      return;
+    }
+    const generated = generateScheduleDraft({
+      startDate: generatorRange.startDate,
+      endDate: generatorRange.endDate,
+      employees: data?.employees ?? [],
+      assignments: data?.assignments ?? [],
+      requests: data?.requests ?? [],
+      coverageRules: data?.coverageRules ?? [],
+      shiftPatterns: data?.shiftPatterns ?? [],
+      staffingOverrides: data?.staffingOverrides ?? [],
+      distributionOrder: data?.settings.distributionOrder ?? [],
+    });
+    setGeneratedSlots(generated.slots);
+    setMessage(generated.slots.length
+      ? `Draft ready · ${generated.assignedCount} positions filled from employee availability requests · ${generated.openCount} need manual review`
+      : "No unfilled shift-pattern positions were found in this date range.");
+  }
+
+  function updateGeneratedSlot(slotId:string, employeeId:string) {
+    setGeneratedSlots((current) => current.map((slot) => slot.id === slotId ? { ...slot, employeeId, automatic:false, availabilityRequestIds:[] } : slot));
+  }
+
+  function employeeConflictsWithGeneratedSlot(slot:GeneratedScheduleSlot, employeeId:string) {
+    return generatedSlots.some((other) => other.id !== slot.id && other.employeeId === employeeId && scheduleItemsOverlap(other, slot));
+  }
+
+  async function saveGeneratedSchedule() {
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch("/api/scheduling", {
+        method:"POST",
+        headers:{ "content-type":"application/json" },
+        body:JSON.stringify({ action:"saveGeneratedSchedule", ...generatorRange, rows:generatedSlots.map((slot) => ({ id:slot.id, employeeId:slot.employeeId })) }),
+      });
+      const result = await response.json() as { error?:string; assignedCount?:number; openCount?:number };
+      if (!response.ok) throw new Error(result.error || "Unable to save the generated schedule");
+      setMessage(`Schedule saved · ${result.assignedCount || 0} assigned · ${result.openCount || 0} left open`);
+      setGeneratedSlots([]);
+      setMonth(generatorRange.startDate.slice(0, 7));
+      await load();
+      selectTab("calendar");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to save the generated schedule");
+    } finally {
+      setBusy(false);
+    }
   }
 
   function startNewCoveragePlan(announce = true, planNumber = coveragePlans.length + 1) {
@@ -452,6 +521,46 @@ export default function Scheduling({ testMember = null, requestedTab = "calendar
           })}
         </div>
       </>
+    </section>}
+
+    {tab === "generate" && isCommandView && <section className="schedule-generator-workspace">
+      <article className="content-card generator-setup-card">
+        <div className="section-header"><div><p className="eyebrow">Schedule builder</p><h2>Generate and assign the schedule</h2><p>Choose the period you are building. Automatic assignments use only employees who submitted matching availability requests.</p></div></div>
+        <div className="generator-range-fields">
+          <label><span>Schedule starts</span><input type="date" min={today()} value={generatorRange.startDate} onChange={(event) => { const startDate = event.target.value; setGeneratorRange((current) => ({ startDate, endDate:current.endDate < startDate ? startDate : current.endDate })); setGeneratedSlots([]); }}/></label>
+          <label><span>Schedule ends</span><input type="date" min={generatorRange.startDate} max={plusDays(generatorRange.startDate, 62)} value={generatorRange.endDate} onChange={(event) => { setGeneratorRange((current) => ({ ...current, endDate:event.target.value })); setGeneratedSlots([]); }}/></label>
+          <button className="primary-button" disabled={busy || !data.shiftPatterns.length} onClick={buildGeneratedSchedule}>Generate schedule</button>
+        </div>
+        <div className="generator-accuracy-panel">
+          <div><strong>High-accuracy assignment order</strong><p>Qualification is mandatory. Employees without a matching request to work are excluded from automatic assignment.</p></div>
+          <ol>{data.settings.distributionOrder.map((rule, index) => <li key={rule}><b>{index + 1}</b><span>{rule}</span></li>)}</ol>
+        </div>
+        {!data.shiftPatterns.length && <div className="schedule-setup-callout"><strong>Create an active shift pattern first.</strong><span>The generator uses its riding assignments, hours, recurrence, weekend rules, and holiday rules.</span><button onClick={() => selectTab("patterns")}>Open Rules & reminders</button></div>}
+      </article>
+
+      {generatedSlots.length > 0 && <section className="generator-review-card content-card">
+        <header className="generator-review-header"><div><p className="eyebrow">Review before publishing</p><h2>{friendlyDate(generatorRange.startDate)} through {friendlyDate(generatorRange.endDate)}</h2><p>Existing assignments stay in place. Open each day to review every missing role and manually change the employee when needed.</p></div><div className="generator-summary"><span><b>{generatedSlots.filter((slot) => slot.employeeId).length}</b> assigned</span><span className={generatedSlots.some((slot) => !slot.employeeId) ? "attention" : ""}><b>{generatedSlots.filter((slot) => !slot.employeeId).length}</b> open</span><span><b>{generatedGroups.length}</b> shift days</span></div></header>
+        <div className="generated-day-list">{generatedGroups.map((group, groupIndex) => <details key={`${group.workDate}-${group.patternId}`} open={groupIndex === 0}>
+          <summary style={{ "--generated-shift-color":stationColor(group.color) } as CSSProperties}><span className="generated-date"><b>{new Date(`${group.workDate}T12:00:00`).toLocaleDateString("en-US", { month:"short" })}</b><strong>{Number(group.workDate.slice(8))}</strong></span><span><strong>{friendlyDate(group.workDate)} · {group.patternName}</strong><small>{group.slots.filter((slot) => slot.employeeId).length} assigned · {group.slots.filter((slot) => !slot.employeeId).length} open</small></span><b>Review roles</b></summary>
+          <div className="generated-role-list">{group.slots.map((slot) => {
+            const eligibleEmployees = data.employees.filter((employee) => slot.eligibleEmployeeIds.includes(employee.id));
+            const selectedEmployeeRequested = Boolean(slot.employeeId && slot.autoCandidateIds.includes(slot.employeeId));
+            return <label className={`generated-role-row ${slot.employeeId ? "assigned" : "open"}`} key={slot.id}>
+              <span><strong>{slot.role}</strong><small>{slot.startTime}–{slot.endTime} · Position {slot.slotNumber}</small></span>
+              <select aria-label={`${slot.role} on ${slot.workDate}`} value={slot.employeeId} onChange={(event) => updateGeneratedSlot(slot.id, event.target.value)}>
+                <option value="">Leave open / assign later</option>
+                {eligibleEmployees.map((employee) => {
+                  const conflict = employeeConflictsWithGeneratedSlot(slot, employee.id);
+                  const requested = slot.autoCandidateIds.includes(employee.id);
+                  return <option key={employee.id} value={employee.id} disabled={employee.id !== slot.employeeId && conflict}>{formatEmployeeName(employee.name)} · {employee.rank}{requested ? " · Requested to work" : " · Manual option"}{conflict ? " · Already assigned" : ""}</option>;
+                })}
+              </select>
+              <em className={slot.automatic ? "automatic" : slot.employeeId ? "manual" : "unfilled"}>{slot.automatic ? "Auto-filled from request" : slot.employeeId ? selectedEmployeeRequested ? "Manually selected · requested" : "Manual assignment" : "No matching request"}</em>
+            </label>;
+          })}</div>
+        </details>)}</div>
+        <footer className="generator-publish-bar"><div><strong>Ready to publish?</strong><span>Saving records assigned members and publishes any blank roles as open shifts.</span></div><button className="primary-button" disabled={busy || generatedSlots.some((slot) => slot.employeeId && employeeConflictsWithGeneratedSlot(slot, slot.employeeId))} onClick={() => void saveGeneratedSchedule()}>{busy ? "Saving schedule…" : "Save & publish schedule"}</button></footer>
+      </section>}
     </section>}
 
     {tab === "patterns" && isCommandView && <>

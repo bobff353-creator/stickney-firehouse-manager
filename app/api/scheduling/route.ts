@@ -1,6 +1,7 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 import { holidayForDate } from "../../holidays";
 import { qualifiedForScheduleRole } from "../../schedule-eligibility";
+import { generateScheduleDraft, scheduleItemsOverlap, type GeneratorAssignment, type GeneratorCoverageRule, type GeneratorEmployee, type GeneratorRequest, type GeneratorShiftPattern, type GeneratorStaffingOverride } from "../../schedule-generator";
 import { normalizeScheduleTime } from "../../schedule-time";
 
 const ownerAdminEmails = ["bobff353@gmail.com"];
@@ -500,6 +501,88 @@ export async function POST(request: Request) {
       if (!current.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
       await db.prepare("UPDATE schedule_staffing_overrides SET active=0 WHERE id=?").bind(String(payload.id ?? "")).run();
       return Response.json({ ok: true });
+    }
+
+    if (action === "saveGeneratedSchedule") {
+      if (!current.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
+      const startDate = String(payload.startDate ?? "");
+      const endDate = String(payload.endDate ?? "");
+      const rangeDays = spanDays(startDate, endDate);
+      const submittedRows = Array.isArray(payload.rows) ? payload.rows.map((raw) => {
+        const row = raw as Record<string, unknown>;
+        return { id: String(row.id ?? ""), employeeId: String(row.employeeId ?? "") };
+      }) : [];
+      if (!iso.test(startDate) || !iso.test(endDate) || startDate < chicagoNow().slice(0, 10) || rangeDays < 0 || rangeDays > 62) {
+        return Response.json({ error: "Choose a schedule range from today through the next 63 days." }, { status: 400 });
+      }
+
+      const [employeeRows, assignmentRows, requestRows, ruleRows, patternRows, overrideRows, distributionSetting] = await Promise.all([
+        db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus,COALESCE(e.sort_order,999) sortOrder FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 ORDER BY e.sort_order,e.name COLLATE NOCASE").all<GeneratorEmployee>(),
+        db.prepare("SELECT id,employee_id employeeId,work_date workDate,start_time startTime,end_time endTime,role,source,status FROM schedule_assignments WHERE status IN ('assigned','open') AND date(work_date) BETWEEN date(?,'-45 day') AND date(?,'+1 day')").bind(startDate, endDate).all<GeneratorAssignment>(),
+        db.prepare("SELECT id,request_type requestType,employee_id employeeId,start_date startDate,end_date endDate,start_time startTime,end_time endTime,role,repeat_mode repeatMode,repeat_interval repeatInterval,status,created_at createdAt FROM schedule_requests WHERE request_type IN ('availability','time_off') AND status IN ('pending','approved') AND date(start_date)<=date(?) AND date(end_date)>=date(?)").bind(endDate, startDate).all<GeneratorRequest>(),
+        db.prepare("SELECT id,plan_id planId,name,role,minimum_staff minimumStaff,start_time startTime,end_time endTime,days_of_week daysOfWeek,active FROM schedule_coverage_rules WHERE active=1").all<GeneratorCoverageRule>(),
+        db.prepare("SELECT id,name,color,start_date startDate,start_time startTime,end_time endTime,recurrence_days recurrenceDays,coverage_plan_id coveragePlanId,active FROM schedule_shift_patterns WHERE active=1").all<GeneratorShiftPattern>(),
+        db.prepare("SELECT id,pattern_id patternId,name,condition_type conditionType,role,minimum_staff minimumStaff,active FROM schedule_staffing_overrides WHERE active=1").all<GeneratorStaffingOverride>(),
+        db.prepare("SELECT delivery_timings deliveryTimings FROM schedule_notification_rules WHERE event_type='schedule_distribution_order' LIMIT 1").first<{deliveryTimings:string}>(),
+      ]);
+      let distributionOrder = ["Required role / qualification", "Fewest hours worked", "Seniority", "Custom priority"];
+      try {
+        const saved = JSON.parse(distributionSetting?.deliveryTimings || "[]");
+        if (Array.isArray(saved) && saved.length === distributionOrder.length && saved.every((item) => distributionOrder.includes(String(item)))) distributionOrder = saved.map(String);
+      } catch { /* Keep the department-safe priority order. */ }
+      const generated = generateScheduleDraft({
+        startDate,
+        endDate,
+        employees: employeeRows.results,
+        assignments: assignmentRows.results,
+        requests: requestRows.results,
+        coverageRules: ruleRows.results,
+        shiftPatterns: patternRows.results,
+        staffingOverrides: overrideRows.results,
+        distributionOrder,
+      });
+      const expectedRows = new Map(generated.slots.map((slot) => [slot.id, slot]));
+      if (!generated.slots.length) return Response.json({ error: "No unfilled shift-pattern positions exist in this date range." }, { status: 409 });
+      if (submittedRows.length !== generated.slots.length || new Set(submittedRows.map((row) => row.id)).size !== submittedRows.length || submittedRows.some((row) => !expectedRows.has(row.id))) {
+        return Response.json({ error: "The generated schedule changed. Generate it again before saving." }, { status: 409 });
+      }
+
+      const submittedById = new Map(submittedRows.map((row) => [row.id, row]));
+      const selectedAssignments: GeneratorAssignment[] = [];
+      for (const slot of generated.slots) {
+        const employeeId = submittedById.get(slot.id)?.employeeId || "";
+        if (!employeeId) continue;
+        if (!slot.eligibleEmployeeIds.includes(employeeId)) return Response.json({ error: `${slot.role} on ${slot.workDate} must be assigned to a qualified, available employee.` }, { status: 409 });
+        const proposed: GeneratorAssignment = { id: slot.id, employeeId, workDate: slot.workDate, startTime: slot.startTime, endTime: slot.endTime, role: slot.role, source: `schedule-generator:${slot.patternId}`, status: "assigned" };
+        if (selectedAssignments.some((assignment) => assignment.employeeId === employeeId && scheduleItemsOverlap(assignment, proposed))) {
+          return Response.json({ error: "One employee was selected for overlapping generated shifts. Choose a different employee before saving." }, { status: 409 });
+        }
+        selectedAssignments.push(proposed);
+      }
+
+      const reusableOpenAssignments = assignmentRows.results.filter((assignment) => assignment.status === "open" && !assignment.source.startsWith("schedule-generator:"));
+      const usedOpenIds = new Set<string>();
+      const writes: ReturnType<Db["prepare"]>[] = [];
+      const assignedEmployeeIds: string[] = [];
+      let assignedCount = 0;
+      let openCount = 0;
+      for (const slot of generated.slots) {
+        const employeeId = submittedById.get(slot.id)?.employeeId || "";
+        const matchingOpen = reusableOpenAssignments.find((assignment) => !usedOpenIds.has(assignment.id) && assignment.workDate === slot.workDate && assignment.role.trim().toLowerCase() === slot.role.trim().toLowerCase() && assignment.startTime === slot.startTime && assignment.endTime === slot.endTime);
+        if (matchingOpen) usedOpenIds.add(matchingOpen.id);
+        const notes = `Generated schedule · ${slot.patternName} · reviewed by ${current.name}`;
+        if (matchingOpen) {
+          if (employeeId) writes.push(db.prepare("UPDATE schedule_assignments SET employee_id=?,status='assigned',notes=? WHERE id=? AND status='open'").bind(employeeId, notes, matchingOpen.id));
+        } else {
+          writes.push(db.prepare("INSERT INTO schedule_assignments(id,employee_id,work_date,start_time,end_time,role,source,status,emergency,required_rank,claim_deadline,notes,created_by) VALUES(?,NULLIF(?,''),?,?,?,?,?,?,0,'','',?,?)")
+            .bind(crypto.randomUUID(), employeeId, slot.workDate, slot.startTime, slot.endTime, slot.role, `schedule-generator:${slot.patternId}`, employeeId ? "assigned" : "open", notes, current.name));
+        }
+        if (employeeId) { assignedCount += 1; assignedEmployeeIds.push(employeeId); } else openCount += 1;
+      }
+      await db.prepare("DELETE FROM schedule_assignments WHERE source LIKE 'schedule-generator:%' AND work_date BETWEEN ? AND ?").bind(startDate, endDate).run();
+      for (let index = 0; index < writes.length; index += 75) await db.batch(writes.slice(index, index + 75));
+      await notify(db, assignedEmployeeIds, "Schedule assignment", `The department schedule was published for ${startDate} through ${endDate}. Open Scheduling to review your assigned shifts.`, "schedule_assignment", `${startDate}T06:00:00-05:00`);
+      return Response.json({ ok: true, assignmentsCreated: writes.length, slotsSaved: generated.slots.length, assignedCount, openCount });
     }
 
     if (action === "createShift") {
