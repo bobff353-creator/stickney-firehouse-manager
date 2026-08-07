@@ -136,12 +136,14 @@ button { cursor: pointer; }
 .tabular { font-variant-numeric: tabular-nums; }
 
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 270px minmax(0, 1fr); grid-template-rows: 76px minmax(calc(100vh - 76px), auto) auto; }
+.app-shell.sidebar-collapsed { grid-template-columns: 82px minmax(0, 1fr); }
 .desktop-sidebar { position: sticky; z-index: 30; top: 0; grid-column: 1; grid-row: 1 / -1; height: 100vh; padding: 24px 17px 18px; background: linear-gradient(180deg, #102d46, #0c2235); color: white; display: flex; flex-direction: column; box-shadow: 5px 0 22px rgba(11,31,47,.13); overflow-y: auto; }
 .sidebar-brand { padding: 0 7px 23px; border: 0; border-bottom: 1px solid rgba(255,255,255,.14); background: transparent; color: white; display: flex; align-items: center; gap: 12px; text-align: left; }
 .sidebar-brand .brand-patch { width: 58px; height: 58px; }
 .sidebar-brand > span { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .sidebar-brand strong { font-size: 14px; line-height: 1.25; }
 .sidebar-brand small { color: #a9c3d7; font-size: 9px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+.sidebar-collapse-toggle{min-height:38px;margin:10px 0 7px;padding:7px 9px;border:1px solid rgba(255,255,255,.18);border-radius:7px;background:rgba(255,255,255,.05);color:#c5d6e1;display:flex;align-items:center;gap:8px;font-size:10px;font-weight:800}.sidebar-collapse-toggle .line-icon{transform:rotate(180deg);transition:transform .18s ease}.sidebar-collapsed .sidebar-collapse-toggle{justify-content:center}.sidebar-collapsed .sidebar-collapse-toggle .line-icon{transform:rotate(0)}.sidebar-collapsed .sidebar-collapse-toggle span{display:none}
 .sidebar-nav { padding-top: 17px; display: grid; gap: 5px; }
 .sidebar-nav section { margin-top: 10px; display: grid; gap: 4px; }
 .sidebar-nav h2 { margin: 0; padding: 9px 12px 5px; color: #819eb4; font-size: 9px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
@@ -154,6 +156,7 @@ button { cursor: pointer; }
 .sidebar-nav .sidebar-group-toggle{grid-template-columns:23px 1fr 18px;color:#a9c2d4;font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.sidebar-nav .sidebar-group-toggle[aria-expanded="true"]{color:#fff}.sidebar-nav .sidebar-group-toggle .line-icon:last-child{transition:transform .18s ease}.sidebar-nav .sidebar-group-toggle[aria-expanded="true"] .line-icon:last-child{transform:rotate(180deg)}.sidebar-group-items{display:grid;gap:3px;padding-left:8px}.mobile-bottom-tabs{display:none}
 .sidebar-footer { margin-top: auto; padding: 16px 10px 2px; border-top: 1px solid rgba(255,255,255,.12); color: #b9cedd; display: grid; grid-template-columns: 9px 1fr auto; align-items: center; gap: 7px; font-size: 10px; font-weight: 750; }
 .sidebar-footer small { color: #7893a8; font-size: 9px; }
+.sidebar-collapsed .desktop-sidebar{padding:18px 10px;overflow-x:hidden}.sidebar-collapsed .sidebar-brand{justify-content:center;padding:0 0 14px}.sidebar-collapsed .sidebar-brand .brand-patch{width:48px;height:48px}.sidebar-collapsed .sidebar-brand>span,.sidebar-collapsed .sidebar-nav h2,.sidebar-collapsed .sidebar-nav button>span,.sidebar-collapsed .sidebar-group-toggle .line-icon:last-child,.sidebar-collapsed .sidebar-group-items,.sidebar-collapsed .account-session-bar,.sidebar-collapsed .sidebar-footer{display:none}.sidebar-collapsed .sidebar-nav{gap:5px}.sidebar-collapsed .sidebar-nav section{display:grid}.sidebar-collapsed .sidebar-nav button,.sidebar-collapsed .sidebar-nav .sidebar-group-toggle{min-height:48px;grid-template-columns:1fr;justify-items:center;padding:8px}.sidebar-collapsed .sidebar-nav button.current:before{left:-10px}
 .system-dot { width: 8px; height: 8px; border-radius: 50%; background: #62bb88; box-shadow: 0 0 0 3px rgba(98,187,136,.14); }
 .topbar { position: sticky; z-index: 25; top: 0; grid-column: 2; grid-row: 1; min-width: 0; min-height: 76px; padding: 0 clamp(22px, 3vw, 46px); border-bottom: 1px solid #d9e0e5; background: rgba(255,255,255,.94); color: var(--ink); display: flex; align-items: center; gap: 24px; box-shadow: 0 3px 14px rgba(16,40,61,.055); backdrop-filter: blur(12px); }
 .topbar-context { min-width: 0; display: flex; flex-direction: column; gap: 3px; }

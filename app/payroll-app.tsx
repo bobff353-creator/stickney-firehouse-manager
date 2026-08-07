@@ -215,7 +215,8 @@ export default function PayrollApp({
   const [employeeDraft, setEmployeeDraft] = useState<EmployeeForm>(emptyEmployee);
   const [profileOpen, setProfileOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [openNavGroups, setOpenNavGroups] = useState<Set<string>>(() => new Set(["Operations", "Field"]));
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [openNavGroups, setOpenNavGroups] = useState<Set<string>>(() => new Set(["Operations"]));
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
   const [sharedSearchItems, setSharedSearchItems] = useState<GlobalSearchItem[]>([]);
@@ -664,12 +665,12 @@ export default function PayrollApp({
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function toggleNavGroup(group: string) {
-    setOpenNavGroups((current) => {
-      const next = new Set(current);
-      if (next.has(group)) next.delete(group);
-      else next.add(group);
-      return next;
-    });
+    if (sidebarCollapsed) {
+      setSidebarCollapsed(false);
+      setOpenNavGroups(new Set([group]));
+      return;
+    }
+    setOpenNavGroups((current) => current.has(group) ? new Set() : new Set([group]));
   }
   function changeTestMember(member: { id: string; name: string; rank: string; effectivePermissions: string[] } | null) {
     setTestMember(member);
@@ -688,15 +689,16 @@ export default function PayrollApp({
   }
 
   return (
-    <main className={`app-shell${tvMode ? " tv-shell" : ""}`}>
+    <main className={`app-shell${tvMode ? " tv-shell" : ""}${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
       {!tvMode && <PwaInstall />}
       <aside className="desktop-sidebar">
-        <button className="sidebar-brand" onClick={() => navigate(homePage)} aria-label="Stickney Fire Department Operations Portal home"><img className="brand-patch" src="/stickney-fd-patch.png?v=3" alt="Stickney Fire Department patch" width="64" height="64" /><span><strong>Stickney Fire Department</strong><small>Operations Portal</small></span></button>
+        <button className="sidebar-brand" onClick={() => navigate(homePage)} aria-label="Stickney Fire Department Operations Portal home" title="Dashboard"><img className="brand-patch" src="/stickney-fd-patch.png?v=3" alt="Stickney Fire Department patch" width="64" height="64" /><span><strong>Stickney Fire Department</strong><small>Operations Portal</small></span></button>
+        <button className="sidebar-collapse-toggle" type="button" aria-pressed={sidebarCollapsed} aria-label={sidebarCollapsed ? "Expand navigation menu" : "Collapse navigation menu"} title={sidebarCollapsed ? "Expand menu" : "Collapse menu"} onClick={() => setSidebarCollapsed((current) => !current)}><Icon name="chevron" size={16}/><span>{sidebarCollapsed ? "Expand menu" : "Collapse menu"}</span></button>
         <nav className="sidebar-nav" aria-label="Primary navigation">
-          {visibleNav.includes("Dashboard") && <button className={activeNav === "Dashboard" ? "current" : ""} onClick={() => navigate("Dashboard")}><Icon name="home"/><span>Dashboard</span></button>}
+          {visibleNav.includes("Dashboard") && <button title="Dashboard" className={activeNav === "Dashboard" ? "current" : ""} onClick={() => navigate("Dashboard")}><Icon name="home"/><span>Dashboard</span></button>}
           {isAdminView ? visibleAdminGroups.map((group) => (
             <section key={group.label}>
-              <button className="sidebar-group-toggle" aria-expanded={openNavGroups.has(group.label)} onClick={() => toggleNavGroup(group.label)}><Icon name={group.icon}/><span>{group.label}</span><Icon name="chevron" size={14}/></button>
+              <button className="sidebar-group-toggle" title={group.label} aria-expanded={openNavGroups.has(group.label)} onClick={() => toggleNavGroup(group.label)}><Icon name={group.icon}/><span>{group.label}</span><Icon name="chevron" size={14}/></button>
               {openNavGroups.has(group.label) ? <div className="sidebar-group-items">{group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><Icon name={navIcons[item.page]}/><span>{item.label}</span></button>)}</div> : null}
             </section>
           )) : (

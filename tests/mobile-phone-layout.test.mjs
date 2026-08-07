@@ -25,3 +25,13 @@ test("phone dark mode keeps Daily Log and schedule controls readable", async () 
   assert.match(styles, /\.shift-title h3,[^{]+\{color:#eef4f7\}/);
   assert.match(styles, /\.schedule-calendar>article,[^{]+\{color:#17324d\}/);
 });
+
+test("desktop navigation can collapse to an accessible icon rail", async () => {
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const shell = await readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8");
+  assert.match(shell, /sidebarCollapsed/);
+  assert.match(shell, /Collapse navigation menu/);
+  assert.match(shell, /setOpenNavGroups\(\(current\) => current\.has\(group\) \? new Set\(\) : new Set\(\[group\]\)\)/);
+  assert.match(styles, /\.app-shell\.sidebar-collapsed \{ grid-template-columns: 82px/);
+  assert.match(styles, /\.sidebar-collapsed \.sidebar-group-items/);
+});
