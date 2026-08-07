@@ -71,6 +71,7 @@ const shiftColorHex: Record<string, string> = {
 };
 const monthTitle = (value: string) => new Date(`${value.slice(0, 7)}-01T12:00:00`).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 const shiftInitial = (name: string) => name.trim().charAt(0).toUpperCase() || "S";
+const fourDigitTime = (value: string) => value.replace(":", "").slice(0, 4);
 
 export default function StationScheduler({ testMember = null }: { testMember?: TestMember | null }) {
   const [data, setData] = useState<Data | null>(null);
@@ -288,17 +289,22 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
 
 function ShiftBuilder({ data, act, busy }: { data: Data; act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean }) {
   const [name, setName] = useState("");
-  const [startTime, setStartTime] = useState("06:00");
-  const [endTime, setEndTime] = useState("06:00");
+  const [startTime, setStartTime] = useState("0600");
+  const [endTime, setEndTime] = useState("0600");
   const [color, setColor] = useState("red");
-  const [roleCounts, setRoleCounts] = useState<Record<string, number>>({});
+  const staffingDefaults = useCallback(() => Object.fromEntries(data.roles.map((role) => [role, role === "FF/Attendant" ? 2 : 1])), [data.roles]);
+  const [roleCounts, setRoleCounts] = useState<Record<string, number>>(() => staffingDefaults());
+  const [formError, setFormError] = useState("");
 
   const roleReqs = Object.entries(roleCounts).filter(([, count]) => count > 0).map(([role, count]) => ({ role, count }));
   const save = async () => {
+    setFormError("");
     const normStart = normalizeScheduleTime(startTime), normEnd = normalizeScheduleTime(endTime);
-    if (!normStart || !normEnd) return;
-    const result = await act({ action: "saveShiftType", name, startTime: normStart, endTime: normEnd, color, roleRequirements: roleReqs });
-    if (result) { setName(""); setRoleCounts({}); }
+    if (!name.trim()) { setFormError("Enter a shift name before saving."); return; }
+    if (!normStart || !normEnd) { setFormError("Enter Start and End as four-digit 24-hour times, such as 0600 or 1800."); return; }
+    if (!roleReqs.length) { setFormError("Set at least one required role before saving."); return; }
+    const result = await act({ action: "saveShiftType", name: name.trim(), startTime: normStart, endTime: normEnd, color, roleRequirements: roleReqs });
+    if (result) { setName(""); setStartTime("0600"); setEndTime("0600"); setRoleCounts(staffingDefaults()); }
   };
 
   return (
@@ -308,7 +314,7 @@ function ShiftBuilder({ data, act, busy }: { data: Data; act: (b: Record<string,
         {!data.shiftTypes.filter((s) => s.active).length && <p className="muted">No shift types yet.</p>}
         {data.shiftTypes.filter((s) => s.active).map((s) => (
           <div key={s.id} className="entry-card shift-type-card" style={{ borderLeftColor: shiftColorHex[s.color] ?? s.color }}>
-            <div className="entry-head"><div><strong>{s.name}</strong><span>{s.startTime}–{s.endTime}</span></div>
+            <div className="entry-head"><div><strong>{s.name}</strong><span>{fourDigitTime(s.startTime)}–{fourDigitTime(s.endTime)}</span></div>
               <button className="link danger" aria-label={`Retire ${s.name}`} disabled={busy} onClick={() => act({ action: "deactivateShiftType", id: s.id })}>Retire</button>
             </div>
             <div className="role-badges">{data.shiftTypeRoles.filter((r) => r.shiftTypeId === s.id).map((r) => <span key={r.id}>{r.count}× {r.role}</span>)}</div>
@@ -317,9 +323,10 @@ function ShiftBuilder({ data, act, busy }: { data: Data; act: (b: Record<string,
       </section>
       <section className="wide new-shift-card">
         <h3>New shift type</h3>
-        <label><span>Name</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Day shift" /></label>
-        <div className="two-field-row"><label><span>Start</span><input value={startTime} onChange={(e) => setStartTime(e.target.value)} placeholder="06:00" /></label>
-          <label><span>End</span><input value={endTime} onChange={(e) => setEndTime(e.target.value)} placeholder="06:00" /></label></div>
+        <label><span>Name</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Red Shift" /></label>
+        <div className="two-field-row"><label><span>Start (24-hour)</span><input value={startTime} onChange={(e) => setStartTime(e.target.value.replace(/\D/g, "").slice(0, 4))} inputMode="numeric" maxLength={4} placeholder="0600" aria-describedby="shift-time-help" /></label>
+          <label><span>End (24-hour)</span><input value={endTime} onChange={(e) => setEndTime(e.target.value.replace(/\D/g, "").slice(0, 4))} inputMode="numeric" maxLength={4} placeholder="0600" aria-describedby="shift-time-help" /></label></div>
+        <p id="shift-time-help" className="form-help">Enter four digits: 0600 is 6:00 AM and 1800 is 6:00 PM. Matching Start and End creates a 24-hour shift.</p>
         <fieldset className="color-picker"><legend>Color</legend>
           {["red", "blue", "green", "orange", "purple", "gold", "black"].map((c) => <button key={c} type="button" className={color === c ? "selected" : ""} style={{ background: shiftColorHex[c] }} aria-label={`Use ${c}`} onClick={() => setColor(c)} />)}
         </fieldset>
@@ -330,7 +337,8 @@ function ShiftBuilder({ data, act, busy }: { data: Data; act: (b: Record<string,
             </label>
           ))}
         </fieldset>
-        <button disabled={busy || !name || !roleReqs.length} onClick={save}>Save shift type</button>
+        {formError && <p className="form-error" role="alert">{formError}</p>}
+        <button disabled={busy} onClick={save}>{busy ? "Saving…" : "Save shift type"}</button>
       </section>
     </div>
   );

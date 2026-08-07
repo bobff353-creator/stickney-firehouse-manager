@@ -49,6 +49,9 @@ test("scheduler uses the scoped Stickney mobile workspace instead of prototype b
   }
   assert.equal(component.includes("scheduler-month"), true);
   assert.equal(component.includes("shift-type-card"), true);
+  assert.equal(component.includes('Start (24-hour)'), true);
+  assert.equal(component.includes('inputMode="numeric"'), true);
+  assert.equal(component.includes('disabled={busy} onClick={save}'), true, "save remains clickable so validation can explain missing fields");
   assert.equal(styles.includes("Stickney Station Scheduler - deliberately scoped"), true);
   assert.equal(styles.includes(".scheduler-month"), true);
   assert.equal(styles.includes("@media (max-width: 390px)"), true);
