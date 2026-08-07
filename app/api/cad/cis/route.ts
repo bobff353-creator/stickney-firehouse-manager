@@ -23,7 +23,7 @@ async function isAdmin(request: Request, db: Awaited<ReturnType<typeof ensureDat
 }
 
 async function runtime() {
-  const { env } = await import("cloudflare:workers");
+  const { env } = await import("@/app/cf-env");
   return env as unknown as RuntimeEnv;
 }
 

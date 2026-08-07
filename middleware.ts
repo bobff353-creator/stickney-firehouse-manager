@@ -1,3 +1,8 @@
+// Next.js middleware (Vercel). Ported from the vinext `proxy.ts`: it verifies
+// the Supabase session and department membership, then injects the identity
+// headers (`oai-authenticated-user-email`, `x-department-id`,
+// `x-department-role`) that every API route reads.
+
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -14,11 +19,11 @@ const signedWebhookPaths = new Set([
 ]);
 
 function configuration() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/[\uFEFF\r\n]/g, "").trim();
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/[﻿\r\n]/g, "").trim();
   const key = (
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
       || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )?.replace(/[\uFEFF\r\n]/g, "").trim();
+  )?.replace(/[﻿\r\n]/g, "").trim();
   const departmentId = process.env.PAYROLL_DEPARTMENT_ID?.trim();
   return { url, key, departmentId };
 }
@@ -30,7 +35,7 @@ function jsonError(error: string, status: number) {
   );
 }
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const signedWebhookRequest = request.method === "POST"
     && (signedWebhookPaths.has(pathname) || pathname === "/api/cad/cis");

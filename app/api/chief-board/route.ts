@@ -24,7 +24,7 @@ type Runtime = {
 };
 
 async function runtime() {
-  const { env } = await import("cloudflare:workers");
+  const { env } = await import("@/app/cf-env");
   return env as unknown as Runtime;
 }
 

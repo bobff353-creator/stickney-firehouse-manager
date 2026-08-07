@@ -80,7 +80,7 @@ async function retrieveIncident(event: ResendEvent, apiKey: string): Promise<{ i
 
 export async function POST(request: Request) {
   try {
-    const { env } = await import("cloudflare:workers");
+    const { env } = await import("@/app/cf-env");
     const runtime = env as unknown as RuntimeEnv;
     if (!runtime.RESEND_API_KEY || !runtime.RESEND_WEBHOOK_SECRET || !runtime.DISPATCH_EMAIL_FROM || !runtime.DISPATCH_EMAIL_TO) {
       return Response.json({ error: "Dispatch email integration is not configured" }, { status: 503 });

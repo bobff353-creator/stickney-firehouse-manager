@@ -283,8 +283,8 @@ async function importApproved1204WeeklyCheck(db: Awaited<ReturnType<typeof getDa
 }
 
 async function getDatabaseBinding() {
-  const { env } = await import("cloudflare:workers");
-  return env.DB;
+  const { getD1 } = await import("./d1-libsql");
+  return getD1();
 }
 
 async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {

@@ -6,7 +6,7 @@ const defaultBaseUrl = "https://secure11.aladtec.com/stickneyfire/api/v3";
 type AladtecResponse<T> = { data?: T; access_token?: string };
 
 async function getRuntimeConfiguration() {
-  const { env } = await import("cloudflare:workers");
+  const { env } = await import("@/app/cf-env");
   const runtime = env as unknown as {
     ALADTEC_BASE_URL?: string;
     ALADTEC_CLIENT_ID?: string;

@@ -41,7 +41,7 @@ function optionalNumber(value: unknown) {
 
 export async function POST(request: Request) {
   try {
-    const { env } = await import("cloudflare:workers");
+    const { env } = await import("@/app/cf-env");
     const token = (env as unknown as RuntimeEnv).DISPATCH_BRIDGE_READ_TOKEN || "";
     const authorization = request.headers.get("authorization") || "";
     if (!token || !safeEqual(authorization, `Bearer ${token}`)) {

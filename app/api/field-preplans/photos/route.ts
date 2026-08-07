@@ -5,7 +5,7 @@ const ownerAdminEmails = ["bobff353@gmail.com"];
 const sides = new Set(["A","B","C","D","FEATURE","OVERVIEW"]);
 
 async function runtime() {
-  const { env } = await import("cloudflare:workers");
+  const { env } = await import("@/app/cf-env");
   return env as unknown as { BUCKET?:Bucket };
 }
 

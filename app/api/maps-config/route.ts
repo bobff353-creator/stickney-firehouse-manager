@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const { env } = await import("cloudflare:workers");
+    const { env } = await import("@/app/cf-env");
     const runtime = env as unknown as Runtime;
     const apiKey = runtime["Maps Platform API Key"]?.trim() ?? "";
     return Response.json(

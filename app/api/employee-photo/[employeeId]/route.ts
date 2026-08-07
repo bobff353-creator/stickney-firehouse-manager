@@ -11,7 +11,7 @@ type PhotoBucket = {
 };
 
 async function bucket() {
-  const { env } = await import("cloudflare:workers");
+  const { env } = await import("@/app/cf-env");
   const value = (env as unknown as { BUCKET?: PhotoBucket }).BUCKET;
   if (!value) throw new Error("Employee photo storage is unavailable");
   return value;

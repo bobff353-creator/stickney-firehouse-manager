@@ -35,7 +35,7 @@ async function resendGet(path: string, apiKey: string) {
 }
 
 export async function syncRecentResendDispatches(db: Database) {
-  const { env } = await import("cloudflare:workers");
+  const { env } = await import("@/app/cf-env");
   const runtime = env as unknown as RuntimeEnv;
   if (!runtime.RESEND_API_KEY || !runtime.DISPATCH_EMAIL_FROM || !runtime.DISPATCH_EMAIL_TO) return;
 

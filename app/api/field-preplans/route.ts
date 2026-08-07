@@ -43,7 +43,7 @@ async function mapsKey() {
     || process.env["Maps Platform API Key"]?.trim();
   if (processKey) return processKey;
   try {
-    const { env } = await import("cloudflare:workers");
+    const { env } = await import("@/app/cf-env");
     const runtime = env as unknown as Record<string,string|undefined>;
     return runtime.GOOGLE_MAPS_GEOCODING_KEY?.trim()
       || runtime.GOOGLE_MAPS_STREET_VIEW_KEY?.trim()
