@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { normalizeScheduleTime } from "./schedule-time";
 
 type TestMember = { id: string; name: string; rank: string; effectivePermissions: string[] };
@@ -69,6 +69,7 @@ const shiftColorHex: Record<string, string> = {
   red: "#ef3340", black: "#2d3744", gold: "#f0a51a", blue: "#3182bd",
   green: "#22a55b", purple: "#805ad5", orange: "#ed8936",
 };
+const shiftTextColor = (color: string) => ["gold", "orange", "green"].includes(color) ? "#111827" : "#ffffff";
 const monthTitle = (value: string) => new Date(`${value.slice(0, 7)}-01T12:00:00`).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 const fourDigitTime = (value: string) => value.replace(":", "").slice(0, 4);
 
@@ -192,11 +193,16 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
   const [rotationPaused, setRotationPaused] = useState(false);
   const myId = data.viewer.employeeId;
   const eligibleRoles = data.viewer.roles;
+  const activeShiftIds = useMemo(() => new Set(data.shiftTypes.filter((shift) => shift.active).map((shift) => shift.id)), [data.shiftTypes]);
   const entriesByDate = useMemo(() => {
     const grouped = new Map<string, Entry[]>();
-    for (const entry of data.entries) grouped.set(entry.entryDate, [...(grouped.get(entry.entryDate) ?? []), entry]);
+    const datesWithActiveBuiltShifts = new Set(data.entries.filter((entry) => activeShiftIds.has(entry.shiftTypeId)).map((entry) => entry.entryDate));
+    for (const entry of data.entries) {
+      if (datesWithActiveBuiltShifts.has(entry.entryDate) && !activeShiftIds.has(entry.shiftTypeId)) continue;
+      grouped.set(entry.entryDate, [...(grouped.get(entry.entryDate) ?? []), entry]);
+    }
     return grouped;
-  }, [data.entries]);
+  }, [activeShiftIds, data.entries]);
   const slotsByDate = useMemo(() => {
     const grouped = new Map<string, Slot[]>();
     for (const slot of data.slots) grouped.set(slot.entryDate, [...(grouped.get(slot.entryDate) ?? []), slot]);
@@ -210,6 +216,7 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
   const dateForDay = (day: number) => `${monthKey}-${String(day).padStart(2, "0")}`;
   const changeMonth = (delta: number) => {
     const next = new Date(firstDay.getFullYear(), firstDay.getMonth() + delta, 1, 12);
+    setRotationIndex(0);
     setSelectedDate(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-01`);
   };
 
@@ -218,8 +225,6 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
     const timer = window.setInterval(() => setRotationIndex((current) => current + 1), 12_000);
     return () => window.clearInterval(timer);
   }, [rotationPaused]);
-
-  useEffect(() => { setRotationIndex(0); }, [monthKey]);
 
   return (
     <div className="scheduler-grid">
@@ -250,11 +255,17 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
               const hasOpen = visibleSlots.some((slot) => slot.status === "open");
               const coverageSummary = visibleSlots.map((slot) => slot.status === "open" ? `Open ${slot.role}` : `${employeeName(slot.employeeId)} assigned ${slot.role}`).join(", ");
               const ariaLabel = [`Open ${friendlyDate(date)}`, shift?.name, coverageSummary].filter(Boolean).join("; ");
-              return <button type="button" role="gridcell" key={date} className={`${date === selectedDate ? "selected " : ""}${date === data.today ? "today" : ""}`} onClick={() => setSelectedDate(date)} aria-label={ariaLabel}>
+              const shiftHex = shift ? (shiftColorHex[shift.color] ?? shift.color) : "";
+              const calendarStyle = shift ? {
+                "--calendar-shift-color": shiftHex,
+                "--calendar-shift-tint": `${shiftHex}30`,
+                "--calendar-shift-text": shiftTextColor(shift.color),
+              } as CSSProperties : undefined;
+              return <button type="button" role="gridcell" key={date} style={calendarStyle} className={`${date === selectedDate ? "selected " : ""}${date === data.today ? "today " : ""}${shift ? "calendar-has-shift" : ""}`} onClick={() => setSelectedDate(date)} aria-label={ariaLabel}>
                 <span className="calendar-day-number">{day}{hasOpen && <i className="open-dot" />}</span>
                 {visibleEntry && shift ? (
-                  <span className="calendar-shift-summary" style={{ borderColor: shiftColorHex[shift.color] ?? shift.color }}>
-                    <strong style={{ color: shiftColorHex[shift.color] ?? shift.color }}>
+                  <span className="calendar-shift-summary">
+                    <strong>
                       <span>{shift.name}</span>
                       <small>{shift.startTime}–{shift.endTime}</small>
                     </strong>

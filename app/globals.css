@@ -1991,14 +1991,15 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .scheduler-weekdays { margin-bottom: 6px; }
 .scheduler-weekdays span { padding: 4px 0; color: #7f8a98; text-align: center; font-size: 9px; font-weight: 750; text-transform: uppercase; }
 .scheduler-month > button, .scheduler-month .calendar-blank { min-width: 0; min-height: 132px; padding: 7px; border: 1px solid #2e3a49; border-radius: 6px; background: #1c2634; color: #e7edf3; display: flex; flex-direction: column; align-items: stretch; gap: 6px; text-align: left; }
+.scheduler-month > button.calendar-has-shift { border-top: 5px solid var(--calendar-shift-color); background: linear-gradient(150deg, var(--calendar-shift-tint) 0%, #1c2634 62%); }
 .scheduler-month > button:hover { border-color: #617188; }
-.scheduler-month > button.selected { border-color: var(--sched-red); box-shadow: inset 0 0 0 1px var(--sched-red); }
+.scheduler-month > button.selected { border-color: var(--sched-red); border-top-color: var(--calendar-shift-color, var(--sched-red)); box-shadow: inset 0 0 0 1px var(--sched-red); }
 .scheduler-month > button.today > span:first-child { color: #ff6f79; font-weight: 900; }
 .scheduler .calendar-day-number { min-height: 18px; color: #f3f6fa; display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 900; }
-.scheduler .calendar-shift-summary { min-width: 0; flex: 1; padding-left: 6px; border-left: 3px solid; display: grid; align-content: start; gap: 5px; }
-.scheduler .calendar-shift-summary > strong { min-width: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 5px; font-size: 10px; }
+.scheduler .calendar-shift-summary { min-width: 0; flex: 1; display: grid; align-content: start; gap: 5px; }
+.scheduler .calendar-shift-summary > strong { min-width: 0; padding: 4px 6px; border-radius: 4px; background: var(--calendar-shift-color); color: var(--calendar-shift-text); display: flex; justify-content: space-between; align-items: baseline; gap: 5px; font-size: 10px; }
 .scheduler .calendar-shift-summary > strong span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.scheduler .calendar-shift-summary > strong small { flex: 0 0 auto; color: #9eabb8; font-size: 7px; font-weight: 700; }
+.scheduler .calendar-shift-summary > strong small { flex: 0 0 auto; color: inherit; opacity: .82; font-size: 7px; font-weight: 800; }
 .scheduler .calendar-shift-slots { min-width: 0; display: grid; gap: 2px; }
 .scheduler .calendar-slot { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 4px; color: #dce5ed; font-size: 8px; line-height: 1.2; }
 .scheduler .calendar-slot b { min-width: 0; overflow: hidden; color: #f6f8fb; text-overflow: ellipsis; white-space: nowrap; font-size: inherit; }

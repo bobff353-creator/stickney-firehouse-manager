@@ -60,6 +60,9 @@ test("scheduler uses the scoped Stickney mobile workspace instead of prototype b
   assert.equal(component.includes("calendar-shift-summary"), true, "calendar shows the active shift and its staffing");
   assert.equal(component.includes('slot.status === "open" ? "OPEN"'), true, "calendar labels open roles clearly");
   assert.equal(component.includes("Pause rotation"), true, "automatic rotation can be paused");
+  assert.equal(component.includes("datesWithActiveBuiltShifts"), true, "active Shift Builder entries take priority over retired imported overlaps");
+  assert.equal(component.includes('"--calendar-shift-color"'), true, "calendar days inherit their saved Shift Builder color");
+  assert.equal(styles.includes("button.calendar-has-shift"), true, "the saved shift color is visible across the day card");
   assert.equal(styles.includes(".workspace:has(.scheduler)"), true, "scheduler uses the available workspace width");
   assert.equal(styles.includes("@media (max-width: 390px)"), true);
 });
