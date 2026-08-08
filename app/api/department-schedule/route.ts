@@ -12,7 +12,7 @@ export async function GET() {
     const now = chicagoOperationalContext();
     const range = scheduleQueryDates(now.calendarDate);
     const assignments = await db.prepare(
-      "SELECT s.id,s.employee_id AS employeeId,e.name AS employeeName,en.entry_date AS workDate,t.start_time AS startTime,t.end_time AS endTime,s.role,'station' AS source,'assigned' AS status FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id JOIN employees e ON e.id=s.employee_id WHERE s.status='filled' AND en.entry_date BETWEEN ? AND ? ORDER BY en.entry_date,t.start_time,e.name COLLATE NOCASE",
+      "SELECT s.id,s.employee_id AS employeeId,e.name AS employeeName,en.entry_date AS workDate,COALESCE(NULLIF(s.start_time,''),t.start_time) AS startTime,COALESCE(NULLIF(s.end_time,''),t.end_time) AS endTime,s.role,'station' AS source,'assigned' AS status FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id JOIN employees e ON e.id=s.employee_id WHERE s.status='filled' AND en.entry_date BETWEEN ? AND ? ORDER BY en.entry_date,COALESCE(NULLIF(s.start_time,''),t.start_time),e.name COLLATE NOCASE",
     ).bind(range.startDate, range.endDate).all<DepartmentScheduleAssignment>();
     const items = next24DepartmentSchedule(assignments.results, now.calendarDate, now.minutes);
     return Response.json({

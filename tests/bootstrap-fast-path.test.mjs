@@ -7,7 +7,7 @@ const source = await readFile(new URL("../db/bootstrap.ts", import.meta.url), "u
 test("database bootstrap uses a durable version fast path and applies new schema once", () => {
   assert.match(source, /runtime_bootstrap_version/);
   assert.match(source, /marker\?\.value === runtimeBootstrapVersion/);
-  assert.match(source, /station-scheduler-v2/);
+  assert.match(source, /station-scheduler-v3/);
   assert.match(source, /A stale \(or missing\) runtime marker falls through to initializeDatabase/);
   assert.match(source, /if \(ready\) return db/);
   assert.doesNotMatch(source, /if \(ready\) \{[\s\S]*?importApproved1203WeeklyCheck/);

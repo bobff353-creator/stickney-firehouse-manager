@@ -425,6 +425,9 @@ export const stationShiftSlots = sqliteTable("station_shift_slots", {
   employeeId: text("employee_id").references(() => employees.id),
   status: text("status").notNull().default("open"), // open | filled
   sortOrder: integer("sort_order").notNull().default(0),
+  startTime: text("start_time").notNull().default(""),
+  endTime: text("end_time").notNull().default(""),
+  isExtra: integer("is_extra").notNull().default(0),
 }, (table) => [
   index("station_shift_slot_entry_idx").on(table.entryId, table.sortOrder),
   index("station_shift_slot_employee_idx").on(table.employeeId),

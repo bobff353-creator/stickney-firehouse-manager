@@ -67,7 +67,7 @@ const employeeSeed = [
 ] as const;
 
 let ready = false;
-const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-07-station-scheduler-v2";
+const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-08-station-scheduler-v3";
 
 const policySeedVersion = "stickney-policy-library-2026-07-18";
 const boxCardSeedVersion = "regional-box-cards-structured-2026-07-21-v2";
@@ -376,7 +376,7 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
     db.prepare("CREATE TABLE IF NOT EXISTS station_shift_type_roles (id TEXT PRIMARY KEY NOT NULL, shift_type_id TEXT NOT NULL REFERENCES station_shift_types(id), role TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 1, UNIQUE(shift_type_id, role))"),
     db.prepare("CREATE TABLE IF NOT EXISTS station_schedule_entries (id TEXT PRIMARY KEY NOT NULL, entry_date TEXT NOT NULL, shift_type_id TEXT NOT NULL REFERENCES station_shift_types(id), created_by TEXT NOT NULL DEFAULT 'System', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(entry_date, shift_type_id))"),
     db.prepare("CREATE INDEX IF NOT EXISTS station_schedule_entry_date_idx ON station_schedule_entries(entry_date)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS station_shift_slots (id TEXT PRIMARY KEY NOT NULL, entry_id TEXT NOT NULL REFERENCES station_schedule_entries(id), role TEXT NOT NULL, employee_id TEXT REFERENCES employees(id), status TEXT NOT NULL DEFAULT 'open', sort_order INTEGER NOT NULL DEFAULT 0)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_shift_slots (id TEXT PRIMARY KEY NOT NULL, entry_id TEXT NOT NULL REFERENCES station_schedule_entries(id), role TEXT NOT NULL, employee_id TEXT REFERENCES employees(id), status TEXT NOT NULL DEFAULT 'open', sort_order INTEGER NOT NULL DEFAULT 0, start_time TEXT NOT NULL DEFAULT '', end_time TEXT NOT NULL DEFAULT '', is_extra INTEGER NOT NULL DEFAULT 0)"),
     db.prepare("CREATE INDEX IF NOT EXISTS station_shift_slot_entry_idx ON station_shift_slots(entry_id, sort_order)"),
     db.prepare("CREATE INDEX IF NOT EXISTS station_shift_slot_employee_idx ON station_shift_slots(employee_id)"),
     db.prepare("CREATE TABLE IF NOT EXISTS station_standing_assignments (id TEXT PRIMARY KEY NOT NULL, employee_id TEXT NOT NULL REFERENCES employees(id), shift_type_id TEXT NOT NULL REFERENCES station_shift_types(id), role TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_by TEXT NOT NULL DEFAULT 'System', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(employee_id, shift_type_id, role))"),
@@ -428,6 +428,9 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
   try { await db.prepare("ALTER TABLE field_preplan_imports ADD COLUMN latitude REAL").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE field_preplan_imports ADD COLUMN longitude REAL").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE field_preplan_imports ADD COLUMN geocode_note TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE station_shift_slots ADD COLUMN start_time TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE station_shift_slots ADD COLUMN end_time TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE station_shift_slots ADD COLUMN is_extra INTEGER NOT NULL DEFAULT 0").run(); } catch { /* Column already exists after migration. */ }
   await backfillPreplanFootprintMetrics(db);
   await db.batch([
     ["shift_request", "Shift requests", 1, 1, 0, '["immediate"]'],

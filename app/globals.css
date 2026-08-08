@@ -2012,6 +2012,32 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .scheduler-day-card .entry-head input { width: 155px; }
 .scheduler-day-card .entry-head h3 { margin: 0; }
 .scheduler .add-day-shift { margin: 14px 0; }
+.scheduler .scheduler-day-backdrop { position: fixed; inset: 0; z-index: 1200; padding: 28px; background: rgba(3, 9, 15, .78); display: grid; place-items: center; }
+.scheduler .scheduler-day-dialog { width: min(980px, 100%); max-height: min(850px, calc(100vh - 56px)); overflow: hidden; border: 1px solid #425268; border-radius: 12px; background: var(--sched-panel); box-shadow: 0 24px 80px rgba(0, 0, 0, .55); color: var(--sched-text); display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.scheduler .scheduler-day-dialog-head { padding: 17px 18px; border-bottom: 1px solid var(--sched-line); background: #101923; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.scheduler .scheduler-day-dialog-head > div:first-child { display: grid; gap: 3px; }
+.scheduler .scheduler-day-dialog-head > div:last-child { display: flex; align-items: center; gap: 8px; }
+.scheduler .scheduler-day-dialog-head h3 { margin: 0; }
+.scheduler .scheduler-day-dialog-head input { width: 158px; }
+.scheduler .scheduler-day-close { width: 43px; min-width: 43px; padding: 0; border-color: #4a5a6d; background: transparent; color: #fff; font-size: 25px; }
+.scheduler .scheduler-day-dialog-body { min-height: 0; padding: 0 18px 20px; overflow-y: auto; overscroll-behavior: contain; }
+.scheduler .scheduler-day-empty { margin: 18px 0 0; padding: 24px; border: 1px dashed #445267; border-radius: 8px; background: #111a24; color: var(--sched-muted); text-align: center; }
+.scheduler .scheduler-day-entry { border-left-width: 5px; border-left-style: solid; }
+.scheduler .scheduler-day-slots > li { align-items: end; }
+.scheduler .scheduler-position-summary { min-width: 170px; margin-right: auto; display: grid; gap: 4px; }
+.scheduler .scheduler-position-summary .slot-role { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.scheduler .slot-time { color: #b7c2cd; font-size: 12px; font-weight: 800; }
+.scheduler .one-day-badge { padding: 3px 6px; border-radius: 999px; background: #204965; color: #bce5ff; font-size: 9px; letter-spacing: .04em; text-transform: uppercase; }
+.scheduler label.scheduler-employee-select { flex: 1 1 300px; margin: 0; }
+.scheduler .extra-position-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.scheduler .add-one-day-position { width: 100%; margin-top: 11px; border-style: dashed; border-color: #607187; background: #121c27; color: #d8e4ee; }
+.scheduler .day-position-form { margin-top: 11px; padding: 14px; border: 1px solid #415168; border-radius: 7px; background: #111a24; }
+.scheduler .day-position-form.compact { width: 100%; margin-top: 3px; }
+.scheduler .day-position-form h4 { margin-bottom: 11px; }
+.scheduler .day-position-fields { display: grid; grid-template-columns: minmax(180px, 1.2fr) repeat(2, minmax(115px, .55fr)) minmax(220px, 1.4fr); gap: 9px; }
+.scheduler .day-position-fields label { margin-bottom: 8px; }
+.scheduler .day-position-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.scheduler .day-position-form .form-help { margin: 2px 0 10px; }
 .scheduler .shift-type-list { display: grid; gap: 8px; }
 .scheduler .shift-type-list > h3 { margin-bottom: 4px; }
 .scheduler .shift-type-card { margin: 0; border-left-width: 3px; border-left-style: solid; }
@@ -2062,6 +2088,14 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
   .scheduler-month-head h3 { font-size: 17px; }
   .scheduler-day-card .entry-head { align-items: end; }
   .scheduler-day-card .entry-head input { width: 132px; }
+  .scheduler .scheduler-day-backdrop { padding: 0; place-items: stretch; }
+  .scheduler .scheduler-day-dialog { width: 100%; max-height: 100dvh; border: 0; border-radius: 0; }
+  .scheduler .scheduler-day-dialog-head { padding: max(12px, env(safe-area-inset-top)) 12px 12px; align-items: flex-start; }
+  .scheduler .scheduler-day-dialog-head > div:last-child { align-items: stretch; }
+  .scheduler .scheduler-day-dialog-head input { width: 138px; }
+  .scheduler .scheduler-day-dialog-body { padding: 0 12px calc(90px + env(safe-area-inset-bottom)); }
+  .scheduler .day-position-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .scheduler .scheduler-position-summary, .scheduler label.scheduler-employee-select { flex-basis: 100%; }
   .scheduler .inline-form > *, .scheduler .inline-form > button { flex: 1 1 100%; }
   .scheduler .entry-head { align-items: flex-start; }
   .scheduler .entry-head > span { text-align: right; }
@@ -2084,4 +2118,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
   .scheduler-tabs button { font-size: 11px; }
   .scheduler-month > button, .scheduler-month .calendar-blank { min-height: 61px; }
   .scheduler-legend span { font-size: 9px; }
+  .scheduler .scheduler-day-dialog-head { flex-direction: column; }
+  .scheduler .scheduler-day-dialog-head > div:last-child { width: 100%; }
+  .scheduler .scheduler-day-dialog-head input { flex: 1; width: auto; }
+  .scheduler .day-position-fields { grid-template-columns: 1fr; }
 }

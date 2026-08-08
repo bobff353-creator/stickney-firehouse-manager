@@ -8,12 +8,12 @@ type TestMember = { id: string; name: string; rank: string; effectivePermissions
 type Employee = {
   id: string; name: string; rank: string; roles: string;
   otHours?: number; mandatoryHours?: number; hoursThisPeriod?: number;
-  notifyEmail?: number; notifyText?: number; startDate?: string;
+  notifyEmail?: number; notifyText?: number; startDate?: string; actingOfficerEligible?: number;
 };
 type ShiftType = { id: string; name: string; startTime: string; endTime: string; anchorDate: string; repeatEveryDays: number; color: string; active: number; sortOrder: number };
 type ShiftTypeRole = { id: string; shiftTypeId: string; role: string; count: number };
 type Entry = { id: string; entryDate: string; shiftTypeId: string };
-type Slot = { id: string; entryId: string; role: string; employeeId: string | null; employeeName?: string; status: string; sortOrder: number; entryDate: string; shiftTypeId: string };
+type Slot = { id: string; entryId: string; role: string; employeeId: string | null; employeeName?: string; status: string; sortOrder: number; startTime: string; endTime: string; isExtra: number; entryDate: string; shiftTypeId: string };
 type Standing = { id: string; employeeId: string; employeeName: string; shiftTypeId: string; role: string; active: number };
 type Trade = { id: string; slotId: string; role: string; fromEmployeeId: string; fromEmployeeName: string; targetEmployeeId: string | null; targetEmployeeName?: string; acceptedByEmployeeId: string | null; note: string; status: string; createdAt: string; entryDate: string };
 type Claim = { id: string; slotId: string; role: string; employeeId: string; employeeName: string; note: string; status: string; createdAt: string; entryDate: string };
@@ -72,6 +72,11 @@ const shiftColorHex: Record<string, string> = {
 const shiftTextColor = (color: string) => ["gold", "orange", "green"].includes(color) ? "#111827" : "#ffffff";
 const monthTitle = (value: string) => new Date(`${value.slice(0, 7)}-01T12:00:00`).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 const fourDigitTime = (value: string) => value.replace(":", "").slice(0, 4);
+const employeeEligibleForRole = (employee: Employee, role: string) => {
+  if (!parseRoles(employee.roles).includes(role)) return false;
+  if (role !== "Officer/AO") return true;
+  return /\b(chief|captain|lieutenant)\b/i.test(employee.rank) || Boolean(employee.actingOfficerEligible);
+};
 
 export default function StationScheduler({ testMember = null }: { testMember?: TestMember | null }) {
   const [data, setData] = useState<Data | null>(null);
@@ -191,6 +196,7 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
   const [newShiftType, setNewShiftType] = useState("");
   const [rotationIndex, setRotationIndex] = useState(0);
   const [rotationPaused, setRotationPaused] = useState(false);
+  const [dayViewOpen, setDayViewOpen] = useState(false);
   const myId = data.viewer.employeeId;
   const eligibleRoles = data.viewer.roles;
   const activeShiftIds = useMemo(() => new Set(data.shiftTypes.filter((shift) => shift.active).map((shift) => shift.id)), [data.shiftTypes]);
@@ -225,6 +231,18 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
     const timer = window.setInterval(() => setRotationIndex((current) => current + 1), 12_000);
     return () => window.clearInterval(timer);
   }, [rotationPaused]);
+
+  useEffect(() => {
+    if (!dayViewOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setDayViewOpen(false); };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [dayViewOpen]);
 
   return (
     <div className="scheduler-grid">
@@ -261,7 +279,7 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
                 "--calendar-shift-tint": `${shiftHex}30`,
                 "--calendar-shift-text": shiftTextColor(shift.color),
               } as CSSProperties : undefined;
-              return <button type="button" role="gridcell" key={date} style={calendarStyle} className={`${date === selectedDate ? "selected " : ""}${date === data.today ? "today " : ""}${shift ? "calendar-has-shift" : ""}`} onClick={() => setSelectedDate(date)} aria-label={ariaLabel}>
+              return <button type="button" role="gridcell" key={date} style={calendarStyle} className={`${date === selectedDate ? "selected " : ""}${date === data.today ? "today " : ""}${shift ? "calendar-has-shift" : ""}`} onClick={() => { setSelectedDate(date); setDayViewOpen(true); }} aria-label={ariaLabel}>
                 <span className="calendar-day-number">{day}{hasOpen && <i className="open-dot" />}</span>
                 {visibleEntry && shift ? (
                   <span className="calendar-shift-summary">
@@ -273,7 +291,7 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
                       {visibleSlots.map((slot) => (
                         <span key={slot.id} className={slot.status === "open" ? "calendar-slot open" : "calendar-slot"}>
                           <b>{slot.status === "open" ? "OPEN" : (employeeName(slot.employeeId) || "Assigned")}</b>
-                          <small>{slot.role}</small>
+                          <small>{slot.role}{slot.isExtra ? ` · ${slot.startTime}–${slot.endTime}` : ""}</small>
                         </span>
                       ))}
                     </span>
@@ -286,52 +304,121 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
         </div>
       </section>
 
-      <section className="wide scheduler-day-card">
-        <div className="entry-head"><div><span className="section-kicker">Selected day</span><h3>{friendlyDate(selectedDate)}</h3></div><input aria-label="Choose another date" type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} /></div>
-        {isAdmin && <div className="inline-form add-day-shift">
-          <select aria-label="Shift type to add" value={newShiftType} onChange={(e) => setNewShiftType(e.target.value)}>
-            <option value="">Add a shift to this day…</option>
-            {data.shiftTypes.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.name} · {s.startTime}–{s.endTime}</option>)}
-          </select>
-          <button disabled={busy || !newShiftType} onClick={async () => { await act({ action: "createEntry", date: selectedDate, shiftTypeId: newShiftType }); setNewShiftType(""); }}>Add shift</button>
-        </div>}
-        {!daySlots.length && <p className="muted">No shifts scheduled for this day.</p>}
-        {(entriesByDate.get(selectedDate) ?? []).map((entry) => {
-          const slots = daySlots.filter((s) => s.entryId === entry.id);
-          return (
-            <div key={entry.id} className="entry-card">
-              <div className="entry-head">
-                <strong>{shiftTypeName(entry.shiftTypeId)}</strong>
-                {isAdmin && <button className="link danger" disabled={busy} onClick={() => act({ action: "deleteEntry", entryId: entry.id })}>Remove</button>}
+      {dayViewOpen && (
+        <div className="scheduler-day-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDayViewOpen(false); }}>
+          <section className="scheduler-day-dialog scheduler-day-card" role="dialog" aria-modal="true" aria-labelledby="scheduler-day-title">
+            <header className="scheduler-day-dialog-head">
+              <div><span className="section-kicker">Day schedule</span><h3 id="scheduler-day-title">{friendlyDate(selectedDate)}</h3></div>
+              <div>
+                <input aria-label="Choose another date" type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
+                <button type="button" className="scheduler-day-close" aria-label="Close day view" autoFocus onClick={() => setDayViewOpen(false)}>×</button>
               </div>
-              <ul className="slot-list">
-                {slots.map((slot) => {
-                  const award = data.awardBySlot[slot.id];
-                  const canClaim = !isAdmin && slot.status === "open" && eligibleRoles.includes(slot.role);
-                  const canTrade = !isAdmin && slot.status === "filled" && slot.employeeId === myId;
-                  return (
-                    <li key={slot.id} className={slot.status === "open" ? `open${award?.window === "overdue" ? " urgent" : ""}` : ""}>
-                      <span className="slot-role">{slot.role}</span>
-                      <span className="slot-holder">{slot.status === "filled" ? employeeName(slot.employeeId) : (award ? windowLabel[award.window] : "Open")}</span>
-                      {isAdmin && slot.status === "open" && (
-                        <select disabled={busy} defaultValue="" onChange={(e) => e.target.value && act({ action: "assignSlot", slotId: slot.id, employeeId: e.target.value })}>
-                          <option value="">Assign…</option>
-                          {data.employees.filter((emp) => parseRoles(emp.roles).includes(slot.role)).map((emp) => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
-                        </select>
-                      )}
-                      {isAdmin && slot.status === "filled" && <button className="link" disabled={busy} onClick={() => act({ action: "clearSlot", slotId: slot.id })}>Clear</button>}
-                      {canClaim && <button className="link" disabled={busy} onClick={() => act({ action: "submitClaim", slotId: slot.id })}>Request</button>}
-                      {canTrade && <button className="link" disabled={busy} onClick={() => act({ action: "submitTrade", slotId: slot.id, targetEmployeeId: "" })}>Offer trade</button>}
-                    </li>
-                  );
-                })}
-              </ul>
+            </header>
+            <div className="scheduler-day-dialog-body">
+              {isAdmin && <div className="inline-form add-day-shift">
+                <select aria-label="Shift type to add" value={newShiftType} onChange={(e) => setNewShiftType(e.target.value)}>
+                  <option value="">Add a built shift to this day…</option>
+                  {data.shiftTypes.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.name} · {s.startTime}–{s.endTime}</option>)}
+                </select>
+                <button disabled={busy || !newShiftType} onClick={async () => { await act({ action: "createEntry", date: selectedDate, shiftTypeId: newShiftType }); setNewShiftType(""); }}>Add shift</button>
+              </div>}
+              {!daySlots.length && <p className="scheduler-day-empty">No shifts scheduled for this day.{isAdmin ? " Add a built shift above to begin." : ""}</p>}
+              {(entriesByDate.get(selectedDate) ?? []).map((entry) => {
+                const slots = daySlots.filter((s) => s.entryId === entry.id);
+                const shift = data.shiftTypes.find((item) => item.id === entry.shiftTypeId);
+                return (
+                  <div key={entry.id} className="entry-card scheduler-day-entry" style={{ borderLeftColor: shiftColorHex[shift?.color ?? ""] ?? shift?.color }}>
+                    <div className="entry-head">
+                      <div><strong>{shiftTypeName(entry.shiftTypeId)}</strong><span>{shift?.startTime}–{shift?.endTime}</span></div>
+                      {isAdmin && <button className="link danger" disabled={busy} onClick={() => act({ action: "deleteEntry", entryId: entry.id })}>Remove shift</button>}
+                    </div>
+                    <ul className="slot-list scheduler-day-slots">
+                      {slots.map((slot) => {
+                        const award = data.awardBySlot[slot.id];
+                        const canClaim = !isAdmin && slot.status === "open" && eligibleRoles.includes(slot.role);
+                        const canTrade = !isAdmin && slot.status === "filled" && slot.employeeId === myId;
+                        const eligibleEmployees = data.employees.filter((employee) => employeeEligibleForRole(employee, slot.role));
+                        const currentEmployee = data.employees.find((employee) => employee.id === slot.employeeId);
+                        const assignableEmployees = currentEmployee && !eligibleEmployees.some((employee) => employee.id === currentEmployee.id) ? [currentEmployee, ...eligibleEmployees] : eligibleEmployees;
+                        return (
+                          <li key={slot.id} className={slot.status === "open" ? `open${award?.window === "overdue" ? " urgent" : ""}` : ""}>
+                            <div className="scheduler-position-summary">
+                              <span className="slot-role">{slot.role}{slot.isExtra ? <b className="one-day-badge">One-day position</b> : null}</span>
+                              <span className="slot-time">{slot.startTime}–{slot.endTime}</span>
+                              {!isAdmin && <span className="slot-holder">{slot.status === "filled" ? employeeName(slot.employeeId) : (award ? windowLabel[award.window] : "Open")}</span>}
+                            </div>
+                            {isAdmin && <label className="scheduler-employee-select"><span>Assigned employee</span><select aria-label={`Assigned employee for ${slot.role}`} disabled={busy} value={slot.employeeId ?? ""} onChange={(e) => e.target.value ? act({ action: "assignSlot", slotId: slot.id, employeeId: e.target.value }) : act({ action: "clearSlot", slotId: slot.id })}>
+                              <option value="">Open position</option>
+                              {assignableEmployees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name} · {employee.rank}</option>)}
+                            </select></label>}
+                            {isAdmin && Boolean(slot.isExtra) && <ExtraDaySlotEditor key={`${slot.id}-${slot.role}-${slot.startTime}-${slot.endTime}-${slot.employeeId ?? ""}`} slot={slot} roles={data.roles} employees={data.employees} act={act} busy={busy} />}
+                            {canClaim && <button className="link" disabled={busy} onClick={() => act({ action: "submitClaim", slotId: slot.id })}>Request</button>}
+                            {canTrade && <button className="link" disabled={busy} onClick={() => act({ action: "submitTrade", slotId: slot.id, targetEmployeeId: "" })}>Offer trade</button>}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    {isAdmin && <DayPositionForm entryId={entry.id} defaultStart={shift?.startTime ?? "0600"} defaultEnd={shift?.endTime ?? "0600"} roles={data.roles} employees={data.employees} act={act} busy={busy} />}
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
-      </section>
+          </section>
+        </div>
+      )}
     </div>
   );
+}
+
+function DayPositionForm({ entryId, defaultStart, defaultEnd, roles, employees, act, busy }: {
+  entryId: string; defaultStart: string; defaultEnd: string; roles: string[]; employees: Employee[];
+  act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [role, setRole] = useState(roles[0] ?? "FF/Attendant");
+  const [startTime, setStartTime] = useState(fourDigitTime(defaultStart));
+  const [endTime, setEndTime] = useState(fourDigitTime(defaultEnd));
+  const [employeeId, setEmployeeId] = useState("");
+  const eligibleEmployees = employees.filter((employee) => employeeEligibleForRole(employee, role));
+  const save = async () => {
+    const result = await act({ action: "addDaySlot", entryId, role, startTime, endTime, employeeId });
+    if (result) { setOpen(false); setEmployeeId(""); }
+  };
+  if (!open) return <button type="button" className="add-one-day-position" onClick={() => setOpen(true)}>+ Add one-day position</button>;
+  return <div className="day-position-form">
+    <h4>Add position for this day only</h4>
+    <div className="day-position-fields">
+      <label><span>Position required</span><select value={role} onChange={(e) => { setRole(e.target.value); setEmployeeId(""); }}>{roles.map((item) => <option key={item}>{item}</option>)}</select></label>
+      <label><span>Start (24-hour)</span><input value={startTime} inputMode="numeric" maxLength={4} placeholder="0600" onChange={(e) => setStartTime(e.target.value.replace(/\D/g, "").slice(0, 4))} /></label>
+      <label><span>End (24-hour)</span><input value={endTime} inputMode="numeric" maxLength={4} placeholder="1800" onChange={(e) => setEndTime(e.target.value.replace(/\D/g, "").slice(0, 4))} /></label>
+      <label><span>Employee (optional)</span><select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)}><option value="">Post as open position</option>{eligibleEmployees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name} · {employee.rank}</option>)}</select></label>
+    </div>
+    <p className="form-help">This adds one position to this date only. It does not change the repeating shift or its minimum staffing.</p>
+    <div className="day-position-actions"><button type="button" className="link" onClick={() => setOpen(false)}>Cancel</button><button type="button" disabled={busy} onClick={save}>Post position</button></div>
+  </div>;
+}
+
+function ExtraDaySlotEditor({ slot, roles, employees, act, busy }: {
+  slot: Slot; roles: string[]; employees: Employee[]; act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [role, setRole] = useState(slot.role);
+  const [startTime, setStartTime] = useState(fourDigitTime(slot.startTime));
+  const [endTime, setEndTime] = useState(fourDigitTime(slot.endTime));
+  const [employeeId, setEmployeeId] = useState(slot.employeeId ?? "");
+  const eligibleEmployees = employees.filter((employee) => employeeEligibleForRole(employee, role));
+  const currentEmployee = employees.find((employee) => employee.id === employeeId);
+  const assignableEmployees = currentEmployee && !eligibleEmployees.some((employee) => employee.id === currentEmployee.id) ? [currentEmployee, ...eligibleEmployees] : eligibleEmployees;
+  if (!editing) return <div className="extra-position-actions"><button type="button" className="link" onClick={() => setEditing(true)}>Edit position</button><button type="button" className="link danger" disabled={busy} onClick={() => window.confirm("Remove this one-day position?") && act({ action: "deleteDaySlot", slotId: slot.id })}>Remove position</button></div>;
+  return <div className="day-position-form compact">
+    <div className="day-position-fields">
+      <label><span>Position</span><select value={role} onChange={(e) => { setRole(e.target.value); setEmployeeId(""); }}>{roles.map((item) => <option key={item}>{item}</option>)}</select></label>
+      <label><span>Start</span><input value={startTime} inputMode="numeric" maxLength={4} onChange={(e) => setStartTime(e.target.value.replace(/\D/g, "").slice(0, 4))} /></label>
+      <label><span>End</span><input value={endTime} inputMode="numeric" maxLength={4} onChange={(e) => setEndTime(e.target.value.replace(/\D/g, "").slice(0, 4))} /></label>
+      <label><span>Employee</span><select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)}><option value="">Open position</option>{assignableEmployees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name} · {employee.rank}</option>)}</select></label>
+    </div>
+    <div className="day-position-actions"><button type="button" className="link" onClick={() => setEditing(false)}>Cancel</button><button type="button" disabled={busy} onClick={async () => { const result = await act({ action: "updateDaySlot", slotId: slot.id, role, startTime, endTime, employeeId }); if (result) setEditing(false); }}>Save changes</button></div>
+  </div>;
 }
 
 function ShiftBuilder({ data, act, busy }: { data: Data; act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean }) {

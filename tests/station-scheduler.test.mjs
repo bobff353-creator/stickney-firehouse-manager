@@ -30,7 +30,7 @@ test("station scheduler tables exist in schema and bootstrap", async () => {
     assert.equal(bootstrap.includes(`CREATE TABLE IF NOT EXISTS ${table}`), true, `bootstrap creates ${table}`);
   }
   assert.equal(schema.includes('sqliteTable("station_shift_slots"'), true);
-  assert.equal(bootstrap.includes("station-scheduler-v2"), true, "bootstrap version bumped for shift recurrence");
+  assert.equal(bootstrap.includes("station-scheduler-v3"), true, "bootstrap version bumped for one-day positions");
   // Employee scheduler columns are added additively.
   assert.equal(bootstrap.includes("ADD COLUMN station_roles"), true);
   assert.equal(bootstrap.includes("ADD COLUMN station_ot_hours"), true);
@@ -109,6 +109,39 @@ test("consumers read filled station slots instead of legacy assignments", async 
   assert.equal(dept.includes("schedule_assignments"), false);
   assert.equal(logbook.includes("FROM station_shift_slots"), true);
   assert.equal(logbook.includes("schedule_assignments"), false);
+  assert.equal(dept.includes("COALESCE(NULLIF(s.start_time,''),t.start_time)"), true, "department schedule reads one-day position times");
+  assert.equal(logbook.includes("COALESCE(NULLIF(s.start_time,''),t.start_time)"), true, "Daily Log reads one-day position times");
+});
+
+test("calendar day view manages one-day openings and assignments without changing shift patterns", async () => {
+  const [component, route, schema, bootstrap, migration, styles] = await Promise.all([
+    read("../app/station-scheduler.tsx"),
+    read("../app/api/station-scheduler/route.ts"),
+    read("../db/schema.ts"),
+    read("../db/bootstrap.ts"),
+    read("../supabase/migrations/20260808020048_add_station_scheduler_day_positions.sql"),
+    read("../app/globals.css"),
+  ]);
+
+  assert.equal(component.includes('setDayViewOpen(true)'), true, "clicking a day opens its focused view");
+  assert.equal(component.includes('role="dialog"'), true);
+  assert.equal(component.includes("+ Add one-day position"), true);
+  assert.equal(component.includes("Start (24-hour)"), true);
+  assert.equal(component.includes("Post as open position"), true);
+  assert.equal(component.includes('value={slot.employeeId ?? ""}'), true, "admin can replace or clear a daily assignment");
+  assert.equal(styles.includes(".scheduler-day-dialog"), true);
+  assert.equal(styles.includes("max-height: 100dvh"), true, "day view remains usable on phones");
+
+  for (const source of [schema, bootstrap, migration]) {
+    assert.equal(source.includes("start_time"), true);
+    assert.equal(source.includes("end_time"), true);
+    assert.equal(source.includes("is_extra"), true);
+  }
+  for (const action of ["addDaySlot", "updateDaySlot", "deleteDaySlot"]) {
+    assert.equal(route.includes(`case "${action}"`), true, `action ${action}`);
+  }
+  assert.equal(route.includes("WHERE id=? AND is_extra=1"), true, "only one-day slots can be structurally edited or removed");
+  assert.equal(route.includes("isEligibleEmployeeForRole"), true, "assignment changes enforce role clearance");
 });
 
 test("OT logic exposes ranking, exemptions, award windows, and distribution", async () => {
@@ -132,6 +165,7 @@ test("API route implements the full admin and employee action set", async () => 
   const route = await read("../app/api/station-scheduler/route.ts");
   for (const action of [
     "saveShiftType", "createEntry", "assignSlot", "saveStandingAssignment", "reviewClaim", "reviewTrade",
+    "addDaySlot", "updateDaySlot", "deleteDaySlot",
     "reviewTimeOff", "saveOtSettings", "saveOtTiming", "saveDistributionWeights", "runAutoDistribution",
     "buildOtCallList", "awardOtOffer", "saveReminderRule", "submitClaim", "submitTrade", "respondTrade",
     "submitTimeOff", "setOtInterest", "respondOtOffer", "saveMyNotifyPrefs",
