@@ -56,6 +56,11 @@ test("scheduler uses the scoped Stickney mobile workspace instead of prototype b
   assert.equal(component.includes('disabled={busy} onClick={save}'), true, "save remains clickable so validation can explain missing fields");
   assert.equal(styles.includes("Stickney Station Scheduler - deliberately scoped"), true);
   assert.equal(styles.includes(".scheduler-month"), true);
+  assert.equal(component.includes("12_000"), true, "calendar rotates each day's visible shift every 12 seconds");
+  assert.equal(component.includes("calendar-shift-summary"), true, "calendar shows the active shift and its staffing");
+  assert.equal(component.includes('slot.status === "open" ? "OPEN"'), true, "calendar labels open roles clearly");
+  assert.equal(component.includes("Pause rotation"), true, "automatic rotation can be paused");
+  assert.equal(styles.includes(".workspace:has(.scheduler)"), true, "scheduler uses the available workspace width");
   assert.equal(styles.includes("@media (max-width: 390px)"), true);
 });
 
