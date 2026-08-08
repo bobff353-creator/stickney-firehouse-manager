@@ -156,10 +156,13 @@ test("scheduler date range casts stored text dates before Postgres comparison", 
 
 test("standing assignments synchronize future slots while preserving schedule history", async () => {
   const route = await read("../app/api/station-scheduler/route.ts");
-  assert.equal(route.includes("status='open' OR employee_id IN (SELECT employee_id FROM station_standing_assignments"), true, "a new standing assignment replaces a removed member in generated future slots");
+  assert.equal(route.includes("Math.max(requirement.count, fillers.length)"), true, "recurring shifts include staffed seats above the minimum");
+  assert.equal(route.includes("Math.max(req.count, fillers.length)"), true, "manually added shifts include staffed seats above the minimum");
+  assert.equal(route.includes("async function syncFutureStandingSlots"), true);
+  assert.equal(route.includes("INSERT INTO station_shift_slots(id,entry_id,role,employee_id,status,sort_order) VALUES(?,?,?,?,'filled',?)"), true, "a standing member receives an extra filled seat when minimum seats are occupied");
   assert.equal(route.includes("That standing assignment is no longer active."), true);
-  assert.equal(route.includes("SELECT employee_id employeeId FROM station_standing_assignments WHERE shift_type_id=? AND role=? AND active=1 ORDER BY created_at DESC LIMIT 1"), true, "removing a standing assignment selects the current replacement");
-  assert.equal(route.includes("WHERE employee_id=? AND role=? AND entry_id IN (SELECT id FROM station_schedule_entries WHERE shift_type_id=? AND entry_date>=?)"), true, "only matching future occurrences are synchronized");
+  assert.equal(route.includes("Number(count?.count ?? 0) > Number(minimum?.count ?? 0)"), true, "removing an extra standing member removes the extra seat without lowering the minimum");
+  assert.equal(route.includes("en.entry_date>=?"), true, "only matching future occurrences are synchronized");
   assert.equal(route.includes("INSERT INTO station_unavailability"), true);
 });
 

@@ -301,7 +301,8 @@ async function saveShiftType(db: Db, current: Viewer, payload: Record<string, un
     let sortOrder = 0;
     for (const requirement of normalized) {
       const fillers = standingByRole.get(requirement.role) ?? [];
-      for (let seat = 0; seat < requirement.count; seat += 1) {
+      // Role requirements are the minimum. Standing assignments may add staffed seats.
+      for (let seat = 0; seat < Math.max(requirement.count, fillers.length); seat += 1) {
         const employeeId = fillers[seat] ?? null;
         slotRows.push([crypto.randomUUID(), entryId, requirement.role, employeeId, employeeId ? "filled" : "open", sortOrder]);
         sortOrder += 1;
@@ -346,6 +347,42 @@ async function loadStandingByRole(db: Db, shiftTypeId: string) {
   return standingByRole;
 }
 
+async function runWritesChunked(db: Db, writes: Array<ReturnType<Db["prepare"]>>, chunkSize = 50) {
+  for (let index = 0; index < writes.length; index += chunkSize) await db.batch(writes.slice(index, index + chunkSize));
+}
+
+/** Keep future generated seats aligned with every active standing member, including extras above the minimum. */
+async function syncFutureStandingSlots(db: Db, shiftTypeId: string, role: string, fromDate: string) {
+  const standing = (await db.prepare("SELECT sa.employee_id employeeId FROM station_standing_assignments sa JOIN employees e ON e.id=sa.employee_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE sa.shift_type_id=? AND sa.role=? AND sa.active=1 AND e.active=1 AND COALESCE(TRIM(ep.end_date),'')='' ORDER BY sa.created_at,sa.id")
+    .bind(shiftTypeId, role).all<{ employeeId: string }>()).results;
+  const entries = (await db.prepare("SELECT id FROM station_schedule_entries WHERE shift_type_id=? AND entry_date>=? ORDER BY entry_date")
+    .bind(shiftTypeId, fromDate).all<{ id: string }>()).results;
+  const slots = (await db.prepare("SELECT s.id,s.entry_id entryId,s.employee_id employeeId,s.status,s.sort_order sortOrder FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id WHERE en.shift_type_id=? AND en.entry_date>=? AND s.role=? ORDER BY en.entry_date,s.sort_order")
+    .bind(shiftTypeId, fromDate, role).all<{ id: string; entryId: string; employeeId: string | null; status: string; sortOrder: number }>()).results;
+  const slotsByEntry = new Map<string, typeof slots>();
+  for (const slot of slots) (slotsByEntry.get(slot.entryId) ?? slotsByEntry.set(slot.entryId, []).get(slot.entryId)!).push(slot);
+  const writes: Array<ReturnType<Db["prepare"]>> = [];
+  for (const entry of entries) {
+    const entrySlots = slotsByEntry.get(entry.id) ?? [];
+    const assigned = new Set(entrySlots.map((slot) => slot.employeeId).filter(Boolean));
+    const available = entrySlots.filter((slot) => slot.status === "open" || !slot.employeeId);
+    let nextSortOrder = entrySlots.reduce((highest, slot) => Math.max(highest, Number(slot.sortOrder) + 1), 0);
+    for (const member of standing) {
+      if (assigned.has(member.employeeId)) continue;
+      const open = available.shift();
+      if (open) {
+        writes.push(db.prepare("UPDATE station_shift_slots SET employee_id=?,status='filled' WHERE id=?").bind(member.employeeId, open.id));
+      } else {
+        writes.push(db.prepare("INSERT INTO station_shift_slots(id,entry_id,role,employee_id,status,sort_order) VALUES(?,?,?,?,'filled',?)")
+          .bind(crypto.randomUUID(), entry.id, role, member.employeeId, nextSortOrder));
+        nextSortOrder += 1;
+      }
+      assigned.add(member.employeeId);
+    }
+  }
+  await runWritesChunked(db, writes);
+}
+
 function appendEntryWrites(
   db: Db,
   writes: Array<ReturnType<Db["prepare"]>>,
@@ -360,7 +397,7 @@ function appendEntryWrites(
   let sortOrder = 0;
   for (const req of roleReqs) {
     const fillers = [...(standingByRole.get(req.role) ?? [])];
-    for (let seat = 0; seat < req.count; seat += 1) {
+    for (let seat = 0; seat < Math.max(req.count, fillers.length); seat += 1) {
       const employeeId = fillers[seat] ?? null;
       writes.push(db.prepare("INSERT INTO station_shift_slots(id,entry_id,role,employee_id,status,sort_order) VALUES(?,?,?,?,?,?)")
         .bind(crypto.randomUUID(), entryId, req.role, employeeId, employeeId ? "filled" : "open", sortOrder));
@@ -424,11 +461,8 @@ async function saveStandingAssignment(db: Db, current: Viewer, payload: Record<s
   if (!await isSchedulableEmployee(db, employeeId)) return bad("That employee has a Last Day and is no longer available for scheduling.", 409);
   await db.prepare("INSERT INTO station_standing_assignments(id,employee_id,shift_type_id,role,created_by) VALUES(?,?,?,?,?) ON CONFLICT(employee_id,shift_type_id,role) DO UPDATE SET active=1")
     .bind(crypto.randomUUID(), employeeId, shiftTypeId, role, current.name).run();
-  // Backfill open seats and replace a removed standing member on future occurrences.
-  // Historical slots stay untouched so the schedule remains an accurate work record.
   const today = chicagoToday();
-  await db.prepare("UPDATE station_shift_slots SET employee_id=?,status='filled' WHERE role=? AND (status='open' OR employee_id IN (SELECT employee_id FROM station_standing_assignments WHERE shift_type_id=? AND role=? AND active=0)) AND entry_id IN (SELECT id FROM station_schedule_entries WHERE shift_type_id=? AND entry_date>=?)")
-    .bind(employeeId, role, shiftTypeId, role, shiftTypeId, today).run();
+  await syncFutureStandingSlots(db, shiftTypeId, role, today);
   return ok();
 }
 
@@ -439,12 +473,29 @@ async function removeStandingAssignment(db: Db, payload: Record<string, unknown>
     .bind(id).first<{ employeeId: string; shiftTypeId: string; role: string }>();
   if (!assignment) return bad("That standing assignment is no longer active.", 409);
   await db.prepare("UPDATE station_standing_assignments SET active=0 WHERE id=?").bind(id).run();
-
-  const replacement = await db.prepare("SELECT employee_id employeeId FROM station_standing_assignments WHERE shift_type_id=? AND role=? AND active=1 ORDER BY created_at DESC LIMIT 1")
-    .bind(assignment.shiftTypeId, assignment.role).first<{ employeeId: string }>();
   const today = chicagoToday();
-  await db.prepare("UPDATE station_shift_slots SET employee_id=?,status=? WHERE employee_id=? AND role=? AND entry_id IN (SELECT id FROM station_schedule_entries WHERE shift_type_id=? AND entry_date>=?)")
-    .bind(replacement?.employeeId ?? null, replacement ? "filled" : "open", assignment.employeeId, assignment.role, assignment.shiftTypeId, today).run();
+  const minimum = await db.prepare("SELECT count FROM station_shift_type_roles WHERE shift_type_id=? AND role=?")
+    .bind(assignment.shiftTypeId, assignment.role).first<{ count: number }>();
+  const slots = (await db.prepare("SELECT s.id,s.entry_id entryId FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id WHERE en.shift_type_id=? AND en.entry_date>=? AND s.role=? AND s.employee_id=? ORDER BY en.entry_date,s.sort_order")
+    .bind(assignment.shiftTypeId, today, assignment.role, assignment.employeeId).all<{ id: string; entryId: string }>()).results;
+  const writes: Array<ReturnType<Db["prepare"]>> = [];
+  for (const slot of slots) {
+    const count = await db.prepare("SELECT COUNT(*) count FROM station_shift_slots WHERE entry_id=? AND role=?")
+      .bind(slot.entryId, assignment.role).first<{ count: number }>();
+    if (Number(count?.count ?? 0) > Number(minimum?.count ?? 0)) {
+      writes.push(
+        db.prepare("DELETE FROM station_ot_offers WHERE slot_id=?").bind(slot.id),
+        db.prepare("DELETE FROM station_ot_interest WHERE slot_id=?").bind(slot.id),
+        db.prepare("DELETE FROM station_shift_claims WHERE slot_id=?").bind(slot.id),
+        db.prepare("DELETE FROM station_trade_requests WHERE slot_id=?").bind(slot.id),
+        db.prepare("DELETE FROM station_shift_slots WHERE id=?").bind(slot.id),
+      );
+    } else {
+      writes.push(db.prepare("UPDATE station_shift_slots SET employee_id=NULL,status='open' WHERE id=?").bind(slot.id));
+    }
+  }
+  await runWritesChunked(db, writes);
+  await syncFutureStandingSlots(db, assignment.shiftTypeId, assignment.role, today);
   return ok();
 }
 

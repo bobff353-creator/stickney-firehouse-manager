@@ -438,7 +438,7 @@ function RosterScreen({ data, act, busy, shiftTypeName }: { data: Data; act: (b:
       </section>
       <section>
         <h3>Standing assignments</h3>
-        <p className="muted">Auto-fills matching open slots on this shift type going forward.</p>
+        <p className="muted">Auto-fills the minimum seats and adds a staffed extra seat when more members are assigned than the minimum.</p>
         <label className="wide"><span>Member</span><select value={standEmp} onChange={(e) => setStandEmp(e.target.value)}><option value="">Select…</option>{data.employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}</select></label>
         <label className="wide"><span>Shift type</span><select value={standType} onChange={(e) => setStandType(e.target.value)}><option value="">Select…</option>{data.shiftTypes.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
         <label className="wide"><span>Role</span><select value={standRole} onChange={(e) => setStandRole(e.target.value)}><option value="">Select…</option>{data.roles.map((r) => <option key={r} value={r}>{r}</option>)}</select></label>
