@@ -137,14 +137,16 @@ test("calendar day view manages one-day openings and assignments without changin
     assert.equal(source.includes("end_time"), true);
     assert.equal(source.includes("is_extra"), true);
   }
-  for (const action of ["addDaySlot", "updateDaySlot", "deleteDaySlot", "updateDayShiftTimes"]) {
+  for (const action of ["addDaySlot", "updateDaySlot", "deleteDaySlot", "updateDaySlotTime"]) {
     assert.equal(route.includes(`case "${action}"`), true, `action ${action}`);
   }
   assert.equal(route.includes("WHERE id=? AND is_extra=1"), true, "only one-day slots can be structurally edited or removed");
   assert.equal(route.includes("isEligibleEmployeeForRole"), true, "assignment changes enforce role clearance");
-  assert.equal(component.includes("Use built schedule"), true, "a one-day time override can return to the built shift schedule");
-  assert.equal(component.includes("Save day time"), true, "an administrator can change the occurrence time");
-  assert.equal(route.includes("SET start_time='',end_time='' WHERE entry_id=? AND is_extra=0"), true, "clearing an override restores the shift-type fallback");
+  assert.equal(component.includes("Use scheduled time"), true, "a one-day position-time override can return to the built shift schedule");
+  assert.equal(component.includes("Save position time"), true, "an administrator can change one position's occurrence time");
+  assert.equal(component.includes("Adjust time for ${slot.role}"), true, "the displayed position time opens its editor");
+  assert.equal(route.includes("SET start_time='',end_time='' WHERE id=? AND is_extra=0"), true, "clearing an override restores that position's shift-type fallback");
+  assert.equal(route.includes("SET start_time=?,end_time=? WHERE id=? AND is_extra=0"), true, "the override updates only the selected built position");
 });
 
 test("acting-officer status independently qualifies employees for Officer/AO selections", async () => {

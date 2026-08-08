@@ -241,7 +241,7 @@ export async function POST(request: Request) {
       case "addDaySlot": return await addDaySlot(db, current, payload, requireAdmin);
       case "updateDaySlot": return await updateDaySlot(db, payload, requireAdmin);
       case "deleteDaySlot": return await deleteDaySlot(db, payload, requireAdmin);
-      case "updateDayShiftTimes": return await updateDayShiftTimes(db, payload, requireAdmin);
+      case "updateDaySlotTime": return await updateDaySlotTime(db, payload, requireAdmin);
       case "saveStandingAssignment": return await saveStandingAssignment(db, current, payload, requireAdmin);
       case "removeStandingAssignment": return await removeStandingAssignment(db, payload, requireAdmin);
       case "saveEmployeeScheduler": return await saveEmployeeScheduler(db, payload, requireAdmin);
@@ -526,24 +526,24 @@ async function deleteDaySlot(db: Db, payload: Record<string, unknown>, requireAd
   return ok({ note: "The one-day position was removed." });
 }
 
-async function updateDayShiftTimes(db: Db, payload: Record<string, unknown>, requireAdmin: () => void) {
+async function updateDaySlotTime(db: Db, payload: Record<string, unknown>, requireAdmin: () => void) {
   requireAdmin();
-  const entryId = String(payload.entryId ?? "");
+  const slotId = String(payload.slotId ?? "");
   const reset = Boolean(payload.reset);
-  if (!entryId) return bad("Choose a day shift.");
-  const entry = await db.prepare("SELECT id FROM station_schedule_entries WHERE id=?").bind(entryId).first<{ id: string }>();
-  if (!entry) return bad("That day shift is no longer available.", 409);
+  if (!slotId) return bad("Choose a position.");
+  const slot = await db.prepare("SELECT id,is_extra isExtra FROM station_shift_slots WHERE id=?").bind(slotId).first<{ id: string; isExtra: number }>();
+  if (!slot) return bad("That position is no longer available.", 409);
+  if (slot.isExtra) return bad("Use Edit position to change a one-day added position.", 409);
   if (reset) {
-    await db.prepare("UPDATE station_shift_slots SET start_time='',end_time='' WHERE entry_id=? AND is_extra=0").bind(entryId).run();
-    return ok({ note: "This day now uses the built shift schedule." });
+    await db.prepare("UPDATE station_shift_slots SET start_time='',end_time='' WHERE id=? AND is_extra=0").bind(slotId).run();
+    return ok({ note: "This position now uses the built shift time." });
   }
   const startTime = normalizeScheduleTime(String(payload.startTime ?? ""));
   const endTime = normalizeScheduleTime(String(payload.endTime ?? ""));
   if (!startTime || !endTime) return bad("Enter valid four-digit start and end times.");
-  const result = await db.prepare("UPDATE station_shift_slots SET start_time=?,end_time=? WHERE entry_id=? AND is_extra=0")
-    .bind(startTime, endTime, entryId).run();
-  if (!result.meta.changes) return bad("This shift has no built positions to update.", 409);
-  return ok({ note: "The time was changed for this day only." });
+  await db.prepare("UPDATE station_shift_slots SET start_time=?,end_time=? WHERE id=? AND is_extra=0")
+    .bind(startTime, endTime, slotId).run();
+  return ok({ note: "The position time was changed for this day only." });
 }
 
 async function saveStandingAssignment(db: Db, current: Viewer, payload: Record<string, unknown>, requireAdmin: () => void) {

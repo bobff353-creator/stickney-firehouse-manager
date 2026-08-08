@@ -269,7 +269,6 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
               const visibleEntry = entries[entryPosition];
               const shift = visibleEntry ? data.shiftTypes.find((item) => item.id === visibleEntry.shiftTypeId) : null;
               const visibleSlots = visibleEntry ? (slotsByDate.get(date) ?? []).filter((slot) => slot.entryId === visibleEntry.id) : [];
-              const visibleBuiltSlot = visibleSlots.find((slot) => !slot.isExtra);
               const hasOpen = visibleSlots.some((slot) => slot.status === "open");
               const coverageSummary = visibleSlots.map((slot) => slot.status === "open" ? `Open ${slot.role}` : `${employeeName(slot.employeeId)} assigned ${slot.role}`).join(", ");
               const ariaLabel = [`Open ${friendlyDate(date)}`, shift?.name, coverageSummary].filter(Boolean).join("; ");
@@ -285,13 +284,13 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
                   <span className="calendar-shift-summary">
                     <strong>
                       <span>{shift.name}</span>
-                      <small>{visibleBuiltSlot?.startTime ?? shift.startTime}–{visibleBuiltSlot?.endTime ?? shift.endTime}</small>
+                      <small>{shift.startTime}–{shift.endTime}</small>
                     </strong>
                     <span className="calendar-shift-slots">
                       {visibleSlots.map((slot) => (
                         <span key={slot.id} className={slot.status === "open" ? "calendar-slot open" : "calendar-slot"}>
                           <b>{slot.status === "open" ? "OPEN" : (employeeName(slot.employeeId) || "Assigned")}</b>
-                          <small>{slot.role}{slot.isExtra ? ` · ${slot.startTime}–${slot.endTime}` : ""}</small>
+                          <small>{slot.role}{slot.isExtra || slot.hasTimeOverride ? ` · ${slot.startTime}–${slot.endTime}` : ""}</small>
                         </span>
                       ))}
                     </span>
@@ -326,17 +325,12 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
               {(entriesByDate.get(selectedDate) ?? []).map((entry) => {
                 const slots = daySlots.filter((s) => s.entryId === entry.id);
                 const shift = data.shiftTypes.find((item) => item.id === entry.shiftTypeId);
-                const builtSlot = slots.find((slot) => !slot.isExtra);
-                const effectiveStart = builtSlot?.startTime ?? shift?.startTime ?? "";
-                const effectiveEnd = builtSlot?.endTime ?? shift?.endTime ?? "";
-                const hasTimeOverride = slots.some((slot) => !slot.isExtra && Boolean(slot.hasTimeOverride));
                 return (
                   <div key={entry.id} className="entry-card scheduler-day-entry" style={{ borderLeftColor: shiftColorHex[shift?.color ?? ""] ?? shift?.color }}>
                     <div className="entry-head">
-                      <div><strong>{shiftTypeName(entry.shiftTypeId)}</strong><span>{effectiveStart}–{effectiveEnd}{hasTimeOverride ? " · day override" : " · built schedule"}</span></div>
+                      <div><strong>{shiftTypeName(entry.shiftTypeId)}</strong><span>{shift?.startTime ?? ""}–{shift?.endTime ?? ""} · built schedule</span></div>
                       {isAdmin && <button className="link danger" disabled={busy} onClick={() => act({ action: "deleteEntry", entryId: entry.id })}>Remove shift</button>}
                     </div>
-                    {isAdmin && <DayShiftTimeEditor key={`${entry.id}-${effectiveStart}-${effectiveEnd}-${hasTimeOverride}`} entryId={entry.id} scheduledStart={shift?.startTime ?? "0600"} scheduledEnd={shift?.endTime ?? "0600"} effectiveStart={effectiveStart} effectiveEnd={effectiveEnd} hasOverride={hasTimeOverride} act={act} busy={busy} />}
                     <ul className="slot-list scheduler-day-slots">
                       {slots.map((slot) => {
                         const award = data.awardBySlot[slot.id];
@@ -349,7 +343,7 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
                           <li key={slot.id} className={slot.status === "open" ? `open${award?.window === "overdue" ? " urgent" : ""}` : ""}>
                             <div className="scheduler-position-summary">
                               <span className="slot-role">{slot.role}{slot.isExtra ? <b className="one-day-badge">One-day position</b> : null}</span>
-                              <span className="slot-time">{slot.startTime}–{slot.endTime}</span>
+                              {isAdmin && !slot.isExtra ? <DaySlotTimeEditor key={`${slot.id}-${slot.startTime}-${slot.endTime}-${slot.hasTimeOverride}`} slot={slot} scheduledStart={shift?.startTime ?? "0600"} scheduledEnd={shift?.endTime ?? "0600"} act={act} busy={busy} /> : <span className="slot-time">{slot.startTime}–{slot.endTime}</span>}
                               {!isAdmin && <span className="slot-holder">{slot.status === "filled" ? employeeName(slot.employeeId) : (award ? windowLabel[award.window] : "Open")}</span>}
                             </div>
                             {isAdmin && <label className="scheduler-employee-select"><span>Assigned employee</span><select aria-label={`Assigned employee for ${slot.role}`} disabled={busy} value={slot.employeeId ?? ""} onChange={(e) => e.target.value ? act({ action: "assignSlot", slotId: slot.id, employeeId: e.target.value }) : act({ action: "clearSlot", slotId: slot.id })}>
@@ -375,22 +369,22 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
   );
 }
 
-function DayShiftTimeEditor({ entryId, scheduledStart, scheduledEnd, effectiveStart, effectiveEnd, hasOverride, act, busy }: {
-  entryId: string; scheduledStart: string; scheduledEnd: string; effectiveStart: string; effectiveEnd: string; hasOverride: boolean;
+function DaySlotTimeEditor({ slot, scheduledStart, scheduledEnd, act, busy }: {
+  slot: Slot; scheduledStart: string; scheduledEnd: string;
   act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean;
 }) {
   const [editing, setEditing] = useState(false);
-  const [startTime, setStartTime] = useState(fourDigitTime(effectiveStart));
-  const [endTime, setEndTime] = useState(fourDigitTime(effectiveEnd));
-  if (!editing) return <div className="day-shift-time-summary">
-    <span>{hasOverride ? `One-day time: ${effectiveStart}–${effectiveEnd}` : `Using built schedule: ${scheduledStart}–${scheduledEnd}`}</span>
-    <div><button type="button" className="link" onClick={() => setEditing(true)}>Adjust time</button>{hasOverride && <button type="button" className="link" disabled={busy} onClick={() => act({ action: "updateDayShiftTimes", entryId, reset: true })}>Use built schedule</button>}</div>
-  </div>;
-  return <div className="day-shift-time-form">
+  const [startTime, setStartTime] = useState(fourDigitTime(slot.startTime));
+  const [endTime, setEndTime] = useState(fourDigitTime(slot.endTime));
+  if (!editing) return <button type="button" className="slot-time slot-time-button" aria-label={`Adjust time for ${slot.role}`} onClick={() => setEditing(true)}>
+    <span>{slot.startTime}–{slot.endTime}</span>
+    <small>{slot.hasTimeOverride ? "One-day time" : "Adjust time"}</small>
+  </button>;
+  return <div className="slot-time-editor">
     <label><span>Start (24-hour)</span><input value={startTime} inputMode="numeric" maxLength={4} placeholder="0600" onChange={(event) => setStartTime(event.target.value.replace(/\D/g, "").slice(0, 4))} /></label>
     <label><span>End (24-hour)</span><input value={endTime} inputMode="numeric" maxLength={4} placeholder="1800" onChange={(event) => setEndTime(event.target.value.replace(/\D/g, "").slice(0, 4))} /></label>
-    <div><button type="button" className="link" onClick={() => setEditing(false)}>Cancel</button><button type="button" disabled={busy} onClick={async () => { const result = await act({ action: "updateDayShiftTimes", entryId, startTime, endTime }); if (result) setEditing(false); }}>Save day time</button></div>
-    <p>Built schedule fallback: {scheduledStart}–{scheduledEnd}</p>
+    <div className="slot-time-editor-actions"><button type="button" className="link" onClick={() => setEditing(false)}>Cancel</button>{Boolean(slot.hasTimeOverride) && <button type="button" className="link" disabled={busy} onClick={async () => { const result = await act({ action: "updateDaySlotTime", slotId: slot.id, reset: true }); if (result) setEditing(false); }}>Use scheduled time</button>}<button type="button" disabled={busy} onClick={async () => { const result = await act({ action: "updateDaySlotTime", slotId: slot.id, startTime, endTime }); if (result) setEditing(false); }}>Save position time</button></div>
+    <p>Scheduled fallback: {scheduledStart}–{scheduledEnd}. This change applies only to this position on this day.</p>
   </div>;
 }
 
