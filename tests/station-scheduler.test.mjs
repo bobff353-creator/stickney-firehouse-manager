@@ -154,9 +154,12 @@ test("scheduler date range casts stored text dates before Postgres comparison", 
   assert.equal(route.includes("WHERE en.entry_date>=date(?, '-45 day')"), false);
 });
 
-test("standing assignments backfill open slots and time off writes unavailability", async () => {
+test("standing assignments synchronize future slots while preserving schedule history", async () => {
   const route = await read("../app/api/station-scheduler/route.ts");
-  assert.equal(route.includes("UPDATE station_shift_slots SET employee_id=?,status='filled' WHERE status='open' AND role=?"), true);
+  assert.equal(route.includes("status='open' OR employee_id IN (SELECT employee_id FROM station_standing_assignments"), true, "a new standing assignment replaces a removed member in generated future slots");
+  assert.equal(route.includes("That standing assignment is no longer active."), true);
+  assert.equal(route.includes("SELECT employee_id employeeId FROM station_standing_assignments WHERE shift_type_id=? AND role=? AND active=1 ORDER BY created_at DESC LIMIT 1"), true, "removing a standing assignment selects the current replacement");
+  assert.equal(route.includes("WHERE employee_id=? AND role=? AND entry_id IN (SELECT id FROM station_schedule_entries WHERE shift_type_id=? AND entry_date>=?)"), true, "only matching future occurrences are synchronized");
   assert.equal(route.includes("INSERT INTO station_unavailability"), true);
 });
 

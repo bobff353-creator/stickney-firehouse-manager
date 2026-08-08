@@ -424,16 +424,27 @@ async function saveStandingAssignment(db: Db, current: Viewer, payload: Record<s
   if (!await isSchedulableEmployee(db, employeeId)) return bad("That employee has a Last Day and is no longer available for scheduling.", 409);
   await db.prepare("INSERT INTO station_standing_assignments(id,employee_id,shift_type_id,role,created_by) VALUES(?,?,?,?,?) ON CONFLICT(employee_id,shift_type_id,role) DO UPDATE SET active=1")
     .bind(crypto.randomUUID(), employeeId, shiftTypeId, role, current.name).run();
-  // Backfill matching open slots going forward.
+  // Backfill open seats and replace a removed standing member on future occurrences.
+  // Historical slots stay untouched so the schedule remains an accurate work record.
   const today = chicagoToday();
-  await db.prepare("UPDATE station_shift_slots SET employee_id=?,status='filled' WHERE status='open' AND role=? AND entry_id IN (SELECT id FROM station_schedule_entries WHERE shift_type_id=? AND entry_date>=?)")
-    .bind(employeeId, role, shiftTypeId, today).run();
+  await db.prepare("UPDATE station_shift_slots SET employee_id=?,status='filled' WHERE role=? AND (status='open' OR employee_id IN (SELECT employee_id FROM station_standing_assignments WHERE shift_type_id=? AND role=? AND active=0)) AND entry_id IN (SELECT id FROM station_schedule_entries WHERE shift_type_id=? AND entry_date>=?)")
+    .bind(employeeId, role, shiftTypeId, role, shiftTypeId, today).run();
   return ok();
 }
 
 async function removeStandingAssignment(db: Db, payload: Record<string, unknown>, requireAdmin: () => void) {
   requireAdmin();
-  await db.prepare("UPDATE station_standing_assignments SET active=0 WHERE id=?").bind(String(payload.id ?? "")).run();
+  const id = String(payload.id ?? "");
+  const assignment = await db.prepare("SELECT employee_id employeeId,shift_type_id shiftTypeId,role FROM station_standing_assignments WHERE id=? AND active=1")
+    .bind(id).first<{ employeeId: string; shiftTypeId: string; role: string }>();
+  if (!assignment) return bad("That standing assignment is no longer active.", 409);
+  await db.prepare("UPDATE station_standing_assignments SET active=0 WHERE id=?").bind(id).run();
+
+  const replacement = await db.prepare("SELECT employee_id employeeId FROM station_standing_assignments WHERE shift_type_id=? AND role=? AND active=1 ORDER BY created_at DESC LIMIT 1")
+    .bind(assignment.shiftTypeId, assignment.role).first<{ employeeId: string }>();
+  const today = chicagoToday();
+  await db.prepare("UPDATE station_shift_slots SET employee_id=?,status=? WHERE employee_id=? AND role=? AND entry_id IN (SELECT id FROM station_schedule_entries WHERE shift_type_id=? AND entry_date>=?)")
+    .bind(replacement?.employeeId ?? null, replacement ? "filled" : "open", assignment.employeeId, assignment.role, assignment.shiftTypeId, today).run();
   return ok();
 }
 
