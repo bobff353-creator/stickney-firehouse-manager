@@ -39,11 +39,10 @@ function parseRoles(value: string): string[] {
   catch { return []; }
 }
 
-/** Whether an employee may work a given role. Officer/AO also needs officer rank or acting-officer eligibility. */
+/** Whether an employee may work a given role. Officer rank or AO status is itself the Officer/AO clearance. */
 function eligibleForRole(role: string, emp: { roles: string[]; rank: string; actingOfficerEligible: boolean }): boolean {
-  if (!emp.roles.includes(role)) return false;
   if (role === "Officer/AO") return officerRank(emp.rank) || emp.actingOfficerEligible;
-  return true;
+  return emp.roles.includes(role);
 }
 
 async function viewer(db: Db, request: Request) {
@@ -51,13 +50,16 @@ async function viewer(db: Db, request: Request) {
   const employee = email
     ? await db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.email,'') email,COALESCE(ep.is_admin,0) isAdmin,COALESCE(ep.station_roles,'[]') roles,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(ep.email)=? LIMIT 1").bind(email).first<{ id: string; name: string; rank: string; email: string; isAdmin: number; roles: string; actingOfficerEligible: number }>()
     : null;
+  const actingOfficerEligible = Boolean(employee?.actingOfficerEligible);
+  const roles = parseRoles(employee?.roles ?? "[]");
+  if ((officerRank(employee?.rank ?? "") || actingOfficerEligible) && !roles.includes("Officer/AO")) roles.push("Officer/AO");
   return {
     email,
     employeeId: employee?.id ?? null,
     name: employee?.name ?? (email || "Employee"),
     rank: employee?.rank ?? "",
-    roles: parseRoles(employee?.roles ?? "[]"),
-    actingOfficerEligible: Boolean(employee?.actingOfficerEligible),
+    roles,
+    actingOfficerEligible,
     isAdmin: ownerAdminEmails.includes(email) || Boolean(employee?.isAdmin),
   };
 }
@@ -139,7 +141,7 @@ export async function GET(request: Request) {
       db.prepare("SELECT id,name,start_time startTime,end_time endTime,anchor_date anchorDate,repeat_every_days repeatEveryDays,color,active,sort_order sortOrder FROM station_shift_types ORDER BY active DESC,sort_order,name COLLATE NOCASE").all(),
       db.prepare("SELECT id,shift_type_id shiftTypeId,role,count FROM station_shift_type_roles").all(),
       db.prepare("SELECT id,entry_date entryDate,shift_type_id shiftTypeId FROM station_schedule_entries WHERE date(entry_date)>=date(?, '-45 day') ORDER BY entry_date").bind(today).all(),
-      db.prepare("SELECT s.id,s.entry_id entryId,s.role,s.employee_id employeeId,e.name employeeName,s.status,s.sort_order sortOrder,COALESCE(NULLIF(s.start_time,''),t.start_time) startTime,COALESCE(NULLIF(s.end_time,''),t.end_time) endTime,s.is_extra isExtra,en.entry_date entryDate,en.shift_type_id shiftTypeId FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id LEFT JOIN employees e ON e.id=s.employee_id WHERE date(en.entry_date)>=date(?, '-45 day') ORDER BY en.entry_date,s.sort_order").bind(today).all(),
+      db.prepare("SELECT s.id,s.entry_id entryId,s.role,s.employee_id employeeId,e.name employeeName,s.status,s.sort_order sortOrder,COALESCE(NULLIF(s.start_time,''),t.start_time) startTime,COALESCE(NULLIF(s.end_time,''),t.end_time) endTime,CASE WHEN COALESCE(s.start_time,'')<>'' OR COALESCE(s.end_time,'')<>'' THEN 1 ELSE 0 END hasTimeOverride,s.is_extra isExtra,en.entry_date entryDate,en.shift_type_id shiftTypeId FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id LEFT JOIN employees e ON e.id=s.employee_id WHERE date(en.entry_date)>=date(?, '-45 day') ORDER BY en.entry_date,s.sort_order").bind(today).all(),
       db.prepare("SELECT sa.id,sa.employee_id employeeId,e.name employeeName,sa.shift_type_id shiftTypeId,sa.role,sa.active FROM station_standing_assignments sa JOIN employees e ON e.id=sa.employee_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE sa.active=1 AND e.active=1 AND COALESCE(TRIM(ep.end_date),'')='' ORDER BY e.name COLLATE NOCASE").all(),
       db.prepare("SELECT t.id,t.slot_id slotId,t.role,t.from_employee_id fromEmployeeId,fe.name fromEmployeeName,t.target_employee_id targetEmployeeId,te.name targetEmployeeName,t.accepted_by_employee_id acceptedByEmployeeId,t.note,t.status,t.created_at createdAt,en.entry_date entryDate FROM station_trade_requests t JOIN station_shift_slots s ON s.id=t.slot_id JOIN station_schedule_entries en ON en.id=s.entry_id JOIN employees fe ON fe.id=t.from_employee_id LEFT JOIN employees te ON te.id=t.target_employee_id ORDER BY CASE t.status WHEN 'pending' THEN 0 WHEN 'awaiting_acceptance' THEN 0 ELSE 1 END,t.created_at DESC LIMIT 200").all(),
       db.prepare("SELECT c.id,c.slot_id slotId,c.role,c.employee_id employeeId,e.name employeeName,c.note,c.status,c.created_at createdAt,en.entry_date entryDate FROM station_shift_claims c JOIN station_shift_slots s ON s.id=c.slot_id JOIN station_schedule_entries en ON en.id=s.entry_id JOIN employees e ON e.id=c.employee_id ORDER BY CASE c.status WHEN 'pending' THEN 0 ELSE 1 END,c.created_at DESC LIMIT 200").all(),
@@ -187,7 +189,7 @@ export async function GET(request: Request) {
       roles: STATION_ROLES,
       employees: current.isAdmin
         ? employees
-        : employees.map((e) => ({ id: e.id, name: e.name, rank: e.rank, roles: e.roles })),
+        : employees.map((e) => ({ id: e.id, name: e.name, rank: e.rank, roles: e.roles, actingOfficerEligible: e.actingOfficerEligible })),
       shiftTypes: shiftTypes.results,
       shiftTypeRoles: shiftTypeRoles.results,
       entries: entries.results,
@@ -239,6 +241,7 @@ export async function POST(request: Request) {
       case "addDaySlot": return await addDaySlot(db, current, payload, requireAdmin);
       case "updateDaySlot": return await updateDaySlot(db, payload, requireAdmin);
       case "deleteDaySlot": return await deleteDaySlot(db, payload, requireAdmin);
+      case "updateDayShiftTimes": return await updateDayShiftTimes(db, payload, requireAdmin);
       case "saveStandingAssignment": return await saveStandingAssignment(db, current, payload, requireAdmin);
       case "removeStandingAssignment": return await removeStandingAssignment(db, payload, requireAdmin);
       case "saveEmployeeScheduler": return await saveEmployeeScheduler(db, payload, requireAdmin);
@@ -521,6 +524,26 @@ async function deleteDaySlot(db: Db, payload: Record<string, unknown>, requireAd
   await clearSlotWorkflows(db, slotId);
   await db.prepare("DELETE FROM station_shift_slots WHERE id=? AND is_extra=1").bind(slotId).run();
   return ok({ note: "The one-day position was removed." });
+}
+
+async function updateDayShiftTimes(db: Db, payload: Record<string, unknown>, requireAdmin: () => void) {
+  requireAdmin();
+  const entryId = String(payload.entryId ?? "");
+  const reset = Boolean(payload.reset);
+  if (!entryId) return bad("Choose a day shift.");
+  const entry = await db.prepare("SELECT id FROM station_schedule_entries WHERE id=?").bind(entryId).first<{ id: string }>();
+  if (!entry) return bad("That day shift is no longer available.", 409);
+  if (reset) {
+    await db.prepare("UPDATE station_shift_slots SET start_time='',end_time='' WHERE entry_id=? AND is_extra=0").bind(entryId).run();
+    return ok({ note: "This day now uses the built shift schedule." });
+  }
+  const startTime = normalizeScheduleTime(String(payload.startTime ?? ""));
+  const endTime = normalizeScheduleTime(String(payload.endTime ?? ""));
+  if (!startTime || !endTime) return bad("Enter valid four-digit start and end times.");
+  const result = await db.prepare("UPDATE station_shift_slots SET start_time=?,end_time=? WHERE entry_id=? AND is_extra=0")
+    .bind(startTime, endTime, entryId).run();
+  if (!result.meta.changes) return bad("This shift has no built positions to update.", 409);
+  return ok({ note: "The time was changed for this day only." });
 }
 
 async function saveStandingAssignment(db: Db, current: Viewer, payload: Record<string, unknown>, requireAdmin: () => void) {

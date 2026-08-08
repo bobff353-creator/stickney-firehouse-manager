@@ -137,11 +137,27 @@ test("calendar day view manages one-day openings and assignments without changin
     assert.equal(source.includes("end_time"), true);
     assert.equal(source.includes("is_extra"), true);
   }
-  for (const action of ["addDaySlot", "updateDaySlot", "deleteDaySlot"]) {
+  for (const action of ["addDaySlot", "updateDaySlot", "deleteDaySlot", "updateDayShiftTimes"]) {
     assert.equal(route.includes(`case "${action}"`), true, `action ${action}`);
   }
   assert.equal(route.includes("WHERE id=? AND is_extra=1"), true, "only one-day slots can be structurally edited or removed");
   assert.equal(route.includes("isEligibleEmployeeForRole"), true, "assignment changes enforce role clearance");
+  assert.equal(component.includes("Use built schedule"), true, "a one-day time override can return to the built shift schedule");
+  assert.equal(component.includes("Save day time"), true, "an administrator can change the occurrence time");
+  assert.equal(route.includes("SET start_time='',end_time='' WHERE entry_id=? AND is_extra=0"), true, "clearing an override restores the shift-type fallback");
+});
+
+test("acting-officer status independently qualifies employees for Officer/AO selections", async () => {
+  const [component, route] = await Promise.all([
+    read("../app/station-scheduler.tsx"),
+    read("../app/api/station-scheduler/route.ts"),
+  ]);
+  for (const source of [component, route]) {
+    assert.match(source, /role === "Officer\/AO"/);
+    assert.match(source, /actingOfficerEligible/);
+  }
+  assert.equal(component.includes('parseRoles(employee.roles).includes(role)) return false'), false, "AO clearance does not require a second scheduler-role checkbox");
+  assert.equal(route.includes('if (!emp.roles.includes(role)) return false'), false, "the API accepts AO-qualified assignments too");
 });
 
 test("OT logic exposes ranking, exemptions, award windows, and distribution", async () => {
