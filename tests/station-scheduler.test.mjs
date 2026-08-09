@@ -1,12 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile, access } from "node:fs/promises";
+import ts from "typescript";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 const missing = async (path) => {
   try { await access(new URL(path, import.meta.url)); return false; }
   catch { return true; }
 };
+
+async function loadSchedulerLogic() {
+  const source = await read("../app/station-scheduler-logic.ts");
+  const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
+  return import(`data:text/javascript;base64,${Buffer.from(output).toString("base64")}`);
+}
 
 test("the legacy scheduler UI is removed while its records API remains available", async () => {
   assert.equal(await missing("../app/scheduling.tsx"), true);
@@ -98,9 +105,19 @@ test("shift patterns are durable and generate recurring calendar entries without
     assert.equal(source.includes("repeat_every_days"), true);
   }
   assert.equal(route.includes("recurringShiftDates(anchorDate, repeatEveryDays"), true);
+  assert.equal(route.includes("sameRecurringPattern(anchorDate, repeatEveryDays"), true, "duplicate shift builders cannot claim the same time and repeat dates");
+  assert.equal(route.includes("already follows this repeat pattern"), true, "the administrator receives a clear conflict message");
   assert.equal(route.includes("existing.has(entryDate)"), true);
   assert.equal(route.includes("recurring shift dates added"), true);
   assert.equal(migration.includes("between 0 and 365"), true);
+});
+
+test("identical recurrence days are detected even when anchors differ by a full cycle", async () => {
+  const { sameRecurringPattern } = await loadSchedulerLogic();
+  assert.equal(sameRecurringPattern("2026-08-08", 3, "2026-08-08", 3), true);
+  assert.equal(sameRecurringPattern("2026-08-08", 3, "2026-08-11", 3), true);
+  assert.equal(sameRecurringPattern("2026-08-08", 3, "2026-08-09", 3), false);
+  assert.equal(sameRecurringPattern("2026-08-08", 3, "2026-08-08", 6), false);
 });
 
 test("consumers read filled station slots instead of legacy assignments", async () => {
@@ -172,6 +189,7 @@ test("OT logic exposes ranking, exemptions, award windows, and distribution", as
   assert.equal(logic.includes("export function classifyAward"), true);
   assert.equal(logic.includes("export function autoDistribute"), true);
   assert.equal(logic.includes("export function recurringShiftDates"), true);
+  assert.equal(logic.includes("export function sameRecurringPattern"), true);
   // Criteria comparators are all present.
   for (const criterion of ["leastOT", "leastMandatory", "mostSeniority", "leastSeniority"]) {
     assert.equal(logic.includes(criterion), true, `criterion ${criterion}`);

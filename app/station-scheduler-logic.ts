@@ -78,6 +78,18 @@ export function recurringShiftDates(
   return dates;
 }
 
+/** True when two repeating definitions produce the same set of calendar days. */
+export function sameRecurringPattern(
+  anchorDateA: string,
+  repeatEveryDaysA: number,
+  anchorDateB: string,
+  repeatEveryDaysB: number,
+): boolean {
+  if (!Number.isInteger(repeatEveryDaysA) || repeatEveryDaysA < 1 || repeatEveryDaysA !== repeatEveryDaysB) return false;
+  const offset = daysBetween(anchorDateA, anchorDateB);
+  return !Number.isNaN(offset) && Math.abs(offset) % repeatEveryDaysA === 0;
+}
+
 /**
  * A seniority score where larger = more senior. Earlier start dates yield a
  * larger number. Falls back to 0 when the date is missing/invalid so those

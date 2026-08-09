@@ -7,6 +7,7 @@ import {
   daysBetween,
   rankByCriteria,
   recurringShiftDates,
+  sameRecurringPattern,
   seniorityFromStartDate,
   type DistributionEmployee,
   type OpenSlot,
@@ -301,6 +302,12 @@ async function saveShiftType(db: Db, current: Viewer, payload: Record<string, un
     normalized.some((r) => !isStationRole(r.role) || !Number.isInteger(r.count) || r.count < 1 || r.count > 20) ||
     new Set(normalized.map((r) => r.role)).size !== normalized.length) {
     return bad("Enter a name, valid times, a start day, a repeat pattern from 1 to 365 days, a color, and at least one role requirement (each role once).");
+  }
+  const sameTimePatterns = (await db.prepare("SELECT id,name,anchor_date anchorDate,repeat_every_days repeatEveryDays FROM station_shift_types WHERE active=1 AND id<>? AND start_time=? AND end_time=?")
+    .bind(id, startTime, endTime).all<{ id: string; name: string; anchorDate: string; repeatEveryDays: number }>()).results;
+  const collision = sameTimePatterns.find((shift) => sameRecurringPattern(anchorDate, repeatEveryDays, shift.anchorDate, Number(shift.repeatEveryDays)));
+  if (collision) {
+    return bad(`${startTime}–${endTime} already follows this repeat pattern as ${collision.name}. Choose a different first shift day or repeat pattern.`);
   }
   await db.prepare("INSERT INTO station_shift_types(id,name,start_time,end_time,anchor_date,repeat_every_days,color,created_by) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,start_time=excluded.start_time,end_time=excluded.end_time,anchor_date=excluded.anchor_date,repeat_every_days=excluded.repeat_every_days,color=excluded.color")
     .bind(id, name, startTime, endTime, anchorDate, repeatEveryDays, color, current.name).run();
