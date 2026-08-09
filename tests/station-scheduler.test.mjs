@@ -154,17 +154,14 @@ test("calendar day view manages one-day openings and assignments without changin
   assert.equal(route.includes("SET start_time=?,end_time=? WHERE id=? AND is_extra=0"), true, "the override updates only the selected built position");
 });
 
-test("acting-officer status independently qualifies employees for Officer/AO selections", async () => {
+test("Roster & Assignments Officer/AO clearance controls firefighter eligibility", async () => {
   const [component, route] = await Promise.all([
     read("../app/station-scheduler.tsx"),
     read("../app/api/station-scheduler/route.ts"),
   ]);
-  for (const source of [component, route]) {
-    assert.match(source, /role === "Officer\/AO"/);
-    assert.match(source, /actingOfficerEligible/);
-  }
-  assert.equal(component.includes('parseRoles(employee.roles).includes(role)) return false'), false, "AO clearance does not require a second scheduler-role checkbox");
-  assert.equal(route.includes('if (!emp.roles.includes(role)) return false'), false, "the API accepts AO-qualified assignments too");
+  assert.equal(component.includes('if (role === "Officer/AO") return /\\b(chief|captain|lieutenant)\\b/i.test(employee.rank) || parseRoles(employee.roles).includes(role);'), true, "the dropdown accepts commissioned officers or firefighters checked Officer/AO in Roster & Assignments");
+  assert.equal(route.includes('if (role === "Officer/AO") return officerRank(emp.rank) || emp.roles.includes(role);'), true, "the protected assignment API uses the same roster clearance");
+  assert.equal(route.includes('if (officerRank(employee?.rank ?? "") && !roles.includes("Officer/AO")) roles.push("Officer/AO");'), true, "commissioned officers remain automatically eligible by rank");
 });
 
 test("OT logic exposes ranking, exemptions, award windows, and distribution", async () => {

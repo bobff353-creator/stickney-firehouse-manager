@@ -43,9 +43,9 @@ function parseRoles(value: string): string[] {
   catch { return []; }
 }
 
-/** Whether an employee may work a given role. Officer rank or AO status is itself the Officer/AO clearance. */
+/** Whether an employee may work a role. Roster & Assignments is authoritative for firefighter Officer/AO clearance. */
 function eligibleForRole(role: string, emp: { roles: string[]; rank: string; actingOfficerEligible: boolean }): boolean {
-  if (role === "Officer/AO") return officerRank(emp.rank) || emp.actingOfficerEligible;
+  if (role === "Officer/AO") return officerRank(emp.rank) || emp.roles.includes(role);
   return emp.roles.includes(role);
 }
 
@@ -56,7 +56,7 @@ async function viewer(db: Db, request: Request) {
     : null;
   const actingOfficerEligible = Boolean(employee?.actingOfficerEligible);
   const roles = parseRoles(employee?.roles ?? "[]");
-  if ((officerRank(employee?.rank ?? "") || actingOfficerEligible) && !roles.includes("Officer/AO")) roles.push("Officer/AO");
+  if (officerRank(employee?.rank ?? "") && !roles.includes("Officer/AO")) roles.push("Officer/AO");
   return {
     email,
     employeeId: employee?.id ?? null,

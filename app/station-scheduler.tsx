@@ -75,7 +75,7 @@ const monthTitle = (value: string) => new Date(`${value.slice(0, 7)}-01T12:00:00
 const fourDigitTime = (value: string) => value.replace(":", "").slice(0, 4);
 const employeeEligibleForRole = (employee: Employee, role: string) => {
   if (role === "Firefighter" || role === "Training/Orientation") return true;
-  if (role === "Officer/AO") return /\b(chief|captain|lieutenant)\b/i.test(employee.rank) || Boolean(employee.actingOfficerEligible);
+  if (role === "Officer/AO") return /\b(chief|captain|lieutenant)\b/i.test(employee.rank) || parseRoles(employee.roles).includes(role);
   return parseRoles(employee.roles).includes(role);
 };
 
