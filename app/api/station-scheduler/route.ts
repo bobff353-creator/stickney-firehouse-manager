@@ -7,6 +7,7 @@ import {
   daysBetween,
   rankByCriteria,
   recurringShiftDates,
+  recurringShiftOccursOnDate,
   sameRecurringPattern,
   seniorityFromStartDate,
   type DistributionEmployee,
@@ -356,8 +357,11 @@ async function createEntry(db: Db, current: Viewer, payload: Record<string, unkn
   const entryDate = String(payload.date ?? "");
   const shiftTypeId = String(payload.shiftTypeId ?? "");
   if (!iso.test(entryDate) || !shiftTypeId) return bad("Choose a date and a shift type.");
-  const shiftType = await db.prepare("SELECT id FROM station_shift_types WHERE id=? AND active=1").bind(shiftTypeId).first<{ id: string }>();
+  const shiftType = await db.prepare("SELECT id,name,anchor_date anchorDate,repeat_every_days repeatEveryDays,color FROM station_shift_types WHERE id=? AND active=1").bind(shiftTypeId).first<{ id: string; name: string; anchorDate: string; repeatEveryDays: number; color: string }>();
   if (!shiftType) return bad("That shift type is unavailable.");
+  if (!recurringShiftOccursOnDate(shiftType.anchorDate, Number(shiftType.repeatEveryDays), entryDate)) {
+    return bad(`${shiftType.name} is a ${shiftType.color} builder and does not occur on ${entryDate}. Choose the builder that matches this date.`);
+  }
   const existing = await db.prepare("SELECT id FROM station_schedule_entries WHERE entry_date=? AND shift_type_id=?").bind(entryDate, shiftTypeId).first<{ id: string }>();
   if (existing) return bad("That shift is already on the calendar for this day.", 409);
   const roleReqs = await db.prepare("SELECT role,count FROM station_shift_type_roles WHERE shift_type_id=?").bind(shiftTypeId).all<{ role: string; count: number }>();

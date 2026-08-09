@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { normalizeScheduleTime } from "./schedule-time";
+import { recurringShiftOccursOnDate } from "./station-scheduler-logic";
 
 type TestMember = { id: string; name: string; rank: string; effectivePermissions: string[] };
 
@@ -216,6 +217,16 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
     return grouped;
   }, [data.slots]);
   const daySlots = slotsByDate.get(selectedDate) ?? [];
+  const selectedDayShiftIds = useMemo(
+    () => new Set((entriesByDate.get(selectedDate) ?? []).map((entry) => entry.shiftTypeId)),
+    [entriesByDate, selectedDate],
+  );
+  const matchingBuiltShifts = useMemo(
+    () => data.shiftTypes.filter((shift) => shift.active &&
+      recurringShiftOccursOnDate(shift.anchorDate, Number(shift.repeatEveryDays), selectedDate) &&
+      !selectedDayShiftIds.has(shift.id)),
+    [data.shiftTypes, selectedDate, selectedDayShiftIds],
+  );
   const monthKey = selectedDate.slice(0, 7);
   const firstDay = new Date(`${monthKey}-01T12:00:00`);
   const daysInMonth = new Date(firstDay.getFullYear(), firstDay.getMonth() + 1, 0).getDate();
@@ -244,6 +255,10 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [dayViewOpen]);
+
+  useEffect(() => {
+    setNewShiftType("");
+  }, [selectedDate]);
 
   return (
     <div className="scheduler-grid">
@@ -317,9 +332,9 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
             </header>
             <div className="scheduler-day-dialog-body">
               {isAdmin && <div className="inline-form add-day-shift">
-                <select aria-label="Shift type to add" value={newShiftType} onChange={(e) => setNewShiftType(e.target.value)}>
-                  <option value="">Add a built shift to this day…</option>
-                  {data.shiftTypes.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.name} · {s.startTime}–{s.endTime}</option>)}
+                <select aria-label="Matching built shift to add" value={newShiftType} disabled={!matchingBuiltShifts.length} onChange={(e) => setNewShiftType(e.target.value)}>
+                  <option value="">{matchingBuiltShifts.length ? "Add a matching built shift to this day…" : "All matching built shifts are already on this day"}</option>
+                  {matchingBuiltShifts.map((s) => <option key={s.id} value={s.id}>{s.color.toUpperCase()} builder · {s.name} · {s.startTime}–{s.endTime}</option>)}
                 </select>
                 <button disabled={busy || !newShiftType} onClick={async () => { await act({ action: "createEntry", date: selectedDate, shiftTypeId: newShiftType }); setNewShiftType(""); }}>Add shift</button>
               </div>}

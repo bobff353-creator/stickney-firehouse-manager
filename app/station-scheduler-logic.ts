@@ -90,6 +90,17 @@ export function sameRecurringPattern(
   return !Number.isNaN(offset) && Math.abs(offset) % repeatEveryDaysA === 0;
 }
 
+/** True when a repeating shift is scheduled to occur on a specific date. */
+export function recurringShiftOccursOnDate(
+  anchorDate: string,
+  repeatEveryDays: number,
+  date: string,
+): boolean {
+  if (!Number.isInteger(repeatEveryDays) || repeatEveryDays < 1 || repeatEveryDays > 365) return false;
+  const offset = daysBetween(anchorDate, date);
+  return !Number.isNaN(offset) && offset >= 0 && offset % repeatEveryDays === 0;
+}
+
 /**
  * A seniority score where larger = more senior. Earlier start dates yield a
  * larger number. Falls back to 0 when the date is missing/invalid so those

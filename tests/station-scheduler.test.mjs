@@ -68,6 +68,8 @@ test("scheduler uses the scoped Stickney mobile workspace instead of prototype b
   assert.equal(component.includes('slot.status === "open" ? "OPEN"'), true, "calendar labels open roles clearly");
   assert.equal(component.includes("Pause rotation"), true, "automatic rotation can be paused");
   assert.equal(component.includes("datesWithActiveBuiltShifts"), true, "active Shift Builder entries take priority over retired imported overlaps");
+  assert.equal(component.includes("matchingBuiltShifts"), true, "the day picker offers only builders matching the selected date's recurrence");
+  assert.equal(component.includes("All matching built shifts are already on this day"), true, "the day picker explains when the correct builders are already present");
   assert.equal(component.includes('"--calendar-shift-color"'), true, "calendar days inherit their saved Shift Builder color");
   assert.equal(styles.includes("button.calendar-has-shift"), true, "the saved shift color is visible across the day card");
   assert.equal(styles.includes(".workspace:has(.scheduler)"), true, "scheduler uses the available workspace width");
@@ -106,6 +108,7 @@ test("shift patterns are durable and generate recurring calendar entries without
   }
   assert.equal(route.includes("recurringShiftDates(anchorDate, repeatEveryDays"), true);
   assert.equal(route.includes("sameRecurringPattern(anchorDate, repeatEveryDays"), true, "duplicate shift builders cannot claim the same time and repeat dates");
+  assert.equal(route.includes("recurringShiftOccursOnDate(shiftType.anchorDate"), true, "the API rejects a wrong-color off-cycle builder for the selected date");
   assert.equal(route.includes("already follows this repeat pattern"), true, "the administrator receives a clear conflict message");
   assert.equal(route.includes("existing.has(entryDate)"), true);
   assert.equal(route.includes("recurring shift dates added"), true);
@@ -118,6 +121,14 @@ test("identical recurrence days are detected even when anchors differ by a full 
   assert.equal(sameRecurringPattern("2026-08-08", 3, "2026-08-11", 3), true);
   assert.equal(sameRecurringPattern("2026-08-08", 3, "2026-08-09", 3), false);
   assert.equal(sameRecurringPattern("2026-08-08", 3, "2026-08-08", 6), false);
+});
+
+test("a built shift only matches dates in its saved recurrence", async () => {
+  const { recurringShiftOccursOnDate } = await loadSchedulerLogic();
+  assert.equal(recurringShiftOccursOnDate("2026-08-08", 3, "2026-08-20"), true, "Gold correctly occurs on August 20");
+  assert.equal(recurringShiftOccursOnDate("2026-08-06", 3, "2026-08-20"), false, "Black does not occur on August 20");
+  assert.equal(recurringShiftOccursOnDate("2026-08-07", 3, "2026-08-20"), false, "Red does not occur on August 20");
+  assert.equal(recurringShiftOccursOnDate("2026-08-21", 3, "2026-08-20"), false, "dates before a builder's first shift never match");
 });
 
 test("consumers read filled station slots instead of legacy assignments", async () => {
