@@ -24,6 +24,10 @@ type ScheduleBoundValue = string | number | null;
 const STATION_ROLES = ["Officer/AO", "Engine Driver", "Ambulance Driver", "FF/Attendant"] as const;
 type StationRole = (typeof STATION_ROLES)[number];
 const isStationRole = (value: string): value is StationRole => (STATION_ROLES as readonly string[]).includes(value);
+const ONE_DAY_POSITION_ROLES = [...STATION_ROLES, "Firefighter", "Training/Orientation"] as const;
+type OneDayPositionRole = (typeof ONE_DAY_POSITION_ROLES)[number];
+const isOneDayPositionRole = (value: string): value is OneDayPositionRole => (ONE_DAY_POSITION_ROLES as readonly string[]).includes(value);
+const isGeneralOneDayPosition = (role: string) => role === "Firefighter" || role === "Training/Orientation";
 const officerRank = (rank: string) => /\b(chief|captain|lieutenant)\b/i.test(rank);
 
 type EmployeeRow = {
@@ -89,6 +93,7 @@ async function isSchedulableEmployee(db: Db, employeeId: string): Promise<boolea
 }
 
 async function isEligibleEmployeeForRole(db: Db, employeeId: string, role: string): Promise<boolean> {
+  if (isGeneralOneDayPosition(role)) return isSchedulableEmployee(db, employeeId);
   const employee = await db.prepare("SELECT e.id,p.label rank,COALESCE(ep.station_roles,'[]') roles,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1 AND COALESCE(TRIM(ep.end_date),'')='' LIMIT 1")
     .bind(employeeId).first<{ id: string; rank: string; roles: string; actingOfficerEligible: number }>();
   return Boolean(employee && eligibleForRole(role, {
@@ -187,6 +192,7 @@ export async function GET(request: Request) {
       viewer: current,
       today,
       roles: STATION_ROLES,
+      dayPositionRoles: ONE_DAY_POSITION_ROLES,
       employees: current.isAdmin
         ? employees
         : employees.map((e) => ({ id: e.id, name: e.name, rank: e.rank, roles: e.roles, actingOfficerEligible: e.actingOfficerEligible })),
@@ -489,7 +495,7 @@ async function addDaySlot(db: Db, current: Viewer, payload: Record<string, unkno
   const startTime = normalizeScheduleTime(String(payload.startTime ?? ""));
   const endTime = normalizeScheduleTime(String(payload.endTime ?? ""));
   const employeeId = String(payload.employeeId ?? "").trim();
-  if (!entryId || !isStationRole(role) || !startTime || !endTime) return bad("Choose a shift, position, and valid four-digit start and end times.");
+  if (!entryId || !isOneDayPositionRole(role) || !startTime || !endTime) return bad("Choose a shift, position, and valid four-digit start and end times.");
   const entry = await db.prepare("SELECT id FROM station_schedule_entries WHERE id=?").bind(entryId).first<{ id: string }>();
   if (!entry) return bad("That day shift is no longer available.", 409);
   if (employeeId && !await isEligibleEmployeeForRole(db, employeeId, role)) return bad("That employee is not active and qualified for this position.", 409);
@@ -506,7 +512,7 @@ async function updateDaySlot(db: Db, payload: Record<string, unknown>, requireAd
   const startTime = normalizeScheduleTime(String(payload.startTime ?? ""));
   const endTime = normalizeScheduleTime(String(payload.endTime ?? ""));
   const employeeId = String(payload.employeeId ?? "").trim();
-  if (!slotId || !isStationRole(role) || !startTime || !endTime) return bad("Choose a position and valid four-digit start and end times.");
+  if (!slotId || !isOneDayPositionRole(role) || !startTime || !endTime) return bad("Choose a position and valid four-digit start and end times.");
   const slot = await db.prepare("SELECT id FROM station_shift_slots WHERE id=? AND is_extra=1").bind(slotId).first<{ id: string }>();
   if (!slot) return bad("Only a one-day added position can have its role or times changed.", 409);
   if (employeeId && !await isEligibleEmployeeForRole(db, employeeId, role)) return bad("That employee is not active and qualified for this position.", 409);

@@ -30,6 +30,7 @@ type Data = {
   viewer: { employeeId: string | null; isAdmin: boolean; rank: string; roles: string[]; actingOfficerEligible: boolean; name: string };
   today: string;
   roles: string[];
+  dayPositionRoles?: string[];
   employees: Employee[];
   shiftTypes: ShiftType[];
   shiftTypeRoles: ShiftTypeRole[];
@@ -73,6 +74,7 @@ const shiftTextColor = (color: string) => ["gold", "orange", "green"].includes(c
 const monthTitle = (value: string) => new Date(`${value.slice(0, 7)}-01T12:00:00`).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 const fourDigitTime = (value: string) => value.replace(":", "").slice(0, 4);
 const employeeEligibleForRole = (employee: Employee, role: string) => {
+  if (role === "Firefighter" || role === "Training/Orientation") return true;
   if (role === "Officer/AO") return /\b(chief|captain|lieutenant)\b/i.test(employee.rank) || Boolean(employee.actingOfficerEligible);
   return parseRoles(employee.roles).includes(role);
 };
@@ -350,14 +352,14 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
                               <option value="">Open position</option>
                               {assignableEmployees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name} · {employee.rank}</option>)}
                             </select></label>}
-                            {isAdmin && Boolean(slot.isExtra) && <ExtraDaySlotEditor key={`${slot.id}-${slot.role}-${slot.startTime}-${slot.endTime}-${slot.employeeId ?? ""}`} slot={slot} roles={data.roles} employees={data.employees} act={act} busy={busy} />}
+                            {isAdmin && Boolean(slot.isExtra) && <ExtraDaySlotEditor key={`${slot.id}-${slot.role}-${slot.startTime}-${slot.endTime}-${slot.employeeId ?? ""}`} slot={slot} roles={data.dayPositionRoles ?? data.roles} employees={data.employees} act={act} busy={busy} />}
                             {canClaim && <button className="link" disabled={busy} onClick={() => act({ action: "submitClaim", slotId: slot.id })}>Request</button>}
                             {canTrade && <button className="link" disabled={busy} onClick={() => act({ action: "submitTrade", slotId: slot.id, targetEmployeeId: "" })}>Offer trade</button>}
                           </li>
                         );
                       })}
                     </ul>
-                    {isAdmin && <DayPositionForm entryId={entry.id} defaultStart={shift?.startTime ?? "0600"} defaultEnd={shift?.endTime ?? "0600"} roles={data.roles} employees={data.employees} act={act} busy={busy} />}
+                    {isAdmin && <DayPositionForm entryId={entry.id} defaultStart={shift?.startTime ?? "0600"} defaultEnd={shift?.endTime ?? "0600"} roles={data.dayPositionRoles ?? data.roles} employees={data.employees} act={act} busy={busy} />}
                   </div>
                 );
               })}
