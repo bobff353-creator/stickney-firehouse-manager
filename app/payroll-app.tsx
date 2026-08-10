@@ -279,6 +279,10 @@ export default function PayrollApp({
         setTvMode(true);
         return;
       }
+      if (params.get("page")?.toLowerCase() === "respond") {
+        setActiveNav("Respond");
+        return;
+      }
       if (settings.mode === "apparatus") setActiveNav("Respond");
     }, 0);
     return () => window.clearTimeout(timer);
