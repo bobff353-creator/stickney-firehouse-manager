@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "CAD Dispatch",
+  title: "CAD",
   description: "Computer-Aided Dispatch: closest-unit dispatching, live vehicle location, real-time incident notes, mutual-aid webhooks, and fire-alarm monitoring.",
 };
 

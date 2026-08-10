@@ -32,8 +32,8 @@ function LoginForm() {
     <div className="login-wrap">
       <form className="login-card" onSubmit={submit}>
         <div className="app-mark">CAD</div>
-        <h1>CAD Dispatch</h1>
-        <p className="sub">Sign in to the dispatch console</p>
+        <h1>CAD</h1>
+        <p className="sub">Computer-Aided Dispatch · sign in</p>
         {error && <div className="login-error">{error}</div>}
         <label>Email<input type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
         <label>Password<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>

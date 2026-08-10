@@ -1,4 +1,4 @@
-# CAD Dispatch Service
+# CAD
 
 A standalone **Computer-Aided Dispatch** application. It is self-contained —
 its own database, its own login, its own deployment — and shares nothing with

@@ -114,7 +114,7 @@ export default function ConsoleShell({ name, email, role }: { name: string; emai
   return (
     <>
       <header className="app-bar">
-        <div className="app-brand"><div className="app-mark">CAD</div><div><b>CAD Dispatch</b><small>Computer-Aided Dispatch service</small></div></div>
+        <div className="app-brand"><div className="app-mark">CAD</div><div><b>CAD</b><small>Computer-Aided Dispatch</small></div></div>
         <div className="app-user"><span>Signed in as <strong>{name || email}</strong>{role === "admin" ? " · Admin" : ""}</span><button onClick={() => void logout()}>Sign out</button></div>
       </header>
 
