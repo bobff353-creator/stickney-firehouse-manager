@@ -1,0 +1,91 @@
+import { ensureDatabase } from "../../../../db/bootstrap";
+import { resolveViewer } from "../../../cad-auth";
+
+const jsonHeaders = { "cache-control": "no-store" } as const;
+
+function newToken() {
+  return (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "");
+}
+
+export async function GET(request: Request) {
+  try {
+    const db = await ensureDatabase();
+    const viewer = await resolveViewer(request, db);
+    if (!viewer.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
+    const [panels, events] = await Promise.all([
+      db.prepare("SELECT id, name, monitor_account AS monitorAccount, address, latitude, longitude, protocol, inbound_token AS inboundToken, auto_create_incident AS autoCreateIncident, active, last_signal_at AS lastSignalAt FROM cad_alarm_panels ORDER BY name").all(),
+      db.prepare("SELECT id, panel_id AS panelId, panel_name AS panelName, signal_type AS signalType, zone, description, priority, incident_id AS incidentId, event_at AS eventAt, received_at AS receivedAt, acknowledged_at AS acknowledgedAt, acknowledged_by AS acknowledgedBy FROM cad_alarm_events ORDER BY datetime(received_at) DESC LIMIT 50").all(),
+    ]);
+    return Response.json({ signalUrl: new URL("/api/cad/alarms/signal", request.url).toString(), panels: panels.results, events: events.results }, { headers: jsonHeaders });
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "Unable to load alarm panels." }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const db = await ensureDatabase();
+    const viewer = await resolveViewer(request, db);
+    if (!viewer.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
+    const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+    const action = String(body.action ?? "createPanel");
+    const actor = viewer.displayName || viewer.email;
+
+    if (action === "createPanel") {
+      const name = String(body.name ?? "").trim();
+      if (!name) return Response.json({ error: "A panel name is required." }, { status: 422 });
+      const id = crypto.randomUUID();
+      const inboundToken = newToken();
+      await db.prepare("INSERT INTO cad_alarm_panels (id, name, monitor_account, address, latitude, longitude, inbound_token, auto_create_incident, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(
+        id,
+        name,
+        String(body.monitorAccount ?? "").trim(),
+        String(body.address ?? "").trim(),
+        Number.isFinite(Number(body.latitude)) ? Number(body.latitude) : null,
+        Number.isFinite(Number(body.longitude)) ? Number(body.longitude) : null,
+        inboundToken,
+        body.autoCreateIncident === false ? 0 : 1,
+        actor,
+      ).run();
+      return Response.json({ ok: true, id, inboundToken }, { headers: jsonHeaders });
+    }
+
+    const id = String(body.id ?? "").trim();
+    if (!id) return Response.json({ error: "A panel or event id is required." }, { status: 422 });
+
+    if (action === "updatePanel") {
+      await db.prepare("UPDATE cad_alarm_panels SET name = COALESCE(?, name), monitor_account = COALESCE(?, monitor_account), address = COALESCE(?, address), latitude = ?, longitude = ?, auto_create_incident = COALESCE(?, auto_create_incident), active = COALESCE(?, active), updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(
+        body.name === undefined ? null : String(body.name).trim(),
+        body.monitorAccount === undefined ? null : String(body.monitorAccount).trim(),
+        body.address === undefined ? null : String(body.address).trim(),
+        Number.isFinite(Number(body.latitude)) ? Number(body.latitude) : null,
+        Number.isFinite(Number(body.longitude)) ? Number(body.longitude) : null,
+        body.autoCreateIncident === undefined ? null : (body.autoCreateIncident ? 1 : 0),
+        body.active === undefined ? null : (body.active ? 1 : 0),
+        id,
+      ).run();
+      return Response.json({ ok: true, id }, { headers: jsonHeaders });
+    }
+
+    if (action === "rotatePanel") {
+      const inboundToken = newToken();
+      await db.prepare("UPDATE cad_alarm_panels SET inbound_token = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(inboundToken, id).run();
+      return Response.json({ ok: true, id, inboundToken }, { headers: jsonHeaders });
+    }
+
+    if (action === "deletePanel") {
+      await db.prepare("DELETE FROM cad_alarm_events WHERE panel_id = ?").bind(id).run();
+      await db.prepare("DELETE FROM cad_alarm_panels WHERE id = ?").bind(id).run();
+      return Response.json({ ok: true, id }, { headers: jsonHeaders });
+    }
+
+    if (action === "acknowledge") {
+      const result = await db.prepare("UPDATE cad_alarm_events SET acknowledged_at = CURRENT_TIMESTAMP, acknowledged_by = ? WHERE id = ? AND acknowledged_at IS NULL").bind(actor, id).run();
+      return Response.json({ ok: Boolean(result.meta.changes), id }, { headers: jsonHeaders });
+    }
+
+    return Response.json({ error: "Unknown alarm action." }, { status: 400 });
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "Unable to update alarm panels." }, { status: 500 });
+  }
+}

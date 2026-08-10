@@ -557,3 +557,130 @@ export const stationDistributionWeights = sqliteTable("station_distribution_weig
   customLabel: text("custom_label").notNull().default("Cross-trained"),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
+
+// ---------------------------------------------------------------------------
+// CAD Dispatching Service
+//
+// Real-time apparatus/vehicle location (AVL) for closest-unit dispatching,
+// timestamped incident (CAD) notes, partner-agency webhook peers, outbound
+// delivery receipts, and monitored fire-alarm panels with their signals.
+// ---------------------------------------------------------------------------
+
+export const cadUnits = sqliteTable("cad_units", {
+  id: text("id").primaryKey(),
+  unitNumber: text("unit_number").notNull().unique(),
+  name: text("name").notNull().default(""),
+  unitType: text("unit_type").notNull().default("engine"),
+  agency: text("agency").notNull().default("Stickney"),
+  station: text("station").notNull().default(""),
+  status: text("status").notNull().default("available"),
+  statusSince: text("status_since").notNull().default(sql`CURRENT_TIMESTAMP`),
+  activeIncidentId: text("active_incident_id").notNull().default(""),
+  latitude: real("latitude"),
+  longitude: real("longitude"),
+  heading: real("heading"),
+  speed: real("speed"),
+  locationAt: text("location_at"),
+  homeLatitude: real("home_latitude"),
+  homeLongitude: real("home_longitude"),
+  source: text("source").notNull().default("manual"),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  createdBy: text("created_by").notNull().default("System"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [index("cad_units_active_status_idx").on(table.active, table.status)]);
+
+export const cadUnitLocationHistory = sqliteTable("cad_unit_location_history", {
+  id: text("id").primaryKey(),
+  unitId: text("unit_id").notNull().references(() => cadUnits.id),
+  unitNumber: text("unit_number").notNull().default(""),
+  latitude: real("latitude").notNull(),
+  longitude: real("longitude").notNull(),
+  heading: real("heading"),
+  speed: real("speed"),
+  recordedAt: text("recorded_at").notNull(),
+  source: text("source").notNull().default(""),
+}, (table) => [index("cad_unit_location_history_idx").on(table.unitId, table.recordedAt)]);
+
+export const cadIncidentNotes = sqliteTable("cad_incident_notes", {
+  id: text("id").primaryKey(),
+  incidentId: text("incident_id").notNull(),
+  sequence: integer("sequence").notNull(),
+  note: text("note").notNull(),
+  category: text("category").notNull().default("note"),
+  author: text("author").notNull().default(""),
+  source: text("source").notNull().default("local"),
+  agency: text("agency").notNull().default(""),
+  unitNumber: text("unit_number").notNull().default(""),
+  externalId: text("external_id").notNull().default(""),
+  eventAt: text("event_at").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [index("cad_incident_notes_incident_idx").on(table.incidentId, table.sequence)]);
+
+export const cadAgencies = sqliteTable("cad_agencies", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  agencyType: text("agency_type").notNull().default("cad"),
+  contact: text("contact").notNull().default(""),
+  inboundToken: text("inbound_token").notNull().default(""),
+  outboundUrl: text("outbound_url").notNull().default(""),
+  outboundSecret: text("outbound_secret").notNull().default(""),
+  subscriptions: text("subscriptions").notNull().default("[]"),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  lastInboundAt: text("last_inbound_at"),
+  lastOutboundAt: text("last_outbound_at"),
+  createdBy: text("created_by").notNull().default("System"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const cadOutboundDeliveries = sqliteTable("cad_outbound_deliveries", {
+  id: text("id").primaryKey(),
+  agencyId: text("agency_id").notNull().default(""),
+  agencyName: text("agency_name").notNull().default(""),
+  eventType: text("event_type").notNull().default(""),
+  incidentId: text("incident_id").notNull().default(""),
+  endpoint: text("endpoint").notNull().default(""),
+  status: text("status").notNull().default("pending"),
+  statusCode: integer("status_code"),
+  error: text("error").notNull().default(""),
+  payload: text("payload").notNull().default("{}"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  deliveredAt: text("delivered_at"),
+}, (table) => [index("cad_outbound_deliveries_idx").on(table.agencyId, table.createdAt)]);
+
+export const cadAlarmPanels = sqliteTable("cad_alarm_panels", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  monitorAccount: text("monitor_account").notNull().default(""),
+  address: text("address").notNull().default(""),
+  latitude: real("latitude"),
+  longitude: real("longitude"),
+  protocol: text("protocol").notNull().default("webhook"),
+  inboundToken: text("inbound_token").notNull().default(""),
+  autoCreateIncident: integer("auto_create_incident", { mode: "boolean" }).notNull().default(true),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  lastSignalAt: text("last_signal_at"),
+  createdBy: text("created_by").notNull().default("System"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const cadAlarmEvents = sqliteTable("cad_alarm_events", {
+  id: text("id").primaryKey(),
+  panelId: text("panel_id").notNull().references(() => cadAlarmPanels.id),
+  panelName: text("panel_name").notNull().default(""),
+  externalEventId: text("external_event_id").notNull().default(""),
+  signalType: text("signal_type").notNull().default("alarm"),
+  zone: text("zone").notNull().default(""),
+  description: text("description").notNull().default(""),
+  priority: text("priority").notNull().default("high"),
+  latitude: real("latitude"),
+  longitude: real("longitude"),
+  incidentId: text("incident_id").notNull().default(""),
+  eventAt: text("event_at").notNull(),
+  receivedAt: text("received_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  rawPayload: text("raw_payload").notNull().default("{}"),
+  acknowledgedAt: text("acknowledged_at"),
+  acknowledgedBy: text("acknowledged_by").notNull().default(""),
+}, (table) => [index("cad_alarm_events_panel_idx").on(table.panelId, table.receivedAt)]);
