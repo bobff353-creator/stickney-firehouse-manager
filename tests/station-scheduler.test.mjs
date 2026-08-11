@@ -37,7 +37,7 @@ test("station scheduler tables exist in schema and bootstrap", async () => {
     assert.equal(bootstrap.includes(`CREATE TABLE IF NOT EXISTS ${table}`), true, `bootstrap creates ${table}`);
   }
   assert.equal(schema.includes('sqliteTable("station_shift_slots"'), true);
-  assert.equal(bootstrap.includes("station-scheduler-v3"), true, "bootstrap version bumped for one-day positions");
+  assert.equal(bootstrap.includes("daily-log-callback-reviews-v1"), true, "bootstrap version includes the latest additive schema");
   // Employee scheduler columns are added additively.
   assert.equal(bootstrap.includes("ADD COLUMN station_roles"), true);
   assert.equal(bootstrap.includes("ADD COLUMN station_ot_hours"), true);

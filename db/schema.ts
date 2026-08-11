@@ -256,6 +256,33 @@ export const dailyLogApprovals = sqliteTable("daily_log_approvals", {
   fleetDutiesAcknowledged: integer("fleet_duties_acknowledged", { mode: "boolean" }).notNull().default(false),
 }, (table) => [uniqueIndex("log_approval_date_shift_idx").on(table.logDate, table.shiftKey)]);
 
+export const callbackReviewSettings = sqliteTable("callback_review_settings", {
+  id: text("id").primaryKey(),
+  reviewerEmployeeId: text("reviewer_employee_id").notNull().references(() => employees.id),
+  rulesJson: text("rules_json").notNull().default("{}"),
+  updatedBy: text("updated_by").notNull().default("System"),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const dailyLogCallbackSubmissions = sqliteTable("daily_log_callback_submissions", {
+  id: text("id").primaryKey(),
+  logDate: text("log_date").notNull().references(() => dailyLogs.logDate),
+  callId: text("call_id").notNull(),
+  reportNumber: text("report_number").notNull().default(""),
+  employeeId: text("employee_id").notNull().references(() => employees.id),
+  reviewerEmployeeId: text("reviewer_employee_id").notNull().references(() => employees.id),
+  status: text("status").notNull().default("pending"),
+  submittedBy: text("submitted_by").notNull(),
+  submittedAt: text("submitted_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  reviewedBy: text("reviewed_by"),
+  reviewedAt: text("reviewed_at"),
+  reviewNote: text("review_note").notNull().default(""),
+}, (table) => [
+  uniqueIndex("daily_log_callbacks_call_employee_idx").on(table.callId, table.employeeId),
+  index("daily_log_callbacks_status_idx").on(table.status, table.submittedAt),
+  index("daily_log_callbacks_reviewer_idx").on(table.reviewerEmployeeId, table.status),
+]);
+
 export const importantPhoneNumbers = sqliteTable("important_phone_numbers", {
   id: text("id").primaryKey(),
   category: text("category").notNull(),

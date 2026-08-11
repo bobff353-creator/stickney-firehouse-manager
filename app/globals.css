@@ -1227,6 +1227,33 @@ td strong { font-size: 16px; }
 .officer-fleet-lock strong { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
 .officer-fleet-lock span { font-size: 11px; font-weight: 750; }
 .calls-card { overflow: hidden; }
+.call-entry { border: 1px solid #d6dee4; border-radius: 9px; background: #f9fbfc; overflow: hidden; }
+.call-entry .call-row { border: 0; border-radius: 0; background: transparent; }
+.call-callback { padding: 0 14px 14px; }
+.callback-toggle { width: 100%; min-height: 42px; border: 1px solid #1b5b7e; border-radius: 7px; background: #eef7fb; color: #123e58; font-weight: 900; cursor: pointer; }
+.callback-toggle.open { border-radius: 7px 7px 0 0; background: #123e58; color: white; }
+.callback-panel { padding: 16px; border: 1px solid #8ca7b7; border-top: 0; border-radius: 0 0 7px 7px; background: white; display: grid; gap: 14px; }
+.callback-panel p { margin: 3px 0 0; color: #40566b; }
+.callback-employee-list { display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: 8px; }
+.callback-employee-list label { min-height: 50px; padding: 9px 11px; border: 1px solid #c8d4dc; border-radius: 6px; display: flex; flex-direction: row; align-items: center; gap: 9px; color: #102a43; cursor: pointer; }
+.callback-employee-list label input { width: 18px; height: 18px; flex: 0 0 auto; }
+.callback-employee-list label span { display: grid; gap: 2px; }
+.callback-employee-list small,.callback-reviewer { color: #526b7a; }
+.callback-existing { display: flex; flex-wrap: wrap; gap: 7px; }
+.callback-existing span,.callback-status { padding: 5px 8px; border-radius: 999px; background: #e7f1f5; color: #17445d; font-size: 12px; font-weight: 900; text-transform: capitalize; }
+.callback-message,.callback-save-message { margin: 0; color: #145e45; font-weight: 800; }
+.callback-review-page { display: grid; gap: 18px; }
+.callback-reviewer-row { display: flex; align-items: end; gap: 12px; }
+.callback-reviewer-row label { flex: 1; display: grid; gap: 6px; color: #40566b; font-size: 12px; font-weight: 800; }
+.callback-reviewer-row select,.callback-review-item input { min-height: 42px; padding: 0 11px; border: 1px solid #b4c0c9; border-radius: 6px; background: white; color: #102a43; }
+.callback-review-list { display: grid; gap: 10px; }
+.callback-review-item { padding: 14px; border: 1px solid #d6dee4; border-left: 5px solid #d4a017; border-radius: 8px; display: grid; grid-template-columns: minmax(220px,1fr) auto minmax(180px,.75fr) auto; align-items: center; gap: 12px; }
+.callback-review-item.approved { border-left-color: #21875f; }
+.callback-review-item.denied { border-left-color: #b43a35; }
+.callback-review-item>div:first-child { display: grid; gap: 3px; }
+.callback-review-item>div:first-child span,.callback-review-item>div:first-child small { color: #526b7a; }
+.callback-review-actions { display: flex; gap: 7px; }
+.callback-review-actions button { min-height: 40px; padding: 0 13px; border: 1px solid #9eafb9; border-radius: 6px; background: white; color: #17364a; font-weight: 900; }
 .call-list { display: grid; gap: 12px; }
 .call-row { position: relative; padding: 14px 46px 14px 14px; border: 1px solid #d6dee4; border-radius: 9px; background: #f9fbfc; display: grid; grid-template-columns: 34px .75fr 1.05fr 1.05fr 1fr 2fr 1.2fr; gap: 11px; align-items: end; }
 .call-number { width: 32px; height: 32px; align-self: center; border-radius: 50%; background: var(--navy); color: white; display: grid; place-items: center; font-weight: 850; }
@@ -1388,6 +1415,10 @@ td strong { font-size: 16px; }
 .rotation-summary b { color: #426177; font-size: 11px; }
 
 @media (max-width: 680px) {
+  .callback-reviewer-row { align-items: stretch; flex-direction: column; }
+  .callback-review-item { grid-template-columns: 1fr auto; }
+  .callback-review-item input,.callback-review-actions { grid-column: 1 / -1; }
+  .callback-review-actions button { flex: 1; }
   .topbar { min-height: 72px; padding: 0 13px; gap: 7px; }
   button, select, input:not([type="checkbox"]):not([type="radio"]) { min-height: 48px; }
   textarea { min-height: 108px; font-size: 16px; }
