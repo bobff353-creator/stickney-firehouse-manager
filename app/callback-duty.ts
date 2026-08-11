@@ -5,7 +5,9 @@ export type CallbackDutyRow = {
 };
 
 export function militaryMinutes(value: string) {
-  const digits = String(value ?? "").replace(/\D/g, "").padStart(4, "0").slice(-4);
+  const raw = String(value ?? "").replace(/\D/g, "");
+  if (!raw) return null;
+  const digits = raw.padStart(4, "0").slice(-4);
   const hours = Number(digits.slice(0, 2));
   const minutes = Number(digits.slice(2));
   if (!Number.isInteger(hours) || !Number.isInteger(minutes) || hours > 23 || minutes > 59) return null;
@@ -27,4 +29,3 @@ export function employeeWasOnDutyAtCall(row: CallbackDutyRow, callTime: string) 
   if (end <= start) end += 1440;
   return call >= start && call < end;
 }
-

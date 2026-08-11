@@ -67,7 +67,8 @@ const employeeSeed = [
 ] as const;
 
 let ready = false;
-const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-10-daily-log-callback-reviews-v1";
+const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-10-callback-rules-v2";
+const callbackRulesJson = JSON.stringify({ weekend: { fridayStart: "18:00", sundayEnd: "18:00" }, holiday: true, callTypes: ["Auto accident", "Fire alarm", "Mutual aid", "Auto aid"], backToBackMinutes: 5, minimumHours: 2, roundingMinutes: 15, onDutyFlag: true, overlappingWindowFlag: true, deputyChiefOverride: true });
 
 const policySeedVersion = "stickney-policy-library-2026-07-18";
 const boxCardSeedVersion = "regional-box-cards-structured-2026-07-21-v2";
@@ -333,9 +334,10 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
     db.prepare("CREATE TABLE IF NOT EXISTS daily_log_calls (id TEXT PRIMARY KEY NOT NULL, log_date TEXT NOT NULL REFERENCES daily_logs(log_date), report_number TEXT NOT NULL DEFAULT '', time_out TEXT NOT NULL DEFAULT '', time_in TEXT NOT NULL DEFAULT '', responding_units TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', call_type TEXT NOT NULL DEFAULT 'EMS', sort_order INTEGER NOT NULL DEFAULT 0)"),
     db.prepare("CREATE INDEX IF NOT EXISTS log_calls_date_sort_idx ON daily_log_calls(log_date, sort_order)"),
     db.prepare("CREATE TABLE IF NOT EXISTS callback_review_settings (id TEXT PRIMARY KEY NOT NULL, reviewer_employee_id TEXT NOT NULL REFERENCES employees(id), rules_json TEXT NOT NULL DEFAULT '{}', updated_by TEXT NOT NULL DEFAULT 'System', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS daily_log_callback_submissions (id TEXT PRIMARY KEY NOT NULL, log_date TEXT NOT NULL REFERENCES daily_logs(log_date), call_id TEXT NOT NULL, report_number TEXT NOT NULL DEFAULT '', employee_id TEXT NOT NULL REFERENCES employees(id), reviewer_employee_id TEXT NOT NULL REFERENCES employees(id), status TEXT NOT NULL DEFAULT 'pending', submitted_by TEXT NOT NULL, submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, reviewed_by TEXT, reviewed_at TEXT, review_note TEXT NOT NULL DEFAULT '', UNIQUE(call_id, employee_id))"),
+    db.prepare("CREATE TABLE IF NOT EXISTS daily_log_callback_submissions (id TEXT PRIMARY KEY NOT NULL, log_date TEXT NOT NULL REFERENCES daily_logs(log_date), call_id TEXT NOT NULL, report_number TEXT NOT NULL DEFAULT '', employee_id TEXT NOT NULL REFERENCES employees(id), reviewer_employee_id TEXT NOT NULL REFERENCES employees(id), status TEXT NOT NULL DEFAULT 'pending', submitted_by TEXT NOT NULL, submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, reviewed_by TEXT, reviewed_at TEXT, review_note TEXT NOT NULL DEFAULT '', call_type TEXT NOT NULL DEFAULT '', call_time_out TEXT NOT NULL DEFAULT '', call_time_in TEXT NOT NULL DEFAULT '', rule_version TEXT NOT NULL DEFAULT '', rule_matches TEXT NOT NULL DEFAULT '[]', rule_flags TEXT NOT NULL DEFAULT '[]', suggested_hours REAL NOT NULL DEFAULT 2, actual_minutes INTEGER, approved_hours REAL NOT NULL DEFAULT 0, submitted_by_employee_id TEXT REFERENCES employees(id), submitted_by_rank TEXT NOT NULL DEFAULT '', UNIQUE(call_id, employee_id))"),
     db.prepare("CREATE INDEX IF NOT EXISTS daily_log_callbacks_status_idx ON daily_log_callback_submissions(status, submitted_at)"),
     db.prepare("CREATE INDEX IF NOT EXISTS daily_log_callbacks_reviewer_idx ON daily_log_callback_submissions(reviewer_employee_id, status)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS callback_payroll_aggregates (employee_id TEXT NOT NULL REFERENCES employees(id), work_date TEXT NOT NULL, manual_baseline_hours REAL NOT NULL DEFAULT 0, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(employee_id,work_date))"),
     db.prepare("CREATE TABLE IF NOT EXISTS dispatch_incidents (incident_id TEXT PRIMARY KEY NOT NULL, resend_email_id TEXT NOT NULL UNIQUE, call_type TEXT NOT NULL, category TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', city TEXT NOT NULL DEFAULT '', narrative TEXT NOT NULL DEFAULT '', responding_units TEXT NOT NULL DEFAULT '', longitude REAL, latitude REAL, dispatched_at TEXT NOT NULL, time_out TEXT NOT NULL DEFAULT '', attachment_count INTEGER NOT NULL DEFAULT 0, source_payload TEXT NOT NULL DEFAULT '{}', source_system TEXT NOT NULL DEFAULT 'CAD email', received_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, cleared_at TEXT, active INTEGER NOT NULL DEFAULT 1)"),
     db.prepare("CREATE INDEX IF NOT EXISTS dispatch_incidents_active_time_idx ON dispatch_incidents(active, dispatched_at)"),
     db.prepare("CREATE TABLE IF NOT EXISTS cad_inbound_receipts (id TEXT PRIMARY KEY NOT NULL, provider TEXT NOT NULL, dedupe_key TEXT NOT NULL, external_event_id TEXT NOT NULL DEFAULT '', external_incident_id TEXT NOT NULL DEFAULT '', event_type TEXT NOT NULL DEFAULT '', payload_format TEXT NOT NULL DEFAULT '', raw_payload TEXT NOT NULL, normalized_payload TEXT NOT NULL DEFAULT '{}', status TEXT NOT NULL, error_message TEXT NOT NULL DEFAULT '', duplicate_of TEXT, received_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, processed_at TEXT)"),
@@ -438,6 +440,17 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
   try { await db.prepare("ALTER TABLE station_shift_slots ADD COLUMN start_time TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE station_shift_slots ADD COLUMN end_time TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE station_shift_slots ADD COLUMN is_extra INTEGER NOT NULL DEFAULT 0").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE daily_log_callback_submissions ADD COLUMN call_type TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE daily_log_callback_submissions ADD COLUMN call_time_out TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE daily_log_callback_submissions ADD COLUMN call_time_in TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE daily_log_callback_submissions ADD COLUMN rule_version TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE daily_log_callback_submissions ADD COLUMN rule_matches TEXT NOT NULL DEFAULT '[]'").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE daily_log_callback_submissions ADD COLUMN rule_flags TEXT NOT NULL DEFAULT '[]'").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE daily_log_callback_submissions ADD COLUMN suggested_hours REAL NOT NULL DEFAULT 2").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE daily_log_callback_submissions ADD COLUMN actual_minutes INTEGER").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE daily_log_callback_submissions ADD COLUMN approved_hours REAL NOT NULL DEFAULT 0").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE daily_log_callback_submissions ADD COLUMN submitted_by_employee_id TEXT REFERENCES employees(id)").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE daily_log_callback_submissions ADD COLUMN submitted_by_rank TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
   await backfillPreplanFootprintMetrics(db);
   await db.batch([
     ["shift_request", "Shift requests", 1, 1, 0, '["immediate"]'],
@@ -520,6 +533,7 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
   }
   await enforceActingOfficerStraightStipend(db);
   await db.prepare("INSERT INTO callback_review_settings(id,reviewer_employee_id,updated_by) SELECT 'default','wyant-robert','Administrator setup' WHERE EXISTS (SELECT 1 FROM employees WHERE id='wyant-robert') ON CONFLICT(id) DO NOTHING").run();
+  await db.prepare("UPDATE callback_review_settings SET rules_json=?,updated_at=CURRENT_TIMESTAMP WHERE id='default'").bind(callbackRulesJson).run();
   await reconcileExactLogPayrollRange(db);
   const phoneSeed = [
     ["fire-berwyn", "fire", "Berwyn Fire Department", "", "(708) 484-1644", "", 1],

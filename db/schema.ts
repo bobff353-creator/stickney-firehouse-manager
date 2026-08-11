@@ -277,11 +277,29 @@ export const dailyLogCallbackSubmissions = sqliteTable("daily_log_callback_submi
   reviewedBy: text("reviewed_by"),
   reviewedAt: text("reviewed_at"),
   reviewNote: text("review_note").notNull().default(""),
+  callType: text("call_type").notNull().default(""),
+  callTimeOut: text("call_time_out").notNull().default(""),
+  callTimeIn: text("call_time_in").notNull().default(""),
+  ruleVersion: text("rule_version").notNull().default(""),
+  ruleMatches: text("rule_matches").notNull().default("[]"),
+  ruleFlags: text("rule_flags").notNull().default("[]"),
+  suggestedHours: real("suggested_hours").notNull().default(2),
+  actualMinutes: integer("actual_minutes"),
+  approvedHours: real("approved_hours").notNull().default(0),
+  submittedByEmployeeId: text("submitted_by_employee_id").references(() => employees.id),
+  submittedByRank: text("submitted_by_rank").notNull().default(""),
 }, (table) => [
   uniqueIndex("daily_log_callbacks_call_employee_idx").on(table.callId, table.employeeId),
   index("daily_log_callbacks_status_idx").on(table.status, table.submittedAt),
   index("daily_log_callbacks_reviewer_idx").on(table.reviewerEmployeeId, table.status),
 ]);
+
+export const callbackPayrollAggregates = sqliteTable("callback_payroll_aggregates", {
+  employeeId: text("employee_id").notNull().references(() => employees.id),
+  workDate: text("work_date").notNull(),
+  manualBaselineHours: real("manual_baseline_hours").notNull().default(0),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [primaryKey({ columns: [table.employeeId, table.workDate] })]);
 
 export const importantPhoneNumbers = sqliteTable("important_phone_numbers", {
   id: text("id").primaryKey(),

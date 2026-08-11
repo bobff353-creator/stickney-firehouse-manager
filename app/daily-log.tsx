@@ -65,6 +65,13 @@ type CallbackEmployee = {
   employeeId: string;
   employeeName: string;
   rank: string;
+  onDuty: boolean;
+  evaluation: {
+    matches: string[];
+    flags: string[];
+    suggestedHours: number;
+    automaticallyQualifies: boolean;
+  };
 };
 type CallbackSubmission = {
   id: string;
@@ -230,7 +237,7 @@ function CallbackPanel({ call, logDate }: { call: CallRow; logDate: string }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const load = useCallback(async () => {
-    setMessage("Loading on-duty members...");
+    setMessage("Loading callback members and rules...");
     const response = await fetch(
       `/api/callbacks?date=${encodeURIComponent(logDate)}&callId=${encodeURIComponent(call.id)}`,
       { cache: "no-store" },
@@ -247,7 +254,9 @@ function CallbackPanel({ call, logDate }: { call: CallRow; logDate: string }) {
     );
   }, [call.id, logDate]);
   useEffect(() => {
-    if (open) void load();
+    if (!open) return;
+    const timer = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(timer);
   }, [load, open]);
   async function submit() {
     setMessage("Submitting...");
@@ -291,9 +300,8 @@ function CallbackPanel({ call, logDate }: { call: CallRow; logDate: string }) {
           <div>
             <strong>Select members on this call</strong>
             <p>
-              Only members on duty at{" "}
-              {formatMilitaryTime(call.timeOut) || "the recorded call time"} are
-              available.
+              Active members are listed for {formatMilitaryTime(call.timeOut) || "the recorded call time"}.
+              Anyone already on duty remains selectable but receives a red approval flag.
             </p>
           </div>
           {payload?.submissions.length ? (
@@ -309,8 +317,7 @@ function CallbackPanel({ call, logDate }: { call: CallRow; logDate: string }) {
             !payload.error &&
             payload.eligibleEmployees.length === 0 && (
               <p className="helper-note">
-                No on-duty staffing matches this call time. Check the call Time
-                Out and Daily Log staffing.
+                No active members are available for this call date.
               </p>
             )}
           <div className="callback-employee-list">
@@ -337,7 +344,9 @@ function CallbackPanel({ call, logDate }: { call: CallRow; logDate: string }) {
                   />
                   <span>
                     <strong>{displayName(employee.employeeName)}</strong>
-                    <small>{employee.rank}</small>
+                    <small>{employee.rank} · {employee.evaluation.suggestedHours.toFixed(2)} hr suggested</small>
+                    {employee.evaluation.matches.length > 0 && <small className="callback-qualifies">Qualifies: {employee.evaluation.matches.join("; ")}</small>}
+                    {employee.evaluation.flags.length > 0 && <small className="callback-employee-flag">Flag: {employee.evaluation.flags.join(" ")}</small>}
                   </span>
                 </label>
               ))}
