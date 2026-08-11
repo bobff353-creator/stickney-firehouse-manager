@@ -73,6 +73,13 @@ test("callback API excludes employees who were on duty at the call time", async 
   assert.match(source, /\.filter\(\(employee\) => !employee\.onDuty\)/);
 });
 
+test("callback submission binds one value for every insert placeholder", async () => {
+  const source = await readFile(new URL("../app/api/callbacks/route.ts", import.meta.url), "utf8");
+  const insert = source.match(/db\.prepare\("(INSERT INTO daily_log_callback_submissions[^"]+)"\)\.bind/);
+  assert.ok(insert, "callback insert query must remain discoverable");
+  assert.equal((insert[1].match(/\?/g) ?? []).length, 17);
+});
+
 test("callback migration preserves calls and seeds the verified reviewer", async () => {
   const source = await readFile(new URL("../supabase/migrations/20260811002824_add_daily_log_callback_reviews.sql", import.meta.url), "utf8");
   assert.match(source, /daily_log_callback_submissions/);
