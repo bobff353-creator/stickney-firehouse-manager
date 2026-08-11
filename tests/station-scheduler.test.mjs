@@ -112,6 +112,8 @@ test("shift patterns are durable and generate recurring calendar entries without
   assert.equal(route.includes("already follows this repeat pattern"), true, "the administrator receives a clear conflict message");
   assert.equal(route.includes("existing.has(entryDate)"), true);
   assert.equal(route.includes("recurring shift dates added"), true);
+  assert.equal(route.includes("WHERE date(entry_date)>=date(?, '-45 day') AND t.active=1"), true, "inactive legacy entries do not render beside the active built shift");
+  assert.equal(route.includes("JOIN station_shift_types t ON t.id=en.shift_type_id AND t.active=1"), true, "inactive legacy slots do not duplicate active assignments");
   assert.equal(migration.includes("between 0 and 365"), true);
 });
 
