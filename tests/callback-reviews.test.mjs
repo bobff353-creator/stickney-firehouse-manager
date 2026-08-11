@@ -62,9 +62,15 @@ test("Daily Log and Payroll expose callback submission and review", async () => 
     readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(dailyLog, /Callback attendance/);
-  assert.match(dailyLog, /already on duty remains selectable but receives a red approval flag/);
+  assert.match(dailyLog, /Active members who were not already on duty/);
+  assert.match(dailyLog, /No off-duty active members are available/);
   assert.match(payroll, /Callback Reviews/);
   assert.match(payroll, /<CallbackReviews/);
+});
+
+test("callback API excludes employees who were on duty at the call time", async () => {
+  const source = await readFile(new URL("../app/api/callbacks/route.ts", import.meta.url), "utf8");
+  assert.match(source, /\.filter\(\(employee\) => !employee\.onDuty\)/);
 });
 
 test("callback migration preserves calls and seeds the verified reviewer", async () => {
@@ -76,7 +82,7 @@ test("callback migration preserves calls and seeds the verified reviewer", async
 });
 
 test("callback rule migration preserves manual payroll and stores explainable snapshots", async () => {
-  const source = await readFile(new URL("../supabase/migrations/20260811012114_add_callback_rule_evaluations.sql", import.meta.url), "utf8");
+  const source = await readFile(new URL("../supabase/migrations/20260811013542_add_callback_rule_evaluations.sql", import.meta.url), "utf8");
   assert.match(source, /rule_matches text/);
   assert.match(source, /rule_flags text/);
   assert.match(source, /suggested_hours double precision/);

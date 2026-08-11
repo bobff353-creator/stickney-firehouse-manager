@@ -130,21 +130,23 @@ export async function GET(request: Request) {
       actorEmployee(request, db),
     ]);
     const holiday = holidayForDate(date);
-    const employeeRows = employees.results.map((employee) => {
-      const onDuty = staffing.some((row) => row.employeeId === employee.employeeId && employeeWasOnDutyAtCall(row, call.timeOut));
-      return {
-        ...employee,
-        onDuty,
-        evaluation: evaluateCallbackRules({
-          call,
-          holidayName: holiday?.name,
-          otherCalls: nearbyCalls,
-          employeeOnDuty: onDuty,
-          submitterIsDeputyChief: isDeputyChief(submitter),
-          employeeCallbackCalls: callbackSnapshots.filter((snapshot) => snapshot.employeeId === employee.employeeId),
-        }),
-      };
-    });
+    const employeeRows = employees.results
+      .map((employee) => {
+        const onDuty = staffing.some((row) => row.employeeId === employee.employeeId && employeeWasOnDutyAtCall(row, call.timeOut));
+        return {
+          ...employee,
+          onDuty,
+          evaluation: evaluateCallbackRules({
+            call,
+            holidayName: holiday?.name,
+            otherCalls: nearbyCalls,
+            employeeOnDuty: onDuty,
+            submitterIsDeputyChief: isDeputyChief(submitter),
+            employeeCallbackCalls: callbackSnapshots.filter((snapshot) => snapshot.employeeId === employee.employeeId),
+          }),
+        };
+      })
+      .filter((employee) => !employee.onDuty);
     return Response.json({ call, eligibleEmployees: employeeRows, submissions: submissions.results, setting });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Unable to load callback attendance." }, { status: 500 });

@@ -300,8 +300,7 @@ function CallbackPanel({ call, logDate }: { call: CallRow; logDate: string }) {
           <div>
             <strong>Select members on this call</strong>
             <p>
-              Active members are listed for {formatMilitaryTime(call.timeOut) || "the recorded call time"}.
-              Anyone already on duty remains selectable but receives a red approval flag.
+              Active members who were not already on duty at {formatMilitaryTime(call.timeOut) || "the recorded call time"} are listed.
             </p>
           </div>
           {payload?.submissions.length ? (
@@ -317,7 +316,7 @@ function CallbackPanel({ call, logDate }: { call: CallRow; logDate: string }) {
             !payload.error &&
             payload.eligibleEmployees.length === 0 && (
               <p className="helper-note">
-                No active members are available for this call date.
+                No off-duty active members are available for this call.
               </p>
             )}
           <div className="callback-employee-list">

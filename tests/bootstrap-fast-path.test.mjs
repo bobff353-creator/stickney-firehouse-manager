@@ -4,7 +4,7 @@ import test from "node:test";
 
 const source = await readFile(new URL("../db/bootstrap.ts", import.meta.url), "utf8");
 const markerMigration = await readFile(
-  new URL("../supabase/migrations/20260811012114_add_callback_rule_evaluations.sql", import.meta.url),
+  new URL("../supabase/migrations/20260811013542_add_callback_rule_evaluations.sql", import.meta.url),
   "utf8",
 );
 
