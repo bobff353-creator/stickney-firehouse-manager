@@ -29,7 +29,7 @@ function privateJson(value: unknown, status = 200) {
 export async function POST(request: Request) {
   const session = await verifyInventoryRequest(request);
   if (!session.ok) return sessionFailureResponse(session);
-  if (!sameOriginInventoryRequest(request) || !canMutateInventory(session.context.role)) {
+  if (!sameOriginInventoryRequest(request) || !canMutateInventory(session.context, "inventory.check")) {
     return privateJson({ error: "Your department role cannot attach deficiency photos." }, 403);
   }
 

@@ -36,7 +36,10 @@ test("all inventory APIs resolve the department from the verified session", asyn
 
   assert.match(twin, /session\.context\.department\.id/);
   assert.match(twin, /sameOriginInventoryRequest\(request\)/);
-  assert.match(twin, /canMutateInventory\(session\.context\.role\)/);
+  assert.match(twin, /canMutateInventory\(session\.context, "inventory\.setup\.manage"\)/);
+  assert.match(operations, /"inventory\.check"/);
+  assert.match(operations, /"inventory\.repairs\.manage"/);
+  assert.match(operations, /"inventory\.setup\.manage"/);
   assert.match(media, /session\.context\.department\.id/);
   assert.match(operations, /session\.context\.department\.id/);
 });

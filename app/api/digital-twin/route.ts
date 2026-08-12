@@ -153,7 +153,7 @@ export async function POST(request: Request) {
   if (!session.ok) return sessionFailureResponse(session);
   if (
     !sameOriginInventoryRequest(request)
-    || !canMutateInventory(session.context.role)
+    || !canMutateInventory(session.context, "inventory.setup.manage")
   ) {
     return privateJson(
       { error: "Your department role cannot change Inventory records." },

@@ -7,7 +7,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import Link from "next/link";
 import type { IScannerControls } from "@zxing/browser";
 
-type OperationsView = "check" | "readiness" | "service" | "stock" | "builder" | "legacy_check" | "legacy_service";
+type OperationsView = "due" | "check" | "equipment" | "readiness" | "service" | "stock" | "builder" | "legacy_check" | "legacy_service";
 type Row = Record<string, string | number | string[] | null>;
 type Employee = { id: string; name: string; rank?: string };
 type OperationsData = {
@@ -20,6 +20,7 @@ type OperationsData = {
   exceptions: Row[];
   workOrders: Row[];
   stock: Row[];
+  restockRequests: Row[];
   viewer?: { email?: string; role?: string };
   error?: string;
 };
@@ -34,6 +35,7 @@ const emptyData: OperationsData = {
   exceptions: [],
   workOrders: [],
   stock: [],
+  restockRequests: [],
 };
 
 const inspectionTypes = [
@@ -71,6 +73,19 @@ function formatStatus(input: Row[string]) {
   return value({ status: input }, "status")
     .replaceAll("_", " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase()) || "Not recorded";
+}
+
+const repairStages = [
+  ["new", "New"],
+  ["assigned", "Assigned"],
+  ["in_repair", "In Repair"],
+  ["waiting_parts", "Waiting Parts"],
+  ["closed", "Completed"],
+] as const;
+
+function normalizedRepairStatus(item: Row) {
+  const status = value(item, "status");
+  return status === "open" ? "new" : status;
 }
 
 type ScannedEquipment = {
@@ -130,11 +145,21 @@ export default function InventoryOperations({
   onSetup,
   initialApparatusId = "",
   initialCheckType = "",
+  onOpenUnit,
+  scanRequest = 0,
+  canCheck = false,
+  canManageRepairs = false,
+  canSetup = false,
 }: {
   view: OperationsView;
   onSetup: () => void;
   initialApparatusId?: string;
   initialCheckType?: "daily" | "weekly" | "inventory" | "air_pack" | "";
+  onOpenUnit?: (apparatusId: string, checkType: "daily" | "weekly" | "inventory" | "air_pack") => void;
+  scanRequest?: number;
+  canCheck?: boolean;
+  canManageRepairs?: boolean;
+  canSetup?: boolean;
 }) {
   const [data, setData] = useState<OperationsData>(emptyData);
   const [loading, setLoading] = useState(true);
@@ -152,12 +177,21 @@ export default function InventoryOperations({
   const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
   const [deficiencyItem, setDeficiencyItem] = useState<Row | null>(null);
   const [editingEquipment, setEditingEquipment] = useState<Row | null>(null);
-  const [scannerTarget, setScannerTarget] = useState<"create" | "edit">("create");
+  const [scannerTarget, setScannerTarget] = useState<"create" | "edit" | "search">("create");
+  const [equipmentSearch, setEquipmentSearch] = useState("");
   const equipmentFormRef = useRef<HTMLFormElement>(null);
   const equipmentEditorRef = useRef<HTMLFormElement>(null);
   const scannerVideoRef = useRef<HTMLVideoElement>(null);
   const scannerControlsRef = useRef<IScannerControls | null>(null);
   const requestedCheckOpenedRef = useRef(false);
+  const lastScanRequestRef = useRef(0);
+
+  useEffect(() => {
+    if (!scanRequest || scanRequest === lastScanRequestRef.current) return;
+    lastScanRequestRef.current = scanRequest;
+    setScannerTarget("search");
+    setScannerOpen(true);
+  }, [scanRequest]);
 
   const closeScanner = useCallback(() => {
     scannerControlsRef.current?.stop();
@@ -167,6 +201,10 @@ export default function InventoryOperations({
   }, []);
 
   const fillEquipmentForm = useCallback((scan: ScannedEquipment) => {
+    if (scannerTarget === "search") {
+      setEquipmentSearch(scan.barcode);
+      return;
+    }
     const form = scannerTarget === "edit" ? equipmentEditorRef.current : equipmentFormRef.current;
     if (!form) return;
     const fill = (name: string, input?: string) => {
@@ -205,7 +243,9 @@ export default function InventoryOperations({
           (result) => {
             if (!result) return;
             fillEquipmentForm(parseScannedEquipment(result.getText()));
-            setMessage(scannerTarget === "edit"
+            setMessage(scannerTarget === "search"
+              ? "Barcode scanned. Matching department equipment is shown below."
+              : scannerTarget === "edit"
               ? "Barcode scanned. Review the item, then save changes."
               : "Barcode scanned. Review the filled equipment fields, then add the equipment.");
             closeScanner();
@@ -254,6 +294,7 @@ export default function InventoryOperations({
         exceptions: payload.exceptions || [],
         workOrders: payload.workOrders || [],
         stock: payload.stock || [],
+        restockRequests: payload.restockRequests || [],
         viewer: payload.viewer,
       });
       if (contextPromise) {
@@ -434,6 +475,32 @@ export default function InventoryOperations({
     }
     return [...grouped.values()];
   }, [data.stock]);
+  const equipmentMatches = useMemo(() => {
+    const query = equipmentSearch.trim().toLowerCase();
+    if (!query) return data.equipment;
+    return data.equipment.filter((item) => {
+      const apparatus = data.apparatus.find((row) => value(row, "id") === value(item, "apparatus_id"));
+      return [value(item, "name"), value(item, "manufacturer"), value(item, "model"), value(item, "serial_number"), value(item, "barcode"), value(item, "compartment_label"), apparatus ? value(apparatus, "name") : ""]
+        .some((field) => field.toLowerCase().includes(query));
+    });
+  }, [data.apparatus, data.equipment, equipmentSearch]);
+  const today = new Date();
+  const chicagoWeekday = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", weekday: "short" }).format(today);
+  const todayDay = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(chicagoWeekday);
+  const chicagoToday = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(today);
+  const dueChecks = data.apparatus.flatMap((apparatus) => {
+    const apparatusId = value(apparatus, "id");
+    const equipment = data.equipment.filter((item) => value(item, "apparatus_id") === apparatusId);
+    const required = (["daily", ...(Number(apparatus.weekly_due_day) === todayDay ? ["weekly"] : [])] as Array<"daily" | "weekly">).filter((checkType) => equipment.some((item) => Array.isArray(item.check_types) && item.check_types.includes(checkType)));
+    return required.flatMap((checkType) => {
+      const completedToday = data.checks.some((check) => value(check, "apparatus_id") === apparatusId && value(check, "check_type") === checkType && value(check, "status") === "completed" && value(check, "completed_at") && new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value(check, "completed_at"))) === chicagoToday);
+      if (completedToday) return [];
+      const active = data.checks.find((check) => value(check, "apparatus_id") === apparatusId && value(check, "check_type") === checkType && value(check, "status") === "in_progress");
+      const checkItems = active ? data.checkItems.filter((item) => value(item, "check_id") === value(active, "id")) : [];
+      const pending = checkItems.filter((item) => value(item, "result") === "pending").length;
+      return [{ apparatusId, name: value(apparatus, "name"), checkType, active, pending, total: checkItems.length, configured: equipment.filter((item) => Array.isArray(item.check_types) && item.check_types.includes(checkType)).length }];
+    });
+  });
 
   function submit(event: FormEvent<HTMLFormElement>, name: string, payload: Record<string, unknown>) {
     event.preventDefault();
@@ -460,6 +527,32 @@ export default function InventoryOperations({
     <div className="inventory-ops">
       {message ? <div className="ops-message" role="status">{message}</div> : null}
       {error ? <div className="ops-message ops-error" role="alert">{error}</div> : null}
+
+      {view === "due" ? (
+        <section className="ops-card due-now-card">
+          <header><div><span>DUE NOW</span><h2>{dueChecks.length ? `${dueChecks.length} required check${dueChecks.length === 1 ? "" : "s"}` : "All required checks are complete"}</h2></div><b>{data.checks.filter((check) => value(check, "status") === "in_progress").length} in progress</b></header>
+          {dueChecks.length ? <div className="due-check-grid">{dueChecks.map((item) => {
+            const complete = item.total ? item.total - item.pending : 0;
+            const percent = item.total ? Math.round((complete / item.total) * 100) : 0;
+            return <article key={`${item.apparatusId}-${item.checkType}`} className={item.active ? "in-progress" : "pending"}>
+              <div><span>{item.checkType === "weekly" ? "WEEKLY · DUE TODAY" : "DAILY · DUE TODAY"}</span><h3>{item.name}</h3><p>{item.active ? `${item.pending} of ${item.total} items remaining. Crew progress is shared.` : `${item.configured} configured items are ready to check.`}</p></div>
+              <div className="due-progress" aria-label={`${percent}% complete`}><i style={{ width: `${percent}%` }} /></div>
+              <button type="button" disabled={!canCheck} onClick={() => onOpenUnit?.(item.apparatusId, item.checkType)}>{item.active ? "Resume check" : "Start check"}</button>
+            </article>;
+          })}</div> : <div className="ops-empty due-clear"><strong>No required Fleet checks are waiting.</strong><p>Completed daily and scheduled weekly checks fall off this list automatically.</p></div>}
+        </section>
+      ) : null}
+
+      {view === "equipment" ? (
+        <section className="ops-card equipment-search-card">
+          <header><div><span>EQUIPMENT DIRECTORY</span><h2>Search all apparatus and compartments</h2></div><b>{equipmentMatches.length} results</b></header>
+          <div className="equipment-search-tools"><label>Search equipment<input value={equipmentSearch} onChange={(event) => setEquipmentSearch(event.target.value)} placeholder="Name, barcode, serial, compartment, or unit" /></label><button type="button" onClick={() => { setScannerTarget("search"); setScannerOpen(true); }}>Scan Barcode</button></div>
+          {equipmentMatches.length ? <div className="equipment-directory">{equipmentMatches.map((item) => {
+            const apparatus = data.apparatus.find((row) => value(row, "id") === value(item, "apparatus_id"));
+            return <article key={value(item, "id")}><div><strong>{value(item, "name")}</strong><small>{apparatus ? value(apparatus, "name") : "Unknown apparatus"} · {value(item, "compartment_label") || "Location not recorded"}</small></div><dl><div><dt>Barcode</dt><dd>{value(item, "barcode") || "Not assigned"}</dd></div><div><dt>Serial</dt><dd>{value(item, "serial_number") || "Not recorded"}</dd></div><div><dt>Required</dt><dd>{value(item, "quantity_required") || "1"}</dd></div></dl></article>;
+          })}</div> : <div className="ops-empty"><strong>No equipment matches this search.</strong><p>Try a unit name, compartment, asset tag, barcode, or serial number.</p></div>}
+        </section>
+      ) : null}
 
       {view === "check" ? (
         <section className="ops-card unit-inspection-hub">
@@ -493,7 +586,7 @@ export default function InventoryOperations({
                   const configuredItems = configuredItemsFor(id);
                   const unavailable = !inProgress && configuredItems === 0;
                   return (
-                    <button key={id} type="button" disabled={Boolean(busy) || unavailable} onClick={() => {
+                    <button key={id} type="button" disabled={Boolean(busy) || unavailable || !canCheck} onClick={() => {
                       if (inProgress) {
                         setSelectedCheckId(value(inProgress, "id"));
                         setInspectionMenuOpen(false);
@@ -538,19 +631,19 @@ export default function InventoryOperations({
                     {value(item, "result") !== "pending" && value(item, "checked_by") ? <small>By {value(item, "checked_by")} · {formatDate(item.checked_at)}</small> : null}
                   </div>
                   <div className="check-actions">
-                    <button disabled={Boolean(busy)} onClick={() => void action(`item-${value(item, "id")}`, { action: "record_check_item", checkItemId: value(item, "id"), result: "pass" })}>Pass</button>
-                    <button className="failed" disabled={Boolean(busy)} onClick={() => setDeficiencyItem(item)}>Failed</button>
-                    <button disabled={Boolean(busy)} onClick={() => void action(`item-${value(item, "id")}`, { action: "record_check_item", checkItemId: value(item, "id"), result: "not_applicable" })}>N/A</button>
+                    <button disabled={Boolean(busy) || !canCheck} onClick={() => void action(`item-${value(item, "id")}`, { action: "record_check_item", checkItemId: value(item, "id"), result: "pass" })}>Pass</button>
+                    <button className="failed" disabled={Boolean(busy) || !canCheck} onClick={() => setDeficiencyItem(item)}>Failed</button>
+                    <button disabled={Boolean(busy) || !canCheck} onClick={() => void action(`item-${value(item, "id")}`, { action: "record_check_item", checkItemId: value(item, "id"), result: "not_applicable" })}>N/A</button>
                   </div>
                 </article>
               ))}
-              <button className="ops-primary" disabled={Boolean(busy) || pendingItems > 0} onClick={() => void action("complete", { action: "complete_check", checkId: value(activeCheck, "id") })}>Complete {formatStatus(activeCheck.check_type)} inspection</button>
+              <button className="ops-primary" disabled={Boolean(busy) || pendingItems > 0 || !canCheck} onClick={() => void action("complete", { action: "complete_check", checkId: value(activeCheck, "id") })}>Complete {formatStatus(activeCheck.check_type)} inspection</button>
             </div>
           ) : null}
         </section>
       ) : null}
 
-      {view === "builder" ? (
+      {view === "builder" && canSetup ? (
         <>
         <section className="ops-card">
           <header><div><span>BUILD INVENTORY CHECKLISTS</span><h2>Add real equipment and choose its inspections</h2></div><b>{data.equipment.length} items</b></header>
@@ -652,7 +745,7 @@ export default function InventoryOperations({
 
       {view === "service" ? (
         <>
-          <section className="ops-card">
+          {canManageRepairs ? <section className="ops-card">
             <header><div><span>ASSIGN A REPAIR NOTICE</span><h2>Notify selected employees about a fleet deficiency</h2></div></header>
             {!data.apparatus.length ? <div className="ops-empty"><strong>No apparatus added</strong><button onClick={onSetup}>Build Fleet &amp; Inventory</button></div> : <form className="ops-form ops-form-wide" onSubmit={(event) => {
               event.preventDefault();
@@ -682,14 +775,17 @@ export default function InventoryOperations({
               <label className="ops-span-2">Attach photo (optional)<input name="photo" type="file" accept="image/*" capture="environment" /></label>
               <button className="ops-primary" disabled={Boolean(busy)}>Assign repair notice</button>
             </form>}
-          </section>
+          </section> : null}
           <section className="ops-card assigned-repairs">
             <header><div><span>MY ASSIGNED REPAIRS</span><h2>Repairs assigned to this employee</h2></div><b>{myOpenRepairs.length} open</b></header>
-            {myOpenRepairs.length ? <div className="ops-list">{myOpenRepairs.map((item) => <article key={value(item, "id")}><div><strong>{value(item, "summary")}</strong><small>{value(item, "apparatus_name")} · Opened {formatDate(item.opened_at)}</small></div><span className={`priority-${value(item, "priority")}`}>{value(item, "priority")}</span><p>{value(item, "details")}</p><RepairCompletionForm item={item} busy={Boolean(busy)} onComplete={action} /></article>)}</div> : <div className="ops-empty"><strong>No repairs assigned to you</strong><p>Open notices assigned to this employee will appear here and on the home page.</p></div>}
+            {myOpenRepairs.length ? <div className="ops-list">{myOpenRepairs.map((item) => <article key={value(item, "id")}><div><strong>{value(item, "summary")}</strong><small>{value(item, "apparatus_name")} · Opened {formatDate(item.opened_at)}</small></div><span className={`priority-${value(item, "priority")}`}>{value(item, "priority")} · {formatStatus(normalizedRepairStatus(item))}</span><p>{value(item, "details")}</p>{canManageRepairs ? <><RepairStatusControl item={item} busy={Boolean(busy)} onUpdate={action} /><RepairCompletionForm item={item} busy={Boolean(busy)} onComplete={action} /></> : null}</article>)}</div> : <div className="ops-empty"><strong>No repairs assigned to you</strong><p>Open notices assigned to this employee will appear here and on the home page.</p></div>}
           </section>
           <section className="ops-card">
             <header><div><span>ALL REPAIR RECORDS</span><h2>Open repairs and completed history</h2></div><b>{data.workOrders.filter((item) => value(item, "status") !== "closed").length} open</b></header>
-            {data.workOrders.length ? <div className="ops-list">{data.workOrders.map((item) => <article key={value(item, "id")}><div><strong>{value(item, "summary")}</strong><small>{value(item, "apparatus_name")} · Fleet: {formatStatus(item.apparatus_status)} · Opened {formatDate(item.opened_at)}</small></div><span className={`priority-${value(item, "priority")}`}>{value(item, "priority")} · {value(item, "status")}</span>{value(item, "details") ? <p>{value(item, "details")}</p> : null}{Array.isArray(item.assigned_employee_names) && item.assigned_employee_names.length ? <small>Assigned to {item.assigned_employee_names.join(", ")}</small> : null}{value(item, "status") === "closed" ? <p>Repaired {value(item, "repair_date")} · Cost ${Number(item.repair_cost || 0).toFixed(2)}{value(item, "vendor") ? ` · ${value(item, "vendor")}` : ""}<br />{value(item, "resolution_notes")}</p> : <RepairCompletionForm item={item} busy={Boolean(busy)} onComplete={action} />}</article>)}</div> : <div className="ops-empty"><strong>No repair records yet</strong><p>Failed inspections and assigned repair notices create records automatically.</p></div>}
+            {data.workOrders.length ? <div className="repair-board">{repairStages.map(([stage, label]) => {
+              const stageItems = data.workOrders.filter((item) => normalizedRepairStatus(item) === stage);
+              return <section key={stage} className={`repair-column stage-${stage}`}><header><strong>{label}</strong><span>{stageItems.length}</span></header>{stageItems.length ? stageItems.map((item) => <article key={value(item, "id")}><div><strong>{value(item, "summary")}</strong><small>{value(item, "apparatus_name")} · Opened {formatDate(item.opened_at)}</small></div><span className={`priority-${value(item, "priority")}`}>{formatStatus(item.priority)}</span>{value(item, "details") ? <p>{value(item, "details")}</p> : null}{Array.isArray(item.assigned_employee_names) && item.assigned_employee_names.length ? <small>Assigned to {item.assigned_employee_names.join(", ")}</small> : null}{stage === "closed" ? <p>Repaired {value(item, "repair_date")} · Cost ${Number(item.repair_cost || 0).toFixed(2)}{value(item, "vendor") ? ` · ${value(item, "vendor")}` : ""}<br />{value(item, "resolution_notes")}</p> : canManageRepairs ? <><RepairStatusControl item={item} busy={Boolean(busy)} onUpdate={action} /><RepairCompletionForm item={item} busy={Boolean(busy)} onComplete={action} /></> : null}</article>) : <p className="repair-column-empty">No repairs</p>}</section>;
+            })}</div> : <div className="ops-empty"><strong>No repair records yet</strong><p>Failed inspections and assigned repair notices create records automatically.</p></div>}
           </section>
         </>
       ) : null}
@@ -719,11 +815,11 @@ export default function InventoryOperations({
 
       {view === "stock" ? (
         <>
-          <section className="ops-card">
+          {canSetup ? <section className="ops-card">
             <header><div><span>ADD SUPPLY</span><h2>Create a real station stock record</h2></div></header>
             <form className="ops-form ops-form-wide" onSubmit={(event) => {
               const form = new FormData(event.currentTarget);
-              submit(event, "stock", { action: "create_stock_item", name: form.get("name"), sku: form.get("sku"), barcode: form.get("barcode"), unit: form.get("unit"), parLevel: form.get("parLevel"), reorderPoint: form.get("reorderPoint"), quantity: form.get("quantity"), locationId: form.get("locationId") });
+              submit(event, "stock", { action: "create_stock_item", name: form.get("name"), sku: form.get("sku"), barcode: form.get("barcode"), unit: form.get("unit"), parLevel: form.get("parLevel"), reorderPoint: form.get("reorderPoint"), quantity: form.get("quantity"), locationId: form.get("locationId"), lotNumber: form.get("lotNumber"), expiresAt: form.get("expiresAt"), expirationTracked: Boolean(form.get("expirationTracked")) });
             }}>
               <label>Supply name<input name="name" required /></label>
               <label>Unit<input name="unit" required placeholder="each, box, roll..." /></label>
@@ -733,17 +829,29 @@ export default function InventoryOperations({
               <label>Reorder point<input name="reorderPoint" type="number" min="0" defaultValue="0" /></label>
               <label>Starting quantity<input name="quantity" type="number" min="0" defaultValue="0" /></label>
               <label>Location<input name="locationId" defaultValue="Main station" /></label>
+              <label>Lot number<input name="lotNumber" /></label>
+              <label>Expiration date<input name="expiresAt" type="date" /></label>
+              <label className="stock-expiration-toggle"><input name="expirationTracked" type="checkbox" /> Track expiration alerts</label>
               <button className="ops-primary" disabled={Boolean(busy)}>Add supply</button>
             </form>
-          </section>
+          </section> : null}
           <section className="ops-card">
             <header><div><span>STATION STOCK</span><h2>Current quantities</h2></div><b>{stockRows.length} supplies</b></header>
             {stockRows.length ? <div className="stock-grid">{stockRows.map((item) => {
               const lot = item.lots[0];
               const belowPar = item.total <= Number(item.row.reorder_point || 0);
-              return <article key={value(item.row, "id")} className={belowPar ? "stock-low" : ""}><div><strong>{value(item.row, "name")}</strong><small>{value(item.row, "sku") || "No SKU"} · {value(item.row, "unit")}</small></div><b>{item.total}</b><span>{belowPar ? "REORDER" : `PAR ${value(item.row, "par_level")}`}</span>{lot ? <div className="stock-actions"><button type="button" disabled={Boolean(busy) || Number(lot.quantity_on_hand || 0) <= 0} onClick={() => void action(`use-${value(lot, "lot_id")}`, { action: "adjust_stock", lotId: value(lot, "lot_id"), delta: -1, reason: "Used from station stock" })}>− Use 1</button><button type="button" disabled={Boolean(busy)} onClick={() => void action(`receive-${value(lot, "lot_id")}`, { action: "adjust_stock", lotId: value(lot, "lot_id"), delta: 1, reason: "Received into station stock" })}>+ Receive 1</button></div> : null}</article>;
+              const expiration = lot && value(lot, "expires_at") ? new Date(`${value(lot, "expires_at")}T12:00:00`) : null;
+              const daysToExpiration = expiration ? Math.ceil((expiration.getTime() - Date.now()) / 86_400_000) : null;
+              const expirationAlert = daysToExpiration !== null && daysToExpiration <= 30;
+              const openRequest = data.restockRequests.find((request) => value(request, "stock_item_id") === value(item.row, "id") && value(request, "transaction_type") !== "restock_fulfilled");
+              return <article key={value(item.row, "id")} className={`${belowPar ? "stock-low" : ""} ${expirationAlert ? "stock-expiring" : ""}`}><div><strong>{value(item.row, "name")}</strong><small>{value(item.row, "sku") || "No SKU"} · {value(item.row, "unit")}</small>{lot ? <small>Lot {value(lot, "lot_number") || "not recorded"} · Expires {value(lot, "expires_at") || "not tracked"}</small> : null}</div><b>{item.total}</b><span>{expirationAlert ? daysToExpiration !== null && daysToExpiration < 0 ? "EXPIRED" : `EXPIRES IN ${daysToExpiration} DAYS` : belowPar ? "REORDER" : `PAR ${value(item.row, "par_level")}`}</span>{lot ? <div className="stock-actions"><button type="button" disabled={Boolean(busy) || Number(lot.quantity_on_hand || 0) <= 0 || !canCheck} onClick={() => void action(`use-${value(lot, "lot_id")}`, { action: "adjust_stock", lotId: value(lot, "lot_id"), delta: -1, reason: "Used from station stock" })}>− Use 1</button><button type="button" disabled={Boolean(busy) || !canCheck} onClick={() => void action(`receive-${value(lot, "lot_id")}`, { action: "adjust_stock", lotId: value(lot, "lot_id"), delta: 1, reason: "Received into station stock" })}>+ Receive 1</button></div> : null}<button type="button" className="restock-request-button" disabled={Boolean(busy) || !canCheck || Boolean(openRequest)} onClick={() => void action(`restock-${value(item.row, "id")}`, { action: "request_restock", stockItemId: value(item.row, "id"), quantity: Math.max(1, Number(item.row.par_level || 1) - item.total), reason: `Restock ${value(item.row, "name")} to par` })}>{openRequest ? formatStatus(openRequest.transaction_type) : "Request restock"}</button></article>;
             })}</div> : <div className="ops-empty"><strong>No stock records yet</strong><p>Add the first real supply and its current on-hand quantity.</p></div>}
           </section>
+          {canSetup ? <section className="ops-card restock-approval-card">
+            <header><div><span>RESTOCK APPROVALS</span><h2>Request to fulfillment</h2></div><b>{data.restockRequests.filter((item) => value(item, "transaction_type") !== "restock_fulfilled").length} open</b></header>
+            {data.restockRequests.length ? <div className="ops-list">{data.restockRequests.map((request) => <article key={value(request, "id")}><div><strong>{value(request, "stock_item_name")}</strong><small>{value(request, "quantity")} {value(request, "unit")} requested · {formatDate(request.performed_at)}</small></div><span>{formatStatus(request.transaction_type)}</span><p>{value(request, "reason")}</p>{value(request, "transaction_type") === "restock_requested" ? <button disabled={Boolean(busy)} onClick={() => void action(`approve-${value(request, "id")}`, { action: "approve_restock", requestId: value(request, "id") })}>Approve request</button> : value(request, "transaction_type") === "restock_approved" ? <button disabled={Boolean(busy)} onClick={() => void action(`fulfill-${value(request, "id")}`, { action: "fulfill_restock", requestId: value(request, "id") })}>Mark fulfilled</button> : null}</article>)}</div> : <div className="ops-empty"><strong>No restock requests</strong><p>Crew supply requests will appear here for approval and fulfillment.</p></div>}
+          </section> : null}
+          <aside className="controlled-medication-note"><strong>Controlled medications</strong><p>Narcotics are intentionally excluded from ordinary stock. Custody signatures, immutable audit history, and discrepancy handling require a separate protected module.</p></aside>
         </>
       ) : null}
       {deficiencyItem && activeCheck ? (
@@ -838,6 +946,25 @@ export default function InventoryOperations({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function RepairStatusControl({
+  item,
+  busy,
+  onUpdate,
+}: {
+  item: Row;
+  busy: boolean;
+  onUpdate: (name: string, payload: Record<string, unknown>) => Promise<boolean>;
+}) {
+  const status = normalizedRepairStatus(item);
+  return (
+    <label className="repair-status-control">Repair stage
+      <select value={status} disabled={busy} onChange={(event) => void onUpdate(`status-${value(item, "id")}`, { action: "update_work_order_status", workOrderId: value(item, "id"), status: event.target.value })}>
+        {repairStages.filter(([id]) => id !== "closed").map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+      </select>
+    </label>
   );
 }
 

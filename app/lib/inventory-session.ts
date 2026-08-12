@@ -1,5 +1,7 @@
 import { createInventorySupabaseClient } from "./supabase-server";
 import { cookies } from "next/headers";
+import { ensureDatabase } from "../../db/bootstrap";
+import { permissionsForEmail } from "../server-permissions";
 
 export const INVENTORY_MODULE_ID = "inventory";
 export const STICKNEY_DEPARTMENT_SLUG = "stickney-fire-department";
@@ -103,6 +105,15 @@ async function verifiedSession(): Promise<InventorySessionResult> {
       return { ok: false, status: 423, error: "Open the Operations Portal and enter your PIN before opening Inventory." };
     }
 
+    const portalPermissions = await permissionsForEmail(user.email, await ensureDatabase());
+    if (!portalPermissions.has("inventory.view")) {
+      return {
+        ok: false,
+        status: 403,
+        error: "Fleet and Inventory access is not enabled for this account.",
+      };
+    }
+
     return {
       ok: true,
       token: "",
@@ -114,7 +125,7 @@ async function verifiedSession(): Promise<InventorySessionResult> {
           slug: String(department.slug),
         },
         role: isOwner ? "owner" : String(membership?.role || "user"),
-        grants: [INVENTORY_MODULE_ID],
+        grants: [INVENTORY_MODULE_ID, ...portalPermissions],
         expiresAt: Math.floor(Date.now() / 1000) + 3600,
       },
     };
@@ -146,10 +157,11 @@ export function sameOriginInventoryRequest(request: Request) {
   }
 }
 
-export function canMutateInventory(role: string) {
-  return ["owner", "admin", "chief", "inspector", "user"].includes(
-    role.trim().toLowerCase(),
-  );
+export function canMutateInventory(
+  context: InventorySessionContext,
+  permission: "inventory.check" | "inventory.repairs.manage" | "inventory.setup.manage",
+) {
+  return context.grants.includes(permission);
 }
 
 export function sessionFailureResponse(

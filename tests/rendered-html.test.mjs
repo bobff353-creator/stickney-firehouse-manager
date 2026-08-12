@@ -38,7 +38,9 @@ test("keeps the installable advanced fleet and inventory module", async () => {
   assert.equal(manifest.display, "standalone");
   assert.match(layout, /manifest: "\/manifest\.webmanifest"/);
   assert.match(inventoryPage, /verifyInventoryServerSession/);
-  assert.match(component, /DIGITAL TWIN BUILDER/);
+  assert.match(component, /Build & Templates/);
+  assert.match(component, /Scan Barcode/);
+  assert.match(component, /Due Now/);
   assert.match(component, /Save Fleet status/);
   assert.match(operations, /Daily inspection/);
   assert.match(operations, /Weekly inspection/);

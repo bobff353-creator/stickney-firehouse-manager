@@ -65,11 +65,12 @@ export async function GET(request: Request) {
       workOrdersResult,
       stockItemsResult,
       stockLotsResult,
+      restockRequestsResult,
       equipmentPhotosResult,
     ] = await Promise.all([
       supabase
         .from("inventory_apparatus_profiles")
-        .select("id,name,asset_type")
+        .select("id,name,asset_type,weekly_due_day")
         .eq("department_id", departmentId)
         .order("name"),
       supabase
@@ -92,7 +93,7 @@ export async function GET(request: Request) {
         .from("inventory_checks")
         .select("id,apparatus_id,shift_id,check_type,status,started_by,started_at,completed_at")
         .eq("department_id", departmentId)
-        .eq("status", "in_progress")
+        .in("status", ["in_progress", "completed"])
         .order("started_at", { ascending: false }),
       collectPages((from, to) => supabase
         .from("inventory_check_items")
@@ -120,6 +121,12 @@ export async function GET(request: Request) {
         .select("id,stock_item_id,location_type,location_id,lot_number,expires_at,quantity_on_hand")
         .eq("department_id", departmentId),
       supabase
+        .from("inventory_transactions")
+        .select("id,stock_item_id,transaction_type,quantity,reason,performed_by,performed_at")
+        .eq("department_id", departmentId)
+        .in("transaction_type", ["restock_requested", "restock_approved", "restock_fulfilled"])
+        .order("performed_at", { ascending: false }),
+      supabase
         .from("inventory_photo_views")
         .select("id,equipment_id,captured_at")
         .eq("department_id", departmentId)
@@ -138,6 +145,7 @@ export async function GET(request: Request) {
       workOrdersResult,
       stockItemsResult,
       stockLotsResult,
+      restockRequestsResult,
       equipmentPhotosResult,
     ].find((result) => result.error)?.error;
     if (firstError) throw firstError;
@@ -208,6 +216,11 @@ export async function GET(request: Request) {
           quantity_on_hand: 0,
         }];
     });
+    const restockRequests = (restockRequestsResult.data || []).map((request) => ({
+      ...request,
+      stock_item_name: (stockItemsResult.data || []).find((item) => item.id === request.stock_item_id)?.name || "Supply",
+      unit: (stockItemsResult.data || []).find((item) => item.id === request.stock_item_id)?.unit || "units",
+    }));
     return privateJson({
       configured: true,
       apparatus,
@@ -218,6 +231,7 @@ export async function GET(request: Request) {
       exceptions,
       workOrders,
       stock,
+      restockRequests,
       viewer: {
         email: session.context.user.email,
         role: session.context.role,
@@ -234,18 +248,23 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const session = await verifyInventoryRequest(request);
   if (!session.ok) return sessionFailureResponse(session);
-  if (
-    !sameOriginInventoryRequest(request)
-    || !canMutateInventory(session.context.role)
-  ) {
+  if (!sameOriginInventoryRequest(request)) {
     return privateJson(
-      { error: "Your department role cannot change Inventory records." },
+      { error: "The Inventory change could not be verified." },
       403,
     );
   }
   try {
     const body = await request.json() as Record<string, unknown>;
     const action = clean(body.action, 60);
+    const requiredPermission = ["start_check", "record_check_item", "complete_check", "adjust_stock", "request_restock"].includes(action)
+      ? "inventory.check" as const
+      : ["create_notice", "create_work_order", "close_work_order", "update_work_order_status"].includes(action)
+        ? "inventory.repairs.manage" as const
+        : "inventory.setup.manage" as const;
+    if (!canMutateInventory(session.context, requiredPermission)) {
+      return privateJson({ error: "Your Inventory permission does not allow this change." }, 403);
+    }
     const departmentId = session.context.department.id;
     const actorId = session.context.user.id;
     const actor = session.context.user.email;
@@ -540,7 +559,7 @@ export async function POST(request: Request) {
             apparatus_id: check.apparatus_id,
             equipment_id: item.equipment_id,
             linked_exception_id: exceptionId,
-            status: "open",
+            status: "new",
             priority: exceptionRecord.priority,
             summary: `${equipment.name} failed ${String(check.check_type).replace("_", " ")} check`,
             details: notes,
@@ -633,7 +652,7 @@ export async function POST(request: Request) {
         department_id: departmentId,
         apparatus_id: apparatusId,
         linked_exception_id: exceptionId,
-        status: "open",
+        status: "new",
         priority: clean(body.priority, 40) || "medium",
         summary: `${apparatus.name} ${categories.map((item) => item.replace("_", " ")).join(" / ")} notice`,
         details: notes,
@@ -659,7 +678,7 @@ export async function POST(request: Request) {
         id: crypto.randomUUID(),
         department_id: departmentId,
         apparatus_id: apparatusId,
-        status: "open",
+        status: "new",
         priority: clean(body.priority, 40) || "routine",
         summary,
         details: clean(body.details, 1000) || null,
@@ -725,6 +744,23 @@ export async function POST(request: Request) {
         if (resolveError) throw resolveError;
       }
       return privateJson({ closed: true });
+    }
+
+    if (action === "update_work_order_status") {
+      const workOrderId = clean(body.workOrderId, 80);
+      const status = clean(body.status, 40);
+      const allowed = new Set(["new", "assigned", "in_repair", "waiting_parts"]);
+      if (!workOrderId || !allowed.has(status)) {
+        return privateJson({ error: "Choose a valid repair status." }, 400);
+      }
+      const { error } = await supabase
+        .from("inventory_work_orders")
+        .update({ status })
+        .eq("department_id", departmentId)
+        .eq("id", workOrderId)
+        .neq("status", "closed");
+      if (error) throw error;
+      return privateJson({ updated: true });
     }
 
     if (action === "create_stock_item") {
@@ -806,6 +842,64 @@ export async function POST(request: Request) {
         performed_by: actorId,
       });
       return privateJson({ quantityOnHand: nextQuantity });
+    }
+
+    if (action === "request_restock") {
+      const stockItemId = clean(body.stockItemId, 80);
+      const quantity = Math.max(1, number(body.quantity));
+      const { data: stockItem } = await supabase
+        .from("inventory_stock_items")
+        .select("id,name")
+        .eq("department_id", departmentId)
+        .eq("id", stockItemId)
+        .maybeSingle();
+      if (!stockItem) return privateJson({ error: "The selected supply was not found." }, 404);
+      const { data: existing } = await supabase
+        .from("inventory_transactions")
+        .select("id")
+        .eq("department_id", departmentId)
+        .eq("stock_item_id", stockItemId)
+        .in("transaction_type", ["restock_requested", "restock_approved"])
+        .limit(1)
+        .maybeSingle();
+      if (existing) return privateJson({ error: "This supply already has an open restock request." }, 409);
+      const { data: requestRecord, error } = await supabase
+        .from("inventory_transactions")
+        .insert({
+          department_id: departmentId,
+          stock_item_id: stockItemId,
+          transaction_type: "restock_requested",
+          quantity,
+          reason: clean(body.reason, 300) || `Restock requested for ${stockItem.name}`,
+          performed_by: actorId,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      return privateJson({ requestId: requestRecord.id }, 201);
+    }
+
+    if (action === "approve_restock" || action === "fulfill_restock") {
+      const requestId = clean(body.requestId, 80);
+      const expectedStatus = action === "approve_restock" ? "restock_requested" : "restock_approved";
+      const nextStatus = action === "approve_restock" ? "restock_approved" : "restock_fulfilled";
+      const { data: requestRecord } = await supabase
+        .from("inventory_transactions")
+        .select("id,reason")
+        .eq("department_id", departmentId)
+        .eq("id", requestId)
+        .eq("transaction_type", expectedStatus)
+        .maybeSingle();
+      if (!requestRecord) return privateJson({ error: "That restock request is no longer awaiting this action." }, 409);
+      const note = `${requestRecord.reason} | ${nextStatus === "restock_approved" ? "Approved" : "Fulfilled"} by ${actor} at ${new Date().toISOString()}`;
+      const { error } = await supabase
+        .from("inventory_transactions")
+        .update({ transaction_type: nextStatus, reason: note })
+        .eq("department_id", departmentId)
+        .eq("id", requestId)
+        .eq("transaction_type", expectedStatus);
+      if (error) throw error;
+      return privateJson({ updated: true });
     }
 
     return privateJson({ error: "Unsupported Inventory action." }, 400);

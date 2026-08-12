@@ -33,6 +33,7 @@ export default async function Home({
         departmentName={session.context.department.name}
         initialApparatusId={initialApparatusId}
         initialCheckType={initialCheckType}
+        permissions={session.context.grants}
       />
     </SessionIdleLock>
   );
