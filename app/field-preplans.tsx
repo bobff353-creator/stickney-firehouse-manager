@@ -95,7 +95,7 @@ function FieldMap({ apiKey,center,zoom,imagery,plans,hydrants,selected,draft,mod
 }
 
 export default function FieldPreplans() {
-  const [plans,setPlans]=useState<Preplan[]>([]),[canEdit,setCanEdit]=useState(false),[query,setQuery]=useState(""),[selected,setSelected]=useState(""),[draft,setDraft]=useState<Form|null>(null);
+  const [plans,setPlans]=useState<Preplan[]>([]),[canEdit,setCanEdit]=useState(false),[canDeletePreplan,setCanDeletePreplan]=useState(false),[query,setQuery]=useState(""),[selected,setSelected]=useState(""),[draft,setDraft]=useState<Form|null>(null);
   const [focusedPreplan,setFocusedPreplan]=useState(false);
   const [imports,setImports]=useState<ImportedBuilding[]>([]),[selectedImport,setSelectedImport]=useState("");
   const [importSort,setImportSort]=useState<"street"|"completion">("street"),[geocodeProgress,setGeocodeProgress]=useState("");
@@ -107,7 +107,7 @@ export default function FieldPreplans() {
   const featurePhotoInput=useRef<HTMLInputElement|null>(null);
   const [flush,setFlush]=useState({flushedAt:nowLocal(),waterClear:true,issues:"",notes:""});
   const [flow,setFlow]=useState({flowHydrantId:"",testedAt:nowLocal(),staticPressure:"",residualPressure:"",desiredResidual:"20",outletDiameter:"2.5",pitotPressure:"",dischargeCoefficient:".9",notes:""});
-  const load=useCallback(async()=>{const response=await fetch("/api/field-preplans",{cache:"no-store"});const body=await response.json() as {preplans?:Preplan[];imports?:ImportedBuilding[];canEdit?:boolean;error?:string};if(!response.ok)throw new Error(body.error||"Unable to load preplans");setPlans(body.preplans??[]);setImports(body.imports??[]);setCanEdit(Boolean(body.canEdit));},[]);
+  const load=useCallback(async()=>{const response=await fetch("/api/field-preplans",{cache:"no-store"});const body=await response.json() as {preplans?:Preplan[];imports?:ImportedBuilding[];canEdit?:boolean;canDelete?:boolean;error?:string};if(!response.ok)throw new Error(body.error||"Unable to load preplans");setPlans(body.preplans??[]);setImports(body.imports??[]);setCanEdit(Boolean(body.canEdit));setCanDeletePreplan(Boolean(body.canDelete));},[]);
   const loadHydrants=useCallback(async()=>{const response=await fetch("/api/field-hydrants",{cache:"no-store"});const body=await response.json() as {hydrants?:Hydrant[];canEdit?:boolean;error?:string};if(!response.ok)throw new Error(body.error||"Unable to load hydrants");setHydrants(body.hydrants??[]);setCanEdit((current)=>current||Boolean(body.canEdit));},[]);
   useEffect(()=>{
     const initialize=async()=>{
@@ -277,7 +277,7 @@ export default function FieldPreplans() {
         </article>
       </div>}
       {tab==="photos"&&current&&<div className="preplan-photo-grid">{["A","B","C","D"].map((side)=>{const photos=current.photos.filter((photo)=>photo.side===side);return <article key={side}><header><b>{side} Side</b><label>{busy?"Uploading…":"Take or add photo"}<input type="file" accept="image/*" capture="environment" disabled={busy} onChange={(event)=>void upload(event,side)}/></label></header>{photos.length?<div>{photos.map((photo)=><img src={photo.url} alt={`${side} side ${photo.caption||photo.filename}`} key={photo.id}/>)}</div>:<p>Photo required</p>}<small>Visual symbols may be documented in the photo caption without creating map pins.</small></article>;})}</div>}
-      {canEdit&&draft.id&&<DeleteRecordControl kind="preplan" name={draft.businessName||draft.address||"this preplan"} busy={busy} onConfirm={()=>deletePreplan(draft.id)}/>}
+      {canDeletePreplan&&draft.id&&<DeleteRecordControl kind="preplan" name={draft.businessName||draft.address||"this preplan"} busy={busy} onConfirm={()=>deletePreplan(draft.id)}/>}
     </section>}
   </section>;
 }
