@@ -189,6 +189,15 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(page, /serializePreplanContacts\(draft\.contacts\)/);
   assert.match(styles, /\.preplan-contacts-editor/);
   assert.match(page, /Automatic sprinkler system/);
+  assert.match(page, /quickSystemFields/);
+  assert.match(page, /Choose the closest known condition/);
+  assert.match(page, /Not entered/);
+  assert.match(page, /Exterior Knox Box/);
+  assert.match(page, /Siamese \/ two-way/);
+  assert.match(page, /Partial coverage/);
+  assert.match(page, /Existing: \{existing\}/);
+  assert.doesNotMatch(page, /\[\["alarmSystem","Alarm system"\].*<textarea/);
+  assert.match(styles, /\.quick-system-help/);
   assert.match(fireFlow, /Type V Lightweight/);
   assert.match(styles, /\.preplan-address-fields/);
   assert.match(page, /Show on map/);
