@@ -3,6 +3,22 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 import { detailedPreplanMapView, fireFlowCalculationArea, polygonAreaSquareFeet, suggestedFireFlow } from "../app/preplan-fire-flow.ts";
 import { importedBuildingSeeds } from "../app/preplan-imported-buildings.ts";
+import { createPreplanContact, createPreplanPhone, parsePreplanContacts, serializePreplanContacts } from "../app/preplan-contacts.ts";
+
+test("preplan contacts preserve legacy notes and support multiple typed phone numbers", () => {
+  const legacy = "Manager on duty — ask at customer service";
+  assert.equal(serializePreplanContacts(parsePreplanContacts(legacy)), legacy);
+
+  const saved = serializePreplanContacts([
+    createPreplanContact("Jamie Smith", [createPreplanPhone("Cell", "708-555-0101"), createPreplanPhone("Work", "708-555-0102")]),
+    createPreplanContact("Alex Rivera", [createPreplanPhone("Work", "708-555-0110")]),
+  ]);
+  assert.equal(saved, "Jamie Smith\nCell: 708-555-0101\nWork: 708-555-0102\n•\nAlex Rivera\nWork: 708-555-0110");
+  const restored = parsePreplanContacts(saved);
+  assert.equal(restored.length, 2);
+  assert.equal(restored[0].phones.length, 2);
+  assert.equal(restored[1].phones[0].type, "Work");
+});
 
 test("supplied building workbook becomes 117 traceable preplan starters", async () => {
   assert.equal(importedBuildingSeeds.length, 117);
@@ -164,6 +180,14 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(page, /Building address/);
   assert.match(page, /Street address/);
   assert.match(page, /ZIP code/);
+  assert.match(page, /Building contacts/);
+  assert.match(page, /Contact name/);
+  assert.match(page, /Phone type/);
+  assert.match(page, /type="tel"/);
+  assert.match(page, /Add another number/);
+  assert.match(page, /Add another contact/);
+  assert.match(page, /serializePreplanContacts\(draft\.contacts\)/);
+  assert.match(styles, /\.preplan-contacts-editor/);
   assert.match(page, /Automatic sprinkler system/);
   assert.match(fireFlow, /Type V Lightweight/);
   assert.match(styles, /\.preplan-address-fields/);
