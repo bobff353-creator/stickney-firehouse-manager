@@ -55,8 +55,20 @@ test("formats SQLite-style CURRENT_TIMESTAMP values for migrated text columns", 
 });
 
 test("translates bound SQLite date values for Postgres", async () => {
-  const adapter = await read("db/postgres-adapter.ts");
+  const [adapter, literal] = await Promise.all([
+    read("db/postgres-adapter.ts"),
+    read("db/sql-literal.ts"),
+  ]);
 
-  assert.match(adapter, /if \(!\/\(;\|--\|\\\/\\\*\|\\\*\\\/\)\/\.test\(sanitized\)\) return `\x27\$\{sanitized\.replaceAll\("\x27", "\x27\x27"\)\}\x27`/);
+  assert.match(literal, /const requiresEncoding = \/\(;\|--\|\\\/\\\*\|\\\*\\\/\)\/\.test\(sanitized\)/);
+  assert.match(literal, /gatewayBlockedSqlWord\.test\(sanitized\)/);
   assert.match(adapter, /date\\\(\\s\*\(\x27\(\?:\x27\x27\|\[\^\x27\]\)\*\x27\)\\s\*\\\)\/gi, "\(\$1\)::date"/);
+});
+
+test("encodes callback rule text before the SQL gateway scans it", async () => {
+  const { sqlLiteral } = await import("../db/sql-literal.ts");
+  const encoded = sqlLiteral('["Back-to-back call: another call was dispatched within 5 minutes"]');
+
+  assert.match(encoded, /convert_from\(decode\('/);
+  assert.doesNotMatch(encoded, /Back-to-back call/i);
 });
