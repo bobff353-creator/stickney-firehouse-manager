@@ -90,6 +90,12 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(api, /at least three footprint corners/);
   assert.match(api, /footprint_square_feet/);
   assert.match(page, /DeleteRecordControl/);
+  assert.match(page, /preplan-builder-focused/);
+  assert.match(page, /Back to Preplan list/);
+  assert.match(page, /url\.searchParams\.set\("preplan",plan\.id\)/);
+  assert.match(page, /setTab\("details"\)/);
+  assert.match(page, /window\.addEventListener\("popstate"/);
+  assert.match(styles, /\.preplan-builder-focused/);
   assert.match(page, /Confirm Delete/);
   assert.match(page, /action:"deletePreplan"/);
   assert.match(page, /action:"deleteHydrant"/);
