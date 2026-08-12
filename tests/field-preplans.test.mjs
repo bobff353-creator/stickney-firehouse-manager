@@ -90,6 +90,11 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(permissions, /field_preplans\.view/);
   assert.match(permissions, /field_preplans\.edit/);
   assert.match(page, /Current location/);
+  assert.match(page, /Search all department records/);
+  assert.match(page, /aria-label="Search all preplans and hydrants"/);
+  assert.match(page, /normalizedQuery\?true:isOnMap/);
+  assert.match(page, /normalizedQuery\?"Search results":"Records on map"/);
+  assert.match(page, /No department preplans or hydrants match this search/);
   assert.match(page, /onPointerMove/);
   assert.match(page, /onDoubleClick/);
   assert.match(page, /onWheel/);
