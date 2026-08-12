@@ -75,6 +75,17 @@ export async function POST(request:Request) {
     const auth = await access(request, db);
     const body = await request.json() as Record<string,unknown>;
     const action = text(body.action, 40);
+    if (action === "deleteFeature") {
+      if (!auth.canDelete) return Response.json({ error:"Administrator privileges are required to delete a mapped feature." }, { status:403 });
+      const id = text(body.id, 80), preplanId = text(body.preplanId, 80), confirmation = text(body.confirmation, 20);
+      if (!id || !preplanId || confirmation !== "DELETE") return Response.json({ error:"Confirm Delete is required before a mapped feature can be removed." }, { status:400 });
+      const photos = await db.prepare("SELECT object_key objectKey FROM field_preplan_photos WHERE feature_id=? AND preplan_id=?").bind(id,preplanId).all<{objectKey:string}>();
+      const removed = await db.prepare("WITH deleted_photos AS (DELETE FROM field_preplan_photos WHERE feature_id=? AND preplan_id=?) DELETE FROM field_preplan_features WHERE id=? AND preplan_id=? RETURNING id").bind(id,preplanId,id,preplanId).all<{id:string}>();
+      if (!removed.results.length) return Response.json({ error:"Mapped feature not found." }, { status:404 });
+      const storage = getPortalStorage() as Bucket | null;
+      const cleanup = storage ? await Promise.allSettled(photos.results.map((photo) => storage.delete(photo.objectKey))) : [];
+      return Response.json({ ok:true, id, photoCleanupPending:cleanup.some((result) => result.status === "rejected") });
+    }
     if (action === "deletePreplan") {
       if (!auth.canDelete) return Response.json({ error:"Administrator privileges are required to delete a preplan." }, { status:403 });
       const id = text(body.id, 80), confirmation = text(body.confirmation, 20);

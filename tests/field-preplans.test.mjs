@@ -129,7 +129,14 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(styles, /\.preplan-builder-focused/);
   assert.match(page, /Confirm Delete/);
   assert.match(page, /action:"deletePreplan"/);
+  assert.match(page, /action:"deleteFeature"/);
+  assert.match(page, /Delete feature/);
+  assert.match(page, /canDeletePreplan&&<DeleteFeatureControl/);
   assert.match(page, /action:"deleteHydrant"/);
+  assert.match(api, /action === "deleteFeature"/);
+  assert.match(api, /Administrator privileges are required to delete a mapped feature/);
+  assert.match(api, /WHERE feature_id=\? AND preplan_id=\?/);
+  assert.match(api, /DELETE FROM field_preplan_features WHERE id=\? AND preplan_id=\? RETURNING id/);
   assert.match(api, /action === "deletePreplan"/);
   assert.match(api, /confirmation !== "DELETE"/);
   assert.match(api, /DELETE FROM field_preplan_photos/);
