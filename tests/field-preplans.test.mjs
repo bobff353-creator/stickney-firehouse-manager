@@ -57,9 +57,10 @@ test("IFC Appendix B advisory flow uses total levels and sprinkler assumptions",
 });
 
 test("Field Preplans provides map-first quick and detailed capture", async () => {
-  const [page, api, hydrantApi, bootstrap, shell, permissions, googleMap, mapsConfig, styles] = await Promise.all([
+  const [page, api, photoApi, hydrantApi, bootstrap, shell, permissions, googleMap, mapsConfig, styles] = await Promise.all([
     readFile(new URL("../app/field-preplans.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/field-preplans/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/field-preplans/photos/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/field-hydrants/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/bootstrap.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8"),
@@ -107,6 +108,12 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(api, /confirmation !== "DELETE"/);
   assert.match(api, /DELETE FROM field_preplan_photos/);
   assert.match(api, /DELETE FROM field_preplan_features/);
+  assert.match(page, /Feature photo \(optional\)/);
+  assert.match(page, /accept="image\/\*" capture="environment"/);
+  assert.match(page, /form\.set\("featureId",body\.id\)/);
+  assert.match(page, /photo\.featureId===item\.id/);
+  assert.match(photoApi, /WHERE id=\? AND preplan_id=\?/);
+  assert.match(photoApi, /selected feature does not belong to this preplan/);
   assert.match(api, /linked_preplan_id=NULL/);
   assert.match(hydrantApi, /action==="deleteHydrant"/);
   assert.match(hydrantApi, /DELETE FROM field_hydrant_flow_tests/);

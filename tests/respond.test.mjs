@@ -80,6 +80,8 @@ test("Respond reads existing call and preplan records and exposes requested fiel
   assert.match(component, /Footprint/);
   assert.match(component, /preplan\.features\.map\(\(feature\)/);
   assert.match(component, /Building footprint and mapped fire protection features/);
+  assert.match(component, /photo\.featureId===selected\.id/);
+  assert.match(component, /respond-feature-photo/);
   assert.match(component, /type RightView = "cad"\|"footprint"\|"B"\|"C"\|"D"/);
   assert.match(component, /\$\{item\} Side/);
   assert.match(component, /Open Google Navigation/);

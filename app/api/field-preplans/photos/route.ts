@@ -31,6 +31,10 @@ export async function POST(request:Request) {
     if (!sides.has(side) && !["A","B","C","D"].includes(side)) return Response.json({ error:"Choose A, B, C, D, overview, or feature." }, { status:400 });
     const plan = await db.prepare("SELECT id FROM field_preplans WHERE id=?").bind(preplanId).first();
     if (!plan) return Response.json({ error:"Preplan not found." }, { status:404 });
+    if (featureId) {
+      const feature = await db.prepare("SELECT id FROM field_preplan_features WHERE id=? AND preplan_id=?").bind(featureId, preplanId).first();
+      if (!feature) return Response.json({ error:"The selected feature does not belong to this preplan." }, { status:400 });
+    }
     const id = crypto.randomUUID(), safeName = file.name.replace(/[^\w.\-]/g, "_").slice(0, 100) || "photo.jpg";
     storedKey = `field-preplans/${preplanId}/${id}-${safeName}`;
     await config.BUCKET.put(storedKey, file.stream(), { httpMetadata:{ contentType:file.type } });
