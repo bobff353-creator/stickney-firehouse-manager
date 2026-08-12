@@ -90,6 +90,11 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(permissions, /field_preplans\.view/);
   assert.match(permissions, /field_preplans\.edit/);
   assert.match(page, /Current location/);
+  assert.match(page, /hasFocusedRecord/);
+  assert.match(page, /maximumAge:60000/);
+  assert.match(page, /setLocationState\("current"\)/);
+  assert.match(page, /Location permission is unavailable\. Showing Stickney instead\./);
+  assert.match(page, /At current location/);
   assert.match(page, /Search the entire department/);
   assert.match(page, /aria-label="Search all preplans and hydrants"/);
   assert.match(page, /normalizedQuery\?true:isOnMap/);

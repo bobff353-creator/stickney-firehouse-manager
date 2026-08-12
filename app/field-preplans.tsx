@@ -20,6 +20,7 @@ type Preplan = {
 };
 type ImportedBuilding = { id:string;businessName:string;address:string;sourceFile:string;sourceRow:number;status:string;latitude:number|null;longitude:number|null;geocodeNote:string;linkedPreplanId:string|null };
 type Form = Omit<Preplan,"features"|"photos"|"updatedBy"|"updatedAt">;
+type LocationState = "locating"|"current"|"fallback"|"record";
 
 const stickney:Point = { lat:41.8189, lng:-87.7734 };
 const empty = (center:Point):Form => ({ id:"",businessName:"",address:"",latitude:center.lat,longitude:center.lng,aSideLatitude:null,aSideLongitude:null,footprint:[],contactInfo:"",construction:"",accessInfo:"",alarmSystem:"",knoxBox:"",riser:"",fdc:"",sprinklerSystem:"",footprintSquareFeet:0,floorCount:1,fireFlowCalculationArea:0,constructionType:"VB",occupancyFlowCategory:"other",sprinklerStandard:"none",suggestedFireFlowGpm:0,suggestedFireFlowDuration:0,status:"Quick Preplan" });
@@ -109,6 +110,7 @@ export default function FieldPreplans() {
   const [importSort,setImportSort]=useState<"street"|"completion">("street"),[geocodeProgress,setGeocodeProgress]=useState("");
   const [hydrants,setHydrants]=useState<Hydrant[]>([]),[hydrantDraft,setHydrantDraft]=useState<Hydrant|null>(null),[hydrantTab,setHydrantTab]=useState<"quick"|"details"|"flush"|"flow">("quick");
   const [center,setCenter]=useState<Point>(stickney),[zoom,setZoom]=useState(19),[imagery,setImagery]=useState<"aerial"|"street">("aerial"),[mode,setMode]=useState(""),[tab,setTab]=useState<"quick"|"details"|"photos">("quick");
+  const [locationState,setLocationState]=useState<LocationState>("locating");
   const [footprintAccepted,setFootprintAccepted]=useState(false);
   const [mapsApiKey,setMapsApiKey]=useState(""),[mapProvider,setMapProvider]=useState<"loading"|"google"|"fallback">("loading");
   const [feature,setFeature]=useState({featureType:"knox",label:"",systemType:"",serviceStatus:"in_service",details:""}),[featurePhoto,setFeaturePhoto]=useState<File|null>(null),[message,setMessage]=useState(""),[busy,setBusy]=useState(false);
@@ -124,7 +126,11 @@ export default function FieldPreplans() {
       try{const response=await fetch("/api/maps-config",{cache:"no-store"});const body=await response.json() as {configured?:boolean;apiKey?:string};if(response.ok&&body.configured&&body.apiKey)setMapsApiKey(body.apiKey);else setMapProvider("fallback");}catch{setMapProvider("fallback");}
     };
     void initialize();
-    if(!new URL(window.location.href).searchParams.has("preplan"))navigator.geolocation?.getCurrentPosition((position)=>setCenter({lat:position.coords.latitude,lng:position.coords.longitude}),()=>{}, {enableHighAccuracy:true,timeout:7000});
+    const url=new URL(window.location.href);
+    const hasFocusedRecord=url.searchParams.has("preplan")||url.searchParams.has("hydrant");
+    if(hasFocusedRecord)setLocationState("record");
+    else if(!navigator.geolocation)setLocationState("fallback");
+    else navigator.geolocation.getCurrentPosition((position)=>{setCenter({lat:position.coords.latitude,lng:position.coords.longitude});setZoom(17);setLocationState("current");},()=>setLocationState("fallback"),{enableHighAccuracy:true,timeout:12000,maximumAge:60000});
   },[load,loadHydrants]);
   useEffect(()=>{
     const syncFocusedPreplan=(fromHistory=false)=>{
@@ -187,7 +193,8 @@ export default function FieldPreplans() {
     }catch(error){setMessage(error instanceof Error?error.message:"Unable to locate imported addresses.");}
     finally{setBusy(false);}
   }
-  function locate(){navigator.geolocation?.getCurrentPosition((position)=>{const point={lat:position.coords.latitude,lng:position.coords.longitude};setCenter(point);if(draft)setDraft({...draft,latitude:point.lat,longitude:point.lng});},()=>setMessage("Location permission is unavailable."),{enableHighAccuracy:true});}
+  function locate(){if(!navigator.geolocation){setLocationState("fallback");setMessage("This device does not provide location access. Showing Stickney instead.");return;}setLocationState("locating");navigator.geolocation.getCurrentPosition((position)=>{const point={lat:position.coords.latitude,lng:position.coords.longitude};setCenter(point);setZoom(17);setLocationState("current");setMessage("Map centered on this device's current location.");if(draft)setDraft({...draft,latitude:point.lat,longitude:point.lng});},()=>{setCenter(stickney);setZoom(17);setLocationState("fallback");setMessage("Location permission is unavailable. Showing Stickney instead.");},{enableHighAccuracy:true,timeout:12000,maximumAge:60000});}
+  const locationLabel=locationState==="locating"?"Locating…":locationState==="current"?"At current location":locationState==="fallback"?"Use current location":"Current location";
   function clickMap(point:Point){
     if(!draft)return;
     if(mode==="footprint"){setDraft({...draft,footprint:[...draft.footprint,point]});setFootprintAccepted(false);}
@@ -256,7 +263,7 @@ export default function FieldPreplans() {
     <nav className="field-directory-tabs" aria-label="Preplan workspaces"><button className={directoryView==="map"?"active":""} onClick={()=>setDirectoryView("map")}><strong>Map & Search</strong><span>{plans.length} preplans · {hydrants.length} hydrants</span></button><button className={directoryView==="starters"?"active":""} onClick={()=>setDirectoryView("starters")}><strong>Build Queue</strong><span>{imports.filter((item)=>item.status!=="completed").length} addresses need work</span></button></nav>
     {message&&<div className="field-message">{message}</div>}
     {directoryView==="map"&&<>
-    <div className="field-map-toolbar"><button onClick={locate}>◎ Current location</button><button className={imagery==="aerial"?"active":""} onClick={()=>setImagery("aerial")}>Aerial</button><button className={imagery==="street"?"active":""} onClick={()=>setImagery("street")}>Streets</button><small>Drag to move · wheel or double-click to zoom</small><em className={`map-provider ${mapProvider}`}>{mapProvider==="google"?`Google Maps · ${imagery==="aerial"?"Satellite":"Streets"}`:mapProvider==="loading"?"Loading map…":"Backup map"}</em><span/><button aria-label="Zoom out" onClick={()=>setZoom(Math.max(14,zoom-1))}>−</button><b>Zoom {zoom}</b><button aria-label="Zoom in" onClick={()=>setZoom(Math.min(21,zoom+1))}>+</button></div>
+    <div className="field-map-toolbar"><button className={locationState==="current"?"active":""} disabled={locationState==="locating"} onClick={locate}>◎ {locationLabel}</button><button className={imagery==="aerial"?"active":""} onClick={()=>setImagery("aerial")}>Aerial</button><button className={imagery==="street"?"active":""} onClick={()=>setImagery("street")}>Streets</button><small>Drag to move · wheel or double-click to zoom</small><em className={`map-provider ${mapProvider}`}>{mapProvider==="google"?`Google Maps · ${imagery==="aerial"?"Satellite":"Streets"}`:mapProvider==="loading"?"Loading map…":"Backup map"}</em><span/><button aria-label="Zoom out" onClick={()=>setZoom(Math.max(14,zoom-1))}>−</button><b>Zoom {zoom}</b><button aria-label="Zoom in" onClick={()=>setZoom(Math.min(21,zoom+1))}>+</button></div>
     <div className="field-map-layout"><FieldMap apiKey={mapsApiKey} center={center} zoom={zoom} imagery={imagery} plans={mapPlans} hydrants={hydrants} selected={selected} draft={draft} mode={mode} footprintAccepted={footprintAccepted} onMapClick={clickMap} onCenter={setCenter} onZoom={setZoom} onProviderChange={setMapProvider} onHydrantSelect={openHydrant} onSelect={(id)=>{const plan=plans.find((item)=>item.id===id);if(plan)edit(plan);}}/><aside><header><b>{normalizedQuery?"Department search results":"Records in this map view"}</b><span>{shown.length+shownHydrants.length}</span></header>{shown.map((plan)=><button key={plan.id} className={plan.id===selected?"active":""} onClick={()=>edit(plan)}><strong>{plan.businessName}</strong><span>{plan.address||"A-side GPS location"}</span><small>{plan.status} · {plan.features.length} mapped items</small><b className="record-open-label">Open record →</b></button>)}{shownHydrants.map((hydrant)=><button key={hydrant.id} className={hydrant.id===hydrantDraft?.id?"active hydrant-record":"hydrant-record"} onClick={()=>openHydrant(hydrant.id)}><strong><i className={hydrant.serviceStatus}/>{hydrant.hydrantNumber||"Hydrant"}</strong><span>{hydrant.address||`${hydrant.latitude.toFixed(5)}, ${hydrant.longitude.toFixed(5)}`}</span><small>{hydrant.serviceStatus.replaceAll("_"," ")} · {hydrant.flowTests[0]?`${Math.round(hydrant.flowTests[0].availableFlow).toLocaleString()} GPM @ ${hydrant.flowTests[0].desiredResidual} psi`:"Not flow tested"}</small><b className="record-open-label">Open record →</b></button>)}{!shown.length&&!shownHydrants.length&&<p>{normalizedQuery?"No department preplans or hydrants match this search. Try part of a business name, address, street, or hydrant number.":"No records are visible here. Search the department or move the map."}</p>}</aside></div>
     </>}
     {directoryView==="starters"&&<section className="imported-building-panel">
