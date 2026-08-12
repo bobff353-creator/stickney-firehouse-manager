@@ -19,10 +19,16 @@ function context() {
   };
 }
 
-test("command state accepts only real CAD units and valid command-position assignees", async () => {
+test("command state separates CAD units from audited manual on-scene units", async () => {
   const { emptyIncidentCommandState, reduceIncidentCommandState } = await loadCommandModule();
   const empty = emptyIncidentCommandState();
-  assert.throws(() => reduceIncidentCommandState(empty, { action: "assign-unit", unitId: "DEMO-1", assignment: "Fire Attack" }, context()), /assigned by CAD/);
+  assert.throws(() => reduceIncidentCommandState(empty, { action: "assign-unit", unitId: "DEMO-1", assignment: "Fire Attack" }, context()), /incident or manually added unit/);
+  const manualUnit = reduceIncidentCommandState(empty, { action: "add-manual-unit", unitId: "  bc 1  " }, context());
+  assert.deepEqual(manualUnit.state.manualUnits, ["BC 1"]);
+  assert.equal(manualUnit.state.units["BC 1"].status, "On scene");
+  assert.equal(manualUnit.state.units["BC 1"].assignment, "Staging");
+  assert.match(manualUnit.summary, /manually added on scene/);
+  assert.throws(() => reduceIncidentCommandState(manualUnit.state, { action: "add-manual-unit", unitId: "E1201" }, context()), /already listed/);
   const cadPosition = reduceIncidentCommandState(empty, { action: "assign-position", position: "Incident Commander", assignee: "unit:E1201" }, context());
   assert.equal(cadPosition.state.positions["Incident Commander"], "unit:E1201");
   const assigned = reduceIncidentCommandState(empty, { action: "assign-unit", unitId: "E1201", assignment: "Fire Attack", status: "On scene", floor: "Floor 1", side: "A" }, context());
@@ -33,6 +39,15 @@ test("command state accepts only real CAD units and valid command-position assig
   assert.equal(positioned.state.positions["Incident Commander"], "unit:E1201");
   const manual = reduceIncidentCommandState(positioned.state, { action: "assign-position", position: "Safety", assignee: "manual:Chief Smith / BC-1" }, context());
   assert.equal(manual.state.positions.Safety, "manual:Chief Smith / BC-1");
+});
+
+test("rehab chief accepts a roster member or a typed chief name without weakening RIT validation", async () => {
+  const { emptyIncidentCommandState, reduceIncidentCommandState } = await loadCommandModule();
+  const typed = reduceIncidentCommandState(emptyIncidentCommandState(), { action: "set-rehab", unitIds: ["E1201"], chiefEmployeeId: "manual:Chief Smith / BC 1" }, context());
+  assert.equal(typed.state.rehab.chiefEmployeeId, "manual:Chief Smith / BC 1");
+  const roster = reduceIncidentCommandState(typed.state, { action: "set-rehab", unitIds: ["E1201"], chiefEmployeeId: "employee-1" }, context());
+  assert.equal(roster.state.rehab.chiefEmployeeId, "employee-1");
+  assert.throws(() => reduceIncidentCommandState(roster.state, { action: "set-rit", unitId: "E1201", chiefEmployeeId: "manual:Outside Chief", readiness: "ready" }, context()), /authorized active employee/);
 });
 
 test("PAR is confirmed separately for each CAD unit", async () => {
@@ -80,6 +95,7 @@ test("Command Board is under Field, permission gated, durable, and contains no c
   assert.match(route, /dispatch_incidents/);
   assert.match(route, /field_preplans/);
   assert.match(route, /expectedRevision/);
+  assert.match(route, /state\.manualUnits/);
   assert.match(bootstrap, /incident_command_events/);
   assert.match(migration, /incident_command_event_revision_idx/);
   assert.match(page, /confirm-par-unit/);
@@ -87,6 +103,11 @@ test("Command Board is under Field, permission gated, durable, and contains no c
   assert.match(page, /dropUnitOnFloor/);
   assert.match(page, /STAGED OR ON SCENE · DRAG TO A FLOOR/);
   assert.match(page, /icb-command-assignees/);
+  assert.match(page, /\+ ADD UNIT/);
+  assert.match(page, /icb-add-unit-form/);
+  assert.match(page, /add-manual-unit/);
+  assert.match(page, /icb-rehab-chief-suggestions/);
+  assert.match(page, /Select or type chief name\/unit/);
   assert.match(page, /icb-idle-body/);
   assert.match(page, /ACTIVE-INCIDENT LAYOUT/);
   assert.match(page, /PREVIEW · NOT ACTIVE/);
