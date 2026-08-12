@@ -108,7 +108,9 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(page, /private A-side \/ fallback GPS point/);
   assert.match(page, /zoom\s*>=\s*17/);
   assert.match(page, /const selectedPlan=selected\?plans\.find/);
-  assert.match(page, /const visibleFeatures=zoom>=17\?\(selectedPlan\?\.features\?\?\[\]\):\[\]/);
+  assert.match(page, /const visibleFeatures=zoom>=18\?\(selectedPlan\?\.features\?\?\[\]\):\[\]/);
+  assert.match(page, /const featurePinSize=Math\.max\(18,Math\.min\(32,18\+\(zoom-18\)\*7\)\)/);
+  assert.match(page, /width:featurePinSize,height:featurePinSize/);
   assert.match(page, /\{visibleFeatures\.map\(\(feature\)/);
   assert.doesNotMatch(page, /plans\.flatMap\(\(plan\) => zoom >= 17/);
   for (const label of ["Knox Box","FDC","Riser","Gas Shutoff","Water Shutoff","Electrical Panel","Propane Tank","Elevator Room","Standpipe"]) assert.match(page, new RegExp(label));
