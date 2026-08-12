@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
-import { fireFlowCalculationArea, polygonAreaSquareFeet, suggestedFireFlow } from "../app/preplan-fire-flow.ts";
+import { detailedPreplanMapView, fireFlowCalculationArea, polygonAreaSquareFeet, suggestedFireFlow } from "../app/preplan-fire-flow.ts";
 import { importedBuildingSeeds } from "../app/preplan-imported-buildings.ts";
 
 test("supplied building workbook becomes 117 traceable preplan starters", async () => {
@@ -39,6 +39,22 @@ test("multi-point overhead footprints calculate ground square footage", () => {
     { lat: 41.81915, lng: -87.77345 },
   ]);
   assert.equal(area > 9_000 && area < 15_000, true);
+});
+
+test("detailed preplans center and zoom tightly around their mapped footprint", () => {
+  const view = detailedPreplanMapView(
+    [
+      { lat: 41.81900, lng: -87.77350 },
+      { lat: 41.81900, lng: -87.77330 },
+      { lat: 41.81916, lng: -87.77330 },
+      { lat: 41.81916, lng: -87.77350 },
+    ],
+    { lat: 0, lng: 0 },
+  );
+  assert.equal(Math.abs(view.center.lat - 41.81908) < 0.0000001, true);
+  assert.equal(Math.abs(view.center.lng - -87.7734) < 0.0000001, true);
+  assert.equal(view.zoom >= 20, true);
+  assert.equal(view.zoom <= 21, true);
 });
 
 test("IFC Appendix B advisory flow uses total levels and sprinkler assumptions", () => {

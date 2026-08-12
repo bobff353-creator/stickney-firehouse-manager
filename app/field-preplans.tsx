@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { availableHydrantFlow, hydrantOutletFlow, nfpa291FlowClass } from "./hydrant-flow";
 import GoogleFieldMap from "./google-field-map";
-import { constructionOptions, footprintCentroid, polygonAreaSquareFeet, suggestedFireFlow, type ConstructionGroup, type OccupancyFlowCategory, type SprinklerStandard } from "./preplan-fire-flow";
+import { constructionOptions, detailedPreplanMapView, footprintCentroid, polygonAreaSquareFeet, suggestedFireFlow, type ConstructionGroup, type OccupancyFlowCategory, type SprinklerStandard } from "./preplan-fire-flow";
 
 type Point = { lat:number; lng:number };
 type Feature = { id:string; preplanId:string; featureType:string; label:string; latitude:number; longitude:number; systemType:string; serviceStatus:string; details:string };
@@ -115,7 +115,7 @@ export default function FieldPreplans() {
       try{const response=await fetch("/api/maps-config",{cache:"no-store"});const body=await response.json() as {configured?:boolean;apiKey?:string};if(response.ok&&body.configured&&body.apiKey)setMapsApiKey(body.apiKey);else setMapProvider("fallback");}catch{setMapProvider("fallback");}
     };
     void initialize();
-    navigator.geolocation?.getCurrentPosition((position)=>setCenter({lat:position.coords.latitude,lng:position.coords.longitude}),()=>{}, {enableHighAccuracy:true,timeout:7000});
+    if(!new URL(window.location.href).searchParams.has("preplan"))navigator.geolocation?.getCurrentPosition((position)=>setCenter({lat:position.coords.latitude,lng:position.coords.longitude}),()=>{}, {enableHighAccuracy:true,timeout:7000});
   },[load,loadHydrants]);
   useEffect(()=>{
     const syncFocusedPreplan=(fromHistory=false)=>{
@@ -124,7 +124,7 @@ export default function FieldPreplans() {
       const plan=plans.find((item)=>item.id===id);
       if(!plan)return;
       setFocusedPreplan(true);
-      if(selected!==id){setSelectedImport("");setSelected(plan.id);setDraft({...plan});setFootprintAccepted(true);setCenter({lat:plan.latitude,lng:plan.longitude});setTab("details");setHydrantDraft(null);setMode("");}
+      if(selected!==id){const view=detailedPreplanMapView(plan.footprint,{lat:plan.latitude,lng:plan.longitude});setSelectedImport("");setSelected(plan.id);setDraft({...plan});setFootprintAccepted(true);setCenter(view.center);setZoom(view.zoom);setTab("details");setHydrantDraft(null);setMode("");}
     };
     syncFocusedPreplan();
     const handlePopState=()=>syncFocusedPreplan(true);
@@ -140,7 +140,7 @@ export default function FieldPreplans() {
   const groupedImports=useMemo(()=>[...shownImports.reduce((groups,item)=>{const street=item.address.replace(/^\s*\d+[a-z]?\s+/i,"").replace(/\s+(?:rd|road|st|street|ave|avenue)\.?$/i,(value)=>value.trim()).trim()||"Other";const rows=groups.get(street)??[];rows.push(item);groups.set(street,rows);return groups;},new Map<string,ImportedBuilding[]>())],[shownImports]);
   const current=plans.find((plan)=>plan.id===selected);
   const selectedHydrant=hydrantDraft?.id?hydrants.find((item)=>item.id===hydrantDraft.id):null;
-  function edit(plan:Preplan){setSelectedImport("");setSelected(plan.id);setDraft({...plan});setFootprintAccepted(true);setCenter({lat:plan.latitude,lng:plan.longitude});setTab("details");setHydrantDraft(null);setMode("");setFocusedPreplan(true);const url=new URL(window.location.href);url.searchParams.set("preplan",plan.id);window.history.pushState({preplanId:plan.id},"",`${url.pathname}${url.search}${url.hash}`);}
+  function edit(plan:Preplan){const view=detailedPreplanMapView(plan.footprint,{lat:plan.latitude,lng:plan.longitude});setSelectedImport("");setSelected(plan.id);setDraft({...plan});setFootprintAccepted(true);setCenter(view.center);setZoom(view.zoom);setTab("details");setHydrantDraft(null);setMode("");setFocusedPreplan(true);const url=new URL(window.location.href);url.searchParams.set("preplan",plan.id);window.history.pushState({preplanId:plan.id},"",`${url.pathname}${url.search}${url.hash}`);}
   function closePreplan(){const url=new URL(window.location.href);url.searchParams.delete("preplan");window.history.pushState({},"",`${url.pathname}${url.search}${url.hash}`);setFocusedPreplan(false);setSelected("");setDraft(null);setMode("");}
   function startImportedBuilding(item:ImportedBuilding){if(item.linkedPreplanId){const plan=plans.find((record)=>record.id===item.linkedPreplanId);if(plan)edit(plan);return;}const resolved=item.latitude!=null&&item.longitude!=null?{lat:item.latitude,lng:item.longitude}:center;const next=empty(resolved);setCenter(resolved);setSelectedImport(item.id);setSelected("");setHydrantDraft(null);setDraft({...next,businessName:item.businessName,address:item.address,status:item.latitude!=null?"Imported · Footprint Required":"Imported · Location Required"});setFootprintAccepted(false);setTab("quick");setMode("footprint");setMessage(item.latitude!=null?"Address located. Verify the map position, place the building corners, and accept the footprint.":"Address needs manual placement. Move the map to the building, place its corners, and accept the footprint.");}
   async function batchGeocode(){

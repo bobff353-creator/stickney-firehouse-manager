@@ -172,6 +172,47 @@ export function footprintCentroid(points: Point[]) {
   };
 }
 
+export function detailedPreplanMapView(
+  points: Point[],
+  fallbackCenter: Point,
+) {
+  const validPoints = points.filter(
+    (point) => Number.isFinite(point.lat) && Number.isFinite(point.lng),
+  );
+  if (!validPoints.length) return { center: fallbackCenter, zoom: 20 };
+
+  const latitudes = validPoints.map((point) => point.lat);
+  const longitudes = validPoints.map((point) => point.lng);
+  const minLat = Math.min(...latitudes);
+  const maxLat = Math.max(...latitudes);
+  const minLng = Math.min(...longitudes);
+  const maxLng = Math.max(...longitudes);
+  const center = {
+    lat: (minLat + maxLat) / 2,
+    lng: (minLng + maxLng) / 2,
+  };
+  if (validPoints.length < 2) return { center, zoom: 20 };
+
+  const mercatorY = (latitude: number) => {
+    const limited = Math.max(-85, Math.min(85, latitude));
+    const radians = (limited * Math.PI) / 180;
+    return (1 - Math.log(Math.tan(radians) + 1 / Math.cos(radians)) / Math.PI) / 2;
+  };
+  const longitudeSpan = Math.max((maxLng - minLng) / 360, Number.EPSILON);
+  const latitudeSpan = Math.max(
+    Math.abs(mercatorY(maxLat) - mercatorY(minLat)),
+    Number.EPSILON,
+  );
+  const usableWidth = 900 - 2 * 96;
+  const usableHeight = 420 - 2 * 72;
+  const scale = Math.min(
+    usableWidth / (256 * longitudeSpan),
+    usableHeight / (256 * latitudeSpan),
+  );
+  const zoom = Math.max(18, Math.min(21, Math.floor(Math.log2(scale))));
+  return { center, zoom };
+}
+
 export function fireFlowCalculationArea(
   footprintSquareFeet: number,
   floorCount: number,
