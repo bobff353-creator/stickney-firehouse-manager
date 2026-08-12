@@ -1,5 +1,11 @@
 export type Point = { lat: number; lng: number };
 export type ConstructionGroup =
+  | "I"
+  | "II"
+  | "III"
+  | "IV"
+  | "V"
+  | "V_LIGHTWEIGHT"
   | "IA_IB"
   | "IIA_IIIA"
   | "IV_VA"
@@ -12,11 +18,12 @@ export const constructionOptions: Array<{
   value: ConstructionGroup;
   label: string;
 }> = [
-  { value: "IA_IB", label: "Type IA or IB" },
-  { value: "IIA_IIIA", label: "Type IIA or IIIA" },
-  { value: "IV_VA", label: "Type IV or V-A" },
-  { value: "IIB_IIIB", label: "Type IIB or IIIB" },
-  { value: "VB", label: "Type V-B" },
+  { value: "I", label: "Type I" },
+  { value: "II", label: "Type II" },
+  { value: "III", label: "Type III" },
+  { value: "IV", label: "Type IV" },
+  { value: "V", label: "Type V" },
+  { value: "V_LIGHTWEIGHT", label: "Type V Lightweight" },
 ];
 
 const table = [
@@ -140,9 +147,7 @@ const table = [
 ] as const;
 
 function constructionIndex(value: ConstructionGroup) {
-  return ({ IA_IB: 0, IIA_IIIA: 1, IV_VA: 2, IIB_IIIB: 3, VB: 4 } as const)[
-    value
-  ];
+  return ({ I:0,II:1,III:3,IV:2,V:4,V_LIGHTWEIGHT:4,IA_IB:0,IIA_IIIA:1,IV_VA:2,IIB_IIIB:3,VB:4 } as const)[value];
 }
 export function polygonAreaSquareFeet(points: Point[]) {
   if (points.length < 3) return 0;
@@ -219,7 +224,7 @@ export function fireFlowCalculationArea(
   constructionType: ConstructionGroup,
 ) {
   const levels =
-    constructionType === "IA_IB"
+    constructionType === "I" || constructionType === "IA_IB"
       ? Math.min(3, Math.max(1, Math.trunc(floorCount)))
       : Math.max(1, Math.trunc(floorCount));
   return Math.round(Math.max(0, footprintSquareFeet) * levels);

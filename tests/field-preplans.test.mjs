@@ -73,7 +73,7 @@ test("IFC Appendix B advisory flow uses total levels and sprinkler assumptions",
 });
 
 test("Field Preplans provides map-first quick and detailed capture", async () => {
-  const [page, api, photoApi, hydrantApi, bootstrap, shell, permissions, googleMap, mapsConfig, styles] = await Promise.all([
+  const [page, api, photoApi, hydrantApi, bootstrap, shell, permissions, googleMap, mapsConfig, styles, fireFlow] = await Promise.all([
     readFile(new URL("../app/field-preplans.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/field-preplans/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/field-preplans/photos/route.ts", import.meta.url), "utf8"),
@@ -84,6 +84,7 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
     readFile(new URL("../app/google-field-map.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/maps-config/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/preplan-fire-flow.ts", import.meta.url), "utf8"),
   ]);
   assert.match(shell, /label: "Field"/);
   assert.match(shell, /activeNav === "Field Preplans"/);
@@ -160,6 +161,12 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(page, /maximumAge:15000/);
   assert.match(page, /void saveFeature\(point\)/);
   assert.match(page, /Review each feature below/);
+  assert.match(page, /Building address/);
+  assert.match(page, /Street address/);
+  assert.match(page, /ZIP code/);
+  assert.match(page, /Automatic sprinkler system/);
+  assert.match(fireFlow, /Type V Lightweight/);
+  assert.match(styles, /\.preplan-address-fields/);
   assert.match(page, /Show on map/);
   assert.match(page, /Take or add photo/);
   assert.match(page, /Add another operational feature/);
