@@ -113,7 +113,7 @@ export default function FieldPreplans() {
   const [locationState,setLocationState]=useState<LocationState>("locating");
   const [footprintAccepted,setFootprintAccepted]=useState(false);
   const [mapsApiKey,setMapsApiKey]=useState(""),[mapProvider,setMapProvider]=useState<"loading"|"google"|"fallback">("loading");
-  const [feature,setFeature]=useState({featureType:"knox",label:"",systemType:"",serviceStatus:"in_service",details:""}),[featurePhoto,setFeaturePhoto]=useState<File|null>(null),[message,setMessage]=useState(""),[busy,setBusy]=useState(false);
+  const [feature,setFeature]=useState({featureType:"knox",label:"",systemType:"",serviceStatus:"in_service",details:""}),[featurePhoto,setFeaturePhoto]=useState<File|null>(null),[featureLocating,setFeatureLocating]=useState(false),[message,setMessage]=useState(""),[busy,setBusy]=useState(false);
   const featurePhotoInput=useRef<HTMLInputElement|null>(null);
   const focusMapPanel=useRef<HTMLDivElement|null>(null);
   const [flush,setFlush]=useState({flushedAt:nowLocal(),waterClear:true,issues:"",notes:""});
@@ -226,6 +226,15 @@ export default function FieldPreplans() {
       setMessage(featureSaved?`Feature placed, but its photo was not saved: ${error instanceof Error?error.message:"Unable to upload photo"}`:error instanceof Error?error.message:"Unable to place feature");
     }finally{setBusy(false);setMode("");}
   }
+  function placeFeatureAtCurrentLocation(){
+    if(!navigator.geolocation){setMessage("This device does not provide GPS location access. Use the map to place the feature instead.");return;}
+    setFeatureLocating(true);setMessage("Finding this device's current location…");
+    navigator.geolocation.getCurrentPosition((position)=>{
+      const point={lat:position.coords.latitude,lng:position.coords.longitude};
+      setCenter(point);setZoom(20);setLocationState("current");
+      void saveFeature(point).finally(()=>setFeatureLocating(false));
+    },()=>{setFeatureLocating(false);setMessage("Current location permission is unavailable. Use the map to place the feature instead.");},{enableHighAccuracy:true,timeout:15000,maximumAge:15000});
+  }
   async function uploadFeaturePhoto(event:React.ChangeEvent<HTMLInputElement>,item:Feature){
     const input=event.currentTarget,file=input.files?.[0];if(!file||!selected)return;
     const form=new FormData();form.set("preplanId",selected);form.set("featureId",item.id);form.set("side","FEATURE");form.set("caption",item.label||pinMeta[item.featureType]?.label||"Operational feature");form.set("photo",file);
@@ -314,7 +323,11 @@ export default function FieldPreplans() {
             <label className="feature-photo-button">{featurePhoto?"Replace photo":"Take or choose photo"}<input ref={featurePhotoInput} type="file" accept="image/*" capture="environment" disabled={busy} onChange={(event)=>setFeaturePhoto(event.target.files?.[0]??null)}/></label>
             {featurePhoto?<div className="feature-photo-ready"><strong>Photo ready</strong><span>{featurePhoto.name}</span><button type="button" onClick={()=>{setFeaturePhoto(null);if(featurePhotoInput.current)featurePhotoInput.current.value="";}}>Remove</button></div>:<small>On a phone or iPad, this opens the camera. The photo saves when you place the feature on the map.</small>}
           </div>
-          <button className="primary-action" disabled={busy} onClick={()=>{setMode(feature.featureType);focusMapPanel.current?.scrollIntoView({behavior:"smooth",block:"start"});}}>Use map to place {pinMeta[feature.featureType]?.label}</button>
+          <div className="feature-placement-actions">
+            <button type="button" className="primary-action" disabled={busy||featureLocating} onClick={()=>{setMode(feature.featureType);focusMapPanel.current?.scrollIntoView({behavior:"smooth",block:"start"});}}>Use map to place {pinMeta[feature.featureType]?.label}</button>
+            <button type="button" className="feature-gps-action" disabled={busy||featureLocating} onClick={placeFeatureAtCurrentLocation}>{featureLocating?"Finding current location…":`Use current GPS location`}</button>
+          </div>
+          <small>Use GPS while standing beside the feature, or choose its exact position on the map. The optional photo is saved with either method.</small>
           <small>Feature symbols appear only on this selected building. Zooming out leaves the highlighted footprint.</small>
         </article>}
         {detailsStep==="systems"&&<article className="content-card mapped-feature-list">

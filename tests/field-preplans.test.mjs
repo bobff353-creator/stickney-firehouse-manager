@@ -155,6 +155,10 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(api, /DELETE FROM field_preplan_photos/);
   assert.match(api, /DELETE FROM field_preplan_features/);
   assert.match(page, /Feature photo \(optional\)/);
+  assert.match(page, /Use current GPS location/);
+  assert.match(page, /placeFeatureAtCurrentLocation/);
+  assert.match(page, /maximumAge:15000/);
+  assert.match(page, /void saveFeature\(point\)/);
   assert.match(page, /accept="image\/\*" capture="environment"/);
   assert.match(page, /form\.set\("featureId",body\.id\)/);
   assert.match(page, /photo\.featureId===item\.id/);
