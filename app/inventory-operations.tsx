@@ -75,6 +75,23 @@ function formatStatus(input: Row[string]) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase()) || "Not recorded";
 }
 
+function isNumericReadingItem(item: Row) {
+  return /\b(mileage|odometer)\b/i.test(value(item, "equipment_name"));
+}
+
+function numericReadingInputValue(input: Row[string]) {
+  if (input === null || input === undefined || input === "") return "";
+  const numeric = Number(input);
+  return Number.isFinite(numeric) ? String(numeric) : "";
+}
+
+function displayNumericReading(input: Row[string]) {
+  const inputValue = numericReadingInputValue(input);
+  if (!inputValue) return "";
+  const numeric = Number(inputValue);
+  return Number.isFinite(numeric) ? new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(numeric) : "";
+}
+
 const repairStages = [
   ["new", "New"],
   ["assigned", "Assigned"],
@@ -176,6 +193,7 @@ export default function InventoryOperations({
   const [inspectionMenuOpen, setInspectionMenuOpen] = useState(true);
   const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
   const [deficiencyItem, setDeficiencyItem] = useState<Row | null>(null);
+  const [numericReadings, setNumericReadings] = useState<Record<string, string>>({});
   const [editingEquipment, setEditingEquipment] = useState<Row | null>(null);
   const [scannerTarget, setScannerTarget] = useState<"create" | "edit" | "search">("create");
   const [equipmentSearch, setEquipmentSearch] = useState("");
@@ -621,22 +639,48 @@ export default function InventoryOperations({
               <div className="active-inspection-title">
                 <span>{formatStatus(activeCheck.check_type)} inspection in progress</span>
                 <small>Shared department inspection · updates refresh every 5 seconds{lastSyncedAt ? ` · synced ${formatDate(lastSyncedAt)}` : ""}</small>
-                <small>Pass each item or select Failed to add a required note and photo. You may leave and resume at any time.</small>
+                <small>Use Pass, Failed, or N/A for standard items. Mileage and odometer items require the current number. You may leave and resume at any time.</small>
               </div>
-              {activeItems.map((item) => (
-                <article key={value(item, "id")} className={`check-row result-${value(item, "result")}`}>
+              {activeItems.map((item) => {
+                const itemId = value(item, "id");
+                const numericItem = isNumericReadingItem(item);
+                const savedReading = displayNumericReading(item.numeric_reading);
+                const reading = numericReadings[itemId] ?? numericReadingInputValue(item.numeric_reading);
+                return (
+                <article key={itemId} className={`check-row result-${value(item, "result")} ${numericItem ? "numeric-reading-row" : ""}`}>
                   <div><strong>{value(item, "equipment_name")}{Number(item.quantity_required || 1) > 1 ? ` × ${item.quantity_required}` : ""}</strong><small>{value(item, "compartment_label")}{value(item, "source_form") ? ` · ${value(item, "source_form")}` : ""}</small></div>
                   <div className="check-result">
-                    <span>{value(item, "result").replace("_", " ")}</span>
+                    <span>{numericItem && savedReading ? `${savedReading} miles` : value(item, "result").replace("_", " ")}</span>
                     {value(item, "result") !== "pending" && value(item, "checked_by") ? <small>By {value(item, "checked_by")} · {formatDate(item.checked_at)}</small> : null}
                   </div>
-                  <div className="check-actions">
+                  {numericItem ? <div className="numeric-reading-entry">
+                    <label htmlFor={`numeric-reading-${itemId}`}>Current mileage / odometer</label>
+                    <div>
+                      <input
+                        id={`numeric-reading-${itemId}`}
+                        type="number"
+                        inputMode="decimal"
+                        min="0"
+                        step="0.1"
+                        placeholder="Enter mileage"
+                        value={reading}
+                        onChange={(event) => setNumericReadings((current) => ({ ...current, [itemId]: event.target.value }))}
+                        disabled={Boolean(busy) || !canCheck}
+                      />
+                      <button
+                        type="button"
+                        disabled={Boolean(busy) || !canCheck || reading.trim() === "" || !Number.isFinite(Number(reading)) || Number(reading) < 0}
+                        onClick={() => void action(`item-${itemId}`, { action: "record_check_item", checkItemId: itemId, result: "pass", numericReading: reading })}
+                      >Save mileage</button>
+                    </div>
+                    <small>Numbers only. This replaces Pass / Failed / N/A for mileage items.</small>
+                  </div> : <div className="check-actions">
                     <button disabled={Boolean(busy) || !canCheck} onClick={() => void action(`item-${value(item, "id")}`, { action: "record_check_item", checkItemId: value(item, "id"), result: "pass" })}>Pass</button>
                     <button className="failed" disabled={Boolean(busy) || !canCheck} onClick={() => setDeficiencyItem(item)}>Failed</button>
                     <button disabled={Boolean(busy) || !canCheck} onClick={() => void action(`item-${value(item, "id")}`, { action: "record_check_item", checkItemId: value(item, "id"), result: "not_applicable" })}>N/A</button>
-                  </div>
+                  </div>}
                 </article>
-              ))}
+              )})}
               <button className="ops-primary" disabled={Boolean(busy) || pendingItems > 0 || !canCheck} onClick={() => void action("complete", { action: "complete_check", checkId: value(activeCheck, "id") })}>Complete {formatStatus(activeCheck.check_type)} inspection</button>
             </div>
           ) : null}
@@ -691,15 +735,20 @@ export default function InventoryOperations({
               <div className="ops-empty"><strong>No apparatus added</strong><p>Add the first real department unit before starting checks.</p><button onClick={onSetup}>Add apparatus</button></div>
             ) : activeCheck ? (
               <div className="check-worklist">
-                {activeItems.map((item) => (
-                  <article key={value(item, "id")} className={`check-row result-${value(item, "result")}`}>
+                {activeItems.map((item) => {
+                  const itemId = value(item, "id");
+                  const numericItem = isNumericReadingItem(item);
+                  const savedReading = displayNumericReading(item.numeric_reading);
+                  const reading = numericReadings[itemId] ?? numericReadingInputValue(item.numeric_reading);
+                  return (
+                  <article key={itemId} className={`check-row result-${value(item, "result")} ${numericItem ? "numeric-reading-row" : ""}`}>
                     <div><strong>{value(item, "equipment_name")}</strong><small>{value(item, "compartment_label")}</small></div>
-                    <span>{value(item, "result").replace("_", " ")}</span>
-                    <div className="check-actions">
+                    <span>{numericItem && savedReading ? `${savedReading} miles` : value(item, "result").replace("_", " ")}</span>
+                    {numericItem ? <div className="numeric-reading-entry"><label htmlFor={`legacy-numeric-reading-${itemId}`}>Current mileage / odometer</label><div><input id={`legacy-numeric-reading-${itemId}`} type="number" inputMode="decimal" min="0" step="0.1" placeholder="Enter mileage" value={reading} onChange={(event) => setNumericReadings((current) => ({ ...current, [itemId]: event.target.value }))} disabled={Boolean(busy)} /><button type="button" disabled={Boolean(busy) || reading.trim() === "" || !Number.isFinite(Number(reading)) || Number(reading) < 0} onClick={() => void action(`item-${itemId}`, { action: "record_check_item", checkItemId: itemId, result: "pass", numericReading: reading })}>Save mileage</button></div></div> : <div className="check-actions">
                       {(["pass", "missing", "damaged", "not_applicable"] as const).map((result) => <button key={result} disabled={Boolean(busy)} onClick={() => void action(`item-${value(item, "id")}`, { action: "record_check_item", checkItemId: value(item, "id"), result })}>{result === "not_applicable" ? "N/A" : result}</button>)}
-                    </div>
+                    </div>}
                   </article>
-                ))}
+                )})}
                 <button className="ops-primary" disabled={Boolean(busy) || pendingItems > 0} onClick={() => void action("complete", { action: "complete_check", checkId: value(activeCheck, "id") })}>Complete apparatus check</button>
               </div>
             ) : (

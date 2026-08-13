@@ -97,7 +97,7 @@ export async function GET(request: Request) {
         .order("started_at", { ascending: false }),
       collectPages((from, to) => supabase
         .from("inventory_check_items")
-        .select("id,check_id,equipment_id,result,notes,checked_by,checked_at")
+        .select("id,check_id,equipment_id,result,notes,numeric_reading,checked_by,checked_at")
         .eq("department_id", departmentId)
         .range(from, to)),
       supabase
@@ -469,6 +469,21 @@ export async function POST(request: Request) {
         return privateJson({ error: "This active check item was not found." }, 404);
       }
       const notes = clean(body.notes, 500) || null;
+      const equipmentName = clean(equipment.name, 300);
+      const isNumericReadingItem = /\b(mileage|odometer)\b/i.test(equipmentName);
+      const numericReadingInput = body.numericReading;
+      const numericReading = numericReadingInput === null || numericReadingInput === undefined || numericReadingInput === ""
+        ? null
+        : Number(numericReadingInput);
+      if (isNumericReadingItem && (numericReading === null || !Number.isFinite(numericReading) || numericReading < 0)) {
+        return privateJson(
+          { error: "Enter the current mileage or odometer reading before saving this item." },
+          400,
+        );
+      }
+      if (isNumericReadingItem && result !== "pass") {
+        return privateJson({ error: "Mileage and odometer items must be saved as a numeric reading." }, 400);
+      }
       const evidencePhotoId = clean(body.evidencePhotoId, 80) || null;
       const assignedEmployeeIds = stringList(body.assignedEmployeeIds);
       const assignedEmployeeNames = stringList(body.assignedEmployeeNames);
@@ -496,6 +511,7 @@ export async function POST(request: Request) {
         .update({
           result,
           notes,
+          numeric_reading: isNumericReadingItem ? numericReading : null,
           checked_by: actor,
           checked_at: new Date().toISOString(),
         })
