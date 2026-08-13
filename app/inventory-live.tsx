@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import InventoryOperations from "./inventory-operations";
+import InventoryVinProfile from "./inventory-vin-profile";
 import {
   FormEvent,
   useCallback,
@@ -62,6 +63,26 @@ type TwinApparatus = {
   model?: string;
   year?: number;
   weekly_due_day?: number | null;
+  vin_decoded_json?: Record<string, unknown>;
+  vin_decoded_at?: string;
+  vin_source?: string;
+  oil_specification?: string;
+  oil_capacity?: string;
+  transmission_fluid_specification?: string;
+  coolant_specification?: string;
+  front_tire_size?: string;
+  rear_tire_size?: string;
+  tire_pressure_notes?: string;
+  fuel_capacity?: string;
+  battery_specification?: string;
+  filter_part_numbers?: string;
+  maintenance_schedule?: string;
+  owner_manual_url?: string;
+  service_manual_url?: string;
+  parts_catalog_url?: string;
+  preferred_vendor?: string;
+  ordering_notes?: string;
+  service_profile_verified_at?: string;
 };
 
 type TwinCompartment = {
@@ -1410,6 +1431,11 @@ function DigitalTwinBuilder({
         ) : (
           <p>Every department apparatus has an Inventory record.</p>
         )}
+        {selectedApparatus ? <InventoryVinProfile
+          apparatus={selectedApparatus}
+          onReload={() => onReload(effectiveApparatusId)}
+          notify={notify}
+        /> : null}
       </section>
 
       <section className="builder-section">
