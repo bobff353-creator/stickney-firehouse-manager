@@ -533,7 +533,7 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
   }
   await enforceActingOfficerStraightStipend(db);
   await db.prepare("INSERT INTO callback_review_settings(id,reviewer_employee_id,updated_by) SELECT 'default','wyant-robert','Administrator setup' WHERE EXISTS (SELECT 1 FROM employees WHERE id='wyant-robert') ON CONFLICT(id) DO NOTHING").run();
-  await db.prepare("UPDATE callback_review_settings SET rules_json=?,updated_at=CURRENT_TIMESTAMP WHERE id='default'").bind(callbackRulesJson).run();
+  await db.prepare("UPDATE callback_review_settings SET rules_json=?,updated_at=datetime('now') WHERE id='default'").bind(callbackRulesJson).run();
   await reconcileExactLogPayrollRange(db);
   const phoneSeed = [
     ["fire-berwyn", "fire", "Berwyn Fire Department", "", "(708) 484-1644", "", 1],

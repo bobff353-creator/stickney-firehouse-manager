@@ -166,7 +166,7 @@ export async function POST(request: Request) {
       const reviewerId = String(body.reviewerEmployeeId ?? "");
       const reviewer = await db.prepare("SELECT e.id FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1 AND (lower(p.label) IN ('lieutenant','captain','chief','deputy chief','assistant chief') OR lower(p.id) LIKE 'deputy-chief%' OR COALESCE(ep.acting_officer_eligible,0)=1) LIMIT 1").bind(reviewerId).first();
       if (!reviewer) return Response.json({ error: "Select an active officer or Acting Officer eligible member." }, { status: 400 });
-      await db.prepare("INSERT INTO callback_review_settings(id,reviewer_employee_id,updated_by,updated_at) VALUES('default',?,?,CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET reviewer_employee_id=excluded.reviewer_employee_id,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP").bind(reviewerId, actor).run();
+      await db.prepare("INSERT INTO callback_review_settings(id,reviewer_employee_id,updated_by,updated_at) VALUES('default',?,?,datetime('now')) ON CONFLICT(id) DO UPDATE SET reviewer_employee_id=excluded.reviewer_employee_id,updated_by=excluded.updated_by,updated_at=datetime('now')").bind(reviewerId, actor).run();
       return Response.json({ ok: true });
     }
 
@@ -182,7 +182,7 @@ export async function POST(request: Request) {
       if (submission.status === "denied" || (submission.status === "approved" && status === "denied")) return Response.json({ error: "This callback has already been reviewed." }, { status: 409 });
 
       if (status === "denied") {
-        await db.prepare("UPDATE daily_log_callback_submissions SET status='denied',reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP,review_note=? WHERE id=? AND status='pending'").bind(actor, String(body.reviewNote ?? "").trim(), id).run();
+        await db.prepare("UPDATE daily_log_callback_submissions SET status='denied',reviewed_by=?,reviewed_at=datetime('now'),review_note=? WHERE id=? AND status='pending'").bind(actor, String(body.reviewNote ?? "").trim(), id).run();
         return Response.json({ ok: true });
       }
 
@@ -190,8 +190,8 @@ export async function POST(request: Request) {
       const approvedHours = Math.round(requestedHours * 4) / 4;
       if (!Number.isFinite(approvedHours) || approvedHours < 0.25 || approvedHours > 24) return Response.json({ error: "Approved callback hours must be between 0.25 and 24 in quarter-hour increments." }, { status: 400 });
       const period = await ensureCallbackPayrollIsEditable(db, submission.logDate);
-      await db.prepare("INSERT INTO callback_payroll_aggregates(employee_id,work_date,manual_baseline_hours,updated_at) SELECT ?,?,COALESCE((SELECT hours FROM time_entries WHERE employee_id=? AND work_date=? AND category='callback' LIMIT 1),0),CURRENT_TIMESTAMP WHERE NOT EXISTS (SELECT 1 FROM callback_payroll_aggregates WHERE employee_id=? AND work_date=?)").bind(submission.employeeId, submission.logDate, submission.employeeId, submission.logDate, submission.employeeId, submission.logDate).run();
-      await db.prepare("UPDATE daily_log_callback_submissions SET status='approved',approved_hours=?,reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP,review_note=? WHERE id=? AND status IN ('pending','approved')").bind(approvedHours, actor, String(body.reviewNote ?? "").trim(), id).run();
+      await db.prepare("INSERT INTO callback_payroll_aggregates(employee_id,work_date,manual_baseline_hours,updated_at) SELECT ?,?,COALESCE((SELECT hours FROM time_entries WHERE employee_id=? AND work_date=? AND category='callback' LIMIT 1),0),datetime('now') WHERE NOT EXISTS (SELECT 1 FROM callback_payroll_aggregates WHERE employee_id=? AND work_date=?)").bind(submission.employeeId, submission.logDate, submission.employeeId, submission.logDate, submission.employeeId, submission.logDate).run();
+      await db.prepare("UPDATE daily_log_callback_submissions SET status='approved',approved_hours=?,reviewed_by=?,reviewed_at=datetime('now'),review_note=? WHERE id=? AND status IN ('pending','approved')").bind(approvedHours, actor, String(body.reviewNote ?? "").trim(), id).run();
       await rebuildCallbackPayroll(db, submission.employeeId, submission.logDate, period.start, actor);
       return Response.json({ ok: true, periodStart: period.start, approvedHours });
     }
@@ -226,11 +226,12 @@ export async function POST(request: Request) {
         submitterIsDeputyChief: isDeputyChief(actorRecord),
         employeeCallbackCalls: callbackSnapshots.filter((snapshot) => snapshot.employeeId === employeeId),
       });
-      await db.prepare("INSERT INTO daily_log_callback_submissions(id,log_date,call_id,report_number,employee_id,reviewer_employee_id,status,submitted_by,submitted_at,call_type,call_time_out,call_time_in,rule_version,rule_matches,rule_flags,suggested_hours,actual_minutes,submitted_by_employee_id,submitted_by_rank) VALUES(?,?,?,?,?,?,'pending',?,CURRENT_TIMESTAMP,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(call_id,employee_id) DO NOTHING").bind(crypto.randomUUID(), logDate, callId, call.reportNumber, employeeId, setting.reviewerEmployeeId, actor, call.callType, call.timeOut, call.timeIn, evaluation.ruleVersion, JSON.stringify(evaluation.matches), JSON.stringify(evaluation.flags), evaluation.suggestedHours, evaluation.actualMinutes, actorRecord?.id ?? null, actorRecord?.rank ?? "").run();
+      await db.prepare("INSERT INTO daily_log_callback_submissions(id,log_date,call_id,report_number,employee_id,reviewer_employee_id,status,submitted_by,submitted_at,call_type,call_time_out,call_time_in,rule_version,rule_matches,rule_flags,suggested_hours,actual_minutes,submitted_by_employee_id,submitted_by_rank) VALUES(?,?,?,?,?,?,'pending',?,datetime('now'),?,?,?,?,?,?,?,?,?,?) ON CONFLICT(call_id,employee_id) DO NOTHING").bind(crypto.randomUUID(), logDate, callId, call.reportNumber, employeeId, setting.reviewerEmployeeId, actor, call.callType, call.timeOut, call.timeIn, evaluation.ruleVersion, JSON.stringify(evaluation.matches), JSON.stringify(evaluation.flags), evaluation.suggestedHours, evaluation.actualMinutes, actorRecord?.id ?? null, actorRecord?.rank ?? "").run();
       evaluations.push({ employeeId, ...evaluation });
     }
     return Response.json({ ok: true, submitted: employeeIds.length, reviewer: setting, evaluations });
   } catch (error) {
+    console.error("[api/callbacks] save failed", error instanceof Error ? error.message : String(error));
     return Response.json({ error: error instanceof Error ? error.message : "Unable to save callback attendance." }, { status: 500 });
   }
 }

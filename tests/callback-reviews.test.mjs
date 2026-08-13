@@ -80,6 +80,20 @@ test("callback submission binds one value for every insert placeholder", async (
   assert.equal((insert[1].match(/\?/g) ?? []).length, 17);
 });
 
+test("callback timestamp writes preserve PostgreSQL timestamp types", async () => {
+  const [route, bootstrap, adapter] = await Promise.all([
+    readFile(new URL("../app/api/callbacks/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/bootstrap.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/postgres-adapter.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(route, /submitted_at[^\n]+datetime\('now'\)/);
+  assert.match(route, /reviewed_at=datetime\('now'\)/);
+  assert.match(route, /callback_review_settings[^\n]+datetime\('now'\)/);
+  assert.match(route, /callback_payroll_aggregates[^\n]+datetime\('now'\)/);
+  assert.match(bootstrap, /callback_review_settings SET rules_json=\?,updated_at=datetime\('now'\)/);
+  assert.ok(adapter.indexOf("translated.replace(/\\bdatetime") > adapter.indexOf("translated.replace(/\\bCURRENT_TIMESTAMP"), "typed datetime conversion must run after legacy text timestamp formatting");
+});
+
 test("callback migration preserves calls and seeds the verified reviewer", async () => {
   const source = await readFile(new URL("../supabase/migrations/20260811002824_add_daily_log_callback_reviews.sql", import.meta.url), "utf8");
   assert.match(source, /daily_log_callback_submissions/);
