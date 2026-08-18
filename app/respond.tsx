@@ -13,8 +13,9 @@ type Preplan = {
   id:string; businessName:string; address:string; latitude:number; longitude:number; aSideLatitude?:number|null; aSideLongitude?:number|null;
   footprint:Point[]; footprintSquareFeet:number; floorCount:number; constructionType:string; suggestedFireFlowGpm:number; suggestedFireFlowDuration:number;
   contactInfo:string; construction:string; accessInfo:string; alarmSystem:string; knoxBox:string; riser:string; fdc:string; sprinklerSystem:string;
-  status:string; updatedAt:string; features:Feature[]; photos:Photo[]; levels?:RespondLevel[]; spaces?:RespondSpace[];
+  status:string; updatedAt:string; features:Feature[]; photos:Photo[]; levels?:RespondLevel[]; spaces?:RespondSpace[]; alerts?:RespondAlert[];
 };
+type RespondAlert = { id:string; alertType:string; title:string; instructions:string; severity:"informational"|"advisory"|"warning"|"critical" };
 type RoomMatch =
   | { kind:"unique"; space:RespondSpace; level:{levelId:string;name:string}|null; explanation:string }
   | { kind:"ambiguous"; candidates:Array<{space:RespondSpace;level:{levelId:string;name:string}|null}>; explanation:string }
@@ -132,6 +133,7 @@ export default function Respond({ apparatus = "", onNavigate }: { apparatus?: st
       <div className="respond-call-actions"><button className="respond-monitor" onClick={()=>void toggleMonitor()} data-test-safe>{monitorMode?"Exit Monitor":"Monitor View"}</button><a className="respond-nav" href={googleNavigation(call)} target="_blank" rel="noreferrer" data-test-safe>Open Google Navigation ↗</a></div>
     </header>
     <div className="respond-statusline"><span className={plan?"matched":"unmatched"}>{plan?`Preplan matched by ${data?.match?.method}${data?.match?.method==="gps"?` · ${data.match.distanceFeet} ft`:""}`:"No matching preplan"}</span><span>Updated {displayTime(data?.generatedAt||"")}</span>{error&&<span className="warning">{error}</span>}</div>
+    {plan?.alerts?.filter((alert)=>alert.severity==="critical"||alert.severity==="warning").map((alert)=><div key={alert.id} className={`respond-alert-banner ${alert.severity}`}><strong>{alert.title}</strong>{alert.instructions&&<span>{alert.instructions}</span>}</div>)}
     {data?.roomMatch?.kind==="unique"&&<div className="respond-room-banner unique"><strong>{data.roomMatch.explanation}</strong>{data.roomMatch.level&&<button onClick={()=>setSelectedLevelId((plan?.levels?.find((level)=>level.isDefault)?.id)||"")}>Return to Arrival</button>}</div>}
     {data?.roomMatch?.kind==="ambiguous"&&<div className="respond-room-banner ambiguous"><strong>{data.roomMatch.explanation}</strong><div className="respond-room-candidates">{data.roomMatch.candidates.map((candidate)=><button key={candidate.space.id} onClick={()=>candidate.level&&setSelectedLevelId(candidate.level.levelId)}>{candidate.level?.name||"Level"} — {candidate.space.displayName}</button>)}</div></div>}
     {plan&&(plan.levels?.length??0)>1&&<nav className="respond-level-switcher" aria-label="Preplan levels">{plan.levels!.map((level)=><button key={level.id} className={selectedLevelId===level.id?"active":""} onClick={()=>setSelectedLevelId(level.id)} data-test-safe>{level.shortLabel||level.name}</button>)}</nav>}

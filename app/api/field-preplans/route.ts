@@ -3,6 +3,7 @@ import { defaultPermissionsForRank } from "../../permissions";
 import { polygonAreaSquareFeet, suggestedFireFlow, type ConstructionGroup, type OccupancyFlowCategory, type SprinklerStandard } from "../../preplan-fire-flow";
 import { canDeleteLevel, nextSortOrder, type LevelGrade, type LevelLayerType } from "../../preplans/levels.ts";
 import { isValidGeometry, parseAliasList, polygonCentroid, type SpaceType } from "../../preplans/spaces.ts";
+import type { AlertSeverity, AlertType } from "../../preplans/alerts.ts";
 
 type Point = { lat:number; lng:number };
 type Db = Awaited<ReturnType<typeof ensureDatabase>>;
@@ -14,6 +15,8 @@ const sprinklerStandards = new Set<SprinklerStandard>(["none","nfpa13","nfpa13r"
 const layerTypes = new Set<LevelLayerType>(["arrival","floor","basement","roof","fire_protection","hazmat","iap","water_supply","technical_rescue","custom"]);
 const levelGrades = new Set<LevelGrade>(["above_grade","below_grade","grade","n/a"]);
 const spaceTypes = new Set<SpaceType>(["room","classroom","office","stairway","elevator_lobby","corridor","mechanical","electrical","boiler_room","sprinkler_room","storage","gymnasium","roof_access","basement","other"]);
+const alertTypes = new Set<AlertType>(["critical_warning","access_problem","command_note","general_note"]);
+const alertSeverities = new Set<AlertSeverity>(["informational","advisory","warning","critical"]);
 
 async function access(request:Request, db:Db) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
@@ -64,13 +67,14 @@ export async function GET(request:Request) {
     const db = await ensureDatabase();
     const auth = await access(request, db);
     if (!auth.allowed) return Response.json({ error:"Field preplan access is required." }, { status:403 });
-    const [plans, features, photos, imports, levels, spaces] = await Promise.all([
+    const [plans, features, photos, imports, levels, spaces, alerts] = await Promise.all([
       db.prepare("SELECT id,business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,COALESCE(footprint_square_feet,0) footprintSquareFeet,COALESCE(floor_count,1) floorCount,COALESCE(fire_flow_calculation_area,0) fireFlowCalculationArea,COALESCE(construction_type,'VB') constructionType,COALESCE(occupancy_flow_category,'other') occupancyFlowCategory,COALESCE(sprinkler_standard,'none') sprinklerStandard,COALESCE(suggested_fire_flow_gpm,0) suggestedFireFlowGpm,COALESCE(suggested_fire_flow_duration,0) suggestedFireFlowDuration,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,status,COALESCE(NULLIF(lifecycle_status,''),'published') lifecycleStatus,COALESCE(revision_number,1) revisionNumber,updated_by updatedBy,updated_at updatedAt FROM field_preplans ORDER BY updated_at DESC").all(),
       db.prepare("SELECT id,preplan_id preplanId,feature_type featureType,label,latitude,longitude,system_type systemType,service_status serviceStatus,details FROM field_preplan_features ORDER BY created_at").all(),
       db.prepare("SELECT id,preplan_id preplanId,feature_id featureId,side,filename,caption,created_at createdAt FROM field_preplan_photos ORDER BY created_at DESC").all(),
       db.prepare("SELECT id,business_name businessName,address,source_file sourceFile,source_row sourceRow,status,latitude,longitude,geocode_note geocodeNote,linked_preplan_id linkedPreplanId FROM field_preplan_imports ORDER BY business_name COLLATE NOCASE,address COLLATE NOCASE").all(),
       db.prepare("SELECT id,preplan_id preplanId,name,short_label shortLabel,layer_type layerType,floor_index floorIndex,grade,sort_order sortOrder,is_default isDefault,respond_visible respondVisible,hidden,background_type backgroundType,background_asset_key backgroundAssetKey,background_transform backgroundTransform,opacity FROM field_preplan_levels ORDER BY preplan_id,sort_order").all(),
       db.prepare("SELECT id,preplan_id preplanId,level_id levelId,display_name displayName,room_number roomNumber,space_type spaceType,aliases,cad_keywords cadKeywords,geometry,label_position labelPosition,typical_occupancy typicalOccupancy,peak_occupancy peakOccupancy,special_population_notes specialPopulationNotes,access_notes accessNotes,fire_protection_notes fireProtectionNotes,hazards FROM field_preplan_spaces ORDER BY preplan_id,display_name COLLATE NOCASE").all(),
+      db.prepare("SELECT id,preplan_id preplanId,level_id levelId,alert_type alertType,title,instructions,severity,display_order displayOrder,pin_to_respond pinToRespond,effective_at effectiveAt,expires_at expiresAt,verification_required verificationRequired,verified_by verifiedBy,verified_at verifiedAt,archived FROM field_preplan_alerts WHERE archived=0 ORDER BY preplan_id,CASE severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 WHEN 'advisory' THEN 2 ELSE 3 END,display_order").all(),
     ]);
     return Response.json({
       canEdit:auth.canEdit,
@@ -82,6 +86,7 @@ export async function GET(request:Request) {
         photos:photos.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id).map((photo) => ({ ...photo, url:`/api/field-preplans/photos/${(photo as {id:string}).id}` })),
         levels:levels.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id).map((level) => ({ ...level, isDefault:Boolean((level as {isDefault:number}).isDefault), respondVisible:Boolean((level as {respondVisible:number}).respondVisible), hidden:Boolean((level as {hidden:number}).hidden) })),
         spaces:spaces.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id).map((space) => ({ ...space, aliases:JSON.parse(String((space as {aliases?:string}).aliases || "[]")), cadKeywords:JSON.parse(String((space as {cadKeywords?:string}).cadKeywords || "[]")), geometry:JSON.parse(String((space as {geometry?:string}).geometry || "[]")), labelPosition:(space as {labelPosition?:string|null}).labelPosition ? JSON.parse(String((space as {labelPosition?:string}).labelPosition)) : null })),
+        alerts:alerts.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id).map((alertRow) => ({ ...alertRow, pinToRespond:Boolean((alertRow as {pinToRespond:number}).pinToRespond), verificationRequired:Boolean((alertRow as {verificationRequired:number}).verificationRequired), archived:Boolean((alertRow as {archived:number}).archived) })),
       })),
       imports:imports.results,
     });
@@ -214,6 +219,41 @@ export async function POST(request:Request) {
       if (!auth.canEdit) return Response.json({ error:"Field preplan edit permission is required." }, { status:403 });
       const id = text(body.id, 80);
       await db.prepare("DELETE FROM field_preplan_spaces WHERE id=?").bind(id).run();
+      return Response.json({ ok:true });
+    }
+    if (action === "saveAlert") {
+      if (!auth.canEdit) return Response.json({ error:"Field preplan edit permission is required." }, { status:403 });
+      const preplanId = text(body.preplanId, 80);
+      const plan = preplanId ? await db.prepare("SELECT id FROM field_preplans WHERE id=?").bind(preplanId).first() : null;
+      if (!plan) return Response.json({ error:"Preplan not found." }, { status:404 });
+      const levelId = text(body.levelId, 80) || null;
+      if (levelId) {
+        const level = await db.prepare("SELECT id FROM field_preplan_levels WHERE id=? AND preplan_id=?").bind(levelId,preplanId).first();
+        if (!level) return Response.json({ error:"The selected level does not belong to this preplan." }, { status:400 });
+      }
+      const title = text(body.title, 160);
+      if (!title) return Response.json({ error:"Alert title is required." }, { status:400 });
+      const requestedType = text(body.alertType, 30) as AlertType;
+      const alertType = alertTypes.has(requestedType) ? requestedType : "general_note";
+      const requestedSeverity = text(body.severity, 20) as AlertSeverity;
+      const severity = alertSeverities.has(requestedSeverity) ? requestedSeverity : "advisory";
+      const id = text(body.id, 80) || crypto.randomUUID();
+      await db.prepare("INSERT INTO field_preplan_alerts(id,preplan_id,level_id,alert_type,title,instructions,severity,display_order,pin_to_respond,effective_at,expires_at,verification_required,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET level_id=excluded.level_id,alert_type=excluded.alert_type,title=excluded.title,instructions=excluded.instructions,severity=excluded.severity,display_order=excluded.display_order,pin_to_respond=excluded.pin_to_respond,effective_at=excluded.effective_at,expires_at=excluded.expires_at,verification_required=excluded.verification_required,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP")
+        .bind(id,preplanId,levelId,alertType,title,text(body.instructions,4000),severity,Math.trunc(number(body.displayOrder))||0,body.pinToRespond===true?1:0,body.effectiveAt?text(body.effectiveAt,40):null,body.expiresAt?text(body.expiresAt,40):null,body.verificationRequired===true?1:0,auth.actor,auth.actor).run();
+      return Response.json({ ok:true, id });
+    }
+    if (action === "verifyAlert") {
+      if (!auth.canEdit) return Response.json({ error:"Field preplan edit permission is required." }, { status:403 });
+      const id = text(body.id, 80);
+      const alert = await db.prepare("SELECT id FROM field_preplan_alerts WHERE id=?").bind(id).first();
+      if (!alert) return Response.json({ error:"Alert not found." }, { status:404 });
+      await db.prepare("UPDATE field_preplan_alerts SET verified_by=?,verified_at=CURRENT_TIMESTAMP,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(auth.actor,auth.actor,id).run();
+      return Response.json({ ok:true });
+    }
+    if (action === "deleteAlert") {
+      if (!auth.canEdit) return Response.json({ error:"Field preplan edit permission is required." }, { status:403 });
+      const id = text(body.id, 80);
+      await db.prepare("UPDATE field_preplan_alerts SET archived=1,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(auth.actor,id).run();
       return Response.json({ ok:true });
     }
     return Response.json({ error:"Unsupported preplan action." }, { status:400 });

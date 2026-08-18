@@ -6,6 +6,7 @@ import { hasPermission } from "../../server-permissions";
 import { matchCadToRoom } from "../../preplans/cad-room-match.ts";
 import type { PreplanLevel } from "../../preplans/levels.ts";
 import type { PreplanSpace } from "../../preplans/spaces.ts";
+import { sortAlertsForRespond, visibleInRespond, type PreplanAlert } from "../../preplans/alerts.ts";
 
 type Row = Record<string, unknown>;
 
@@ -48,11 +49,12 @@ export async function GET(request: Request) {
     let preplan: Row | null = null;
     let roomMatch: ReturnType<typeof matchCadToRoom> | null = null;
     if (matched) {
-      const [features, photos, levelRows, spaceRows] = await Promise.all([
+      const [features, photos, levelRows, spaceRows, alertRows] = await Promise.all([
         db.prepare("SELECT id,feature_type featureType,label,latitude,longitude,system_type systemType,service_status serviceStatus,details FROM field_preplan_features WHERE preplan_id=? ORDER BY created_at").bind(String(matched.plan.id)).all<Row>(),
         db.prepare("SELECT id,feature_id featureId,side,filename,caption,created_at createdAt FROM field_preplan_photos WHERE preplan_id=? ORDER BY created_at DESC").bind(String(matched.plan.id)).all<Row>(),
         db.prepare("SELECT id,preplan_id preplanId,name,short_label shortLabel,layer_type layerType,floor_index floorIndex,grade,sort_order sortOrder,is_default isDefault,respond_visible respondVisible,hidden FROM field_preplan_levels WHERE preplan_id=? AND respond_visible=1 AND hidden=0 ORDER BY sort_order").bind(String(matched.plan.id)).all<Row>(),
         db.prepare("SELECT id,preplan_id preplanId,level_id levelId,display_name displayName,room_number roomNumber,space_type spaceType,aliases,cad_keywords cadKeywords,geometry,label_position labelPosition FROM field_preplan_spaces WHERE preplan_id=? ORDER BY display_name COLLATE NOCASE").bind(String(matched.plan.id)).all<Row>(),
+        db.prepare("SELECT id,preplan_id preplanId,level_id levelId,alert_type alertType,title,instructions,severity,display_order displayOrder,pin_to_respond pinToRespond,effective_at effectiveAt,expires_at expiresAt,verification_required verificationRequired,verified_by verifiedBy,verified_at verifiedAt,archived FROM field_preplan_alerts WHERE preplan_id=? AND archived=0 ORDER BY display_order").bind(String(matched.plan.id)).all<Row>(),
       ]);
       const levels = levelRows.results.map((row) => ({
         id: String(row.id), preplanId: String(row.preplanId), name: String(row.name), shortLabel: String(row.shortLabel),
@@ -69,12 +71,17 @@ export async function GET(request: Request) {
         createdBy: "", updatedBy: "",
       })) as unknown as PreplanSpace[];
       roomMatch = matchCadToRoom(String(activeCall.narrative || ""), spaces, levels);
+      const alertsRaw = alertRows.results.map((row) => ({
+        ...row, pinToRespond: Boolean(row.pinToRespond), verificationRequired: Boolean(row.verificationRequired), archived: Boolean(row.archived),
+      })) as unknown as PreplanAlert[];
+      const alerts = sortAlertsForRespond(visibleInRespond(alertsRaw));
       preplan = {
         ...matched.plan,
         features: features.results,
         photos: photos.results.map((photo) => ({ ...photo, url: `/api/field-preplans/photos/${photo.id}` })),
         levels,
         spaces,
+        alerts,
       };
     }
 
