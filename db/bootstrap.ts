@@ -66,7 +66,7 @@ const employeeSeed = [
 ] as const;
 
 let ready = false;
-const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-07-station-scheduler-v1";
+const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-07-station-scheduler-v1-2026-08-18-preplan-v2-levels-v1";
 
 const policySeedVersion = "stickney-policy-library-2026-07-18";
 const boxCardSeedVersion = "regional-box-cards-structured-2026-07-21-v2";
@@ -75,6 +75,7 @@ const callTimeFormatVersion = "daily-log-call-times-military-2026-07-23";
 const exactLogPayrollRangeVersion = "daily-log-payroll-2026-07-11-through-2026-07-25-v1";
 const actingOfficerStraightStipendVersion = "acting-officer-straight-stipend-2026-07-26-v1";
 const preplanFootprintMetricsVersion = "preplan-footprint-metrics-ifc2018-2026-07-29-v1";
+const preplanLevelsBackfillVersion = "preplan-v2-arrival-levels-2026-08-18-v1";
 const dailyDutySeed = [
   [1, "morning", "Weekly checks on 1201."],
   [1, "afternoon", "Deep clean bathrooms. Scrub floor in bathroom. Wash shower curtains. Clean shower stall."],
@@ -205,6 +206,46 @@ async function backfillPreplanFootprintMetrics(db: Awaited<ReturnType<typeof get
   });
   if (writes.length) await db.batch(writes);
   await db.prepare("INSERT INTO system_meta (key,value,updated_at) VALUES (?,?,CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").bind(markerKey,preplanFootprintMetricsVersion).run();
+}
+
+/**
+ * Preplan 2.0 foundation backfill: every existing preplan (saved before the
+ * lifecycle/levels feature existed) must keep working exactly as before —
+ * visible in Respond, editable, with all its features and photos intact.
+ * This gives each one a lifecycle status of "published" (legacy `status` was
+ * a completeness label like "Quick Preplan", never a publication gate — every
+ * pre-v2 record was already firefighter-visible) and a mandatory Arrival
+ * level to anchor the new levels/layers system. Safe to run repeatedly.
+ */
+async function backfillPreplanLevelsAndLifecycle(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
+  const markerKey = "preplan_v2_levels_lifecycle_version";
+  const marker = await db.prepare("SELECT value FROM system_meta WHERE key = ? LIMIT 1").bind(markerKey).first<{ value: string }>();
+  if (marker?.value === preplanLevelsBackfillVersion) return;
+
+  await db.prepare("UPDATE field_preplans SET lifecycle_status='published' WHERE lifecycle_status IS NULL OR lifecycle_status=''").run();
+
+  const preplans = await db.prepare("SELECT id,created_by createdBy FROM field_preplans").all<{ id: string; createdBy: string }>();
+  const existingArrivalLevels = await db.prepare("SELECT preplan_id preplanId FROM field_preplan_levels WHERE layer_type='arrival'").all<{ preplanId: string }>();
+  const preplansWithArrival = new Set(existingArrivalLevels.results.map((row) => row.preplanId));
+  const writes = preplans.results
+    .filter((row) => !preplansWithArrival.has(row.id))
+    .map((row, index) => db.prepare(
+      "INSERT INTO field_preplan_levels (id,preplan_id,name,short_label,layer_type,floor_index,grade,sort_order,is_default,respond_visible,hidden,created_by,updated_by) VALUES (?,?,?,?,?,?,?,?,1,1,0,?,?)",
+    ).bind(
+      `arrival-${row.id}`,
+      row.id,
+      "Arrival / Ground",
+      "ARRIVAL",
+      "arrival",
+      0,
+      "grade",
+      0,
+      row.createdBy || "system-migration",
+      row.createdBy || "system-migration",
+    ));
+  for (let index = 0; index < writes.length; index += 40) await db.batch(writes.slice(index, index + 40));
+
+  await db.prepare("INSERT INTO system_meta (key,value,updated_at) VALUES (?,?,CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").bind(markerKey,preplanLevelsBackfillVersion).run();
 }
 
 async function seedPolicies(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
@@ -358,6 +399,8 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
     db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_feature_preplan_idx ON field_preplan_features(preplan_id)"),
     db.prepare("CREATE TABLE IF NOT EXISTS field_preplan_photos (id TEXT PRIMARY KEY NOT NULL, preplan_id TEXT NOT NULL REFERENCES field_preplans(id), feature_id TEXT REFERENCES field_preplan_features(id), side TEXT NOT NULL DEFAULT '', object_key TEXT NOT NULL, filename TEXT NOT NULL, content_type TEXT NOT NULL DEFAULT 'image/jpeg', size_bytes INTEGER NOT NULL DEFAULT 0, caption TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_photo_preplan_idx ON field_preplan_photos(preplan_id)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS field_preplan_levels (id TEXT PRIMARY KEY NOT NULL, preplan_id TEXT NOT NULL REFERENCES field_preplans(id), name TEXT NOT NULL, short_label TEXT NOT NULL DEFAULT '', layer_type TEXT NOT NULL DEFAULT 'custom', floor_index INTEGER NOT NULL DEFAULT 0, grade TEXT NOT NULL DEFAULT 'n/a', sort_order INTEGER NOT NULL DEFAULT 0, is_default INTEGER NOT NULL DEFAULT 0, respond_visible INTEGER NOT NULL DEFAULT 1, hidden INTEGER NOT NULL DEFAULT 0, background_type TEXT NOT NULL DEFAULT 'none', background_asset_key TEXT, background_transform TEXT NOT NULL DEFAULT '{}', opacity REAL NOT NULL DEFAULT 1, created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_level_preplan_idx ON field_preplan_levels(preplan_id,sort_order)"),
     db.prepare("CREATE TABLE IF NOT EXISTS field_hydrants (id TEXT PRIMARY KEY NOT NULL, hydrant_number TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', latitude REAL NOT NULL, longitude REAL NOT NULL, service_status TEXT NOT NULL DEFAULT 'in_service', manufacturer TEXT NOT NULL DEFAULT '', model TEXT NOT NULL DEFAULT '', port_count INTEGER NOT NULL DEFAULT 2, port_sizes TEXT NOT NULL DEFAULT '[]', notes TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE INDEX IF NOT EXISTS field_hydrant_location_idx ON field_hydrants(latitude,longitude)"),
     db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS field_hydrant_number_idx ON field_hydrants(hydrant_number) WHERE hydrant_number<>''"),
@@ -427,7 +470,17 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
   try { await db.prepare("ALTER TABLE field_preplan_imports ADD COLUMN latitude REAL").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE field_preplan_imports ADD COLUMN longitude REAL").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE field_preplan_imports ADD COLUMN geocode_note TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN lifecycle_status TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN draft_owner TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN published_by TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN published_at TEXT").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN archived_by TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN archived_at TEXT").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN revision_number INTEGER NOT NULL DEFAULT 1").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN last_verified_at TEXT").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN next_review_at TEXT").run(); } catch { /* Column already exists after migration. */ }
   await backfillPreplanFootprintMetrics(db);
+  await backfillPreplanLevelsAndLifecycle(db);
   await db.batch([
     ["shift_request", "Shift requests", 1, 1, 0, '["immediate"]'],
     ["open_shift", "Open shifts", 1, 1, 1, '["immediate","24_hours_before","2_hours_before"]'],
@@ -438,6 +491,12 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
   ].map((rule) => db.prepare("INSERT OR IGNORE INTO schedule_notification_rules(event_type,label,active,email_enabled,sms_enabled,delivery_timings) VALUES(?,?,?,?,?,?)").bind(...rule)));
   await db.prepare("INSERT OR IGNORE INTO rank_permissions(rank,permission_key,allowed) SELECT DISTINCT label,'field_preplans.view',1 FROM pay_scales").run();
   await db.prepare("INSERT OR IGNORE INTO rank_permissions(rank,permission_key,allowed) SELECT DISTINCT label,'field_preplans.edit',CASE WHEN lower(label) LIKE '%chief%' OR lower(label) LIKE '%captain%' OR lower(label) LIKE '%lieutenant%' OR lower(label) LIKE '%firefighter%' OR lower(label)='ff' THEN 1 ELSE 0 END FROM pay_scales").run();
+  await db.batch(["field_preplans.review","field_preplans.publish","field_preplans.manage_layers","field_preplans.manage_hazmat","field_preplans.manage_attachments","field_preplans.verify_expiring"].map((permissionKey) =>
+    db.prepare("INSERT OR IGNORE INTO rank_permissions(rank,permission_key,allowed) SELECT DISTINCT label,?,CASE WHEN lower(label) LIKE '%chief%' OR lower(label) LIKE '%captain%' OR lower(label) LIKE '%lieutenant%' THEN 1 ELSE 0 END FROM pay_scales").bind(permissionKey),
+  ));
+  await db.batch(["field_preplans.delete","field_preplans.manage_settings"].map((permissionKey) =>
+    db.prepare("INSERT OR IGNORE INTO rank_permissions(rank,permission_key,allowed) SELECT DISTINCT label,?,CASE WHEN lower(label) LIKE '%chief%' THEN 1 ELSE 0 END FROM pay_scales").bind(permissionKey),
+  ));
   try { await db.prepare("ALTER TABLE schedule_assignments ADD COLUMN required_rank TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE schedule_assignments ADD COLUMN claim_deadline TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE schedule_requests ADD COLUMN target_status TEXT NOT NULL DEFAULT 'not_required'").run(); } catch { /* Column already exists after migration. */ }
