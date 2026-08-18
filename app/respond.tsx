@@ -7,18 +7,25 @@ import { formatRespondTime } from "./respond-time";
 type Point = { lat: number; lng: number };
 type Feature = { id:string; featureType:string; label:string; latitude:number; longitude:number; systemType:string; serviceStatus:string; details:string };
 type Photo = { id:string; side:string; caption:string; url:string };
+type RespondLevel = { id:string; name:string; shortLabel:string; layerType:string; floorIndex:number; isDefault:boolean };
+type RespondSpace = { id:string; levelId:string; displayName:string; roomNumber:string; spaceType:string };
 type Preplan = {
   id:string; businessName:string; address:string; latitude:number; longitude:number; aSideLatitude?:number|null; aSideLongitude?:number|null;
   footprint:Point[]; footprintSquareFeet:number; floorCount:number; constructionType:string; suggestedFireFlowGpm:number; suggestedFireFlowDuration:number;
   contactInfo:string; construction:string; accessInfo:string; alarmSystem:string; knoxBox:string; riser:string; fdc:string; sprinklerSystem:string;
-  status:string; updatedAt:string; features:Feature[]; photos:Photo[];
+  status:string; updatedAt:string; features:Feature[]; photos:Photo[]; levels?:RespondLevel[]; spaces?:RespondSpace[];
 };
+type RoomMatch =
+  | { kind:"unique"; space:RespondSpace; level:{levelId:string;name:string}|null; explanation:string }
+  | { kind:"ambiguous"; candidates:Array<{space:RespondSpace;level:{levelId:string;name:string}|null}>; explanation:string }
+  | { kind:"none" }
+  | null;
 type ActiveCall = { reportNumber:string; callType:string; category:string; address:string; city:string; narrative:string; respondingUnits:string; longitude:number|null; latitude:number|null; dispatchedAt:string; timeOut:string; source:string; receivedAt:string };
 type RecentCall = { reportNumber:string; callType:string; address:string; respondingUnits:string; timeOut:string; timeIn:string; logDate:string };
 type BoxCard = { id:string; title:string; address:string; boxNumber:string; accessNotes:string; status:string };
 type NearbyHydrant = { id:string; hydrantNumber:string; address:string; latitude:number; longitude:number; serviceStatus:string; distanceFeet:number };
 type RespondData = {
-  activeCall:ActiveCall|null; preplan:Preplan|null; match:{method:"address"|"gps";distanceFeet:number}|null;
+  activeCall:ActiveCall|null; preplan:Preplan|null; match:{method:"address"|"gps";distanceFeet:number}|null; roomMatch:RoomMatch;
   cadUpdates:Array<{eventType:string;status:string;receivedAt:string;narrative:string;respondingUnits:string}>; apparatusFilter:string|null; generatedAt:string;
   recentCalls:RecentCall[]; boxCard:BoxCard|null; nearestHydrants:NearbyHydrant[];
 };
@@ -82,12 +89,22 @@ function FootprintDiagram({ preplan, selectedId, onSelect }:{preplan:Preplan;sel
 export default function Respond({ apparatus = "", onNavigate }: { apparatus?: string; onNavigate?:(page:"Daily Log"|"Field Preplans"|"Box Cards")=>void }) {
   const [data,setData]=useState<RespondData|null>(null), [error,setError]=useState(""), [view,setView]=useState<RightView>("cad"), [selected,setSelected]=useState<QuickItem|null>(null);
   const [monitorMode,setMonitorMode]=useState(false);
+  const [selectedLevelId,setSelectedLevelId]=useState("");
   const pageRef=useRef<HTMLElement>(null);
   const load=useCallback(async()=>{
     try{const query=apparatus?`?apparatus=${encodeURIComponent(apparatus)}`:"";const response=await fetch(`/api/respond${query}`,{cache:"no-store"});const body=await response.json() as RespondData&{error?:string};if(!response.ok)throw new Error(body.error||"Unable to load Respond.");setData(body);setError("");}
     catch(value){setError(value instanceof Error?value.message:"Unable to load Respond.");}
   },[apparatus]);
   useEffect(()=>{const initial=window.setTimeout(()=>void load(),0);const timer=window.setInterval(()=>void load(),10000);return()=>{window.clearTimeout(initial);window.clearInterval(timer);};},[load]);
+  useEffect(()=>{
+    const levels=data?.preplan?.levels??[];
+    if(!levels.length){setSelectedLevelId("");return;}
+    setSelectedLevelId((current)=>{
+      if(current&&levels.some((level)=>level.id===current))return current;
+      if(data?.roomMatch?.kind==="unique"&&data.roomMatch.level)return data.roomMatch.level.levelId;
+      return levels.find((level)=>level.isDefault)?.id||levels[0].id;
+    });
+  },[data?.preplan?.id,data?.preplan?.levels,data?.roomMatch]);
   useEffect(()=>{const update=()=>{if(!document.fullscreenElement)setMonitorMode(false);};document.addEventListener("fullscreenchange",update);return()=>document.removeEventListener("fullscreenchange",update);},[]);
   async function toggleMonitor(){if(monitorMode){setMonitorMode(false);if(document.fullscreenElement)await document.exitFullscreen().catch(()=>{});return;}setMonitorMode(true);await pageRef.current?.requestFullscreen().catch(()=>{});}
   const quickItems=useMemo<QuickItem[]>(()=>{
@@ -115,6 +132,9 @@ export default function Respond({ apparatus = "", onNavigate }: { apparatus?: st
       <div className="respond-call-actions"><button className="respond-monitor" onClick={()=>void toggleMonitor()} data-test-safe>{monitorMode?"Exit Monitor":"Monitor View"}</button><a className="respond-nav" href={googleNavigation(call)} target="_blank" rel="noreferrer" data-test-safe>Open Google Navigation ↗</a></div>
     </header>
     <div className="respond-statusline"><span className={plan?"matched":"unmatched"}>{plan?`Preplan matched by ${data?.match?.method}${data?.match?.method==="gps"?` · ${data.match.distanceFeet} ft`:""}`:"No matching preplan"}</span><span>Updated {displayTime(data?.generatedAt||"")}</span>{error&&<span className="warning">{error}</span>}</div>
+    {data?.roomMatch?.kind==="unique"&&<div className="respond-room-banner unique"><strong>{data.roomMatch.explanation}</strong>{data.roomMatch.level&&<button onClick={()=>setSelectedLevelId((plan?.levels?.find((level)=>level.isDefault)?.id)||"")}>Return to Arrival</button>}</div>}
+    {data?.roomMatch?.kind==="ambiguous"&&<div className="respond-room-banner ambiguous"><strong>{data.roomMatch.explanation}</strong><div className="respond-room-candidates">{data.roomMatch.candidates.map((candidate)=><button key={candidate.space.id} onClick={()=>candidate.level&&setSelectedLevelId(candidate.level.levelId)}>{candidate.level?.name||"Level"} — {candidate.space.displayName}</button>)}</div></div>}
+    {plan&&(plan.levels?.length??0)>1&&<nav className="respond-level-switcher" aria-label="Preplan levels">{plan.levels!.map((level)=><button key={level.id} className={selectedLevelId===level.id?"active":""} onClick={()=>setSelectedLevelId(level.id)} data-test-safe>{level.shortLabel||level.name}</button>)}</nav>}
     <section className="respond-glance" aria-label="Matched response records">
       <article><span>BOX CARD</span><strong>{data?.boxCard?.title||"No matching box card"}</strong><small>{data?.boxCard?`${data.boxCard.boxNumber||"Number pending"} · ${data.boxCard.accessNotes||data.boxCard.address}`:"Search by the incident address."}</small><button onClick={()=>onNavigate?.("Box Cards")}>Open box cards</button></article>
       <article><span>NEAREST HYDRANTS</span>{data?.nearestHydrants?.length?<div>{data.nearestHydrants.map((hydrant)=><p key={hydrant.id}><b>{hydrant.hydrantNumber||hydrant.address||"Mapped hydrant"}</b><small>{hydrant.distanceFeet.toLocaleString()} ft · {hydrant.serviceStatus.replaceAll("_"," ")}</small></p>)}</div>:<small>No verified hydrants are mapped near this incident.</small>}<button onClick={()=>onNavigate?.("Field Preplans")}>Open preplans & hydrants</button></article>
@@ -124,6 +144,7 @@ export default function Respond({ apparatus = "", onNavigate }: { apparatus?: st
         {plan&&<div className="respond-building-stats"><span>{Math.round(plan.footprintSquareFeet||0).toLocaleString()} sq ft</span><span>{plan.floorCount||1} floor{plan.floorCount===1?"":"s"}</span>{plan.suggestedFireFlowGpm>0&&<span>{Math.round(plan.suggestedFireFlowGpm).toLocaleString()} GPM suggested</span>}</div>}
         <div className="respond-intel-list">{quickItems.map((item)=><button key={item.id} className={selected?.id===item.id?"selected":""} onClick={()=>setSelected(item)} data-test-safe><span className="feature-symbol">{featureSymbols[item.id.replace("summary-","")]||featureSymbols[plan?.features.find((feature)=>feature.id===item.id)?.featureType||""]||"i"}</span><span><strong>{item.label}</strong><small>{item.summary||"Details available"}</small></span><b>›</b></button>)}</div>
         {!quickItems.length&&<div className="respond-empty compact"><strong>No building systems entered</strong><span>Add them in Field Preplans.</span></div>}
+        {plan&&selectedLevelId&&<div className="respond-room-list"><span>ROOMS ON {plan.levels?.find((level)=>level.id===selectedLevelId)?.shortLabel||plan.levels?.find((level)=>level.id===selectedLevelId)?.name}</span>{plan.spaces?.filter((space)=>space.levelId===selectedLevelId).length?<ul>{plan.spaces!.filter((space)=>space.levelId===selectedLevelId).map((space)=><li key={space.id} className={data?.roomMatch?.kind==="unique"&&data.roomMatch.space.id===space.id?"highlighted":""}>{space.displayName}{space.roomNumber?` · #${space.roomNumber}`:""}</li>)}</ul>:<small>No rooms mapped on this level.</small>}</div>}
       </aside>
       <main className="respond-alpha"><header><div><span>PRIMARY VIEW</span><h2>Alpha / A Side</h2></div>{plan&&<span className="record-badge">{plan.status}</span>}</header>
         <div className="respond-primary-media">{alpha?<img src={alpha.url} alt={alpha.caption||`Alpha side of ${plan?.businessName||call.address}`}/>:<StreetViewFallback call={call}/>}</div>
