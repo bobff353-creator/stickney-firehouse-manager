@@ -9,6 +9,7 @@ import { isValidZoneGeometry, type ZoneShape, type ZoneType } from "../../prepla
 import { isValidRiskScore, isValidTargetHazardDesignation, type RiskFactorKey } from "../../preplans/risk.ts";
 import { isValidHoseSize, isValidSegments, recommendedHoseFeet, totalDistanceFeet, type HoseLaySegment } from "../../preplans/hose-lay.ts";
 import { canTransition, canViewRecord, nextRevisionNumber, permissionForTransition, type LifecycleStatus } from "../../preplans/lifecycle.ts";
+import type { AssetCategory } from "../../preplans/assets.ts";
 
 type Point = { lat:number; lng:number };
 type Db = Awaited<ReturnType<typeof ensureDatabase>>;
@@ -26,14 +27,15 @@ const containerTypes = new Set<ContainerType>(["cylinder","drum","tote","tank","
 const physicalStates = new Set<PhysicalState>(["solid","liquid","gas","cryogenic","unknown"]);
 const zoneTypes = new Set<ZoneType>(["hot","warm","cold","isolation","evacuation","custom"]);
 const zoneShapes = new Set<ZoneShape>(["circle","polygon"]);
+const assetCategories = new Set<AssetCategory>(["exterior_photo","feature_photo","feature_location_overview","interior_floor_plan","sprinkler_plan","fire_alarm_map","hose_lay_plan","sds","emergency_action_plan","evacuation_plan","elevator_instructions","inspection_document","general_operational_attachment"]);
 const riskFactorKeys = new Set<RiskFactorKey>(["life_hazard","special_population","construction","building_size","fire_load","hazmat","access","water_supply","fire_protection","prior_incidents","vacancy_dangerous","below_grade","operational_complexity"]);
 
 async function access(request:Request, db:Db) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
   const row = email ? await db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.is_admin,0) isAdmin FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(ep.email)=? LIMIT 1").bind(email).first<{id:string;name:string;rank:string;isAdmin:number}>() : null;
   const admin = ownerAdminEmails.includes(email) || Boolean(row?.isAdmin);
-  if (!row && !admin) return { allowed:false, canEdit:false, canManageLayers:false, canManageHazmat:false, canReview:false, canPublish:false, canDelete:false, actor:"" };
-  if (admin) return { allowed:true, canEdit:true, canManageLayers:true, canManageHazmat:true, canReview:true, canPublish:true, canDelete:true, actor:row?.name || email };
+  if (!row && !admin) return { allowed:false, canEdit:false, canManageLayers:false, canManageHazmat:false, canManageAttachments:false, canReview:false, canPublish:false, canDelete:false, actor:"" };
+  if (admin) return { allowed:true, canEdit:true, canManageLayers:true, canManageHazmat:true, canManageAttachments:true, canReview:true, canPublish:true, canDelete:true, actor:row?.name || email };
   const [rankRows, overrides] = await Promise.all([
     db.prepare("SELECT permission_key permissionKey,allowed FROM rank_permissions WHERE rank=?").bind(row!.rank).all<{permissionKey:string;allowed:number}>(),
     db.prepare("SELECT permission_key permissionKey,effect FROM employee_permission_overrides WHERE employee_id=?").bind(row!.id).all<{permissionKey:string;effect:"allow"|"deny"}>(),
@@ -43,6 +45,7 @@ async function access(request:Request, db:Db) {
   return {
     allowed:permissions.has("field_preplans.view"), canEdit:permissions.has("field_preplans.edit"),
     canManageLayers:permissions.has("field_preplans.manage_layers"), canManageHazmat:permissions.has("field_preplans.manage_hazmat"),
+    canManageAttachments:permissions.has("field_preplans.manage_attachments"),
     canReview:permissions.has("field_preplans.review"), canPublish:permissions.has("field_preplans.publish"), canDelete:permissions.has("field_preplans.delete"),
     actor:row!.name,
   };
@@ -82,7 +85,7 @@ export async function GET(request:Request) {
     const db = await ensureDatabase();
     const auth = await access(request, db);
     if (!auth.allowed) return Response.json({ error:"Field preplan access is required." }, { status:403 });
-    const [plans, features, photos, imports, levels, spaces, alerts, hazmat, hazmatZones, riskFactors, hoseLays, revisions] = await Promise.all([
+    const [plans, features, photos, imports, levels, spaces, alerts, hazmat, hazmatZones, riskFactors, hoseLays, revisions, assets] = await Promise.all([
       db.prepare("SELECT id,business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,COALESCE(footprint_square_feet,0) footprintSquareFeet,COALESCE(floor_count,1) floorCount,COALESCE(fire_flow_calculation_area,0) fireFlowCalculationArea,COALESCE(construction_type,'VB') constructionType,COALESCE(occupancy_flow_category,'other') occupancyFlowCategory,COALESCE(sprinkler_standard,'none') sprinklerStandard,COALESCE(suggested_fire_flow_gpm,0) suggestedFireFlowGpm,COALESCE(suggested_fire_flow_duration,0) suggestedFireFlowDuration,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,status,COALESCE(NULLIF(lifecycle_status,''),'published') lifecycleStatus,COALESCE(draft_owner,'') draftOwner,COALESCE(revision_number,1) revisionNumber,COALESCE(target_hazard,0) targetHazard,COALESCE(NULLIF(target_hazard_reasons,''),'[]') targetHazardReasons,COALESCE(NULLIF(risk_override_classification,''),'') riskOverrideClassification,COALESCE(risk_reviewed_by,'') riskReviewedBy,risk_reviewed_at riskReviewedAt,COALESCE(published_by,'') publishedBy,published_at publishedAt,updated_by updatedBy,updated_at updatedAt FROM field_preplans ORDER BY updated_at DESC").all(),
       db.prepare("SELECT id,preplan_id preplanId,feature_type featureType,label,latitude,longitude,system_type systemType,service_status serviceStatus,details FROM field_preplan_features ORDER BY created_at").all(),
       db.prepare("SELECT id,preplan_id preplanId,feature_id featureId,side,filename,caption,created_at createdAt FROM field_preplan_photos ORDER BY created_at DESC").all(),
@@ -95,10 +98,12 @@ export async function GET(request:Request) {
       db.prepare("SELECT id,preplan_id preplanId,factor_key factorKey,score,explanation,source FROM field_preplan_risk_factors ORDER BY preplan_id,score DESC").all(),
       db.prepare("SELECT id,preplan_id preplanId,level_id levelId,source_hydrant_id sourceHydrantId,destination_lat destinationLat,destination_lng destinationLng,destination_side destinationSide,destination_feature_id destinationFeatureId,segments,hose_size_inches hoseSizeInches,section_length_feet sectionLengthFeet,reserve_feet reserveFeet,supply_line_label supplyLineLabel,assigned_apparatus_label assignedApparatusLabel,verified_available_feet verifiedAvailableFeet,notes FROM field_preplan_hose_lays ORDER BY preplan_id").all(),
       db.prepare("SELECT id,preplan_id preplanId,revision_number revisionNumber,action,summary,created_by createdBy,created_at createdAt FROM field_preplan_revisions ORDER BY preplan_id,revision_number DESC").all(),
+      db.prepare("SELECT id,preplan_id preplanId,feature_id featureId,hazmat_id hazmatId,level_id levelId,category,original_filename originalFilename,mime_type mimeType,file_size_bytes fileSizeBytes,caption,description,sort_order sortOrder,pin_to_respond pinToRespond,version FROM field_preplan_assets WHERE archived=0 ORDER BY preplan_id,pin_to_respond DESC,sort_order").all(),
     ]);
     return Response.json({
       canEdit:auth.canEdit,
       canManageLayers:auth.canManageLayers,
+      canManageAttachments:auth.canManageAttachments,
       canReview:auth.canReview,
       canPublish:auth.canPublish,
       canDelete:auth.canDelete,
@@ -122,6 +127,7 @@ export async function GET(request:Request) {
         targetHazardReasons:JSON.parse(String((plan as {targetHazardReasons?:string}).targetHazardReasons || "[]")),
         hoseLays:hoseLays.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id).map((item) => ({ ...item, segments:JSON.parse(String((item as {segments?:string}).segments || "[]")) })),
         revisions:revisions.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id),
+        assets:assets.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id).map((item) => ({ ...item, pinToRespond:Boolean((item as {pinToRespond:number}).pinToRespond), url:`/api/field-preplans/attachments/${(item as {id:string}).id}` })),
       })),
       imports:imports.results,
     });
@@ -462,6 +468,17 @@ export async function POST(request:Request) {
       } else {
         await db.prepare(`UPDATE field_preplans SET lifecycle_status=?${draftOwnerUpdate},updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(...bindings).run();
       }
+      return Response.json({ ok:true });
+    }
+    if (action === "saveAssetMetadata") {
+      if (!auth.canManageAttachments) return Response.json({ error:"Attachment management permission is required." }, { status:403 });
+      const id = text(body.id, 80);
+      const asset = await db.prepare("SELECT id FROM field_preplan_assets WHERE id=?").bind(id).first();
+      if (!asset) return Response.json({ error:"Attachment not found." }, { status:404 });
+      const requestedCategory = text(body.category, 40) as AssetCategory;
+      const category = assetCategories.has(requestedCategory) ? requestedCategory : undefined;
+      await db.prepare("UPDATE field_preplan_assets SET category=COALESCE(?,category),caption=?,description=?,sort_order=?,pin_to_respond=?,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
+        .bind(category||null,text(body.caption,300),text(body.description,2000),Math.trunc(number(body.sortOrder))||0,body.pinToRespond===true?1:0,auth.actor,id).run();
       return Response.json({ ok:true });
     }
     if (action === "restoreRevision") {

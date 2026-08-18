@@ -15,7 +15,9 @@ type Preplan = {
   contactInfo:string; construction:string; accessInfo:string; alarmSystem:string; knoxBox:string; riser:string; fdc:string; sprinklerSystem:string;
   status:string; updatedAt:string; features:Feature[]; photos:Photo[]; levels?:RespondLevel[]; spaces?:RespondSpace[]; alerts?:RespondAlert[]; hazmat?:RespondHazmat[]; hazmatZones?:RespondHazmatZone[];
   riskClassification?:"low"|"moderate"|"high"|"critical"; targetHazard?:boolean; targetHazardReasons?:string[]; hoseLays?:RespondHoseLay[];
+  pinnedAttachments?:RespondAttachment[];
 };
+type RespondAttachment = { id:string; category:string; originalFilename:string; mimeType:string; caption:string; url:string };
 type RespondHoseLay = {
   id:string; sourceHydrantNumber:string|null; destinationSide:string; hoseSizeInches:number; supplyLineLabel:string; assignedApparatusLabel:string;
   measuredFeet:number; recommendedFeet:number; notes:string;
@@ -159,6 +161,7 @@ export default function Respond({ apparatus = "", onNavigate }: { apparatus?: st
       <article><span>BOX CARD</span><strong>{data?.boxCard?.title||"No matching box card"}</strong><small>{data?.boxCard?`${data.boxCard.boxNumber||"Number pending"} · ${data.boxCard.accessNotes||data.boxCard.address}`:"Search by the incident address."}</small><button onClick={()=>onNavigate?.("Box Cards")}>Open box cards</button></article>
       <article><span>NEAREST HYDRANTS</span>{data?.nearestHydrants?.length?<div>{data.nearestHydrants.map((hydrant)=><p key={hydrant.id}><b>{hydrant.hydrantNumber||hydrant.address||"Mapped hydrant"}</b><small>{hydrant.distanceFeet.toLocaleString()} ft · {hydrant.serviceStatus.replaceAll("_"," ")}</small></p>)}</div>:<small>No verified hydrants are mapped near this incident.</small>}<button onClick={()=>onNavigate?.("Field Preplans")}>Open preplans & hydrants</button></article>
       {(plan?.hoseLays?.length??0)>0&&<article><span>HOSE LAY</span><div>{plan!.hoseLays!.map((lay)=><p key={lay.id} className={lay.capacity.status==="deficit"?"hose-lay-deficit":""}><b>{lay.supplyLineLabel||`${lay.hoseSizeInches}" to ${lay.destinationSide}-side`}</b><small>{lay.sourceHydrantNumber||"Hydrant"} · {lay.measuredFeet.toLocaleString()} ft measured · {lay.recommendedFeet.toLocaleString()} ft recommended{lay.assignedApparatusLabel?` · ${lay.assignedApparatusLabel}`:""}</small><small>{lay.capacity.status==="unverified"?"Apparatus hose capacity not verified":lay.capacity.status==="deficit"?`⚠ Deficit: ${lay.capacity.deficitFeet.toLocaleString()} ft short (${lay.capacity.availableFeet.toLocaleString()} ft available)`:`Sufficient (${lay.capacity.availableFeet.toLocaleString()} ft available)`}</small></p>)}</div></article>}
+      {(plan?.pinnedAttachments?.length??0)>0&&<article><span>PINNED ATTACHMENTS</span><div>{plan!.pinnedAttachments!.map((item)=><p key={item.id}><a href={item.url} target="_blank" rel="noreferrer" data-test-safe><b>{item.caption||item.originalFilename}</b></a><small>{item.mimeType==="application/pdf"?"PDF":"Image"}</small></p>)}</div></article>}
     </section>
     <div className="respond-grid">
       <aside className="respond-intel"><header><span>BUILDING INTELLIGENCE</span><h2>{plan?.businessName||"No preplan found"}</h2><p>{plan?.address||"Use the active-call address while en route."}</p></header>

@@ -53,7 +53,7 @@ export async function GET(request: Request) {
     let preplan: Row | null = null;
     let roomMatch: ReturnType<typeof matchCadToRoom> | null = null;
     if (matched) {
-      const [features, photos, levelRows, spaceRows, alertRows, hazmatRows, hazmatZoneRows, riskFactorRows, hoseLayRows] = await Promise.all([
+      const [features, photos, levelRows, spaceRows, alertRows, hazmatRows, hazmatZoneRows, riskFactorRows, hoseLayRows, assetRows] = await Promise.all([
         db.prepare("SELECT id,feature_type featureType,label,latitude,longitude,system_type systemType,service_status serviceStatus,details FROM field_preplan_features WHERE preplan_id=? ORDER BY created_at").bind(String(matched.plan.id)).all<Row>(),
         db.prepare("SELECT id,feature_id featureId,side,filename,caption,created_at createdAt FROM field_preplan_photos WHERE preplan_id=? ORDER BY created_at DESC").bind(String(matched.plan.id)).all<Row>(),
         db.prepare("SELECT id,preplan_id preplanId,name,short_label shortLabel,layer_type layerType,floor_index floorIndex,grade,sort_order sortOrder,is_default isDefault,respond_visible respondVisible,hidden FROM field_preplan_levels WHERE preplan_id=? AND respond_visible=1 AND hidden=0 ORDER BY sort_order").bind(String(matched.plan.id)).all<Row>(),
@@ -63,6 +63,7 @@ export async function GET(request: Request) {
         db.prepare("SELECT id,preplan_id preplanId,level_id levelId,hazmat_id hazmatId,zone_type zoneType,shape,label,center_lat centerLat,center_lng centerLng,radius_feet radiusFeet,polygon FROM field_preplan_hazmat_zones WHERE preplan_id=?").bind(String(matched.plan.id)).all<Row>(),
         db.prepare("SELECT id,preplan_id preplanId,factor_key factorKey,score,explanation,source FROM field_preplan_risk_factors WHERE preplan_id=? ORDER BY score DESC").bind(String(matched.plan.id)).all<Row>(),
         db.prepare("SELECT h.id,h.preplan_id preplanId,h.source_hydrant_id sourceHydrantId,fh.hydrant_number sourceHydrantNumber,h.destination_side destinationSide,h.segments,h.hose_size_inches hoseSizeInches,h.section_length_feet sectionLengthFeet,h.reserve_feet reserveFeet,h.supply_line_label supplyLineLabel,h.assigned_apparatus_label assignedApparatusLabel,h.verified_available_feet verifiedAvailableFeet,h.notes FROM field_preplan_hose_lays h LEFT JOIN field_hydrants fh ON fh.id=h.source_hydrant_id WHERE h.preplan_id=?").bind(String(matched.plan.id)).all<Row>(),
+        db.prepare("SELECT id,preplan_id preplanId,category,original_filename originalFilename,mime_type mimeType,caption FROM field_preplan_assets WHERE preplan_id=? AND archived=0 AND pin_to_respond=1 ORDER BY sort_order").bind(String(matched.plan.id)).all<Row>(),
       ]);
       const levels = levelRows.results.map((row) => ({
         id: String(row.id), preplanId: String(row.preplanId), name: String(row.name), shortLabel: String(row.shortLabel),
@@ -128,6 +129,7 @@ export async function GET(request: Request) {
         targetHazard: Boolean((matched.plan as {targetHazard?:number}).targetHazard),
         targetHazardReasons: JSON.parse(String((matched.plan as {targetHazardReasons?:string}).targetHazardReasons || "[]")),
         hoseLays,
+        pinnedAttachments: assetRows.results.map((row) => ({ ...row, url: `/api/field-preplans/attachments/${row.id}` })),
       };
     }
 
