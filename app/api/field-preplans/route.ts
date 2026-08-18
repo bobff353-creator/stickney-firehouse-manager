@@ -8,6 +8,7 @@ import { isValidNfpaRating, isValidUnNaNumber, type ContainerType, type Physical
 import { isValidZoneGeometry, type ZoneShape, type ZoneType } from "../../preplans/hazmat-zones.ts";
 import { isValidRiskScore, isValidTargetHazardDesignation, type RiskFactorKey } from "../../preplans/risk.ts";
 import { isValidHoseSize, isValidSegments, recommendedHoseFeet, totalDistanceFeet, type HoseLaySegment } from "../../preplans/hose-lay.ts";
+import { canTransition, canViewRecord, nextRevisionNumber, permissionForTransition, type LifecycleStatus } from "../../preplans/lifecycle.ts";
 
 type Point = { lat:number; lng:number };
 type Db = Awaited<ReturnType<typeof ensureDatabase>>;
@@ -31,15 +32,20 @@ async function access(request:Request, db:Db) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
   const row = email ? await db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.is_admin,0) isAdmin FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(ep.email)=? LIMIT 1").bind(email).first<{id:string;name:string;rank:string;isAdmin:number}>() : null;
   const admin = ownerAdminEmails.includes(email) || Boolean(row?.isAdmin);
-  if (!row && !admin) return { allowed:false, canEdit:false, canManageLayers:false, canManageHazmat:false, actor:"" };
-  if (admin) return { allowed:true, canEdit:true, canManageLayers:true, canManageHazmat:true, actor:row?.name || email };
+  if (!row && !admin) return { allowed:false, canEdit:false, canManageLayers:false, canManageHazmat:false, canReview:false, canPublish:false, canDelete:false, actor:"" };
+  if (admin) return { allowed:true, canEdit:true, canManageLayers:true, canManageHazmat:true, canReview:true, canPublish:true, canDelete:true, actor:row?.name || email };
   const [rankRows, overrides] = await Promise.all([
     db.prepare("SELECT permission_key permissionKey,allowed FROM rank_permissions WHERE rank=?").bind(row!.rank).all<{permissionKey:string;allowed:number}>(),
     db.prepare("SELECT permission_key permissionKey,effect FROM employee_permission_overrides WHERE employee_id=?").bind(row!.id).all<{permissionKey:string;effect:"allow"|"deny"}>(),
   ]);
   const permissions = new Set(rankRows.results.length ? rankRows.results.filter((item) => item.allowed).map((item) => item.permissionKey) : defaultPermissionsForRank(row!.rank));
   for (const item of overrides.results) item.effect === "allow" ? permissions.add(item.permissionKey) : permissions.delete(item.permissionKey);
-  return { allowed:permissions.has("field_preplans.view"), canEdit:permissions.has("field_preplans.edit"), canManageLayers:permissions.has("field_preplans.manage_layers"), canManageHazmat:permissions.has("field_preplans.manage_hazmat"), actor:row!.name };
+  return {
+    allowed:permissions.has("field_preplans.view"), canEdit:permissions.has("field_preplans.edit"),
+    canManageLayers:permissions.has("field_preplans.manage_layers"), canManageHazmat:permissions.has("field_preplans.manage_hazmat"),
+    canReview:permissions.has("field_preplans.review"), canPublish:permissions.has("field_preplans.publish"), canDelete:permissions.has("field_preplans.delete"),
+    actor:row!.name,
+  };
 }
 
 function text(value:unknown, limit=2000) { return String(value ?? "").trim().slice(0, limit); }
@@ -76,8 +82,8 @@ export async function GET(request:Request) {
     const db = await ensureDatabase();
     const auth = await access(request, db);
     if (!auth.allowed) return Response.json({ error:"Field preplan access is required." }, { status:403 });
-    const [plans, features, photos, imports, levels, spaces, alerts, hazmat, hazmatZones, riskFactors, hoseLays] = await Promise.all([
-      db.prepare("SELECT id,business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,COALESCE(footprint_square_feet,0) footprintSquareFeet,COALESCE(floor_count,1) floorCount,COALESCE(fire_flow_calculation_area,0) fireFlowCalculationArea,COALESCE(construction_type,'VB') constructionType,COALESCE(occupancy_flow_category,'other') occupancyFlowCategory,COALESCE(sprinkler_standard,'none') sprinklerStandard,COALESCE(suggested_fire_flow_gpm,0) suggestedFireFlowGpm,COALESCE(suggested_fire_flow_duration,0) suggestedFireFlowDuration,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,status,COALESCE(NULLIF(lifecycle_status,''),'published') lifecycleStatus,COALESCE(revision_number,1) revisionNumber,COALESCE(target_hazard,0) targetHazard,COALESCE(NULLIF(target_hazard_reasons,''),'[]') targetHazardReasons,COALESCE(NULLIF(risk_override_classification,''),'') riskOverrideClassification,COALESCE(risk_reviewed_by,'') riskReviewedBy,risk_reviewed_at riskReviewedAt,updated_by updatedBy,updated_at updatedAt FROM field_preplans ORDER BY updated_at DESC").all(),
+    const [plans, features, photos, imports, levels, spaces, alerts, hazmat, hazmatZones, riskFactors, hoseLays, revisions] = await Promise.all([
+      db.prepare("SELECT id,business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,COALESCE(footprint_square_feet,0) footprintSquareFeet,COALESCE(floor_count,1) floorCount,COALESCE(fire_flow_calculation_area,0) fireFlowCalculationArea,COALESCE(construction_type,'VB') constructionType,COALESCE(occupancy_flow_category,'other') occupancyFlowCategory,COALESCE(sprinkler_standard,'none') sprinklerStandard,COALESCE(suggested_fire_flow_gpm,0) suggestedFireFlowGpm,COALESCE(suggested_fire_flow_duration,0) suggestedFireFlowDuration,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,status,COALESCE(NULLIF(lifecycle_status,''),'published') lifecycleStatus,COALESCE(draft_owner,'') draftOwner,COALESCE(revision_number,1) revisionNumber,COALESCE(target_hazard,0) targetHazard,COALESCE(NULLIF(target_hazard_reasons,''),'[]') targetHazardReasons,COALESCE(NULLIF(risk_override_classification,''),'') riskOverrideClassification,COALESCE(risk_reviewed_by,'') riskReviewedBy,risk_reviewed_at riskReviewedAt,COALESCE(published_by,'') publishedBy,published_at publishedAt,updated_by updatedBy,updated_at updatedAt FROM field_preplans ORDER BY updated_at DESC").all(),
       db.prepare("SELECT id,preplan_id preplanId,feature_type featureType,label,latitude,longitude,system_type systemType,service_status serviceStatus,details FROM field_preplan_features ORDER BY created_at").all(),
       db.prepare("SELECT id,preplan_id preplanId,feature_id featureId,side,filename,caption,created_at createdAt FROM field_preplan_photos ORDER BY created_at DESC").all(),
       db.prepare("SELECT id,business_name businessName,address,source_file sourceFile,source_row sourceRow,status,latitude,longitude,geocode_note geocodeNote,linked_preplan_id linkedPreplanId FROM field_preplan_imports ORDER BY business_name COLLATE NOCASE,address COLLATE NOCASE").all(),
@@ -88,11 +94,20 @@ export async function GET(request:Request) {
       db.prepare("SELECT id,preplan_id preplanId,level_id levelId,hazmat_id hazmatId,zone_type zoneType,shape,label,center_lat centerLat,center_lng centerLng,radius_feet radiusFeet,polygon,line_color lineColor,line_width lineWidth,line_style lineStyle,fill_opacity fillOpacity FROM field_preplan_hazmat_zones ORDER BY preplan_id").all(),
       db.prepare("SELECT id,preplan_id preplanId,factor_key factorKey,score,explanation,source FROM field_preplan_risk_factors ORDER BY preplan_id,score DESC").all(),
       db.prepare("SELECT id,preplan_id preplanId,level_id levelId,source_hydrant_id sourceHydrantId,destination_lat destinationLat,destination_lng destinationLng,destination_side destinationSide,destination_feature_id destinationFeatureId,segments,hose_size_inches hoseSizeInches,section_length_feet sectionLengthFeet,reserve_feet reserveFeet,supply_line_label supplyLineLabel,assigned_apparatus_label assignedApparatusLabel,verified_available_feet verifiedAvailableFeet,notes FROM field_preplan_hose_lays ORDER BY preplan_id").all(),
+      db.prepare("SELECT id,preplan_id preplanId,revision_number revisionNumber,action,summary,created_by createdBy,created_at createdAt FROM field_preplan_revisions ORDER BY preplan_id,revision_number DESC").all(),
     ]);
     return Response.json({
       canEdit:auth.canEdit,
       canManageLayers:auth.canManageLayers,
-      preplans:plans.results.map((plan) => ({
+      canReview:auth.canReview,
+      canPublish:auth.canPublish,
+      canDelete:auth.canDelete,
+      preplans:plans.results
+        .filter((plan) => canViewRecord(
+          (plan as {lifecycleStatus:LifecycleStatus}).lifecycleStatus,
+          { isOwner:(plan as {draftOwner:string}).draftOwner === auth.actor, canReview:auth.canReview || auth.canPublish },
+        ))
+        .map((plan) => ({
         ...plan,
         footprint:JSON.parse(String((plan as {footprint?:string}).footprint || "[]")),
         features:features.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id),
@@ -106,6 +121,7 @@ export async function GET(request:Request) {
         targetHazard:Boolean((plan as {targetHazard:number}).targetHazard),
         targetHazardReasons:JSON.parse(String((plan as {targetHazardReasons?:string}).targetHazardReasons || "[]")),
         hoseLays:hoseLays.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id).map((item) => ({ ...item, segments:JSON.parse(String((item as {segments?:string}).segments || "[]")) })),
+        revisions:revisions.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id),
       })),
       imports:imports.results,
     });
@@ -417,6 +433,56 @@ export async function POST(request:Request) {
       const id = text(body.id, 80);
       await db.prepare("DELETE FROM field_preplan_hose_lays WHERE id=?").bind(id).run();
       return Response.json({ ok:true });
+    }
+    if (action === "transitionPreplan") {
+      const preplanId = text(body.preplanId, 80);
+      const to = text(body.to, 20) as LifecycleStatus;
+      const plan = preplanId ? await db.prepare("SELECT id,COALESCE(NULLIF(lifecycle_status,''),'published') lifecycleStatus,COALESCE(draft_owner,'') draftOwner,COALESCE(revision_number,1) revisionNumber FROM field_preplans WHERE id=?").bind(preplanId).first<{id:string;lifecycleStatus:LifecycleStatus;draftOwner:string;revisionNumber:number}>() : null;
+      if (!plan) return Response.json({ error:"Preplan not found." }, { status:404 });
+      if (!canTransition(plan.lifecycleStatus, to)) return Response.json({ error:`Cannot move a ${plan.lifecycleStatus} preplan directly to ${to}.` }, { status:400 });
+      const requiredPermission = permissionForTransition(to);
+      const permitted = requiredPermission === "field_preplans.publish" ? auth.canPublish
+        : requiredPermission === "field_preplans.review" ? (auth.canReview || plan.draftOwner === auth.actor)
+        : requiredPermission === "field_preplans.delete" ? auth.canDelete
+        : auth.canEdit && (plan.draftOwner === auth.actor || plan.draftOwner === "" || auth.canReview || auth.canPublish);
+      if (!permitted) return Response.json({ error:"You do not have permission to make this change." }, { status:403 });
+      if (to === "published") {
+        const snapshotRow = await db.prepare("SELECT business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,footprint_square_feet footprintSquareFeet,floor_count floorCount,fire_flow_calculation_area fireFlowCalculationArea,construction_type constructionType,occupancy_flow_category occupancyFlowCategory,sprinkler_standard sprinklerStandard,suggested_fire_flow_gpm suggestedFireFlowGpm,suggested_fire_flow_duration suggestedFireFlowDuration,status FROM field_preplans WHERE id=?").bind(preplanId).first<Record<string,unknown>>();
+        const nextRevision = nextRevisionNumber(plan.revisionNumber);
+        await db.batch([
+          db.prepare("INSERT INTO field_preplan_revisions(id,preplan_id,revision_number,action,snapshot,summary,created_by) VALUES(?,?,?,'published',?,?,?)").bind(`revision-${preplanId}-${nextRevision}`,preplanId,nextRevision,JSON.stringify(snapshotRow||{}),text(body.summary,500)||"Published",auth.actor),
+          db.prepare("UPDATE field_preplans SET lifecycle_status='published',revision_number=?,published_by=?,published_at=CURRENT_TIMESTAMP,draft_owner='',updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(nextRevision,auth.actor,auth.actor,preplanId),
+        ]);
+        return Response.json({ ok:true, revisionNumber:nextRevision });
+      }
+      const draftOwnerUpdate = to === "draft" ? ",draft_owner=?" : "";
+      const bindings = to === "draft" ? [to,auth.actor,auth.actor,preplanId] : [to,auth.actor,preplanId];
+      if (to === "archived") {
+        await db.prepare(`UPDATE field_preplans SET lifecycle_status=?,archived_by=?,archived_at=CURRENT_TIMESTAMP,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(to,auth.actor,auth.actor,preplanId).run();
+      } else {
+        await db.prepare(`UPDATE field_preplans SET lifecycle_status=?${draftOwnerUpdate},updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(...bindings).run();
+      }
+      return Response.json({ ok:true });
+    }
+    if (action === "restoreRevision") {
+      if (!auth.canPublish) return Response.json({ error:"Publish permission is required to restore a previous revision." }, { status:403 });
+      const preplanId = text(body.preplanId, 80);
+      const revisionId = text(body.revisionId, 80);
+      const revision = await db.prepare("SELECT id,preplan_id preplanId,revision_number revisionNumber,snapshot FROM field_preplan_revisions WHERE id=? AND preplan_id=?").bind(revisionId,preplanId).first<{id:string;preplanId:string;revisionNumber:number;snapshot:string}>();
+      if (!revision) return Response.json({ error:"Revision not found." }, { status:404 });
+      const snapshot = JSON.parse(revision.snapshot) as Record<string,unknown>;
+      await db.prepare("UPDATE field_preplans SET business_name=?,address=?,latitude=?,longitude=?,a_side_latitude=?,a_side_longitude=?,footprint=?,contact_info=?,construction=?,access_info=?,alarm_system=?,knox_box=?,riser=?,fdc=?,sprinkler_system=?,footprint_square_feet=?,floor_count=?,fire_flow_calculation_area=?,construction_type=?,occupancy_flow_category=?,sprinkler_standard=?,suggested_fire_flow_gpm=?,suggested_fire_flow_duration=?,status=?,lifecycle_status='draft',draft_owner=?,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
+        .bind(
+          text(snapshot.businessName,180),text(snapshot.address,240),number(snapshot.latitude),number(snapshot.longitude),
+          snapshot.aSideLatitude!=null?number(snapshot.aSideLatitude):null,snapshot.aSideLongitude!=null?number(snapshot.aSideLongitude):null,
+          JSON.stringify(snapshot.footprint||[]),text(snapshot.contactInfo),text(snapshot.construction),text(snapshot.accessInfo),
+          text(snapshot.alarmSystem),text(snapshot.knoxBox),text(snapshot.riser),text(snapshot.fdc),text(snapshot.sprinklerSystem),
+          number(snapshot.footprintSquareFeet)||0,Math.trunc(number(snapshot.floorCount))||1,number(snapshot.fireFlowCalculationArea)||0,
+          text(snapshot.constructionType,20)||"VB",text(snapshot.occupancyFlowCategory,20)||"other",text(snapshot.sprinklerStandard,20)||"none",
+          number(snapshot.suggestedFireFlowGpm)||0,number(snapshot.suggestedFireFlowDuration)||0,text(snapshot.status,40)||"Quick Preplan",
+          auth.actor,auth.actor,preplanId,
+        ).run();
+      return Response.json({ ok:true, restoredRevisionNumber:revision.revisionNumber });
     }
     return Response.json({ error:"Unsupported preplan action." }, { status:400 });
   } catch (error) { return Response.json({ error:error instanceof Error ? error.message : "Unable to save preplan." }, { status:500 }); }

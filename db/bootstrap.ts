@@ -66,7 +66,7 @@ const employeeSeed = [
 ] as const;
 
 let ready = false;
-const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-07-station-scheduler-v1-2026-08-18-preplan-v2-hose-lay-v1";
+const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-07-station-scheduler-v1-2026-08-18-preplan-v2-revisions-v1";
 
 const policySeedVersion = "stickney-policy-library-2026-07-18";
 const boxCardSeedVersion = "regional-box-cards-structured-2026-07-21-v2";
@@ -76,6 +76,7 @@ const exactLogPayrollRangeVersion = "daily-log-payroll-2026-07-11-through-2026-0
 const actingOfficerStraightStipendVersion = "acting-officer-straight-stipend-2026-07-26-v1";
 const preplanFootprintMetricsVersion = "preplan-footprint-metrics-ifc2018-2026-07-29-v1";
 const preplanLevelsBackfillVersion = "preplan-v2-arrival-levels-2026-08-18-v1";
+const preplanRevisionsBackfillVersion = "preplan-v2-revisions-2026-08-18-v1";
 const dailyDutySeed = [
   [1, "morning", "Weekly checks on 1201."],
   [1, "afternoon", "Deep clean bathrooms. Scrub floor in bathroom. Wash shower curtains. Clean shower stall."],
@@ -248,6 +249,39 @@ async function backfillPreplanLevelsAndLifecycle(db: Awaited<ReturnType<typeof g
   await db.prepare("INSERT INTO system_meta (key,value,updated_at) VALUES (?,?,CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").bind(markerKey,preplanLevelsBackfillVersion).run();
 }
 
+/**
+ * Every published preplan should have at least one revision snapshot so
+ * "view previous revision" is never empty for a legacy record. This gives
+ * each preplan published before the revision system existed a single
+ * revision 1 snapshot of its current field values, tagged as a migration
+ * backfill (not a real publish event) so it's honestly distinguishable in
+ * the history from an actual officer-triggered publish.
+ */
+async function backfillPreplanRevisions(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
+  const markerKey = "preplan_v2_revisions_version";
+  const marker = await db.prepare("SELECT value FROM system_meta WHERE key = ? LIMIT 1").bind(markerKey).first<{ value: string }>();
+  if (marker?.value === preplanRevisionsBackfillVersion) return;
+
+  const preplans = await db.prepare("SELECT id,business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,footprint_square_feet footprintSquareFeet,floor_count floorCount,fire_flow_calculation_area fireFlowCalculationArea,construction_type constructionType,occupancy_flow_category occupancyFlowCategory,sprinkler_standard sprinklerStandard,suggested_fire_flow_gpm suggestedFireFlowGpm,suggested_fire_flow_duration suggestedFireFlowDuration,status,created_by createdBy FROM field_preplans WHERE lifecycle_status='published'").all<Record<string, unknown>>();
+  const existingRevisions = await db.prepare("SELECT DISTINCT preplan_id preplanId FROM field_preplan_revisions").all<{ preplanId: string }>();
+  const preplansWithRevisions = new Set(existingRevisions.results.map((row) => row.preplanId));
+  const writes = preplans.results
+    .filter((row) => !preplansWithRevisions.has(String(row.id)))
+    .map((row) => {
+      const { id, createdBy, ...snapshot } = row;
+      return db.prepare("INSERT INTO field_preplan_revisions (id,preplan_id,revision_number,action,snapshot,summary,created_by) VALUES (?,?,1,'migration_backfill',?,?,?)").bind(
+        `revision-${id}-1`,
+        id,
+        JSON.stringify(snapshot),
+        "Initial revision recorded during Preplan 2.0 migration.",
+        (createdBy as string) || "system-migration",
+      );
+    });
+  for (let index = 0; index < writes.length; index += 40) await db.batch(writes.slice(index, index + 40));
+
+  await db.prepare("INSERT INTO system_meta (key,value,updated_at) VALUES (?,?,CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").bind(markerKey,preplanRevisionsBackfillVersion).run();
+}
+
 async function seedPolicies(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
   const marker = await db.prepare("SELECT value FROM system_meta WHERE key = ? LIMIT 1").bind("policy_seed_version").first<{ value: string }>();
   if (marker?.value === policySeedVersion) return;
@@ -415,6 +449,8 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
     db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_risk_factor_preplan_idx ON field_preplan_risk_factors(preplan_id)"),
     db.prepare("CREATE TABLE IF NOT EXISTS field_preplan_hose_lays (id TEXT PRIMARY KEY NOT NULL, preplan_id TEXT NOT NULL REFERENCES field_preplans(id), level_id TEXT REFERENCES field_preplan_levels(id), source_hydrant_id TEXT REFERENCES field_hydrants(id), destination_lat REAL, destination_lng REAL, destination_side TEXT NOT NULL DEFAULT '', destination_feature_id TEXT REFERENCES field_preplan_features(id), segments TEXT NOT NULL DEFAULT '[]', hose_size_inches REAL NOT NULL DEFAULT 4, section_length_feet REAL NOT NULL DEFAULT 100, reserve_feet REAL NOT NULL DEFAULT 100, supply_line_label TEXT NOT NULL DEFAULT '', assigned_apparatus_label TEXT NOT NULL DEFAULT '', verified_available_feet REAL, notes TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_hose_lay_preplan_idx ON field_preplan_hose_lays(preplan_id)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS field_preplan_revisions (id TEXT PRIMARY KEY NOT NULL, preplan_id TEXT NOT NULL REFERENCES field_preplans(id), revision_number INTEGER NOT NULL, action TEXT NOT NULL DEFAULT 'published', snapshot TEXT NOT NULL, summary TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_revision_preplan_idx ON field_preplan_revisions(preplan_id,revision_number DESC)"),
     db.prepare("CREATE TABLE IF NOT EXISTS field_hydrants (id TEXT PRIMARY KEY NOT NULL, hydrant_number TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', latitude REAL NOT NULL, longitude REAL NOT NULL, service_status TEXT NOT NULL DEFAULT 'in_service', manufacturer TEXT NOT NULL DEFAULT '', model TEXT NOT NULL DEFAULT '', port_count INTEGER NOT NULL DEFAULT 2, port_sizes TEXT NOT NULL DEFAULT '[]', notes TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE INDEX IF NOT EXISTS field_hydrant_location_idx ON field_hydrants(latitude,longitude)"),
     db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS field_hydrant_number_idx ON field_hydrants(hydrant_number) WHERE hydrant_number<>''"),
@@ -500,6 +536,7 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
   try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN risk_reviewed_at TEXT").run(); } catch { /* Column already exists after migration. */ }
   await backfillPreplanFootprintMetrics(db);
   await backfillPreplanLevelsAndLifecycle(db);
+  await backfillPreplanRevisions(db);
   await db.batch([
     ["shift_request", "Shift requests", 1, 1, 0, '["immediate"]'],
     ["open_shift", "Open shifts", 1, 1, 1, '["immediate","24_hours_before","2_hours_before"]'],
