@@ -66,7 +66,7 @@ const employeeSeed = [
 ] as const;
 
 let ready = false;
-const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-07-station-scheduler-v1-2026-08-18-preplan-v2-hazmat-zones-v1";
+const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-07-station-scheduler-v1-2026-08-18-preplan-v2-risk-v1";
 
 const policySeedVersion = "stickney-policy-library-2026-07-18";
 const boxCardSeedVersion = "regional-box-cards-structured-2026-07-21-v2";
@@ -411,6 +411,8 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
     db.prepare("CREATE TABLE IF NOT EXISTS field_preplan_hazmat_zones (id TEXT PRIMARY KEY NOT NULL, preplan_id TEXT NOT NULL REFERENCES field_preplans(id), level_id TEXT REFERENCES field_preplan_levels(id), hazmat_id TEXT REFERENCES field_preplan_hazmat(id), zone_type TEXT NOT NULL DEFAULT 'isolation', shape TEXT NOT NULL DEFAULT 'circle', label TEXT NOT NULL DEFAULT '', center_lat REAL, center_lng REAL, radius_feet REAL, polygon TEXT NOT NULL DEFAULT '[]', line_color TEXT NOT NULL DEFAULT '#b52222', line_width REAL NOT NULL DEFAULT 2, line_style TEXT NOT NULL DEFAULT 'solid', fill_opacity REAL NOT NULL DEFAULT .18, effective_at TEXT, expires_at TEXT, created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_hazmat_zone_preplan_idx ON field_preplan_hazmat_zones(preplan_id)"),
     db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_hazmat_zone_hazmat_idx ON field_preplan_hazmat_zones(hazmat_id)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS field_preplan_risk_factors (id TEXT PRIMARY KEY NOT NULL, preplan_id TEXT NOT NULL REFERENCES field_preplans(id), factor_key TEXT NOT NULL, score INTEGER NOT NULL DEFAULT 0, explanation TEXT NOT NULL DEFAULT '', source TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(preplan_id,factor_key))"),
+    db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_risk_factor_preplan_idx ON field_preplan_risk_factors(preplan_id)"),
     db.prepare("CREATE TABLE IF NOT EXISTS field_hydrants (id TEXT PRIMARY KEY NOT NULL, hydrant_number TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', latitude REAL NOT NULL, longitude REAL NOT NULL, service_status TEXT NOT NULL DEFAULT 'in_service', manufacturer TEXT NOT NULL DEFAULT '', model TEXT NOT NULL DEFAULT '', port_count INTEGER NOT NULL DEFAULT 2, port_sizes TEXT NOT NULL DEFAULT '[]', notes TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE INDEX IF NOT EXISTS field_hydrant_location_idx ON field_hydrants(latitude,longitude)"),
     db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS field_hydrant_number_idx ON field_hydrants(hydrant_number) WHERE hydrant_number<>''"),
@@ -489,6 +491,11 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
   try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN revision_number INTEGER NOT NULL DEFAULT 1").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN last_verified_at TEXT").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN next_review_at TEXT").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN target_hazard INTEGER NOT NULL DEFAULT 0").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN target_hazard_reasons TEXT NOT NULL DEFAULT '[]'").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN risk_override_classification TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN risk_reviewed_by TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN risk_reviewed_at TEXT").run(); } catch { /* Column already exists after migration. */ }
   await backfillPreplanFootprintMetrics(db);
   await backfillPreplanLevelsAndLifecycle(db);
   await db.batch([

@@ -6,6 +6,7 @@ import { isValidGeometry, parseAliasList, polygonCentroid, type SpaceType } from
 import type { AlertSeverity, AlertType } from "../../preplans/alerts.ts";
 import { isValidNfpaRating, isValidUnNaNumber, type ContainerType, type PhysicalState } from "../../preplans/hazmat.ts";
 import { isValidZoneGeometry, type ZoneShape, type ZoneType } from "../../preplans/hazmat-zones.ts";
+import { isValidRiskScore, isValidTargetHazardDesignation, type RiskFactorKey } from "../../preplans/risk.ts";
 
 type Point = { lat:number; lng:number };
 type Db = Awaited<ReturnType<typeof ensureDatabase>>;
@@ -23,6 +24,7 @@ const containerTypes = new Set<ContainerType>(["cylinder","drum","tote","tank","
 const physicalStates = new Set<PhysicalState>(["solid","liquid","gas","cryogenic","unknown"]);
 const zoneTypes = new Set<ZoneType>(["hot","warm","cold","isolation","evacuation","custom"]);
 const zoneShapes = new Set<ZoneShape>(["circle","polygon"]);
+const riskFactorKeys = new Set<RiskFactorKey>(["life_hazard","special_population","construction","building_size","fire_load","hazmat","access","water_supply","fire_protection","prior_incidents","vacancy_dangerous","below_grade","operational_complexity"]);
 
 async function access(request:Request, db:Db) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
@@ -73,8 +75,8 @@ export async function GET(request:Request) {
     const db = await ensureDatabase();
     const auth = await access(request, db);
     if (!auth.allowed) return Response.json({ error:"Field preplan access is required." }, { status:403 });
-    const [plans, features, photos, imports, levels, spaces, alerts, hazmat, hazmatZones] = await Promise.all([
-      db.prepare("SELECT id,business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,COALESCE(footprint_square_feet,0) footprintSquareFeet,COALESCE(floor_count,1) floorCount,COALESCE(fire_flow_calculation_area,0) fireFlowCalculationArea,COALESCE(construction_type,'VB') constructionType,COALESCE(occupancy_flow_category,'other') occupancyFlowCategory,COALESCE(sprinkler_standard,'none') sprinklerStandard,COALESCE(suggested_fire_flow_gpm,0) suggestedFireFlowGpm,COALESCE(suggested_fire_flow_duration,0) suggestedFireFlowDuration,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,status,COALESCE(NULLIF(lifecycle_status,''),'published') lifecycleStatus,COALESCE(revision_number,1) revisionNumber,updated_by updatedBy,updated_at updatedAt FROM field_preplans ORDER BY updated_at DESC").all(),
+    const [plans, features, photos, imports, levels, spaces, alerts, hazmat, hazmatZones, riskFactors] = await Promise.all([
+      db.prepare("SELECT id,business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,COALESCE(footprint_square_feet,0) footprintSquareFeet,COALESCE(floor_count,1) floorCount,COALESCE(fire_flow_calculation_area,0) fireFlowCalculationArea,COALESCE(construction_type,'VB') constructionType,COALESCE(occupancy_flow_category,'other') occupancyFlowCategory,COALESCE(sprinkler_standard,'none') sprinklerStandard,COALESCE(suggested_fire_flow_gpm,0) suggestedFireFlowGpm,COALESCE(suggested_fire_flow_duration,0) suggestedFireFlowDuration,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,status,COALESCE(NULLIF(lifecycle_status,''),'published') lifecycleStatus,COALESCE(revision_number,1) revisionNumber,COALESCE(target_hazard,0) targetHazard,COALESCE(NULLIF(target_hazard_reasons,''),'[]') targetHazardReasons,COALESCE(NULLIF(risk_override_classification,''),'') riskOverrideClassification,COALESCE(risk_reviewed_by,'') riskReviewedBy,risk_reviewed_at riskReviewedAt,updated_by updatedBy,updated_at updatedAt FROM field_preplans ORDER BY updated_at DESC").all(),
       db.prepare("SELECT id,preplan_id preplanId,feature_type featureType,label,latitude,longitude,system_type systemType,service_status serviceStatus,details FROM field_preplan_features ORDER BY created_at").all(),
       db.prepare("SELECT id,preplan_id preplanId,feature_id featureId,side,filename,caption,created_at createdAt FROM field_preplan_photos ORDER BY created_at DESC").all(),
       db.prepare("SELECT id,business_name businessName,address,source_file sourceFile,source_row sourceRow,status,latitude,longitude,geocode_note geocodeNote,linked_preplan_id linkedPreplanId FROM field_preplan_imports ORDER BY business_name COLLATE NOCASE,address COLLATE NOCASE").all(),
@@ -83,6 +85,7 @@ export async function GET(request:Request) {
       db.prepare("SELECT id,preplan_id preplanId,level_id levelId,alert_type alertType,title,instructions,severity,display_order displayOrder,pin_to_respond pinToRespond,effective_at effectiveAt,expires_at expiresAt,verification_required verificationRequired,verified_by verifiedBy,verified_at verifiedAt,archived FROM field_preplan_alerts WHERE archived=0 ORDER BY preplan_id,CASE severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 WHEN 'advisory' THEN 2 ELSE 3 END,display_order").all(),
       db.prepare("SELECT id,preplan_id preplanId,level_id levelId,mapped,chemical_name chemicalName,un_na_number unNaNumber,erg_guide_number ergGuideNumber,quantity,quantity_unit quantityUnit,container_type containerType,physical_state physicalState,exact_location exactLocation,nfpa_health nfpaHealth,nfpa_flammability nfpaFlammability,nfpa_instability nfpaInstability,nfpa_special nfpaSpecial,sds_asset_id sdsAssetId,photo_asset_id photoAssetId,date_verified dateVerified,verified_by verifiedBy,notes FROM field_preplan_hazmat ORDER BY preplan_id,chemical_name COLLATE NOCASE").all(),
       db.prepare("SELECT id,preplan_id preplanId,level_id levelId,hazmat_id hazmatId,zone_type zoneType,shape,label,center_lat centerLat,center_lng centerLng,radius_feet radiusFeet,polygon,line_color lineColor,line_width lineWidth,line_style lineStyle,fill_opacity fillOpacity FROM field_preplan_hazmat_zones ORDER BY preplan_id").all(),
+      db.prepare("SELECT id,preplan_id preplanId,factor_key factorKey,score,explanation,source FROM field_preplan_risk_factors ORDER BY preplan_id,score DESC").all(),
     ]);
     return Response.json({
       canEdit:auth.canEdit,
@@ -97,6 +100,9 @@ export async function GET(request:Request) {
         alerts:alerts.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id).map((alertRow) => ({ ...alertRow, pinToRespond:Boolean((alertRow as {pinToRespond:number}).pinToRespond), verificationRequired:Boolean((alertRow as {verificationRequired:number}).verificationRequired), archived:Boolean((alertRow as {archived:number}).archived) })),
         hazmat:hazmat.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id).map((item) => ({ ...item, mapped:Boolean((item as {mapped:number}).mapped) })),
         hazmatZones:hazmatZones.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id).map((zone) => ({ ...zone, polygon:JSON.parse(String((zone as {polygon?:string}).polygon || "[]")) })),
+        riskFactors:riskFactors.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id),
+        targetHazard:Boolean((plan as {targetHazard:number}).targetHazard),
+        targetHazardReasons:JSON.parse(String((plan as {targetHazardReasons?:string}).targetHazardReasons || "[]")),
       })),
       imports:imports.results,
     });
@@ -332,6 +338,40 @@ export async function POST(request:Request) {
       if (!auth.canManageHazmat) return Response.json({ error:"Field preplan HazMat management permission is required." }, { status:403 });
       const id = text(body.id, 80);
       await db.prepare("DELETE FROM field_preplan_hazmat_zones WHERE id=?").bind(id).run();
+      return Response.json({ ok:true });
+    }
+    if (action === "saveRiskFactor") {
+      if (!auth.canManageLayers) return Response.json({ error:"Officer permission is required to update the risk assessment." }, { status:403 });
+      const preplanId = text(body.preplanId, 80);
+      const plan = preplanId ? await db.prepare("SELECT id FROM field_preplans WHERE id=?").bind(preplanId).first() : null;
+      if (!plan) return Response.json({ error:"Preplan not found." }, { status:404 });
+      const requestedFactor = text(body.factorKey, 40) as RiskFactorKey;
+      if (!riskFactorKeys.has(requestedFactor)) return Response.json({ error:"Unknown risk factor." }, { status:400 });
+      const score = Math.trunc(number(body.score));
+      if (!isValidRiskScore(score)) return Response.json({ error:"Risk factor score must be a whole number from 0 to 4." }, { status:400 });
+      const id = text(body.id, 80) || crypto.randomUUID();
+      await db.prepare("INSERT INTO field_preplan_risk_factors(id,preplan_id,factor_key,score,explanation,source,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(preplan_id,factor_key) DO UPDATE SET score=excluded.score,explanation=excluded.explanation,source=excluded.source,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP")
+        .bind(id,preplanId,requestedFactor,score,text(body.explanation,2000),text(body.source,240),auth.actor,auth.actor).run();
+      return Response.json({ ok:true, id });
+    }
+    if (action === "deleteRiskFactor") {
+      if (!auth.canManageLayers) return Response.json({ error:"Officer permission is required to update the risk assessment." }, { status:403 });
+      const id = text(body.id, 80);
+      await db.prepare("DELETE FROM field_preplan_risk_factors WHERE id=?").bind(id).run();
+      return Response.json({ ok:true });
+    }
+    if (action === "saveTargetHazard") {
+      if (!auth.canManageLayers) return Response.json({ error:"Officer permission is required to designate a target hazard." }, { status:403 });
+      const preplanId = text(body.preplanId, 80);
+      const plan = preplanId ? await db.prepare("SELECT id FROM field_preplans WHERE id=?").bind(preplanId).first() : null;
+      if (!plan) return Response.json({ error:"Preplan not found." }, { status:404 });
+      const targetHazard = body.targetHazard === true;
+      const reasons = Array.isArray(body.targetHazardReasons) ? (body.targetHazardReasons as unknown[]).map((item) => text(item,200)).filter(Boolean).slice(0,20) : [];
+      if (targetHazard && !isValidTargetHazardDesignation(reasons)) return Response.json({ error:"A Target Hazard designation requires at least one stated reason." }, { status:400 });
+      const overrideClassification = text(body.riskOverrideClassification, 20);
+      if (overrideClassification && !["low","moderate","high","critical"].includes(overrideClassification)) return Response.json({ error:"Invalid risk classification override." }, { status:400 });
+      await db.prepare("UPDATE field_preplans SET target_hazard=?,target_hazard_reasons=?,risk_override_classification=?,risk_reviewed_by=?,risk_reviewed_at=CURRENT_TIMESTAMP,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
+        .bind(targetHazard?1:0,JSON.stringify(reasons),overrideClassification,auth.actor,auth.actor,preplanId).run();
       return Response.json({ ok:true });
     }
     return Response.json({ error:"Unsupported preplan action." }, { status:400 });
