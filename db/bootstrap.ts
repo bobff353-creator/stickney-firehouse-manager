@@ -66,7 +66,7 @@ const employeeSeed = [
 ] as const;
 
 let ready = false;
-const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-07-station-scheduler-v1-2026-08-18-preplan-v2-hazmat-v1";
+const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-07-station-scheduler-v1-2026-08-18-preplan-v2-hazmat-zones-v1";
 
 const policySeedVersion = "stickney-policy-library-2026-07-18";
 const boxCardSeedVersion = "regional-box-cards-structured-2026-07-21-v2";
@@ -408,6 +408,9 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
     db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_alert_preplan_idx ON field_preplan_alerts(preplan_id,severity,display_order)"),
     db.prepare("CREATE TABLE IF NOT EXISTS field_preplan_hazmat (id TEXT PRIMARY KEY NOT NULL, preplan_id TEXT NOT NULL REFERENCES field_preplans(id), level_id TEXT REFERENCES field_preplan_levels(id), mapped INTEGER NOT NULL DEFAULT 0, chemical_name TEXT NOT NULL, un_na_number TEXT NOT NULL DEFAULT '', erg_guide_number TEXT NOT NULL DEFAULT '', quantity REAL, quantity_unit TEXT NOT NULL DEFAULT '', container_type TEXT NOT NULL DEFAULT 'other', physical_state TEXT NOT NULL DEFAULT 'unknown', exact_location TEXT NOT NULL DEFAULT '', nfpa_health INTEGER NOT NULL DEFAULT 0, nfpa_flammability INTEGER NOT NULL DEFAULT 0, nfpa_instability INTEGER NOT NULL DEFAULT 0, nfpa_special TEXT NOT NULL DEFAULT '', sds_asset_id TEXT, photo_asset_id TEXT, date_verified TEXT, verified_by TEXT NOT NULL DEFAULT '', effective_at TEXT, expires_at TEXT, notes TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_hazmat_preplan_idx ON field_preplan_hazmat(preplan_id)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS field_preplan_hazmat_zones (id TEXT PRIMARY KEY NOT NULL, preplan_id TEXT NOT NULL REFERENCES field_preplans(id), level_id TEXT REFERENCES field_preplan_levels(id), hazmat_id TEXT REFERENCES field_preplan_hazmat(id), zone_type TEXT NOT NULL DEFAULT 'isolation', shape TEXT NOT NULL DEFAULT 'circle', label TEXT NOT NULL DEFAULT '', center_lat REAL, center_lng REAL, radius_feet REAL, polygon TEXT NOT NULL DEFAULT '[]', line_color TEXT NOT NULL DEFAULT '#b52222', line_width REAL NOT NULL DEFAULT 2, line_style TEXT NOT NULL DEFAULT 'solid', fill_opacity REAL NOT NULL DEFAULT .18, effective_at TEXT, expires_at TEXT, created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_hazmat_zone_preplan_idx ON field_preplan_hazmat_zones(preplan_id)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_hazmat_zone_hazmat_idx ON field_preplan_hazmat_zones(hazmat_id)"),
     db.prepare("CREATE TABLE IF NOT EXISTS field_hydrants (id TEXT PRIMARY KEY NOT NULL, hydrant_number TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', latitude REAL NOT NULL, longitude REAL NOT NULL, service_status TEXT NOT NULL DEFAULT 'in_service', manufacturer TEXT NOT NULL DEFAULT '', model TEXT NOT NULL DEFAULT '', port_count INTEGER NOT NULL DEFAULT 2, port_sizes TEXT NOT NULL DEFAULT '[]', notes TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE INDEX IF NOT EXISTS field_hydrant_location_idx ON field_hydrants(latitude,longitude)"),
     db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS field_hydrant_number_idx ON field_hydrants(hydrant_number) WHERE hydrant_number<>''"),

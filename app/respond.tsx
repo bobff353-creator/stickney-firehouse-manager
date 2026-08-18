@@ -13,10 +13,11 @@ type Preplan = {
   id:string; businessName:string; address:string; latitude:number; longitude:number; aSideLatitude?:number|null; aSideLongitude?:number|null;
   footprint:Point[]; footprintSquareFeet:number; floorCount:number; constructionType:string; suggestedFireFlowGpm:number; suggestedFireFlowDuration:number;
   contactInfo:string; construction:string; accessInfo:string; alarmSystem:string; knoxBox:string; riser:string; fdc:string; sprinklerSystem:string;
-  status:string; updatedAt:string; features:Feature[]; photos:Photo[]; levels?:RespondLevel[]; spaces?:RespondSpace[]; alerts?:RespondAlert[]; hazmat?:RespondHazmat[];
+  status:string; updatedAt:string; features:Feature[]; photos:Photo[]; levels?:RespondLevel[]; spaces?:RespondSpace[]; alerts?:RespondAlert[]; hazmat?:RespondHazmat[]; hazmatZones?:RespondHazmatZone[];
 };
 type RespondAlert = { id:string; alertType:string; title:string; instructions:string; severity:"informational"|"advisory"|"warning"|"critical" };
 type RespondHazmat = { id:string; chemicalName:string; unNaNumber:string; ergGuideNumber:string; quantity:number|null; quantityUnit:string; containerType:string; exactLocation:string; nfpaHealth:number; nfpaFlammability:number; nfpaInstability:number; nfpaSpecial:string; dateVerified:string|null; mapped:boolean; notes:string };
+type RespondHazmatZone = { id:string; hazmatId:string|null; zoneType:string; label:string; radiusFeet:number|null };
 type RoomMatch =
   | { kind:"unique"; space:RespondSpace; level:{levelId:string;name:string}|null; explanation:string }
   | { kind:"ambiguous"; candidates:Array<{space:RespondSpace;level:{levelId:string;name:string}|null}>; explanation:string }
@@ -117,12 +118,15 @@ export default function Respond({ apparatus = "", onNavigate }: { apparatus?: st
       ["construction","Building Construction",plan.construction],["contact","Contact",plan.contactInfo],
     ].filter((item)=>item[2]).map(([id,label,value])=>({id:`summary-${id}`,label,summary:value,details:value}));
     const mapped=plan.features.map((feature)=>({id:feature.id,label:feature.label||featureLabels[feature.featureType]||feature.featureType,summary:feature.systemType||featureLabels[feature.featureType]||feature.featureType,details:feature.details,status:feature.serviceStatus,latitude:feature.latitude,longitude:feature.longitude}));
-    const hazmatItems=(plan.hazmat??[]).map((item)=>({
-      id:`hazmat-${item.id}`,
-      label:`HazMat: ${item.chemicalName}`,
-      summary:[item.unNaNumber,item.ergGuideNumber&&`ERG ${item.ergGuideNumber}`].filter(Boolean).join(" · ")||"Structured HazMat record",
-      details:[item.exactLocation&&`Location: ${item.exactLocation}`,`NFPA 704: Health ${item.nfpaHealth} · Flammability ${item.nfpaFlammability} · Instability ${item.nfpaInstability}${item.nfpaSpecial?` · ${item.nfpaSpecial}`:""}`,item.quantity!=null&&`Quantity: ${item.quantity} ${item.quantityUnit||""}`.trim(),item.containerType&&`Container: ${item.containerType}`,item.dateVerified?`Verified ${new Date(item.dateVerified).toLocaleDateString()}`:"Not yet verified",!item.mapped&&"Unmapped operational record",item.notes].filter(Boolean).join("\n"),
-    }));
+    const hazmatItems=(plan.hazmat??[]).map((item)=>{
+      const zones=(plan.hazmatZones??[]).filter((zone)=>zone.hazmatId===item.id);
+      return {
+        id:`hazmat-${item.id}`,
+        label:`HazMat: ${item.chemicalName}`,
+        summary:[item.unNaNumber,item.ergGuideNumber&&`ERG ${item.ergGuideNumber}`].filter(Boolean).join(" · ")||"Structured HazMat record",
+        details:[item.exactLocation&&`Location: ${item.exactLocation}`,`NFPA 704: Health ${item.nfpaHealth} · Flammability ${item.nfpaFlammability} · Instability ${item.nfpaInstability}${item.nfpaSpecial?` · ${item.nfpaSpecial}`:""}`,item.quantity!=null&&`Quantity: ${item.quantity} ${item.quantityUnit||""}`.trim(),item.containerType&&`Container: ${item.containerType}`,item.dateVerified?`Verified ${new Date(item.dateVerified).toLocaleDateString()}`:"Not yet verified",!item.mapped&&"Unmapped operational record",zones.length?`Zones: ${zones.map((zone)=>`${zone.label||zone.zoneType}${zone.radiusFeet?` (${zone.radiusFeet.toLocaleString()} ft)`:""}`).join(", ")}`:"",item.notes].filter(Boolean).join("\n"),
+      };
+    });
     return [...hazmatItems,...mapped,...staticItems];
   },[data?.preplan]);
   const call=data?.activeCall??null, plan=data?.preplan??null, alpha=sidePhoto(plan,"A"), selectedSide=view==="B"||view==="C"||view==="D"?sidePhoto(plan,view):null;

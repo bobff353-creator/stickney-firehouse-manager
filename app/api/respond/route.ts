@@ -8,6 +8,7 @@ import type { PreplanLevel } from "../../preplans/levels.ts";
 import type { PreplanSpace } from "../../preplans/spaces.ts";
 import { sortAlertsForRespond, visibleInRespond, type PreplanAlert } from "../../preplans/alerts.ts";
 import { sortHazmatBySeverity, type HazmatRecord } from "../../preplans/hazmat.ts";
+import { sortZonesBySeverity, type HazmatZone } from "../../preplans/hazmat-zones.ts";
 
 type Row = Record<string, unknown>;
 
@@ -50,13 +51,14 @@ export async function GET(request: Request) {
     let preplan: Row | null = null;
     let roomMatch: ReturnType<typeof matchCadToRoom> | null = null;
     if (matched) {
-      const [features, photos, levelRows, spaceRows, alertRows, hazmatRows] = await Promise.all([
+      const [features, photos, levelRows, spaceRows, alertRows, hazmatRows, hazmatZoneRows] = await Promise.all([
         db.prepare("SELECT id,feature_type featureType,label,latitude,longitude,system_type systemType,service_status serviceStatus,details FROM field_preplan_features WHERE preplan_id=? ORDER BY created_at").bind(String(matched.plan.id)).all<Row>(),
         db.prepare("SELECT id,feature_id featureId,side,filename,caption,created_at createdAt FROM field_preplan_photos WHERE preplan_id=? ORDER BY created_at DESC").bind(String(matched.plan.id)).all<Row>(),
         db.prepare("SELECT id,preplan_id preplanId,name,short_label shortLabel,layer_type layerType,floor_index floorIndex,grade,sort_order sortOrder,is_default isDefault,respond_visible respondVisible,hidden FROM field_preplan_levels WHERE preplan_id=? AND respond_visible=1 AND hidden=0 ORDER BY sort_order").bind(String(matched.plan.id)).all<Row>(),
         db.prepare("SELECT id,preplan_id preplanId,level_id levelId,display_name displayName,room_number roomNumber,space_type spaceType,aliases,cad_keywords cadKeywords,geometry,label_position labelPosition FROM field_preplan_spaces WHERE preplan_id=? ORDER BY display_name COLLATE NOCASE").bind(String(matched.plan.id)).all<Row>(),
         db.prepare("SELECT id,preplan_id preplanId,level_id levelId,alert_type alertType,title,instructions,severity,display_order displayOrder,pin_to_respond pinToRespond,effective_at effectiveAt,expires_at expiresAt,verification_required verificationRequired,verified_by verifiedBy,verified_at verifiedAt,archived FROM field_preplan_alerts WHERE preplan_id=? AND archived=0 ORDER BY display_order").bind(String(matched.plan.id)).all<Row>(),
         db.prepare("SELECT id,preplan_id preplanId,level_id levelId,mapped,chemical_name chemicalName,un_na_number unNaNumber,erg_guide_number ergGuideNumber,quantity,quantity_unit quantityUnit,container_type containerType,physical_state physicalState,exact_location exactLocation,nfpa_health nfpaHealth,nfpa_flammability nfpaFlammability,nfpa_instability nfpaInstability,nfpa_special nfpaSpecial,sds_asset_id sdsAssetId,date_verified dateVerified,verified_by verifiedBy,notes FROM field_preplan_hazmat WHERE preplan_id=?").bind(String(matched.plan.id)).all<Row>(),
+        db.prepare("SELECT id,preplan_id preplanId,level_id levelId,hazmat_id hazmatId,zone_type zoneType,shape,label,center_lat centerLat,center_lng centerLng,radius_feet radiusFeet,polygon FROM field_preplan_hazmat_zones WHERE preplan_id=?").bind(String(matched.plan.id)).all<Row>(),
       ]);
       const levels = levelRows.results.map((row) => ({
         id: String(row.id), preplanId: String(row.preplanId), name: String(row.name), shortLabel: String(row.shortLabel),
@@ -79,6 +81,8 @@ export async function GET(request: Request) {
       const alerts = sortAlertsForRespond(visibleInRespond(alertsRaw));
       const hazmatRaw = hazmatRows.results.map((row) => ({ ...row, mapped: Boolean(row.mapped) })) as unknown as HazmatRecord[];
       const hazmat = sortHazmatBySeverity(hazmatRaw);
+      const hazmatZonesRaw = hazmatZoneRows.results.map((row) => ({ ...row, polygon: parseJson(row.polygon, []) })) as unknown as HazmatZone[];
+      const hazmatZones = sortZonesBySeverity(hazmatZonesRaw);
       preplan = {
         ...matched.plan,
         features: features.results,
@@ -87,6 +91,7 @@ export async function GET(request: Request) {
         spaces,
         alerts,
         hazmat,
+        hazmatZones,
       };
     }
 

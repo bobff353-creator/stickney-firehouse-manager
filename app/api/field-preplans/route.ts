@@ -5,6 +5,7 @@ import { canDeleteLevel, nextSortOrder, type LevelGrade, type LevelLayerType } f
 import { isValidGeometry, parseAliasList, polygonCentroid, type SpaceType } from "../../preplans/spaces.ts";
 import type { AlertSeverity, AlertType } from "../../preplans/alerts.ts";
 import { isValidNfpaRating, isValidUnNaNumber, type ContainerType, type PhysicalState } from "../../preplans/hazmat.ts";
+import { isValidZoneGeometry, type ZoneShape, type ZoneType } from "../../preplans/hazmat-zones.ts";
 
 type Point = { lat:number; lng:number };
 type Db = Awaited<ReturnType<typeof ensureDatabase>>;
@@ -20,6 +21,8 @@ const alertTypes = new Set<AlertType>(["critical_warning","access_problem","comm
 const alertSeverities = new Set<AlertSeverity>(["informational","advisory","warning","critical"]);
 const containerTypes = new Set<ContainerType>(["cylinder","drum","tote","tank","cartridge","pipeline","bag","other"]);
 const physicalStates = new Set<PhysicalState>(["solid","liquid","gas","cryogenic","unknown"]);
+const zoneTypes = new Set<ZoneType>(["hot","warm","cold","isolation","evacuation","custom"]);
+const zoneShapes = new Set<ZoneShape>(["circle","polygon"]);
 
 async function access(request:Request, db:Db) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
@@ -70,7 +73,7 @@ export async function GET(request:Request) {
     const db = await ensureDatabase();
     const auth = await access(request, db);
     if (!auth.allowed) return Response.json({ error:"Field preplan access is required." }, { status:403 });
-    const [plans, features, photos, imports, levels, spaces, alerts, hazmat] = await Promise.all([
+    const [plans, features, photos, imports, levels, spaces, alerts, hazmat, hazmatZones] = await Promise.all([
       db.prepare("SELECT id,business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,COALESCE(footprint_square_feet,0) footprintSquareFeet,COALESCE(floor_count,1) floorCount,COALESCE(fire_flow_calculation_area,0) fireFlowCalculationArea,COALESCE(construction_type,'VB') constructionType,COALESCE(occupancy_flow_category,'other') occupancyFlowCategory,COALESCE(sprinkler_standard,'none') sprinklerStandard,COALESCE(suggested_fire_flow_gpm,0) suggestedFireFlowGpm,COALESCE(suggested_fire_flow_duration,0) suggestedFireFlowDuration,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,status,COALESCE(NULLIF(lifecycle_status,''),'published') lifecycleStatus,COALESCE(revision_number,1) revisionNumber,updated_by updatedBy,updated_at updatedAt FROM field_preplans ORDER BY updated_at DESC").all(),
       db.prepare("SELECT id,preplan_id preplanId,feature_type featureType,label,latitude,longitude,system_type systemType,service_status serviceStatus,details FROM field_preplan_features ORDER BY created_at").all(),
       db.prepare("SELECT id,preplan_id preplanId,feature_id featureId,side,filename,caption,created_at createdAt FROM field_preplan_photos ORDER BY created_at DESC").all(),
@@ -79,6 +82,7 @@ export async function GET(request:Request) {
       db.prepare("SELECT id,preplan_id preplanId,level_id levelId,display_name displayName,room_number roomNumber,space_type spaceType,aliases,cad_keywords cadKeywords,geometry,label_position labelPosition,typical_occupancy typicalOccupancy,peak_occupancy peakOccupancy,special_population_notes specialPopulationNotes,access_notes accessNotes,fire_protection_notes fireProtectionNotes,hazards FROM field_preplan_spaces ORDER BY preplan_id,display_name COLLATE NOCASE").all(),
       db.prepare("SELECT id,preplan_id preplanId,level_id levelId,alert_type alertType,title,instructions,severity,display_order displayOrder,pin_to_respond pinToRespond,effective_at effectiveAt,expires_at expiresAt,verification_required verificationRequired,verified_by verifiedBy,verified_at verifiedAt,archived FROM field_preplan_alerts WHERE archived=0 ORDER BY preplan_id,CASE severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 WHEN 'advisory' THEN 2 ELSE 3 END,display_order").all(),
       db.prepare("SELECT id,preplan_id preplanId,level_id levelId,mapped,chemical_name chemicalName,un_na_number unNaNumber,erg_guide_number ergGuideNumber,quantity,quantity_unit quantityUnit,container_type containerType,physical_state physicalState,exact_location exactLocation,nfpa_health nfpaHealth,nfpa_flammability nfpaFlammability,nfpa_instability nfpaInstability,nfpa_special nfpaSpecial,sds_asset_id sdsAssetId,photo_asset_id photoAssetId,date_verified dateVerified,verified_by verifiedBy,notes FROM field_preplan_hazmat ORDER BY preplan_id,chemical_name COLLATE NOCASE").all(),
+      db.prepare("SELECT id,preplan_id preplanId,level_id levelId,hazmat_id hazmatId,zone_type zoneType,shape,label,center_lat centerLat,center_lng centerLng,radius_feet radiusFeet,polygon,line_color lineColor,line_width lineWidth,line_style lineStyle,fill_opacity fillOpacity FROM field_preplan_hazmat_zones ORDER BY preplan_id").all(),
     ]);
     return Response.json({
       canEdit:auth.canEdit,
@@ -92,6 +96,7 @@ export async function GET(request:Request) {
         spaces:spaces.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id).map((space) => ({ ...space, aliases:JSON.parse(String((space as {aliases?:string}).aliases || "[]")), cadKeywords:JSON.parse(String((space as {cadKeywords?:string}).cadKeywords || "[]")), geometry:JSON.parse(String((space as {geometry?:string}).geometry || "[]")), labelPosition:(space as {labelPosition?:string|null}).labelPosition ? JSON.parse(String((space as {labelPosition?:string}).labelPosition)) : null })),
         alerts:alerts.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id).map((alertRow) => ({ ...alertRow, pinToRespond:Boolean((alertRow as {pinToRespond:number}).pinToRespond), verificationRequired:Boolean((alertRow as {verificationRequired:number}).verificationRequired), archived:Boolean((alertRow as {archived:number}).archived) })),
         hazmat:hazmat.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id).map((item) => ({ ...item, mapped:Boolean((item as {mapped:number}).mapped) })),
+        hazmatZones:hazmatZones.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id).map((zone) => ({ ...zone, polygon:JSON.parse(String((zone as {polygon?:string}).polygon || "[]")) })),
       })),
       imports:imports.results,
     });
@@ -290,6 +295,43 @@ export async function POST(request:Request) {
       if (!auth.canManageHazmat) return Response.json({ error:"Field preplan HazMat management permission is required." }, { status:403 });
       const id = text(body.id, 80);
       await db.prepare("DELETE FROM field_preplan_hazmat WHERE id=?").bind(id).run();
+      await db.prepare("UPDATE field_preplan_hazmat_zones SET hazmat_id=NULL WHERE hazmat_id=?").bind(id).run();
+      return Response.json({ ok:true });
+    }
+    if (action === "saveHazmatZone") {
+      if (!auth.canManageHazmat) return Response.json({ error:"Field preplan HazMat management permission is required." }, { status:403 });
+      const preplanId = text(body.preplanId, 80);
+      const plan = preplanId ? await db.prepare("SELECT id FROM field_preplans WHERE id=?").bind(preplanId).first() : null;
+      if (!plan) return Response.json({ error:"Preplan not found." }, { status:404 });
+      const levelId = text(body.levelId, 80) || null;
+      if (levelId) {
+        const level = await db.prepare("SELECT id FROM field_preplan_levels WHERE id=? AND preplan_id=?").bind(levelId,preplanId).first();
+        if (!level) return Response.json({ error:"The selected level does not belong to this preplan." }, { status:400 });
+      }
+      const hazmatId = text(body.hazmatId, 80) || null;
+      if (hazmatId) {
+        const hazmatRecord = await db.prepare("SELECT id FROM field_preplan_hazmat WHERE id=? AND preplan_id=?").bind(hazmatId,preplanId).first();
+        if (!hazmatRecord) return Response.json({ error:"The selected HazMat record does not belong to this preplan." }, { status:400 });
+      }
+      const requestedType = text(body.zoneType, 20) as ZoneType;
+      const zoneType = zoneTypes.has(requestedType) ? requestedType : "isolation";
+      const requestedShape = text(body.shape, 10) as ZoneShape;
+      const shape = zoneShapes.has(requestedShape) ? requestedShape : "circle";
+      const centerLat = Number.isFinite(number(body.centerLat)) ? number(body.centerLat) : null;
+      const centerLng = Number.isFinite(number(body.centerLng)) ? number(body.centerLng) : null;
+      const radiusFeet = Number.isFinite(number(body.radiusFeet)) ? number(body.radiusFeet) : null;
+      const polygon = Array.isArray(body.polygon) ? (body.polygon as unknown[]).slice(0,200).map((item) => point(item)).filter((item):item is Point => Boolean(item)).map((p) => ({ lat:p.lat, lng:p.lng })) : [];
+      const zoneGeometry = { shape, centerLat, centerLng, radiusFeet, polygon };
+      if (!isValidZoneGeometry(zoneGeometry)) return Response.json({ error: shape === "circle" ? "A circle zone needs a valid center point and radius (feet) greater than zero." : "A polygon zone needs at least 3 valid points." }, { status:400 });
+      const id = text(body.id, 80) || crypto.randomUUID();
+      await db.prepare("INSERT INTO field_preplan_hazmat_zones(id,preplan_id,level_id,hazmat_id,zone_type,shape,label,center_lat,center_lng,radius_feet,polygon,line_color,line_width,line_style,fill_opacity,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET level_id=excluded.level_id,hazmat_id=excluded.hazmat_id,zone_type=excluded.zone_type,shape=excluded.shape,label=excluded.label,center_lat=excluded.center_lat,center_lng=excluded.center_lng,radius_feet=excluded.radius_feet,polygon=excluded.polygon,line_color=excluded.line_color,line_width=excluded.line_width,line_style=excluded.line_style,fill_opacity=excluded.fill_opacity,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP")
+        .bind(id,preplanId,levelId,hazmatId,zoneType,shape,text(body.label,120),centerLat,centerLng,radiusFeet,JSON.stringify(polygon),text(body.lineColor,10)||"#b52222",Number.isFinite(number(body.lineWidth))?number(body.lineWidth):2,text(body.lineStyle,10)||"solid",Number.isFinite(number(body.fillOpacity))?Math.min(1,Math.max(0,number(body.fillOpacity))):.18,auth.actor,auth.actor).run();
+      return Response.json({ ok:true, id });
+    }
+    if (action === "deleteHazmatZone") {
+      if (!auth.canManageHazmat) return Response.json({ error:"Field preplan HazMat management permission is required." }, { status:403 });
+      const id = text(body.id, 80);
+      await db.prepare("DELETE FROM field_preplan_hazmat_zones WHERE id=?").bind(id).run();
       return Response.json({ ok:true });
     }
     return Response.json({ error:"Unsupported preplan action." }, { status:400 });
