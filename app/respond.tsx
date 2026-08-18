@@ -14,7 +14,12 @@ type Preplan = {
   footprint:Point[]; footprintSquareFeet:number; floorCount:number; constructionType:string; suggestedFireFlowGpm:number; suggestedFireFlowDuration:number;
   contactInfo:string; construction:string; accessInfo:string; alarmSystem:string; knoxBox:string; riser:string; fdc:string; sprinklerSystem:string;
   status:string; updatedAt:string; features:Feature[]; photos:Photo[]; levels?:RespondLevel[]; spaces?:RespondSpace[]; alerts?:RespondAlert[]; hazmat?:RespondHazmat[]; hazmatZones?:RespondHazmatZone[];
-  riskClassification?:"low"|"moderate"|"high"|"critical"; targetHazard?:boolean; targetHazardReasons?:string[];
+  riskClassification?:"low"|"moderate"|"high"|"critical"; targetHazard?:boolean; targetHazardReasons?:string[]; hoseLays?:RespondHoseLay[];
+};
+type RespondHoseLay = {
+  id:string; sourceHydrantNumber:string|null; destinationSide:string; hoseSizeInches:number; supplyLineLabel:string; assignedApparatusLabel:string;
+  measuredFeet:number; recommendedFeet:number; notes:string;
+  capacity:{status:"sufficient";availableFeet:number;deficitFeet:0}|{status:"deficit";availableFeet:number;deficitFeet:number}|{status:"unverified"};
 };
 type RespondAlert = { id:string; alertType:string; title:string; instructions:string; severity:"informational"|"advisory"|"warning"|"critical" };
 type RespondHazmat = { id:string; chemicalName:string; unNaNumber:string; ergGuideNumber:string; quantity:number|null; quantityUnit:string; containerType:string; exactLocation:string; nfpaHealth:number; nfpaFlammability:number; nfpaInstability:number; nfpaSpecial:string; dateVerified:string|null; mapped:boolean; notes:string };
@@ -153,6 +158,7 @@ export default function Respond({ apparatus = "", onNavigate }: { apparatus?: st
     <section className="respond-glance" aria-label="Matched response records">
       <article><span>BOX CARD</span><strong>{data?.boxCard?.title||"No matching box card"}</strong><small>{data?.boxCard?`${data.boxCard.boxNumber||"Number pending"} · ${data.boxCard.accessNotes||data.boxCard.address}`:"Search by the incident address."}</small><button onClick={()=>onNavigate?.("Box Cards")}>Open box cards</button></article>
       <article><span>NEAREST HYDRANTS</span>{data?.nearestHydrants?.length?<div>{data.nearestHydrants.map((hydrant)=><p key={hydrant.id}><b>{hydrant.hydrantNumber||hydrant.address||"Mapped hydrant"}</b><small>{hydrant.distanceFeet.toLocaleString()} ft · {hydrant.serviceStatus.replaceAll("_"," ")}</small></p>)}</div>:<small>No verified hydrants are mapped near this incident.</small>}<button onClick={()=>onNavigate?.("Field Preplans")}>Open preplans & hydrants</button></article>
+      {(plan?.hoseLays?.length??0)>0&&<article><span>HOSE LAY</span><div>{plan!.hoseLays!.map((lay)=><p key={lay.id} className={lay.capacity.status==="deficit"?"hose-lay-deficit":""}><b>{lay.supplyLineLabel||`${lay.hoseSizeInches}" to ${lay.destinationSide}-side`}</b><small>{lay.sourceHydrantNumber||"Hydrant"} · {lay.measuredFeet.toLocaleString()} ft measured · {lay.recommendedFeet.toLocaleString()} ft recommended{lay.assignedApparatusLabel?` · ${lay.assignedApparatusLabel}`:""}</small><small>{lay.capacity.status==="unverified"?"Apparatus hose capacity not verified":lay.capacity.status==="deficit"?`⚠ Deficit: ${lay.capacity.deficitFeet.toLocaleString()} ft short (${lay.capacity.availableFeet.toLocaleString()} ft available)`:`Sufficient (${lay.capacity.availableFeet.toLocaleString()} ft available)`}</small></p>)}</div></article>}
     </section>
     <div className="respond-grid">
       <aside className="respond-intel"><header><span>BUILDING INTELLIGENCE</span><h2>{plan?.businessName||"No preplan found"}</h2><p>{plan?.address||"Use the active-call address while en route."}</p></header>

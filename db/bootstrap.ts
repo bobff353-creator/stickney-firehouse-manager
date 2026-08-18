@@ -66,7 +66,7 @@ const employeeSeed = [
 ] as const;
 
 let ready = false;
-const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-07-station-scheduler-v1-2026-08-18-preplan-v2-risk-v1";
+const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-07-station-scheduler-v1-2026-08-18-preplan-v2-hose-lay-v1";
 
 const policySeedVersion = "stickney-policy-library-2026-07-18";
 const boxCardSeedVersion = "regional-box-cards-structured-2026-07-21-v2";
@@ -413,6 +413,8 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
     db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_hazmat_zone_hazmat_idx ON field_preplan_hazmat_zones(hazmat_id)"),
     db.prepare("CREATE TABLE IF NOT EXISTS field_preplan_risk_factors (id TEXT PRIMARY KEY NOT NULL, preplan_id TEXT NOT NULL REFERENCES field_preplans(id), factor_key TEXT NOT NULL, score INTEGER NOT NULL DEFAULT 0, explanation TEXT NOT NULL DEFAULT '', source TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(preplan_id,factor_key))"),
     db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_risk_factor_preplan_idx ON field_preplan_risk_factors(preplan_id)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS field_preplan_hose_lays (id TEXT PRIMARY KEY NOT NULL, preplan_id TEXT NOT NULL REFERENCES field_preplans(id), level_id TEXT REFERENCES field_preplan_levels(id), source_hydrant_id TEXT REFERENCES field_hydrants(id), destination_lat REAL, destination_lng REAL, destination_side TEXT NOT NULL DEFAULT '', destination_feature_id TEXT REFERENCES field_preplan_features(id), segments TEXT NOT NULL DEFAULT '[]', hose_size_inches REAL NOT NULL DEFAULT 4, section_length_feet REAL NOT NULL DEFAULT 100, reserve_feet REAL NOT NULL DEFAULT 100, supply_line_label TEXT NOT NULL DEFAULT '', assigned_apparatus_label TEXT NOT NULL DEFAULT '', verified_available_feet REAL, notes TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_hose_lay_preplan_idx ON field_preplan_hose_lays(preplan_id)"),
     db.prepare("CREATE TABLE IF NOT EXISTS field_hydrants (id TEXT PRIMARY KEY NOT NULL, hydrant_number TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', latitude REAL NOT NULL, longitude REAL NOT NULL, service_status TEXT NOT NULL DEFAULT 'in_service', manufacturer TEXT NOT NULL DEFAULT '', model TEXT NOT NULL DEFAULT '', port_count INTEGER NOT NULL DEFAULT 2, port_sizes TEXT NOT NULL DEFAULT '[]', notes TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE INDEX IF NOT EXISTS field_hydrant_location_idx ON field_hydrants(latitude,longitude)"),
     db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS field_hydrant_number_idx ON field_hydrants(hydrant_number) WHERE hydrant_number<>''"),

@@ -7,6 +7,7 @@ import type { AlertSeverity, AlertType } from "../../preplans/alerts.ts";
 import { isValidNfpaRating, isValidUnNaNumber, type ContainerType, type PhysicalState } from "../../preplans/hazmat.ts";
 import { isValidZoneGeometry, type ZoneShape, type ZoneType } from "../../preplans/hazmat-zones.ts";
 import { isValidRiskScore, isValidTargetHazardDesignation, type RiskFactorKey } from "../../preplans/risk.ts";
+import { isValidHoseSize, isValidSegments, recommendedHoseFeet, totalDistanceFeet, type HoseLaySegment } from "../../preplans/hose-lay.ts";
 
 type Point = { lat:number; lng:number };
 type Db = Awaited<ReturnType<typeof ensureDatabase>>;
@@ -75,7 +76,7 @@ export async function GET(request:Request) {
     const db = await ensureDatabase();
     const auth = await access(request, db);
     if (!auth.allowed) return Response.json({ error:"Field preplan access is required." }, { status:403 });
-    const [plans, features, photos, imports, levels, spaces, alerts, hazmat, hazmatZones, riskFactors] = await Promise.all([
+    const [plans, features, photos, imports, levels, spaces, alerts, hazmat, hazmatZones, riskFactors, hoseLays] = await Promise.all([
       db.prepare("SELECT id,business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,COALESCE(footprint_square_feet,0) footprintSquareFeet,COALESCE(floor_count,1) floorCount,COALESCE(fire_flow_calculation_area,0) fireFlowCalculationArea,COALESCE(construction_type,'VB') constructionType,COALESCE(occupancy_flow_category,'other') occupancyFlowCategory,COALESCE(sprinkler_standard,'none') sprinklerStandard,COALESCE(suggested_fire_flow_gpm,0) suggestedFireFlowGpm,COALESCE(suggested_fire_flow_duration,0) suggestedFireFlowDuration,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,status,COALESCE(NULLIF(lifecycle_status,''),'published') lifecycleStatus,COALESCE(revision_number,1) revisionNumber,COALESCE(target_hazard,0) targetHazard,COALESCE(NULLIF(target_hazard_reasons,''),'[]') targetHazardReasons,COALESCE(NULLIF(risk_override_classification,''),'') riskOverrideClassification,COALESCE(risk_reviewed_by,'') riskReviewedBy,risk_reviewed_at riskReviewedAt,updated_by updatedBy,updated_at updatedAt FROM field_preplans ORDER BY updated_at DESC").all(),
       db.prepare("SELECT id,preplan_id preplanId,feature_type featureType,label,latitude,longitude,system_type systemType,service_status serviceStatus,details FROM field_preplan_features ORDER BY created_at").all(),
       db.prepare("SELECT id,preplan_id preplanId,feature_id featureId,side,filename,caption,created_at createdAt FROM field_preplan_photos ORDER BY created_at DESC").all(),
@@ -86,6 +87,7 @@ export async function GET(request:Request) {
       db.prepare("SELECT id,preplan_id preplanId,level_id levelId,mapped,chemical_name chemicalName,un_na_number unNaNumber,erg_guide_number ergGuideNumber,quantity,quantity_unit quantityUnit,container_type containerType,physical_state physicalState,exact_location exactLocation,nfpa_health nfpaHealth,nfpa_flammability nfpaFlammability,nfpa_instability nfpaInstability,nfpa_special nfpaSpecial,sds_asset_id sdsAssetId,photo_asset_id photoAssetId,date_verified dateVerified,verified_by verifiedBy,notes FROM field_preplan_hazmat ORDER BY preplan_id,chemical_name COLLATE NOCASE").all(),
       db.prepare("SELECT id,preplan_id preplanId,level_id levelId,hazmat_id hazmatId,zone_type zoneType,shape,label,center_lat centerLat,center_lng centerLng,radius_feet radiusFeet,polygon,line_color lineColor,line_width lineWidth,line_style lineStyle,fill_opacity fillOpacity FROM field_preplan_hazmat_zones ORDER BY preplan_id").all(),
       db.prepare("SELECT id,preplan_id preplanId,factor_key factorKey,score,explanation,source FROM field_preplan_risk_factors ORDER BY preplan_id,score DESC").all(),
+      db.prepare("SELECT id,preplan_id preplanId,level_id levelId,source_hydrant_id sourceHydrantId,destination_lat destinationLat,destination_lng destinationLng,destination_side destinationSide,destination_feature_id destinationFeatureId,segments,hose_size_inches hoseSizeInches,section_length_feet sectionLengthFeet,reserve_feet reserveFeet,supply_line_label supplyLineLabel,assigned_apparatus_label assignedApparatusLabel,verified_available_feet verifiedAvailableFeet,notes FROM field_preplan_hose_lays ORDER BY preplan_id").all(),
     ]);
     return Response.json({
       canEdit:auth.canEdit,
@@ -103,6 +105,7 @@ export async function GET(request:Request) {
         riskFactors:riskFactors.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id),
         targetHazard:Boolean((plan as {targetHazard:number}).targetHazard),
         targetHazardReasons:JSON.parse(String((plan as {targetHazardReasons?:string}).targetHazardReasons || "[]")),
+        hoseLays:hoseLays.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id).map((item) => ({ ...item, segments:JSON.parse(String((item as {segments?:string}).segments || "[]")) })),
       })),
       imports:imports.results,
     });
@@ -372,6 +375,47 @@ export async function POST(request:Request) {
       if (overrideClassification && !["low","moderate","high","critical"].includes(overrideClassification)) return Response.json({ error:"Invalid risk classification override." }, { status:400 });
       await db.prepare("UPDATE field_preplans SET target_hazard=?,target_hazard_reasons=?,risk_override_classification=?,risk_reviewed_by=?,risk_reviewed_at=CURRENT_TIMESTAMP,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
         .bind(targetHazard?1:0,JSON.stringify(reasons),overrideClassification,auth.actor,auth.actor,preplanId).run();
+      return Response.json({ ok:true });
+    }
+    if (action === "saveHoseLay") {
+      if (!auth.canEdit) return Response.json({ error:"Field preplan edit permission is required." }, { status:403 });
+      const preplanId = text(body.preplanId, 80);
+      const plan = preplanId ? await db.prepare("SELECT id FROM field_preplans WHERE id=?").bind(preplanId).first() : null;
+      if (!plan) return Response.json({ error:"Preplan not found." }, { status:404 });
+      const levelId = text(body.levelId, 80) || null;
+      if (levelId) {
+        const level = await db.prepare("SELECT id FROM field_preplan_levels WHERE id=? AND preplan_id=?").bind(levelId,preplanId).first();
+        if (!level) return Response.json({ error:"The selected level does not belong to this preplan." }, { status:400 });
+      }
+      const sourceHydrantId = text(body.sourceHydrantId, 80) || null;
+      if (sourceHydrantId) {
+        const hydrant = await db.prepare("SELECT id FROM field_hydrants WHERE id=?").bind(sourceHydrantId).first();
+        if (!hydrant) return Response.json({ error:"Source hydrant not found." }, { status:400 });
+      }
+      const destinationFeatureId = text(body.destinationFeatureId, 80) || null;
+      if (destinationFeatureId) {
+        const feature = await db.prepare("SELECT id FROM field_preplan_features WHERE id=? AND preplan_id=?").bind(destinationFeatureId,preplanId).first();
+        if (!feature) return Response.json({ error:"The destination feature does not belong to this preplan." }, { status:400 });
+      }
+      const segments = Array.isArray(body.segments) ? (body.segments as unknown[]).slice(0,50).map((item) => {
+        const raw = item as Partial<HoseLaySegment> | null;
+        return { fromLat:number(raw?.fromLat), fromLng:number(raw?.fromLng), toLat:number(raw?.toLat), toLng:number(raw?.toLng) };
+      }) : [];
+      if (!isValidSegments(segments)) return Response.json({ error:"At least one valid measured segment (from/to coordinates) is required." }, { status:400 });
+      const hoseSizeInches = number(body.hoseSizeInches);
+      if (!isValidHoseSize(hoseSizeInches)) return Response.json({ error:"Hose size must be one of the standard sizes (1.75, 2.5, 3, 4, 5 inches)." }, { status:400 });
+      const sectionLengthFeet = Number.isFinite(number(body.sectionLengthFeet)) && number(body.sectionLengthFeet) > 0 ? number(body.sectionLengthFeet) : 100;
+      const reserveFeet = Number.isFinite(number(body.reserveFeet)) && number(body.reserveFeet) >= 0 ? number(body.reserveFeet) : 100;
+      const verifiedAvailableFeet = Number.isFinite(number(body.verifiedAvailableFeet)) ? number(body.verifiedAvailableFeet) : null;
+      const id = text(body.id, 80) || crypto.randomUUID();
+      await db.prepare("INSERT INTO field_preplan_hose_lays(id,preplan_id,level_id,source_hydrant_id,destination_lat,destination_lng,destination_side,destination_feature_id,segments,hose_size_inches,section_length_feet,reserve_feet,supply_line_label,assigned_apparatus_label,verified_available_feet,notes,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET level_id=excluded.level_id,source_hydrant_id=excluded.source_hydrant_id,destination_lat=excluded.destination_lat,destination_lng=excluded.destination_lng,destination_side=excluded.destination_side,destination_feature_id=excluded.destination_feature_id,segments=excluded.segments,hose_size_inches=excluded.hose_size_inches,section_length_feet=excluded.section_length_feet,reserve_feet=excluded.reserve_feet,supply_line_label=excluded.supply_line_label,assigned_apparatus_label=excluded.assigned_apparatus_label,verified_available_feet=excluded.verified_available_feet,notes=excluded.notes,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP")
+        .bind(id,preplanId,levelId,sourceHydrantId,Number.isFinite(number(body.destinationLat))?number(body.destinationLat):null,Number.isFinite(number(body.destinationLng))?number(body.destinationLng):null,text(body.destinationSide,4),destinationFeatureId,JSON.stringify(segments),hoseSizeInches,sectionLengthFeet,reserveFeet,text(body.supplyLineLabel,80),text(body.assignedApparatusLabel,80),verifiedAvailableFeet,text(body.notes,2000),auth.actor,auth.actor).run();
+      return Response.json({ ok:true, id, totalDistanceFeet:Math.round(totalDistanceFeet(segments)), recommendedFeet:recommendedHoseFeet(totalDistanceFeet(segments),reserveFeet,sectionLengthFeet) });
+    }
+    if (action === "deleteHoseLay") {
+      if (!auth.canEdit) return Response.json({ error:"Field preplan edit permission is required." }, { status:403 });
+      const id = text(body.id, 80);
+      await db.prepare("DELETE FROM field_preplan_hose_lays WHERE id=?").bind(id).run();
       return Response.json({ ok:true });
     }
     return Response.json({ error:"Unsupported preplan action." }, { status:400 });
