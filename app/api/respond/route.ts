@@ -3,6 +3,9 @@ import { chicagoOperationalContext } from "../../operational-day";
 import { distanceFeet, normalizeResponseAddress, rankPreplanMatch, suggestedStickneyBoxCard } from "../../respond-match";
 import { normalizeApparatusUnit, respondingUnitsIncludeUnit } from "../../respond-device";
 import { hasPermission } from "../../server-permissions";
+import { matchCadToRoom } from "../../preplans/cad-room-match.ts";
+import type { PreplanLevel } from "../../preplans/levels.ts";
+import type { PreplanSpace } from "../../preplans/spaces.ts";
 
 type Row = Record<string, unknown>;
 
@@ -27,9 +30,9 @@ export async function GET(request: Request) {
     }
     const recentRows = await db.prepare("SELECT report_number reportNumber,call_type callType,address,responding_units respondingUnits,time_out timeOut,time_in timeIn,log_date logDate FROM daily_log_calls WHERE trim(time_in)<>'' ORDER BY log_date DESC,sort_order DESC LIMIT 6").all<Row>();
     const recentCalls = recentRows.results;
-    if (!activeCall) return Response.json({ activeCall: null, preplan: null, match: null, cadUpdates: [], recentCalls, boxCard: null, nearestHydrants: [], apparatusFilter: apparatus || null, generatedAt: new Date().toISOString() }, { headers: { "cache-control": "no-store" } });
+    if (!activeCall) return Response.json({ activeCall: null, preplan: null, match: null, roomMatch: null, cadUpdates: [], recentCalls, boxCard: null, nearestHydrants: [], apparatusFilter: apparatus || null, generatedAt: new Date().toISOString() }, { headers: { "cache-control": "no-store" } });
 
-    const planRows = await db.prepare("SELECT id,business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,footprint_square_feet footprintSquareFeet,floor_count floorCount,construction_type constructionType,suggested_fire_flow_gpm suggestedFireFlowGpm,suggested_fire_flow_duration suggestedFireFlowDuration,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,status,updated_at updatedAt FROM field_preplans ORDER BY updated_at DESC").all<Row>();
+    const planRows = await db.prepare("SELECT id,business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,footprint_square_feet footprintSquareFeet,floor_count floorCount,construction_type constructionType,suggested_fire_flow_gpm suggestedFireFlowGpm,suggested_fire_flow_duration suggestedFireFlowDuration,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,status,updated_at updatedAt FROM field_preplans WHERE COALESCE(NULLIF(lifecycle_status,''),'published')='published' ORDER BY updated_at DESC").all<Row>();
     const plans = planRows.results.map((row) => ({
       ...row,
       address: String(row.address || ""),
@@ -43,15 +46,35 @@ export async function GET(request: Request) {
       longitude: activeCall.longitude == null ? null : Number(activeCall.longitude),
     }, plans);
     let preplan: Row | null = null;
+    let roomMatch: ReturnType<typeof matchCadToRoom> | null = null;
     if (matched) {
-      const [features, photos] = await Promise.all([
+      const [features, photos, levelRows, spaceRows] = await Promise.all([
         db.prepare("SELECT id,feature_type featureType,label,latitude,longitude,system_type systemType,service_status serviceStatus,details FROM field_preplan_features WHERE preplan_id=? ORDER BY created_at").bind(String(matched.plan.id)).all<Row>(),
         db.prepare("SELECT id,feature_id featureId,side,filename,caption,created_at createdAt FROM field_preplan_photos WHERE preplan_id=? ORDER BY created_at DESC").bind(String(matched.plan.id)).all<Row>(),
+        db.prepare("SELECT id,preplan_id preplanId,name,short_label shortLabel,layer_type layerType,floor_index floorIndex,grade,sort_order sortOrder,is_default isDefault,respond_visible respondVisible,hidden FROM field_preplan_levels WHERE preplan_id=? AND respond_visible=1 AND hidden=0 ORDER BY sort_order").bind(String(matched.plan.id)).all<Row>(),
+        db.prepare("SELECT id,preplan_id preplanId,level_id levelId,display_name displayName,room_number roomNumber,space_type spaceType,aliases,cad_keywords cadKeywords,geometry,label_position labelPosition FROM field_preplan_spaces WHERE preplan_id=? ORDER BY display_name COLLATE NOCASE").bind(String(matched.plan.id)).all<Row>(),
       ]);
+      const levels = levelRows.results.map((row) => ({
+        id: String(row.id), preplanId: String(row.preplanId), name: String(row.name), shortLabel: String(row.shortLabel),
+        layerType: row.layerType, floorIndex: Number(row.floorIndex), grade: row.grade, sortOrder: Number(row.sortOrder),
+        isDefault: Boolean(row.isDefault), respondVisible: Boolean(row.respondVisible), hidden: Boolean(row.hidden),
+        backgroundType: "none", backgroundAssetKey: null, backgroundTransform: "{}", createdBy: "", updatedBy: "",
+      })) as unknown as PreplanLevel[];
+      const spaces = spaceRows.results.map((row) => ({
+        id: String(row.id), preplanId: String(row.preplanId), levelId: String(row.levelId), displayName: String(row.displayName),
+        roomNumber: String(row.roomNumber || ""), spaceType: row.spaceType,
+        aliases: parseJson<string[]>(row.aliases, []), cadKeywords: parseJson<string[]>(row.cadKeywords, []),
+        geometry: parseJson(row.geometry, []), labelPosition: row.labelPosition ? parseJson(row.labelPosition, null) : null,
+        typicalOccupancy: null, peakOccupancy: null, specialPopulationNotes: "", accessNotes: "", fireProtectionNotes: "", hazards: "",
+        createdBy: "", updatedBy: "",
+      })) as unknown as PreplanSpace[];
+      roomMatch = matchCadToRoom(String(activeCall.narrative || ""), spaces, levels);
       preplan = {
         ...matched.plan,
         features: features.results,
         photos: photos.results.map((photo) => ({ ...photo, url: `/api/field-preplans/photos/${photo.id}` })),
+        levels,
+        spaces,
       };
     }
 
@@ -99,6 +122,7 @@ export async function GET(request: Request) {
       activeCall,
       preplan,
       match: matched ? { method: matched.method, distanceFeet: Math.round(matched.distanceFeet) } : null,
+      roomMatch,
       cadUpdates,
       recentCalls,
       boxCard,
