@@ -5,6 +5,7 @@
 
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { getPublicSupabaseConfig } from "./app/supabase-config";
 
 const publicApiPaths = new Set([
   "/api/close-call-news",
@@ -18,12 +19,14 @@ const signedWebhookPaths = new Set([
   "/api/resend-dispatch",
 ]);
 
+// The Supabase URL/key have a known-good fallback baked into
+// getPublicSupabaseConfig() specifically so the app keeps working even if
+// Vercel's environment variables are missing/misconfigured for a given
+// environment — this middleware previously duplicated the same lookup
+// without that fallback, which silently broke every request whenever those
+// Vercel env vars weren't set, regardless of PAYROLL_DEPARTMENT_ID.
 function configuration() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/[﻿\r\n]/g, "").trim();
-  const key = (
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-      || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )?.replace(/[﻿\r\n]/g, "").trim();
+  const { url, key } = getPublicSupabaseConfig();
   const departmentId = process.env.PAYROLL_DEPARTMENT_ID?.trim();
   return { url, key, departmentId };
 }
