@@ -4,6 +4,7 @@ import { polygonAreaSquareFeet, suggestedFireFlow, type ConstructionGroup, type 
 import { canDeleteLevel, nextSortOrder, type LevelGrade, type LevelLayerType } from "../../preplans/levels.ts";
 import { isValidGeometry, parseAliasList, polygonCentroid, type SpaceType } from "../../preplans/spaces.ts";
 import type { AlertSeverity, AlertType } from "../../preplans/alerts.ts";
+import { isValidNfpaRating, isValidUnNaNumber, type ContainerType, type PhysicalState } from "../../preplans/hazmat.ts";
 
 type Point = { lat:number; lng:number };
 type Db = Awaited<ReturnType<typeof ensureDatabase>>;
@@ -17,20 +18,22 @@ const levelGrades = new Set<LevelGrade>(["above_grade","below_grade","grade","n/
 const spaceTypes = new Set<SpaceType>(["room","classroom","office","stairway","elevator_lobby","corridor","mechanical","electrical","boiler_room","sprinkler_room","storage","gymnasium","roof_access","basement","other"]);
 const alertTypes = new Set<AlertType>(["critical_warning","access_problem","command_note","general_note"]);
 const alertSeverities = new Set<AlertSeverity>(["informational","advisory","warning","critical"]);
+const containerTypes = new Set<ContainerType>(["cylinder","drum","tote","tank","cartridge","pipeline","bag","other"]);
+const physicalStates = new Set<PhysicalState>(["solid","liquid","gas","cryogenic","unknown"]);
 
 async function access(request:Request, db:Db) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
   const row = email ? await db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.is_admin,0) isAdmin FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(ep.email)=? LIMIT 1").bind(email).first<{id:string;name:string;rank:string;isAdmin:number}>() : null;
   const admin = ownerAdminEmails.includes(email) || Boolean(row?.isAdmin);
-  if (!row && !admin) return { allowed:false, canEdit:false, canManageLayers:false, actor:"" };
-  if (admin) return { allowed:true, canEdit:true, canManageLayers:true, actor:row?.name || email };
+  if (!row && !admin) return { allowed:false, canEdit:false, canManageLayers:false, canManageHazmat:false, actor:"" };
+  if (admin) return { allowed:true, canEdit:true, canManageLayers:true, canManageHazmat:true, actor:row?.name || email };
   const [rankRows, overrides] = await Promise.all([
     db.prepare("SELECT permission_key permissionKey,allowed FROM rank_permissions WHERE rank=?").bind(row!.rank).all<{permissionKey:string;allowed:number}>(),
     db.prepare("SELECT permission_key permissionKey,effect FROM employee_permission_overrides WHERE employee_id=?").bind(row!.id).all<{permissionKey:string;effect:"allow"|"deny"}>(),
   ]);
   const permissions = new Set(rankRows.results.length ? rankRows.results.filter((item) => item.allowed).map((item) => item.permissionKey) : defaultPermissionsForRank(row!.rank));
   for (const item of overrides.results) item.effect === "allow" ? permissions.add(item.permissionKey) : permissions.delete(item.permissionKey);
-  return { allowed:permissions.has("field_preplans.view"), canEdit:permissions.has("field_preplans.edit"), canManageLayers:permissions.has("field_preplans.manage_layers"), actor:row!.name };
+  return { allowed:permissions.has("field_preplans.view"), canEdit:permissions.has("field_preplans.edit"), canManageLayers:permissions.has("field_preplans.manage_layers"), canManageHazmat:permissions.has("field_preplans.manage_hazmat"), actor:row!.name };
 }
 
 function text(value:unknown, limit=2000) { return String(value ?? "").trim().slice(0, limit); }
@@ -67,7 +70,7 @@ export async function GET(request:Request) {
     const db = await ensureDatabase();
     const auth = await access(request, db);
     if (!auth.allowed) return Response.json({ error:"Field preplan access is required." }, { status:403 });
-    const [plans, features, photos, imports, levels, spaces, alerts] = await Promise.all([
+    const [plans, features, photos, imports, levels, spaces, alerts, hazmat] = await Promise.all([
       db.prepare("SELECT id,business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,COALESCE(footprint_square_feet,0) footprintSquareFeet,COALESCE(floor_count,1) floorCount,COALESCE(fire_flow_calculation_area,0) fireFlowCalculationArea,COALESCE(construction_type,'VB') constructionType,COALESCE(occupancy_flow_category,'other') occupancyFlowCategory,COALESCE(sprinkler_standard,'none') sprinklerStandard,COALESCE(suggested_fire_flow_gpm,0) suggestedFireFlowGpm,COALESCE(suggested_fire_flow_duration,0) suggestedFireFlowDuration,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,status,COALESCE(NULLIF(lifecycle_status,''),'published') lifecycleStatus,COALESCE(revision_number,1) revisionNumber,updated_by updatedBy,updated_at updatedAt FROM field_preplans ORDER BY updated_at DESC").all(),
       db.prepare("SELECT id,preplan_id preplanId,feature_type featureType,label,latitude,longitude,system_type systemType,service_status serviceStatus,details FROM field_preplan_features ORDER BY created_at").all(),
       db.prepare("SELECT id,preplan_id preplanId,feature_id featureId,side,filename,caption,created_at createdAt FROM field_preplan_photos ORDER BY created_at DESC").all(),
@@ -75,6 +78,7 @@ export async function GET(request:Request) {
       db.prepare("SELECT id,preplan_id preplanId,name,short_label shortLabel,layer_type layerType,floor_index floorIndex,grade,sort_order sortOrder,is_default isDefault,respond_visible respondVisible,hidden,background_type backgroundType,background_asset_key backgroundAssetKey,background_transform backgroundTransform,opacity FROM field_preplan_levels ORDER BY preplan_id,sort_order").all(),
       db.prepare("SELECT id,preplan_id preplanId,level_id levelId,display_name displayName,room_number roomNumber,space_type spaceType,aliases,cad_keywords cadKeywords,geometry,label_position labelPosition,typical_occupancy typicalOccupancy,peak_occupancy peakOccupancy,special_population_notes specialPopulationNotes,access_notes accessNotes,fire_protection_notes fireProtectionNotes,hazards FROM field_preplan_spaces ORDER BY preplan_id,display_name COLLATE NOCASE").all(),
       db.prepare("SELECT id,preplan_id preplanId,level_id levelId,alert_type alertType,title,instructions,severity,display_order displayOrder,pin_to_respond pinToRespond,effective_at effectiveAt,expires_at expiresAt,verification_required verificationRequired,verified_by verifiedBy,verified_at verifiedAt,archived FROM field_preplan_alerts WHERE archived=0 ORDER BY preplan_id,CASE severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 WHEN 'advisory' THEN 2 ELSE 3 END,display_order").all(),
+      db.prepare("SELECT id,preplan_id preplanId,level_id levelId,mapped,chemical_name chemicalName,un_na_number unNaNumber,erg_guide_number ergGuideNumber,quantity,quantity_unit quantityUnit,container_type containerType,physical_state physicalState,exact_location exactLocation,nfpa_health nfpaHealth,nfpa_flammability nfpaFlammability,nfpa_instability nfpaInstability,nfpa_special nfpaSpecial,sds_asset_id sdsAssetId,photo_asset_id photoAssetId,date_verified dateVerified,verified_by verifiedBy,notes FROM field_preplan_hazmat ORDER BY preplan_id,chemical_name COLLATE NOCASE").all(),
     ]);
     return Response.json({
       canEdit:auth.canEdit,
@@ -87,6 +91,7 @@ export async function GET(request:Request) {
         levels:levels.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id).map((level) => ({ ...level, isDefault:Boolean((level as {isDefault:number}).isDefault), respondVisible:Boolean((level as {respondVisible:number}).respondVisible), hidden:Boolean((level as {hidden:number}).hidden) })),
         spaces:spaces.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id).map((space) => ({ ...space, aliases:JSON.parse(String((space as {aliases?:string}).aliases || "[]")), cadKeywords:JSON.parse(String((space as {cadKeywords?:string}).cadKeywords || "[]")), geometry:JSON.parse(String((space as {geometry?:string}).geometry || "[]")), labelPosition:(space as {labelPosition?:string|null}).labelPosition ? JSON.parse(String((space as {labelPosition?:string}).labelPosition)) : null })),
         alerts:alerts.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id).map((alertRow) => ({ ...alertRow, pinToRespond:Boolean((alertRow as {pinToRespond:number}).pinToRespond), verificationRequired:Boolean((alertRow as {verificationRequired:number}).verificationRequired), archived:Boolean((alertRow as {archived:number}).archived) })),
+        hazmat:hazmat.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id).map((item) => ({ ...item, mapped:Boolean((item as {mapped:number}).mapped) })),
       })),
       imports:imports.results,
     });
@@ -254,6 +259,37 @@ export async function POST(request:Request) {
       if (!auth.canEdit) return Response.json({ error:"Field preplan edit permission is required." }, { status:403 });
       const id = text(body.id, 80);
       await db.prepare("UPDATE field_preplan_alerts SET archived=1,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(auth.actor,id).run();
+      return Response.json({ ok:true });
+    }
+    if (action === "saveHazmat") {
+      if (!auth.canManageHazmat) return Response.json({ error:"Field preplan HazMat management permission is required." }, { status:403 });
+      const preplanId = text(body.preplanId, 80);
+      const plan = preplanId ? await db.prepare("SELECT id FROM field_preplans WHERE id=?").bind(preplanId).first() : null;
+      if (!plan) return Response.json({ error:"Preplan not found." }, { status:404 });
+      const levelId = text(body.levelId, 80) || null;
+      if (levelId) {
+        const level = await db.prepare("SELECT id FROM field_preplan_levels WHERE id=? AND preplan_id=?").bind(levelId,preplanId).first();
+        if (!level) return Response.json({ error:"The selected level does not belong to this preplan." }, { status:400 });
+      }
+      const chemicalName = text(body.chemicalName, 160);
+      if (!chemicalName) return Response.json({ error:"Chemical name is required." }, { status:400 });
+      const unNaNumber = text(body.unNaNumber, 12).toUpperCase();
+      if (unNaNumber && !isValidUnNaNumber(unNaNumber)) return Response.json({ error:"UN/NA number must look like UN1017 or NA9191." }, { status:400 });
+      const requestedContainer = text(body.containerType, 20) as ContainerType;
+      const containerType = containerTypes.has(requestedContainer) ? requestedContainer : "other";
+      const requestedState = text(body.physicalState, 20) as PhysicalState;
+      const physicalState = physicalStates.has(requestedState) ? requestedState : "unknown";
+      const ratings = [number(body.nfpaHealth),number(body.nfpaFlammability),number(body.nfpaInstability)].map((value) => Number.isFinite(value) ? Math.trunc(value) : 0);
+      if (!ratings.every(isValidNfpaRating)) return Response.json({ error:"NFPA 704 ratings must be whole numbers from 0 to 4." }, { status:400 });
+      const id = text(body.id, 80) || crypto.randomUUID();
+      await db.prepare("INSERT INTO field_preplan_hazmat(id,preplan_id,level_id,mapped,chemical_name,un_na_number,erg_guide_number,quantity,quantity_unit,container_type,physical_state,exact_location,nfpa_health,nfpa_flammability,nfpa_instability,nfpa_special,date_verified,verified_by,notes,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET level_id=excluded.level_id,mapped=excluded.mapped,chemical_name=excluded.chemical_name,un_na_number=excluded.un_na_number,erg_guide_number=excluded.erg_guide_number,quantity=excluded.quantity,quantity_unit=excluded.quantity_unit,container_type=excluded.container_type,physical_state=excluded.physical_state,exact_location=excluded.exact_location,nfpa_health=excluded.nfpa_health,nfpa_flammability=excluded.nfpa_flammability,nfpa_instability=excluded.nfpa_instability,nfpa_special=excluded.nfpa_special,date_verified=excluded.date_verified,verified_by=excluded.verified_by,notes=excluded.notes,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP")
+        .bind(id,preplanId,levelId,body.mapped===true?1:0,chemicalName,unNaNumber,text(body.ergGuideNumber,10),Number.isFinite(number(body.quantity))?number(body.quantity):null,text(body.quantityUnit,20),containerType,physicalState,text(body.exactLocation,240),ratings[0],ratings[1],ratings[2],text(body.nfpaSpecial,10),body.dateVerified?text(body.dateVerified,40):null,auth.actor,text(body.notes,2000),auth.actor,auth.actor).run();
+      return Response.json({ ok:true, id });
+    }
+    if (action === "deleteHazmat") {
+      if (!auth.canManageHazmat) return Response.json({ error:"Field preplan HazMat management permission is required." }, { status:403 });
+      const id = text(body.id, 80);
+      await db.prepare("DELETE FROM field_preplan_hazmat WHERE id=?").bind(id).run();
       return Response.json({ ok:true });
     }
     return Response.json({ error:"Unsupported preplan action." }, { status:400 });
