@@ -1,6 +1,6 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 
-const ownerAdminEmails = ["bobff353@gmail.com"];
+const ownerAdminEmails = ["bobff353@gmail.com", "bwyant@stickneyfire.com"];
 const allowedTypes = new Set([
   "image/jpeg", "image/png", "image/webp", "image/gif",
   "application/pdf", "text/plain",

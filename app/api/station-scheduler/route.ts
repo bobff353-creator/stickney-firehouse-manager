@@ -15,7 +15,7 @@ import {
   type OtSettings,
 } from "../../station-scheduler-logic";
 
-const ownerAdminEmails = ["bobff353@gmail.com"];
+const ownerAdminEmails = ["bobff353@gmail.com", "bwyant@stickneyfire.com"];
 const iso = /^\d{4}-\d{2}-\d{2}$/;
 type Db = Awaited<ReturnType<typeof ensureDatabase>>;
 

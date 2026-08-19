@@ -1,6 +1,6 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 import { defaultPermissionsForRank, permissionCatalog, type PermissionKey } from "../../permissions";
-const ownerAdminEmails = ["bobff353@gmail.com"];
+const ownerAdminEmails = ["bobff353@gmail.com", "bwyant@stickneyfire.com"];
 
 type OverrideRow = { employeeId: string; permissionKey: string; effect: "allow" | "deny" };
 type RankRow = { rank: string; permissionKey: string; allowed: number };

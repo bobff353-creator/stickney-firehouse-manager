@@ -4,7 +4,7 @@ import { roundPayrollUpToCent } from "../../payroll-rounding";
 import { ACTING_OFFICER_STIPEND_PER_HOUR } from "../../payroll-calculation";
 
 const categories = ["shift", "drill", "workDetail", "callback", "actingOfficer", "holiday", "dpw"] as const;
-const ownerAdminEmails = ["bobff353@gmail.com"];
+const ownerAdminEmails = ["bobff353@gmail.com", "bwyant@stickneyfire.com"];
 async function addRevision(db: Awaited<ReturnType<typeof ensureDatabase>>, id: string, action: string, summary: string, actor: string) { await db.prepare("INSERT INTO record_revisions (id, record_type, record_id, revision_number, action, summary, actor) SELECT ?, 'payroll', ?, COALESCE(MAX(revision_number), 0) + 1, ?, ?, ? FROM record_revisions WHERE record_type = 'payroll' AND record_id = ?").bind(crypto.randomUUID(), id, action, summary, actor, id).run(); }
 
 async function getViewer(db: Awaited<ReturnType<typeof ensureDatabase>>, request: Request) {

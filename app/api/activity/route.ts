@@ -1,6 +1,6 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 
-const ownerAdminEmails = ["bobff353@gmail.com"];
+const ownerAdminEmails = ["bobff353@gmail.com", "bwyant@stickneyfire.com"];
 async function isAdmin(request: Request, db: Awaited<ReturnType<typeof ensureDatabase>>) { const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? ""; if (ownerAdminEmails.includes(email)) return true; if (!email) return false; const row = await db.prepare("SELECT is_admin AS isAdmin FROM employee_profiles WHERE lower(email) = ? LIMIT 1").bind(email).first<{ isAdmin: number }>(); return Boolean(row?.isAdmin); }
 const addDay = (iso: string) => { const date = new Date(`${iso}T12:00:00Z`); date.setUTCDate(date.getUTCDate() + 1); return date.toISOString().slice(0, 10); };
 const stamp = (date: string, time?: unknown, nextDay = false) => `${nextDay ? addDay(date) : date}T${String(time || "00:00").slice(0, 5)}:00`;

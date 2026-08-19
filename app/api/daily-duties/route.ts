@@ -1,6 +1,6 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 
-const ownerAdminEmails = ["bobff353@gmail.com"];
+const ownerAdminEmails = ["bobff353@gmail.com", "bwyant@stickneyfire.com"];
 const shifts = ["morning", "afternoon", "night"] as const;
 
 async function isAdmin(request: Request, db: Awaited<ReturnType<typeof ensureDatabase>>) {

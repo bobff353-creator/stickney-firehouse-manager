@@ -1,7 +1,7 @@
 import { ensureDatabase } from "../../../../db/bootstrap";
 
 type Bucket = { put(key:string,value:ReadableStream,options:{httpMetadata:{contentType:string}}):Promise<unknown>; delete(key:string):Promise<void> };
-const ownerAdminEmails = ["bobff353@gmail.com"];
+const ownerAdminEmails = ["bobff353@gmail.com", "bwyant@stickneyfire.com"];
 const sides = new Set(["A","B","C","D","FEATURE","OVERVIEW"]);
 
 async function runtime() {

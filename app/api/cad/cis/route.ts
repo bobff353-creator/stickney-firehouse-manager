@@ -6,7 +6,7 @@ type RuntimeEnv = {
   CIS_CAD_WEBHOOK_SECRET?: string;
 };
 
-const ownerAdminEmails = ["bobff353@gmail.com"];
+const ownerAdminEmails = ["bobff353@gmail.com", "bwyant@stickneyfire.com"];
 
 function safeEqual(left: Uint8Array, right: Uint8Array) {
   if (left.length !== right.length) return false;

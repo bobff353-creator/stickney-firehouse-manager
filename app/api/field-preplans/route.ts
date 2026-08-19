@@ -13,7 +13,7 @@ import type { AssetCategory } from "../../preplans/assets.ts";
 
 type Point = { lat:number; lng:number };
 type Db = Awaited<ReturnType<typeof ensureDatabase>>;
-const ownerAdminEmails = ["bobff353@gmail.com"];
+const ownerAdminEmails = ["bobff353@gmail.com", "bwyant@stickneyfire.com"];
 const featureTypes = new Set(["alarm","knox","riser","fdc","sprinkler","gas","water","electric","propane","elevator","elevator_room","standpipe","access","hazard"]);
 const constructionTypes = new Set<ConstructionGroup>(["IA_IB","IIA_IIIA","IV_VA","IIB_IIIB","VB"]);
 const occupancyFlowCategories = new Set<OccupancyFlowCategory>(["other","dwelling"]);
