@@ -376,8 +376,38 @@ async function repairPostgresColumns(db: Awaited<ReturnType<typeof import("./pos
     "chief_board_items", "station_shift_types", "station_standing_assignments",
     "inventory_weekly_check_templates",
   ];
-  await db.batch(activeColumnTables.map((table) =>
-    db.prepare(`ALTER TABLE IF EXISTS ${table} ADD COLUMN IF NOT EXISTS active INTEGER NOT NULL DEFAULT 1`)));
+  // dispatch_incidents is the first table touched on every page load (the
+  // dashboard's initial UPDATE) and has now surfaced missing columns twice —
+  // it was evidently created from a much thinner, earlier snapshot of this
+  // schema. Repair every non-primary-key column against its current
+  // definition (db/bootstrap.ts:412) instead of continuing one column at a
+  // time. Skips the UNIQUE constraint on resend_email_id (existing legacy
+  // rows would collide on the '' backfill default) — that's a lesser
+  // hazard than leaving the column, or this repair statement, missing.
+  const dispatchIncidentsColumns = [
+    "resend_email_id TEXT NOT NULL DEFAULT ''",
+    "call_type TEXT NOT NULL DEFAULT ''",
+    "category TEXT NOT NULL DEFAULT ''",
+    "address TEXT NOT NULL DEFAULT ''",
+    "city TEXT NOT NULL DEFAULT ''",
+    "narrative TEXT NOT NULL DEFAULT ''",
+    "responding_units TEXT NOT NULL DEFAULT ''",
+    "longitude REAL",
+    "latitude REAL",
+    "dispatched_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    "time_out TEXT NOT NULL DEFAULT ''",
+    "attachment_count INTEGER NOT NULL DEFAULT 0",
+    "source_payload TEXT NOT NULL DEFAULT '{}'",
+    "source_system TEXT NOT NULL DEFAULT 'CAD email'",
+    "received_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    "cleared_at TEXT",
+  ];
+  await db.batch([
+    ...activeColumnTables.map((table) =>
+      db.prepare(`ALTER TABLE IF EXISTS ${table} ADD COLUMN IF NOT EXISTS active INTEGER NOT NULL DEFAULT 1`)),
+    ...dispatchIncidentsColumns.map((columnDef) =>
+      db.prepare(`ALTER TABLE IF EXISTS dispatch_incidents ADD COLUMN IF NOT EXISTS ${columnDef}`)),
+  ]);
   postgresColumnsRepaired = true;
 }
 
