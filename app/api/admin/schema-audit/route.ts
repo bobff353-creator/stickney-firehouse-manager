@@ -9,7 +9,12 @@
 // fail with them before ever showing what's actually wrong. Talks to
 // Postgres directly instead, so it stays usable exactly when it's needed
 // most.
-const ownerAdminEmails = ["bobff353@gmail.com"];
+// The account actually signed into the live app is bwyant@stickneyfire.com,
+// not the bobff353@gmail.com this route (and app/api/permissions/route.ts,
+// app/server-permissions.ts) originally hardcoded — added here so this
+// diagnostic is actually reachable during the production outage it exists
+// to debug.
+const ownerAdminEmails = ["bobff353@gmail.com", "bwyant@stickneyfire.com"];
 
 export async function GET(request: Request) {
   try {
