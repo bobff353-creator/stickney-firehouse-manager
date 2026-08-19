@@ -8,10 +8,16 @@ const ownerAdminEmails = ["bobff353@gmail.com"];
 
 export async function GET(request: Request) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
-  if (!ownerAdminEmails.includes(email)) return Response.json({ error: "Administrator permission required" }, { status: 403 });
   if (!process.env.DATABASE_URL?.trim()) return Response.json({ error: "Not running against Postgres" }, { status: 400 });
-
   const db = await ensureDatabase();
+  // Matches app/api/permissions/route.ts's requirePermissionAdmin(): allow the
+  // hardcoded owner email, or anyone with is_admin=1 in employee_profiles —
+  // not just the literal owner string, since that was rejecting the actual
+  // signed-in admin.
+  const isAdmin = ownerAdminEmails.includes(email)
+    || Boolean((email ? await db.prepare("SELECT is_admin AS isAdmin FROM employee_profiles WHERE lower(email) = ? LIMIT 1").bind(email).first<{ isAdmin: number }>() : null)?.isAdmin);
+  if (!isAdmin) return Response.json({ error: "Administrator permission required", receivedEmail: email || null }, { status: 403 });
+
   const rows = await db.prepare(
     "SELECT table_name AS \"tableName\", column_name AS \"columnName\", data_type AS \"dataType\", is_nullable AS \"isNullable\" FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position"
   ).all<{ tableName: string; columnName: string; dataType: string; isNullable: string }>();
