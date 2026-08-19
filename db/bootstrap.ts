@@ -402,12 +402,22 @@ async function repairPostgresColumns(db: Awaited<ReturnType<typeof import("./pos
     "received_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP",
     "cleared_at TEXT",
   ];
-  await db.batch([
-    ...activeColumnTables.map((table) =>
-      db.prepare(`ALTER TABLE IF EXISTS ${table} ADD COLUMN IF NOT EXISTS active INTEGER NOT NULL DEFAULT 1`)),
-    ...dispatchIncidentsColumns.map((columnDef) =>
-      db.prepare(`ALTER TABLE IF EXISTS dispatch_incidents ADD COLUMN IF NOT EXISTS ${columnDef}`)),
-  ]);
+  // Each statement runs independently (not one db.batch() transaction): a
+  // batch is all-or-nothing, so one statement hitting a table that's drifted
+  // in some other unexpected way would roll back every other repair too,
+  // and throw out of ensureDatabase() — breaking every route on the site
+  // instead of just leaving one column unrepaired. Best-effort beats that.
+  const statements = [
+    ...activeColumnTables.map((table) => `ALTER TABLE IF EXISTS ${table} ADD COLUMN IF NOT EXISTS active INTEGER NOT NULL DEFAULT 1`),
+    ...dispatchIncidentsColumns.map((columnDef) => `ALTER TABLE IF EXISTS dispatch_incidents ADD COLUMN IF NOT EXISTS ${columnDef}`),
+  ];
+  for (const sql of statements) {
+    try {
+      await db.prepare(sql).run();
+    } catch (error) {
+      console.error("repairPostgresColumns statement failed", sql, error);
+    }
+  }
   postgresColumnsRepaired = true;
 }
 

@@ -1,22 +1,35 @@
-import { ensureDatabase } from "../../../../db/bootstrap";
-
 // Read-only diagnostic: dumps every table/column Postgres actually has, so
 // drift between a stale production table (see db/bootstrap.ts
 // repairPostgresColumns) and the schema this codebase expects can be found
 // in one request instead of one production error at a time.
+//
+// Deliberately does NOT go through db/bootstrap.ts's ensureDatabase() —
+// that runs repairPostgresColumns()/initializeDatabase() first, and if a
+// production table is broken enough that those fail, this endpoint would
+// fail with them before ever showing what's actually wrong. Talks to
+// Postgres directly instead, so it stays usable exactly when it's needed
+// most.
 const ownerAdminEmails = ["bobff353@gmail.com"];
 
 export async function GET(request: Request) {
   try {
     const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
     if (!process.env.DATABASE_URL?.trim()) return Response.json({ error: "Not running against Postgres" }, { status: 400 });
-    const db = await ensureDatabase();
+    const { getPg, ensurePostgresCompat } = await import("../../../../db/postgres-adapter");
+    await ensurePostgresCompat();
+    const db = getPg();
     // Matches app/api/permissions/route.ts's requirePermissionAdmin(): allow the
     // hardcoded owner email, or anyone with is_admin=1 in employee_profiles —
     // not just the literal owner string, since that was rejecting the actual
-    // signed-in admin.
-    const isAdmin = ownerAdminEmails.includes(email)
-      || Boolean((email ? await db.prepare("SELECT is_admin AS isAdmin FROM employee_profiles WHERE lower(email) = ? LIMIT 1").bind(email).first<{ isAdmin: number }>() : null)?.isAdmin);
+    // signed-in admin. Tolerates employee_profiles itself being broken: an
+    // admin-check failure shouldn't block the one tool that would show why.
+    let isAdmin = ownerAdminEmails.includes(email);
+    if (!isAdmin && email) {
+      try {
+        const row = await db.prepare("SELECT is_admin AS isAdmin FROM employee_profiles WHERE lower(email) = ? LIMIT 1").bind(email).first<{ isAdmin: number }>();
+        isAdmin = Boolean(row?.isAdmin);
+      } catch { /* fall through to the 403 below */ }
+    }
     if (!isAdmin) return Response.json({ error: "Administrator permission required", receivedEmail: email || null }, { status: 403 });
 
     const rows = await db.prepare(
