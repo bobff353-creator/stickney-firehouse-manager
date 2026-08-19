@@ -357,11 +357,37 @@ async function importApproved1204WeeklyCheck(db: Awaited<ReturnType<typeof getDa
   for(let index=0;index<apparatus1204Equipment.length;index++)await db.prepare("INSERT OR IGNORE INTO inventory_weekly_check_items(id,template_id,equipment_id,label,section_name,sort_order) VALUES(?, '1204-weekly-check', ?, ?, ?, ?)").bind(`1204-equipment-check-${index+1}`,`1204-equipment-${index+1}`,apparatus1204Equipment[index].name,apparatus1204Equipment[index].compartment,100+index).run();
 }
 
+let postgresColumnsRepaired = false;
+
+// A prior debugging session ran the bootstrap directly against production
+// Supabase with an in-progress snapshot of this schema, which wrote the
+// `runtime_bootstrap_version` marker (see ensureDatabase()) before columns
+// like `active` existed on some tables. Since that marker now matches and
+// short-circuits initializeDatabase() below, those tables never get the
+// missing columns from CREATE TABLE IF NOT EXISTS (a no-op on an existing
+// table). Repair drift independently of the marker gate: `ALTER TABLE IF
+// EXISTS ... ADD COLUMN IF NOT EXISTS` is a safe no-op whether the table or
+// column already matches, and doesn't require the table to exist yet either.
+async function repairPostgresColumns(db: Awaited<ReturnType<typeof import("./postgres-adapter").getPg>>) {
+  if (postgresColumnsRepaired) return;
+  const activeColumnTables = [
+    "employees", "schedule_rotations", "schedule_coverage_rules", "schedule_shift_patterns",
+    "schedule_staffing_overrides", "schedule_notification_rules", "dispatch_incidents",
+    "chief_board_items", "station_shift_types", "station_standing_assignments",
+    "inventory_weekly_check_templates",
+  ];
+  await db.batch(activeColumnTables.map((table) =>
+    db.prepare(`ALTER TABLE IF EXISTS ${table} ADD COLUMN IF NOT EXISTS active INTEGER NOT NULL DEFAULT 1`)));
+  postgresColumnsRepaired = true;
+}
+
 async function getDatabaseBinding() {
   if (process.env.DATABASE_URL?.trim()) {
     const { getPg, ensurePostgresCompat } = await import("./postgres-adapter");
     await ensurePostgresCompat();
-    return getPg();
+    const db = getPg();
+    await repairPostgresColumns(db);
+    return db;
   }
   const { getD1 } = await import("./d1-libsql");
   return getD1();
