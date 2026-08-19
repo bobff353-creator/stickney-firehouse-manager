@@ -9,6 +9,17 @@
 // "Connection string" from Project Settings -> Database, using the pooler
 // host for serverless environments like Vercel).
 //
+// This Supabase project is shared with a separate, unrelated platform that
+// already owns the `public` schema — it has ~111 tables of its own,
+// including some that collide by name with this app's (dispatch_incidents,
+// incident_command_boards/events, inventory_audit_events, inventory_
+// compartments, inventory_equipment). `CREATE TABLE IF NOT EXISTS` silently
+// no-ops against an existing same-named table, so this app was reading and
+// writing into someone else's tables. Every table this app owns lives in
+// its own `stickney_app` schema instead (set via the pool's default
+// search_path below), which fully isolates it from `public` — current and
+// future collisions both.
+//
 // SQLite/D1 SQL text is largely accepted as-is by Postgres (TEXT/INTEGER/
 // REAL types, `ON CONFLICT(...) DO UPDATE SET col=excluded.col`, `CREATE
 // TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS` are all valid in both).
@@ -26,6 +37,8 @@ import { Pool, type QueryResultRow } from "pg";
 
 type Value = string | number | boolean | null | ArrayBuffer | Uint8Array;
 
+export const APP_SCHEMA = "stickney_app";
+
 let pool: Pool | null = null;
 
 function getPool(): Pool {
@@ -36,7 +49,15 @@ function getPool(): Pool {
       "DATABASE_URL is not set. Add your Supabase Postgres connection string as DATABASE_URL in the environment.",
     );
   }
-  pool = new Pool({ connectionString, ssl: { rejectUnauthorized: false }, max: 5 });
+  pool = new Pool({
+    connectionString,
+    ssl: { rejectUnauthorized: false },
+    max: 5,
+    // Every connection defaults to this app's own schema first, so every
+    // unqualified table/function/collation reference resolves there —
+    // never into the other platform's same-named `public` tables.
+    options: `-c search_path=${APP_SCHEMA},public`,
+  });
   return pool;
 }
 
@@ -155,6 +176,7 @@ export async function ensurePostgresCompat(): Promise<void> {
   if (compatEnsured) return;
   const client = await getPool().connect();
   try {
+    await client.query(`CREATE SCHEMA IF NOT EXISTS ${APP_SCHEMA}`);
     await client.query(`
       DO $$
       BEGIN

@@ -357,77 +357,19 @@ async function importApproved1204WeeklyCheck(db: Awaited<ReturnType<typeof getDa
   for(let index=0;index<apparatus1204Equipment.length;index++)await db.prepare("INSERT OR IGNORE INTO inventory_weekly_check_items(id,template_id,equipment_id,label,section_name,sort_order) VALUES(?, '1204-weekly-check', ?, ?, ?, ?)").bind(`1204-equipment-check-${index+1}`,`1204-equipment-${index+1}`,apparatus1204Equipment[index].name,apparatus1204Equipment[index].compartment,100+index).run();
 }
 
-let postgresColumnsRepaired = false;
-
-// A prior debugging session ran the bootstrap directly against production
-// Supabase with an in-progress snapshot of this schema, which wrote the
-// `runtime_bootstrap_version` marker (see ensureDatabase()) before columns
-// like `active` existed on some tables. Since that marker now matches and
-// short-circuits initializeDatabase() below, those tables never get the
-// missing columns from CREATE TABLE IF NOT EXISTS (a no-op on an existing
-// table). Repair drift independently of the marker gate: `ALTER TABLE IF
-// EXISTS ... ADD COLUMN IF NOT EXISTS` is a safe no-op whether the table or
-// column already matches, and doesn't require the table to exist yet either.
-async function repairPostgresColumns(db: Awaited<ReturnType<typeof import("./postgres-adapter").getPg>>) {
-  if (postgresColumnsRepaired) return;
-  const activeColumnTables = [
-    "employees", "schedule_rotations", "schedule_coverage_rules", "schedule_shift_patterns",
-    "schedule_staffing_overrides", "schedule_notification_rules", "dispatch_incidents",
-    "chief_board_items", "station_shift_types", "station_standing_assignments",
-    "inventory_weekly_check_templates",
-  ];
-  // dispatch_incidents is the first table touched on every page load (the
-  // dashboard's initial UPDATE) and has now surfaced missing columns twice —
-  // it was evidently created from a much thinner, earlier snapshot of this
-  // schema. Repair every non-primary-key column against its current
-  // definition (db/bootstrap.ts:412) instead of continuing one column at a
-  // time. Skips the UNIQUE constraint on resend_email_id (existing legacy
-  // rows would collide on the '' backfill default) — that's a lesser
-  // hazard than leaving the column, or this repair statement, missing.
-  const dispatchIncidentsColumns = [
-    "resend_email_id TEXT NOT NULL DEFAULT ''",
-    "call_type TEXT NOT NULL DEFAULT ''",
-    "category TEXT NOT NULL DEFAULT ''",
-    "address TEXT NOT NULL DEFAULT ''",
-    "city TEXT NOT NULL DEFAULT ''",
-    "narrative TEXT NOT NULL DEFAULT ''",
-    "responding_units TEXT NOT NULL DEFAULT ''",
-    "longitude REAL",
-    "latitude REAL",
-    "dispatched_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP",
-    "time_out TEXT NOT NULL DEFAULT ''",
-    "attachment_count INTEGER NOT NULL DEFAULT 0",
-    "source_payload TEXT NOT NULL DEFAULT '{}'",
-    "source_system TEXT NOT NULL DEFAULT 'CAD email'",
-    "received_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP",
-    "cleared_at TEXT",
-  ];
-  // Each statement runs independently (not one db.batch() transaction): a
-  // batch is all-or-nothing, so one statement hitting a table that's drifted
-  // in some other unexpected way would roll back every other repair too,
-  // and throw out of ensureDatabase() — breaking every route on the site
-  // instead of just leaving one column unrepaired. Best-effort beats that.
-  const statements = [
-    ...activeColumnTables.map((table) => `ALTER TABLE IF EXISTS ${table} ADD COLUMN IF NOT EXISTS active INTEGER NOT NULL DEFAULT 1`),
-    ...dispatchIncidentsColumns.map((columnDef) => `ALTER TABLE IF EXISTS dispatch_incidents ADD COLUMN IF NOT EXISTS ${columnDef}`),
-  ];
-  for (const sql of statements) {
-    try {
-      await db.prepare(sql).run();
-    } catch (error) {
-      console.error("repairPostgresColumns statement failed", sql, error);
-    }
-  }
-  postgresColumnsRepaired = true;
-}
-
 async function getDatabaseBinding() {
   if (process.env.DATABASE_URL?.trim()) {
+    // The prior theory here — a stale table from an earlier debugging run —
+    // was wrong. The real cause: this Supabase project is shared with an
+    // unrelated platform that already owns `public` and has its own,
+    // differently-shaped dispatch_incidents/incident_command_boards/etc.
+    // `ensurePostgresCompat()` now isolates every table this app creates
+    // into its own `stickney_app` schema (see db/postgres-adapter.ts), so
+    // no column-repair pass is needed — CREATE TABLE IF NOT EXISTS runs
+    // against a schema only this app writes to.
     const { getPg, ensurePostgresCompat } = await import("./postgres-adapter");
     await ensurePostgresCompat();
-    const db = getPg();
-    await repairPostgresColumns(db);
-    return db;
+    return getPg();
   }
   const { getD1 } = await import("./d1-libsql");
   return getD1();

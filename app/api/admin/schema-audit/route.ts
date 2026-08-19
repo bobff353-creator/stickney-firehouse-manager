@@ -1,14 +1,14 @@
-// Read-only diagnostic: dumps every table/column Postgres actually has, so
-// drift between a stale production table (see db/bootstrap.ts
-// repairPostgresColumns) and the schema this codebase expects can be found
-// in one request instead of one production error at a time.
+// Read-only diagnostic: dumps every table/column Postgres actually has in a
+// given schema (default: this app's own `stickney_app` — see APP_SCHEMA in
+// db/postgres-adapter.ts), so drift or a naming collision with the
+// unrelated platform that owns `public` in this same Supabase project can
+// be found in one request. Pass ?schema=public to check for new collisions.
 //
 // Deliberately does NOT go through db/bootstrap.ts's ensureDatabase() —
-// that runs repairPostgresColumns()/initializeDatabase() first, and if a
-// production table is broken enough that those fail, this endpoint would
-// fail with them before ever showing what's actually wrong. Talks to
-// Postgres directly instead, so it stays usable exactly when it's needed
-// most.
+// that runs initializeDatabase() first, and if something in the target
+// schema is broken enough to make that fail, this endpoint would fail with
+// it before ever showing what's actually wrong. Talks to Postgres directly
+// instead, so it stays usable exactly when it's needed most.
 // The account actually signed into the live app is bwyant@stickneyfire.com,
 // not the bobff353@gmail.com this route (and app/api/permissions/route.ts,
 // app/server-permissions.ts) originally hardcoded — added here so this
@@ -37,15 +37,17 @@ export async function GET(request: Request) {
     }
     if (!isAdmin) return Response.json({ error: "Administrator permission required", receivedEmail: email || null }, { status: 403 });
 
+    const { APP_SCHEMA } = await import("../../../../db/postgres-adapter");
+    const schema = new URL(request.url).searchParams.get("schema") || APP_SCHEMA;
     const rows = await db.prepare(
-      "SELECT table_name AS \"tableName\", column_name AS \"columnName\", data_type AS \"dataType\", is_nullable AS \"isNullable\" FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position"
-    ).all<{ tableName: string; columnName: string; dataType: string; isNullable: string }>();
+      "SELECT table_name AS \"tableName\", column_name AS \"columnName\", data_type AS \"dataType\", is_nullable AS \"isNullable\" FROM information_schema.columns WHERE table_schema = ? ORDER BY table_name, ordinal_position"
+    ).bind(schema).all<{ tableName: string; columnName: string; dataType: string; isNullable: string }>();
 
     const byTable: Record<string, Array<{ column: string; type: string; nullable: boolean }>> = {};
     for (const row of rows.results) {
       (byTable[row.tableName] ??= []).push({ column: row.columnName, type: row.dataType, nullable: row.isNullable === "YES" });
     }
-    return Response.json({ tableCount: Object.keys(byTable).length, tables: byTable });
+    return Response.json({ schema, tableCount: Object.keys(byTable).length, tables: byTable });
   } catch (error) {
     // Every other route in this app wraps its handler this way; this one
     // didn't, so a thrown error (bad connection, a stale query) crashed the
