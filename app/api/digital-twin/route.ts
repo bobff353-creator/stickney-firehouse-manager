@@ -6,6 +6,7 @@ import {
   sessionFailureResponse,
   verifyInventoryRequest,
 } from "../../lib/inventory-session";
+import { decodeVinWithVpic } from "../../lib/vin-decoder";
 
 const mediaBucket = "stickney-inventory-media";
 const imageTypes = new Set([
@@ -73,7 +74,7 @@ export async function GET(request: Request) {
     const [profilesResult, fleetResult] = await Promise.all([
       supabase
         .from("inventory_apparatus_profiles")
-        .select("id,name,asset_type,vin,manufacturer,model,year,weekly_due_day,created_at")
+        .select("id,name,asset_type,vin,manufacturer,model,year,weekly_due_day,vin_decoded_json,vin_decoded_at,vin_source,oil_specification,oil_capacity,transmission_fluid_specification,coolant_specification,front_tire_size,rear_tire_size,tire_pressure_notes,fuel_capacity,battery_specification,filter_part_numbers,maintenance_schedule,owner_manual_url,service_manual_url,parts_catalog_url,preferred_vendor,ordering_notes,service_profile_verified_at,created_at")
         .eq("department_id", session.context.department.id)
         .order("name"),
       supabase
@@ -153,7 +154,7 @@ export async function POST(request: Request) {
   if (!session.ok) return sessionFailureResponse(session);
   if (
     !sameOriginInventoryRequest(request)
-    || !canMutateInventory(session.context.role)
+    || !canMutateInventory(session.context, "inventory.setup.manage")
   ) {
     return privateJson(
       { error: "Your department role cannot change Inventory records." },
@@ -400,6 +401,77 @@ export async function POST(request: Request) {
       if (error) throw error;
       if (!apparatus) return privateJson({ error: "Apparatus not found." }, 404);
       await audit(session.context, "apparatus.weekly_due_day_updated", "apparatus", apparatusId, changes, request);
+      return privateJson({ apparatus });
+    }
+    if (action === "decode_and_save_vin") {
+      const apparatusId = clean(body.apparatusId, 80);
+      if (!apparatusId) return privateJson({ error: "Select an apparatus before saving its VIN." }, 400);
+      const decoded = await decodeVinWithVpic(body.vin);
+      const year = Number(decoded.modelYear);
+      const changes = {
+        vin: decoded.vin,
+        vin_decoded_json: decoded,
+        vin_decoded_at: decoded.decodedAt,
+        vin_source: decoded.sourceName,
+        ...(decoded.manufacturer || decoded.make ? { manufacturer: decoded.manufacturer || decoded.make } : {}),
+        ...(decoded.model ? { model: decoded.model } : {}),
+        ...(Number.isInteger(year) && year >= 1900 && year <= 2100 ? { year } : {}),
+        updated_at: new Date().toISOString(),
+      };
+      const { data: apparatus, error } = await supabase
+        .from("inventory_apparatus_profiles")
+        .update(changes)
+        .eq("department_id", departmentId)
+        .eq("id", apparatusId)
+        .select("id,name,vin,manufacturer,model,year,vin_decoded_json,vin_decoded_at,vin_source")
+        .maybeSingle();
+      if (error) throw error;
+      if (!apparatus) return privateJson({ error: "Apparatus not found." }, 404);
+      await audit(session.context, "apparatus.vin_decoded", "apparatus", apparatusId, { vin: decoded.vin, source: decoded.sourceName }, request);
+      return privateJson({ apparatus, decoded });
+    }
+    if (action === "update_vehicle_service_profile") {
+      const apparatusId = clean(body.apparatusId, 80);
+      if (!apparatusId) return privateJson({ error: "Select an apparatus before saving service details." }, 400);
+      const url = (value: unknown) => {
+        const candidate = clean(value, 500);
+        if (!candidate) return "";
+        try {
+          const parsed = new URL(candidate);
+          return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.toString() : "";
+        } catch { return ""; }
+      };
+      const changes = {
+        oil_specification: clean(body.oilSpecification, 300),
+        oil_capacity: clean(body.oilCapacity, 120),
+        transmission_fluid_specification: clean(body.transmissionFluidSpecification, 300),
+        coolant_specification: clean(body.coolantSpecification, 300),
+        front_tire_size: clean(body.frontTireSize, 120),
+        rear_tire_size: clean(body.rearTireSize, 120),
+        tire_pressure_notes: clean(body.tirePressureNotes, 500),
+        fuel_capacity: clean(body.fuelCapacity, 120),
+        battery_specification: clean(body.batterySpecification, 300),
+        filter_part_numbers: clean(body.filterPartNumbers, 500),
+        maintenance_schedule: clean(body.maintenanceSchedule, 4000),
+        owner_manual_url: url(body.ownerManualUrl),
+        service_manual_url: url(body.serviceManualUrl),
+        parts_catalog_url: url(body.partsCatalogUrl),
+        preferred_vendor: clean(body.preferredVendor, 300),
+        ordering_notes: clean(body.orderingNotes, 2000),
+        service_profile_verified_at: new Date().toISOString(),
+        service_profile_verified_by: session.context.user.id,
+        updated_at: new Date().toISOString(),
+      };
+      const { data: apparatus, error } = await supabase
+        .from("inventory_apparatus_profiles")
+        .update(changes)
+        .eq("department_id", departmentId)
+        .eq("id", apparatusId)
+        .select("id,name,service_profile_verified_at")
+        .maybeSingle();
+      if (error) throw error;
+      if (!apparatus) return privateJson({ error: "Apparatus not found." }, 404);
+      await audit(session.context, "apparatus.service_profile_verified", "apparatus", apparatusId, changes, request);
       return privateJson({ apparatus });
     }
     if (action === "create_compartment") {

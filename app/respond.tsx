@@ -6,7 +6,7 @@ import { formatRespondMilitaryTime, formatRespondTime } from "./respond-time";
 
 type Point = { lat: number; lng: number };
 type Feature = { id:string; featureType:string; label:string; latitude:number; longitude:number; systemType:string; serviceStatus:string; details:string };
-type Photo = { id:string; side:string; caption:string; url:string };
+type Photo = { id:string; side:string; featureId?:string; caption:string; url:string };
 type Preplan = {
   id:string; businessName:string; address:string; latitude:number; longitude:number; aSideLatitude?:number|null; aSideLongitude?:number|null;
   footprint:Point[]; footprintSquareFeet:number; floorCount:number; constructionType:string; suggestedFireFlowGpm:number; suggestedFireFlowDuration:number;
@@ -100,7 +100,7 @@ export default function Respond({ apparatus = "", onNavigate }: { apparatus?: st
     const mapped=plan.features.map((feature)=>({id:feature.id,label:feature.label||featureLabels[feature.featureType]||feature.featureType,summary:feature.systemType||featureLabels[feature.featureType]||feature.featureType,details:feature.details,status:feature.serviceStatus,latitude:feature.latitude,longitude:feature.longitude}));
     return [...mapped,...staticItems];
   },[data?.preplan]);
-  const call=data?.activeCall??null, plan=data?.preplan??null, alpha=sidePhoto(plan,"A"), selectedSide=view==="B"||view==="C"||view==="D"?sidePhoto(plan,view):null;
+  const call=data?.activeCall??null, plan=data?.preplan??null, alpha=sidePhoto(plan,"A"), selectedSide=view==="B"||view==="C"||view==="D"?sidePhoto(plan,view):null, selectedFeaturePhoto=selected?plan?.photos.find((photo)=>photo.featureId===selected.id):undefined;
   if(!data&&!error)return <section className="respond-page"><div className="respond-empty"><strong>Loading active response…</strong><span>Checking current CAD and preplan records.</span></div></section>;
   if(error&&!data)return <section className="respond-page"><div className="respond-empty danger"><strong>Respond could not load</strong><span>{error}</span><button onClick={()=>void load()}>Try again</button></div></section>;
   if(!call)return <section ref={pageRef} className={`respond-page${monitorMode?" monitor-view":""}`}><header className="respond-title"><div><span>FIELD · RESPOND</span><h1>Response Workspace</h1>{apparatus&&<b className="respond-apparatus-badge">Apparatus Mode · Unit {apparatus}</b>}</div><div className="respond-title-actions"><small>Checks every 10 seconds</small><button onClick={()=>void toggleMonitor()}>{monitorMode?"Exit Monitor":"Monitor View"}</button></div></header>
@@ -137,6 +137,6 @@ export default function Respond({ apparatus = "", onNavigate }: { apparatus?: st
         </div>
       </aside>
     </div>
-    <section className={`respond-quick ${selected?"open":""}`} aria-live="polite">{selected?<><div><span>QUICK INFORMATION</span><h2>{selected.label}</h2></div><dl><div><dt>Type / system</dt><dd>{selected.summary||"Not entered"}</dd></div><div><dt>Status</dt><dd>{selected.status?.replaceAll("_"," ")||"Not reported"}</dd></div><div><dt>Details</dt><dd>{selected.details||"No additional details entered."}</dd></div>{selected.latitude!=null&&selected.longitude!=null&&<div><dt>GPS location</dt><dd>{selected.latitude.toFixed(6)}, {selected.longitude.toFixed(6)} · <a href={`https://www.google.com/maps/search/?api=1&query=${selected.latitude},${selected.longitude}`} target="_blank" rel="noreferrer">Open map ↗</a></dd></div>}</dl><button onClick={()=>setSelected(null)} aria-label="Close quick information" data-test-safe>×</button></>:<><strong>Select building information or a footprint symbol</strong><span>Quick location, status, and system details will appear here.</span></>}</section>
+    <section className={`respond-quick ${selected?"open":""}`} aria-live="polite">{selected?<><div>{selectedFeaturePhoto&&<img className="respond-feature-photo" src={selectedFeaturePhoto.url} alt={selectedFeaturePhoto.caption||`${selected.label} feature`}/>}<span>QUICK INFORMATION</span><h2>{selected.label}</h2></div><dl><div><dt>Type / system</dt><dd>{selected.summary||"Not entered"}</dd></div><div><dt>Status</dt><dd>{selected.status?.replaceAll("_"," ")||"Not reported"}</dd></div><div><dt>Details</dt><dd>{selected.details||"No additional details entered."}</dd></div>{selected.latitude!=null&&selected.longitude!=null&&<div><dt>GPS location</dt><dd>{selected.latitude.toFixed(6)}, {selected.longitude.toFixed(6)} · <a href={`https://www.google.com/maps/search/?api=1&query=${selected.latitude},${selected.longitude}`} target="_blank" rel="noreferrer">Open map ↗</a></dd></div>}</dl><button onClick={()=>setSelected(null)} aria-label="Close quick information" data-test-safe>×</button></>:<><strong>Select building information or a footprint symbol</strong><span>Quick location, status, photo, and system details will appear here.</span></>}</section>
   </section>;
 }

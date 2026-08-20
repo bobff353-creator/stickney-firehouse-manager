@@ -1,5 +1,11 @@
 export type Point = { lat: number; lng: number };
 export type ConstructionGroup =
+  | "I"
+  | "II"
+  | "III"
+  | "IV"
+  | "V"
+  | "V_LIGHTWEIGHT"
   | "IA_IB"
   | "IIA_IIIA"
   | "IV_VA"
@@ -12,11 +18,12 @@ export const constructionOptions: Array<{
   value: ConstructionGroup;
   label: string;
 }> = [
-  { value: "IA_IB", label: "Type IA or IB" },
-  { value: "IIA_IIIA", label: "Type IIA or IIIA" },
-  { value: "IV_VA", label: "Type IV or V-A" },
-  { value: "IIB_IIIB", label: "Type IIB or IIIB" },
-  { value: "VB", label: "Type V-B" },
+  { value: "I", label: "Type I" },
+  { value: "II", label: "Type II" },
+  { value: "III", label: "Type III" },
+  { value: "IV", label: "Type IV" },
+  { value: "V", label: "Type V" },
+  { value: "V_LIGHTWEIGHT", label: "Type V Lightweight" },
 ];
 
 const table = [
@@ -140,9 +147,7 @@ const table = [
 ] as const;
 
 function constructionIndex(value: ConstructionGroup) {
-  return ({ IA_IB: 0, IIA_IIIA: 1, IV_VA: 2, IIB_IIIB: 3, VB: 4 } as const)[
-    value
-  ];
+  return ({ I:0,II:1,III:3,IV:2,V:4,V_LIGHTWEIGHT:4,IA_IB:0,IIA_IIIA:1,IV_VA:2,IIB_IIIB:3,VB:4 } as const)[value];
 }
 export function polygonAreaSquareFeet(points: Point[]) {
   if (points.length < 3) return 0;
@@ -172,13 +177,54 @@ export function footprintCentroid(points: Point[]) {
   };
 }
 
+export function detailedPreplanMapView(
+  points: Point[],
+  fallbackCenter: Point,
+) {
+  const validPoints = points.filter(
+    (point) => Number.isFinite(point.lat) && Number.isFinite(point.lng),
+  );
+  if (!validPoints.length) return { center: fallbackCenter, zoom: 20 };
+
+  const latitudes = validPoints.map((point) => point.lat);
+  const longitudes = validPoints.map((point) => point.lng);
+  const minLat = Math.min(...latitudes);
+  const maxLat = Math.max(...latitudes);
+  const minLng = Math.min(...longitudes);
+  const maxLng = Math.max(...longitudes);
+  const center = {
+    lat: (minLat + maxLat) / 2,
+    lng: (minLng + maxLng) / 2,
+  };
+  if (validPoints.length < 2) return { center, zoom: 20 };
+
+  const mercatorY = (latitude: number) => {
+    const limited = Math.max(-85, Math.min(85, latitude));
+    const radians = (limited * Math.PI) / 180;
+    return (1 - Math.log(Math.tan(radians) + 1 / Math.cos(radians)) / Math.PI) / 2;
+  };
+  const longitudeSpan = Math.max((maxLng - minLng) / 360, Number.EPSILON);
+  const latitudeSpan = Math.max(
+    Math.abs(mercatorY(maxLat) - mercatorY(minLat)),
+    Number.EPSILON,
+  );
+  const usableWidth = 900 - 2 * 96;
+  const usableHeight = 420 - 2 * 72;
+  const scale = Math.min(
+    usableWidth / (256 * longitudeSpan),
+    usableHeight / (256 * latitudeSpan),
+  );
+  const zoom = Math.max(18, Math.min(21, Math.floor(Math.log2(scale))));
+  return { center, zoom };
+}
+
 export function fireFlowCalculationArea(
   footprintSquareFeet: number,
   floorCount: number,
   constructionType: ConstructionGroup,
 ) {
   const levels =
-    constructionType === "IA_IB"
+    constructionType === "I" || constructionType === "IA_IB"
       ? Math.min(3, Math.max(1, Math.trunc(floorCount)))
       : Math.max(1, Math.trunc(floorCount));
   return Math.round(Math.max(0, footprintSquareFeet) * levels);

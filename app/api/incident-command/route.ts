@@ -127,11 +127,12 @@ export async function POST(request: Request) {
     if (Number(body.expectedRevision ?? -1) !== state.revision) return Response.json({ error: "The board changed on another device. It has been refreshed.", conflict: true }, { status: 409 });
 
     const cadUnits = parseRespondingUnits(incident.respondingUnits);
+    const incidentUnits = [...new Set([...cadUnits, ...state.manualUnits])];
     const result = reduceIncidentCommandState(state, body.mutation, {
       actor,
       now: new Date().toISOString(),
       validPersonnel: new Set(people.map((person) => person.id)),
-      validUnits: new Set(cadUnits),
+      validUnits: new Set(incidentUnits),
       validLevels: new Set(tacticalLevels(state, preplan ? Number(preplan.floorCount) : null)),
     });
     const eventId = crypto.randomUUID();

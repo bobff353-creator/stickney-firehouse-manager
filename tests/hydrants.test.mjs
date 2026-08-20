@@ -18,7 +18,7 @@ test("Field map supports quick hydrants, clustering, maintenance, and guided flo
     readFile(new URL("../app/api/field-hydrants/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/bootstrap.ts", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\+ Add Hydrant/);
+  assert.match(page, /\+ New Hydrant/);
   assert.match(page, /hydrant-cluster/);
   assert.match(page, /HydrantIcon/);
   assert.match(page, /NFPA 291 guided flow test/);

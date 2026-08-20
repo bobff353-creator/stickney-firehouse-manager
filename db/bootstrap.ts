@@ -67,7 +67,8 @@ const employeeSeed = [
 ] as const;
 
 let ready = false;
-const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-01-v2";
+const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-10-callback-rules-v2";
+const callbackRulesJson = JSON.stringify({ weekend: { fridayStart: "18:00", sundayEnd: "18:00" }, holiday: true, callTypes: ["Auto accident", "Fire alarm", "Mutual aid", "Auto aid"], backToBackMinutes: 5, minimumHours: 2, roundingMinutes: 15, onDutyFlag: true, overlappingWindowFlag: true, deputyChiefOverride: true });
 
 const policySeedVersion = "stickney-policy-library-2026-07-18";
 const boxCardSeedVersion = "regional-box-cards-structured-2026-07-21-v2";
@@ -297,6 +298,9 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
     db.prepare("CREATE INDEX IF NOT EXISTS employees_active_sort_idx ON employees(active, sort_order)"),
     db.prepare("CREATE TABLE IF NOT EXISTS employee_profiles (employee_id TEXT PRIMARY KEY NOT NULL REFERENCES employees(id), employee_number TEXT, start_date TEXT, end_date TEXT, date_of_birth TEXT, phone TEXT, email TEXT, schedule_sms_opt_in INTEGER NOT NULL DEFAULT 0, address_line_1 TEXT, city TEXT, state TEXT, postal_code TEXT, employment_type TEXT NOT NULL DEFAULT 'Part-time', is_dpw INTEGER NOT NULL DEFAULT 0, driver_status TEXT NOT NULL DEFAULT '', acting_officer_eligible INTEGER NOT NULL DEFAULT 0, is_admin INTEGER NOT NULL DEFAULT 0, emergency_name TEXT, emergency_relationship TEXT, emergency_phone TEXT, photo_updated_at TEXT, notes TEXT, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS employee_profiles_number_idx ON employee_profiles(employee_number)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS push_subscriptions (id TEXT PRIMARY KEY NOT NULL, user_id TEXT NOT NULL, department_id TEXT NOT NULL, endpoint TEXT NOT NULL UNIQUE, p256dh TEXT NOT NULL, auth TEXT NOT NULL, user_agent TEXT NOT NULL DEFAULT '', active INTEGER NOT NULL DEFAULT 1, failure_count INTEGER NOT NULL DEFAULT 0, last_success_at TEXT, last_error TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS push_subscriptions_active_department_idx ON push_subscriptions(department_id, active)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS push_subscriptions_user_idx ON push_subscriptions(user_id, active)"),
     db.prepare("CREATE TABLE IF NOT EXISTS rank_permissions (rank TEXT NOT NULL, permission_key TEXT NOT NULL, allowed INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(rank,permission_key))"),
     db.prepare("CREATE TABLE IF NOT EXISTS employee_permission_overrides (employee_id TEXT NOT NULL REFERENCES employees(id), permission_key TEXT NOT NULL, effect TEXT NOT NULL CHECK(effect IN ('allow','deny')), updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(employee_id,permission_key))"),
     db.prepare("CREATE TABLE IF NOT EXISTS payroll_settings (id INTEGER PRIMARY KEY NOT NULL, overtime_threshold REAL NOT NULL DEFAULT 106, acting_officer_premium REAL NOT NULL DEFAULT 1, dpw_multiplier REAL NOT NULL DEFAULT 1.5, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
@@ -329,6 +333,11 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
     db.prepare("CREATE INDEX IF NOT EXISTS log_staffing_date_shift_idx ON daily_log_staffing(log_date, shift_key, sort_order)"),
     db.prepare("CREATE TABLE IF NOT EXISTS daily_log_calls (id TEXT PRIMARY KEY NOT NULL, log_date TEXT NOT NULL REFERENCES daily_logs(log_date), report_number TEXT NOT NULL DEFAULT '', time_out TEXT NOT NULL DEFAULT '', time_in TEXT NOT NULL DEFAULT '', responding_units TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', call_type TEXT NOT NULL DEFAULT 'EMS', sort_order INTEGER NOT NULL DEFAULT 0)"),
     db.prepare("CREATE INDEX IF NOT EXISTS log_calls_date_sort_idx ON daily_log_calls(log_date, sort_order)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS callback_review_settings (id TEXT PRIMARY KEY NOT NULL, reviewer_employee_id TEXT NOT NULL REFERENCES employees(id), rules_json TEXT NOT NULL DEFAULT '{}', updated_by TEXT NOT NULL DEFAULT 'System', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS daily_log_callback_submissions (id TEXT PRIMARY KEY NOT NULL, log_date TEXT NOT NULL REFERENCES daily_logs(log_date), call_id TEXT NOT NULL, report_number TEXT NOT NULL DEFAULT '', employee_id TEXT NOT NULL REFERENCES employees(id), reviewer_employee_id TEXT NOT NULL REFERENCES employees(id), status TEXT NOT NULL DEFAULT 'pending', submitted_by TEXT NOT NULL, submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, reviewed_by TEXT, reviewed_at TEXT, review_note TEXT NOT NULL DEFAULT '', call_type TEXT NOT NULL DEFAULT '', call_time_out TEXT NOT NULL DEFAULT '', call_time_in TEXT NOT NULL DEFAULT '', rule_version TEXT NOT NULL DEFAULT '', rule_matches TEXT NOT NULL DEFAULT '[]', rule_flags TEXT NOT NULL DEFAULT '[]', suggested_hours REAL NOT NULL DEFAULT 2, actual_minutes INTEGER, approved_hours REAL NOT NULL DEFAULT 0, submitted_by_employee_id TEXT REFERENCES employees(id), submitted_by_rank TEXT NOT NULL DEFAULT '', UNIQUE(call_id, employee_id))"),
+    db.prepare("CREATE INDEX IF NOT EXISTS daily_log_callbacks_status_idx ON daily_log_callback_submissions(status, submitted_at)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS daily_log_callbacks_reviewer_idx ON daily_log_callback_submissions(reviewer_employee_id, status)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS callback_payroll_aggregates (employee_id TEXT NOT NULL REFERENCES employees(id), work_date TEXT NOT NULL, manual_baseline_hours REAL NOT NULL DEFAULT 0, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(employee_id,work_date))"),
     db.prepare("CREATE TABLE IF NOT EXISTS dispatch_incidents (incident_id TEXT PRIMARY KEY NOT NULL, resend_email_id TEXT NOT NULL UNIQUE, call_type TEXT NOT NULL, category TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', city TEXT NOT NULL DEFAULT '', narrative TEXT NOT NULL DEFAULT '', responding_units TEXT NOT NULL DEFAULT '', longitude REAL, latitude REAL, dispatched_at TEXT NOT NULL, time_out TEXT NOT NULL DEFAULT '', attachment_count INTEGER NOT NULL DEFAULT 0, source_payload TEXT NOT NULL DEFAULT '{}', source_system TEXT NOT NULL DEFAULT 'CAD email', received_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, cleared_at TEXT, active INTEGER NOT NULL DEFAULT 1)"),
     db.prepare("CREATE INDEX IF NOT EXISTS dispatch_incidents_active_time_idx ON dispatch_incidents(active, dispatched_at)"),
     db.prepare("CREATE TABLE IF NOT EXISTS cad_inbound_receipts (id TEXT PRIMARY KEY NOT NULL, provider TEXT NOT NULL, dedupe_key TEXT NOT NULL, external_event_id TEXT NOT NULL DEFAULT '', external_incident_id TEXT NOT NULL DEFAULT '', event_type TEXT NOT NULL DEFAULT '', payload_format TEXT NOT NULL DEFAULT '', raw_payload TEXT NOT NULL, normalized_payload TEXT NOT NULL DEFAULT '{}', status TEXT NOT NULL, error_message TEXT NOT NULL DEFAULT '', duplicate_of TEXT, received_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, processed_at TEXT)"),
@@ -370,6 +379,33 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
     db.prepare("CREATE INDEX IF NOT EXISTS box_cards_title_idx ON box_cards(title)"),
     db.prepare("CREATE TABLE IF NOT EXISTS record_revisions (id TEXT PRIMARY KEY NOT NULL, record_type TEXT NOT NULL, record_id TEXT NOT NULL, revision_number INTEGER NOT NULL, action TEXT NOT NULL, summary TEXT NOT NULL DEFAULT '', actor TEXT NOT NULL, changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS record_revision_number_idx ON record_revisions(record_type, record_id, revision_number)"),
+    // Station Scheduler
+    db.prepare("CREATE TABLE IF NOT EXISTS station_shift_types (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, start_time TEXT NOT NULL, end_time TEXT NOT NULL, anchor_date TEXT NOT NULL DEFAULT '', repeat_every_days INTEGER NOT NULL DEFAULT 0 CHECK(repeat_every_days BETWEEN 0 AND 365), color TEXT NOT NULL DEFAULT 'red', active INTEGER NOT NULL DEFAULT 1, sort_order INTEGER NOT NULL DEFAULT 0, created_by TEXT NOT NULL DEFAULT 'System', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS station_shift_types_active_idx ON station_shift_types(active, sort_order)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_shift_type_roles (id TEXT PRIMARY KEY NOT NULL, shift_type_id TEXT NOT NULL REFERENCES station_shift_types(id), role TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 1, UNIQUE(shift_type_id, role))"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_schedule_entries (id TEXT PRIMARY KEY NOT NULL, entry_date TEXT NOT NULL, shift_type_id TEXT NOT NULL REFERENCES station_shift_types(id), created_by TEXT NOT NULL DEFAULT 'System', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(entry_date, shift_type_id))"),
+    db.prepare("CREATE INDEX IF NOT EXISTS station_schedule_entry_date_idx ON station_schedule_entries(entry_date)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_shift_slots (id TEXT PRIMARY KEY NOT NULL, entry_id TEXT NOT NULL REFERENCES station_schedule_entries(id), role TEXT NOT NULL, employee_id TEXT REFERENCES employees(id), status TEXT NOT NULL DEFAULT 'open', sort_order INTEGER NOT NULL DEFAULT 0, start_time TEXT NOT NULL DEFAULT '', end_time TEXT NOT NULL DEFAULT '', is_extra INTEGER NOT NULL DEFAULT 0)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS station_shift_slot_entry_idx ON station_shift_slots(entry_id, sort_order)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS station_shift_slot_employee_idx ON station_shift_slots(employee_id)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_standing_assignments (id TEXT PRIMARY KEY NOT NULL, employee_id TEXT NOT NULL REFERENCES employees(id), shift_type_id TEXT NOT NULL REFERENCES station_shift_types(id), role TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_by TEXT NOT NULL DEFAULT 'System', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(employee_id, shift_type_id, role))"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_trade_requests (id TEXT PRIMARY KEY NOT NULL, slot_id TEXT NOT NULL REFERENCES station_shift_slots(id), role TEXT NOT NULL, from_employee_id TEXT NOT NULL REFERENCES employees(id), target_employee_id TEXT REFERENCES employees(id), accepted_by_employee_id TEXT REFERENCES employees(id), note TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, reviewed_by TEXT, reviewed_at TEXT)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS station_trade_status_idx ON station_trade_requests(status, created_at)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_shift_claims (id TEXT PRIMARY KEY NOT NULL, slot_id TEXT NOT NULL REFERENCES station_shift_slots(id), role TEXT NOT NULL, employee_id TEXT NOT NULL REFERENCES employees(id), note TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, reviewed_by TEXT, reviewed_at TEXT)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS station_shift_claim_status_idx ON station_shift_claims(status, created_at)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS station_shift_claim_slot_idx ON station_shift_claims(slot_id)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_time_off_requests (id TEXT PRIMARY KEY NOT NULL, employee_id TEXT NOT NULL REFERENCES employees(id), type TEXT NOT NULL, approver_employee_id TEXT NOT NULL REFERENCES employees(id), note TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, reviewed_at TEXT)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS station_time_off_status_idx ON station_time_off_requests(status, created_at)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_time_off_dates (request_id TEXT NOT NULL REFERENCES station_time_off_requests(id), off_date TEXT NOT NULL, UNIQUE(request_id, off_date))"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_unavailability (id TEXT PRIMARY KEY NOT NULL, employee_id TEXT NOT NULL REFERENCES employees(id), off_date TEXT NOT NULL, source TEXT NOT NULL DEFAULT 'time_off', request_id TEXT REFERENCES station_time_off_requests(id), UNIQUE(employee_id, off_date))"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_reminder_rules (id TEXT PRIMARY KEY NOT NULL, type TEXT NOT NULL, label TEXT NOT NULL DEFAULT '', offsets TEXT NOT NULL DEFAULT '[]', email_enabled INTEGER NOT NULL DEFAULT 1, text_enabled INTEGER NOT NULL DEFAULT 0, target TEXT NOT NULL DEFAULT '', enabled INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_ot_settings (mode TEXT PRIMARY KEY NOT NULL, exempt_off_duty INTEGER NOT NULL DEFAULT 1, exempt_already_scheduled INTEGER NOT NULL DEFAULT 1, exempt_declined INTEGER NOT NULL DEFAULT 1, exempt_recently_mandated INTEGER NOT NULL DEFAULT 1, recent_days INTEGER NOT NULL DEFAULT 14, exempt_max_consecutive INTEGER NOT NULL DEFAULT 1, max_consecutive INTEGER NOT NULL DEFAULT 2, priority_order TEXT NOT NULL DEFAULT '[]', custom_rules TEXT NOT NULL DEFAULT '[]', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_ot_timing (id INTEGER PRIMARY KEY NOT NULL, award_days_out INTEGER NOT NULL DEFAULT 7, complete_by_days_out INTEGER NOT NULL DEFAULT 2, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_ot_interest (id TEXT PRIMARY KEY NOT NULL, slot_id TEXT NOT NULL REFERENCES station_shift_slots(id), employee_id TEXT NOT NULL REFERENCES employees(id), response TEXT NOT NULL, responded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(slot_id, employee_id))"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_ot_offers (id TEXT PRIMARY KEY NOT NULL, slot_id TEXT NOT NULL REFERENCES station_shift_slots(id), employee_id TEXT NOT NULL REFERENCES employees(id), mode TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'offered', rank INTEGER NOT NULL DEFAULT 0, offered_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, responded_at TEXT)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS station_ot_offer_slot_idx ON station_ot_offers(slot_id, rank)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS station_ot_offer_employee_idx ON station_ot_offers(employee_id, status)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS station_distribution_weights (id INTEGER PRIMARY KEY NOT NULL, seniority_weight REAL NOT NULL DEFAULT 1, hours_weight REAL NOT NULL DEFAULT 1, custom_weight REAL NOT NULL DEFAULT 0, custom_label TEXT NOT NULL DEFAULT 'Cross-trained', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
   ]);
   for (let index=0; index<importedBuildingSeeds.length; index+=40) {
     await db.batch(importedBuildingSeeds.slice(index,index+40).map((item) => db.prepare("INSERT INTO field_preplan_imports(id,business_name,address,source_file,source_row) VALUES(?,?,?,?,?) ON CONFLICT(source_file,source_row) DO UPDATE SET business_name=excluded.business_name,address=excluded.address,updated_at=CURRENT_TIMESTAMP").bind(`coopy-buildings-${String(item.sourceRow).padStart(3,"0")}`,item.businessName.trim(),item.address.trim(),importedBuildingSource,item.sourceRow)));
@@ -401,6 +437,20 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
   try { await db.prepare("ALTER TABLE field_preplan_imports ADD COLUMN latitude REAL").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE field_preplan_imports ADD COLUMN longitude REAL").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE field_preplan_imports ADD COLUMN geocode_note TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE station_shift_slots ADD COLUMN start_time TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE station_shift_slots ADD COLUMN end_time TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE station_shift_slots ADD COLUMN is_extra INTEGER NOT NULL DEFAULT 0").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE daily_log_callback_submissions ADD COLUMN call_type TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE daily_log_callback_submissions ADD COLUMN call_time_out TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE daily_log_callback_submissions ADD COLUMN call_time_in TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE daily_log_callback_submissions ADD COLUMN rule_version TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE daily_log_callback_submissions ADD COLUMN rule_matches TEXT NOT NULL DEFAULT '[]'").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE daily_log_callback_submissions ADD COLUMN rule_flags TEXT NOT NULL DEFAULT '[]'").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE daily_log_callback_submissions ADD COLUMN suggested_hours REAL NOT NULL DEFAULT 2").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE daily_log_callback_submissions ADD COLUMN actual_minutes INTEGER").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE daily_log_callback_submissions ADD COLUMN approved_hours REAL NOT NULL DEFAULT 0").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE daily_log_callback_submissions ADD COLUMN submitted_by_employee_id TEXT REFERENCES employees(id)").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE daily_log_callback_submissions ADD COLUMN submitted_by_rank TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
   await backfillPreplanFootprintMetrics(db);
   await db.batch([
     ["shift_request", "Shift requests", 1, 1, 0, '["immediate"]'],
@@ -482,6 +532,8 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
     await db.prepare("UPDATE employee_profiles SET phone = CASE WHEN (phone IS NULL OR phone = '') AND ? <> '' THEN ? ELSE phone END, driver_status = CASE WHEN driver_status = '' THEN ? ELSE driver_status END, is_dpw = CASE WHEN ? = 1 AND driver_status = '' THEN 1 ELSE is_dpw END, updated_at = CURRENT_TIMESTAMP WHERE employee_id = ?").bind(phone, phone, driverStatus, isDpw, employeeId).run();
   }
   await enforceActingOfficerStraightStipend(db);
+  await db.prepare("INSERT INTO callback_review_settings(id,reviewer_employee_id,updated_by) SELECT 'default','wyant-robert','Administrator setup' WHERE EXISTS (SELECT 1 FROM employees WHERE id='wyant-robert') ON CONFLICT(id) DO NOTHING").run();
+  await db.prepare("UPDATE callback_review_settings SET rules_json=?,updated_at=datetime('now') WHERE id='default'").bind(callbackRulesJson).run();
   await reconcileExactLogPayrollRange(db);
   const phoneSeed = [
     ["fire-berwyn", "fire", "Berwyn Fire Department", "", "(708) 484-1644", "", 1],
@@ -533,6 +585,33 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
   await importApproved1204WeeklyCheck(db);
   await seedPolicies(db);
   await seedBoxCards(db);
+  // Station Scheduler: employee scheduler attributes + singleton defaults.
+  for (const sql of [
+    "ALTER TABLE employee_profiles ADD COLUMN station_roles TEXT NOT NULL DEFAULT '[]'",
+    "ALTER TABLE employee_profiles ADD COLUMN station_hours_this_period REAL NOT NULL DEFAULT 0",
+    "ALTER TABLE employee_profiles ADD COLUMN station_ot_hours REAL NOT NULL DEFAULT 0",
+    "ALTER TABLE employee_profiles ADD COLUMN station_mandatory_hours REAL NOT NULL DEFAULT 0",
+    "ALTER TABLE employee_profiles ADD COLUMN station_off_duty INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE employee_profiles ADD COLUMN station_last_mandated TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE employee_profiles ADD COLUMN station_consecutive_mandatory INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE employee_profiles ADD COLUMN station_notify_email INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE employee_profiles ADD COLUMN station_notify_text INTEGER NOT NULL DEFAULT 0",
+  ]) { try { await db.prepare(sql).run(); } catch { /* Column already exists after migration. */ } }
+  for (const sql of [
+    "ALTER TABLE station_shift_types ADD COLUMN anchor_date TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE station_shift_types ADD COLUMN repeat_every_days INTEGER NOT NULL DEFAULT 0",
+  ]) { try { await db.prepare(sql).run(); } catch { /* Column already exists after migration. */ } }
+  await db.batch([
+    db.prepare("INSERT OR IGNORE INTO station_ot_settings(mode, exempt_declined, priority_order, custom_rules) VALUES('voluntary', 1, '[\"leastOT\",\"mostSeniority\"]', '[]')"),
+    db.prepare("INSERT OR IGNORE INTO station_ot_settings(mode, exempt_declined, priority_order, custom_rules) VALUES('mandatory', 0, '[\"leastMandatory\",\"leastSeniority\"]', '[]')"),
+    db.prepare("INSERT OR IGNORE INTO station_ot_timing(id, award_days_out, complete_by_days_out) VALUES(1, 7, 2)"),
+    db.prepare("INSERT OR IGNORE INTO station_distribution_weights(id, seniority_weight, hours_weight, custom_weight, custom_label) VALUES(1, 1, 1, 0.5, 'Cross-trained')"),
+  ]);
+  await db.batch([
+    ["station-shift-request", "shift_request", "Shift request updates", '["7 days before","2 days before"]', 1, 0, "Requesting member and approvers", 1],
+    ["station-request-deadline", "request_deadline", "Response deadline reminders", '["2 days before","1 day before"]', 1, 1, "Eligible members only", 1],
+    ["station-open-shift-blast", "open_shift_blast", "Open shift blasts", '["immediate","2 days before"]', 1, 1, "Eligible members only", 1],
+  ].map((rule) => db.prepare("INSERT OR IGNORE INTO station_reminder_rules(id, type, label, offsets, email_enabled, text_enabled, target, enabled) VALUES(?,?,?,?,?,?,?,?)").bind(...rule)));
   await db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES ('runtime_bootstrap_version', ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind(runtimeBootstrapVersion).run();
   ready = true;
   return db;
@@ -550,12 +629,10 @@ export async function ensureDatabase() {
       ready = true;
       return db;
     }
-    const legacyMarker = await db.prepare("SELECT value FROM system_meta WHERE key = 'box_card_seed_version' LIMIT 1").first<{ value: string }>();
-    if (legacyMarker?.value === boxCardSeedVersion) {
-      await db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES ('runtime_bootstrap_version', ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind(runtimeBootstrapVersion).run();
-      ready = true;
-      return db;
-    }
+    // A stale (or missing) runtime marker falls through to initializeDatabase,
+    // which is fully idempotent (CREATE TABLE IF NOT EXISTS / ALTER guards /
+    // marker-gated seeds) and runs once per version bump to apply new schema —
+    // e.g. the Station Scheduler station_* tables added on 2026-08-07.
   } catch {
     // A new database does not have system_meta yet and needs the full bootstrap.
   }

@@ -27,6 +27,7 @@ export type IncidentCommandState = {
   revision: number;
   radioChannel: string;
   positions: Record<CommandPosition, string>;
+  manualUnits: string[];
   units: Record<string, CommandUnitState>;
   par: {
     intervalMinutes: number;
@@ -49,6 +50,7 @@ export type IncidentCommandState = {
 export type CommandAction =
   | { action: "set-radio"; radioChannel: string }
   | { action: "assign-position"; position: CommandPosition; assignee: string }
+  | { action: "add-manual-unit"; unitId: string }
   | { action: "assign-unit"; unitId: string; assignment: TacticalAssignment; status?: UnitStatus; floor?: string; side?: CommandUnitState["side"]; crewStrength?: number | null }
   | { action: "set-par-interval"; intervalMinutes: number }
   | { action: "toggle-par" }
@@ -70,6 +72,7 @@ export function emptyIncidentCommandState(): IncidentCommandState {
     revision: 0,
     radioChannel: "",
     positions: emptyPositions(),
+    manualUnits: [],
     units: {},
     par: { intervalMinutes: 15, status: "paused", startedAt: null, remainingSeconds: 15 * 60, confirmations: {} },
     building: { floorCount: null, basement: "unknown" },
@@ -88,6 +91,12 @@ export function parseRespondingUnits(value: unknown) {
   return [...new Set(String(value ?? "").toUpperCase().split(/[^A-Z0-9-]+/).map((unit) => unit.trim()).filter(Boolean))];
 }
 
+export function normalizeManualUnit(value: unknown) {
+  const unitId = String(value ?? "").trim().replace(/\s+/g, " ").toUpperCase().slice(0, 32);
+  if (!unitId || !/^[A-Z0-9][A-Z0-9 .#/-]*$/.test(unitId)) throw new Error("Enter a valid unit name or identifier.");
+  return unitId;
+}
+
 export function normalizeIncidentCommandState(value: unknown): IncidentCommandState {
   const fallback = emptyIncidentCommandState();
   if (!value || typeof value !== "object") return fallback;
@@ -99,6 +108,7 @@ export function normalizeIncidentCommandState(value: unknown): IncidentCommandSt
     revision: Math.max(0, Number(candidate.revision) || 0),
     radioChannel: String(candidate.radioChannel ?? "").slice(0, 80),
     positions: Object.fromEntries(commandPositions.map((position) => [position, String(candidate.positions?.[position] ?? "").slice(0, 120)])) as Record<CommandPosition, string>,
+    manualUnits: Array.isArray(candidate.manualUnits) ? [...new Set(candidate.manualUnits.map((unit) => normalizeManualUnit(unit)))] : [],
     units: candidate.units && typeof candidate.units === "object" ? candidate.units : {},
     par: {
       ...fallback.par,
@@ -130,8 +140,19 @@ function validEmployee(value: string, context: ReduceContext) {
   return value;
 }
 
+function validChiefAssignee(value: string, context: ReduceContext) {
+  const assignee = String(value ?? "").trim();
+  if (!assignee || context.validPersonnel.has(assignee)) return assignee;
+  if (assignee.startsWith("manual:")) {
+    const label = assignee.slice(7).trim().replace(/\s+/g, " ").slice(0, 80);
+    if (!label) throw new Error("Enter a chief name or unit.");
+    return `manual:${label}`;
+  }
+  throw new Error("Select a roster member or enter a chief name or unit.");
+}
+
 function validUnit(value: string, context: ReduceContext) {
-  if (!value || !context.validUnits.has(value)) throw new Error("Select a unit assigned by CAD.");
+  if (!value || !context.validUnits.has(value)) throw new Error("Select an incident or manually added unit.");
   return value;
 }
 
@@ -169,6 +190,12 @@ export function reduceIncidentCommandState(current: IncidentCommandState, mutati
     const position = oneOf(commandPositions, mutation.position, "command position");
     state.positions[position] = validCommandAssignee(mutation.assignee, context);
     summary = `${position} ${mutation.assignee ? "assigned" : "cleared"}`;
+  } else if (mutation.action === "add-manual-unit") {
+    const unitId = normalizeManualUnit(mutation.unitId);
+    if (context.validUnits.has(unitId) || state.manualUnits.includes(unitId)) throw new Error(`${unitId} is already listed on this incident.`);
+    state.manualUnits = [...state.manualUnits, unitId];
+    state.units[unitId] = { assignment: "Staging", status: "On scene", floor: "", side: "", crewStrength: null };
+    summary = `${unitId} manually added on scene`;
   } else if (mutation.action === "assign-unit") {
     const unitId = validUnit(mutation.unitId, context);
     const existing = state.units[unitId] ?? { assignment: "Staging", status: "Responding", floor: "", side: "", crewStrength: null };
@@ -224,7 +251,7 @@ export function reduceIncidentCommandState(current: IncidentCommandState, mutati
     };
     summary = `RIT status set to ${state.rit.readiness.replaceAll("_", " ")}`;
   } else if (mutation.action === "set-rehab") {
-    state.rehab = { unitIds: [...new Set(mutation.unitIds.map((unit) => validUnit(unit, context)))], chiefEmployeeId: validEmployee(mutation.chiefEmployeeId, context) };
+    state.rehab = { unitIds: [...new Set(mutation.unitIds.map((unit) => validUnit(unit, context)))], chiefEmployeeId: validChiefAssignee(mutation.chiefEmployeeId, context) };
     summary = `Rehab assignment updated (${state.rehab.unitIds.length} unit${state.rehab.unitIds.length === 1 ? "" : "s"})`;
   } else if (mutation.action === "set-support") {
     const resource = oneOf(supportResources, mutation.resource, "support resource");

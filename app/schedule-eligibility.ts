@@ -16,7 +16,7 @@ export function qualifiedForScheduleRole(employee: ScheduleQualification, role: 
   const officerEligible = isOfficerRank(employee.rank) || Boolean(employee.actingOfficerEligible);
 
   if (isOfficerPosition(role)) return officerEligible;
-  if (/\b(driver\/engineer|engineer|apparatus driver)\b/i.test(position)) return driverStatus === "cleared";
+  if (/\b(driver\/engineer|engine driver|engineer|apparatus driver)\b/i.test(position)) return driverStatus === "cleared";
   if (/\bambulance driver\b/i.test(position)) return driverStatus === "cleared" || driverStatus === "ambulance only";
   if (/\bambulance attendant\b/i.test(position)) return !isSingleRoleFirefighter(employee.rank);
   return true;

@@ -1,23 +1,9 @@
 import { getSupabaseServerClient } from "../app/supabase-server";
+import { sqlLiteral, type BoundValue } from "./sql-literal";
 
-type BoundValue = string | number | boolean | null | undefined;
 type QueryMode = "all" | "first" | "run";
 type SupabaseClientFactory = typeof getSupabaseServerClient;
 type PortalRpc = "firehouse_sql" | "firehouse_server_sql";
-
-function sqlLiteral(value: BoundValue) {
-  if (value == null) return "NULL";
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) throw new Error("A database value was not finite.");
-    return String(value);
-  }
-  if (typeof value === "boolean") return value ? "1" : "0";
-  const sanitized = value.replaceAll("\0", "");
-  if (!/(;|--|\/\*|\*\/)/.test(sanitized)) return `'${sanitized.replaceAll("'", "''")}'`;
-  const bytes = new TextEncoder().encode(sanitized);
-  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-  return `convert_from(decode('${hex}', 'hex'), 'UTF8')`;
-}
 
 function bindSql(sql: string, values: BoundValue[]) {
   let output = "";

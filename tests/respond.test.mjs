@@ -51,6 +51,7 @@ test("Respond reads existing call and preplan records and exposes requested fiel
   assert.match(route, /FROM daily_log_calls/);
   assert.match(route, /FROM field_preplans/);
   assert.match(route, /FROM field_preplan_features/);
+  assert.match(route, /WHERE preplan_id=\?/);
   assert.match(route, /FROM field_preplan_photos/);
   assert.match(route, /respondingUnitsIncludeUnit/);
   assert.match(route, /searchParams\.get\("apparatus"\)/);
@@ -77,6 +78,10 @@ test("Respond reads existing call and preplan records and exposes requested fiel
   assert.match(component, /exitFullscreen/);
   assert.match(component, /CAD Notes/);
   assert.match(component, /Footprint/);
+  assert.match(component, /preplan\.features\.map\(\(feature\)/);
+  assert.match(component, /Building footprint and mapped fire protection features/);
+  assert.match(component, /photo\.featureId===selected\.id/);
+  assert.match(component, /respond-feature-photo/);
   assert.match(component, /type RightView = "cad"\|"footprint"\|"B"\|"C"\|"D"/);
   assert.match(component, /\$\{item\} Side/);
   assert.match(component, /Open Google Navigation/);

@@ -23,8 +23,13 @@ async function effectivePermissions(db: Awaited<ReturnType<typeof ensureDatabase
     db.prepare("SELECT permission_key permissionKey,allowed FROM rank_permissions WHERE rank=?").bind(employee.rank).all<{ permissionKey: string; allowed: number }>(),
     db.prepare("SELECT permission_key permissionKey,effect FROM employee_permission_overrides WHERE employee_id=?").bind(employee.id).all<{ permissionKey: string; effect: "allow" | "deny" }>(),
   ]);
-  const selected = new Set(rankRows.results.length ? rankRows.results.filter((row) => row.allowed).map((row) => row.permissionKey) : defaultPermissionsForRank(employee.rank));
-  for (const override of overrides.results) override.effect === "allow" ? selected.add(override.permissionKey) : selected.delete(override.permissionKey);
+  const saved = new Map(rankRows.results.map((row) => [row.permissionKey, Boolean(row.allowed)]));
+  const defaults = new Set(defaultPermissionsForRank(employee.rank));
+  const selected = new Set(permissionCatalog.filter((permission) => saved.has(permission.key) ? saved.get(permission.key) : defaults.has(permission.key)).map((permission) => permission.key));
+  for (const override of overrides.results) {
+    if (!validPermission(override.permissionKey)) continue;
+    override.effect === "allow" ? selected.add(override.permissionKey) : selected.delete(override.permissionKey);
+  }
   selected.add("payroll.view_own");
   return [...selected];
 }
@@ -50,7 +55,9 @@ export async function GET(request: Request) {
   const rankSettings: Record<string, string[]> = {};
   for (const { rank } of ranks.results) {
     const saved = rankRows.results.filter((row) => row.rank === rank);
-    rankSettings[rank] = saved.length ? saved.filter((row) => row.allowed).map((row) => row.permissionKey) : defaultPermissionsForRank(rank);
+    const savedMap = new Map(saved.map((row) => [row.permissionKey, Boolean(row.allowed)]));
+    const defaults = new Set(defaultPermissionsForRank(rank));
+    rankSettings[rank] = permissionCatalog.filter((permission) => savedMap.has(permission.key) ? savedMap.get(permission.key) : defaults.has(permission.key)).map((permission) => permission.key);
   }
   const overrides: Record<string, Record<string, "allow" | "deny">> = {};
   for (const row of overrideRows.results) (overrides[row.employeeId] ??= {})[row.permissionKey] = row.effect;

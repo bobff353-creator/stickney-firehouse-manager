@@ -1,6 +1,7 @@
 import type { ensureDatabase } from "../db/bootstrap";
 import { parseDispatchText } from "./dispatch-email";
 import { projectDispatchIntoDailyLog } from "./dispatch-daily-log";
+import { sendCadPushNotifications } from "./cad-push";
 
 type Database = Awaited<ReturnType<typeof ensureDatabase>>;
 type RuntimeEnv = {
@@ -60,6 +61,9 @@ export async function syncRecentResendDispatches(db: Database) {
     const email = await resendGet(`/emails/receiving/${encodeURIComponent(emailId)}`, runtime.RESEND_API_KEY);
     const incident = parseDispatchText(String(email.text || "") || plainText(String(email.html || "")));
     if (!incident) continue;
+    const incidentAlreadyStored = await db.prepare(
+      "SELECT incident_id FROM dispatch_incidents WHERE incident_id = ? LIMIT 1",
+    ).bind(incident.incidentId).first<{ incident_id: string }>();
     const timeOut = chicagoMilitaryTime(incident.dispatchedAt);
     const attachmentCount = Array.isArray(email.attachments) ? email.attachments.length : 0;
     await db.prepare(
@@ -88,5 +92,13 @@ export async function syncRecentResendDispatches(db: Database) {
       address: incident.address,
       callType: incident.callType,
     });
+    if (!incidentAlreadyStored) {
+      await sendCadPushNotifications(db, {
+        incidentId: incident.incidentId,
+        callType: incident.callType,
+        timeOut,
+        narrative: incident.narrative,
+      });
+    }
   }
 }

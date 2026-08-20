@@ -18,6 +18,10 @@ export const permissionCatalog = [
   { key: "documents.view", label: "View policies, duties, and box cards", group: "Documents" },
   { key: "policies.manage", label: "Add and edit policies", group: "Documents" },
   { key: "box_cards.manage", label: "Add and edit Box Cards", group: "Documents" },
+  { key: "inventory.view", label: "View Fleet and Inventory", group: "Inventory" },
+  { key: "inventory.check", label: "Complete inspections and inventory counts", group: "Inventory" },
+  { key: "inventory.repairs.manage", label: "Assign and update repair work", group: "Inventory" },
+  { key: "inventory.setup.manage", label: "Build Fleet and Inventory templates", group: "Inventory" },
   { key: "settings.manage", label: "Manage department settings", group: "Settings" },
   { key: "permissions.manage", label: "Manage permissions and test views", group: "Settings" },
 ] as const;
@@ -25,9 +29,9 @@ export const permissionCatalog = [
 export type PermissionKey = typeof permissionCatalog[number]["key"];
 
 const allPermissions = permissionCatalog.map((permission) => permission.key);
-const memberPermissions: PermissionKey[] = ["dashboard.view", "operations_board.view", "scheduling.view", "payroll.view_own", "documents.view", "field_preplans.view"];
+const memberPermissions: PermissionKey[] = ["dashboard.view", "operations_board.view", "scheduling.view", "payroll.view_own", "documents.view", "field_preplans.view", "inventory.view", "inventory.check"];
 const firefighterPermissions: PermissionKey[] = [...memberPermissions, "daily_log.view", "daily_log.manage", "field_preplans.edit", "incident_command.view"];
-const officerPermissions: PermissionKey[] = [...firefighterPermissions, "employees.view", "contacts.view", "incident_command.manage"];
+const officerPermissions: PermissionKey[] = [...firefighterPermissions, "employees.view", "contacts.view", "incident_command.manage", "inventory.repairs.manage"];
 
 export function defaultPermissionsForRank(rank: string, isAdmin = false): PermissionKey[] {
   const value = rank.trim().toLowerCase();

@@ -12,6 +12,24 @@ const unlockSeconds = 30 * 60;
 type PendingCookie = { name: string; value: string; options: CookieOptions };
 type LoginCheck = { ok?: boolean; email?: string; lockedUntil?: string | null };
 
+async function repairLegacyPassword(email: string, pin: string, departmentId: string) {
+  const { url, key } = getPublicSupabaseConfig();
+  const password = derivePortalPassword(email, pin);
+  const response = await fetch(`${url}/functions/v1/portal-pin-session`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      apikey: key,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email, pin, departmentId, password }),
+    cache: "no-store",
+  });
+  if (!response.ok) return null;
+  const payload = await response.json().catch(() => ({})) as { ok?: boolean };
+  return payload.ok ? password : null;
+}
+
 function cleanSecret(value: string | undefined) {
   return value?.replace(/^[\s"']+|[\s"']+$/g, "") ?? "";
 }
@@ -20,8 +38,8 @@ export async function POST(request: Request) {
   const payload = await request.json().catch(() => ({})) as { email?: unknown; pin?: unknown };
   const email = String(payload.email ?? "").trim().toLowerCase();
   const pin = String(payload.pin ?? "").trim();
-  if (!/^[^\s@]+@stickneyfire\.com$/.test(email) || !/^\d{4,6}$/.test(pin)) {
-    return Response.json({ error: "Enter your Stickney email and 4 to 6 digit PIN." }, { status: 400 });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !/^\d{4,6}$/.test(pin)) {
+    return Response.json({ error: "Enter your account email and 4 to 6 digit PIN." }, { status: 400 });
   }
 
   const departmentId = process.env.PAYROLL_DEPARTMENT_ID?.trim() ?? "";
@@ -54,10 +72,18 @@ export async function POST(request: Request) {
       setAll: (updates) => { pendingCookies.push(...updates); },
     },
   });
-  const password = derivePortalPassword(check.email, pin);
-  const { data: signIn, error: signInError } = await client.auth.signInWithPassword({ email: check.email, password });
+  let password = derivePortalPassword(check.email, pin);
+  let { data: signIn, error: signInError } = await client.auth.signInWithPassword({ email: check.email, password });
   if (signInError || !signIn.user) {
-    return Response.json({ error: "This account needs its one-time PIN upgrade link before direct PIN login." }, { status: 409 });
+    const repairedPassword = await repairLegacyPassword(check.email, pin, departmentId);
+    if (!repairedPassword) {
+      return Response.json({ error: "Your PIN is correct, but the account session could not be repaired. Try again." }, { status: 503 });
+    }
+    password = repairedPassword;
+    ({ data: signIn, error: signInError } = await client.auth.signInWithPassword({ email: check.email, password }));
+    if (signInError || !signIn.user) {
+      return Response.json({ error: "Your PIN is correct, but sign-in could not be completed. Try again." }, { status: 503 });
+    }
   }
 
   const { data: verified, error: verifyError } = await client.rpc("verify_portal_pin", { p_pin: pin });

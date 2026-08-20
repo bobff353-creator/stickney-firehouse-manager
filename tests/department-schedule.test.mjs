@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { next24DepartmentSchedule, scheduledStaffingForLog } from "../app/department-schedule.ts";
 
 const assignment = {
@@ -60,4 +61,17 @@ test("Next 24 Hours uses only assigned department shifts that overlap the live w
   ], "2026-07-26", 720);
   assert.deepEqual(items.map((item) => item.id), ["shift-1"]);
   assert.equal(items[0].endDate, "2026-07-27");
+});
+
+test("Live Operations prefers saved Daily Log staffing and falls back to the active built schedule", async () => {
+  const source = await readFile(new URL("../app/api/dashboard/route.ts", import.meta.url), "utf8");
+  assert.match(source, /let onDuty = staffing\.results/);
+  assert.match(source, /if \(!onDuty\.length\)/);
+  assert.match(source, /scheduledStaffingForLog\(scheduled\.results, now\.date\)/);
+  assert.match(source, /row\.shiftKey !== currentShift/);
+  assert.match(source, /uniqueScheduledStaffing\.has\(row\.employeeId\)/);
+  assert.match(source, /t\.active = 1/);
+  assert.match(source, /e\.active = 1/);
+  assert.match(source, /onDuty,/);
+  assert.match(source, /filled: onDuty\.length/);
 });

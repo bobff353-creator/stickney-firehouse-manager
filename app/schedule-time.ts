@@ -16,6 +16,13 @@ export function normalizeScheduleTime(value: string) {
     if (twelveHour[3] === "PM") hour += 12;
     return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
   }
+  const military = raw.match(/^(\d{2})(\d{2})$/);
+  if (military) {
+    const hour = Number(military[1]);
+    const minute = Number(military[2]);
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+    return `${military[1]}:${military[2]}`;
+  }
   const twentyFourHour = raw.match(/^(\d{1,2}):(\d{2})$/);
   if (!twentyFourHour) return null;
   const hour = Number(twentyFourHour[1]);

@@ -27,5 +27,5 @@ test("Daily Log saves and dashboard refreshes clear matching active dispatches",
 test("Daily Log offers an explicit Done action that records Time In", async () => {
   const dailyLog = await readFile(new URL("../app/daily-log.tsx", import.meta.url), "utf8");
   assert.equal(dailyLog.includes('title="Set Time In to now and close this active call"'), true);
-  assert.equal(dailyLog.includes(">Done</button>"), true);
+  assert.match(dailyLog, />\s*Done\s*<\/button>/);
 });

@@ -7,7 +7,7 @@ type Point = { lat:number; lng:number };
 type Db = Awaited<ReturnType<typeof ensureDatabase>>;
 const ownerAdminEmails = ["bobff353@gmail.com"];
 const featureTypes = new Set(["alarm","knox","riser","fdc","sprinkler","gas","water","electric","propane","elevator","elevator_room","standpipe","access","hazard"]);
-const constructionTypes = new Set<ConstructionGroup>(["IA_IB","IIA_IIIA","IV_VA","IIB_IIIB","VB"]);
+const constructionTypes = new Set<ConstructionGroup>(["I","II","III","IV","V","V_LIGHTWEIGHT","IA_IB","IIA_IIIA","IV_VA","IIB_IIIB","VB"]);
 const occupancyFlowCategories = new Set<OccupancyFlowCategory>(["other","dwelling"]);
 const sprinklerStandards = new Set<SprinklerStandard>(["none","nfpa13","nfpa13r","residential"]);
 type Bucket = { delete(key:string):Promise<void> };
@@ -16,15 +16,18 @@ async function access(request:Request, db:Db) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
   const row = email ? await db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.is_admin,0) isAdmin FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(ep.email)=? LIMIT 1").bind(email).first<{id:string;name:string;rank:string;isAdmin:number}>() : null;
   const admin = ownerAdminEmails.includes(email) || Boolean(row?.isAdmin);
-  if (!row && !admin) return { allowed:false, canEdit:false, actor:"" };
-  if (admin) return { allowed:true, canEdit:true, actor:row?.name || email };
+  if (!row && !admin) return { allowed:false, canEdit:false, canDelete:false, actor:"" };
+  if (admin) return { allowed:true, canEdit:true, canDelete:true, actor:row?.name || email };
   const [rankRows, overrides] = await Promise.all([
     db.prepare("SELECT permission_key permissionKey,allowed FROM rank_permissions WHERE rank=?").bind(row!.rank).all<{permissionKey:string;allowed:number}>(),
     db.prepare("SELECT permission_key permissionKey,effect FROM employee_permission_overrides WHERE employee_id=?").bind(row!.id).all<{permissionKey:string;effect:"allow"|"deny"}>(),
   ]);
   const permissions = new Set(rankRows.results.length ? rankRows.results.filter((item) => item.allowed).map((item) => item.permissionKey) : defaultPermissionsForRank(row!.rank));
-  for (const item of overrides.results) item.effect === "allow" ? permissions.add(item.permissionKey) : permissions.delete(item.permissionKey);
-  return { allowed:permissions.has("field_preplans.view"), canEdit:permissions.has("field_preplans.edit"), actor:row!.name };
+  for (const item of overrides.results) {
+    if (item.effect === "allow") permissions.add(item.permissionKey);
+    else permissions.delete(item.permissionKey);
+  }
+  return { allowed:permissions.has("field_preplans.view"), canEdit:permissions.has("field_preplans.edit"), canDelete:false, actor:row!.name };
 }
 
 function text(value:unknown, limit=2000) { return String(value ?? "").trim().slice(0, limit); }
@@ -59,6 +62,7 @@ export async function GET(request:Request) {
     ]);
     return Response.json({
       canEdit:auth.canEdit,
+      canDelete:auth.canDelete,
       preplans:plans.results.map((plan) => ({ ...plan, footprint:JSON.parse(String((plan as {footprint?:string}).footprint || "[]")), features:features.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id), photos:photos.results.filter((item) => (item as {preplanId:string}).preplanId === (plan as {id:string}).id).map((photo) => ({ ...photo, url:`/api/field-preplans/photos/${(photo as {id:string}).id}` })) })),
       imports:imports.results,
     });
@@ -69,10 +73,21 @@ export async function POST(request:Request) {
   try {
     const db = await ensureDatabase();
     const auth = await access(request, db);
-    if (!auth.canEdit) return Response.json({ error:"Field preplan edit permission is required." }, { status:403 });
     const body = await request.json() as Record<string,unknown>;
     const action = text(body.action, 40);
+    if (action === "deleteFeature") {
+      if (!auth.canDelete) return Response.json({ error:"Administrator privileges are required to delete a mapped feature." }, { status:403 });
+      const id = text(body.id, 80), preplanId = text(body.preplanId, 80), confirmation = text(body.confirmation, 20);
+      if (!id || !preplanId || confirmation !== "DELETE") return Response.json({ error:"Confirm Delete is required before a mapped feature can be removed." }, { status:400 });
+      const photos = await db.prepare("SELECT object_key objectKey FROM field_preplan_photos WHERE feature_id=? AND preplan_id=?").bind(id,preplanId).all<{objectKey:string}>();
+      const removed = await db.prepare("WITH deleted_photos AS (DELETE FROM field_preplan_photos WHERE feature_id=? AND preplan_id=?) DELETE FROM field_preplan_features WHERE id=? AND preplan_id=? RETURNING id").bind(id,preplanId,id,preplanId).all<{id:string}>();
+      if (!removed.results.length) return Response.json({ error:"Mapped feature not found." }, { status:404 });
+      const storage = getPortalStorage() as Bucket | null;
+      const cleanup = storage ? await Promise.allSettled(photos.results.map((photo) => storage.delete(photo.objectKey))) : [];
+      return Response.json({ ok:true, id, photoCleanupPending:cleanup.some((result) => result.status === "rejected") });
+    }
     if (action === "deletePreplan") {
+      if (!auth.canDelete) return Response.json({ error:"Administrator privileges are required to delete a preplan." }, { status:403 });
       const id = text(body.id, 80), confirmation = text(body.confirmation, 20);
       if (!id || confirmation !== "DELETE") return Response.json({ error:"Confirm Delete is required before a preplan can be removed." }, { status:400 });
       const photos = await db.prepare("SELECT object_key objectKey FROM field_preplan_photos WHERE preplan_id=?").bind(id).all<{objectKey:string}>();
@@ -82,6 +97,7 @@ export async function POST(request:Request) {
       const cleanup = storage ? await Promise.allSettled(photos.results.map((photo) => storage.delete(photo.objectKey))) : [];
       return Response.json({ ok:true, id, photoCleanupPending:cleanup.some((result) => result.status === "rejected") });
     }
+    if (!auth.canEdit) return Response.json({ error:"Field preplan edit permission is required." }, { status:403 });
     if (action === "batchGeocodeImports") {
       const key = await mapsKey();
       if (!key) return Response.json({ error:"Google geocoding is not configured." }, { status:503 });

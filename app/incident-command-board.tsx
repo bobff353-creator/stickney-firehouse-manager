@@ -72,6 +72,8 @@ export default function IncidentCommandBoard() {
   const [confirm, setConfirm] = useState<ConfirmState>(null);
   const [radioDraft, setRadioDraft] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showManualUnitEntry, setShowManualUnitEntry] = useState(false);
+  const [manualUnitDraft, setManualUnitDraft] = useState("");
   const [ritDraft, setRitDraft] = useState({
     unitId: "",
     chiefEmployeeId: "",
@@ -165,9 +167,10 @@ export default function IncidentCommandBoard() {
   const parText = `${String(Math.floor(parSeconds / 60)).padStart(2, "0")}:${String(parSeconds % 60).padStart(2, "0")}`;
   const floorCount = state?.building.floorCount || data?.preplan?.floorCount || 1;
   const commandDisabled = !data?.canManage || saving || !online;
-  const stagedUnits = data?.cadUnits.filter((unitId) => state?.units[unitId]?.status === "Staged" || state?.units[unitId]?.assignment === "Staging") ?? [];
-  const onSceneUnits = data?.cadUnits ?? [];
+  const onSceneUnits = [...new Set([...(data?.cadUnits ?? []), ...(state?.manualUnits ?? [])])];
+  const stagedUnits = onSceneUnits.filter((unitId) => state?.units[unitId]?.status === "Staged" || state?.units[unitId]?.assignment === "Staging");
   const employeeName = (employeeId: string) => {
+    if (employeeId.startsWith("manual:")) return employeeId.slice(7);
     const person = data?.personnel.find((candidate) => candidate.id === employeeId);
     return person ? formatEmployeeName(person.name) : "Assign";
   };
@@ -183,10 +186,23 @@ export default function IncidentCommandBoard() {
     const unitId = onSceneUnits.find((candidate) => candidate.toLowerCase() === label.toLowerCase());
     void mutate({ action: "assign-position", position, assignee: unitId ? `unit:${unitId}` : label ? `manual:${label}` : "" });
   };
-  const unitsAtLevel = (level: string) => Object.entries(state?.units ?? {}).filter(([unitId, unit]) => data?.cadUnits.includes(unitId) && unit.floor === level);
+  const encodeChiefAssignee = (value: string) => {
+    const label = value.trim().replace(/\s+/g, " ");
+    if (!label) return "";
+    const person = data?.personnel.find((candidate) => formatEmployeeName(candidate.name).toLowerCase() === label.toLowerCase());
+    return person?.id ?? `manual:${label}`;
+  };
+  const addManualUnit = () => {
+    const unitId = manualUnitDraft.trim().replace(/\s+/g, " ");
+    if (!unitId) return setNotice("Enter a unit name or identifier.");
+    setManualUnitDraft("");
+    setShowManualUnitEntry(false);
+    void mutate({ action: "add-manual-unit", unitId });
+  };
+  const unitsAtLevel = (level: string) => Object.entries(state?.units ?? {}).filter(([unitId, unit]) => onSceneUnits.includes(unitId) && unit.floor === level);
 
   const assignTo = (assignment: TacticalAssignment, unitId = selectedUnit) => {
-    if (!unitId) return setNotice("Select a CAD unit first.");
+    if (!unitId) return setNotice("Select an on-scene unit first.");
     const unit = state?.units[unitId];
     void mutate({
       action: "assign-unit",
@@ -199,7 +215,7 @@ export default function IncidentCommandBoard() {
     });
   };
   const placeUnit = (side: "" | "A" | "B" | "C" | "D") => {
-    if (!selectedUnit) return setNotice("Select a CAD unit first.");
+    if (!selectedUnit) return setNotice("Select an on-scene unit first.");
     const unit = state?.units[selectedUnit];
     if (!unit) return setNotice("Assign the selected unit before placing it on the building.");
     void mutate({
@@ -215,7 +231,7 @@ export default function IncidentCommandBoard() {
   const dropUnitOnFloor = (event: DragEvent<HTMLButtonElement>, level: string) => {
     event.preventDefault();
     const unitId = event.dataTransfer.getData("text/plain");
-    if (!onSceneUnits.includes(unitId)) return setNotice("Only an incident unit can be dropped onto the building.");
+    if (!onSceneUnits.includes(unitId)) return setNotice("Only an on-scene incident unit can be dropped onto the building.");
     const unit = state?.units[unitId] ?? { assignment: "Staging" as const, status: "Responding" as const, floor: "", side: "" as const, crewStrength: null };
     setSelectedUnit(unitId);
     setSelectedLevel(level);
@@ -342,8 +358,13 @@ export default function IncidentCommandBoard() {
         </section>
 
         <section className="icb-dark-panel icb-onscene">
-          <header><span>UNITS ON SCENE</span><small>{data.cadUnits.length} UNITS</small></header>
-          <div className="icb-unit-cards">{data.cadUnits.map((unitId, index) => {
+          <header><span>UNITS ON SCENE</span><div className="icb-onscene-heading-actions"><small>{onSceneUnits.length} {onSceneUnits.length === 1 ? "UNIT" : "UNITS"}</small><button type="button" disabled={commandDisabled} aria-expanded={showManualUnitEntry} onClick={() => setShowManualUnitEntry((current) => !current)}>+ ADD UNIT</button></div></header>
+          {showManualUnitEntry && <form className="icb-add-unit-form" onSubmit={(event) => { event.preventDefault(); addManualUnit(); }}>
+            <input autoFocus aria-label="Unit name or identifier" disabled={commandDisabled} maxLength={32} value={manualUnitDraft} onChange={(event) => setManualUnitDraft(event.target.value)} placeholder="Type unit, e.g. BC 1" />
+            <button type="submit" disabled={commandDisabled || !manualUnitDraft.trim()}>ADD</button>
+            <button type="button" disabled={commandDisabled} onClick={() => { setManualUnitDraft(""); setShowManualUnitEntry(false); }}>CANCEL</button>
+          </form>}
+          <div className="icb-unit-cards">{onSceneUnits.map((unitId, index) => {
             const unit = state.units[unitId];
             const draggable = !commandDisabled;
             return <button key={unitId} draggable={draggable} title={draggable ? "Drag this on-scene unit to a tactical floor" : undefined} style={{ "--unit-color": ["#d9932f", "#32a975", "#28a9d1"][index % 3] } as CSSProperties} className={selectedUnit === unitId ? "selected" : ""} onDragStart={(event) => { if (!draggable) return event.preventDefault(); event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", unitId); setSelectedUnit(unitId); }} onClick={() => setSelectedUnit(unitId)}><strong>{unitId}</strong><span>{unit?.status || "Responding"}</span><i /></button>;
@@ -352,8 +373,8 @@ export default function IncidentCommandBoard() {
         </section>
 
         <section className="icb-dark-panel icb-assignment-panel">
-          <header><span>ASSIGNMENT STATUS</span><small>{data.cadUnits.length} UNITS</small></header>
-          <div className="icb-assignment-list">{data.cadUnits.map((unitId) => {
+          <header><span>ASSIGNMENT STATUS</span><small>{onSceneUnits.length} {onSceneUnits.length === 1 ? "UNIT" : "UNITS"}</small></header>
+          <div className="icb-assignment-list">{onSceneUnits.map((unitId) => {
             const unit = state.units[unitId];
             const confirmed = state.par.confirmations[unitId];
             return <article key={unitId} className={selectedUnit === unitId ? "selected" : ""} onClick={() => setSelectedUnit(unitId)}>
@@ -400,8 +421,8 @@ export default function IncidentCommandBoard() {
           <section className="icb-dark-panel icb-rehab-sector">
             <header><span>REHAB SECTOR</span><small>{rehabDraft.unitIds.length} UNITS</small></header>
             <div className="icb-rehab-fields">
-              <label><span>REHAB CREW / AMBULANCE</span><div className="icb-rehab-units">{data.cadUnits.map((unitId) => <button key={unitId} className={rehabDraft.unitIds.includes(unitId) ? "active" : ""} disabled={!data.canManage} onClick={() => setRehabDraft((current) => ({ ...current, unitIds: current.unitIds.includes(unitId) ? current.unitIds.filter((unit) => unit !== unitId) : [...current.unitIds, unitId] }))}>{unitId}</button>)}</div></label>
-              <label><span>REHAB CHIEF</span><select disabled={!data.canManage} value={rehabDraft.chiefEmployeeId} onChange={(event) => setRehabDraft((current) => ({ ...current, chiefEmployeeId: event.target.value }))}><option value="">Assign chief</option>{data.personnel.map((person) => <option key={person.id} value={person.id}>{formatEmployeeName(person.name)}</option>)}</select></label>
+              <label><span>REHAB CREW / AMBULANCE</span><div className="icb-rehab-units">{onSceneUnits.map((unitId) => <button type="button" key={unitId} className={rehabDraft.unitIds.includes(unitId) ? "active" : ""} disabled={!data.canManage} onClick={() => setRehabDraft((current) => ({ ...current, unitIds: current.unitIds.includes(unitId) ? current.unitIds.filter((unit) => unit !== unitId) : [...current.unitIds, unitId] }))}>{unitId}</button>)}</div></label>
+              <label><span>REHAB CHIEF</span><datalist id="icb-rehab-chief-suggestions">{data.personnel.map((person) => <option key={person.id} value={formatEmployeeName(person.name)}>{person.rank}</option>)}</datalist><input list="icb-rehab-chief-suggestions" disabled={!data.canManage} maxLength={80} value={commandAssigneeLabel(rehabDraft.chiefEmployeeId)} onChange={(event) => setRehabDraft((current) => ({ ...current, chiefEmployeeId: encodeChiefAssignee(event.target.value) }))} placeholder="Select or type chief name/unit" /></label>
               <button disabled={commandDisabled} onClick={() => void mutate({ action: "set-rehab", ...rehabDraft })}>SAVE REHAB</button>
             </div>
           </section>
@@ -410,7 +431,7 @@ export default function IncidentCommandBoard() {
             <header><span>RIT TEAM</span><small className={ritDraft.readiness === "ready" ? "ready" : ""}>{sentence(ritDraft.readiness)}</small></header>
             <div className="icb-rit-fields">
               <label><span>RIT CHIEF</span><select disabled={!data.canManage} value={ritDraft.chiefEmployeeId} onChange={(event) => setRitDraft((current) => ({ ...current, chiefEmployeeId: event.target.value }))}><option value="">Assign chief</option>{data.personnel.map((person) => <option key={person.id} value={person.id}>{formatEmployeeName(person.name)}</option>)}</select></label>
-              <label><span>RIT UNIT</span><select disabled={!data.canManage} value={ritDraft.unitId} onChange={(event) => setRitDraft((current) => ({ ...current, unitId: event.target.value }))}><option value="">Assign unit</option>{data.cadUnits.map((unitId) => <option key={unitId}>{unitId}</option>)}</select></label>
+              <label><span>RIT UNIT</span><select disabled={!data.canManage} value={ritDraft.unitId} onChange={(event) => setRitDraft((current) => ({ ...current, unitId: event.target.value }))}><option value="">Assign unit</option>{onSceneUnits.map((unitId) => <option key={unitId}>{unitId}</option>)}</select></label>
               <label><span>READINESS</span><select disabled={!data.canManage} value={ritDraft.readiness} onChange={(event) => setRitDraft((current) => ({ ...current, readiness: event.target.value as typeof current.readiness }))}><option value="not_reported">Not reported</option><option value="assembling">Assembling</option><option value="ready">Ready</option></select></label>
               <button disabled={commandDisabled} onClick={() => void mutate({ action: "set-rit", ...ritDraft })}>SAVE RIT</button>
             </div>

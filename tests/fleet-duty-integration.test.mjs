@@ -75,7 +75,7 @@ test("blocks Officer Sign Out until required daily and scheduled weekly Fleet ch
   assert.match(dailyLog, /fleetRequirementsOnly=1/);
   assert.match(dailyLog, /Fleet checks required before sign out/);
   assert.match(dailyLog, /acceptedFleetDuties/);
-  assert.match(dailyLog, /I acknowledge that all required Fleet checks and assigned duties/);
+  assert.match(dailyLog, /I acknowledge that all required Fleet checks and assigned\s+duties/);
   assert.match(projections, /checkType: "weekly"/);
   assert.match(projections, /checkType: "daily"/);
   assert.match(projections, /weekly_due_day/);

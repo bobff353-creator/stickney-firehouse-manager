@@ -1,6 +1,7 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 import { holidayForDate } from "../../holidays";
 import { qualifiedForScheduleRole } from "../../schedule-eligibility";
+import { generateScheduleDraft, scheduleItemsOverlap, type GeneratorAssignment, type GeneratorCoverageRule, type GeneratorEmployee, type GeneratorRequest, type GeneratorShiftPattern, type GeneratorStaffingOverride } from "../../schedule-generator";
 import { normalizeScheduleTime } from "../../schedule-time";
 
 const ownerAdminEmails = ["bobff353@gmail.com"];
@@ -14,7 +15,7 @@ type CoverageRule = {
   id: string; planId: string; name: string; role: string; minimumStaff: number; startTime: string; endTime: string; daysOfWeek: string; active: number;
 };
 type ShiftPattern = {
-  id: string; name: string; color: string; startDate: string; startTime: string; endTime: string;
+  id: string; name: string; shortName?:string; color: string; startDate: string; startTime: string; endTime: string;
   recurrenceDays: number; coveragePlanId: string; active: number;
 };
 type StaffingOverride = {
@@ -207,8 +208,8 @@ export async function GET(request: Request) {
     if (!current.isAdmin && !current.employeeId) return Response.json({ error: "Your login is not connected to an employee record." }, { status: 403 });
     const requestedTestEmployeeId = current.isAdmin ? new URL(request.url).searchParams.get("testEmployeeId") ?? "" : "";
     const employeeId = requestedTestEmployeeId || current.employeeId || "";
-    const [employees, assignments, rotations, requests, notifications, rules, patterns, overrides, notificationRules, tradeBusyAssignments] = await Promise.all([
-      db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.email,'') email,COALESCE(ep.phone,'') phone,COALESCE(ep.schedule_sms_opt_in,0) scheduleSmsOptIn,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 ORDER BY e.name COLLATE NOCASE").all(),
+    const [employees, assignments, rotations, requests, notifications, rules, patterns, overrides, notificationRules, tradeBusyAssignments, visibilitySetting, payScales, distributionSetting] = await Promise.all([
+      db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.email,'') email,COALESCE(ep.phone,'') phone,COALESCE(ep.schedule_sms_opt_in,0) scheduleSmsOptIn,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus,COALESCE(e.sort_order,999) sortOrder FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 ORDER BY e.sort_order,e.name COLLATE NOCASE").all(),
       current.isAdmin
         ? db.prepare("SELECT a.id,a.employee_id employeeId,e.name employeeName,a.work_date workDate,a.start_time startTime,a.end_time endTime,a.role,a.source,a.status,a.emergency,a.required_rank requiredRank,a.claim_deadline claimDeadline,a.notes FROM schedule_assignments a LEFT JOIN employees e ON e.id=a.employee_id WHERE date(a.work_date)>=date('now','-45 day') AND a.status<>'cancelled' ORDER BY a.work_date,a.start_time").all<Assignment>()
         : db.prepare("SELECT a.id,a.employee_id employeeId,e.name employeeName,a.work_date workDate,a.start_time startTime,a.end_time endTime,a.role,a.source,a.status,a.emergency,a.required_rank requiredRank,a.claim_deadline claimDeadline,a.notes FROM schedule_assignments a LEFT JOIN employees e ON e.id=a.employee_id WHERE date(a.work_date)>=date('now','-45 day') AND a.status<>'cancelled' AND (a.employee_id=? OR a.status='open') ORDER BY a.work_date,a.start_time").bind(employeeId).all<Assignment>(),
@@ -220,15 +221,28 @@ export async function GET(request: Request) {
         ? db.prepare("SELECT id,title,message,email,sms,delivery_status deliveryStatus,read_at readAt,created_at createdAt FROM schedule_notifications WHERE employee_id=? ORDER BY created_at DESC LIMIT 50").bind(employeeId).all()
         : Promise.resolve({ results: [] }),
       db.prepare("SELECT id,plan_id planId,name,role,minimum_staff minimumStaff,start_time startTime,end_time endTime,days_of_week daysOfWeek,active FROM schedule_coverage_rules ORDER BY active DESC,name COLLATE NOCASE").all<CoverageRule>(),
-      db.prepare("SELECT id,name,color,start_date startDate,start_time startTime,end_time endTime,recurrence_days recurrenceDays,coverage_plan_id coveragePlanId,active FROM schedule_shift_patterns WHERE active=1 ORDER BY start_date,name COLLATE NOCASE").all<ShiftPattern>(),
+      db.prepare("SELECT p.id,p.name,COALESCE((SELECT sm.value FROM system_meta sm WHERE sm.key='schedule_shift_label:'||p.id LIMIT 1),SUBSTR(p.name,1,3)) shortName,p.color,p.start_date startDate,p.start_time startTime,p.end_time endTime,p.recurrence_days recurrenceDays,p.coverage_plan_id coveragePlanId,p.active FROM schedule_shift_patterns p WHERE p.active=1 ORDER BY p.start_date,p.name COLLATE NOCASE").all<ShiftPattern>(),
       db.prepare("SELECT id,pattern_id patternId,name,condition_type conditionType,role,minimum_staff minimumStaff,active FROM schedule_staffing_overrides WHERE active=1 ORDER BY name COLLATE NOCASE,role").all<StaffingOverride>(),
       current.isAdmin
-        ? db.prepare("SELECT event_type eventType,label,active,email_enabled emailEnabled,sms_enabled smsEnabled,delivery_timings deliveryTimings,updated_at updatedAt FROM schedule_notification_rules ORDER BY label").all()
+        ? db.prepare("SELECT event_type eventType,label,active,email_enabled emailEnabled,sms_enabled smsEnabled,delivery_timings deliveryTimings,updated_at updatedAt FROM schedule_notification_rules WHERE event_type<>'open_shift_visibility' ORDER BY label").all()
         : Promise.resolve({ results: [] }),
       employeeId
         ? db.prepare("SELECT id,employee_id employeeId,work_date workDate,start_time startTime,end_time endTime,role,source,status,emergency,required_rank requiredRank,claim_deadline claimDeadline,notes FROM schedule_assignments WHERE status='assigned' AND date(work_date)>=date('now','-1 day')").all<Assignment>()
         : Promise.resolve({ results: [] as Assignment[] }),
+      db.prepare("SELECT delivery_timings deliveryTimings FROM schedule_notification_rules WHERE event_type='open_shift_visibility' LIMIT 1").first<{deliveryTimings:string}>(),
+      current.isAdmin ? db.prepare("SELECT id,label FROM pay_scales ORDER BY sort_order,label").all() : Promise.resolve({ results: [] }),
+      db.prepare("SELECT delivery_timings deliveryTimings FROM schedule_notification_rules WHERE event_type='schedule_distribution_order' LIMIT 1").first<{deliveryTimings:string}>(),
     ]);
+    let openShiftsVisibleThrough = addDays(chicagoNow().slice(0, 10), 120);
+    try {
+      const savedCutoff = JSON.parse(visibilitySetting?.deliveryTimings || "[]")[0];
+      if (iso.test(String(savedCutoff))) openShiftsVisibleThrough = String(savedCutoff);
+    } catch { /* Keep the safe 120-day default. */ }
+    let distributionOrder = ["Required role / qualification", "Fewest hours worked", "Seniority", "Custom priority"];
+    try {
+      const savedOrder = JSON.parse(distributionSetting?.deliveryTimings || "[]");
+      if (Array.isArray(savedOrder) && savedOrder.length === distributionOrder.length && savedOrder.every((item) => distributionOrder.includes(String(item)))) distributionOrder = savedOrder.map(String);
+    } catch { /* Keep the department-safe default. */ }
     const employeeEligibility = employees.results as EligibleEmployee[];
     const selectedEmployee = employeeEligibility.find((employee) => employee.id === employeeId);
     const staffingAssignments = current.isAdmin
@@ -261,6 +275,8 @@ export async function GET(request: Request) {
       shiftPatterns: patterns.results,
       staffingOverrides: current.isAdmin ? overrides.results : [],
       notificationRules: notificationRules.results,
+      payScales: payScales.results,
+      settings: { openShiftsVisibleThrough, distributionOrder },
       tradeEligibility,
       coverageGaps: current.isAdmin ? coverageGaps(staffingAssignments, rules.results, patterns.results, overrides.results) : [],
     });
@@ -283,6 +299,26 @@ export async function POST(request: Request) {
       : null;
     if (testEmployeeId && !actingEmployee) return Response.json({ error: "The selected Test View employee is unavailable." }, { status: 404 });
     const actingName = actingEmployee?.name ?? current.name;
+
+    if (action === "saveScheduleSettings") {
+      if (!current.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
+      const openShiftsVisibleThrough = String(payload.openShiftsVisibleThrough ?? "");
+      const days = spanDays(chicagoNow().slice(0, 10), openShiftsVisibleThrough);
+      if (!iso.test(openShiftsVisibleThrough) || days < 0 || days > 730) return Response.json({ error: "Choose an open-shift visibility date from today through the next two years." }, { status: 400 });
+      await db.prepare("INSERT INTO schedule_notification_rules(event_type,label,active,email_enabled,sms_enabled,delivery_timings,updated_by) VALUES('open_shift_visibility','Open-shift visibility cutoff',1,0,0,?,?) ON CONFLICT(event_type) DO UPDATE SET delivery_timings=excluded.delivery_timings,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP")
+        .bind(JSON.stringify([openShiftsVisibleThrough]), current.name).run();
+      return Response.json({ ok: true });
+    }
+
+    if (action === "saveDistributionOrder") {
+      if (!current.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
+      const allowed = ["Required role / qualification", "Fewest hours worked", "Seniority", "Custom priority"];
+      const distributionOrder = Array.isArray(payload.distributionOrder) ? payload.distributionOrder.map(String) : [];
+      if (distributionOrder.length !== allowed.length || new Set(distributionOrder).size !== allowed.length || distributionOrder.some((item) => !allowed.includes(item))) return Response.json({ error: "Keep each distribution priority exactly once." }, { status: 400 });
+      await db.prepare("INSERT INTO schedule_notification_rules(event_type,label,active,email_enabled,sms_enabled,delivery_timings,updated_by) VALUES('schedule_distribution_order','Schedule distribution hierarchy',1,0,0,?,?) ON CONFLICT(event_type) DO UPDATE SET delivery_timings=excluded.delivery_timings,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP")
+        .bind(JSON.stringify(distributionOrder), current.name).run();
+      return Response.json({ ok: true });
+    }
 
     if (action === "saveNotificationRules") {
       if (!current.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
@@ -360,6 +396,28 @@ export async function POST(request: Request) {
       return Response.json({ ok: true });
     }
 
+    if (action === "createShiftTemplate") {
+      if (!current.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
+      const name = String(payload.name ?? "").trim();
+      const shortName = String(payload.shortName ?? "").trim().toUpperCase().slice(0, 3);
+      const startTime = normalizeScheduleTime(String(payload.startTime ?? ""));
+      const endTime = normalizeScheduleTime(String(payload.endTime ?? ""));
+      const startDate = String(payload.startDate ?? "");
+      const recurrenceDays = Number(payload.recurrenceDays);
+      const color = String(payload.color ?? "").trim().toLowerCase();
+      const allowedColors = ["#c83e32", "#e25a45", "#c9942e", "#e0b24c", "#172126", "#303a3f"];
+      const positions = Array.isArray(payload.positions) ? payload.positions.map((raw) => { const item = raw as Record<string,unknown>; return { role:String(item.role ?? "").trim(), minimumStaff:Number(item.minimumStaff) }; }) : [];
+      if (!name || !shortName || !startTime || !endTime || !iso.test(startDate) || !Number.isInteger(recurrenceDays) || recurrenceDays < 1 || recurrenceDays > 30 || !allowedColors.includes(color) || !positions.length || positions.some((item) => !item.role || !Number.isInteger(item.minimumStaff) || item.minimumStaff < 1 || item.minimumStaff > 20) || new Set(positions.map((item) => item.role.toLowerCase())).size !== positions.length) return Response.json({ error: "Complete the shift name, calendar label, times, first date, repeat interval, color, and each required riding assignment." }, { status: 400 });
+      const planId = crypto.randomUUID();
+      const patternId = crypto.randomUUID();
+      await db.batch([
+        ...positions.map((position) => db.prepare("INSERT INTO schedule_coverage_rules(id,plan_id,name,role,minimum_staff,start_time,end_time,days_of_week,created_by) VALUES(?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), planId, `${name} required riding assignments`, position.role, position.minimumStaff, startTime, endTime, "0,1,2,3,4,5,6", current.name)),
+        db.prepare("INSERT INTO schedule_shift_patterns(id,name,color,start_date,start_time,end_time,recurrence_days,coverage_plan_id,created_by) VALUES(?,?,?,?,?,?,?,?,?)").bind(patternId, name, color, startDate, startTime, endTime, recurrenceDays, planId, current.name),
+        db.prepare("INSERT INTO system_meta(key,value,updated_at) VALUES(?,?,CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").bind(`schedule_shift_label:${patternId}`, shortName),
+      ]);
+      return Response.json({ ok:true, id:patternId });
+    }
+
     if (action === "saveCoverageRule") {
       if (!current.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
       const name = String(payload.name ?? "").trim();
@@ -401,7 +459,7 @@ export async function POST(request: Request) {
       const startDate = String(payload.startDate ?? "");
       const recurrenceDays = Number(payload.recurrenceDays);
       const coveragePlanId = String(payload.coveragePlanId ?? "");
-      const allowedColors = ["red", "black", "gold", "blue", "green", "purple", "orange"];
+      const allowedColors = ["red", "black", "gold", "blue", "green", "purple", "orange", "#c83e32", "#e25a45", "#c9942e", "#e0b24c", "#172126", "#303a3f"];
       const plan = await db.prepare("SELECT MIN(start_time) startTime,MIN(end_time) endTime FROM schedule_coverage_rules WHERE active=1 AND (plan_id=? OR id=?)").bind(coveragePlanId, coveragePlanId).first<{startTime:string;endTime:string}>();
       if (!name || !allowedColors.includes(color) || !iso.test(startDate) || !Number.isInteger(recurrenceDays) || recurrenceDays < 1 || recurrenceDays > 365 || !plan?.startTime || !plan?.endTime) {
         return Response.json({ error: "Enter a shift reference, color, start date, recurrence from 1 to 365 days, and an active staffing plan." }, { status: 400 });
@@ -443,6 +501,88 @@ export async function POST(request: Request) {
       if (!current.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
       await db.prepare("UPDATE schedule_staffing_overrides SET active=0 WHERE id=?").bind(String(payload.id ?? "")).run();
       return Response.json({ ok: true });
+    }
+
+    if (action === "saveGeneratedSchedule") {
+      if (!current.isAdmin) return Response.json({ error: "Administrator access is required." }, { status: 403 });
+      const startDate = String(payload.startDate ?? "");
+      const endDate = String(payload.endDate ?? "");
+      const rangeDays = spanDays(startDate, endDate);
+      const submittedRows = Array.isArray(payload.rows) ? payload.rows.map((raw) => {
+        const row = raw as Record<string, unknown>;
+        return { id: String(row.id ?? ""), employeeId: String(row.employeeId ?? "") };
+      }) : [];
+      if (!iso.test(startDate) || !iso.test(endDate) || startDate < chicagoNow().slice(0, 10) || rangeDays < 0 || rangeDays > 62) {
+        return Response.json({ error: "Choose a schedule range from today through the next 63 days." }, { status: 400 });
+      }
+
+      const [employeeRows, assignmentRows, requestRows, ruleRows, patternRows, overrideRows, distributionSetting] = await Promise.all([
+        db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus,COALESCE(e.sort_order,999) sortOrder FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 ORDER BY e.sort_order,e.name COLLATE NOCASE").all<GeneratorEmployee>(),
+        db.prepare("SELECT id,employee_id employeeId,work_date workDate,start_time startTime,end_time endTime,role,source,status FROM schedule_assignments WHERE status IN ('assigned','open') AND date(work_date) BETWEEN date(?,'-45 day') AND date(?,'+1 day')").bind(startDate, endDate).all<GeneratorAssignment>(),
+        db.prepare("SELECT id,request_type requestType,employee_id employeeId,start_date startDate,end_date endDate,start_time startTime,end_time endTime,role,repeat_mode repeatMode,repeat_interval repeatInterval,status,created_at createdAt FROM schedule_requests WHERE request_type IN ('availability','time_off') AND status IN ('pending','approved') AND date(start_date)<=date(?) AND date(end_date)>=date(?)").bind(endDate, startDate).all<GeneratorRequest>(),
+        db.prepare("SELECT id,plan_id planId,name,role,minimum_staff minimumStaff,start_time startTime,end_time endTime,days_of_week daysOfWeek,active FROM schedule_coverage_rules WHERE active=1").all<GeneratorCoverageRule>(),
+        db.prepare("SELECT id,name,color,start_date startDate,start_time startTime,end_time endTime,recurrence_days recurrenceDays,coverage_plan_id coveragePlanId,active FROM schedule_shift_patterns WHERE active=1").all<GeneratorShiftPattern>(),
+        db.prepare("SELECT id,pattern_id patternId,name,condition_type conditionType,role,minimum_staff minimumStaff,active FROM schedule_staffing_overrides WHERE active=1").all<GeneratorStaffingOverride>(),
+        db.prepare("SELECT delivery_timings deliveryTimings FROM schedule_notification_rules WHERE event_type='schedule_distribution_order' LIMIT 1").first<{deliveryTimings:string}>(),
+      ]);
+      let distributionOrder = ["Required role / qualification", "Fewest hours worked", "Seniority", "Custom priority"];
+      try {
+        const saved = JSON.parse(distributionSetting?.deliveryTimings || "[]");
+        if (Array.isArray(saved) && saved.length === distributionOrder.length && saved.every((item) => distributionOrder.includes(String(item)))) distributionOrder = saved.map(String);
+      } catch { /* Keep the department-safe priority order. */ }
+      const generated = generateScheduleDraft({
+        startDate,
+        endDate,
+        employees: employeeRows.results,
+        assignments: assignmentRows.results,
+        requests: requestRows.results,
+        coverageRules: ruleRows.results,
+        shiftPatterns: patternRows.results,
+        staffingOverrides: overrideRows.results,
+        distributionOrder,
+      });
+      const expectedRows = new Map(generated.slots.map((slot) => [slot.id, slot]));
+      if (!generated.slots.length) return Response.json({ error: "No unfilled shift-pattern positions exist in this date range." }, { status: 409 });
+      if (submittedRows.length !== generated.slots.length || new Set(submittedRows.map((row) => row.id)).size !== submittedRows.length || submittedRows.some((row) => !expectedRows.has(row.id))) {
+        return Response.json({ error: "The generated schedule changed. Generate it again before saving." }, { status: 409 });
+      }
+
+      const submittedById = new Map(submittedRows.map((row) => [row.id, row]));
+      const selectedAssignments: GeneratorAssignment[] = [];
+      for (const slot of generated.slots) {
+        const employeeId = submittedById.get(slot.id)?.employeeId || "";
+        if (!employeeId) continue;
+        if (!slot.eligibleEmployeeIds.includes(employeeId)) return Response.json({ error: `${slot.role} on ${slot.workDate} must be assigned to a qualified, available employee.` }, { status: 409 });
+        const proposed: GeneratorAssignment = { id: slot.id, employeeId, workDate: slot.workDate, startTime: slot.startTime, endTime: slot.endTime, role: slot.role, source: `schedule-generator:${slot.patternId}`, status: "assigned" };
+        if (selectedAssignments.some((assignment) => assignment.employeeId === employeeId && scheduleItemsOverlap(assignment, proposed))) {
+          return Response.json({ error: "One employee was selected for overlapping generated shifts. Choose a different employee before saving." }, { status: 409 });
+        }
+        selectedAssignments.push(proposed);
+      }
+
+      const reusableOpenAssignments = assignmentRows.results.filter((assignment) => assignment.status === "open" && !assignment.source.startsWith("schedule-generator:"));
+      const usedOpenIds = new Set<string>();
+      const writes: ReturnType<Db["prepare"]>[] = [];
+      const assignedEmployeeIds: string[] = [];
+      let assignedCount = 0;
+      let openCount = 0;
+      for (const slot of generated.slots) {
+        const employeeId = submittedById.get(slot.id)?.employeeId || "";
+        const matchingOpen = reusableOpenAssignments.find((assignment) => !usedOpenIds.has(assignment.id) && assignment.workDate === slot.workDate && assignment.role.trim().toLowerCase() === slot.role.trim().toLowerCase() && assignment.startTime === slot.startTime && assignment.endTime === slot.endTime);
+        if (matchingOpen) usedOpenIds.add(matchingOpen.id);
+        const notes = `Generated schedule · ${slot.patternName} · reviewed by ${current.name}`;
+        if (matchingOpen) {
+          if (employeeId) writes.push(db.prepare("UPDATE schedule_assignments SET employee_id=?,status='assigned',notes=? WHERE id=? AND status='open'").bind(employeeId, notes, matchingOpen.id));
+        } else {
+          writes.push(db.prepare("INSERT INTO schedule_assignments(id,employee_id,work_date,start_time,end_time,role,source,status,emergency,required_rank,claim_deadline,notes,created_by) VALUES(?,NULLIF(?,''),?,?,?,?,?,?,0,'','',?,?)")
+            .bind(crypto.randomUUID(), employeeId, slot.workDate, slot.startTime, slot.endTime, slot.role, `schedule-generator:${slot.patternId}`, employeeId ? "assigned" : "open", notes, current.name));
+        }
+        if (employeeId) { assignedCount += 1; assignedEmployeeIds.push(employeeId); } else openCount += 1;
+      }
+      await db.prepare("DELETE FROM schedule_assignments WHERE source LIKE 'schedule-generator:%' AND work_date BETWEEN ? AND ?").bind(startDate, endDate).run();
+      for (let index = 0; index < writes.length; index += 75) await db.batch(writes.slice(index, index + 75));
+      await notify(db, assignedEmployeeIds, "Schedule assignment", `The department schedule was published for ${startDate} through ${endDate}. Open Scheduling to review your assigned shifts.`, "schedule_assignment", `${startDate}T06:00:00-05:00`);
+      return Response.json({ ok: true, assignmentsCreated: writes.length, slotsSaved: generated.slots.length, assignedCount, openCount });
     }
 
     if (action === "createShift") {

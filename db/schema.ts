@@ -256,6 +256,51 @@ export const dailyLogApprovals = sqliteTable("daily_log_approvals", {
   fleetDutiesAcknowledged: integer("fleet_duties_acknowledged", { mode: "boolean" }).notNull().default(false),
 }, (table) => [uniqueIndex("log_approval_date_shift_idx").on(table.logDate, table.shiftKey)]);
 
+export const callbackReviewSettings = sqliteTable("callback_review_settings", {
+  id: text("id").primaryKey(),
+  reviewerEmployeeId: text("reviewer_employee_id").notNull().references(() => employees.id),
+  rulesJson: text("rules_json").notNull().default("{}"),
+  updatedBy: text("updated_by").notNull().default("System"),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const dailyLogCallbackSubmissions = sqliteTable("daily_log_callback_submissions", {
+  id: text("id").primaryKey(),
+  logDate: text("log_date").notNull().references(() => dailyLogs.logDate),
+  callId: text("call_id").notNull(),
+  reportNumber: text("report_number").notNull().default(""),
+  employeeId: text("employee_id").notNull().references(() => employees.id),
+  reviewerEmployeeId: text("reviewer_employee_id").notNull().references(() => employees.id),
+  status: text("status").notNull().default("pending"),
+  submittedBy: text("submitted_by").notNull(),
+  submittedAt: text("submitted_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  reviewedBy: text("reviewed_by"),
+  reviewedAt: text("reviewed_at"),
+  reviewNote: text("review_note").notNull().default(""),
+  callType: text("call_type").notNull().default(""),
+  callTimeOut: text("call_time_out").notNull().default(""),
+  callTimeIn: text("call_time_in").notNull().default(""),
+  ruleVersion: text("rule_version").notNull().default(""),
+  ruleMatches: text("rule_matches").notNull().default("[]"),
+  ruleFlags: text("rule_flags").notNull().default("[]"),
+  suggestedHours: real("suggested_hours").notNull().default(2),
+  actualMinutes: integer("actual_minutes"),
+  approvedHours: real("approved_hours").notNull().default(0),
+  submittedByEmployeeId: text("submitted_by_employee_id").references(() => employees.id),
+  submittedByRank: text("submitted_by_rank").notNull().default(""),
+}, (table) => [
+  uniqueIndex("daily_log_callbacks_call_employee_idx").on(table.callId, table.employeeId),
+  index("daily_log_callbacks_status_idx").on(table.status, table.submittedAt),
+  index("daily_log_callbacks_reviewer_idx").on(table.reviewerEmployeeId, table.status),
+]);
+
+export const callbackPayrollAggregates = sqliteTable("callback_payroll_aggregates", {
+  employeeId: text("employee_id").notNull().references(() => employees.id),
+  workDate: text("work_date").notNull(),
+  manualBaselineHours: real("manual_baseline_hours").notNull().default(0),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [primaryKey({ columns: [table.employeeId, table.workDate] })]);
+
 export const importantPhoneNumbers = sqliteTable("important_phone_numbers", {
   id: text("id").primaryKey(),
   category: text("category").notNull(),
@@ -374,3 +419,192 @@ export const incidentCommandEvents = sqliteTable("incident_command_events", {
   uniqueIndex("incident_command_event_revision_idx").on(table.incidentId, table.revision),
   index("incident_command_events_incident_time_idx").on(table.incidentId, table.createdAt),
 ]);
+
+// ---------------------------------------------------------------------------
+// Station Scheduler
+//
+// A ground-up replacement for the legacy schedule_* subsystem. Employees are
+// reused from `employees`/`employee_profiles`; scheduler-specific attributes
+// (multi-role, running hour counters, mandate history, notify preferences) live
+// on employee_profiles as station_* columns. A ScheduleEntry is one shift
+// instance on one date; each ShiftSlot is one required seat (role) that is open
+// when employeeId is null.
+// ---------------------------------------------------------------------------
+
+export const stationShiftTypes = sqliteTable("station_shift_types", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  startTime: text("start_time").notNull(),
+  endTime: text("end_time").notNull(),
+  anchorDate: text("anchor_date").notNull().default(""),
+  repeatEveryDays: integer("repeat_every_days").notNull().default(0),
+  color: text("color").notNull().default("red"),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdBy: text("created_by").notNull().default("System"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [index("station_shift_types_active_idx").on(table.active, table.sortOrder)]);
+
+export const stationShiftTypeRoles = sqliteTable("station_shift_type_roles", {
+  id: text("id").primaryKey(),
+  shiftTypeId: text("shift_type_id").notNull().references(() => stationShiftTypes.id),
+  role: text("role").notNull(),
+  count: integer("count").notNull().default(1),
+}, (table) => [uniqueIndex("station_shift_type_role_idx").on(table.shiftTypeId, table.role)]);
+
+export const stationScheduleEntries = sqliteTable("station_schedule_entries", {
+  id: text("id").primaryKey(),
+  entryDate: text("entry_date").notNull(),
+  shiftTypeId: text("shift_type_id").notNull().references(() => stationShiftTypes.id),
+  createdBy: text("created_by").notNull().default("System"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("station_schedule_entry_idx").on(table.entryDate, table.shiftTypeId),
+  index("station_schedule_entry_date_idx").on(table.entryDate),
+]);
+
+export const stationShiftSlots = sqliteTable("station_shift_slots", {
+  id: text("id").primaryKey(),
+  entryId: text("entry_id").notNull().references(() => stationScheduleEntries.id),
+  role: text("role").notNull(),
+  employeeId: text("employee_id").references(() => employees.id),
+  status: text("status").notNull().default("open"), // open | filled
+  sortOrder: integer("sort_order").notNull().default(0),
+  startTime: text("start_time").notNull().default(""),
+  endTime: text("end_time").notNull().default(""),
+  isExtra: integer("is_extra").notNull().default(0),
+}, (table) => [
+  index("station_shift_slot_entry_idx").on(table.entryId, table.sortOrder),
+  index("station_shift_slot_employee_idx").on(table.employeeId),
+]);
+
+export const stationStandingAssignments = sqliteTable("station_standing_assignments", {
+  id: text("id").primaryKey(),
+  employeeId: text("employee_id").notNull().references(() => employees.id),
+  shiftTypeId: text("shift_type_id").notNull().references(() => stationShiftTypes.id),
+  role: text("role").notNull(),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  createdBy: text("created_by").notNull().default("System"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [uniqueIndex("station_standing_assignment_idx").on(table.employeeId, table.shiftTypeId, table.role)]);
+
+export const stationTradeRequests = sqliteTable("station_trade_requests", {
+  id: text("id").primaryKey(),
+  slotId: text("slot_id").notNull().references(() => stationShiftSlots.id),
+  role: text("role").notNull(),
+  fromEmployeeId: text("from_employee_id").notNull().references(() => employees.id),
+  targetEmployeeId: text("target_employee_id").references(() => employees.id), // null = broadcast to all eligible
+  acceptedByEmployeeId: text("accepted_by_employee_id").references(() => employees.id),
+  note: text("note").notNull().default(""),
+  status: text("status").notNull().default("pending"), // pending | awaiting_acceptance | approved | denied
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  reviewedBy: text("reviewed_by"),
+  reviewedAt: text("reviewed_at"),
+}, (table) => [index("station_trade_status_idx").on(table.status, table.createdAt)]);
+
+export const stationShiftClaims = sqliteTable("station_shift_claims", {
+  id: text("id").primaryKey(),
+  slotId: text("slot_id").notNull().references(() => stationShiftSlots.id),
+  role: text("role").notNull(),
+  employeeId: text("employee_id").notNull().references(() => employees.id),
+  note: text("note").notNull().default(""),
+  status: text("status").notNull().default("pending"), // pending | approved | denied
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  reviewedBy: text("reviewed_by"),
+  reviewedAt: text("reviewed_at"),
+}, (table) => [
+  index("station_shift_claim_status_idx").on(table.status, table.createdAt),
+  index("station_shift_claim_slot_idx").on(table.slotId),
+]);
+
+export const stationTimeOffRequests = sqliteTable("station_time_off_requests", {
+  id: text("id").primaryKey(),
+  employeeId: text("employee_id").notNull().references(() => employees.id),
+  type: text("type").notNull(), // vacation | recovery | floating | sick | official_business
+  approverEmployeeId: text("approver_employee_id").notNull().references(() => employees.id),
+  note: text("note").notNull().default(""),
+  status: text("status").notNull().default("pending"), // pending | approved | denied
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  reviewedAt: text("reviewed_at"),
+}, (table) => [index("station_time_off_status_idx").on(table.status, table.createdAt)]);
+
+export const stationTimeOffDates = sqliteTable("station_time_off_dates", {
+  requestId: text("request_id").notNull().references(() => stationTimeOffRequests.id),
+  offDate: text("off_date").notNull(),
+}, (table) => [uniqueIndex("station_time_off_date_idx").on(table.requestId, table.offDate)]);
+
+// Date-aware unavailability: approved time off writes one row per off day so OT
+// pool exemptions can exclude an employee on those specific days.
+export const stationUnavailability = sqliteTable("station_unavailability", {
+  id: text("id").primaryKey(),
+  employeeId: text("employee_id").notNull().references(() => employees.id),
+  offDate: text("off_date").notNull(),
+  source: text("source").notNull().default("time_off"), // time_off | manual
+  requestId: text("request_id").references(() => stationTimeOffRequests.id),
+}, (table) => [uniqueIndex("station_unavailability_idx").on(table.employeeId, table.offDate)]);
+
+export const stationReminderRules = sqliteTable("station_reminder_rules", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull(), // shift_request | request_deadline | open_shift_blast
+  label: text("label").notNull().default(""),
+  offsets: text("offsets").notNull().default("[]"),        // JSON string[] e.g. ["7 days before","2 days before"]
+  emailEnabled: integer("email_enabled", { mode: "boolean" }).notNull().default(true),
+  textEnabled: integer("text_enabled", { mode: "boolean" }).notNull().default(false),
+  target: text("target").notNull().default(""),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const stationOtSettings = sqliteTable("station_ot_settings", {
+  mode: text("mode").primaryKey(), // voluntary | mandatory
+  exemptOffDuty: integer("exempt_off_duty", { mode: "boolean" }).notNull().default(true),
+  exemptAlreadyScheduled: integer("exempt_already_scheduled", { mode: "boolean" }).notNull().default(true),
+  exemptDeclined: integer("exempt_declined", { mode: "boolean" }).notNull().default(true),        // voluntary only
+  exemptRecentlyMandated: integer("exempt_recently_mandated", { mode: "boolean" }).notNull().default(true), // mandatory only
+  recentDays: integer("recent_days").notNull().default(14),                                        // mandatory only
+  exemptMaxConsecutive: integer("exempt_max_consecutive", { mode: "boolean" }).notNull().default(true), // mandatory only
+  maxConsecutive: integer("max_consecutive").notNull().default(2),                                 // mandatory only
+  priorityOrder: text("priority_order").notNull().default("[]"),                                   // JSON string[] of criteria ids
+  customRules: text("custom_rules").notNull().default("[]"),                                        // JSON [{id,label}]
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const stationOtTiming = sqliteTable("station_ot_timing", {
+  id: integer("id").primaryKey(),
+  awardDaysOut: integer("award_days_out").notNull().default(7),
+  completeByDaysOut: integer("complete_by_days_out").notNull().default(2),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const stationOtInterest = sqliteTable("station_ot_interest", {
+  id: text("id").primaryKey(),
+  slotId: text("slot_id").notNull().references(() => stationShiftSlots.id),
+  employeeId: text("employee_id").notNull().references(() => employees.id),
+  response: text("response").notNull(), // yes | no
+  respondedAt: text("responded_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [uniqueIndex("station_ot_interest_idx").on(table.slotId, table.employeeId)]);
+
+// A formal call-list entry once the award window is open. `declined` feeds the
+// voluntary exemptDeclined filter; `mandated` records a mandatory assignment.
+export const stationOtOffers = sqliteTable("station_ot_offers", {
+  id: text("id").primaryKey(),
+  slotId: text("slot_id").notNull().references(() => stationShiftSlots.id),
+  employeeId: text("employee_id").notNull().references(() => employees.id),
+  mode: text("mode").notNull(), // voluntary | mandatory
+  status: text("status").notNull().default("offered"), // offered | accepted | declined | mandated
+  rank: integer("rank").notNull().default(0),
+  offeredAt: text("offered_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  respondedAt: text("responded_at"),
+}, (table) => [
+  index("station_ot_offer_slot_idx").on(table.slotId, table.rank),
+  index("station_ot_offer_employee_idx").on(table.employeeId, table.status),
+]);
+
+export const stationDistributionWeights = sqliteTable("station_distribution_weights", {
+  id: integer("id").primaryKey(),
+  seniorityWeight: real("seniority_weight").notNull().default(1),
+  hoursWeight: real("hours_weight").notNull().default(1),
+  customWeight: real("custom_weight").notNull().default(0),
+  customLabel: text("custom_label").notNull().default("Cross-trained"),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
