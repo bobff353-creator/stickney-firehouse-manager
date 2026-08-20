@@ -1,9 +1,17 @@
 export type Point = { lat: number; lng: number };
-export type ConstructionGroup = "IA_IB" | "IIA_IIIA" | "IV_VA" | "IIB_IIIB" | "VB";
+export type ConstructionGroup =
+  | "IA_IB"
+  | "IIA_IIIA"
+  | "IV_VA"
+  | "IIB_IIIB"
+  | "VB";
 export type OccupancyFlowCategory = "other" | "dwelling";
 export type SprinklerStandard = "none" | "nfpa13" | "nfpa13r" | "residential";
 
-export const constructionOptions: Array<{ value: ConstructionGroup; label: string }> = [
+export const constructionOptions: Array<{
+  value: ConstructionGroup;
+  label: string;
+}> = [
   { value: "IA_IB", label: "Type IA or IB" },
   { value: "IIA_IIIA", label: "Type IIA or IIIA" },
   { value: "IV_VA", label: "Type IV or V-A" },
@@ -30,34 +38,130 @@ const table = [
   { gpm: 5250, duration: 4, max: [247700, 139400, 89200, 65400, 39600] },
   { gpm: 5500, duration: 4, max: [271200, 152600, 97700, 70600, 43400] },
   { gpm: 5750, duration: 4, max: [295900, 166500, 106500, 77000, 47400] },
-  { gpm: 6000, duration: 4, max: [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, 115800, 83700, 51500] },
-  { gpm: 6250, duration: 5, max: [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, 125500, 90600, 55700] },
-  { gpm: 6500, duration: 5, max: [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, 135500, 97900, 60200] },
-  { gpm: 6750, duration: 5, max: [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, 145800, 106800, 64800] },
-  { gpm: 7000, duration: 5, max: [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, 156700, 113200, 69600] },
-  { gpm: 7250, duration: 5, max: [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, 167900, 121300, 74600] },
-  { gpm: 7500, duration: 5, max: [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, 179400, 129600, 79800] },
-  { gpm: 7750, duration: 5, max: [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, 191400, 138300, 85100] },
-  { gpm: 8000, duration: 5, max: [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY] },
+  {
+    gpm: 6000,
+    duration: 4,
+    max: [
+      Number.POSITIVE_INFINITY,
+      Number.POSITIVE_INFINITY,
+      115800,
+      83700,
+      51500,
+    ],
+  },
+  {
+    gpm: 6250,
+    duration: 5,
+    max: [
+      Number.POSITIVE_INFINITY,
+      Number.POSITIVE_INFINITY,
+      125500,
+      90600,
+      55700,
+    ],
+  },
+  {
+    gpm: 6500,
+    duration: 5,
+    max: [
+      Number.POSITIVE_INFINITY,
+      Number.POSITIVE_INFINITY,
+      135500,
+      97900,
+      60200,
+    ],
+  },
+  {
+    gpm: 6750,
+    duration: 5,
+    max: [
+      Number.POSITIVE_INFINITY,
+      Number.POSITIVE_INFINITY,
+      145800,
+      106800,
+      64800,
+    ],
+  },
+  {
+    gpm: 7000,
+    duration: 5,
+    max: [
+      Number.POSITIVE_INFINITY,
+      Number.POSITIVE_INFINITY,
+      156700,
+      113200,
+      69600,
+    ],
+  },
+  {
+    gpm: 7250,
+    duration: 5,
+    max: [
+      Number.POSITIVE_INFINITY,
+      Number.POSITIVE_INFINITY,
+      167900,
+      121300,
+      74600,
+    ],
+  },
+  {
+    gpm: 7500,
+    duration: 5,
+    max: [
+      Number.POSITIVE_INFINITY,
+      Number.POSITIVE_INFINITY,
+      179400,
+      129600,
+      79800,
+    ],
+  },
+  {
+    gpm: 7750,
+    duration: 5,
+    max: [
+      Number.POSITIVE_INFINITY,
+      Number.POSITIVE_INFINITY,
+      191400,
+      138300,
+      85100,
+    ],
+  },
+  {
+    gpm: 8000,
+    duration: 5,
+    max: [
+      Number.POSITIVE_INFINITY,
+      Number.POSITIVE_INFINITY,
+      Number.POSITIVE_INFINITY,
+      Number.POSITIVE_INFINITY,
+      Number.POSITIVE_INFINITY,
+    ],
+  },
 ] as const;
 
 function constructionIndex(value: ConstructionGroup) {
-  return ({ IA_IB: 0, IIA_IIIA: 1, IV_VA: 2, IIB_IIIB: 3, VB: 4 } as const)[value];
+  return ({ IA_IB: 0, IIA_IIIA: 1, IV_VA: 2, IIB_IIIB: 3, VB: 4 } as const)[
+    value
+  ];
 }
-
 export function polygonAreaSquareFeet(points: Point[]) {
   if (points.length < 3) return 0;
   const earthRadiusMeters = 6378137;
-  const meanLatitude = points.reduce((sum, point) => sum + point.lat, 0) / points.length * Math.PI / 180;
+  const meanLatitude =
+    ((points.reduce((sum, point) => sum + point.lat, 0) / points.length) *
+      Math.PI) /
+    180;
   const projected = points.map((point) => ({
-    x: earthRadiusMeters * point.lng * Math.PI / 180 * Math.cos(meanLatitude),
-    y: earthRadiusMeters * point.lat * Math.PI / 180,
+    x:
+      ((earthRadiusMeters * point.lng * Math.PI) / 180) *
+      Math.cos(meanLatitude),
+    y: (earthRadiusMeters * point.lat * Math.PI) / 180,
   }));
   const twiceArea = projected.reduce((sum, point, index) => {
     const next = projected[(index + 1) % projected.length];
     return sum + point.x * next.y - next.x * point.y;
   }, 0);
-  return Math.abs(twiceArea) / 2 * 10.7639104167;
+  return (Math.abs(twiceArea) / 2) * 10.7639104167;
 }
 
 export function footprintCentroid(points: Point[]) {
@@ -68,8 +172,15 @@ export function footprintCentroid(points: Point[]) {
   };
 }
 
-export function fireFlowCalculationArea(footprintSquareFeet: number, floorCount: number, constructionType: ConstructionGroup) {
-  const levels = constructionType === "IA_IB" ? Math.min(3, Math.max(1, Math.trunc(floorCount))) : Math.max(1, Math.trunc(floorCount));
+export function fireFlowCalculationArea(
+  footprintSquareFeet: number,
+  floorCount: number,
+  constructionType: ConstructionGroup,
+) {
+  const levels =
+    constructionType === "IA_IB"
+      ? Math.min(3, Math.max(1, Math.trunc(floorCount)))
+      : Math.max(1, Math.trunc(floorCount));
   return Math.round(Math.max(0, footprintSquareFeet) * levels);
 }
 
@@ -80,7 +191,11 @@ export function suggestedFireFlow(input: {
   occupancyFlowCategory: OccupancyFlowCategory;
   sprinklerStandard: SprinklerStandard;
 }) {
-  const calculationArea = fireFlowCalculationArea(input.footprintSquareFeet, input.floorCount, input.constructionType);
+  const calculationArea = fireFlowCalculationArea(
+    input.footprintSquareFeet,
+    input.floorCount,
+    input.constructionType,
+  );
   if (!calculationArea) return null;
 
   if (input.occupancyFlowCategory === "dwelling" && calculationArea <= 3600) {
@@ -90,27 +205,47 @@ export function suggestedFireFlow(input: {
       baseGpm: 1000,
       suggestedGpm: sprinkler ? 500 : 1000,
       durationHours: sprinkler ? 0.5 : 1,
-      reduction: sprinkler ? "Residential sprinkler reduction" : "No sprinkler reduction",
+      reduction: sprinkler
+        ? "Residential sprinkler reduction"
+        : "No sprinkler reduction",
     };
   }
 
-  const row = table.find((item) => calculationArea <= item.max[constructionIndex(input.constructionType)]) ?? table.at(-1)!;
-  let suggestedGpm = row.gpm;
+  const row =
+    table.find(
+      (item) =>
+        calculationArea <= item.max[constructionIndex(input.constructionType)],
+    ) ?? table.at(-1)!;
+  let suggestedGpm: number = row.gpm;
   let reduction = "No sprinkler reduction";
   let durationHours: number = row.duration;
 
-  if (input.occupancyFlowCategory === "dwelling" && input.sprinklerStandard === "residential") {
+  if (
+    input.occupancyFlowCategory === "dwelling" &&
+    input.sprinklerStandard === "residential"
+  ) {
     suggestedGpm = Math.ceil(row.gpm * 0.5);
     durationHours = 1;
     reduction = "Residential sprinkler reduction";
-  } else if (input.occupancyFlowCategory === "other" && input.sprinklerStandard === "nfpa13") {
+  } else if (
+    input.occupancyFlowCategory === "other" &&
+    input.sprinklerStandard === "nfpa13"
+  ) {
     suggestedGpm = Math.max(1000, Math.ceil(row.gpm * 0.25));
     reduction = "NFPA 13 reduction, 1,000 GPM minimum";
-  } else if (input.occupancyFlowCategory === "other" && input.sprinklerStandard === "nfpa13r") {
+  } else if (
+    input.occupancyFlowCategory === "other" &&
+    input.sprinklerStandard === "nfpa13r"
+  ) {
     suggestedGpm = Math.max(1500, Math.ceil(row.gpm * 0.25));
     reduction = "NFPA 13R reduction, 1,500 GPM minimum";
   }
 
-  return { calculationArea, baseGpm: row.gpm, suggestedGpm, durationHours, reduction };
+  return {
+    calculationArea,
+    baseGpm: row.gpm,
+    suggestedGpm,
+    durationHours,
+    reduction,
+  };
 }
-

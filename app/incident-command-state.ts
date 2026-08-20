@@ -159,8 +159,8 @@ function remainingParSeconds(state: IncidentCommandState, now: string) {
 
 export function reduceIncidentCommandState(current: IncidentCommandState, mutation: CommandAction, context: ReduceContext): ReduceResult {
   const state = structuredClone(normalizeIncidentCommandState(current));
-  let eventType = mutation.action;
-  let summary = mutation.action;
+  let eventType: string = mutation.action;
+  let summary: string = mutation.action;
 
   if (mutation.action === "set-radio") {
     state.radioChannel = mutation.radioChannel.trim().slice(0, 80);

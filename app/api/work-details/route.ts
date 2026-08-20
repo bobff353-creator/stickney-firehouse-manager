@@ -1,6 +1,6 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 
-const ownerAdminEmails = ["bobff353@gmail.com", "bwyant@stickneyfire.com"];
+const ownerAdminEmails = ["bobff353@gmail.com"];
 const isOfficer = (rank: string) => /(chief|captain|lieutenant)/i.test(rank);
 
 async function viewer(db: Awaited<ReturnType<typeof ensureDatabase>>, request: Request) {

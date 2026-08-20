@@ -1,224 +1,176 @@
-// D1-compatible adapter over Postgres (Supabase).
-//
-// The entire app talks to the database through Cloudflare D1's prepared-
-// statement API: `db.prepare(sql).bind(...args).first()/.all()/.run()` plus
-// `db.batch([...])`. This module backs that exact shape with a Postgres
-// client so the app runs unchanged against Supabase's Postgres database.
-//
-// Required env: DATABASE_URL (a Postgres connection string, e.g. Supabase's
-// "Connection string" from Project Settings -> Database, using the pooler
-// host for serverless environments like Vercel).
-//
-// This Supabase project is shared with a separate, unrelated platform that
-// already owns the `public` schema — it has ~111 tables of its own,
-// including some that collide by name with this app's (dispatch_incidents,
-// incident_command_boards/events, inventory_audit_events, inventory_
-// compartments, inventory_equipment). `CREATE TABLE IF NOT EXISTS` silently
-// no-ops against an existing same-named table, so this app was reading and
-// writing into someone else's tables. Every table this app owns lives in
-// its own `stickney_app` schema instead (set via the pool's default
-// search_path below), which fully isolates it from `public` — current and
-// future collisions both.
-//
-// SQLite/D1 SQL text is largely accepted as-is by Postgres (TEXT/INTEGER/
-// REAL types, `ON CONFLICT(...) DO UPDATE SET col=excluded.col`, `CREATE
-// TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS` are all valid in both).
-// Three real differences are bridged at the database level instead of by
-// rewriting every call site across the app:
-//   1. `?` positional placeholders -> Postgres `$1,$2,...` (translated here).
-//   2. `COLLATE NOCASE` -> a Postgres collation literally named NOCASE,
-//      created once via ensurePostgresCompat() (see db/postgres-compat.sql).
-//   3. SQLite's `datetime(...)` function -> a matching Postgres function of
-//      the same name, also created once via ensurePostgresCompat().
-// Both compat objects must exist before any bootstrap SQL runs; see
-// ensurePostgresCompat() below.
+import { getSupabaseServerClient } from "../app/supabase-server";
 
-import { Pool, type QueryResultRow } from "pg";
+type BoundValue = string | number | boolean | null | undefined;
+type QueryMode = "all" | "first" | "run";
+type SupabaseClientFactory = typeof getSupabaseServerClient;
+type PortalRpc = "firehouse_sql" | "firehouse_server_sql";
 
-type Value = string | number | boolean | null | ArrayBuffer | Uint8Array;
-
-export const APP_SCHEMA = "stickney_app";
-
-let pool: Pool | null = null;
-
-function getPool(): Pool {
-  if (pool) return pool;
-  const connectionString = process.env.DATABASE_URL?.trim();
-  if (!connectionString) {
-    throw new Error(
-      "DATABASE_URL is not set. Add your Supabase Postgres connection string as DATABASE_URL in the environment.",
-    );
+function sqlLiteral(value: BoundValue) {
+  if (value == null) return "NULL";
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new Error("A database value was not finite.");
+    return String(value);
   }
-  pool = new Pool({
-    connectionString,
-    ssl: { rejectUnauthorized: false },
-    max: 5,
-    // Every connection defaults to this app's own schema first, so every
-    // unqualified table/function/collation reference resolves there —
-    // never into the other platform's same-named `public` tables.
-    options: `-c search_path=${APP_SCHEMA},public`,
-  });
-  return pool;
+  if (typeof value === "boolean") return value ? "1" : "0";
+  const sanitized = value.replaceAll("\0", "");
+  if (!/(;|--|\/\*|\*\/)/.test(sanitized)) return `'${sanitized.replaceAll("'", "''")}'`;
+  const bytes = new TextEncoder().encode(sanitized);
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `convert_from(decode('${hex}', 'hex'), 'UTF8')`;
 }
 
-/**
- * Converts SQLite/D1-flavored SQL text to Postgres-compatible text:
- *  - `?` positional placeholders -> `$1,$2,...`
- *  - `INSERT OR IGNORE INTO` -> `INSERT INTO ... ON CONFLICT DO NOTHING`
- *    (semantically identical: SQLite's OR IGNORE silently skips a row that
- *    would violate any constraint, same as an unqualified ON CONFLICT DO
- *    NOTHING in Postgres).
- */
-function toPostgresSql(sql: string): string {
-  let index = 0;
-  const withPlaceholders = sql.replace(/\?/g, () => `$${++index}`);
-  if (/^\s*INSERT\s+OR\s+IGNORE\s+INTO/i.test(withPlaceholders)) {
-    return withPlaceholders.replace(/^(\s*)INSERT\s+OR\s+IGNORE\s+INTO/i, "$1INSERT INTO") + " ON CONFLICT DO NOTHING";
-  }
-  return withPlaceholders;
-}
-
-function normalizeArgs(args: Value[]): unknown[] {
-  return args.map((value) => (value === undefined ? null : value));
-}
-
-/** Postgres returns native booleans/numbers; D1 callers expect SQLite's 0/1 integer convention for boolean columns, so leave values as Postgres returns them — callers already use Boolean(value)/truthiness checks throughout the app, which works for both `0/1` and `false/true`. */
-function toObject<T extends QueryResultRow>(row: T): T {
-  return row;
-}
-
-export class PgPreparedStatement {
-  constructor(private readonly sql: string, private readonly args: Value[] = []) {}
-
-  bind(...args: Value[]): PgPreparedStatement {
-    return new PgPreparedStatement(this.sql, args);
-  }
-
-  async first<T = Record<string, unknown>>(): Promise<T | null> {
-    const result = await getPool().query(toPostgresSql(this.sql), normalizeArgs(this.args));
-    const row = result.rows[0];
-    return row ? toObject<T & QueryResultRow>(row as T & QueryResultRow) : null;
-  }
-
-  async all<T = Record<string, unknown>>(): Promise<{ results: T[]; success: true; meta: { changes: number; last_row_id: number } }> {
-    const result = await getPool().query(toPostgresSql(this.sql), normalizeArgs(this.args));
-    return {
-      results: result.rows.map((row) => toObject<T & QueryResultRow>(row as T & QueryResultRow)),
-      success: true,
-      meta: { changes: result.rowCount ?? 0, last_row_id: 0 },
-    };
-  }
-
-  async run(): Promise<{ success: true; meta: { changes: number; last_row_id: number } }> {
-    const result = await getPool().query(toPostgresSql(this.sql), normalizeArgs(this.args));
-    return { success: true, meta: { changes: result.rowCount ?? 0, last_row_id: 0 } };
-  }
-
-  /** Internal: the statement form used by batch(). */
-  toStatement(): { sql: string; args: unknown[] } {
-    return { sql: toPostgresSql(this.sql), args: normalizeArgs(this.args) };
-  }
-}
-
-export class PgDatabase {
-  prepare(sql: string): PgPreparedStatement {
-    return new PgPreparedStatement(sql);
-  }
-
-  /** Runs every statement inside one transaction, matching D1's all-or-nothing batch semantics. */
-  async batch(statements: PgPreparedStatement[]): Promise<Array<{ success: true; meta: { changes: number; last_row_id: number }; results: Record<string, unknown>[] }>> {
-    const client = await getPool().connect();
-    try {
-      await client.query("BEGIN");
-      const outcomes: Array<{ success: true; meta: { changes: number; last_row_id: number }; results: Record<string, unknown>[] }> = [];
-      for (const statement of statements) {
-        const { sql, args } = statement.toStatement();
-        const result = await client.query(sql, args);
-        outcomes.push({
-          success: true,
-          meta: { changes: result.rowCount ?? 0, last_row_id: 0 },
-          results: result.rows,
-        });
+function bindSql(sql: string, values: BoundValue[]) {
+  let output = "";
+  let valueIndex = 0;
+  let quote: "'" | '"' | null = null;
+  for (let index = 0; index < sql.length; index += 1) {
+    const character = sql[index];
+    if (quote) {
+      output += character;
+      if (character === quote) {
+        if (sql[index + 1] === quote) output += sql[++index];
+        else quote = null;
       }
-      await client.query("COMMIT");
-      return outcomes;
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
+      continue;
+    }
+    if (character === "'" || character === '"') {
+      quote = character;
+      output += character;
+    } else if (character === "?") {
+      if (valueIndex >= values.length) throw new Error("A portal query is missing a bound value.");
+      output += sqlLiteral(values[valueIndex++]);
+    } else {
+      output += character;
     }
   }
+  if (valueIndex !== values.length) throw new Error("A portal query received too many bound values.");
+  return output;
+}
 
-  async exec(sql: string): Promise<{ count: number }> {
-    await getPool().query(sql);
-    return { count: 0 };
+function quoteCamelCaseIdentifiers(sql: string) {
+  let output = "";
+  let quote: "'" | '"' | null = null;
+  for (let index = 0; index < sql.length;) {
+    const character = sql[index];
+    if (quote) {
+      output += character;
+      index += 1;
+      if (character === quote) {
+        if (sql[index] === quote) output += sql[index++];
+        else quote = null;
+      }
+      continue;
+    }
+    if (character === "'" || character === '"') {
+      quote = character;
+      output += character;
+      index += 1;
+      continue;
+    }
+    const identifier = sql.slice(index).match(/^[A-Za-z_][A-Za-z0-9_]*/)?.[0];
+    if (identifier) {
+      output += /[a-z][A-Z]/.test(identifier) ? `"${identifier}"` : identifier;
+      index += identifier.length;
+      continue;
+    }
+    output += character;
+    index += 1;
+  }
+  return output;
+}
+
+function translateSql(sql: string, values: BoundValue[]) {
+  let translated = bindSql(sql, values).trim();
+  const ignoredInsert = /^\s*INSERT\s+OR\s+IGNORE\s+INTO\b/i.test(translated);
+  translated = translated.replace(/^\s*INSERT\s+OR\s+IGNORE\s+INTO\b/i, "INSERT INTO");
+  translated = translated.replace(/\s+COLLATE\s+NOCASE\b/gi, "");
+  translated = translated.replace(/\bGROUP_CONCAT\(([^,()]+),\s*('(?:''|[^'])*')\)/gi, "STRING_AGG($1, $2)");
+  translated = translated.replace(/\bCURRENT_TIMESTAMP\b/gi, "to_char(CURRENT_TIMESTAMP AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')");
+  translated = translated.replace(/\bdatetime\(\s*'now'\s*,\s*'(-?\d+)\s+(hours?|days?)'\s*\)/gi, "(CURRENT_TIMESTAMP + interval '$1 $2')");
+  translated = translated.replace(/\bdatetime\(\s*'now'\s*\)/gi, "CURRENT_TIMESTAMP");
+  translated = translated.replace(/\bdate\(\s*'now'\s*,\s*'(-?\d+)\s+(days?)'\s*\)/gi, "(CURRENT_DATE + interval '$1 $2')::date");
+  translated = translated.replace(/\bdate\(\s*'now'\s*\)/gi, "CURRENT_DATE");
+  translated = translated.replace(/\bdate\(\s*([^,()]+)\s*,\s*'(-?\d+)\s+(days?)'\s*\)/gi, "(($1)::date + interval '$2 $3')::date");
+  translated = translated.replace(/\bdate\(\s*('(?:''|[^'])*')\s*\)/gi, "($1)::date");
+  translated = translated.replace(/\bdatetime\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)/gi, "($1)::timestamptz");
+  translated = translated.replace(/\bdate\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)/gi, "($1)::date");
+  translated = translated.replace(/\browid\b/gi, "ctid");
+  translated = translated.replace(/\bLIKE\b/gi, "ILIKE");
+  if (ignoredInsert && !/\bON\s+CONFLICT\b/i.test(translated)) {
+    const returning = translated.match(/\s+RETURNING\s+/i);
+    translated = returning
+      ? `${translated.slice(0, returning.index)} ON CONFLICT DO NOTHING${translated.slice(returning.index!)}`
+      : `${translated} ON CONFLICT DO NOTHING`;
+  }
+  return quoteCamelCaseIdentifiers(translated);
+}
+
+async function execute(
+  sql: string,
+  values: BoundValue[],
+  mode: QueryMode,
+  clientFactory: SupabaseClientFactory,
+  rpc: PortalRpc,
+  databaseSecret: string | null,
+) {
+  const supabase = await clientFactory();
+  const { data, error } = await supabase.rpc(rpc, {
+    p_sql: translateSql(sql, values),
+    p_mode: mode,
+    p_secret: databaseSecret,
+  });
+  if (error) throw new Error(`Portal database query failed: ${error.message}`);
+  return data;
+}
+
+export class PostgresD1Statement {
+  constructor(
+    private readonly sql: string,
+    private readonly values: BoundValue[] = [],
+    private readonly clientFactory: SupabaseClientFactory = getSupabaseServerClient,
+    private readonly rpc: PortalRpc = "firehouse_sql",
+    private readonly databaseSecret: string | null = null,
+  ) {}
+
+  bind(...values: BoundValue[]) {
+    return new PostgresD1Statement(this.sql, values, this.clientFactory, this.rpc, this.databaseSecret);
+  }
+
+  async all<T = Record<string, unknown>>() {
+    return { results: (await execute(this.sql, this.values, "all", this.clientFactory, this.rpc, this.databaseSecret)) as T[] };
+  }
+
+  async first<T = Record<string, unknown>>() {
+    return (await execute(this.sql, this.values, "first", this.clientFactory, this.rpc, this.databaseSecret)) as T | null;
+  }
+
+  async run() {
+    return (await execute(this.sql, this.values, "run", this.clientFactory, this.rpc, this.databaseSecret)) as { success: boolean; meta: { changes: number } };
   }
 }
 
-let database: PgDatabase | null = null;
+export class PostgresD1Adapter {
+  constructor(
+    private readonly clientFactory: SupabaseClientFactory = getSupabaseServerClient,
+    private readonly rpc: PortalRpc = "firehouse_sql",
+    private readonly databaseSecret: string | null = null,
+  ) {}
 
-/** Returns the process-wide D1-compatible database handle backed by Postgres. */
-export function getPg(): PgDatabase {
-  database ??= new PgDatabase();
-  return database;
+  prepare(sql: string) {
+    return new PostgresD1Statement(sql, [], this.clientFactory, this.rpc, this.databaseSecret);
+  }
+
+  async batch(statements: PostgresD1Statement[]) {
+    const results = [];
+    for (const statement of statements) results.push(await statement.run());
+    return results;
+  }
 }
 
-let compatEnsured = false;
-
-/**
- * Creates the Postgres-side compatibility objects (a NOCASE collation and a
- * datetime() function matching SQLite's semantics for the modifier patterns
- * this app actually uses) so the app's existing SQL text — written for
- * SQLite/D1 — runs unchanged. Idempotent; safe to call on every cold start.
- */
-export async function ensurePostgresCompat(): Promise<void> {
-  if (compatEnsured) return;
-  const client = await getPool().connect();
-  try {
-    await client.query(`CREATE SCHEMA IF NOT EXISTS ${APP_SCHEMA}`);
-    await client.query(`
-      DO $$
-      BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_collation WHERE collname = 'nocase') THEN
-          CREATE COLLATION NOCASE (provider = icu, deterministic = false, locale = 'und-u-ks-level2');
-        END IF;
-      END
-      $$;
-    `);
-    // SQLite date()/datetime() return TEXT. Keep that contract here so the
-    // app's ISO date strings compare with the compatibility-function results
-    // without PostgreSQL text-vs-date/timestamp operator errors.
-    await client.query(`DROP FUNCTION IF EXISTS ${APP_SCHEMA}.date(text, text)`);
-    await client.query(`DROP FUNCTION IF EXISTS ${APP_SCHEMA}.datetime(text, text)`);
-    await client.query(`
-      CREATE FUNCTION ${APP_SCHEMA}.datetime(ts text, modifier text DEFAULT NULL)
-      RETURNS text AS $$
-      DECLARE
-        base timestamp;
-      BEGIN
-        IF ts = 'now' THEN
-          base := now();
-        ELSE
-          base := ts::timestamp;
-        END IF;
-        IF modifier IS NULL THEN
-          RETURN base::text;
-        END IF;
-        RETURN (base + (modifier::interval))::text;
-      END;
-      $$ LANGUAGE plpgsql IMMUTABLE;
-    `);
-    await client.query(`
-      CREATE FUNCTION ${APP_SCHEMA}.date(ts text, modifier text DEFAULT NULL)
-      RETURNS text AS $$
-      BEGIN
-        RETURN (${APP_SCHEMA}.datetime(ts, modifier)::timestamp)::date::text;
-      END;
-      $$ LANGUAGE plpgsql IMMUTABLE;
-    `);
-    compatEnsured = true;
-  } finally {
-    client.release();
-  }
+export function createPostgresD1Adapter(
+  clientFactory: SupabaseClientFactory = getSupabaseServerClient,
+  rpc: PortalRpc = "firehouse_sql",
+  databaseSecret: string | null = null,
+) {
+  return new PostgresD1Adapter(clientFactory, rpc, databaseSecret);
 }

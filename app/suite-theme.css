@@ -1,0 +1,27 @@
+body,
+button,
+input,
+select,
+textarea {
+  font-family: var(--font-geist-sans), Arial, sans-serif;
+}
+
+.topbar {
+  background: #071318;
+  border-bottom-color: #d62f2b;
+}
+
+.brand-mark {
+  transform: none;
+  border: 1px solid #315c48;
+  border-radius: 5px;
+  background: #0a2027;
+  color: #adf238;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+  letter-spacing: -0.03em;
+}
+
+.brand small {
+  letter-spacing: 0.08em;
+}

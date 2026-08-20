@@ -1,14 +1,12 @@
 import { ensureDatabase } from "../../../../../db/bootstrap";
+import { getPortalStorage } from "../../../../portal-storage";
 
 type BoardBucket = {
   get(key: string): Promise<{ body: ReadableStream; httpEtag?: string; httpMetadata?: { contentType?: string } } | null>;
 };
 
 async function bucket() {
-  const { env } = await import("@/app/cf-env");
-  const value = (env as unknown as { BUCKET?: BoardBucket }).BUCKET;
-  if (!value) throw new Error("Attachment storage is unavailable");
-  return value;
+  return getPortalStorage() as BoardBucket;
 }
 
 export async function GET(_request: Request, context: { params: Promise<{ attachmentId: string }> }) {

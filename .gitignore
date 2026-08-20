@@ -2,6 +2,11 @@
 
 # dependencies
 /node_modules
+/node_modules-incomplete/
+/node_modules-recreated/
+/node_modules-stalled/
+/node_modules-codex-incomplete-20260730/
+/.npm-cache/
 /.pnp
 .pnp.*
 .yarn/*
@@ -15,6 +20,7 @@
 
 # next.js
 /.next/
+/.vinext/
 /out/
 
 # misc
@@ -29,15 +35,17 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+app/*.prototype.txt
 
 # vercel
 .vercel
 
 # typescript
 next-env.d.ts
+*.tsbuildinfo
 /dist/
 /.wrangler/
-/.sites-runtime/
 /outputs/
 /work/
-tsconfig.tsbuildinfo
+.env*

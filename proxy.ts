@@ -1,8 +1,3 @@
-// Next.js middleware (Vercel). Ported from the vinext `proxy.ts`: it verifies
-// the Supabase session and department membership, then injects the identity
-// headers (`oai-authenticated-user-email`, `x-department-id`,
-// `x-department-role`) that every API route reads.
-
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getPublicSupabaseConfig } from "./app/supabase-config";
@@ -17,18 +12,20 @@ const publicApiPaths = new Set([
 const signedWebhookPaths = new Set([
   "/api/dispatch-bridge",
   "/api/resend-dispatch",
+  "/api/admin/migration-export",
+  "/api/auth/send-email-hook",
 ]);
 
 const publicAuthPostPaths = new Set([
-  "/api/auth/legacy-pin-login",
+  "/api/auth/activate",
+  "/api/auth/login",
 ]);
 
-// The Supabase URL/key have a known-good fallback baked into
-// getPublicSupabaseConfig() specifically so the app keeps working even if
-// Vercel's environment variables are missing/misconfigured for a given
-// environment — this middleware previously duplicated the same lookup
-// without that fallback, which silently broke every request whenever those
-// Vercel env vars weren't set, regardless of PAYROLL_DEPARTMENT_ID.
+const pinSetupPaths = new Set([
+  "/api/auth/context",
+  "/api/auth/pin",
+]);
+
 function configuration() {
   const { url, key } = getPublicSupabaseConfig();
   const departmentId = process.env.PAYROLL_DEPARTMENT_ID?.trim();
@@ -92,7 +89,24 @@ export async function proxy(request: NextRequest) {
   }
 
   const isOwner = ownerResult.data === true;
-  const membership = membershipResult.data as { role?: string } | null;
+  let membership = membershipResult.data as { role?: string } | null;
+  if (!membership && !isOwner) {
+    // Confirmation links can legitimately return to either the dedicated invite
+    // page or the app root, depending on the email template/provider. Redeem a
+    // matching, unexpired administrator invitation before denying access.
+    await client.rpc("accept_department_invite");
+    const membershipRetry = await client
+      .from("department_memberships")
+      .select("role,status")
+      .eq("department_id", departmentId)
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .maybeSingle();
+    if (membershipRetry.error) {
+      return jsonError("Department authorization could not be verified.", 503);
+    }
+    membership = membershipRetry.data as { role?: string } | null;
+  }
   if (!membership && !isOwner) {
     return jsonError(
       "Your email is confirmed. A department administrator must approve access before records can open.",
@@ -100,9 +114,23 @@ export async function proxy(request: NextRequest) {
     );
   }
 
+  const unlockToken = request.cookies.get("__Secure-firehouse-pin")?.value ?? "";
+  const { data: pinRows, error: pinError } = await client.rpc("portal_pin_status", {
+    p_unlock_token: unlockToken || null,
+  });
+  if (pinError) return jsonError("Portal PIN security could not be verified.", 503);
+  const pinStatus = (Array.isArray(pinRows) ? pinRows[0] : pinRows) as { configured?: boolean; unlocked?: boolean } | null;
+  const pinConfigured = Boolean(pinStatus?.configured);
+  const pinUnlocked = !pinConfigured || Boolean(pinStatus?.unlocked);
+  if (!pinUnlocked && !pinSetupPaths.has(pathname)) {
+    return jsonError("Enter your portal PIN to unlock department records.", 423);
+  }
+
   requestHeaders.set("oai-authenticated-user-email", user.email.toLowerCase());
   requestHeaders.set("x-department-id", departmentId);
   requestHeaders.set("x-department-role", isOwner ? "owner" : membership?.role || "member");
+  requestHeaders.set("x-portal-pin-configured", String(pinConfigured));
+  requestHeaders.set("x-portal-pin-unlocked", String(pinUnlocked));
   response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Cache-Control", "private, no-store, max-age=0");
   return response;

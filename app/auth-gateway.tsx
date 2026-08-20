@@ -3,9 +3,10 @@
 import type { User } from "@supabase/supabase-js";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import PayrollApp from "./payroll-app";
+import SessionIdleLock from "./session-idle-lock";
 import { getSupabaseBrowserClient } from "./supabase-browser";
 
-type Mode = "loading" | "sign-in" | "sign-up" | "checking" | "authorized" | "waiting";
+type Mode = "loading" | "sign-in" | "new-user" | "checking" | "set-pin" | "pin" | "authorized" | "waiting";
 
 function clearAccessCache() {
   document.cookie = "__Secure-firehouse-access=; Path=/; Max-Age=0; SameSite=Lax; Secure";
@@ -21,11 +22,12 @@ export default function AuthGateway({
   const [mode, setMode] = useState<Mode>(initiallyVerified ? "authorized" : "loading");
   const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  const [pin, setPin] = useState("");
+  const [pinConfirmation, setPinConfirmation] = useState("");
+  const [employeeNumber, setEmployeeNumber] = useState("");
   const [message, setMessage] = useState("");
   const accessCheckRef = useRef<Promise<void> | null>(null);
+  const pinLoginRef = useRef(false);
 
   useEffect(() => {
     const client = getSupabaseBrowserClient();
@@ -46,6 +48,7 @@ export default function AuthGateway({
         return;
       }
       if (event === "SIGNED_IN") {
+        if (pinLoginRef.current) return;
         void checkAccess(session.user, !initiallyVerified);
       } else if (event === "USER_UPDATED" || event === "TOKEN_REFRESHED") {
         void checkAccess(session.user, false);
@@ -64,6 +67,20 @@ export default function AuthGateway({
       try {
         const response = await fetch("/api/auth/context", { cache: "no-store" });
         if (response.ok) {
+          const payload = await response.json() as { pinConfigured?: boolean; pinUnlocked?: boolean };
+          if (!payload.pinConfigured) {
+            setPin("");
+            setPinConfirmation("");
+            setMode("set-pin");
+            setMessage("");
+            return;
+          }
+          if (payload.pinConfigured && !payload.pinUnlocked) {
+            setPin("");
+            setMode("pin");
+            setMessage("");
+            return;
+          }
           setMode("authorized");
           setMessage("");
           return;
@@ -98,92 +115,137 @@ export default function AuthGateway({
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!/^\d{4,6}$/.test(pin)) {
+      setMessage("Enter your 4 to 6 digit private PIN.");
+      return;
+    }
     setMode("checking");
     setMessage("Signing in...");
-    const normalizedEmail = email.trim().toLowerCase();
+    pinLoginRef.current = true;
     try {
-      if (/^\d{4,6}$/.test(password)) {
-        const response = await fetch("/api/auth/legacy-pin-login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: normalizedEmail, pin: password }),
-        });
-        const payload = await response.json().catch(() => ({})) as { error?: string };
-        if (!response.ok) {
-          setMode("sign-in");
-          setMessage(payload.error || "That email or portal PIN is not correct.");
-          return;
-        }
-        setPassword("");
-        window.location.reload();
-        return;
-      }
-
-      const { data, error } = await getSupabaseBrowserClient().auth.signInWithPassword({
-        email: normalizedEmail,
-        password,
+      const normalizedEmail = email.trim().toLowerCase();
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: normalizedEmail, pin }),
       });
-      if (error || !data.user) {
+      const responsePayload = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) {
         setMode("sign-in");
-        setMessage(error?.message || "Sign-in could not be completed.");
+        setMessage(responsePayload.error || "That email or PIN is not correct.");
         return;
       }
-      await checkAccess(data.user);
-    } catch {
-      setMode("sign-in");
-      setMessage("Sign-in could not be completed. Check the connection and try again.");
+      setPin("");
+      window.location.reload();
+    } finally {
+      pinLoginRef.current = false;
     }
   }
 
-  async function signUp(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (password.length < 8) {
-      setMessage("Use at least 8 characters for your password.");
+  async function emailSignInLink() {
+    if (!email.trim()) {
+      setMessage("Enter your invited email address first.");
       return;
     }
-    if (password !== confirmPassword) {
-      setMessage("The two passwords do not match.");
+    const callback = new URL("/auth/confirm", window.location.origin);
+    const { error } = await getSupabaseBrowserClient().auth.signInWithOtp({
+      email: email.trim(),
+      options: { shouldCreateUser: false, emailRedirectTo: callback.toString() },
+    });
+    setMessage(error ? error.message : "One-time activation or upgrade email sent. Open it and enter your existing PIN once; future logins will use email and PIN only.");
+  }
+
+  async function unlockWithPin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!/^\d{4,6}$/.test(pin)) {
+      setMessage("Enter your 4 to 6 digit PIN.");
+      return;
+    }
+    setMessage("Unlocking department records...");
+    const response = await fetch("/api/auth/pin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "verify", pin }),
+    });
+    const payload = await response.json().catch(() => ({})) as { error?: string };
+    if (!response.ok) {
+      setMessage(payload.error || "The PIN could not be verified.");
+      return;
+    }
+    setPin("");
+    setMessage("");
+    setMode("authorized");
+  }
+
+  async function createPin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!/^\d{4,6}$/.test(pin)) {
+      setMessage("Choose a PIN containing 4 to 6 digits.");
+      return;
+    }
+    if (pin !== pinConfirmation) {
+      setMessage("The two PIN entries do not match.");
+      return;
+    }
+    setMessage("Saving your portal PIN...");
+    const response = await fetch("/api/auth/pin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "set", pin }),
+    });
+    const payload = await response.json().catch(() => ({})) as { error?: string };
+    if (!response.ok) {
+      setMessage(payload.error || "The PIN could not be saved.");
+      return;
+    }
+    setPin("");
+    setPinConfirmation("");
+    setMessage("");
+    setMode("authorized");
+  }
+
+  async function activateNewUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!/^\d{4,6}$/.test(employeeNumber)) {
+      setMessage("Enter your 4 to 6 digit employee number.");
+      return;
+    }
+    if (!/^\d{4,6}$/.test(pin)) {
+      setMessage("Choose a new private PIN containing 4 to 6 digits.");
+      return;
+    }
+    if (employeeNumber === pin) {
+      setMessage("Choose a private PIN that is different from your employee number.");
+      return;
+    }
+    if (pin !== pinConfirmation) {
+      setMessage("The two private PIN entries do not match.");
       return;
     }
     setMode("checking");
-    setMessage("Creating your account...");
-    const callback = new URL("/auth/confirm", window.location.origin);
-    const { data, error } = await getSupabaseBrowserClient().auth.signUp({
-      email: email.trim(),
-      password,
-      options: { emailRedirectTo: callback.toString() },
+    setMessage("Creating your secure employee login...");
+    const response = await fetch("/api/auth/activate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.trim().toLowerCase(), employeeNumber, pin }),
     });
-    if (error) {
-      setMode("sign-up");
-      setMessage(error.message);
+    const payload = await response.json().catch(() => ({})) as { error?: string };
+    if (!response.ok) {
+      setMode("new-user");
+      setMessage(payload.error || "Your employee login could not be created.");
       return;
     }
-    if (data.session && data.user) {
-      await checkAccess(data.user);
-      return;
-    }
-    setMode("sign-in");
-    setPassword("");
-    setConfirmPassword("");
-    setMessage("Confirmation email sent. Open it to verify your address, then return here to sign in.");
-  }
-
-  async function resetPassword() {
-    if (!email.trim()) {
-      setMessage("Enter your email address first.");
-      return;
-    }
-    const callback = new URL("/auth/confirm", window.location.origin);
-    callback.searchParams.set("next", "/reset-password");
-    const { error } = await getSupabaseBrowserClient().auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: callback.toString(),
-    });
-    setMessage(error ? error.message : "If that account exists, a password reset email was sent.");
+    setPin("");
+    setPinConfirmation("");
+    setEmployeeNumber("");
+    window.location.reload();
   }
 
   async function signOut() {
     clearAccessCache();
+    await fetch("/api/auth/pin", { method: "DELETE" }).catch(() => undefined);
     await getSupabaseBrowserClient().auth.signOut();
+    setPin("");
     setUser(null);
     setMode("sign-in");
     setMessage("Signed out.");
@@ -191,11 +253,13 @@ export default function AuthGateway({
 
   if (mode === "authorized") {
     return (
-      <PayrollApp
-        accountEmail={user?.email || ""}
-        onSignOut={signOut}
-        initialPage={initialPage}
-      />
+      <SessionIdleLock onSignOut={signOut}>
+        <PayrollApp
+          accountEmail={user?.email || ""}
+          onSignOut={signOut}
+          initialPage={initialPage}
+        />
+      </SessionIdleLock>
     );
   }
 
@@ -218,6 +282,69 @@ export default function AuthGateway({
     );
   }
 
+  if (mode === "set-pin") {
+    return (
+      <main className="login-shell">
+        <section className="login-card login-waiting-card">
+          <span className="login-app-mark" aria-hidden="true">SFD</span>
+          <p className="login-eyebrow">EMAIL VERIFIED · ONE-TIME SETUP</p>
+          <h1>Create your portal PIN</h1>
+          <p>Your approved account existed before PIN login was added. Create 4 to 6 digits now; no department records or unfinished work will be removed.</p>
+          <dl className="invite-account-summary"><div><dt>Verified account</dt><dd>{user?.email}</dd></div><div><dt>Department</dt><dd>Stickney Fire Department</dd></div></dl>
+          <form onSubmit={createPin}>
+            <label>New PIN<input autoFocus type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
+            <label>Confirm PIN<input type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pinConfirmation} onChange={(event) => setPinConfirmation(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
+            {message ? <p className="login-message" role="status">{message}</p> : null}
+            <button className="login-primary" type="submit">Save PIN and open the app</button>
+          </form>
+          <button type="button" className="login-link-button" onClick={signOut}>Use a different account</button>
+        </section>
+      </main>
+    );
+  }
+
+  if (mode === "pin") {
+    return (
+      <main className="login-shell">
+        <section className="login-card login-waiting-card">
+          <span className="login-app-mark" aria-hidden="true">SFD</span>
+          <p className="login-eyebrow">VERIFIED ACCOUNT</p>
+          <h1>Enter your portal PIN</h1>
+          <p>Your email session is verified. Enter the 4 to 6 digit PIN you created when joining the department app.</p>
+          <form onSubmit={unlockWithPin}>
+            <label>Portal PIN<input autoFocus type="password" inputMode="numeric" autoComplete="current-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
+            {message ? <p className="login-message" role="status">{message}</p> : null}
+            <button className="login-primary" type="submit">Unlock app</button>
+          </form>
+          <button type="button" className="login-link-button" onClick={signOut}>Use a different account</button>
+        </section>
+      </main>
+    );
+  }
+
+  if (mode === "new-user") {
+    return (
+      <main className="login-shell">
+        <section className="login-card login-reset-card">
+          <span className="login-app-mark" aria-hidden="true">SFD</span>
+          <p className="login-eyebrow">NEW EMPLOYEE</p>
+          <h1>Create your login</h1>
+          <p>Use the Stickney email and employee number already saved on your employee record. Then choose the private PIN you will use from now on.</p>
+          <form onSubmit={activateNewUser}>
+            <label>Stickney email<input autoFocus type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
+            <label>Employee number<input type="password" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={employeeNumber} onChange={(event) => setEmployeeNumber(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
+            <label>New private PIN<input type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
+            <label>Enter private PIN again<input type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pinConfirmation} onChange={(event) => setPinConfirmation(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
+            {message ? <p className="login-message" role="status">{message}</p> : null}
+            <button className="login-primary" type="submit">Create login and open app</button>
+          </form>
+          <small className="pin-security-note">Your employee number is checked once and is never saved as your private PIN.</small>
+          <button type="button" className="login-secondary login-back-button" onClick={() => { setMessage(""); setPin(""); setPinConfirmation(""); setEmployeeNumber(""); setMode("sign-in"); }}>Back to Sign In</button>
+        </section>
+      </main>
+    );
+  }
+
   if (mode === "loading" || mode === "checking") {
     return (
       <main className="login-shell">
@@ -231,7 +358,6 @@ export default function AuthGateway({
     );
   }
 
-  const creating = mode === "sign-up";
   return (
     <main className="login-shell">
       <section className="login-brand-panel">
@@ -247,26 +373,19 @@ export default function AuthGateway({
         <small>Department records are separated from unapproved accounts.</small>
       </section>
       <section className="login-card">
-        <p className="login-eyebrow">{creating ? "CREATE ACCOUNT" : "WELCOME BACK"}</p>
-        <h2>{creating ? "Set up your verified login" : "Sign in to the portal"}</h2>
-        <p>{creating ? "We will email you a confirmation link before the account can be used." : "Use your existing 4 to 6 digit portal PIN, or the password connected to your department account."}</p>
-        <form onSubmit={creating ? signUp : signIn}>
+        <p className="login-eyebrow">WELCOME BACK</p>
+        <h2>Sign in with email and PIN</h2>
+        <p>Your Stickney email is your username. After the one-time email confirmation, use your private PIN for every sign-in.</p>
+        <form onSubmit={signIn}>
           <label>Email address<input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
-          <label>{creating ? "Password" : "Portal PIN or password"}
-            <span className="login-password-field">
-              <input type={showPassword ? "text" : "password"} autoComplete={creating ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} minLength={creating ? 8 : undefined} required />
-              <button type="button" onClick={() => setShowPassword((current) => !current)}>{showPassword ? "Hide" : "Show"}</button>
-            </span>
-          </label>
-          {creating ? <label>Confirm password<input type={showPassword ? "text" : "password"} autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} minLength={8} required /></label> : null}
+          <label>Private PIN<input type="password" inputMode="numeric" autoComplete="current-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
           {message ? <p className="login-message" role="status">{message}</p> : null}
-          <button className="login-primary" type="submit">{creating ? "Create account and email confirmation" : "Sign in"}</button>
+          <button className="login-primary" type="submit">Sign in</button>
         </form>
-        {!creating ? <button type="button" className="login-link-button" onClick={resetPassword}>Forgot password?</button> : null}
-        <div className="login-divider"><span>{creating ? "Already have an account?" : "Need an account?"}</span></div>
-        <button type="button" className="login-secondary" onClick={() => { setMode(creating ? "sign-in" : "sign-up"); setMessage(""); }}>
-          {creating ? "Return to sign in" : "Create a verified account"}
-        </button>
+        <div className="login-divider"><span>NEW EMPLOYEE?</span></div>
+        <button type="button" className="login-secondary login-new-user-button" onClick={() => { setMessage(""); setPin(""); setMode("new-user"); }}>New User — Create Login</button>
+        <p className="login-invite-note">Your administrator must first save your Stickney email and employee number on your active employee record.</p>
+        <button type="button" className="login-link-button" onClick={() => void emailSignInLink()}>Older account only: send one-time upgrade email</button>
       </section>
     </main>
   );

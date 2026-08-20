@@ -1,12 +1,12 @@
 import { ensureDatabase } from "../../../../db/bootstrap";
+import { getPortalStorage } from "../../../portal-storage";
 
 type Bucket = { put(key:string,value:ReadableStream,options:{httpMetadata:{contentType:string}}):Promise<unknown>; delete(key:string):Promise<void> };
-const ownerAdminEmails = ["bobff353@gmail.com", "bwyant@stickneyfire.com"];
+const ownerAdminEmails = ["bobff353@gmail.com"];
 const sides = new Set(["A","B","C","D","FEATURE","OVERVIEW"]);
 
 async function runtime() {
-  const { env } = await import("@/app/cf-env");
-  return env as unknown as { BUCKET?:Bucket };
+  return { BUCKET: getPortalStorage() as Bucket };
 }
 
 async function editor(request:Request, db:Awaited<ReturnType<typeof ensureDatabase>>) {

@@ -1,6 +1,7 @@
 import { ensureDatabase } from "../../../../db/bootstrap";
+import { getPortalStorage } from "../../../portal-storage";
 
-const ownerAdminEmails = ["bobff353@gmail.com", "bwyant@stickneyfire.com"];
+const ownerAdminEmails = ["bobff353@gmail.com"];
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const maxPhotoBytes = 3 * 1024 * 1024;
 
@@ -11,10 +12,7 @@ type PhotoBucket = {
 };
 
 async function bucket() {
-  const { env } = await import("@/app/cf-env");
-  const value = (env as unknown as { BUCKET?: PhotoBucket }).BUCKET;
-  if (!value) throw new Error("Employee photo storage is unavailable");
-  return value;
+  return getPortalStorage() as PhotoBucket;
 }
 
 async function isAdmin(request: Request) {

@@ -28,10 +28,34 @@ export async function GET(request: Request) {
   googleUrl.searchParams.set("return_error_code", "true");
   googleUrl.searchParams.set("key", key);
 
-  const response = await fetch(googleUrl, { cache: "no-store" });
+  const requestOrigin = new URL(request.url).origin;
+  const browserReferer = request.headers.get("referer");
+  let googleReferer = `${requestOrigin}/`;
+  if (browserReferer) {
+    try {
+      const parsedReferer = new URL(browserReferer);
+      if (parsedReferer.origin === requestOrigin) googleReferer = browserReferer;
+    } catch {
+      // Keep the verified request origin when an invalid referrer is supplied.
+    }
+  }
+
+  const response = await fetch(googleUrl, {
+    cache: "no-store",
+    headers: {
+      Accept: "image/*",
+      Referer: googleReferer,
+    },
+  });
   const contentType = response.headers.get("content-type") ?? "";
   if (!response.ok || !contentType.startsWith("image/")) {
-    return Response.json({ error: "Street View imagery is unavailable for this location." }, { status: 404, headers: noStoreHeaders });
+    const upstreamMessage = contentType.startsWith("text/") ? (await response.text()).replaceAll(key, "[redacted]").slice(0, 300) : "";
+    console.error("Google Street View request failed", { status: response.status, contentType, message: upstreamMessage || "No image returned" });
+    const configurationError = response.status === 401 || response.status === 403;
+    return Response.json(
+      { error: configurationError ? "Google Street View rejected the configured API key or its restrictions." : "Street View imagery is unavailable for this location." },
+      { status: configurationError ? 502 : 404, headers: noStoreHeaders },
+    );
   }
 
   return new Response(await response.arrayBuffer(), {

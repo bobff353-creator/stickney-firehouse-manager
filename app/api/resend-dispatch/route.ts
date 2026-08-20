@@ -1,6 +1,7 @@
-import { ensureDatabase } from "../../../db/bootstrap";
+import { createPostgresD1Adapter } from "../../../db/postgres-adapter";
 import { projectDispatchIntoDailyLog } from "../../dispatch-daily-log";
 import { parseDispatchJson, parseDispatchText, type DispatchIncident } from "../../dispatch-email";
+import { getSupabaseSystemClient } from "../../supabase-system";
 
 type ResendEvent = {
   type?: string;
@@ -18,7 +19,16 @@ type RuntimeEnv = {
   RESEND_WEBHOOK_SECRET?: string;
   DISPATCH_EMAIL_FROM?: string;
   DISPATCH_EMAIL_TO?: string;
+  FIREHOUSE_DATABASE_SECRET?: string;
 };
+
+function cleanDatabaseSecret(value: string | undefined) {
+  let cleaned = value?.replace(/[\uFEFF\r\n]/g, "").trim() ?? "";
+  if ((cleaned.startsWith('"') && cleaned.endsWith('"')) || (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+    cleaned = cleaned.slice(1, -1).trim();
+  }
+  return cleaned;
+}
 
 function safeEqual(left: Uint8Array, right: Uint8Array) {
   if (left.length !== right.length) return false;
@@ -80,9 +90,9 @@ async function retrieveIncident(event: ResendEvent, apiKey: string): Promise<{ i
 
 export async function POST(request: Request) {
   try {
-    const { env } = await import("@/app/cf-env");
-    const runtime = env as unknown as RuntimeEnv;
-    if (!runtime.RESEND_API_KEY || !runtime.RESEND_WEBHOOK_SECRET || !runtime.DISPATCH_EMAIL_FROM || !runtime.DISPATCH_EMAIL_TO) {
+    const runtime = process.env as RuntimeEnv;
+    const databaseSecret = cleanDatabaseSecret(runtime.FIREHOUSE_DATABASE_SECRET);
+    if (!runtime.RESEND_API_KEY || !runtime.RESEND_WEBHOOK_SECRET || !runtime.DISPATCH_EMAIL_FROM || !runtime.DISPATCH_EMAIL_TO || !databaseSecret) {
       return Response.json({ error: "Dispatch email integration is not configured" }, { status: 503 });
     }
     const body = await request.text();
@@ -102,7 +112,11 @@ export async function POST(request: Request) {
       return Response.json({ ignored: true, reason: "Not a Stickney Bryx dispatch" });
     }
     const { incident, attachmentCount } = await retrieveIncident(event, runtime.RESEND_API_KEY);
-    const db = await ensureDatabase();
+    const db = createPostgresD1Adapter(
+      getSupabaseSystemClient,
+      "firehouse_server_sql",
+      databaseSecret,
+    );
     const timeOut = chicagoMilitaryTime(incident.dispatchedAt);
     await db.prepare(
       "INSERT INTO dispatch_incidents (incident_id, resend_email_id, call_type, category, address, city, narrative, responding_units, longitude, latitude, dispatched_at, time_out, attachment_count, source_payload, received_at, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 1) ON CONFLICT(incident_id) DO UPDATE SET call_type=excluded.call_type, category=excluded.category, address=excluded.address, city=excluded.city, narrative=excluded.narrative, responding_units=excluded.responding_units, longitude=excluded.longitude, latitude=excluded.latitude, dispatched_at=excluded.dispatched_at, time_out=excluded.time_out, attachment_count=excluded.attachment_count, source_payload=excluded.source_payload, received_at=CURRENT_TIMESTAMP"

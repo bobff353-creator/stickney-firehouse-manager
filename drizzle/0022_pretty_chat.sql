@@ -1,1 +1,0 @@
-ALTER TABLE `schedule_coverage_rules` ADD `plan_id` text DEFAULT '' NOT NULL;

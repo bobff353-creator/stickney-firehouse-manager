@@ -2,41 +2,23 @@
 /* eslint-disable @next/next/no-img-element -- preplan photos are protected runtime records. */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { formatRespondTime } from "./respond-time";
+import { formatRespondMilitaryTime, formatRespondTime } from "./respond-time";
 
 type Point = { lat: number; lng: number };
 type Feature = { id:string; featureType:string; label:string; latitude:number; longitude:number; systemType:string; serviceStatus:string; details:string };
 type Photo = { id:string; side:string; caption:string; url:string };
-type RespondLevel = { id:string; name:string; shortLabel:string; layerType:string; floorIndex:number; isDefault:boolean };
-type RespondSpace = { id:string; levelId:string; displayName:string; roomNumber:string; spaceType:string };
 type Preplan = {
   id:string; businessName:string; address:string; latitude:number; longitude:number; aSideLatitude?:number|null; aSideLongitude?:number|null;
   footprint:Point[]; footprintSquareFeet:number; floorCount:number; constructionType:string; suggestedFireFlowGpm:number; suggestedFireFlowDuration:number;
   contactInfo:string; construction:string; accessInfo:string; alarmSystem:string; knoxBox:string; riser:string; fdc:string; sprinklerSystem:string;
-  status:string; updatedAt:string; features:Feature[]; photos:Photo[]; levels?:RespondLevel[]; spaces?:RespondSpace[]; alerts?:RespondAlert[]; hazmat?:RespondHazmat[]; hazmatZones?:RespondHazmatZone[];
-  riskClassification?:"low"|"moderate"|"high"|"critical"; targetHazard?:boolean; targetHazardReasons?:string[]; hoseLays?:RespondHoseLay[];
-  pinnedAttachments?:RespondAttachment[];
+  status:string; updatedAt:string; features:Feature[]; photos:Photo[];
 };
-type RespondAttachment = { id:string; category:string; originalFilename:string; mimeType:string; caption:string; url:string };
-type RespondHoseLay = {
-  id:string; sourceHydrantNumber:string|null; destinationSide:string; hoseSizeInches:number; supplyLineLabel:string; assignedApparatusLabel:string;
-  measuredFeet:number; recommendedFeet:number; notes:string;
-  capacity:{status:"sufficient";availableFeet:number;deficitFeet:0}|{status:"deficit";availableFeet:number;deficitFeet:number}|{status:"unverified"};
-};
-type RespondAlert = { id:string; alertType:string; title:string; instructions:string; severity:"informational"|"advisory"|"warning"|"critical" };
-type RespondHazmat = { id:string; chemicalName:string; unNaNumber:string; ergGuideNumber:string; quantity:number|null; quantityUnit:string; containerType:string; exactLocation:string; nfpaHealth:number; nfpaFlammability:number; nfpaInstability:number; nfpaSpecial:string; dateVerified:string|null; mapped:boolean; notes:string };
-type RespondHazmatZone = { id:string; hazmatId:string|null; zoneType:string; label:string; radiusFeet:number|null };
-type RoomMatch =
-  | { kind:"unique"; space:RespondSpace; level:{levelId:string;name:string}|null; explanation:string }
-  | { kind:"ambiguous"; candidates:Array<{space:RespondSpace;level:{levelId:string;name:string}|null}>; explanation:string }
-  | { kind:"none" }
-  | null;
 type ActiveCall = { reportNumber:string; callType:string; category:string; address:string; city:string; narrative:string; respondingUnits:string; longitude:number|null; latitude:number|null; dispatchedAt:string; timeOut:string; source:string; receivedAt:string };
 type RecentCall = { reportNumber:string; callType:string; address:string; respondingUnits:string; timeOut:string; timeIn:string; logDate:string };
 type BoxCard = { id:string; title:string; address:string; boxNumber:string; accessNotes:string; status:string };
 type NearbyHydrant = { id:string; hydrantNumber:string; address:string; latitude:number; longitude:number; serviceStatus:string; distanceFeet:number };
 type RespondData = {
-  activeCall:ActiveCall|null; preplan:Preplan|null; match:{method:"address"|"gps";distanceFeet:number}|null; roomMatch:RoomMatch;
+  activeCall:ActiveCall|null; preplan:Preplan|null; match:{method:"address"|"gps";distanceFeet:number}|null;
   cadUpdates:Array<{eventType:string;status:string;receivedAt:string;narrative:string;respondingUnits:string}>; apparatusFilter:string|null; generatedAt:string;
   recentCalls:RecentCall[]; boxCard:BoxCard|null; nearestHydrants:NearbyHydrant[];
 };
@@ -100,22 +82,12 @@ function FootprintDiagram({ preplan, selectedId, onSelect }:{preplan:Preplan;sel
 export default function Respond({ apparatus = "", onNavigate }: { apparatus?: string; onNavigate?:(page:"Daily Log"|"Field Preplans"|"Box Cards")=>void }) {
   const [data,setData]=useState<RespondData|null>(null), [error,setError]=useState(""), [view,setView]=useState<RightView>("cad"), [selected,setSelected]=useState<QuickItem|null>(null);
   const [monitorMode,setMonitorMode]=useState(false);
-  const [selectedLevelId,setSelectedLevelId]=useState("");
   const pageRef=useRef<HTMLElement>(null);
   const load=useCallback(async()=>{
     try{const query=apparatus?`?apparatus=${encodeURIComponent(apparatus)}`:"";const response=await fetch(`/api/respond${query}`,{cache:"no-store"});const body=await response.json() as RespondData&{error?:string};if(!response.ok)throw new Error(body.error||"Unable to load Respond.");setData(body);setError("");}
     catch(value){setError(value instanceof Error?value.message:"Unable to load Respond.");}
   },[apparatus]);
   useEffect(()=>{const initial=window.setTimeout(()=>void load(),0);const timer=window.setInterval(()=>void load(),10000);return()=>{window.clearTimeout(initial);window.clearInterval(timer);};},[load]);
-  useEffect(()=>{
-    const levels=data?.preplan?.levels??[];
-    if(!levels.length){setSelectedLevelId("");return;}
-    setSelectedLevelId((current)=>{
-      if(current&&levels.some((level)=>level.id===current))return current;
-      if(data?.roomMatch?.kind==="unique"&&data.roomMatch.level)return data.roomMatch.level.levelId;
-      return levels.find((level)=>level.isDefault)?.id||levels[0].id;
-    });
-  },[data?.preplan?.id,data?.preplan?.levels,data?.roomMatch]);
   useEffect(()=>{const update=()=>{if(!document.fullscreenElement)setMonitorMode(false);};document.addEventListener("fullscreenchange",update);return()=>document.removeEventListener("fullscreenchange",update);},[]);
   async function toggleMonitor(){if(monitorMode){setMonitorMode(false);if(document.fullscreenElement)await document.exitFullscreen().catch(()=>{});return;}setMonitorMode(true);await pageRef.current?.requestFullscreen().catch(()=>{});}
   const quickItems=useMemo<QuickItem[]>(()=>{
@@ -126,49 +98,32 @@ export default function Respond({ apparatus = "", onNavigate }: { apparatus?: st
       ["construction","Building Construction",plan.construction],["contact","Contact",plan.contactInfo],
     ].filter((item)=>item[2]).map(([id,label,value])=>({id:`summary-${id}`,label,summary:value,details:value}));
     const mapped=plan.features.map((feature)=>({id:feature.id,label:feature.label||featureLabels[feature.featureType]||feature.featureType,summary:feature.systemType||featureLabels[feature.featureType]||feature.featureType,details:feature.details,status:feature.serviceStatus,latitude:feature.latitude,longitude:feature.longitude}));
-    const hazmatItems=(plan.hazmat??[]).map((item)=>{
-      const zones=(plan.hazmatZones??[]).filter((zone)=>zone.hazmatId===item.id);
-      return {
-        id:`hazmat-${item.id}`,
-        label:`HazMat: ${item.chemicalName}`,
-        summary:[item.unNaNumber,item.ergGuideNumber&&`ERG ${item.ergGuideNumber}`].filter(Boolean).join(" · ")||"Structured HazMat record",
-        details:[item.exactLocation&&`Location: ${item.exactLocation}`,`NFPA 704: Health ${item.nfpaHealth} · Flammability ${item.nfpaFlammability} · Instability ${item.nfpaInstability}${item.nfpaSpecial?` · ${item.nfpaSpecial}`:""}`,item.quantity!=null&&`Quantity: ${item.quantity} ${item.quantityUnit||""}`.trim(),item.containerType&&`Container: ${item.containerType}`,item.dateVerified?`Verified ${new Date(item.dateVerified).toLocaleDateString()}`:"Not yet verified",!item.mapped&&"Unmapped operational record",zones.length?`Zones: ${zones.map((zone)=>`${zone.label||zone.zoneType}${zone.radiusFeet?` (${zone.radiusFeet.toLocaleString()} ft)`:""}`).join(", ")}`:"",item.notes].filter(Boolean).join("\n"),
-      };
-    });
-    return [...hazmatItems,...mapped,...staticItems];
+    return [...mapped,...staticItems];
   },[data?.preplan]);
   const call=data?.activeCall??null, plan=data?.preplan??null, alpha=sidePhoto(plan,"A"), selectedSide=view==="B"||view==="C"||view==="D"?sidePhoto(plan,view):null;
   if(!data&&!error)return <section className="respond-page"><div className="respond-empty"><strong>Loading active response…</strong><span>Checking current CAD and preplan records.</span></div></section>;
   if(error&&!data)return <section className="respond-page"><div className="respond-empty danger"><strong>Respond could not load</strong><span>{error}</span><button onClick={()=>void load()}>Try again</button></div></section>;
   if(!call)return <section ref={pageRef} className={`respond-page${monitorMode?" monitor-view":""}`}><header className="respond-title"><div><span>FIELD · RESPOND</span><h1>Response Workspace</h1>{apparatus&&<b className="respond-apparatus-badge">Apparatus Mode · Unit {apparatus}</b>}</div><div className="respond-title-actions"><small>Checks every 10 seconds</small><button onClick={()=>void toggleMonitor()}>{monitorMode?"Exit Monitor":"Monitor View"}</button></div></header>
     <div className="respond-idle-actions"><div><strong>No active call{apparatus?` for Unit ${apparatus}`:""}</strong><span>{apparatus?`A call appears when CAD lists Unit ${apparatus}.`:"Start an incident in the Daily Log or search preplans before a response."}</span></div><button onClick={()=>onNavigate?.("Daily Log")}>Start incident</button><button className="secondary" onClick={()=>onNavigate?.("Field Preplans")}>Search preplans</button></div>
-    <section className="respond-recent"><header><div><span>RECENT ACTIVITY</span><h2>Closed calls</h2></div><small>{data?.recentCalls?.length??0} shown</small></header>{data?.recentCalls?.length?<div>{data.recentCalls.map((recent)=><article key={`${recent.reportNumber}-${recent.logDate}`}><time>{recent.logDate}</time><strong>{recent.callType||"Call type not entered"}</strong><span>{recent.address||"Address not entered"}</span><small>{recent.respondingUnits||"Units not entered"} · {displayTime(recent.timeOut)}</small></article>)}</div>:<div className="respond-empty compact"><strong>No recent closed calls</strong><span>Completed Daily Log calls will appear here.</span></div>}</section>
+    <section className="respond-recent"><header><div><span>RECENT ACTIVITY</span><h2>Closed calls</h2></div><small>{data?.recentCalls?.length??0} shown</small></header>{data?.recentCalls?.length?<div>{data.recentCalls.map((recent)=><article key={`${recent.reportNumber}-${recent.logDate}`}><time>{recent.logDate}</time><strong>{recent.callType||"Call type not entered"}</strong><span>{recent.address||"Address not entered"}</span><small>{recent.respondingUnits||"Units not entered"} · {formatRespondMilitaryTime(recent.timeOut)}</small></article>)}</div>:<div className="respond-empty compact"><strong>No recent closed calls</strong><span>Completed Daily Log calls will appear here.</span></div>}</section>
   </section>;
   return <section ref={pageRef} className={`respond-page${monitorMode?" monitor-view":""}`}>
     {apparatus&&<div className="respond-apparatus-strip"><strong>APPARATUS RESPOND · UNIT {apparatus}</strong><span>Only CAD incidents assigned to this unit are displayed on this device.</span></div>}
     <header className="respond-callbar">
       <div><span>ACTIVE CALL · {call.source||"CAD"}</span><h1>{call.callType||call.category||"Call type not reported"}</h1><p>{[call.address,call.city].filter(Boolean).join(", ")||"Address not reported"}</p></div>
-      <dl><div><dt>Call #</dt><dd>{call.reportNumber||"Pending"}</dd></div><div><dt>Time out</dt><dd>{displayTime(call.timeOut||call.dispatchedAt)}</dd></div><div><dt>Units</dt><dd>{call.respondingUnits||"Not reported"}</dd></div></dl>
+      <dl><div><dt>Call #</dt><dd>{call.reportNumber||"Pending"}</dd></div><div><dt>Time out</dt><dd>{formatRespondMilitaryTime(call.timeOut||call.dispatchedAt)}</dd></div><div><dt>Units</dt><dd>{call.respondingUnits||"Not reported"}</dd></div></dl>
       <div className="respond-call-actions"><button className="respond-monitor" onClick={()=>void toggleMonitor()} data-test-safe>{monitorMode?"Exit Monitor":"Monitor View"}</button><a className="respond-nav" href={googleNavigation(call)} target="_blank" rel="noreferrer" data-test-safe>Open Google Navigation ↗</a></div>
     </header>
     <div className="respond-statusline"><span className={plan?"matched":"unmatched"}>{plan?`Preplan matched by ${data?.match?.method}${data?.match?.method==="gps"?` · ${data.match.distanceFeet} ft`:""}`:"No matching preplan"}</span><span>Updated {displayTime(data?.generatedAt||"")}</span>{error&&<span className="warning">{error}</span>}</div>
-    {plan?.targetHazard&&<div className="respond-target-hazard-banner"><strong>{plan.riskClassification==="critical"?"CRITICAL":plan.riskClassification==="high"?"HIGH":plan.riskClassification==="moderate"?"MODERATE":"LOW"} TARGET HAZARD</strong>{(plan.targetHazardReasons??[]).length>0&&<ul>{plan.targetHazardReasons!.map((reason,index)=><li key={index}>{reason}</li>)}</ul>}</div>}
-    {plan?.alerts?.filter((alert)=>alert.severity==="critical"||alert.severity==="warning").map((alert)=><div key={alert.id} className={`respond-alert-banner ${alert.severity}`}><strong>{alert.title}</strong>{alert.instructions&&<span>{alert.instructions}</span>}</div>)}
-    {data?.roomMatch?.kind==="unique"&&<div className="respond-room-banner unique"><strong>{data.roomMatch.explanation}</strong>{data.roomMatch.level&&<button onClick={()=>setSelectedLevelId((plan?.levels?.find((level)=>level.isDefault)?.id)||"")}>Return to Arrival</button>}</div>}
-    {data?.roomMatch?.kind==="ambiguous"&&<div className="respond-room-banner ambiguous"><strong>{data.roomMatch.explanation}</strong><div className="respond-room-candidates">{data.roomMatch.candidates.map((candidate)=><button key={candidate.space.id} onClick={()=>candidate.level&&setSelectedLevelId(candidate.level.levelId)}>{candidate.level?.name||"Level"} — {candidate.space.displayName}</button>)}</div></div>}
-    {plan&&(plan.levels?.length??0)>1&&<nav className="respond-level-switcher" aria-label="Preplan levels">{plan.levels!.map((level)=><button key={level.id} className={selectedLevelId===level.id?"active":""} onClick={()=>setSelectedLevelId(level.id)} data-test-safe>{level.shortLabel||level.name}</button>)}</nav>}
     <section className="respond-glance" aria-label="Matched response records">
       <article><span>BOX CARD</span><strong>{data?.boxCard?.title||"No matching box card"}</strong><small>{data?.boxCard?`${data.boxCard.boxNumber||"Number pending"} · ${data.boxCard.accessNotes||data.boxCard.address}`:"Search by the incident address."}</small><button onClick={()=>onNavigate?.("Box Cards")}>Open box cards</button></article>
       <article><span>NEAREST HYDRANTS</span>{data?.nearestHydrants?.length?<div>{data.nearestHydrants.map((hydrant)=><p key={hydrant.id}><b>{hydrant.hydrantNumber||hydrant.address||"Mapped hydrant"}</b><small>{hydrant.distanceFeet.toLocaleString()} ft · {hydrant.serviceStatus.replaceAll("_"," ")}</small></p>)}</div>:<small>No verified hydrants are mapped near this incident.</small>}<button onClick={()=>onNavigate?.("Field Preplans")}>Open preplans & hydrants</button></article>
-      {(plan?.hoseLays?.length??0)>0&&<article><span>HOSE LAY</span><div>{plan!.hoseLays!.map((lay)=><p key={lay.id} className={lay.capacity.status==="deficit"?"hose-lay-deficit":""}><b>{lay.supplyLineLabel||`${lay.hoseSizeInches}" to ${lay.destinationSide}-side`}</b><small>{lay.sourceHydrantNumber||"Hydrant"} · {lay.measuredFeet.toLocaleString()} ft measured · {lay.recommendedFeet.toLocaleString()} ft recommended{lay.assignedApparatusLabel?` · ${lay.assignedApparatusLabel}`:""}</small><small>{lay.capacity.status==="unverified"?"Apparatus hose capacity not verified":lay.capacity.status==="deficit"?`⚠ Deficit: ${lay.capacity.deficitFeet.toLocaleString()} ft short (${lay.capacity.availableFeet.toLocaleString()} ft available)`:`Sufficient (${lay.capacity.availableFeet.toLocaleString()} ft available)`}</small></p>)}</div></article>}
-      {(plan?.pinnedAttachments?.length??0)>0&&<article><span>PINNED ATTACHMENTS</span><div>{plan!.pinnedAttachments!.map((item)=><p key={item.id}><a href={item.url} target="_blank" rel="noreferrer" data-test-safe><b>{item.caption||item.originalFilename}</b></a><small>{item.mimeType==="application/pdf"?"PDF":"Image"}</small></p>)}</div></article>}
     </section>
     <div className="respond-grid">
       <aside className="respond-intel"><header><span>BUILDING INTELLIGENCE</span><h2>{plan?.businessName||"No preplan found"}</h2><p>{plan?.address||"Use the active-call address while en route."}</p></header>
         {plan&&<div className="respond-building-stats"><span>{Math.round(plan.footprintSquareFeet||0).toLocaleString()} sq ft</span><span>{plan.floorCount||1} floor{plan.floorCount===1?"":"s"}</span>{plan.suggestedFireFlowGpm>0&&<span>{Math.round(plan.suggestedFireFlowGpm).toLocaleString()} GPM suggested</span>}</div>}
         <div className="respond-intel-list">{quickItems.map((item)=><button key={item.id} className={selected?.id===item.id?"selected":""} onClick={()=>setSelected(item)} data-test-safe><span className="feature-symbol">{featureSymbols[item.id.replace("summary-","")]||featureSymbols[plan?.features.find((feature)=>feature.id===item.id)?.featureType||""]||"i"}</span><span><strong>{item.label}</strong><small>{item.summary||"Details available"}</small></span><b>›</b></button>)}</div>
         {!quickItems.length&&<div className="respond-empty compact"><strong>No building systems entered</strong><span>Add them in Field Preplans.</span></div>}
-        {plan&&selectedLevelId&&<div className="respond-room-list"><span>ROOMS ON {plan.levels?.find((level)=>level.id===selectedLevelId)?.shortLabel||plan.levels?.find((level)=>level.id===selectedLevelId)?.name}</span>{plan.spaces?.filter((space)=>space.levelId===selectedLevelId).length?<ul>{plan.spaces!.filter((space)=>space.levelId===selectedLevelId).map((space)=><li key={space.id} className={data?.roomMatch?.kind==="unique"&&data.roomMatch.space.id===space.id?"highlighted":""}>{space.displayName}{space.roomNumber?` · #${space.roomNumber}`:""}</li>)}</ul>:<small>No rooms mapped on this level.</small>}</div>}
       </aside>
       <main className="respond-alpha"><header><div><span>PRIMARY VIEW</span><h2>Alpha / A Side</h2></div>{plan&&<span className="record-badge">{plan.status}</span>}</header>
         <div className="respond-primary-media">{alpha?<img src={alpha.url} alt={alpha.caption||`Alpha side of ${plan?.businessName||call.address}`}/>:<StreetViewFallback call={call}/>}</div>

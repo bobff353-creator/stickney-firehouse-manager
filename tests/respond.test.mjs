@@ -68,6 +68,9 @@ test("Respond reads existing call and preplan records and exposes requested fiel
   assert.match(streetViewRoute, /x-department-id/);
   assert.match(streetViewRoute, /return_error_code/);
   assert.match(streetViewRoute, /cache: "no-store"/);
+  assert.match(streetViewRoute, /Referer: googleReferer/);
+  assert.match(streetViewRoute, /parsedReferer\.origin === requestOrigin/);
+  assert.match(streetViewRoute, /Google Street View request failed/);
   assert.doesNotMatch(streetViewRoute, /NEXT_PUBLIC_/);
   assert.match(component, /Monitor View/);
   assert.match(component, /requestFullscreen/);
@@ -85,6 +88,8 @@ test("Respond reads existing call and preplan records and exposes requested fiel
   assert.match(settings, /No separate device account is required/);
   assert.match(settings, /Option 1 · Apparatus Respond/);
   assert.match(settings, /Option 2 · Operations Alert/);
+  assert.match(settings, /fetch\("\/api\/digital-twin"/);
+  assert.match(settings, /Choose from every apparatus currently saved in Fleet/);
   assert.match(board, /onNewActiveCallRef\.current\?\.\(newCall\)/);
   assert.match(styles, /grid-template-columns:minmax\(165px,\.432fr\) minmax\(460px,1\.53fr\) minmax\(315px,\.988fr\)/);
   assert.match(styles, /\.respond-auto-alert\{position:fixed;inset:0/);

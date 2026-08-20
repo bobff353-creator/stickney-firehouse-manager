@@ -1,7 +1,3 @@
-type Runtime = {
-  "Maps Platform API Key"?: string;
-};
-
 export async function GET(request: Request) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
   if (!email) {
@@ -11,20 +7,11 @@ export async function GET(request: Request) {
     );
   }
 
-  try {
-    const { env } = await import("@/app/cf-env");
-    const runtime = env as unknown as Runtime;
-    const apiKey = runtime["Maps Platform API Key"]?.trim() ?? "";
-    return Response.json(
-      apiKey
-        ? { configured: true, provider: "google", apiKey }
-        : { configured: false, provider: "fallback" },
-      { headers: { "cache-control": "no-store" } },
-    );
-  } catch {
-    return Response.json(
-      { configured: false, provider: "fallback" },
-      { headers: { "cache-control": "no-store" } },
-    );
-  }
+  const apiKey = process.env.GOOGLE_MAPS_BROWSER_KEY?.trim() ?? "";
+  return Response.json(
+    apiKey
+      ? { configured: true, provider: "google", apiKey }
+      : { configured: false, provider: "fallback" },
+    { headers: { "cache-control": "no-store" } },
+  );
 }

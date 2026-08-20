@@ -1,7 +1,7 @@
 import type { ensureDatabase } from "../db/bootstrap";
 import { defaultPermissionsForRank, permissionCatalog, type PermissionKey } from "./permissions";
 
-const ownerAdminEmails = ["bobff353@gmail.com", "bwyant@stickneyfire.com"];
+const ownerAdminEmails = ["bobff353@gmail.com"];
 
 export async function hasPermission(request: Request, db: Awaited<ReturnType<typeof ensureDatabase>>, permission: PermissionKey) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";

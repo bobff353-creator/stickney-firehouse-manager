@@ -1,1 +1,0 @@
-ALTER TABLE `employee_profiles` ADD `photo_updated_at` text;

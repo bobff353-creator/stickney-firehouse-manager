@@ -7,6 +7,7 @@ import { dailyLogPayrollEntries, dailyLogPayrollTotals, type PayrollStaffingRow 
 import { holidayForDate } from "../app/holidays";
 import { polygonAreaSquareFeet, suggestedFireFlow, type ConstructionGroup, type OccupancyFlowCategory, type Point, type SprinklerStandard } from "../app/preplan-fire-flow";
 import { importedBuildingSeeds, importedBuildingSource } from "../app/preplan-imported-buildings";
+import { createPostgresD1Adapter } from "./postgres-adapter";
 import { apparatus1203Compartments, apparatus1203Equipment, apparatus1203VehicleChecks } from "../app/inventory-1203-import";
 import { apparatus1204Compartments, apparatus1204Equipment, apparatus1204VehicleChecks } from "../app/inventory-1204-import";
 
@@ -66,7 +67,7 @@ const employeeSeed = [
 ] as const;
 
 let ready = false;
-const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-07-station-scheduler-v1-2026-08-18-preplan-v2-assets-v1";
+const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-01-v2";
 
 const policySeedVersion = "stickney-policy-library-2026-07-18";
 const boxCardSeedVersion = "regional-box-cards-structured-2026-07-21-v2";
@@ -75,8 +76,6 @@ const callTimeFormatVersion = "daily-log-call-times-military-2026-07-23";
 const exactLogPayrollRangeVersion = "daily-log-payroll-2026-07-11-through-2026-07-25-v1";
 const actingOfficerStraightStipendVersion = "acting-officer-straight-stipend-2026-07-26-v1";
 const preplanFootprintMetricsVersion = "preplan-footprint-metrics-ifc2018-2026-07-29-v1";
-const preplanLevelsBackfillVersion = "preplan-v2-arrival-levels-2026-08-18-v1";
-const preplanRevisionsBackfillVersion = "preplan-v2-revisions-2026-08-18-v1";
 const dailyDutySeed = [
   [1, "morning", "Weekly checks on 1201."],
   [1, "afternoon", "Deep clean bathrooms. Scrub floor in bathroom. Wash shower curtains. Clean shower stall."],
@@ -209,79 +208,6 @@ async function backfillPreplanFootprintMetrics(db: Awaited<ReturnType<typeof get
   await db.prepare("INSERT INTO system_meta (key,value,updated_at) VALUES (?,?,CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").bind(markerKey,preplanFootprintMetricsVersion).run();
 }
 
-/**
- * Preplan 2.0 foundation backfill: every existing preplan (saved before the
- * lifecycle/levels feature existed) must keep working exactly as before —
- * visible in Respond, editable, with all its features and photos intact.
- * This gives each one a lifecycle status of "published" (legacy `status` was
- * a completeness label like "Quick Preplan", never a publication gate — every
- * pre-v2 record was already firefighter-visible) and a mandatory Arrival
- * level to anchor the new levels/layers system. Safe to run repeatedly.
- */
-async function backfillPreplanLevelsAndLifecycle(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
-  const markerKey = "preplan_v2_levels_lifecycle_version";
-  const marker = await db.prepare("SELECT value FROM system_meta WHERE key = ? LIMIT 1").bind(markerKey).first<{ value: string }>();
-  if (marker?.value === preplanLevelsBackfillVersion) return;
-
-  await db.prepare("UPDATE field_preplans SET lifecycle_status='published' WHERE lifecycle_status IS NULL OR lifecycle_status=''").run();
-
-  const preplans = await db.prepare("SELECT id,created_by createdBy FROM field_preplans").all<{ id: string; createdBy: string }>();
-  const existingArrivalLevels = await db.prepare("SELECT preplan_id preplanId FROM field_preplan_levels WHERE layer_type='arrival'").all<{ preplanId: string }>();
-  const preplansWithArrival = new Set(existingArrivalLevels.results.map((row) => row.preplanId));
-  const writes = preplans.results
-    .filter((row) => !preplansWithArrival.has(row.id))
-    .map((row, index) => db.prepare(
-      "INSERT INTO field_preplan_levels (id,preplan_id,name,short_label,layer_type,floor_index,grade,sort_order,is_default,respond_visible,hidden,created_by,updated_by) VALUES (?,?,?,?,?,?,?,?,1,1,0,?,?)",
-    ).bind(
-      `arrival-${row.id}`,
-      row.id,
-      "Arrival / Ground",
-      "ARRIVAL",
-      "arrival",
-      0,
-      "grade",
-      0,
-      row.createdBy || "system-migration",
-      row.createdBy || "system-migration",
-    ));
-  for (let index = 0; index < writes.length; index += 40) await db.batch(writes.slice(index, index + 40));
-
-  await db.prepare("INSERT INTO system_meta (key,value,updated_at) VALUES (?,?,CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").bind(markerKey,preplanLevelsBackfillVersion).run();
-}
-
-/**
- * Every published preplan should have at least one revision snapshot so
- * "view previous revision" is never empty for a legacy record. This gives
- * each preplan published before the revision system existed a single
- * revision 1 snapshot of its current field values, tagged as a migration
- * backfill (not a real publish event) so it's honestly distinguishable in
- * the history from an actual officer-triggered publish.
- */
-async function backfillPreplanRevisions(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
-  const markerKey = "preplan_v2_revisions_version";
-  const marker = await db.prepare("SELECT value FROM system_meta WHERE key = ? LIMIT 1").bind(markerKey).first<{ value: string }>();
-  if (marker?.value === preplanRevisionsBackfillVersion) return;
-
-  const preplans = await db.prepare("SELECT id,business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,footprint_square_feet footprintSquareFeet,floor_count floorCount,fire_flow_calculation_area fireFlowCalculationArea,construction_type constructionType,occupancy_flow_category occupancyFlowCategory,sprinkler_standard sprinklerStandard,suggested_fire_flow_gpm suggestedFireFlowGpm,suggested_fire_flow_duration suggestedFireFlowDuration,status,created_by createdBy FROM field_preplans WHERE lifecycle_status='published'").all<Record<string, unknown>>();
-  const existingRevisions = await db.prepare("SELECT DISTINCT preplan_id preplanId FROM field_preplan_revisions").all<{ preplanId: string }>();
-  const preplansWithRevisions = new Set(existingRevisions.results.map((row) => row.preplanId));
-  const writes = preplans.results
-    .filter((row) => !preplansWithRevisions.has(String(row.id)))
-    .map((row) => {
-      const { id, createdBy, ...snapshot } = row;
-      return db.prepare("INSERT INTO field_preplan_revisions (id,preplan_id,revision_number,action,snapshot,summary,created_by) VALUES (?,?,1,'migration_backfill',?,?,?)").bind(
-        `revision-${id}-1`,
-        id,
-        JSON.stringify(snapshot),
-        "Initial revision recorded during Preplan 2.0 migration.",
-        (createdBy as string) || "system-migration",
-      );
-    });
-  for (let index = 0; index < writes.length; index += 40) await db.batch(writes.slice(index, index + 40));
-
-  await db.prepare("INSERT INTO system_meta (key,value,updated_at) VALUES (?,?,CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").bind(markerKey,preplanRevisionsBackfillVersion).run();
-}
-
 async function seedPolicies(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
   const marker = await db.prepare("SELECT value FROM system_meta WHERE key = ? LIMIT 1").bind("policy_seed_version").first<{ value: string }>();
   if (marker?.value === policySeedVersion) return;
@@ -358,21 +284,7 @@ async function importApproved1204WeeklyCheck(db: Awaited<ReturnType<typeof getDa
 }
 
 async function getDatabaseBinding() {
-  if (process.env.DATABASE_URL?.trim()) {
-    // The prior theory here — a stale table from an earlier debugging run —
-    // was wrong. The real cause: this Supabase project is shared with an
-    // unrelated platform that already owns `public` and has its own,
-    // differently-shaped dispatch_incidents/incident_command_boards/etc.
-    // `ensurePostgresCompat()` now isolates every table this app creates
-    // into its own `stickney_app` schema (see db/postgres-adapter.ts), so
-    // no column-repair pass is needed — CREATE TABLE IF NOT EXISTS runs
-    // against a schema only this app writes to.
-    const { getPg, ensurePostgresCompat } = await import("./postgres-adapter");
-    await ensurePostgresCompat();
-    return getPg();
-  }
-  const { getD1 } = await import("./d1-libsql");
-  return getD1();
+  return createPostgresD1Adapter();
 }
 
 async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBinding>>) {
@@ -426,7 +338,7 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
     db.prepare("CREATE TABLE IF NOT EXISTS incident_command_events (id TEXT PRIMARY KEY NOT NULL, incident_id TEXT NOT NULL, revision INTEGER NOT NULL, event_type TEXT NOT NULL, summary TEXT NOT NULL DEFAULT '', actor TEXT NOT NULL, event_payload TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS incident_command_event_revision_idx ON incident_command_events(incident_id,revision)"),
     db.prepare("CREATE INDEX IF NOT EXISTS incident_command_events_incident_time_idx ON incident_command_events(incident_id,created_at)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS daily_log_approvals (id TEXT PRIMARY KEY NOT NULL, log_date TEXT NOT NULL REFERENCES daily_logs(log_date), shift_key TEXT NOT NULL, sign_in_officer_id TEXT REFERENCES employees(id), sign_in_at TEXT, sign_in_equipment TEXT NOT NULL DEFAULT '{}', sign_in_note TEXT NOT NULL DEFAULT '', reviewed_notes INTEGER NOT NULL DEFAULT 0, sign_out_officer_id TEXT REFERENCES employees(id), sign_out_at TEXT, sign_out_equipment TEXT NOT NULL DEFAULT '{}', sign_out_note TEXT NOT NULL DEFAULT '')"),
+    db.prepare("CREATE TABLE IF NOT EXISTS daily_log_approvals (id TEXT PRIMARY KEY NOT NULL, log_date TEXT NOT NULL REFERENCES daily_logs(log_date), shift_key TEXT NOT NULL, sign_in_officer_id TEXT REFERENCES employees(id), sign_in_at TEXT, sign_in_equipment TEXT NOT NULL DEFAULT '{}', sign_in_note TEXT NOT NULL DEFAULT '', reviewed_notes INTEGER NOT NULL DEFAULT 0, sign_out_officer_id TEXT REFERENCES employees(id), sign_out_at TEXT, sign_out_equipment TEXT NOT NULL DEFAULT '{}', sign_out_note TEXT NOT NULL DEFAULT '', fleet_duties_acknowledged INTEGER NOT NULL DEFAULT 0)"),
     db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS log_approval_date_shift_idx ON daily_log_approvals(log_date, shift_key)"),
     db.prepare("CREATE TABLE IF NOT EXISTS important_phone_numbers (id TEXT PRIMARY KEY NOT NULL, category TEXT NOT NULL, name TEXT NOT NULL, emergency_number TEXT NOT NULL DEFAULT '', non_emergency_number TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', sort_order INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE INDEX IF NOT EXISTS important_phone_category_sort_idx ON important_phone_numbers(category, sort_order)"),
@@ -446,29 +358,9 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
     db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_feature_preplan_idx ON field_preplan_features(preplan_id)"),
     db.prepare("CREATE TABLE IF NOT EXISTS field_preplan_photos (id TEXT PRIMARY KEY NOT NULL, preplan_id TEXT NOT NULL REFERENCES field_preplans(id), feature_id TEXT REFERENCES field_preplan_features(id), side TEXT NOT NULL DEFAULT '', object_key TEXT NOT NULL, filename TEXT NOT NULL, content_type TEXT NOT NULL DEFAULT 'image/jpeg', size_bytes INTEGER NOT NULL DEFAULT 0, caption TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_photo_preplan_idx ON field_preplan_photos(preplan_id)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS field_preplan_levels (id TEXT PRIMARY KEY NOT NULL, preplan_id TEXT NOT NULL REFERENCES field_preplans(id), name TEXT NOT NULL, short_label TEXT NOT NULL DEFAULT '', layer_type TEXT NOT NULL DEFAULT 'custom', floor_index INTEGER NOT NULL DEFAULT 0, grade TEXT NOT NULL DEFAULT 'n/a', sort_order INTEGER NOT NULL DEFAULT 0, is_default INTEGER NOT NULL DEFAULT 0, respond_visible INTEGER NOT NULL DEFAULT 1, hidden INTEGER NOT NULL DEFAULT 0, background_type TEXT NOT NULL DEFAULT 'none', background_asset_key TEXT, background_transform TEXT NOT NULL DEFAULT '{}', opacity REAL NOT NULL DEFAULT 1, created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_level_preplan_idx ON field_preplan_levels(preplan_id,sort_order)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS field_preplan_spaces (id TEXT PRIMARY KEY NOT NULL, preplan_id TEXT NOT NULL REFERENCES field_preplans(id), level_id TEXT NOT NULL REFERENCES field_preplan_levels(id), display_name TEXT NOT NULL, room_number TEXT NOT NULL DEFAULT '', space_type TEXT NOT NULL DEFAULT 'room', aliases TEXT NOT NULL DEFAULT '[]', cad_keywords TEXT NOT NULL DEFAULT '[]', geometry TEXT NOT NULL DEFAULT '[]', label_position TEXT, typical_occupancy INTEGER, peak_occupancy INTEGER, special_population_notes TEXT NOT NULL DEFAULT '', access_notes TEXT NOT NULL DEFAULT '', fire_protection_notes TEXT NOT NULL DEFAULT '', hazards TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_space_preplan_idx ON field_preplan_spaces(preplan_id)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_space_level_idx ON field_preplan_spaces(level_id)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS field_preplan_alerts (id TEXT PRIMARY KEY NOT NULL, preplan_id TEXT NOT NULL REFERENCES field_preplans(id), level_id TEXT REFERENCES field_preplan_levels(id), alert_type TEXT NOT NULL DEFAULT 'general_note', title TEXT NOT NULL, instructions TEXT NOT NULL DEFAULT '', severity TEXT NOT NULL DEFAULT 'advisory', display_order INTEGER NOT NULL DEFAULT 0, pin_to_respond INTEGER NOT NULL DEFAULT 0, effective_at TEXT, expires_at TEXT, verification_required INTEGER NOT NULL DEFAULT 0, verified_by TEXT NOT NULL DEFAULT '', verified_at TEXT, archived INTEGER NOT NULL DEFAULT 0, created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_alert_preplan_idx ON field_preplan_alerts(preplan_id,severity,display_order)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS field_preplan_hazmat (id TEXT PRIMARY KEY NOT NULL, preplan_id TEXT NOT NULL REFERENCES field_preplans(id), level_id TEXT REFERENCES field_preplan_levels(id), mapped INTEGER NOT NULL DEFAULT 0, chemical_name TEXT NOT NULL, un_na_number TEXT NOT NULL DEFAULT '', erg_guide_number TEXT NOT NULL DEFAULT '', quantity REAL, quantity_unit TEXT NOT NULL DEFAULT '', container_type TEXT NOT NULL DEFAULT 'other', physical_state TEXT NOT NULL DEFAULT 'unknown', exact_location TEXT NOT NULL DEFAULT '', nfpa_health INTEGER NOT NULL DEFAULT 0, nfpa_flammability INTEGER NOT NULL DEFAULT 0, nfpa_instability INTEGER NOT NULL DEFAULT 0, nfpa_special TEXT NOT NULL DEFAULT '', sds_asset_id TEXT, photo_asset_id TEXT, date_verified TEXT, verified_by TEXT NOT NULL DEFAULT '', effective_at TEXT, expires_at TEXT, notes TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_hazmat_preplan_idx ON field_preplan_hazmat(preplan_id)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS field_preplan_hazmat_zones (id TEXT PRIMARY KEY NOT NULL, preplan_id TEXT NOT NULL REFERENCES field_preplans(id), level_id TEXT REFERENCES field_preplan_levels(id), hazmat_id TEXT REFERENCES field_preplan_hazmat(id), zone_type TEXT NOT NULL DEFAULT 'isolation', shape TEXT NOT NULL DEFAULT 'circle', label TEXT NOT NULL DEFAULT '', center_lat REAL, center_lng REAL, radius_feet REAL, polygon TEXT NOT NULL DEFAULT '[]', line_color TEXT NOT NULL DEFAULT '#b52222', line_width REAL NOT NULL DEFAULT 2, line_style TEXT NOT NULL DEFAULT 'solid', fill_opacity REAL NOT NULL DEFAULT .18, effective_at TEXT, expires_at TEXT, created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_hazmat_zone_preplan_idx ON field_preplan_hazmat_zones(preplan_id)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_hazmat_zone_hazmat_idx ON field_preplan_hazmat_zones(hazmat_id)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS field_preplan_risk_factors (id TEXT PRIMARY KEY NOT NULL, preplan_id TEXT NOT NULL REFERENCES field_preplans(id), factor_key TEXT NOT NULL, score INTEGER NOT NULL DEFAULT 0, explanation TEXT NOT NULL DEFAULT '', source TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(preplan_id,factor_key))"),
-    db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_risk_factor_preplan_idx ON field_preplan_risk_factors(preplan_id)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS field_preplan_revisions (id TEXT PRIMARY KEY NOT NULL, preplan_id TEXT NOT NULL REFERENCES field_preplans(id), revision_number INTEGER NOT NULL, action TEXT NOT NULL DEFAULT 'published', snapshot TEXT NOT NULL, summary TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_revision_preplan_idx ON field_preplan_revisions(preplan_id,revision_number DESC)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS field_preplan_assets (id TEXT PRIMARY KEY NOT NULL, preplan_id TEXT NOT NULL REFERENCES field_preplans(id), feature_id TEXT REFERENCES field_preplan_features(id), hazmat_id TEXT REFERENCES field_preplan_hazmat(id), level_id TEXT REFERENCES field_preplan_levels(id), category TEXT NOT NULL DEFAULT 'general_operational_attachment', original_filename TEXT NOT NULL, object_key TEXT NOT NULL, mime_type TEXT NOT NULL, file_size_bytes INTEGER NOT NULL DEFAULT 0, caption TEXT NOT NULL DEFAULT '', description TEXT NOT NULL DEFAULT '', sort_order INTEGER NOT NULL DEFAULT 0, pin_to_respond INTEGER NOT NULL DEFAULT 0, version INTEGER NOT NULL DEFAULT 1, archived INTEGER NOT NULL DEFAULT 0, created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_asset_preplan_idx ON field_preplan_assets(preplan_id)"),
     db.prepare("CREATE TABLE IF NOT EXISTS field_hydrants (id TEXT PRIMARY KEY NOT NULL, hydrant_number TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', latitude REAL NOT NULL, longitude REAL NOT NULL, service_status TEXT NOT NULL DEFAULT 'in_service', manufacturer TEXT NOT NULL DEFAULT '', model TEXT NOT NULL DEFAULT '', port_count INTEGER NOT NULL DEFAULT 2, port_sizes TEXT NOT NULL DEFAULT '[]', notes TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE INDEX IF NOT EXISTS field_hydrant_location_idx ON field_hydrants(latitude,longitude)"),
     db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS field_hydrant_number_idx ON field_hydrants(hydrant_number) WHERE hydrant_number<>''"),
-    db.prepare("CREATE TABLE IF NOT EXISTS field_preplan_hose_lays (id TEXT PRIMARY KEY NOT NULL, preplan_id TEXT NOT NULL REFERENCES field_preplans(id), level_id TEXT REFERENCES field_preplan_levels(id), source_hydrant_id TEXT REFERENCES field_hydrants(id), destination_lat REAL, destination_lng REAL, destination_side TEXT NOT NULL DEFAULT '', destination_feature_id TEXT REFERENCES field_preplan_features(id), segments TEXT NOT NULL DEFAULT '[]', hose_size_inches REAL NOT NULL DEFAULT 4, section_length_feet REAL NOT NULL DEFAULT 100, reserve_feet REAL NOT NULL DEFAULT 100, supply_line_label TEXT NOT NULL DEFAULT '', assigned_apparatus_label TEXT NOT NULL DEFAULT '', verified_available_feet REAL, notes TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS field_preplan_hose_lay_preplan_idx ON field_preplan_hose_lays(preplan_id)"),
     db.prepare("CREATE TABLE IF NOT EXISTS field_hydrant_flushes (id TEXT PRIMARY KEY NOT NULL, hydrant_id TEXT NOT NULL REFERENCES field_hydrants(id), flushed_at TEXT NOT NULL, flushed_by TEXT NOT NULL, water_clear INTEGER NOT NULL DEFAULT 0, issues TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE INDEX IF NOT EXISTS field_hydrant_flush_hydrant_idx ON field_hydrant_flushes(hydrant_id,flushed_at)"),
     db.prepare("CREATE TABLE IF NOT EXISTS field_hydrant_flow_tests (id TEXT PRIMARY KEY NOT NULL, test_hydrant_id TEXT NOT NULL REFERENCES field_hydrants(id), flow_hydrant_id TEXT REFERENCES field_hydrants(id), tested_at TEXT NOT NULL, static_pressure REAL NOT NULL, residual_pressure REAL NOT NULL, desired_residual REAL NOT NULL DEFAULT 20, outlet_diameter REAL NOT NULL, pitot_pressure REAL NOT NULL, discharge_coefficient REAL NOT NULL, measured_flow REAL NOT NULL, available_flow REAL NOT NULL, tested_by TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
@@ -478,39 +370,13 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
     db.prepare("CREATE INDEX IF NOT EXISTS box_cards_title_idx ON box_cards(title)"),
     db.prepare("CREATE TABLE IF NOT EXISTS record_revisions (id TEXT PRIMARY KEY NOT NULL, record_type TEXT NOT NULL, record_id TEXT NOT NULL, revision_number INTEGER NOT NULL, action TEXT NOT NULL, summary TEXT NOT NULL DEFAULT '', actor TEXT NOT NULL, changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS record_revision_number_idx ON record_revisions(record_type, record_id, revision_number)"),
-    // Station Scheduler
-    db.prepare("CREATE TABLE IF NOT EXISTS station_shift_types (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, start_time TEXT NOT NULL, end_time TEXT NOT NULL, color TEXT NOT NULL DEFAULT 'red', active INTEGER NOT NULL DEFAULT 1, sort_order INTEGER NOT NULL DEFAULT 0, created_by TEXT NOT NULL DEFAULT 'System', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS station_shift_types_active_idx ON station_shift_types(active, sort_order)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS station_shift_type_roles (id TEXT PRIMARY KEY NOT NULL, shift_type_id TEXT NOT NULL REFERENCES station_shift_types(id), role TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 1, UNIQUE(shift_type_id, role))"),
-    db.prepare("CREATE TABLE IF NOT EXISTS station_schedule_entries (id TEXT PRIMARY KEY NOT NULL, entry_date TEXT NOT NULL, shift_type_id TEXT NOT NULL REFERENCES station_shift_types(id), created_by TEXT NOT NULL DEFAULT 'System', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(entry_date, shift_type_id))"),
-    db.prepare("CREATE INDEX IF NOT EXISTS station_schedule_entry_date_idx ON station_schedule_entries(entry_date)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS station_shift_slots (id TEXT PRIMARY KEY NOT NULL, entry_id TEXT NOT NULL REFERENCES station_schedule_entries(id), role TEXT NOT NULL, employee_id TEXT REFERENCES employees(id), status TEXT NOT NULL DEFAULT 'open', sort_order INTEGER NOT NULL DEFAULT 0)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS station_shift_slot_entry_idx ON station_shift_slots(entry_id, sort_order)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS station_shift_slot_employee_idx ON station_shift_slots(employee_id)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS station_standing_assignments (id TEXT PRIMARY KEY NOT NULL, employee_id TEXT NOT NULL REFERENCES employees(id), shift_type_id TEXT NOT NULL REFERENCES station_shift_types(id), role TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_by TEXT NOT NULL DEFAULT 'System', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(employee_id, shift_type_id, role))"),
-    db.prepare("CREATE TABLE IF NOT EXISTS station_trade_requests (id TEXT PRIMARY KEY NOT NULL, slot_id TEXT NOT NULL REFERENCES station_shift_slots(id), role TEXT NOT NULL, from_employee_id TEXT NOT NULL REFERENCES employees(id), target_employee_id TEXT REFERENCES employees(id), accepted_by_employee_id TEXT REFERENCES employees(id), note TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, reviewed_by TEXT, reviewed_at TEXT)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS station_trade_status_idx ON station_trade_requests(status, created_at)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS station_shift_claims (id TEXT PRIMARY KEY NOT NULL, slot_id TEXT NOT NULL REFERENCES station_shift_slots(id), role TEXT NOT NULL, employee_id TEXT NOT NULL REFERENCES employees(id), note TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, reviewed_by TEXT, reviewed_at TEXT)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS station_shift_claim_status_idx ON station_shift_claims(status, created_at)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS station_shift_claim_slot_idx ON station_shift_claims(slot_id)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS station_time_off_requests (id TEXT PRIMARY KEY NOT NULL, employee_id TEXT NOT NULL REFERENCES employees(id), type TEXT NOT NULL, approver_employee_id TEXT NOT NULL REFERENCES employees(id), note TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, reviewed_at TEXT)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS station_time_off_status_idx ON station_time_off_requests(status, created_at)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS station_time_off_dates (request_id TEXT NOT NULL REFERENCES station_time_off_requests(id), off_date TEXT NOT NULL, UNIQUE(request_id, off_date))"),
-    db.prepare("CREATE TABLE IF NOT EXISTS station_unavailability (id TEXT PRIMARY KEY NOT NULL, employee_id TEXT NOT NULL REFERENCES employees(id), off_date TEXT NOT NULL, source TEXT NOT NULL DEFAULT 'time_off', request_id TEXT REFERENCES station_time_off_requests(id), UNIQUE(employee_id, off_date))"),
-    db.prepare("CREATE TABLE IF NOT EXISTS station_reminder_rules (id TEXT PRIMARY KEY NOT NULL, type TEXT NOT NULL, label TEXT NOT NULL DEFAULT '', offsets TEXT NOT NULL DEFAULT '[]', email_enabled INTEGER NOT NULL DEFAULT 1, text_enabled INTEGER NOT NULL DEFAULT 0, target TEXT NOT NULL DEFAULT '', enabled INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS station_ot_settings (mode TEXT PRIMARY KEY NOT NULL, exempt_off_duty INTEGER NOT NULL DEFAULT 1, exempt_already_scheduled INTEGER NOT NULL DEFAULT 1, exempt_declined INTEGER NOT NULL DEFAULT 1, exempt_recently_mandated INTEGER NOT NULL DEFAULT 1, recent_days INTEGER NOT NULL DEFAULT 14, exempt_max_consecutive INTEGER NOT NULL DEFAULT 1, max_consecutive INTEGER NOT NULL DEFAULT 2, priority_order TEXT NOT NULL DEFAULT '[]', custom_rules TEXT NOT NULL DEFAULT '[]', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS station_ot_timing (id INTEGER PRIMARY KEY NOT NULL, award_days_out INTEGER NOT NULL DEFAULT 7, complete_by_days_out INTEGER NOT NULL DEFAULT 2, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS station_ot_interest (id TEXT PRIMARY KEY NOT NULL, slot_id TEXT NOT NULL REFERENCES station_shift_slots(id), employee_id TEXT NOT NULL REFERENCES employees(id), response TEXT NOT NULL, responded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(slot_id, employee_id))"),
-    db.prepare("CREATE TABLE IF NOT EXISTS station_ot_offers (id TEXT PRIMARY KEY NOT NULL, slot_id TEXT NOT NULL REFERENCES station_shift_slots(id), employee_id TEXT NOT NULL REFERENCES employees(id), mode TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'offered', rank INTEGER NOT NULL DEFAULT 0, offered_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, responded_at TEXT)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS station_ot_offer_slot_idx ON station_ot_offers(slot_id, rank)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS station_ot_offer_employee_idx ON station_ot_offers(employee_id, status)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS station_distribution_weights (id INTEGER PRIMARY KEY NOT NULL, seniority_weight REAL NOT NULL DEFAULT 1, hours_weight REAL NOT NULL DEFAULT 1, custom_weight REAL NOT NULL DEFAULT 0, custom_label TEXT NOT NULL DEFAULT 'Cross-trained', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
   ]);
   for (let index=0; index<importedBuildingSeeds.length; index+=40) {
     await db.batch(importedBuildingSeeds.slice(index,index+40).map((item) => db.prepare("INSERT INTO field_preplan_imports(id,business_name,address,source_file,source_row) VALUES(?,?,?,?,?) ON CONFLICT(source_file,source_row) DO UPDATE SET business_name=excluded.business_name,address=excluded.address,updated_at=CURRENT_TIMESTAMP").bind(`coopy-buildings-${String(item.sourceRow).padStart(3,"0")}`,item.businessName.trim(),item.address.trim(),importedBuildingSource,item.sourceRow)));
   }
   await db.prepare("UPDATE field_preplan_imports SET linked_preplan_id=(SELECT id FROM field_preplans WHERE lower(trim(field_preplans.address))=lower(trim(field_preplan_imports.address)) AND lower(trim(field_preplans.business_name))=lower(trim(field_preplan_imports.business_name)) LIMIT 1),status='completed',updated_at=CURRENT_TIMESTAMP WHERE linked_preplan_id IS NULL AND EXISTS (SELECT 1 FROM field_preplans WHERE lower(trim(field_preplans.address))=lower(trim(field_preplan_imports.address)) AND lower(trim(field_preplans.business_name))=lower(trim(field_preplan_imports.business_name)))").run();
   try { await db.prepare("ALTER TABLE daily_log_staffing ADD COLUMN acting_officer INTEGER NOT NULL DEFAULT 0").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE daily_log_approvals ADD COLUMN fleet_duties_acknowledged INTEGER NOT NULL DEFAULT 0").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE employee_profiles ADD COLUMN is_dpw INTEGER NOT NULL DEFAULT 0").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE employee_profiles ADD COLUMN driver_status TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE employee_profiles ADD COLUMN acting_officer_eligible INTEGER NOT NULL DEFAULT 0").run(); } catch { /* Column already exists after migration. */ }
@@ -535,23 +401,7 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
   try { await db.prepare("ALTER TABLE field_preplan_imports ADD COLUMN latitude REAL").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE field_preplan_imports ADD COLUMN longitude REAL").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE field_preplan_imports ADD COLUMN geocode_note TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
-  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN lifecycle_status TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
-  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN draft_owner TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
-  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN published_by TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
-  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN published_at TEXT").run(); } catch { /* Column already exists after migration. */ }
-  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN archived_by TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
-  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN archived_at TEXT").run(); } catch { /* Column already exists after migration. */ }
-  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN revision_number INTEGER NOT NULL DEFAULT 1").run(); } catch { /* Column already exists after migration. */ }
-  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN last_verified_at TEXT").run(); } catch { /* Column already exists after migration. */ }
-  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN next_review_at TEXT").run(); } catch { /* Column already exists after migration. */ }
-  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN target_hazard INTEGER NOT NULL DEFAULT 0").run(); } catch { /* Column already exists after migration. */ }
-  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN target_hazard_reasons TEXT NOT NULL DEFAULT '[]'").run(); } catch { /* Column already exists after migration. */ }
-  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN risk_override_classification TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
-  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN risk_reviewed_by TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
-  try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN risk_reviewed_at TEXT").run(); } catch { /* Column already exists after migration. */ }
   await backfillPreplanFootprintMetrics(db);
-  await backfillPreplanLevelsAndLifecycle(db);
-  await backfillPreplanRevisions(db);
   await db.batch([
     ["shift_request", "Shift requests", 1, 1, 0, '["immediate"]'],
     ["open_shift", "Open shifts", 1, 1, 1, '["immediate","24_hours_before","2_hours_before"]'],
@@ -562,12 +412,6 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
   ].map((rule) => db.prepare("INSERT OR IGNORE INTO schedule_notification_rules(event_type,label,active,email_enabled,sms_enabled,delivery_timings) VALUES(?,?,?,?,?,?)").bind(...rule)));
   await db.prepare("INSERT OR IGNORE INTO rank_permissions(rank,permission_key,allowed) SELECT DISTINCT label,'field_preplans.view',1 FROM pay_scales").run();
   await db.prepare("INSERT OR IGNORE INTO rank_permissions(rank,permission_key,allowed) SELECT DISTINCT label,'field_preplans.edit',CASE WHEN lower(label) LIKE '%chief%' OR lower(label) LIKE '%captain%' OR lower(label) LIKE '%lieutenant%' OR lower(label) LIKE '%firefighter%' OR lower(label)='ff' THEN 1 ELSE 0 END FROM pay_scales").run();
-  await db.batch(["field_preplans.review","field_preplans.publish","field_preplans.manage_layers","field_preplans.manage_hazmat","field_preplans.manage_attachments","field_preplans.verify_expiring"].map((permissionKey) =>
-    db.prepare("INSERT OR IGNORE INTO rank_permissions(rank,permission_key,allowed) SELECT DISTINCT label,?,CASE WHEN lower(label) LIKE '%chief%' OR lower(label) LIKE '%captain%' OR lower(label) LIKE '%lieutenant%' THEN 1 ELSE 0 END FROM pay_scales").bind(permissionKey),
-  ));
-  await db.batch(["field_preplans.delete","field_preplans.manage_settings"].map((permissionKey) =>
-    db.prepare("INSERT OR IGNORE INTO rank_permissions(rank,permission_key,allowed) SELECT DISTINCT label,?,CASE WHEN lower(label) LIKE '%chief%' THEN 1 ELSE 0 END FROM pay_scales").bind(permissionKey),
-  ));
   try { await db.prepare("ALTER TABLE schedule_assignments ADD COLUMN required_rank TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE schedule_assignments ADD COLUMN claim_deadline TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE schedule_requests ADD COLUMN target_status TEXT NOT NULL DEFAULT 'not_required'").run(); } catch { /* Column already exists after migration. */ }
@@ -590,10 +434,10 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
     "ALTER TABLE box_cards ADD COLUMN status TEXT NOT NULL DEFAULT 'Active'", "ALTER TABLE box_cards ADD COLUMN created_by TEXT NOT NULL DEFAULT 'System'", "ALTER TABLE box_cards ADD COLUMN created_at TEXT"
   ]) { try { await db.prepare(sql).run(); } catch { /* Column already exists. */ } }
   await db.batch([
-    db.prepare("UPDATE pay_periods SET created_at = COALESCE(CAST(created_at AS TEXT), CAST(updated_at AS TEXT))"),
-    db.prepare("UPDATE daily_logs SET created_at = COALESCE(CAST(created_at AS TEXT), CAST(updated_at AS TEXT))"),
-    db.prepare("UPDATE policies SET created_at = COALESCE(CAST(created_at AS TEXT), CAST(updated_at AS TEXT))"),
-    db.prepare("UPDATE box_cards SET created_at = COALESCE(CAST(created_at AS TEXT), CAST(updated_at AS TEXT))"),
+    db.prepare("UPDATE pay_periods SET created_at = COALESCE(created_at, updated_at)"),
+    db.prepare("UPDATE daily_logs SET created_at = COALESCE(created_at, updated_at)"),
+    db.prepare("UPDATE policies SET created_at = COALESCE(created_at, updated_at)"),
+    db.prepare("UPDATE box_cards SET created_at = COALESCE(created_at, updated_at)"),
   ]);
 
   await db.prepare("INSERT OR IGNORE INTO payroll_settings (id, overtime_threshold, acting_officer_premium, dpw_multiplier) VALUES (1, 106, 1, 1.5)").run();
@@ -689,29 +533,6 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
   await importApproved1204WeeklyCheck(db);
   await seedPolicies(db);
   await seedBoxCards(db);
-  // Station Scheduler: employee scheduler attributes + singleton defaults.
-  for (const sql of [
-    "ALTER TABLE employee_profiles ADD COLUMN station_roles TEXT NOT NULL DEFAULT '[]'",
-    "ALTER TABLE employee_profiles ADD COLUMN station_hours_this_period REAL NOT NULL DEFAULT 0",
-    "ALTER TABLE employee_profiles ADD COLUMN station_ot_hours REAL NOT NULL DEFAULT 0",
-    "ALTER TABLE employee_profiles ADD COLUMN station_mandatory_hours REAL NOT NULL DEFAULT 0",
-    "ALTER TABLE employee_profiles ADD COLUMN station_off_duty INTEGER NOT NULL DEFAULT 0",
-    "ALTER TABLE employee_profiles ADD COLUMN station_last_mandated TEXT NOT NULL DEFAULT ''",
-    "ALTER TABLE employee_profiles ADD COLUMN station_consecutive_mandatory INTEGER NOT NULL DEFAULT 0",
-    "ALTER TABLE employee_profiles ADD COLUMN station_notify_email INTEGER NOT NULL DEFAULT 1",
-    "ALTER TABLE employee_profiles ADD COLUMN station_notify_text INTEGER NOT NULL DEFAULT 0",
-  ]) { try { await db.prepare(sql).run(); } catch { /* Column already exists after migration. */ } }
-  await db.batch([
-    db.prepare("INSERT OR IGNORE INTO station_ot_settings(mode, exempt_declined, priority_order, custom_rules) VALUES('voluntary', 1, '[\"leastOT\",\"mostSeniority\"]', '[]')"),
-    db.prepare("INSERT OR IGNORE INTO station_ot_settings(mode, exempt_declined, priority_order, custom_rules) VALUES('mandatory', 0, '[\"leastMandatory\",\"leastSeniority\"]', '[]')"),
-    db.prepare("INSERT OR IGNORE INTO station_ot_timing(id, award_days_out, complete_by_days_out) VALUES(1, 7, 2)"),
-    db.prepare("INSERT OR IGNORE INTO station_distribution_weights(id, seniority_weight, hours_weight, custom_weight, custom_label) VALUES(1, 1, 1, 0.5, 'Cross-trained')"),
-  ]);
-  await db.batch([
-    ["station-shift-request", "shift_request", "Shift request updates", '["7 days before","2 days before"]', 1, 0, "Requesting member and approvers", 1],
-    ["station-request-deadline", "request_deadline", "Response deadline reminders", '["2 days before","1 day before"]', 1, 1, "Eligible members only", 1],
-    ["station-open-shift-blast", "open_shift_blast", "Open shift blasts", '["immediate","2 days before"]', 1, 1, "Eligible members only", 1],
-  ].map((rule) => db.prepare("INSERT OR IGNORE INTO station_reminder_rules(id, type, label, offsets, email_enabled, text_enabled, target, enabled) VALUES(?,?,?,?,?,?,?,?)").bind(...rule)));
   await db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES ('runtime_bootstrap_version', ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind(runtimeBootstrapVersion).run();
   ready = true;
   return db;
@@ -729,10 +550,12 @@ export async function ensureDatabase() {
       ready = true;
       return db;
     }
-    // A stale (or missing) runtime marker falls through to initializeDatabase,
-    // which is fully idempotent (CREATE TABLE IF NOT EXISTS / ALTER guards /
-    // marker-gated seeds) and runs once per version bump to apply new schema —
-    // e.g. the Station Scheduler station_* tables added on 2026-08-07.
+    const legacyMarker = await db.prepare("SELECT value FROM system_meta WHERE key = 'box_card_seed_version' LIMIT 1").first<{ value: string }>();
+    if (legacyMarker?.value === boxCardSeedVersion) {
+      await db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES ('runtime_bootstrap_version', ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind(runtimeBootstrapVersion).run();
+      ready = true;
+      return db;
+    }
   } catch {
     // A new database does not have system_meta yet and needs the full bootstrap.
   }

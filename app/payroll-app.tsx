@@ -21,7 +21,7 @@ import { roundPayrollUpToCent } from "./payroll-rounding";
 import { ACTING_OFFICER_STIPEND_PER_HOUR, calculateGrossPay } from "./payroll-calculation";
 import { payrollExportRows } from "./payroll-export";
 import WorkDetails from "./work-details";
-import Scheduling from "./station-scheduler";
+import Scheduling from "./scheduling";
 import PermissionSettings from "./permission-settings";
 import FieldPreplans from "./field-preplans";
 import CadIntegrationSettings from "./cad-integration-settings";
@@ -29,7 +29,6 @@ import Respond from "./respond";
 import IncidentCommandBoard from "./incident-command-board";
 import RespondDeviceSettingsPage from "./respond-device-settings";
 import DepartmentSettings from "./department-settings";
-import InventoryPage from "./inventory-page";
 import { defaultRespondDeviceSettings, readRespondDeviceSettings, RESPOND_ALERT_DURATION_SECONDS, type RespondDeviceSettings } from "./respond-device";
 
 type Category = "shift" | "drill" | "workDetail" | "callback" | "actingOfficer" | "holiday" | "dpw";
@@ -225,6 +224,8 @@ export default function PayrollApp({
   const [finalizing, setFinalizing] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
   const [deletingEmployee, setDeletingEmployee] = useState(false);
+  const [invitingEmail, setInvitingEmail] = useState("");
+  const [inviteMessage, setInviteMessage] = useState("");
   const [employeePhotoFile, setEmployeePhotoFile] = useState<File | null>(null);
   const [employeePhotoPreview, setEmployeePhotoPreview] = useState("");
   const [removeEmployeePhoto, setRemoveEmployeePhoto] = useState(false);
@@ -571,6 +572,30 @@ export default function PayrollApp({
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to save employee"); }
   }
 
+  async function sendEmployeeInvite(employee: Employee) {
+    const email = employee.email?.trim().toLowerCase() ?? "";
+    if (!email) {
+      setInviteMessage(`Add a login email to ${displayName(employee.name)} before sending an invite.`);
+      return;
+    }
+    setInvitingEmail(email);
+    setInviteMessage(`Sending a secure app invitation to ${email}...`);
+    try {
+      const response = await fetch("/api/auth/invites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const payload = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "The invitation could not be sent.");
+      setInviteMessage(`Invitation sent to ${email}. They must confirm the email and create a 4 to 6 digit PIN.`);
+    } catch (caught) {
+      setInviteMessage(caught instanceof Error ? caught.message : "The invitation could not be sent.");
+    } finally {
+      setInvitingEmail("");
+    }
+  }
+
   function chooseEmployeePhoto(file: File | null) {
     if (!file) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
@@ -620,6 +645,10 @@ export default function PayrollApp({
     if ((testMember || (data && !data.viewer.isAdmin && viewerPermissions)) && !visibleNav.includes(activeNav)) setActiveNav(homePage);
   }, [activeNav, data, homePage, testMember, viewerPermissions, visibleNav]);
   function navigate(page: NavItem) {
+    if (page === "Inventory") {
+      window.location.assign("/inventory");
+      return;
+    }
     setActiveNav(page);
     setMobileMenuOpen(false);
     setGlobalSearchOpen(false);
@@ -654,7 +683,7 @@ export default function PayrollApp({
     <main className={`app-shell${tvMode ? " tv-shell" : ""}`}>
       {!tvMode && <PwaInstall />}
       <aside className="desktop-sidebar">
-        <button className="sidebar-brand" onClick={() => navigate(homePage)} aria-label="Stickney Fire Department Operations Portal home"><img className="brand-patch" src="/stickney-fd-patch.jpg?v=2" alt="Stickney Fire Department patch" width="64" height="64" /><span><strong>Stickney Fire Department</strong><small>Operations Portal</small></span></button>
+        <button className="sidebar-brand" onClick={() => navigate(homePage)} aria-label="Stickney Fire Department Operations Portal home"><img className="brand-patch" src="/stickney-fd-patch.png?v=3" alt="Stickney Fire Department patch" width="64" height="64" /><span><strong>Stickney Fire Department</strong><small>Operations Portal</small></span></button>
         <nav className="sidebar-nav" aria-label="Primary navigation">
           {visibleNav.includes("Dashboard") && <button className={activeNav === "Dashboard" ? "current" : ""} onClick={() => navigate("Dashboard")}><Icon name="home"/><span>Dashboard</span></button>}
           {isAdminView ? visibleAdminGroups.map((group) => (
@@ -682,10 +711,11 @@ export default function PayrollApp({
         <div className="sidebar-footer"><span className="system-dot"/>System ready<small>Portal v1.0</small></div>
       </aside>
       <header className="topbar">
-        <button className="mobile-brand" onClick={() => navigate(homePage)} aria-label="Stickney Fire Department Operations Portal home"><img src="/stickney-fd-patch.jpg?v=2" alt="Stickney Fire Department patch" width="44" height="44" /><strong>Stickney FD Operations Portal</strong></button>
+        <button className="mobile-brand" onClick={() => navigate(homePage)} aria-label="Stickney Fire Department Operations Portal home"><img src="/stickney-fd-patch.png?v=3" alt="Stickney Fire Department patch" width="44" height="44" /><strong>Stickney FD Operations Portal</strong></button>
         <div className="topbar-context"><span>Stickney Fire Department</span><strong>{activeNav}</strong></div>
         <div className="topbar-utilities"><div className={`sync-indicator ${syncLabel.toLowerCase()}`}><Icon name={syncLabel === "Offline" ? "warning" : "save"} size={16}/><span><strong>{syncLabel}</strong><small>Last synced {syncTime}</small></span></div><button className="global-search-trigger" onClick={() => void openGlobalSearch()}><Icon name="search"/><span>Search</span><kbd>⌘ K</kbd></button><SmartAlerts icon={<Icon name="bell"/>} onNavigate={(page) => navigate(page as NavItem)} /><div className="profile"><span className="avatar">{(testMember?.name ?? data?.viewer.displayName ?? "").split(/[ ,]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span><span className="profile-copy"><strong>{testMember ? displayName(testMember.name) : data ? displayName(data.viewer.displayName) : "Signed in"}</strong><small>{testMember ? `Test view · ${testMember.rank}` : data?.viewer.isAdmin ? "Administrator" : "Employee"}</small></span><Icon name="chevron" size={15}/></div><button className="mobile-menu-toggle" aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen((current) => !current)} aria-label="Open navigation"><Icon name={mobileMenuOpen ? "close" : "menu"}/></button></div>
-        {mobileMenuOpen && <nav id="mobile-navigation" className="mobile-nav-panel" aria-label="Mobile navigation">
+      </header>
+      {mobileMenuOpen && <nav id="mobile-navigation" className="mobile-nav-panel" aria-label="Mobile navigation">
           {visibleNav.includes("Dashboard") && <button className={activeNav === "Dashboard" ? "current" : ""} onClick={() => navigate("Dashboard")}><Icon name="home"/>Dashboard</button>}
           {isAdminView ? visibleAdminGroups.map((group) => <section key={group.label}><h2>{group.label}</h2>{group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><Icon name={navIcons[item.page]}/>{item.label}</button>)}</section>) : <>
             <section><h2>My Portal</h2>{visibleNav.filter((item) => item !== "Dashboard" && !memberStationDutyItems.has(item)).map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => navigate(item)}><Icon name={navIcons[item]}/>{item === "Scheduling" ? "Employee Schedule Portal" : item}</button>)}</section>
@@ -695,8 +725,7 @@ export default function PayrollApp({
             <span><b>Verified account</b>{accountEmail}</span>
             <button type="button" onClick={onSignOut}>Sign out</button>
           </div>
-        </nav>}
-      </header>
+      </nav>}
 
       <nav className="mobile-bottom-tabs" aria-label="Primary mobile navigation">
         {([
@@ -815,8 +844,6 @@ export default function PayrollApp({
 
           {activeNav === "Holiday Policy" && <HolidayPolicy />}
           {activeNav === "Daily Duties" && <DailyDuties />}
-          {activeNav === "Inventory" && <InventoryPage onBack={() => navigate("Daily Duties")} />}
-
           {activeNav === "Phone Numbers" && <PhoneNumbers />}
           {activeNav === "CAD Integration" && data.viewer.isAdmin && <CadIntegrationSettings />}
           {activeNav === "Departments" && data.viewer.isAdmin && <DepartmentSettings />}
@@ -831,6 +858,7 @@ export default function PayrollApp({
 
           {activeNav === "Employees" && <section className="employee-page">
             <div className="standard-page-header"><div><span className="page-icon"><Icon name="users" size={25}/></span><div><p className="eyebrow">Personnel administration</p><h1>Employees</h1><p>Manage employment, contact, access, driver status, and emergency information.</p></div></div><button type="button" className="primary-action" onClick={() => editEmployee()}>Add Employee</button></div>
+            {inviteMessage && <div className="employee-invite-message" role="status">{inviteMessage}<button type="button" aria-label="Dismiss invitation message" onClick={() => setInviteMessage("")}>×</button></div>}
             {profileOpen && <form className="content-card employee-profile-form" onSubmit={(event) => void saveEmployeeProfile(event)}>
               <div className="section-header"><div><h2>{employeeDraft.id ? `Edit ${employeeNameFromParts(employeeDraft.lastName, employeeDraft.firstName)}` : "Add employee"}</h2><p>Personnel, payroll eligibility, and emergency contact information.</p></div><div className="employee-form-actions">{employeeDraft.id && <button type="button" className="quiet-button" onClick={() => editEmployee()}>New Employee</button>}<button className="primary-action compact" type="submit">{employeeDraft.id ? "Save Changes" : "Add Employee"}</button></div></div>
               <fieldset><legend>Employment</legend><div className="employee-photo-editor"><div className="employee-photo-preview">{employeePhotoPreview ? <img src={employeePhotoPreview} alt="Employee photo preview" /> : <span>{employeeNameFromParts(employeeDraft.lastName, employeeDraft.firstName).split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span>}</div><div><strong>Employee photo</strong><p>Used for new-member announcements and personnel displays.</p><div><label className="employee-photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => chooseEmployeePhoto(event.target.files?.[0] ?? null)} /><span>{employeePhotoPreview ? "Choose a different photo" : "Choose photo"}</span></label>{employeePhotoPreview && <button type="button" className="quiet-button" onClick={() => { setEmployeePhotoFile(null); setEmployeePhotoPreview(""); setRemoveEmployeePhoto(Boolean(employeeDraft.id)); }}>Remove photo</button>}</div><small>JPG, PNG, or WebP · maximum 3 MB</small></div></div><div className="employee-fields three-col">
@@ -867,7 +895,7 @@ export default function PayrollApp({
               {data.employees.length === 0 && <div className="action-empty-state"><Icon name="users" size={28}/><div><strong>No employees yet</strong><p>Add the first employee to begin staffing, timesheets, and payroll.</p></div><button className="quiet-button" onClick={() => editEmployee()}>Add Employee</button></div>}
               <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Employee #</th><th>Pay Scale</th><th>Driver</th><th>Acting Officer</th><th>Phone</th><th>Start</th><th>Last Day</th><th>Status</th><th></th></tr></thead><tbody>{[...data.employees].sort((a, b) => compareEmployeeNames(a.name, b.name)).map((employee) => {
                 const payrollStatus = employee.startDate && employee.startDate > data.period.endDate ? "Scheduled" : employee.endDate && employee.endDate < data.period.startDate ? "Ended" : "Active";
-                return <tr key={employee.id}><td data-label="Employee"><span className="person-icon employee-list-photo">{employee.photoUpdatedAt ? <img src={`/api/employee-photo/${employee.id}?v=${encodeURIComponent(employee.photoUpdatedAt)}`} alt="" /> : <Icon name="users"/>}</span><strong>{displayName(employee.name)}</strong></td><td data-label="Employee #">{employee.employeeNumber || "—"}</td><td data-label="Pay Scale">{employee.rank}</td><td data-label="Driver">{employee.driverStatus || "—"}</td><td data-label="Acting Officer"><span className={`ao-eligibility ${employee.actingOfficerEligible ? "eligible" : ""}`}>{employee.actingOfficerEligible ? "Eligible" : "Not eligible"}</span></td><td data-label="Phone">{employee.phone || "—"}</td><td data-label="Start">{employee.startDate || "—"}</td><td data-label="Last Day">{employee.endDate || "—"}</td><td data-label="Status"><span className={`employment-status ${payrollStatus.toLowerCase()}`}>{payrollStatus}</span></td><td data-label="Actions"><div className="employee-row-actions"><button className="edit-employee" onClick={() => editEmployee(employee)}>Edit</button><button className="delete-employee" onClick={() => setEmployeeToDelete(employee)}>Delete</button></div></td></tr>;
+                return <tr key={employee.id}><td data-label="Employee"><span className="person-icon employee-list-photo">{employee.photoUpdatedAt ? <img src={`/api/employee-photo/${employee.id}?v=${encodeURIComponent(employee.photoUpdatedAt)}`} alt="" /> : <Icon name="users"/>}</span><strong>{displayName(employee.name)}</strong></td><td data-label="Employee #">{employee.employeeNumber || "—"}</td><td data-label="Pay Scale">{employee.rank}</td><td data-label="Driver">{employee.driverStatus || "—"}</td><td data-label="Acting Officer"><span className={`ao-eligibility ${employee.actingOfficerEligible ? "eligible" : ""}`}>{employee.actingOfficerEligible ? "Eligible" : "Not eligible"}</span></td><td data-label="Phone">{employee.phone || "—"}</td><td data-label="Start">{employee.startDate || "—"}</td><td data-label="Last Day">{employee.endDate || "—"}</td><td data-label="Status"><span className={`employment-status ${payrollStatus.toLowerCase()}`}>{payrollStatus}</span></td><td data-label="Actions"><div className="employee-row-actions"><button className="invite-employee" disabled={!employee.email || Boolean(invitingEmail)} onClick={() => void sendEmployeeInvite(employee)}>{invitingEmail === employee.email?.trim().toLowerCase() ? "Sending..." : "Invite"}</button><button className="edit-employee" onClick={() => editEmployee(employee)}>Edit</button><button className="delete-employee" onClick={() => setEmployeeToDelete(employee)}>Delete</button></div></td></tr>;
               })}</tbody></table></div>
             </section>
           </section>}
@@ -878,7 +906,7 @@ export default function PayrollApp({
           </section>}
         </>}
       </section>
-      <footer className="portal-footer"><div className="footer-identity"><img src="/stickney-fd-patch.jpg?v=2" alt="Official Stickney Fire Department patch" width="56" height="56" /><div><strong>Stickney Fire Department Operations Portal</strong><span>Stickney, Illinois</span><a href="tel:+17089747721">Cicero Consolidated Dispatch · (708) 974-7721</a></div></div><div className="footer-links"><button onClick={() => navigate("Phone Numbers")}>Department Directory</button><button onClick={() => navigate("Phone Numbers")}>Portal Support</button><button className="portal-version" title="Open support and department contact information" onClick={() => navigate("Phone Numbers")}>Version 1.1 · Support</button></div><p>© {new Date().getFullYear()} Stickney Fire Department · Official department system · Authorized use only</p></footer>
+      <footer className="portal-footer"><div className="footer-identity"><img src="/stickney-fd-patch.png?v=3" alt="Official Stickney Fire Department patch" width="56" height="56" /><div><strong>Stickney Fire Department Operations Portal</strong><span>Stickney, Illinois</span><a href="tel:+17089747721">Cicero Consolidated Dispatch · (708) 974-7721</a></div></div><div className="footer-links"><button onClick={() => navigate("Phone Numbers")}>Department Directory</button><button onClick={() => navigate("Phone Numbers")}>Portal Support</button><button className="portal-version" title="Open support and department contact information" onClick={() => navigate("Phone Numbers")}>Version 1.1 · Support</button></div><p>© {new Date().getFullYear()} Stickney Fire Department · Official department system · Authorized use only</p></footer>
     </main>
   );
 }

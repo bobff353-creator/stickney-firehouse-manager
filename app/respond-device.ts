@@ -1,6 +1,6 @@
 export const RESPOND_DEVICE_STORAGE_KEY = "stickney-respond-device-settings";
 export const RESPOND_ALERT_DURATION_SECONDS = 90;
-export const APPARATUS_UNITS = ["1201", "1203", "1204", "1205", "1207"] as const;
+export const APPARATUS_UNITS = ["1201", "1203", "1204", "1205", "1207", "1208", "1209", "1210", "1211"] as const;
 
 export type RespondDeviceMode = "standard" | "apparatus" | "operations-alert";
 export type RespondDeviceSettings = {
@@ -22,6 +22,11 @@ type KeyValueStore = {
 
 export function normalizeApparatusUnit(value: unknown) {
   return String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 20);
+}
+
+export function normalizeFleetApparatusName(value: unknown) {
+  const name = String(value ?? "").trim().toUpperCase();
+  return name.match(/\b\d{4}\b/)?.[0] || normalizeApparatusUnit(name.replace(/^UNIT\s+/i, ""));
 }
 
 export function respondingUnitsIncludeUnit(respondingUnits: unknown, apparatus: unknown) {

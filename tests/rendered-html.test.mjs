@@ -1,50 +1,60 @@
 import assert from "node:assert/strict";
+import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 
-const developmentPreviewMeta =
-  /<meta(?=[^>]*\bname=["']codex-preview["'])(?=[^>]*\bcontent=["']development["'])[^>]*>/i;
+const root = new URL("../", import.meta.url);
+const read = (path) => readFile(new URL(path, root), "utf8");
 
-test("renders development preview metadata", async () => {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
-  const { default: worker } = await import(workerUrl.href);
-
-  const response = await worker.fetch(
-    new Request("http://localhost/", {
-      headers: { accept: "text/html" },
-    }),
-    {
-      ASSETS: {
-        fetch: async () => new Response("Not found", { status: 404 }),
-      },
-    },
-    {
-      waitUntil() {},
-      passThroughOnException() {},
-    },
-  );
-
-  assert.equal(response.status, 200);
-  assert.match(
-    response.headers.get("content-type") ?? "",
-    /^text\/html\b/i,
-  );
-  assert.match(await response.text(), developmentPreviewMeta);
+test("runs the full portal natively on Vercel without a Sites proxy", async () => {
+  const [page, layout, payroll, confirm, packageJson] = await Promise.all([
+    read("app/page.tsx"),
+    read("app/layout.tsx"),
+    read("app/payroll-app.tsx"),
+    read("app/auth/confirm/route.ts"),
+    read("package.json"),
+  ]);
+  await assert.rejects(access(new URL("app/[[...path]]/route.ts", root)));
+  await assert.rejects(access(new URL("app/lib/upstream-portal.ts", root)));
+  assert.match(page, /AuthGateway/);
+  assert.match(confirm, /supabase/);
+  assert.match(payroll, /window\.location\.assign\("\/inventory"\)/);
+  assert.match(layout, /training-route\.js/);
+  assert.match(layout, /fleet-notices\.js/);
+  assert.match(layout, /preplan-route\.js/);
+  assert.doesNotMatch([page, layout, payroll, confirm, packageJson].join("\n"), /chatgpt\.site|stickney-payroll-manager|cloudflare:workers|OAI-Sites/i);
 });
 
-test("places Inventory under Station Duties without 360 branding", async () => {
-  const source = await import("node:fs/promises").then((fs) =>
-    fs.readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8"),
-  );
+test("keeps the installable advanced fleet and inventory module", async () => {
+  const [layout, inventoryPage, component, operations, manifestText, serviceWorker] = await Promise.all([
+    read("app/layout.tsx"),
+    read("app/inventory/page.tsx"),
+    read("app/inventory-live.tsx"),
+    read("app/inventory-operations.tsx"),
+    read("public/manifest.webmanifest"),
+    read("public/sw.js"),
+  ]);
+  const manifest = JSON.parse(manifestText);
+  assert.equal(manifest.name, "Stickney Firehouse Manager");
+  assert.equal(manifest.display, "standalone");
+  assert.match(layout, /manifest: "\/manifest\.webmanifest"/);
+  assert.match(inventoryPage, /verifyInventoryServerSession/);
+  assert.match(component, /DIGITAL TWIN BUILDER/);
+  assert.match(component, /Save Fleet status/);
+  assert.match(operations, /Daily inspection/);
+  assert.match(operations, /Weekly inspection/);
+  assert.match(operations, /Air pack check/);
+  assert.doesNotMatch(serviceWorker, /\/api\//);
+});
 
-  assert.match(source, /label: "Station Duties"/);
-  assert.match(source, /\{ label: "Inventory", page: "Inventory" \}/);
-  assert.match(source, /import InventoryPage from "\.\/inventory-page"/);
-  assert.match(source, /activeNav === "Inventory"/);
-  assert.match(source, /sidebar-group-toggle/);
-  assert.match(source, /mobile-bottom-tabs/);
-  assert.match(source, /type: "Preplan"/);
-  assert.match(source, /type: "Screen"/);
-  assert.doesNotMatch(source, /inventory-360-command\.bobff353\.chatgpt\.site/);
-  assert.doesNotMatch(source, /label: "Inventory 360"/);
+test("formats SQLite-style CURRENT_TIMESTAMP values for migrated text columns", async () => {
+  const adapter = await read("db/postgres-adapter.ts");
+
+  assert.match(adapter, /CURRENT_TIMESTAMP\\b\/gi, "to_char\(CURRENT_TIMESTAMP AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS'\)"/);
+});
+
+test("translates bound SQLite date values for Postgres", async () => {
+  const adapter = await read("db/postgres-adapter.ts");
+
+  assert.match(adapter, /if \(!\/\(;\|--\|\\\/\\\*\|\\\*\\\/\)\/\.test\(sanitized\)\) return `\x27\$\{sanitized\.replaceAll\("\x27", "\x27\x27"\)\}\x27`/);
+  assert.match(adapter, /date\\\(\\s\*\(\x27\(\?:\x27\x27\|\[\^\x27\]\)\*\x27\)\\s\*\\\)\/gi, "\(\$1\)::date"/);
 });

@@ -23,8 +23,8 @@ function parseJson<T>(value: unknown, fallback: T): T {
 }
 
 async function activeIncident(db: Db): Promise<ActiveIncident | null> {
-  await db.prepare("UPDATE dispatch_incidents SET active=0,cleared_at=COALESCE(cleared_at,CAST(CURRENT_TIMESTAMP AS TEXT)) WHERE active=1 AND EXISTS (SELECT 1 FROM daily_log_calls WHERE daily_log_calls.report_number=dispatch_incidents.incident_id AND trim(daily_log_calls.time_in)<>'')").run();
-  const dispatch = await db.prepare("SELECT incident_id incidentId,incident_id reportNumber,call_type callType,address,city,responding_units respondingUnits,longitude,latitude,dispatched_at dispatchedAt,source_system source,received_at receivedAt FROM dispatch_incidents WHERE active=1 AND cleared_at IS NULL AND datetime(dispatched_at)>=datetime('now','-12 hours') ORDER BY datetime(dispatched_at) DESC LIMIT 1").first<ActiveIncident>();
+  await db.prepare("UPDATE dispatch_incidents SET active=0,cleared_at=COALESCE(cleared_at,CURRENT_TIMESTAMP) WHERE active=1 AND EXISTS (SELECT 1 FROM daily_log_calls WHERE trim(daily_log_calls.report_number)=trim(dispatch_incidents.incident_id) AND trim(daily_log_calls.time_in)<>'')").run();
+  const dispatch = await db.prepare("SELECT incident_id incidentId,incident_id reportNumber,call_type callType,address,city,responding_units respondingUnits,longitude,latitude,dispatched_at dispatchedAt,source_system source,received_at receivedAt FROM dispatch_incidents WHERE active=1 AND cleared_at IS NULL AND datetime(dispatched_at)>=datetime('now','-12 hours') AND NOT EXISTS (SELECT 1 FROM daily_log_calls WHERE trim(daily_log_calls.report_number)=trim(dispatch_incidents.incident_id) AND trim(daily_log_calls.time_in)<>'') ORDER BY datetime(dispatched_at) DESC LIMIT 1").first<ActiveIncident>();
   if (dispatch) return dispatch;
   const date = chicagoOperationalContext().operationalDate;
   const logCall = await db.prepare("SELECT report_number reportNumber,call_type callType,address,'' city,responding_units respondingUnits,NULL longitude,NULL latitude,log_date dispatchedAt,'Daily Log' source,log_date receivedAt FROM daily_log_calls WHERE log_date=? AND trim(time_out)<>'' AND trim(time_in)='' ORDER BY sort_order DESC LIMIT 1").bind(date).first<Omit<ActiveIncident, "incidentId">>();
@@ -44,7 +44,12 @@ async function actorName(request: Request, db: Db) {
 
 async function matchedPreplan(db: Db, incident: ActiveIncident) {
   const rows = await db.prepare("SELECT id,business_name businessName,address,latitude,longitude,floor_count floorCount,construction,access_info accessInfo,knox_box knoxBox,alarm_system alarmSystem,riser,fdc,sprinkler_system sprinklerSystem,status,updated_at updatedAt FROM field_preplans ORDER BY updated_at DESC").all<Row>();
-  const plans = rows.results.map((row) => ({ ...row, address: String(row.address || ""), latitude: Number(row.latitude), longitude: Number(row.longitude) }));
+  const plans: Array<Row & { address: string; latitude: number; longitude: number; floorCount?: unknown }> = rows.results.map((row) => ({
+    ...row,
+    address: String(row.address || ""),
+    latitude: Number(row.latitude),
+    longitude: Number(row.longitude),
+  }));
   const match = rankPreplanMatch({ address: incident.address, latitude: incident.latitude, longitude: incident.longitude }, plans);
   return match ? { ...match.plan, match: { method: match.method, distanceFeet: Math.round(match.distanceFeet) } } : null;
 }

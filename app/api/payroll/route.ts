@@ -4,7 +4,7 @@ import { roundPayrollUpToCent } from "../../payroll-rounding";
 import { ACTING_OFFICER_STIPEND_PER_HOUR } from "../../payroll-calculation";
 
 const categories = ["shift", "drill", "workDetail", "callback", "actingOfficer", "holiday", "dpw"] as const;
-const ownerAdminEmails = ["bobff353@gmail.com", "bwyant@stickneyfire.com"];
+const ownerAdminEmails = ["bobff353@gmail.com"];
 async function addRevision(db: Awaited<ReturnType<typeof ensureDatabase>>, id: string, action: string, summary: string, actor: string) { await db.prepare("INSERT INTO record_revisions (id, record_type, record_id, revision_number, action, summary, actor) SELECT ?, 'payroll', ?, COALESCE(MAX(revision_number), 0) + 1, ?, ?, ? FROM record_revisions WHERE record_type = 'payroll' AND record_id = ?").bind(crypto.randomUUID(), id, action, summary, actor, id).run(); }
 
 async function getViewer(db: Awaited<ReturnType<typeof ensureDatabase>>, request: Request) {
@@ -56,7 +56,7 @@ export async function GET(request: Request) {
       entryQuery,
       scaleQuery,
       db.prepare("SELECT overtime_threshold AS overtimeThreshold, acting_officer_premium AS actingOfficerPremium, dpw_multiplier AS dpwMultiplier FROM payroll_settings WHERE id = 1").first(),
-      db.prepare("SELECT start_date AS startDate, end_date AS endDate, status, created_by AS createdBy, COALESCE(CAST(created_at AS TEXT), CAST(updated_at AS TEXT)) AS createdAt, updated_by AS updatedBy, updated_at AS updatedAt, finalized_by AS finalizedBy, finalized_at AS finalizedAt FROM pay_periods WHERE start_date = ?").bind(start).first(),
+      db.prepare("SELECT start_date AS startDate, end_date AS endDate, status, created_by AS createdBy, COALESCE(created_at, updated_at) AS createdAt, updated_by AS updatedBy, updated_at AS updatedAt, finalized_by AS finalizedBy, finalized_at AS finalizedAt FROM pay_periods WHERE start_date = ?").bind(start).first(),
       db.prepare("SELECT h.id, h.pay_scale_id AS payScaleId, p.label, h.effective_date AS effectiveDate, h.regular_rate AS regularRate, h.overtime_rate AS overtimeRate, h.holiday_rate AS holidayRate, h.created_by AS createdBy, h.created_at AS createdAt FROM pay_rate_history h JOIN pay_scales p ON p.id = h.pay_scale_id ORDER BY h.effective_date DESC, p.sort_order").all(),
     ]);
 
@@ -134,7 +134,7 @@ export async function POST(request: Request) {
         const premiumRate = roundPayrollUpToCent(regularRate * 1.5);
         const payScaleId = String(scale.id);
         await db.prepare("INSERT INTO pay_rate_history (id, pay_scale_id, effective_date, regular_rate, overtime_rate, holiday_rate, created_by) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(pay_scale_id, effective_date) DO UPDATE SET regular_rate = excluded.regular_rate, overtime_rate = excluded.overtime_rate, holiday_rate = excluded.holiday_rate, created_by = excluded.created_by, created_at = CURRENT_TIMESTAMP").bind(crypto.randomUUID(), payScaleId, effectiveDate, regularRate, premiumRate, premiumRate, viewer.displayName).run();
-        await db.prepare("UPDATE pay_scales SET regular_rate = (SELECT regular_rate FROM pay_rate_history WHERE pay_scale_id = ? AND effective_date <= date('now') ORDER BY effective_date DESC LIMIT 1), overtime_rate = (SELECT overtime_rate FROM pay_rate_history WHERE pay_scale_id = ? AND effective_date <= date('now') ORDER BY effective_date DESC LIMIT 1), holiday_rate = (SELECT holiday_rate FROM pay_rate_history WHERE pay_scale_id = ? AND effective_date <= date('now') ORDER BY effective_date DESC LIMIT 1) WHERE id = ?").bind(payScaleId, payScaleId, payScaleId, payScaleId).run();
+        await db.prepare("UPDATE pay_scales SET regular_rate = (SELECT regular_rate FROM pay_rate_history WHERE pay_scale_id = ? AND date(effective_date) <= date('now') ORDER BY effective_date DESC LIMIT 1), overtime_rate = (SELECT overtime_rate FROM pay_rate_history WHERE pay_scale_id = ? AND date(effective_date) <= date('now') ORDER BY effective_date DESC LIMIT 1), holiday_rate = (SELECT holiday_rate FROM pay_rate_history WHERE pay_scale_id = ? AND date(effective_date) <= date('now') ORDER BY effective_date DESC LIMIT 1) WHERE id = ?").bind(payScaleId, payScaleId, payScaleId, payScaleId).run();
       }
       await addRevision(db, effectiveDate, "Rates updated", `Pay rates saved effective ${effectiveDate}`, viewer.displayName);
       return Response.json({ ok: true, effectiveDate });

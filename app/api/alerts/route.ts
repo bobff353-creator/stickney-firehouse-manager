@@ -1,5 +1,5 @@
 import { ensureDatabase } from "../../../db/bootstrap";
-const ownerAdminEmails = ["bobff353@gmail.com", "bwyant@stickneyfire.com"];
+const ownerAdminEmails = ["bobff353@gmail.com"];
 function chicago() { const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date()); const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "00"; return { date: `${get("year")}-${get("month")}-${get("day")}`, minutes: Number(get("hour")) * 60 + Number(get("minute")) }; }
 const shiftFor = (minutes: number) => minutes < 360 ? "overnight" : minutes < 720 ? "morning" : minutes < 1080 ? "afternoon" : "overnight";
 const priorShift = (shift: string) => shift === "morning" ? "overnight" : shift === "afternoon" ? "morning" : "afternoon";
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
       db.prepare("SELECT sign_in_at AS signInAt, sign_in_equipment AS equipment FROM daily_log_approvals WHERE log_date = ? AND shift_key = ?").bind(now.date, shift).first<Record<string, unknown>>(),
       db.prepare("SELECT sign_out_at AS signOutAt FROM daily_log_approvals WHERE log_date = ? AND shift_key = ?").bind(now.date, previous).first<Record<string, unknown>>(),
       db.prepare("SELECT COUNT(*) AS count FROM daily_log_staffing WHERE log_date = ? AND shift_key = ? AND employee_id IS NOT NULL").bind(now.date, shift).first<{ count: number }>(),
-      db.prepare("SELECT s.log_date AS logDate, s.employee_id AS employeeId, s.time_in AS timeIn, s.time_out AS timeOut, e.name FROM daily_log_staffing s JOIN employees e ON e.id = s.employee_id WHERE s.log_date >= date(?, '-1 day') ORDER BY s.employee_id, s.log_date, s.time_in").bind(now.date).all(),
+      db.prepare("SELECT s.log_date AS logDate, s.employee_id AS employeeId, s.time_in AS timeIn, s.time_out AS timeOut, e.name FROM daily_log_staffing s JOIN employees e ON e.id = s.employee_id WHERE date(s.log_date) >= date(?, '-1 day') ORDER BY s.employee_id, s.log_date, s.time_in").bind(now.date).all(),
       db.prepare("SELECT e.name, ep.phone, ep.email, ep.driver_status AS driverStatus FROM employees e LEFT JOIN employee_profiles ep ON ep.employee_id = e.id WHERE e.active = 1 AND (COALESCE(ep.phone, '') = '' OR COALESCE(ep.email, '') = '' OR COALESCE(ep.driver_status, '') = '') ORDER BY e.name").all(),
     ]);
     const alerts: Array<{ id: string; severity: "critical" | "warning" | "info"; category: string; title: string; detail: string; page: string }> = [];

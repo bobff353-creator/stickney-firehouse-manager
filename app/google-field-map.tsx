@@ -44,7 +44,7 @@ function loadGoogleMaps(apiKey: string) {
     const script = document.createElement("script");
     script.id = "stickney-google-maps-loader";
     script.async = true;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&loading=async&callback=${callbackName}&v=weekly&auth_referrer_policy=origin`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&loading=async&callback=${callbackName}&v=weekly`;
     script.onerror = () => reject(new Error("Google Maps could not be loaded."));
     document.head.appendChild(script);
   });

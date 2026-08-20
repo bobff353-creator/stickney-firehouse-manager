@@ -1,0 +1,34 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+test("mobile equipment editor keeps inspection choices readable in dark mode", async () => {
+  const styles = await readFile(new URL("../app/inventory/inventory.css", import.meta.url), "utf8");
+  assert.match(styles, /\.equipment-editor \.ops-check-grid label\{min-height:44px;[^}]*font-size:12px/);
+  assert.match(styles, /\.equipment-editor \.ops-check-grid label\{min-height:50px;font-size:13px\}/);
+  assert.match(styles, /@media\(prefers-color-scheme:dark\)\{\.equipment-editor \.ops-check-grid label\{[^}]*color:#f4f8fa/);
+});
+test("fleet cards clearly open unit checks and stay readable on dark phones", async () => {
+  const [styles, fleet, operations] = await Promise.all([
+    readFile(new URL("../app/inventory/inventory.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/inventory-live.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/inventory-operations.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(fleet, /Open Unit Checks &amp; Inventory/);
+  assert.match(fleet, /Daily · Weekly · Inventory · Air Pack/);
+  assert.match(operations, /inspection-choice-action[^\n]*Tap to resume[^\n]*Tap to open/);
+  assert.match(styles, /\.card-action \{[^}]*min-height: 58px;[^}]*background: var\(--red\)/);
+  assert.match(styles, /@media\(max-width:820px\)\{\.fleet-page \.page-heading p\{[^}]*font-size:14px/);
+  assert.match(styles, /@media\(prefers-color-scheme:dark\)\{\.fleet-page \.page-heading p\{color:#c8d5d9/);
+});
+
+test("inventory uses its own full-width shell instead of the portal sidebar grid", async () => {
+  const [styles, inventory] = await Promise.all([
+    readFile(new URL("../app/inventory/inventory.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/inventory-live.tsx", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(inventory, /<main className="inventory-app-shell">/);
+  assert.doesNotMatch(inventory, /<main className="app-shell">/);
+  assert.match(styles, /\.inventory-app-shell \{ display: block; width: 100%; min-width: 0; min-height: 100vh; \}/);
+});

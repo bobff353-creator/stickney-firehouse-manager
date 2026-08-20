@@ -27,6 +27,14 @@ test("Respond device mode is normalized and stored only in the selected browser"
   assert.deepEqual(readRespondDeviceSettings(store), saved);
 });
 
+test("fleet apparatus names produce exact CAD unit choices", async () => {
+  const { APPARATUS_UNITS, normalizeFleetApparatusName } = await loadDeviceModule();
+  assert.deepEqual(APPARATUS_UNITS, ["1201", "1203", "1204", "1205", "1207", "1208", "1209", "1210", "1211"]);
+  assert.equal(normalizeFleetApparatusName("Utility 1208"), "1208");
+  assert.equal(normalizeFleetApparatusName("Unit 1211"), "1211");
+  assert.equal(normalizeFleetApparatusName("E1201"), "E1201");
+});
+
 test("Operations Alert duration is fixed at 90 seconds", async () => {
   const { RESPOND_ALERT_DURATION_SECONDS } = await loadDeviceModule();
   assert.equal(RESPOND_ALERT_DURATION_SECONDS, 90);

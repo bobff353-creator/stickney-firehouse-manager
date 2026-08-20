@@ -124,7 +124,7 @@ export default function ChiefBoardPanel() {
 
   return <section className="board-panel chief-board-panel" aria-live="polite">
     <header>
-      <div><h2>{riverActive ? "Des Plaines River · Lyons" : "Chief Notes & Events"}</h2><span>{current + 1} of {slideCount} · rotates every 12 seconds</span></div>
+      <div><h2>{riverActive ? "Des Plaines River · Lyons" : "Chief Notes & Events"}</h2><span>{current + 1} of {slideCount}</span></div>
       {canEdit && <button className="chief-add-button" aria-label="Add Chief Note or Event" onClick={() => { setDraft({ ...emptyDraft }); setSelectedFiles([]); }}>+</button>}
     </header>
     <div className="chief-board-content">
@@ -154,8 +154,6 @@ export default function ChiefBoardPanel() {
         </div>}
       </article> : <div className="board-empty"><strong>No Chief Notes or Events</strong><p>Administrators can use the + button to post information here.</p></div>}
     </div>
-    {slideCount > 1 && <footer className="chief-rotation-dots">{items.map((entry, index) => <button key={entry.id} className={index === current ? "active" : ""} aria-label={`Show ${entry.title}`} onClick={() => setCurrent(index)}/>)}
-      <button className={riverActive ? "active" : ""} aria-label="Show live Des Plaines River level" onClick={() => setCurrent(items.length)}/></footer>}
     {message && <div className="chief-board-message" role="status">{message}</div>}
     {draft && <div className="chief-editor-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) closeEditor(); }}>
       <form className="chief-editor" onSubmit={(event) => void save(event)}>

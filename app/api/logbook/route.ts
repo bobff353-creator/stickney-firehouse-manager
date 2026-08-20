@@ -6,6 +6,8 @@ import { holidayForDate } from "../../holidays";
 import { chicagoOperationalContext } from "../../operational-day";
 import { dailyLogPayrollEntries, dailyLogPayrollTotals } from "../../payroll-hours";
 import { hasPermission } from "../../server-permissions";
+import { completedApparatusChecksForDate, incompleteRequiredFleetChecks, type RequiredFleetCheck } from "../../lib/fleet-projections";
+import { createInventorySupabaseClient } from "../../lib/supabase-server";
 
 const shifts = ["morning", "afternoon", "overnight"];
 const actorFor = (request: Request) => request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() || "System";
@@ -28,6 +30,27 @@ function payrollPeriodEnd(start: string) {
   else { parsed.setUTCMonth(parsed.getUTCMonth() + 1); parsed.setUTCDate(10); }
   return parsed.toISOString().slice(0, 10);
 }
+async function fleetRequirementsForDate(
+  request: Request,
+  _db: Awaited<ReturnType<typeof ensureDatabase>>,
+  date: string,
+): Promise<{ available: boolean; incomplete: RequiredFleetCheck[] }> {
+  const departmentId = request.headers.get("x-department-id")?.trim() || "";
+  if (!departmentId) return { available: false, incomplete: [] };
+  try {
+    return {
+      available: true,
+      incomplete: await incompleteRequiredFleetChecks(
+        await createInventorySupabaseClient(),
+        departmentId,
+        date,
+      ),
+    };
+  } catch (error) {
+    console.error("Daily Log Fleet sign-out verification failed", error);
+    return { available: false, incomplete: [] };
+  }
+}
 export async function GET(request: Request) {
   try {
     const db = await ensureDatabase();
@@ -35,9 +58,16 @@ export async function GET(request: Request) {
     const canUnlock = await hasPermission(request, db, "permissions.manage");
     const operational = chicagoOperationalContext();
     const date = cleanDate(new URL(request.url).searchParams.get("date"), operational.operationalDate);
+    if (new URL(request.url).searchParams.get("fleetRequirementsOnly") === "1") {
+      const requirements = await fleetRequirementsForDate(request, db, date);
+      return Response.json({
+        fleetVerificationAvailable: requirements.available,
+        incompleteFleetChecks: requirements.incomplete,
+      });
+    }
     await db.prepare("INSERT OR IGNORE INTO daily_logs (log_date) VALUES (?)").bind(date).run();
     const unprojectedDispatches = await db.prepare(
-      "SELECT incident_id AS reportNumber, dispatched_at AS dispatchedAt, time_out AS timeOut, responding_units AS respondingUnits, address, call_type AS callType FROM dispatch_incidents WHERE NOT EXISTS (SELECT 1 FROM daily_log_calls WHERE daily_log_calls.report_number = dispatch_incidents.incident_id) ORDER BY datetime(dispatched_at)"
+      "SELECT incident_id AS reportNumber, dispatched_at AS dispatchedAt, time_out AS timeOut, responding_units AS respondingUnits, address, call_type AS callType FROM dispatch_incidents WHERE NOT EXISTS (SELECT 1 FROM daily_log_calls WHERE trim(daily_log_calls.report_number) = trim(dispatch_incidents.incident_id)) ORDER BY datetime(dispatched_at)"
     ).all<{
       reportNumber: string;
       dispatchedAt: string;
@@ -51,14 +81,14 @@ export async function GET(request: Request) {
         await projectDispatchIntoDailyLog(db, incident);
       }
     }
-    await db.prepare("UPDATE daily_logs SET locked = 1, locked_by = COALESCE(locked_by, 'System · 7:00 AM Lock'), locked_at = COALESCE(locked_at, CAST(CURRENT_TIMESTAMP AS TEXT)) WHERE log_date < ?").bind(operational.lockBeforeDate).run();
+    await db.prepare("UPDATE daily_logs SET locked = 1, locked_by = COALESCE(locked_by, 'System · 7:00 AM Lock'), locked_at = COALESCE(locked_at, CURRENT_TIMESTAMP) WHERE log_date < ?").bind(operational.lockBeforeDate).run();
     const [log, staffing, calls, addresses, approvals, recentNotes, revisions] = await Promise.all([
-      db.prepare("SELECT log_date AS logDate, shift_notes AS shiftNotes, CASE WHEN log_date < ? THEN 1 ELSE locked END AS locked, admin_unlocked AS adminUnlocked, created_by AS createdBy, COALESCE(CAST(created_at AS TEXT), CAST(updated_at AS TEXT)) AS createdAt, updated_by AS updatedBy, updated_at AS updatedAt, locked_by AS lockedBy, locked_at AS lockedAt FROM daily_logs WHERE log_date = ?").bind(operational.lockBeforeDate, date).first(),
+      db.prepare("SELECT log_date AS logDate, shift_notes AS shiftNotes, CASE WHEN log_date < ? THEN 1 ELSE locked END AS locked, admin_unlocked AS adminUnlocked, created_by AS createdBy, COALESCE(created_at, updated_at) AS createdAt, updated_by AS updatedBy, updated_at AS updatedAt, locked_by AS lockedBy, locked_at AS lockedAt FROM daily_logs WHERE log_date = ?").bind(operational.lockBeforeDate, date).first(),
       db.prepare("SELECT id, shift_key AS shiftKey, employee_id AS employeeId, time_in AS timeIn, time_out AS timeOut, acting_officer AS actingOfficer, sort_order AS sortOrder FROM daily_log_staffing WHERE log_date = ? ORDER BY shift_key, sort_order").bind(date).all(),
       db.prepare("SELECT id, report_number AS reportNumber, time_out AS timeOut, time_in AS timeIn, responding_units AS respondingUnits, address, call_type AS callType, sort_order AS sortOrder FROM daily_log_calls WHERE log_date = ? ORDER BY sort_order").bind(date).all(),
       db.prepare("SELECT address FROM daily_log_calls WHERE address <> '' GROUP BY address ORDER BY MAX(log_date) DESC, MAX(sort_order) DESC LIMIT 50").all(),
-      db.prepare("SELECT shift_key AS shiftKey, sign_in_officer_id AS signInOfficerId, sign_in_at AS signInAt, sign_in_equipment AS signInEquipment, sign_in_note AS signInNote, reviewed_notes AS reviewedNotes, sign_out_officer_id AS signOutOfficerId, sign_out_at AS signOutAt, sign_out_equipment AS signOutEquipment, sign_out_note AS signOutNote FROM daily_log_approvals WHERE log_date = ?").bind(date).all(),
-      db.prepare("SELECT log_date AS logDate, shift_notes AS note FROM daily_logs WHERE log_date < ? AND log_date >= date(?, '-7 day') AND shift_notes <> '' UNION ALL SELECT log_date AS logDate, sign_out_note AS note FROM daily_log_approvals WHERE log_date < ? AND log_date >= date(?, '-7 day') AND sign_out_note <> '' ORDER BY logDate DESC").bind(date, date, date, date).all(),
+      db.prepare("SELECT shift_key AS shiftKey, sign_in_officer_id AS signInOfficerId, sign_in_at AS signInAt, sign_in_equipment AS signInEquipment, sign_in_note AS signInNote, reviewed_notes AS reviewedNotes, sign_out_officer_id AS signOutOfficerId, sign_out_at AS signOutAt, sign_out_equipment AS signOutEquipment, sign_out_note AS signOutNote, fleet_duties_acknowledged AS fleetDutiesAcknowledged FROM daily_log_approvals WHERE log_date = ?").bind(date).all(),
+      db.prepare("SELECT log_date AS logDate, shift_notes AS note FROM daily_logs WHERE log_date < ? AND date(log_date) >= date(?, '-7 day') AND shift_notes <> '' UNION ALL SELECT log_date AS logDate, sign_out_note AS note FROM daily_log_approvals WHERE log_date < ? AND date(log_date) >= date(?, '-7 day') AND sign_out_note <> '' ORDER BY logDate DESC").bind(date, date, date, date).all(),
       db.prepare("SELECT revision_number AS revisionNumber, action, summary, actor, changed_at AS changedAt FROM record_revisions WHERE record_type = 'dailyLog' AND record_id = ? ORDER BY revision_number DESC").bind(date).all(),
     ]);
     const logState = log as { locked?: number; adminUnlocked?: number } | null;
@@ -67,12 +97,26 @@ export async function GET(request: Request) {
     if (!staffingRows.length && (!logState?.locked || logState.adminUnlocked)) {
       const range = scheduleQueryDates(date);
       const scheduled = await db.prepare(
-        "SELECT s.id,s.employee_id AS employeeId,e.name AS employeeName,en.entry_date AS workDate,t.start_time AS startTime,t.end_time AS endTime,s.role,'station' AS source,'assigned' AS status FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id JOIN employees e ON e.id=s.employee_id WHERE s.status='filled' AND en.entry_date BETWEEN ? AND ? ORDER BY en.entry_date,t.start_time,e.name COLLATE NOCASE",
+        "SELECT a.id,a.employee_id AS employeeId,e.name AS employeeName,a.work_date AS workDate,a.start_time AS startTime,a.end_time AS endTime,a.role,a.source,a.status FROM schedule_assignments a JOIN employees e ON e.id=a.employee_id WHERE a.status='assigned' AND a.work_date BETWEEN ? AND ? ORDER BY a.work_date,a.start_time,e.name COLLATE NOCASE",
       ).bind(range.startDate, range.endDate).all<DepartmentScheduleAssignment>();
       const prefilled = scheduledStaffingForLog(scheduled.results, date);
       if (prefilled.length) {
         staffingRows = prefilled;
         schedulePrefilled = true;
+      }
+    }
+    let apparatusChecks: Awaited<ReturnType<typeof completedApparatusChecksForDate>> = [];
+    const fleetRequirements = await fleetRequirementsForDate(request, db, date);
+    const departmentId = request.headers.get("x-department-id")?.trim() || "";
+    if (departmentId) {
+      try {
+        apparatusChecks = await completedApparatusChecksForDate(
+          await createInventorySupabaseClient(),
+          departmentId,
+          date,
+        );
+      } catch (error) {
+        console.error("Daily Log fleet projection failed", error);
       }
     }
     return Response.json({
@@ -84,6 +128,9 @@ export async function GET(request: Request) {
       approvals: approvals.results,
       recentNotes: recentNotes.results,
       addresses: addresses.results.map((row) => String((row as { address: string }).address)),
+      apparatusChecks,
+      fleetVerificationAvailable: fleetRequirements.available,
+      incompleteFleetChecks: fleetRequirements.incomplete,
       operationalDay: {
         date: operational.operationalDate,
         changesAt: "06:00",
@@ -106,7 +153,7 @@ export async function POST(request: Request) {
     const action = String(body.action ?? "save");
     if (!await hasPermission(request, db, "daily_log.manage")) return Response.json({ error: "Daily Log editing is not enabled for this account." }, { status: 403 });
     const actor = actorFor(request);
-    await db.prepare("UPDATE daily_logs SET locked = 1, locked_by = COALESCE(locked_by, 'System · 7:00 AM Lock'), locked_at = COALESCE(locked_at, CAST(CURRENT_TIMESTAMP AS TEXT)) WHERE log_date < ?").bind(operational.lockBeforeDate).run();
+    await db.prepare("UPDATE daily_logs SET locked = 1, locked_by = COALESCE(locked_by, 'System · 7:00 AM Lock'), locked_at = COALESCE(locked_at, CURRENT_TIMESTAMP) WHERE log_date < ?").bind(operational.lockBeforeDate).run();
     const existing = await db.prepare("SELECT locked, admin_unlocked AS adminUnlocked FROM daily_logs WHERE log_date = ?").bind(date).first<{ locked: number; adminUnlocked: number }>();
 
     if (action === "adminUnlock") {
@@ -124,12 +171,28 @@ export async function POST(request: Request) {
       const equipment = JSON.stringify(body.equipment ?? {});
       const note = String(body.note ?? "").trim();
       if (!shifts.includes(shiftKey) || !["in", "out"].includes(mode) || !officerId) return Response.json({ error: "Select the officer completing this approval." }, { status: 400 });
+      if (mode === "out") {
+        const requirements = await fleetRequirementsForDate(request, db, date);
+        if (!requirements.available) {
+          return Response.json({ error: "Officer sign out is blocked because Fleet checklist status could not be verified. Try again before signing out." }, { status: 503 });
+        }
+        if (requirements.incomplete.length) {
+          const list = requirements.incomplete.map((check) => `${check.unit} ${check.checkType}`).join(", ");
+          return Response.json({
+            error: `Officer sign out is blocked. Complete the required Fleet checks first: ${list}.`,
+            incompleteFleetChecks: requirements.incomplete,
+          }, { status: 409 });
+        }
+        if (body.fleetDutiesAcknowledged !== true) {
+          return Response.json({ error: "Acknowledge that all required Fleet checks and assigned duties are complete before signing out." }, { status: 400 });
+        }
+      }
       await db.prepare("INSERT OR IGNORE INTO daily_log_approvals (id, log_date, shift_key) VALUES (?, ?, ?)").bind(crypto.randomUUID(), date, shiftKey).run();
       if (mode === "in") {
         if (!body.reviewedNotes) return Response.json({ error: "Review and accept the previous seven days of notes first." }, { status: 400 });
         await db.prepare("UPDATE daily_log_approvals SET sign_in_officer_id = ?, sign_in_at = CURRENT_TIMESTAMP, sign_in_equipment = ?, sign_in_note = ?, reviewed_notes = 1 WHERE log_date = ? AND shift_key = ?").bind(officerId, equipment, note, date, shiftKey).run();
       } else {
-        await db.prepare("UPDATE daily_log_approvals SET sign_out_officer_id = ?, sign_out_at = CURRENT_TIMESTAMP, sign_out_equipment = ?, sign_out_note = ? WHERE log_date = ? AND shift_key = ?").bind(officerId, equipment, note, date, shiftKey).run();
+        await db.prepare("UPDATE daily_log_approvals SET sign_out_officer_id = ?, sign_out_at = CURRENT_TIMESTAMP, sign_out_equipment = ?, sign_out_note = ?, fleet_duties_acknowledged = 1 WHERE log_date = ? AND shift_key = ?").bind(officerId, equipment, note, date, shiftKey).run();
       }
       await db.prepare("UPDATE daily_logs SET updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE log_date = ?").bind(actor, date).run();
       await addRevision(db, date, mode === "in" ? "Officer signed in" : "Shift approved", `${shiftKey} officer handoff completed`, actor);
@@ -153,7 +216,7 @@ export async function POST(request: Request) {
       logWrites.push(db.prepare("INSERT INTO daily_log_calls (id, log_date, report_number, time_out, time_in, responding_units, address, call_type, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(String(row.id || crypto.randomUUID()), date, String(row.reportNumber ?? ""), String(row.timeOut ?? ""), String(row.timeIn ?? ""), String(row.respondingUnits ?? ""), String(row.address ?? ""), callType || "Special", index));
     }
     for (const reportNumber of completedDispatchReportNumbers(calls)) {
-      logWrites.push(db.prepare("UPDATE dispatch_incidents SET active = 0, cleared_at = COALESCE(cleared_at, CAST(CURRENT_TIMESTAMP AS TEXT)) WHERE incident_id = ?").bind(reportNumber));
+      logWrites.push(db.prepare("UPDATE dispatch_incidents SET active = 0, cleared_at = COALESCE(cleared_at, CURRENT_TIMESTAMP) WHERE trim(incident_id) = trim(?)").bind(reportNumber));
     }
     const holiday = holidayForDate(date);
     const totals = dailyLogPayrollTotals(staffing, holiday);

@@ -12,6 +12,8 @@ test("rank permissions and employee overrides are durable and admin managed", as
   assert.match(bootstrap, /CREATE TABLE IF NOT EXISTS employee_permission_overrides/);
   assert.match(route, /Administrator permission required/);
   assert.match(route, /effect === "allow"/);
+  assert.match(route, /GROUP BY label ORDER BY sortOrder,label/);
+  assert.doesNotMatch(route, /SELECT DISTINCT label rank/);
   assert.match(page, /Permissions by rank/);
   assert.match(page, /Employee exceptions/);
 });

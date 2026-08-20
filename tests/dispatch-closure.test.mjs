@@ -18,6 +18,14 @@ test("Daily Log saves and dashboard refreshes clear matching active dispatches",
     readFile(new URL("../app/api/dashboard/route.ts", import.meta.url), "utf8"),
   ]);
   assert.equal(logbook.includes("completedDispatchReportNumbers(calls)"), true);
-  assert.equal(logbook.includes("SET active = 0, cleared_at = COALESCE(cleared_at, CAST(CURRENT_TIMESTAMP AS TEXT))"), true);
+  assert.equal(logbook.includes("SET active = 0, cleared_at = COALESCE(cleared_at, CURRENT_TIMESTAMP)"), true);
   assert.equal(dashboard.includes("trim(daily_log_calls.time_in) <> ''"), true);
+  assert.equal(dashboard.includes("projectDispatchIntoDailyLog(db, incident)"), true);
+  assert.equal(dashboard.includes("AND NOT EXISTS (SELECT 1 FROM daily_log_calls"), true);
+});
+
+test("Daily Log offers an explicit Done action that records Time In", async () => {
+  const dailyLog = await readFile(new URL("../app/daily-log.tsx", import.meta.url), "utf8");
+  assert.equal(dailyLog.includes('title="Set Time In to now and close this active call"'), true);
+  assert.equal(dailyLog.includes(">Done</button>"), true);
 });

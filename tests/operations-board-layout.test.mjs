@@ -15,3 +15,31 @@ test("TV mode reserves complete rows for weather and apparatus status", async ()
   assert.match(styles, /\.tv-display \.apparatus-wide \{[^}]*height: 148px;[^}]*display: grid;[^}]*grid-template-rows: 38px minmax\(0,1fr\) auto/);
   assert.match(styles, /\.tv-display \.apparatus-wide > div \{[^}]*grid-auto-rows: minmax\(0,1fr\);[^}]*overflow: hidden/);
 });
+
+test("operations panels rotate without rendering carousel indicator bars", async () => {
+  const [styles, board, staffing, chief] = await Promise.all([
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/operations-board.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/staffing-rotation.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/chief-board-panel.tsx", import.meta.url), "utf8"),
+  ]);
+  const source = [styles, board, staffing, chief].join("\n");
+
+  assert.doesNotMatch(source, /board-header-dots|staffing-rotation-controls|rotation-indicator|chief-rotation-dots/);
+  assert.doesNotMatch(source, /rotates every/i);
+  assert.match(board, /Pause rotation/);
+});
+
+test("TV rotation keeps every operations slide mounted and preserves the last good board on refresh errors", async () => {
+  const [styles, board] = await Promise.all([
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/operations-board.tsx", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(board, /className="rotation-slide" hidden=\{rotation !== "equipment"\}/);
+  assert.match(board, /className="rotation-slide" hidden=\{rotation !== "duty"\}/);
+  assert.match(board, /className="rotation-slide" hidden=\{rotation !== "news"\}/);
+  assert.match(board, /className="rotation-slide" hidden=\{rotation !== "fatalities"\}/);
+  assert.match(styles, /\.rotation-slide\[hidden\] \{ display: none !important; \}/);
+  assert.match(board, /The last confirmed board remains on screen/);
+});

@@ -1,6 +1,7 @@
 import { ensureDatabase } from "../../../db/bootstrap";
+import { getPortalStorage } from "../../portal-storage";
 
-const ownerAdminEmails = ["bobff353@gmail.com", "bwyant@stickneyfire.com"];
+const ownerAdminEmails = ["bobff353@gmail.com"];
 const allowedTypes = new Set([
   "image/jpeg", "image/png", "image/webp", "image/gif",
   "application/pdf", "text/plain",
@@ -24,8 +25,12 @@ type Runtime = {
 };
 
 async function runtime() {
-  const { env } = await import("@/app/cf-env");
-  return env as unknown as Runtime;
+  return {
+    BUCKET: getPortalStorage(),
+    RESEND_API_KEY: process.env.RESEND_API_KEY,
+    CHIEF_EVENT_EMAIL_FROM: process.env.CHIEF_EVENT_EMAIL_FROM,
+    DISPATCH_EMAIL_TO: process.env.DISPATCH_EMAIL_TO,
+  } satisfies Runtime;
 }
 
 async function isAdmin(request: Request, db: Awaited<ReturnType<typeof ensureDatabase>>) {

@@ -1,7 +1,5 @@
-import { drizzle } from "drizzle-orm/libsql";
-import { getLibsqlClient } from "./d1-libsql";
-import * as schema from "./schema";
+import { createPostgresD1Adapter } from "./postgres-adapter";
 
 export function getDb() {
-  return drizzle(getLibsqlClient(), { schema });
+  return createPostgresD1Adapter();
 }

@@ -4,5 +4,6 @@ import AuthGateway from "./auth-gateway";
 export default async function Home() {
   const cookieStore = await cookies();
   const recentlyVerified = cookieStore.get("__Secure-firehouse-access")?.value === "verified";
-  return <AuthGateway initiallyVerified={recentlyVerified} />;
+  const pinUnlocked = Boolean(cookieStore.get("__Secure-firehouse-pin")?.value);
+  return <AuthGateway initiallyVerified={recentlyVerified && pinUnlocked} />;
 }
