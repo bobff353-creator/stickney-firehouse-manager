@@ -19,6 +19,10 @@ const signedWebhookPaths = new Set([
   "/api/resend-dispatch",
 ]);
 
+const publicAuthPostPaths = new Set([
+  "/api/auth/legacy-pin-login",
+]);
+
 // The Supabase URL/key have a known-good fallback baked into
 // getPublicSupabaseConfig() specifically so the app keeps working even if
 // Vercel's environment variables are missing/misconfigured for a given
@@ -42,7 +46,8 @@ export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const signedWebhookRequest = request.method === "POST"
     && (signedWebhookPaths.has(pathname) || pathname === "/api/cad/cis");
-  if (publicApiPaths.has(pathname) || signedWebhookRequest) {
+  const publicAuthRequest = request.method === "POST" && publicAuthPostPaths.has(pathname);
+  if (publicApiPaths.has(pathname) || signedWebhookRequest || publicAuthRequest) {
     return NextResponse.next();
   }
 

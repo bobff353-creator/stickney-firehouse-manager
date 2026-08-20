@@ -100,16 +100,39 @@ export default function AuthGateway({
     event.preventDefault();
     setMode("checking");
     setMessage("Signing in...");
-    const { data, error } = await getSupabaseBrowserClient().auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-    if (error || !data.user) {
+    const normalizedEmail = email.trim().toLowerCase();
+    try {
+      if (/^\d{4,6}$/.test(password)) {
+        const response = await fetch("/api/auth/legacy-pin-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: normalizedEmail, pin: password }),
+        });
+        const payload = await response.json().catch(() => ({})) as { error?: string };
+        if (!response.ok) {
+          setMode("sign-in");
+          setMessage(payload.error || "That email or portal PIN is not correct.");
+          return;
+        }
+        setPassword("");
+        window.location.reload();
+        return;
+      }
+
+      const { data, error } = await getSupabaseBrowserClient().auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+      if (error || !data.user) {
+        setMode("sign-in");
+        setMessage(error?.message || "Sign-in could not be completed.");
+        return;
+      }
+      await checkAccess(data.user);
+    } catch {
       setMode("sign-in");
-      setMessage(error?.message || "Sign-in could not be completed.");
-      return;
+      setMessage("Sign-in could not be completed. Check the connection and try again.");
     }
-    await checkAccess(data.user);
   }
 
   async function signUp(event: FormEvent<HTMLFormElement>) {
@@ -226,10 +249,10 @@ export default function AuthGateway({
       <section className="login-card">
         <p className="login-eyebrow">{creating ? "CREATE ACCOUNT" : "WELCOME BACK"}</p>
         <h2>{creating ? "Set up your verified login" : "Sign in to the portal"}</h2>
-        <p>{creating ? "We will email you a confirmation link before the account can be used." : "Use the email and password connected to your department account."}</p>
+        <p>{creating ? "We will email you a confirmation link before the account can be used." : "Use your existing 4 to 6 digit portal PIN, or the password connected to your department account."}</p>
         <form onSubmit={creating ? signUp : signIn}>
           <label>Email address<input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
-          <label>Password
+          <label>{creating ? "Password" : "Portal PIN or password"}
             <span className="login-password-field">
               <input type={showPassword ? "text" : "password"} autoComplete={creating ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} minLength={creating ? 8 : undefined} required />
               <button type="button" onClick={() => setShowPassword((current) => !current)}>{showPassword ? "Hide" : "Show"}</button>
