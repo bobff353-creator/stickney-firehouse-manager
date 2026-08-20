@@ -56,7 +56,7 @@ export async function GET(request: Request) {
       entryQuery,
       scaleQuery,
       db.prepare("SELECT overtime_threshold AS overtimeThreshold, acting_officer_premium AS actingOfficerPremium, dpw_multiplier AS dpwMultiplier FROM payroll_settings WHERE id = 1").first(),
-      db.prepare("SELECT start_date AS startDate, end_date AS endDate, status, created_by AS createdBy, COALESCE(created_at, updated_at) AS createdAt, updated_by AS updatedBy, updated_at AS updatedAt, finalized_by AS finalizedBy, finalized_at AS finalizedAt FROM pay_periods WHERE start_date = ?").bind(start).first(),
+      db.prepare("SELECT start_date AS startDate, end_date AS endDate, status, created_by AS createdBy, COALESCE(CAST(created_at AS TEXT), CAST(updated_at AS TEXT)) AS createdAt, updated_by AS updatedBy, updated_at AS updatedAt, finalized_by AS finalizedBy, finalized_at AS finalizedAt FROM pay_periods WHERE start_date = ?").bind(start).first(),
       db.prepare("SELECT h.id, h.pay_scale_id AS payScaleId, p.label, h.effective_date AS effectiveDate, h.regular_rate AS regularRate, h.overtime_rate AS overtimeRate, h.holiday_rate AS holidayRate, h.created_by AS createdBy, h.created_at AS createdAt FROM pay_rate_history h JOIN pay_scales p ON p.id = h.pay_scale_id ORDER BY h.effective_date DESC, p.sort_order").all(),
     ]);
 

@@ -18,6 +18,6 @@ test("Daily Log saves and dashboard refreshes clear matching active dispatches",
     readFile(new URL("../app/api/dashboard/route.ts", import.meta.url), "utf8"),
   ]);
   assert.equal(logbook.includes("completedDispatchReportNumbers(calls)"), true);
-  assert.equal(logbook.includes("SET active = 0, cleared_at = COALESCE(cleared_at, CURRENT_TIMESTAMP)"), true);
+  assert.equal(logbook.includes("SET active = 0, cleared_at = COALESCE(cleared_at, CAST(CURRENT_TIMESTAMP AS TEXT))"), true);
   assert.equal(dashboard.includes("trim(daily_log_calls.time_in) <> ''"), true);
 });

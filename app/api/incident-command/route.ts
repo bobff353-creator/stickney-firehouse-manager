@@ -23,7 +23,7 @@ function parseJson<T>(value: unknown, fallback: T): T {
 }
 
 async function activeIncident(db: Db): Promise<ActiveIncident | null> {
-  await db.prepare("UPDATE dispatch_incidents SET active=0,cleared_at=COALESCE(cleared_at,CURRENT_TIMESTAMP) WHERE active=1 AND EXISTS (SELECT 1 FROM daily_log_calls WHERE daily_log_calls.report_number=dispatch_incidents.incident_id AND trim(daily_log_calls.time_in)<>'')").run();
+  await db.prepare("UPDATE dispatch_incidents SET active=0,cleared_at=COALESCE(cleared_at,CAST(CURRENT_TIMESTAMP AS TEXT)) WHERE active=1 AND EXISTS (SELECT 1 FROM daily_log_calls WHERE daily_log_calls.report_number=dispatch_incidents.incident_id AND trim(daily_log_calls.time_in)<>'')").run();
   const dispatch = await db.prepare("SELECT incident_id incidentId,incident_id reportNumber,call_type callType,address,city,responding_units respondingUnits,longitude,latitude,dispatched_at dispatchedAt,source_system source,received_at receivedAt FROM dispatch_incidents WHERE active=1 AND cleared_at IS NULL AND datetime(dispatched_at)>=datetime('now','-12 hours') ORDER BY datetime(dispatched_at) DESC LIMIT 1").first<ActiveIncident>();
   if (dispatch) return dispatch;
   const date = chicagoOperationalContext().operationalDate;

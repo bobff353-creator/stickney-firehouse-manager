@@ -16,7 +16,7 @@ export async function GET() {
   try {
     const db = await ensureDatabase();
     try { await syncRecentResendDispatches(db); } catch (error) { console.error("Direct Resend dispatch sync failed", error); }
-    await db.prepare("UPDATE dispatch_incidents SET active = 0, cleared_at = COALESCE(cleared_at, CURRENT_TIMESTAMP) WHERE active = 1 AND EXISTS (SELECT 1 FROM daily_log_calls WHERE daily_log_calls.report_number = dispatch_incidents.incident_id AND trim(daily_log_calls.time_in) <> '')").run();
+    await db.prepare("UPDATE dispatch_incidents SET active = 0, cleared_at = COALESCE(cleared_at, CAST(CURRENT_TIMESTAMP AS TEXT)) WHERE active = 1 AND EXISTS (SELECT 1 FROM daily_log_calls WHERE daily_log_calls.report_number = dispatch_incidents.incident_id AND trim(daily_log_calls.time_in) <> '')").run();
     const now = chicagoParts(), currentShift = shiftFor(now.minutes), priorShift = previousShift(currentShift);
     await db.prepare("INSERT OR IGNORE INTO daily_logs (log_date) VALUES (?)").bind(now.date).run();
     const [staffing, approvals, calls, dispatchCalls, log, payrollWaiting, newMembers] = await Promise.all([

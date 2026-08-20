@@ -590,10 +590,10 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
     "ALTER TABLE box_cards ADD COLUMN status TEXT NOT NULL DEFAULT 'Active'", "ALTER TABLE box_cards ADD COLUMN created_by TEXT NOT NULL DEFAULT 'System'", "ALTER TABLE box_cards ADD COLUMN created_at TEXT"
   ]) { try { await db.prepare(sql).run(); } catch { /* Column already exists. */ } }
   await db.batch([
-    db.prepare("UPDATE pay_periods SET created_at = COALESCE(created_at, updated_at)"),
-    db.prepare("UPDATE daily_logs SET created_at = COALESCE(created_at, updated_at)"),
-    db.prepare("UPDATE policies SET created_at = COALESCE(created_at, updated_at)"),
-    db.prepare("UPDATE box_cards SET created_at = COALESCE(created_at, updated_at)"),
+    db.prepare("UPDATE pay_periods SET created_at = COALESCE(CAST(created_at AS TEXT), CAST(updated_at AS TEXT))"),
+    db.prepare("UPDATE daily_logs SET created_at = COALESCE(CAST(created_at AS TEXT), CAST(updated_at AS TEXT))"),
+    db.prepare("UPDATE policies SET created_at = COALESCE(CAST(created_at AS TEXT), CAST(updated_at AS TEXT))"),
+    db.prepare("UPDATE box_cards SET created_at = COALESCE(CAST(created_at AS TEXT), CAST(updated_at AS TEXT))"),
   ]);
 
   await db.prepare("INSERT OR IGNORE INTO payroll_settings (id, overtime_threshold, acting_officer_premium, dpw_multiplier) VALUES (1, 106, 1, 1.5)").run();
