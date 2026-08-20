@@ -71,7 +71,7 @@ function translateSql(sql: string, values: BoundValue[]) {
   translated = translated.replace(/^\s*INSERT\s+OR\s+IGNORE\s+INTO\b/i, "INSERT INTO");
   translated = translated.replace(/\s+COLLATE\s+NOCASE\b/gi, "");
   translated = translated.replace(/\bGROUP_CONCAT\(([^,()]+),\s*('(?:''|[^'])*')\)/gi, "STRING_AGG($1, $2)");
-  translated = translated.replace(/\bCURRENT_TIMESTAMP\b/gi, "to_char(CURRENT_TIMESTAMP AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')");
+  // Keep CURRENT_TIMESTAMP as a native timestamp for adapters that enforce strict SQL types.
   translated = translated.replace(/\bdatetime\(\s*'now'\s*,\s*'(-?\d+)\s+(hours?|days?)'\s*\)/gi, "(CURRENT_TIMESTAMP + interval '$1 $2')");
   translated = translated.replace(/\bdatetime\(\s*'now'\s*\)/gi, "CURRENT_TIMESTAMP");
   translated = translated.replace(/\bdate\(\s*'now'\s*,\s*'(-?\d+)\s+(days?)'\s*\)/gi, "(CURRENT_DATE + interval '$1 $2')::date");
