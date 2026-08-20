@@ -32,7 +32,8 @@ test("verified invited email login confirms once and then uses email plus PIN", 
   assert.match(gateway, /shouldCreateUser: false/);
   assert.match(gateway, /emailRedirectTo/);
   assert.match(gateway, /Sign in with email and PIN/);
-  assert.match(gateway, /Older account only: send one-time upgrade email/);
+  assert.match(gateway, /Email me a one-time sign-in link/);
+  assert.doesNotMatch(gateway, /Older account only/);
   assert.match(gateway, /fetch\("\/api\/auth\/login"/);
   assert.match(pinLoginRoute, /verify_portal_login/);
   assert.match(pinLoginRoute, /verify_portal_pin/);

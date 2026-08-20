@@ -375,7 +375,7 @@ export default function AuthGateway({
       <section className="login-card">
         <p className="login-eyebrow">WELCOME BACK</p>
         <h2>Sign in with email and PIN</h2>
-        <p>Your Stickney email is your username. After the one-time email confirmation, use your private PIN for every sign-in.</p>
+        <p>Use the email already connected to your account and your private PIN.</p>
         <form onSubmit={signIn}>
           <label>Email address<input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
           <label>Private PIN<input type="password" inputMode="numeric" autoComplete="current-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
@@ -385,7 +385,7 @@ export default function AuthGateway({
         <div className="login-divider"><span>NEW EMPLOYEE?</span></div>
         <button type="button" className="login-secondary login-new-user-button" onClick={() => { setMessage(""); setPin(""); setMode("new-user"); }}>New User — Create Login</button>
         <p className="login-invite-note">Your administrator must first save your Stickney email and employee number on your active employee record.</p>
-        <button type="button" className="login-link-button" onClick={() => void emailSignInLink()}>Older account only: send one-time upgrade email</button>
+        <button type="button" className="login-link-button" onClick={() => void emailSignInLink()}>Email me a one-time sign-in link</button>
       </section>
     </main>
   );
