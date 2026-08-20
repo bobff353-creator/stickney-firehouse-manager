@@ -186,9 +186,14 @@ export async function ensurePostgresCompat(): Promise<void> {
       END
       $$;
     `);
+    // SQLite date()/datetime() return TEXT. Keep that contract here so the
+    // app's ISO date strings compare with the compatibility-function results
+    // without PostgreSQL text-vs-date/timestamp operator errors.
+    await client.query(`DROP FUNCTION IF EXISTS ${APP_SCHEMA}.date(text, text)`);
+    await client.query(`DROP FUNCTION IF EXISTS ${APP_SCHEMA}.datetime(text, text)`);
     await client.query(`
-      CREATE OR REPLACE FUNCTION datetime(ts text, modifier text DEFAULT NULL)
-      RETURNS timestamp AS $$
+      CREATE FUNCTION ${APP_SCHEMA}.datetime(ts text, modifier text DEFAULT NULL)
+      RETURNS text AS $$
       DECLARE
         base timestamp;
       BEGIN
@@ -198,17 +203,17 @@ export async function ensurePostgresCompat(): Promise<void> {
           base := ts::timestamp;
         END IF;
         IF modifier IS NULL THEN
-          RETURN base;
+          RETURN base::text;
         END IF;
-        RETURN base + (modifier::interval);
+        RETURN (base + (modifier::interval))::text;
       END;
       $$ LANGUAGE plpgsql IMMUTABLE;
     `);
     await client.query(`
-      CREATE OR REPLACE FUNCTION date(ts text, modifier text DEFAULT NULL)
-      RETURNS date AS $$
+      CREATE FUNCTION ${APP_SCHEMA}.date(ts text, modifier text DEFAULT NULL)
+      RETURNS text AS $$
       BEGIN
-        RETURN datetime(ts, modifier)::date;
+        RETURN (${APP_SCHEMA}.datetime(ts, modifier)::timestamp)::date::text;
       END;
       $$ LANGUAGE plpgsql IMMUTABLE;
     `);
