@@ -3,6 +3,7 @@ import { chicagoOperationalContext } from "../../operational-day";
 import { distanceFeet, normalizeResponseAddress, rankPreplanMatch, suggestedStickneyBoxCard } from "../../respond-match";
 import { normalizeApparatusUnit, respondingUnitsIncludeUnit } from "../../respond-device";
 import { hasPermission } from "../../server-permissions";
+import { isOperationallyVisible, matchCadRoom } from "../../preplans/domain";
 
 type Row = Record<string, unknown>;
 
@@ -29,7 +30,7 @@ export async function GET(request: Request) {
     const recentCalls = recentRows.results;
     if (!activeCall) return Response.json({ activeCall: null, preplan: null, match: null, cadUpdates: [], recentCalls, boxCard: null, nearestHydrants: [], apparatusFilter: apparatus || null, generatedAt: new Date().toISOString() }, { headers: { "cache-control": "no-store" } });
 
-    const planRows = await db.prepare("SELECT id,business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,footprint_square_feet footprintSquareFeet,floor_count floorCount,construction_type constructionType,suggested_fire_flow_gpm suggestedFireFlowGpm,suggested_fire_flow_duration suggestedFireFlowDuration,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,status,updated_at updatedAt FROM field_preplans ORDER BY updated_at DESC").all<Row>();
+    const planRows = await db.prepare("SELECT id,business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,footprint_square_feet footprintSquareFeet,floor_count floorCount,construction_type constructionType,suggested_fire_flow_gpm suggestedFireFlowGpm,suggested_fire_flow_duration suggestedFireFlowDuration,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,status,updated_at updatedAt FROM field_preplans WHERE COALESCE(publication_status,'published')='published' ORDER BY updated_at DESC").all<Row>();
     const plans: Array<Row & { id: unknown; address: string; latitude: number; longitude: number; footprint: unknown[] }> = planRows.results.map((row) => ({
       ...row,
       id: row.id,
@@ -44,6 +45,7 @@ export async function GET(request: Request) {
       longitude: activeCall.longitude == null ? null : Number(activeCall.longitude),
     }, plans);
     let preplan: Row | null = null;
+    let operational:Row|null=null;
     if (matched) {
       const [features, photos] = await Promise.all([
         db.prepare("SELECT id,feature_type featureType,label,latitude,longitude,system_type systemType,service_status serviceStatus,details FROM field_preplan_features WHERE preplan_id=? ORDER BY created_at").bind(String(matched.plan.id)).all<Row>(),
@@ -54,6 +56,21 @@ export async function GET(request: Request) {
         features: features.results,
         photos: photos.results.map((photo) => ({ ...photo, url: `/api/field-preplans/photos/${photo.id}` })),
       };
+      try {
+        const preplanId=String(matched.plan.id);
+        const [levels,spaces,alerts,hazmat,hoseLays,revision]=await Promise.all([
+          db.prepare("SELECT id,name,short_label shortLabel,layer_type layerType,sort_order sortOrder,is_default isDefault FROM field_preplan_levels WHERE preplan_id=? AND archived=0 AND respond_visible=1 ORDER BY sort_order,name").bind(preplanId).all<Row>(),
+          db.prepare("SELECT id,level_id levelId,display_name name,aliases,space_type spaceType FROM field_preplan_spaces WHERE preplan_id=? AND archived=0 ORDER BY display_name").bind(preplanId).all<Row>(),
+          db.prepare("SELECT id,level_id levelId,space_id spaceId,title,instructions message,severity,effective_at effectiveAt,expires_at expiresAt,expiration_action expirationAction FROM field_preplan_alerts WHERE preplan_id=? AND archived=0 AND pin_to_respond=1 ORDER BY severity DESC,created_at DESC").bind(preplanId).all<Row>(),
+          db.prepare("SELECT id,level_id levelId,space_id spaceId,un_na_number unNumber,chemical_name materialName,erg_guide_number ergGuideNumber,quantity,quantity_unit quantityUnit,physical_state physicalState,container_type storageType,notes,effective_at effectiveAt,expires_at expiresAt,expiration_action expirationAction FROM field_preplan_hazmat WHERE preplan_id=? AND archived=0 ORDER BY chemical_name").bind(preplanId).all<Row>(),
+          db.prepare("SELECT id,level_id levelId,name,total_distance_feet totalDistanceFeet,hose_size_inches hoseSizeInches,recommended_hose_feet recommendedHoseFeet,supply_line_label supplyLineLabel,apparatus_capacity_feet apparatusCapacityFeet,notes FROM field_preplan_hose_lays WHERE preplan_id=? AND archived=0 ORDER BY name").bind(preplanId).all<Row>(),
+          db.prepare("SELECT revision_number revisionNumber,created_at publishedAt FROM field_preplan_revisions WHERE preplan_id=? AND publication_status='published' ORDER BY revision_number DESC LIMIT 1").bind(preplanId).first<Row>(),
+        ]);
+        const roomCandidates=spaces.results.map((space)=>({id:String(space.id),name:String(space.name),aliases:parseJson<string[]>(space.aliases,[]),levelId:String(space.levelId||"")}));
+        operational={levels:levels.results,spaces:spaces.results,alerts:alerts.results.filter((item)=>isOperationallyVisible({effectiveAt:String(item.effectiveAt||""),expiresAt:String(item.expiresAt||""),expirationAction:item.expirationAction as never})),hazmat:hazmat.results.filter((item)=>isOperationallyVisible({effectiveAt:String(item.effectiveAt||""),expiresAt:String(item.expiresAt||""),expirationAction:item.expirationAction as never})),hoseLays:hoseLays.results,revision,roomMatch:matchCadRoom(`${activeCall.narrative||""} ${activeCall.address||""}`,roomCandidates)};
+      } catch {
+        operational=null;
+      }
     }
 
     const receiptRows = String(activeCall.reportNumber || "")
@@ -99,6 +116,7 @@ export async function GET(request: Request) {
     return Response.json({
       activeCall,
       preplan,
+      operational,
       match: matched ? { method: matched.method, distanceFeet: Math.round(matched.distanceFeet) } : null,
       cadUpdates,
       recentCalls,

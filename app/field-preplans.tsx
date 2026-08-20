@@ -6,6 +6,7 @@ import { availableHydrantFlow, hydrantOutletFlow, nfpa291FlowClass } from "./hyd
 import GoogleFieldMap from "./google-field-map";
 import { createPreplanContact, createPreplanPhone, parsePreplanContacts, serializePreplanContacts, type PreplanContact } from "./preplan-contacts";
 import { constructionOptions, detailedPreplanMapView, footprintCentroid, polygonAreaSquareFeet, suggestedFireFlow, type ConstructionGroup, type OccupancyFlowCategory, type SprinklerStandard } from "./preplan-fire-flow";
+import OperationalPreplanPanel from "./preplans/operational-panel";
 
 type Point = { lat:number; lng:number };
 type Feature = { id:string; preplanId:string; featureType:string; label:string; latitude:number; longitude:number; systemType:string; serviceStatus:string; details:string };
@@ -162,6 +163,7 @@ function PreplanRecordView({plan,canEdit,onEdit,onShowFeature}:{plan:Preplan;can
       <header><span>5</span><div><h3>Building exterior photos</h3><p>A, B, C and D sides</p></div><b>{exteriorPhotos.length}</b></header>
       {exteriorPhotos.length?<div>{exteriorPhotos.map((photo)=><figure key={photo.id}><img src={photo.url} alt={photo.caption||`${photo.side} side`}/><figcaption>{photo.side} Side{photo.caption?` · ${photo.caption}`:""}</figcaption></figure>)}</div>:<p className="preplan-record-empty">No exterior photos have been added.</p>}
     </article>
+    <OperationalPreplanPanel preplanId={plan.id} canEdit={canEdit}/>
   </section>;
 }
 
