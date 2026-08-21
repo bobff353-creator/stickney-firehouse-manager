@@ -31,6 +31,7 @@ test("Respond tabs support arrow, Home, and End navigation", () => {
 
 test("Respond tactical controls retain fireground touch targets on phone and iPad", () => {
   assert.match(css, /nav\[role="tablist"\] button\{min-height:44px/);
+  assert.match(css, /\.respond-empty a,\.respond-empty button\{min-height:44px/);
   assert.match(
     css,
     /@media\(max-width:800px\)[^{]*\{\.respond-context>nav\[role="tablist"\] button\{min-height:48px/,
