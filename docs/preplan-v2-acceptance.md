@@ -64,8 +64,21 @@ For each manual run, record the date, tester, branch and commit, Vercel deployme
 - Cleanup audit: the preview dispatch and temporary permission override both returned zero, and the test account was signed out. Production remained unchanged.
 - Browser limitation: the available browser controller could not toggle its network adapter, so this run exercised the identical fetch-failure/cache-fallback path with a server authorization denial. A literal device-network-offline toggle remains required before production promotion.
 
+### 2026-08-21 — Responsive and keyboard accessibility matrix
+
+- Tester: signed-in `Preview Matrix, Firefighter` preview-only identity.
+- Branch and commit: `codex/preplan-operational-v2-approved` at `9769c74`.
+- Deployment: `dpl_5L3csNA15xJhhWAXzTPmpcM48vbr`; immutable preview URL `stickney-firehouse-manager-2s6s7ygqq-fire-pre-plan-pro.vercel.app` and protected stable preview alias.
+- Isolated fixture: dispatch `PREVIEW-RESPONSIVE-ACCEPTANCE`, visibly labeled `PREVIEW ONLY RESPONSIVE TEST`, matched the non-production `preview-ui-verification` record.
+- Viewports observed: 390×844 phone, 820×1180 iPad, 1440×900 desktop, and 1920×1080 apparatus/fullscreen-sized viewport. Every viewport retained the active-call heading, published revision 2, level switcher, quick intelligence, map fallback, tactical tabs, and truthful unavailable states without horizontal document overflow.
+- Touch targets: all visible Respond buttons, tabs, and links met the 44 px minimum after correcting the empty-media Google Maps link from 42 px to 44 px. The deployed iPad-width remeasurement returned 44×279 px.
+- Keyboard behavior: Arrow Right moved both focus and selection from `CAD Notes` to `Floor Plan`; `End` moved focus to `D Side`; the selected tab retained `aria-selected=true` and `tabindex=0` while inactive tabs used `tabindex=-1`.
+- Console: no warning or error entries were captured during the phone, iPad, desktop, apparatus, keyboard, or deployed-correction checks.
+- Automated support: reduced-motion, safe-area, focus-restoration, screen-reader footprint alternative, responsive matrix, and overflow contracts pass in the repository suite. Formal instrumented color-contrast analysis remains required before production promotion.
+- Cleanup audit: both responsive/offline acceptance dispatch IDs and matching Daily Log call rows returned zero. Production remained unchanged.
+
 ## Release decision
 
 The focused gate is `npm run verify:preplan-v2`. It runs scoped lint, a production build, and the focused Operational Preplan/Respond test suite. The repository-wide `npm run lint` remains a separate whole-portal check; failures outside the Preplan scope must be reported rather than hidden.
 
-Production promotion requires explicit authorization plus completed manual evidence for all seven scenarios, a literal device-network-offline check, responsive viewports, accessibility inspection, migration backup, and rollback readiness. The role matrix, private upload/stream/denial/cleanup, controlled Respond cache fallback/reconnect, and sign-out clearing gates are complete on the isolated preview only.
+Production promotion requires explicit authorization plus completed manual evidence for all seven scenarios, a literal device-network-offline check, formal color-contrast analysis, migration backup, and rollback readiness. The role matrix, private upload/stream/denial/cleanup, controlled Respond cache fallback/reconnect, sign-out clearing, responsive viewport, touch-target, and keyboard gates are complete on the isolated preview only.
