@@ -43,3 +43,20 @@ test("secure attachments use the authenticated asset API and accepted file types
   assert.match(panel, /Files are served only through the authenticated preplan endpoint/);
   assert.doesNotMatch(panel, /item\.objectKey/);
 });
+
+test("revision restoration is permission-gated, validated, and creates a new audited revision", () => {
+  assert.match(route, /action === "restoreRevision"/);
+  assert.match(route, /field_preplans\.publish/);
+  assert.match(route, /parseSnapshot\(stored\.snapshot,preplanId\)/);
+  assert.match(route, /restored_from_revision/);
+  assert.match(route, /"restoreRevision",summary,user/);
+  assert.match(route, /revision = Math\.max[\s\S]*\+1/);
+});
+
+test("revision UI discloses restore scope and requires an explicit confirmation", () => {
+  assert.match(panel, /Revision history/);
+  assert.match(panel, /Restore as new revision/);
+  assert.match(panel, /window\.confirm/);
+  assert.match(panel, /Current private attachments and legacy mapped systems (?:will be|are) preserved/);
+  assert.doesNotMatch(route.match(/const restoreTables = \{[\s\S]*?\} as const;/)?.[0] ?? "", /field_preplan_assets|field_preplan_features/);
+});

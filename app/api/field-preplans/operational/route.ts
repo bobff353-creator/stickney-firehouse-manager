@@ -5,6 +5,8 @@ import { calculateHoseLay, calculateTargetHazard, normalizedLevelLabel } from ".
 
 type Db = Awaited<ReturnType<typeof ensureDatabase>>;
 type Body = Record<string, unknown>;
+type SnapshotRow = Record<string, unknown>;
+type Snapshot = Record<string, unknown> & { plan?:SnapshotRow };
 
 function text(value: unknown, limit = 2_000) { return String(value ?? "").trim().slice(0, limit); }
 function integer(value: unknown, fallback = 0) { const parsed = Number(value); return Number.isInteger(parsed) ? parsed : fallback; }
@@ -160,6 +162,25 @@ export async function POST(request: Request) {
       return Response.json({ ok:true,id });
     }
 
+    if (action === "restoreRevision") {
+      await requirePermission(request, db, "field_preplans.publish");
+      const sourceRevision = integer(body.revisionNumber);
+      if (sourceRevision < 1) return Response.json({ error:"A valid source revision is required." }, { status:400 });
+      const stored = await db.prepare("SELECT snapshot,summary FROM field_preplan_revisions WHERE preplan_id=? AND revision_number=?").bind(preplanId,sourceRevision).first<{snapshot:string;summary:string}>();
+      if (!stored) return Response.json({ error:"The selected revision was not found for this preplan." }, { status:404 });
+      const snapshot = parseSnapshot(stored.snapshot,preplanId);
+      const current = await db.prepare("SELECT revision_number revisionNumber FROM field_preplans WHERE id=?").bind(preplanId).first<{revisionNumber:number}>();
+      const revision = Math.max(1,Number(current?.revisionNumber||1))+1;
+      await restoreSnapshot(db,preplanId,snapshot,user);
+      await db.prepare("UPDATE field_preplans SET publication_status='published',revision_number=?,published_by=?,published_at=CURRENT_TIMESTAMP,completeness_status=?,last_verified_at=?,next_review_date=?,construction_profile=?,occupancy_profile=?,fire_flow_profile=?,target_hazard_level=?,target_hazard_override=?,target_hazard_reasons=?,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
+        .bind(revision,user,snapshotValue(snapshot.plan?.completeness_status,"legacy"),snapshotValue(snapshot.plan?.last_verified_at),snapshotValue(snapshot.plan?.next_review_date),snapshotValue(snapshot.plan?.construction_profile,"{}"),snapshotValue(snapshot.plan?.occupancy_profile,"{}"),snapshotValue(snapshot.plan?.fire_flow_profile,"{}"),snapshotValue(snapshot.plan?.target_hazard_level,"low"),snapshotValue(snapshot.plan?.target_hazard_override,0),snapshotValue(snapshot.plan?.target_hazard_reasons,"[]"),user,preplanId).run();
+      const restored = await buildSnapshot(db,preplanId);
+      const summary = text(body.comment,1000)||`Restored operational layers from revision ${sourceRevision}. Current private attachments and legacy mapped systems were preserved.`;
+      await db.prepare("INSERT INTO field_preplan_revisions(id,preplan_id,revision_number,publication_status,snapshot,summary,actor,restored_from_revision) VALUES(?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(),preplanId,revision,"published",JSON.stringify(restored),summary,user,sourceRevision).run();
+      await db.prepare("INSERT INTO field_preplan_reviews(id,preplan_id,revision_number,action,comment,actor) VALUES(?,?,?,?,?,?)").bind(crypto.randomUUID(),preplanId,revision,"restoreRevision",summary,user).run();
+      return Response.json({ok:true,publicationStatus:"published",revisionNumber:revision,restoredFromRevision:sourceRevision});
+    }
+
     if (["submitReview","returnDraft","publish","archive"].includes(action)) {
       const permission:PermissionKey = action === "publish" || action === "archive" ? "field_preplans.publish" : "field_preplans.review";
       await requirePermission(request, db, permission);
@@ -196,4 +217,53 @@ async function buildSnapshot(db: Db, preplanId: string) {
     db.prepare("SELECT * FROM field_preplan_risk_factors WHERE preplan_id=?").bind(preplanId).all(),
   ]);
   return { plan,levels:levels.results,spaces:spaces.results,features:features.results,alerts:alerts.results,hazmat:hazmat.results,zones:zones.results,annotations:annotations.results,assets:assets.results,hoseLays:hoseLays.results,risks:risks.results };
+}
+
+function snapshotValue(value:unknown,fallback:null|string|number|boolean=null) {
+  return typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? value : fallback;
+}
+
+function parseSnapshot(raw:string,preplanId:string):Snapshot {
+  let parsed:unknown;
+  try { parsed=JSON.parse(raw); } catch { throw new Error("The selected revision snapshot is not valid JSON."); }
+  if(!parsed||typeof parsed!=="object"||Array.isArray(parsed))throw new Error("The selected revision snapshot is invalid.");
+  const snapshot=parsed as Snapshot;
+  if(snapshot.plan&&snapshotValue(snapshot.plan.id)!==preplanId)throw new Error("The selected revision does not belong to this preplan.");
+  for(const key of ["levels","spaces","alerts","hazmat","zones","annotations","hoseLays","risks"]){
+    const rows=snapshot[key];if(!Array.isArray(rows))throw new Error(`The selected revision is missing ${key}.`);
+    for(const row of rows){if(!row||typeof row!=="object"||Array.isArray(row)||snapshotValue((row as SnapshotRow).preplan_id)!==preplanId)throw new Error(`The selected revision contains an invalid ${key} record.`);}
+  }
+  return snapshot;
+}
+
+const restoreTables = {
+  levels:{table:"field_preplan_levels",columns:["id","preplan_id","name","short_label","layer_type","floor_index","grade_designation","sort_order","is_default","respond_visible","hidden","archived","background_type","background_asset_id","background_transform","opacity","created_by","updated_by"]},
+  spaces:{table:"field_preplan_spaces",columns:["id","preplan_id","level_id","display_name","room_number","space_type","aliases","cad_keywords","geometry","coordinate_space","label_x","label_y","typical_occupancy","peak_occupancy","special_population_notes","access_notes","fire_protection_notes","hazards","archived","created_by","updated_by"]},
+  alerts:{table:"field_preplan_alerts",columns:["id","preplan_id","level_id","space_id","alert_type","title","instructions","severity","display_order","pin_to_respond","effective_at","expires_at","expiration_action","verification_required","verified_by","verified_at","archived","created_by","updated_by"]},
+  hazmat:{table:"field_preplan_hazmat",columns:["id","preplan_id","level_id","space_id","mapped","chemical_name","un_na_number","erg_guide_number","quantity","quantity_unit","container_type","physical_state","exact_location","nfpa_health","nfpa_flammability","nfpa_instability","nfpa_special","date_verified","verified_by","effective_at","expires_at","expiration_action","notes","latitude","longitude","plan_x","plan_y","archived","created_by","updated_by"]},
+  zones:{table:"field_preplan_hazmat_zones",columns:["id","preplan_id","hazmat_id","level_id","zone_type","geometry_type","geometry","label","radius_feet","fill_color","line_color","opacity","line_width","line_style","effective_at","expires_at","archived","created_by","updated_by"]},
+  annotations:{table:"field_preplan_annotations",columns:["id","preplan_id","level_id","annotation_type","operational_subtype","name","label","geometry","coordinate_space","line_color","fill_color","line_width","opacity","font_size","rotation","arrow_config","measurement","units","sort_order","min_zoom","max_zoom","effective_at","expires_at","expiration_action","verified_by","verified_at","archived","created_by","updated_by"]},
+  hoseLays:{table:"field_preplan_hose_lays",columns:["id","preplan_id","level_id","name","source_hydrant_id","destination_side","destination_feature_id","path","segment_distances","total_distance_feet","hose_size_inches","section_length_feet","reserve_feet","recommended_hose_feet","supply_line_label","apparatus_id","apparatus_capacity_feet","inventory_verified_at","notes","archived","created_by","updated_by"]},
+} as const;
+
+async function restoreSnapshot(db:Db,preplanId:string,snapshot:Snapshot,user:string){
+  for(const [key,config] of Object.entries(restoreTables)){
+    const rows=snapshot[key] as SnapshotRow[];
+    for(const row of rows){
+      const values=config.columns.map((column)=>column==="preplan_id"?preplanId:column==="archived"?0:column==="updated_by"?user:snapshotValue(row[column],column==="created_by"?user:null));
+      const updates=config.columns.filter((column)=>!["id","preplan_id","created_by"].includes(column)).map((column)=>`${column}=excluded.${column}`).join(",");
+      await db.prepare(`INSERT INTO ${config.table}(${config.columns.join(",")}) VALUES(${config.columns.map(()=>"?").join(",")}) ON CONFLICT(id) DO UPDATE SET ${updates},updated_at=CURRENT_TIMESTAMP`).bind(...values).run();
+    }
+    const ids=rows.map((row)=>text(row.id,80)).filter(Boolean);
+    const missing=ids.length?` AND id NOT IN (${ids.map(()=>"?").join(",")})`:"";
+    await db.prepare(`UPDATE ${config.table} SET archived=1,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE preplan_id=?${missing}`).bind(user,preplanId,...ids).run();
+  }
+  const risks=snapshot.risks as SnapshotRow[];
+  for(const row of risks){
+    await db.prepare("INSERT INTO field_preplan_risk_factors(id,preplan_id,factor,score,explanation,source,manual_override,reviewer,reviewed_at,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(preplan_id,factor) DO UPDATE SET score=excluded.score,explanation=excluded.explanation,source=excluded.source,manual_override=excluded.manual_override,reviewer=excluded.reviewer,reviewed_at=excluded.reviewed_at,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP")
+      .bind(snapshotValue(row.id,crypto.randomUUID()),preplanId,snapshotValue(row.factor,"Restored factor"),snapshotValue(row.score,0),snapshotValue(row.explanation,""),snapshotValue(row.source,"Restored revision"),snapshotValue(row.manual_override,0),snapshotValue(row.reviewer),snapshotValue(row.reviewed_at),snapshotValue(row.created_by,user),user).run();
+  }
+  const factors=risks.map((row)=>text(row.factor,120)).filter(Boolean);
+  const missing=factors.length?` AND factor NOT IN (${factors.map(()=>"?").join(",")})`:"";
+  await db.prepare(`DELETE FROM field_preplan_risk_factors WHERE preplan_id=?${missing}`).bind(preplanId,...factors).run();
 }
