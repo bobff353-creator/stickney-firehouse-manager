@@ -9,7 +9,7 @@ This ledger maps the required acceptance scenarios to current evidence. Automate
 | C — Temporary road closure | Effective/expiration state, require-verification behavior, expiring queue actions, audit contract, and no automatic deletion | Create controlled active and expired records; verify Arrival/IAP visibility and authorized extend, resolve, and archive actions at controlled times | Automated contracts pass; manual acceptance outstanding |
 | D — Hose lay | Segment totals, reserve and section rounding, independent supply options, verified capacity comparison, deficit, and unverified-not-zero behavior | Draw the approved multi-segment route from a test hydrant, reload it, publish it, and compare against a verified test apparatus inventory | Automated contracts pass; manual acceptance outstanding |
 | E — Target hazard | Explainable factor scoring, override validation, published Respond banner, and readable reasons | Save the three approved factors, exercise authorized override/review, publish, and visually verify the High Target Hazard presentation | Automated contracts pass; manual acceptance outstanding |
-| F — Draft and publication | Draft ownership, unauthorized concealment, reviewer/publisher transitions, immutable snapshots, Respond published-only selection, and restore-as-new-revision | Complete the remaining controlled lifecycle-mutation and private-draft concealment checks | Automated contracts pass; administrator publication/search and seven-session role matrix recorded |
+| F — Draft and publication | Draft ownership, unauthorized concealment, reviewer/publisher transitions, immutable snapshots, Respond published-only selection, and restore-as-new-revision | Complete the remaining controlled lifecycle-mutation and private-draft concealment checks | Automated contracts pass; administrator publication/search, seven-session role matrix, and private attachment acceptance recorded |
 | G — Legacy preplan | Idempotent Arrival backfill, feature/photo relationship preservation, legacy publication, bootstrap marker separation, and legacy Respond contracts | Open a copied or approved legacy record and verify its original contacts, footprint, features, A–D photos, fire-flow data, and Respond visibility before and after migration | Automated contracts pass; manual acceptance outstanding |
 
 ## Evidence record
@@ -41,8 +41,19 @@ For each manual run, record the date, tester, branch and commit, Vercel deployme
 - Preview repair: the isolated legacy branch received the repository-equivalent activation-attempt table/function compatibility layer and its own verified Supabase admin credential. The portal now accepts either a new `sb_secret_` server key or a JWT whose decoded role is exactly `service_role`; the key stays server-only.
 - Cleanup: all matrix sessions were signed out. The labeled preview-only identities remain active for the remaining controlled acceptance scenarios; no department email was sent and no production state changed.
 
+### 2026-08-21 — Private attachment upload, stream, denial, and cleanup
+
+- Tester: a temporary, clearly labeled preview-only administrator created solely for this acceptance run; no established role-matrix account was changed.
+- Branch and commit: `codex/preplan-operational-v2-approved` at `0fc908b`.
+- Deployment: `dpl_7eS88kVatFrFHDKwoehj4FH8km6S`; immutable preview URL `stickney-firehouse-manager-eipt91ux2-fire-pre-plan-pro.vercel.app` and protected stable preview alias.
+- Isolated services: Supabase project `pzgvlslcaoqtrnaqyjmd` and its private `firehouse-portal` bucket; production database, accounts, and storage were not used.
+- Test record and file: `preview-ui-verification`; repository PNG uploaded with caption `PREVIEW ONLY attachment acceptance`.
+- Observed result: authenticated upload returned 200; authenticated stream returned 200 with `image/png`, `Cache-Control: private, no-store`, and `X-Content-Type-Options: nosniff`; the same stream without an application session returned 401; authenticated deletion returned 200; the deleted route returned 404.
+- Correction verified: private storage now rebuilds uploaded streams as a Blob with the route-accepted MIME type instead of silently changing them to `application/octet-stream`.
+- Cleanup audit: temporary auth users, employee profiles, employee rows, pay-scale rows, attachment metadata rows, and matching storage objects all returned zero after cleanup. No acceptance attachment or temporary identity remains.
+
 ## Release decision
 
 The focused gate is `npm run verify:preplan-v2`. It runs scoped lint, a production build, and the focused Operational Preplan/Respond test suite. The repository-wide `npm run lint` remains a separate whole-portal check; failures outside the Preplan scope must be reported rather than hidden.
 
-Production promotion requires explicit authorization plus completed manual evidence for all seven scenarios, the role matrix, private upload/stream/denial/cleanup, offline cache/reconnect/sign-out clearing, responsive viewports, accessibility inspection, migration backup, and rollback readiness.
+Production promotion requires explicit authorization plus completed manual evidence for all seven scenarios, offline cache/reconnect/sign-out clearing, responsive viewports, accessibility inspection, migration backup, and rollback readiness. The role matrix and private upload/stream/denial/cleanup gates are complete on the isolated preview only.
