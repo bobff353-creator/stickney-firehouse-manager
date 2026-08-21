@@ -5,12 +5,19 @@ import test from "node:test";
 const userGuide = fs.readFileSync("docs/preplan-v2-user-guide.md", "utf8");
 const adminGuide = fs.readFileSync("docs/preplan-v2-admin-guide.md", "utf8");
 const migrationGuide = fs.readFileSync("docs/preplan-v2-data-migration.md", "utf8");
+const acceptanceGuide = fs.readFileSync("docs/preplan-v2-acceptance.md", "utf8");
 
 test("user guide explains published, unknown, and offline boundaries", () => {
   assert.match(userGuide, /Respond reads only published preplans/);
   assert.match(userGuide, /Not entered.*Not verified/s);
   assert.match(userGuide, /OFFLINE — READ-ONLY PREPLAN/);
   assert.match(userGuide, /Signing out clears private cached Respond packets/);
+});
+
+test("documentation links the acceptance evidence ledger", () => {
+  assert.match(fs.readFileSync("docs/preplan-v2-testing.md", "utf8"), /docs\/preplan-v2-acceptance\.md/);
+  assert.match(acceptanceGuide, /repository-wide `npm run lint` remains a separate whole-portal check/);
+  assert.match(acceptanceGuide, /Do not place secrets/);
 });
 
 test("admin guide documents permissions and the enforced lifecycle", () => {

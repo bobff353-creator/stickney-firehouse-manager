@@ -11,8 +11,9 @@
     "build:sites": "node node_modules/vinext/dist/cli.js build",
     "start": "next start",
     "test": "npm run build && node --test tests/*.test.mjs",
+    "lint:preplan-v2": "eslint app/preplans app/respond.tsx app/respond-*.ts app/api/field-preplans app/api/respond tests/preplan-v2-*.test.mjs scripts/verify-preplan-v2.mjs --ignore-pattern .next",
     "test:preplan-v2": "node scripts/verify-preplan-v2.mjs",
-    "verify:preplan-v2": "npm run build && npm run test:preplan-v2",
+    "verify:preplan-v2": "npm run lint:preplan-v2 && npm run build && npm run test:preplan-v2",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern .work --ignore-pattern node_modules-* --ignore-pattern build --ignore-pattern db --ignore-pattern examples --ignore-pattern vercel --ignore-pattern worker",
     "db:generate": "drizzle-kit generate"
   },

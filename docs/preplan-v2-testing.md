@@ -14,7 +14,7 @@ The isolated publication workflow test runs draft → review → publish without
 
 ## Phase 8 release gate
 
-Run `npm run verify:preplan-v2` before publishing a preview checkpoint. It performs a production build followed by the focused Operational Preplan, Respond, migration, permission, responsive, accessibility, and legacy-compatibility tests. The command is read-only with respect to hosted data and must never create, edit, publish, archive, or delete production records.
+Run `npm run verify:preplan-v2` before publishing a preview checkpoint. It performs scoped Preplan lint, a production build, and the focused Operational Preplan, Respond, migration, permission, responsive, accessibility, and legacy-compatibility tests. The command is read-only with respect to hosted data and must never create, edit, publish, archive, or delete production records.
 
 | Verification area | Current evidence | Status |
 | --- | --- | --- |
@@ -32,6 +32,8 @@ Run `npm run verify:preplan-v2` before publishing a preview checkpoint. It perfo
 | Visual contrast, focus order, long-content layout, and map interaction | Human preview inspection | Manual required |
 
 Automated source contracts are regression safeguards, not substitutes for the remaining signed-in browser and storage checks. Production promotion is not authorized by a passing release gate alone.
+
+The seven required acceptance scenarios and their evidence state are tracked in `docs/preplan-v2-acceptance.md`.
 
 Manual preview checks must cover:
 
