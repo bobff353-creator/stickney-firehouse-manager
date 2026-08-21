@@ -8,6 +8,8 @@ Reduced-motion checks ensure the operating-system preference disables animations
 
 Respond's tactical footprint keeps its SVG visual layer out of the accessibility tree and exposes every mapped system through a visible, keyboard-operable text list with truthful empty and unknown states.
 
+Lifecycle permission checks cover ordinary published viewing, editor/reviewer/publisher working access, creator ownership, employee allow/deny resolution through the existing permission service, filtered list responses, and denied direct operational URLs without revealing that a private draft exists.
+
 Manual preview checks must cover:
 
 1. Open an existing legacy preplan and confirm its original fields, footprint, features, and photos are unchanged.

@@ -44,6 +44,42 @@ export async function hasPermission(request: Request, db: Awaited<ReturnType<typ
   return (await permissionsForEmail(email, db)).has(permission);
 }
 
+export type PreplanReadAccess = {
+  canViewPublished: boolean;
+  canViewWorking: boolean;
+  identities: Set<string>;
+};
+
+export async function preplanReadAccess(
+  request: Request,
+  db: Awaited<ReturnType<typeof ensureDatabase>>,
+): Promise<PreplanReadAccess> {
+  const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
+  const permissions = await permissionsForEmail(email, db);
+  const employee = email
+    ? await db.prepare("SELECT e.name FROM employees e JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(ep.email)=? LIMIT 1").bind(email).first<{ name: string }>()
+    : null;
+  return {
+    canViewPublished: permissions.has("field_preplans.view"),
+    canViewWorking: ["field_preplans.edit", "field_preplans.review", "field_preplans.publish"]
+      .some((permission) => permissions.has(permission as PermissionKey)),
+    identities: new Set([email, employee?.name ?? ""].map((value) => value.trim().toLowerCase()).filter(Boolean)),
+  };
+}
+
+export function canReadPreplanLifecycle(
+  plan: { publicationStatus?: unknown; createdBy?: unknown; updatedBy?: unknown },
+  access: PreplanReadAccess,
+) {
+  if (!access.canViewPublished) return false;
+  const status = String(plan.publicationStatus ?? "published").trim().toLowerCase() || "published";
+  if (status === "published") return true;
+  if (access.canViewWorking) return true;
+  return [plan.createdBy, plan.updatedBy]
+    .map((value) => String(value ?? "").trim().toLowerCase())
+    .some((identity) => identity && access.identities.has(identity));
+}
+
 export function isPermissionKey(value: string): value is PermissionKey {
   return permissionCatalog.some((permission) => permission.key === value);
 }

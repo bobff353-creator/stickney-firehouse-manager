@@ -1,5 +1,5 @@
 import { ensureDatabase } from "../../../../db/bootstrap";
-import { hasPermission } from "../../../server-permissions";
+import { canReadPreplanLifecycle, hasPermission, preplanReadAccess } from "../../../server-permissions";
 import type { PermissionKey } from "../../../permissions";
 import { calculateHoseLay, calculateTargetHazard, normalizedLevelLabel } from "../../../preplans/domain";
 import { constructionProfile, occupancyProfile } from "../../../preplans/profiles";
@@ -30,6 +30,9 @@ export async function GET(request: Request) {
     await requirePermission(request, db, "field_preplans.view");
     const preplanId = text(new URL(request.url).searchParams.get("preplanId"), 80);
     if (!preplanId || !await preplanExists(db, preplanId)) return Response.json({ error:"Preplan not found." }, { status:404 });
+    const lifecycle = await db.prepare("SELECT COALESCE(publication_status,'published') publicationStatus,created_by createdBy,updated_by updatedBy FROM field_preplans WHERE id=? LIMIT 1").bind(preplanId).first();
+    const readAccess = await preplanReadAccess(request, db);
+    if (!lifecycle || !canReadPreplanLifecycle(lifecycle, readAccess)) return Response.json({ error:"Preplan not found." }, { status:404 });
     const [plan, levels, spaces, alerts, hazmat, zones, annotations, assets, hoseLays, risks, reviews, revisions] = await Promise.all([
       db.prepare("SELECT publication_status publicationStatus,completeness_status completenessStatus,revision_number revisionNumber,last_verified_at lastVerifiedAt,next_review_date nextReviewDate,target_hazard_level targetHazardLevel,target_hazard_reasons targetHazardReasons,construction_profile constructionProfile,occupancy_profile occupancyProfile FROM field_preplans WHERE id=?").bind(preplanId).first(),
       db.prepare("SELECT id,preplan_id preplanId,name,short_label shortLabel,layer_type layerType,floor_index floorIndex,grade_designation gradeDesignation,sort_order sortOrder,is_default isDefault,respond_visible respondVisible,hidden,archived,background_type backgroundType,background_asset_id backgroundAssetId,background_transform backgroundTransform,opacity,updated_by updatedBy,updated_at updatedAt FROM field_preplan_levels WHERE preplan_id=? ORDER BY archived,sort_order,name").bind(preplanId).all(),
