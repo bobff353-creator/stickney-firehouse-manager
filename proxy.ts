@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getPublicSupabaseConfig } from "./app/supabase-config";
 
 const publicApiPaths = new Set([
+  "/api/health",
   "/api/close-call-news",
   "/api/river-gauge",
   "/api/usfa-fatalities",

@@ -3,6 +3,7 @@ import fs from "node:fs";
 import test from "node:test";
 
 const route = fs.readFileSync("app/api/health/route.ts", "utf8");
+const proxy = fs.readFileSync("proxy.ts", "utf8");
 
 test("public health reports only browser-safe deployment coordinates", () => {
   assert.match(route, /getPublicSupabaseConfig/);
@@ -17,4 +18,9 @@ test("health accepts only the standard Supabase project hostname", () => {
   assert.match(route, /\^\(\[a-z0-9\]\{20\}\)\\\.supabase\\\.co\$/);
   assert.match(route, /unrecognized/);
   assert.doesNotMatch(route, /return url|supabaseUrl/);
+});
+
+test("health bypasses portal sign-in without weakening deployment protection", () => {
+  assert.match(proxy, /publicApiPaths[\s\S]*"\/api\/health"/);
+  assert.match(proxy, /publicApiPaths\.has\(pathname\)/);
 });
