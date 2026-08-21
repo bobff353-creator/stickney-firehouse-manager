@@ -146,6 +146,16 @@ type RespondData = {
       hoseSizeInches: number;
       supplyLineLabel: string;
     }>;
+    assets: Array<{
+      id: string;
+      levelId?: string;
+      category: string;
+      filename: string;
+      contentType: string;
+      caption: string;
+      pinToRespond: number;
+      createdAt: string;
+    }>;
     construction: ConstructionProfile;
     occupancy: OccupancyProfile;
     revision?: { revisionNumber: number; publishedAt: string };
@@ -372,6 +382,7 @@ export default function Respond({
     [selected, setSelected] = useState<QuickItem | null>(null);
   const [monitorMode, setMonitorMode] = useState(false);
   const [selectedLevelId, setSelectedLevelId] = useState("");
+  const [showAllAttachments, setShowAllAttachments] = useState(false);
   const pageRef = useRef<HTMLElement>(null);
   const load = useCallback(async () => {
     try {
@@ -476,7 +487,17 @@ export default function Respond({
     visibleHazmat =
       data?.operational?.hazmat.filter(
         (item) => !item.levelId || item.levelId === selectedLevel?.id,
-      ) ?? [];
+      ) ?? [],
+    visibleAttachments =
+      data?.operational?.assets.filter(
+        (item) => !item.levelId || item.levelId === selectedLevel?.id,
+      ) ?? [],
+    pinnedAttachments = visibleAttachments.filter((item) =>
+      Boolean(item.pinToRespond),
+    ),
+    shownAttachments = showAllAttachments
+      ? visibleAttachments
+      : pinnedAttachments;
   if (!data && !error)
     return (
       <section className="respond-page">
@@ -798,6 +819,55 @@ export default function Respond({
           </button>
         </article>
       </section>
+      {data?.operational && (
+        <section
+          className="respond-attachments"
+          aria-label="Published preplan attachments"
+        >
+          <header>
+            <div>
+              <span>
+                SECURE ATTACHMENTS · {selectedLevel?.name || "ARRIVAL"}
+              </span>
+              <h2>
+                {showAllAttachments ? "All attachments" : "Pinned to Respond"}
+              </h2>
+            </div>
+            {visibleAttachments.length > pinnedAttachments.length && (
+              <button
+                onClick={() => setShowAllAttachments((current) => !current)}
+                aria-expanded={showAllAttachments}
+              >
+                {showAllAttachments
+                  ? "Show pinned only"
+                  : `Open all attachments (${visibleAttachments.length})`}
+              </button>
+            )}
+          </header>
+          {shownAttachments.length ? (
+            <div>
+              {shownAttachments.map((item) => (
+                <a
+                  key={item.id}
+                  href={`/api/field-preplans/assets/${encodeURIComponent(item.id)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <b>{item.caption || item.filename}</b>
+                  <span>{item.category.replaceAll("_", " ")}</span>
+                  <small>Open private attachment ↗</small>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <p>
+              {visibleAttachments.length
+                ? "No attachments are pinned to Respond for this level."
+                : "No published attachments are available for this level."}
+            </p>
+          )}
+        </section>
+      )}
       <div className="respond-grid">
         <aside className="respond-intel">
           <header>

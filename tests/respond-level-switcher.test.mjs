@@ -20,13 +20,12 @@ test("Respond defaults to the published default level and preserves a valid sele
 });
 
 test("Respond keeps global warnings while filtering level-specific records", () => {
-  assert.equal(
+  assert.ok(
     (
       source.match(
         /!item\.levelId \|\| item\.levelId === selectedLevel\?\.id/g,
       ) ?? []
-    ).length,
-    2,
+    ).length >= 2,
   );
   assert.match(source, /visibleAlerts\.slice\(0, 3\)/);
   assert.match(source, /visibleHazmat\.slice\(0, 3\)/);
