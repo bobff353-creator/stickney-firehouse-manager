@@ -20,6 +20,9 @@ type Feature = {
   systemType: string;
   serviceStatus: string;
   details: string;
+  primaryLevelId?: string;
+  verifiedAt?: string;
+  updatedAt?: string;
 };
 type Photo = {
   id: string;
@@ -174,6 +177,9 @@ type QuickItem = {
   status?: string;
   latitude?: number;
   longitude?: number;
+  levelId?: string;
+  locationDescription?: string;
+  verifiedAt?: string;
 };
 type RightView = "cad" | "footprint" | "B" | "C" | "D";
 
@@ -234,6 +240,19 @@ function googleLocation(call: ActiveCall) {
     return `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${call.latitude},${call.longitude}`;
   }
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(streetViewLocation(call))}`;
+}
+function verificationDate(value?: string) {
+  if (!value) return "Not verified";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "Not verified";
+  return parsed.toLocaleString("en-US", {
+    timeZone: "America/Chicago",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function StreetViewFallback({ call }: { call: ActiveCall }) {
@@ -462,6 +481,9 @@ export default function Respond({
       status: feature.serviceStatus,
       latitude: feature.latitude,
       longitude: feature.longitude,
+      levelId: feature.primaryLevelId,
+      locationDescription: feature.details,
+      verifiedAt: feature.verifiedAt,
     }));
     return [...mapped, ...staticItems];
   }, [data?.preplan]);
@@ -1076,6 +1098,29 @@ export default function Respond({
                   {selected.status?.replaceAll("_", " ") || "Not reported"}
                 </dd>
               </div>
+              {!selected.id.startsWith("summary-") && (
+                <>
+                  <div>
+                    <dt>Published level</dt>
+                    <dd>
+                      {data?.operational?.levels.find(
+                        (level) => level.id === selected.levelId,
+                      )?.name || "Arrival / Ground"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Location description</dt>
+                    <dd>
+                      {selected.locationDescription ||
+                        "No location description entered."}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Last verification</dt>
+                    <dd>{verificationDate(selected.verifiedAt)}</dd>
+                  </div>
+                </>
+              )}
               <div>
                 <dt>Details</dt>
                 <dd>{selected.details || "No additional details entered."}</dd>
@@ -1087,11 +1132,11 @@ export default function Respond({
                     {selected.latitude.toFixed(6)},{" "}
                     {selected.longitude.toFixed(6)} ·{" "}
                     <a
-                      href={`https://www.google.com/maps/search/?api=1&query=${selected.latitude},${selected.longitude}`}
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${selected.latitude},${selected.longitude}&travelmode=walking`}
                       target="_blank"
                       rel="noreferrer"
                     >
-                      Open map ↗
+                      Walking directions ↗
                     </a>
                   </dd>
                 </div>

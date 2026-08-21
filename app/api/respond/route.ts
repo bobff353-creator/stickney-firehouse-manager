@@ -123,7 +123,7 @@ export async function GET(request: Request) {
       const [features, photos] = await Promise.all([
         db
           .prepare(
-            "SELECT id,feature_type featureType,label,latitude,longitude,system_type systemType,service_status serviceStatus,details FROM field_preplan_features WHERE preplan_id=? ORDER BY created_at",
+            "SELECT id,feature_type featureType,label,latitude,longitude,system_type systemType,service_status serviceStatus,details,primary_level_id primaryLevelId,verified_at verifiedAt,updated_at updatedAt FROM field_preplan_features WHERE preplan_id=? ORDER BY created_at",
           )
           .bind(String(matched.plan.id))
           .all<Row>(),
