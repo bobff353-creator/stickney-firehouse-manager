@@ -37,3 +37,15 @@ test("Respond tactical controls retain fireground touch targets on phone and iPa
   );
   assert.match(css, /touch-action:manipulation/);
 });
+
+test("Respond operational detail dialogs support Escape and restore trigger focus", () => {
+  assert.match(respond, /role="dialog"/);
+  assert.match(respond, /aria-modal="false"/);
+  assert.match(respond, /aria-labelledby="respond-hazmat-detail-title"/);
+  assert.match(respond, /respond-quick-information-title/);
+  assert.match(respond, /event\.key !== "Escape"/);
+  assert.match(respond, /document\.addEventListener\("keydown", closeOnEscape\)/);
+  assert.match(respond, /hazmatTriggerRef\.current/);
+  assert.match(respond, /quickTriggerRef\.current/);
+  assert.match(respond, /requestAnimationFrame\(\(\) => target\?\.focus\(\)\)/);
+});

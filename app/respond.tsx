@@ -623,6 +623,10 @@ export default function Respond({
   const [isOnline, setIsOnline] = useState(true);
   const pageRef = useRef<HTMLElement>(null);
   const departmentIdRef = useRef("");
+  const hazmatCloseRef = useRef<HTMLButtonElement>(null);
+  const hazmatTriggerRef = useRef<HTMLElement | null>(null);
+  const quickCloseRef = useRef<HTMLButtonElement>(null);
+  const quickTriggerRef = useRef<HTMLElement | null>(null);
   const load = useCallback(async () => {
     try {
       const query = apparatus
@@ -707,6 +711,47 @@ export default function Respond({
     document.addEventListener("fullscreenchange", update);
     return () => document.removeEventListener("fullscreenchange", update);
   }, []);
+  useEffect(() => {
+    if (selectedHazmatId) hazmatCloseRef.current?.focus();
+  }, [selectedHazmatId]);
+  useEffect(() => {
+    if (selected) quickCloseRef.current?.focus();
+  }, [selected]);
+  useEffect(() => {
+    if (!selectedHazmatId && !selected) return;
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      if (selectedHazmatId) {
+        setSelectedHazmatId("");
+        window.requestAnimationFrame(() => hazmatTriggerRef.current?.focus());
+      } else {
+        setSelected(null);
+        window.requestAnimationFrame(() => quickTriggerRef.current?.focus());
+      }
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [selectedHazmatId, selected]);
+  function restoreFocus(target: HTMLElement | null) {
+    window.requestAnimationFrame(() => target?.focus());
+  }
+  function openHazmatDetail(id: string, trigger?: HTMLElement | null) {
+    hazmatTriggerRef.current = trigger ?? null;
+    setSelectedHazmatId(id);
+  }
+  function closeHazmatDetail() {
+    setSelectedHazmatId("");
+    restoreFocus(hazmatTriggerRef.current);
+  }
+  function openQuickInformation(item: QuickItem, trigger?: HTMLElement | null) {
+    quickTriggerRef.current = trigger ?? null;
+    setSelected(item);
+  }
+  function closeQuickInformation(restore = true) {
+    setSelected(null);
+    if (restore) restoreFocus(quickTriggerRef.current);
+  }
   async function toggleMonitor() {
     if (monitorMode) {
       setMonitorMode(false);
@@ -1054,7 +1099,7 @@ export default function Respond({
                   aria-pressed={selectedLevel?.id === level.id}
                   onClick={() => {
                     setSelectedLevelId(level.id);
-                    setSelected(null);
+                    closeQuickInformation(false);
                   }}
                 >
                   {level.shortLabel || level.name}
@@ -1131,7 +1176,7 @@ export default function Respond({
               ))}
               {visibleHazmat.slice(0, 3).map((item) => (
                 <article key={item.id} className="hazmat">
-                  <button onClick={() => setSelectedHazmatId(item.id)}>
+                  <button onClick={(event) => openHazmatDetail(item.id, event.currentTarget)}>
                     <b>HAZMAT · OPEN DETAIL</b>
                     <strong>{item.materialName}</strong>
                     <span>
@@ -1209,12 +1254,14 @@ export default function Respond({
           {selectedHazmat && (
             <section
               className="respond-hazmat-detail"
-              aria-label="HazMat detail"
+              role="dialog"
+              aria-modal="false"
+              aria-labelledby="respond-hazmat-detail-title"
             >
               <header>
                 <div>
                   <span>HAZMAT EMERGENCY DETAIL</span>
-                  <h2>{selectedHazmat.materialName}</h2>
+                  <h2 id="respond-hazmat-detail-title">{selectedHazmat.materialName}</h2>
                   <strong>
                     {selectedHazmat.unNumber
                       ? `UN/NA ${selectedHazmat.unNumber}`
@@ -1226,7 +1273,8 @@ export default function Respond({
                   </strong>
                 </div>
                 <button
-                  onClick={() => setSelectedHazmatId("")}
+                  ref={hazmatCloseRef}
+                  onClick={closeHazmatDetail}
                   aria-label="Close HazMat detail"
                 >
                   ×
@@ -1676,7 +1724,7 @@ export default function Respond({
               <button
                 key={item.id}
                 className={selected?.id === item.id ? "selected" : ""}
-                onClick={() => setSelected(item)}
+                onClick={(event) => openQuickInformation(item, event.currentTarget)}
                 data-test-safe
               >
                 <span className="feature-symbol">
@@ -1845,6 +1893,9 @@ export default function Respond({
       <section
         className={`respond-quick ${selected ? "open" : ""}`}
         aria-live="polite"
+        role={selected ? "dialog" : "status"}
+        aria-modal={selected ? "false" : undefined}
+        aria-labelledby={selected ? "respond-quick-information-title" : undefined}
       >
         {selected ? (
           <>
@@ -1859,7 +1910,7 @@ export default function Respond({
                 />
               )}
               <span>QUICK INFORMATION</span>
-              <h2>{selected.label}</h2>
+              <h2 id="respond-quick-information-title">{selected.label}</h2>
             </div>
             <dl>
               <div>
@@ -1917,7 +1968,8 @@ export default function Respond({
               )}
             </dl>
             <button
-              onClick={() => setSelected(null)}
+              ref={quickCloseRef}
+              onClick={() => closeQuickInformation()}
               aria-label="Close quick information"
               data-test-safe
             >
