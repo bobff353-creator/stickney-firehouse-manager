@@ -186,7 +186,7 @@ export async function GET(request: Request) {
             .all<Row>(),
           db
             .prepare(
-              "SELECT id,level_id levelId,name,total_distance_feet totalDistanceFeet,hose_size_inches hoseSizeInches,recommended_hose_feet recommendedHoseFeet,supply_line_label supplyLineLabel,apparatus_capacity_feet apparatusCapacityFeet,notes FROM field_preplan_hose_lays WHERE preplan_id=? AND archived=0 ORDER BY name",
+              "SELECT lay.id,lay.level_id levelId,lay.name,lay.source_hydrant_id sourceHydrantId,hydrant.hydrant_number sourceHydrantNumber,hydrant.address sourceHydrantAddress,lay.total_distance_feet totalDistanceFeet,lay.hose_size_inches hoseSizeInches,lay.recommended_hose_feet recommendedHoseFeet,lay.supply_line_label supplyLineLabel,lay.apparatus_capacity_feet apparatusCapacityFeet,lay.path,lay.notes FROM field_preplan_hose_lays lay LEFT JOIN field_hydrants hydrant ON hydrant.id=lay.source_hydrant_id WHERE lay.preplan_id=? AND lay.archived=0 ORDER BY lay.name",
             )
             .bind(preplanId)
             .all<Row>(),
@@ -232,7 +232,10 @@ export async function GET(request: Request) {
               expiresAt: String(item.expiresAt || ""),
             }),
           ),
-          hoseLays: hoseLays.results,
+          hoseLays: hoseLays.results.map((item) => ({
+            ...item,
+            route: parseJson<unknown[]>(item.path, []),
+          })),
           assets: assets.results,
           construction: constructionProfile(matched.plan.constructionProfile),
           occupancy: occupancyProfile(matched.plan.occupancyProfile),

@@ -162,10 +162,18 @@ type RespondData = {
     }>;
     hoseLays: Array<{
       id: string;
+      levelId?: string;
       name: string;
+      sourceHydrantId?: string;
+      sourceHydrantNumber?: string;
+      sourceHydrantAddress?: string;
+      totalDistanceFeet: number;
       recommendedHoseFeet: number;
       hoseSizeInches: number;
       supplyLineLabel: string;
+      apparatusCapacityFeet?: number;
+      route: unknown[];
+      notes?: string;
     }>;
     assets: Array<{
       id: string;
@@ -552,7 +560,11 @@ export default function Respond({
             asset.hazmatId === selectedHazmat.id &&
             asset.category.toLowerCase() === "sds",
         ) ?? [])
-      : [];
+      : [],
+    visibleHoseLays =
+      data?.operational?.hoseLays.filter(
+        (item) => !item.levelId || item.levelId === selectedLevel?.id,
+      ) ?? [];
   if (!data && !error)
     return (
       <section className="respond-page">
@@ -1022,6 +1034,108 @@ export default function Respond({
                 ? "No attachments are pinned to Respond for this level."
                 : "No published attachments are available for this level."}
             </p>
+          )}
+        </section>
+      )}
+      {data?.operational && (
+        <section
+          className="respond-hose-lays"
+          aria-label="Saved hose lay options"
+        >
+          <header>
+            <div>
+              <span>WATER SUPPLY · {selectedLevel?.name || "ARRIVAL"}</span>
+              <h2>Saved hose-lay options</h2>
+            </div>
+            <small>
+              Each option is independent. Do not combine hydrant flows without a
+              verified water-main relationship.
+            </small>
+          </header>
+          {visibleHoseLays.length ? (
+            <div>
+              {visibleHoseLays.map((lay) => {
+                const deficit =
+                  lay.apparatusCapacityFeet != null
+                    ? Math.max(
+                        0,
+                        lay.recommendedHoseFeet - lay.apparatusCapacityFeet,
+                      )
+                    : null;
+                return (
+                  <article
+                    key={lay.id}
+                    className={deficit && deficit > 0 ? "deficit" : ""}
+                  >
+                    <header>
+                      <strong>{lay.name}</strong>
+                      <b>
+                        {lay.supplyLineLabel ||
+                          `${lay.hoseSizeInches}-inch supply`}
+                      </b>
+                    </header>
+                    <dl>
+                      <div>
+                        <dt>Source hydrant</dt>
+                        <dd>
+                          {lay.sourceHydrantNumber ||
+                            lay.sourceHydrantAddress ||
+                            lay.sourceHydrantId ||
+                            "Hydrant not verified"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Route distance</dt>
+                        <dd>
+                          {lay.totalDistanceFeet > 0
+                            ? `${Math.round(lay.totalDistanceFeet).toLocaleString()} ft`
+                            : "Distance not verified"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Recommended hose</dt>
+                        <dd>
+                          {Math.round(lay.recommendedHoseFeet).toLocaleString()}{" "}
+                          ft · {lay.hoseSizeInches || "?"} in
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Apparatus capacity</dt>
+                        <dd>
+                          {lay.apparatusCapacityFeet != null
+                            ? `${Math.round(lay.apparatusCapacityFeet).toLocaleString()} ft`
+                            : "Inventory not verified"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Route</dt>
+                        <dd>
+                          {lay.route.length >= 2
+                            ? `Saved route · ${lay.route.length} points`
+                            : "No saved route geometry"}
+                        </dd>
+                      </div>
+                    </dl>
+                    {deficit != null && deficit > 0 ? (
+                      <p>
+                        <strong>DEFICIT:</strong>{" "}
+                        {Math.round(deficit).toLocaleString()} additional feet
+                        required beyond verified apparatus capacity.
+                      </p>
+                    ) : (
+                      <p>
+                        {lay.apparatusCapacityFeet == null
+                          ? "Capacity comparison unavailable until apparatus inventory is verified."
+                          : "Verified apparatus capacity covers this recommendation."}
+                      </p>
+                    )}
+                    {lay.notes && <small>{lay.notes}</small>}
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <p>No saved hose-lay option is published for this level.</p>
           )}
         </section>
       )}
