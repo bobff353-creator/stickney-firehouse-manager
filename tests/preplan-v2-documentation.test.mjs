@@ -6,6 +6,7 @@ const userGuide = fs.readFileSync("docs/preplan-v2-user-guide.md", "utf8");
 const adminGuide = fs.readFileSync("docs/preplan-v2-admin-guide.md", "utf8");
 const migrationGuide = fs.readFileSync("docs/preplan-v2-data-migration.md", "utf8");
 const acceptanceGuide = fs.readFileSync("docs/preplan-v2-acceptance.md", "utf8");
+const releaseReport = fs.readFileSync("docs/preplan-v2-release-report.md", "utf8");
 
 test("user guide explains published, unknown, and offline boundaries", () => {
   assert.match(userGuide, /Respond reads only published preplans/);
@@ -18,6 +19,16 @@ test("documentation links the acceptance evidence ledger", () => {
   assert.match(fs.readFileSync("docs/preplan-v2-testing.md", "utf8"), /docs\/preplan-v2-acceptance\.md/);
   assert.match(acceptanceGuide, /repository-wide `npm run lint` remains a separate whole-portal check/);
   assert.match(acceptanceGuide, /Do not place secrets/);
+});
+
+test("release report separates automated preview evidence from production readiness", () => {
+  for (const section of ["Release status", "Implemented capability", "Architecture and persistence", "Permissions and security", "API and UI changes", "Verification evidence", "Browser and acceptance evidence", "Exact production prerequisites"]) {
+    assert.match(releaseReport, new RegExp(`## ${section}`));
+  }
+  assert.match(releaseReport, /282 passed, 0 failed, 0 skipped/);
+  assert.match(releaseReport, /No current screenshot or signed-in browser evidence is attached/);
+  assert.match(releaseReport, /Obtain explicit production-promotion authorization/);
+  assert.doesNotMatch(releaseReport, /production release is complete|production migration passed/i);
 });
 
 test("admin guide documents permissions and the enforced lifecycle", () => {
