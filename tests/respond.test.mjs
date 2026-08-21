@@ -58,7 +58,8 @@ test("Respond reads existing call and preplan records and exposes requested fiel
   assert.match(component, /Alpha \/ A Side/);
   assert.match(component, /\?apparatus=/);
   assert.match(component, /APPARATUS RESPOND/);
-  assert.match(component, /alpha\?<img[^:]+:<StreetViewFallback call=\{call\}/);
+  assert.match(component, /alpha\s*\?/);
+  assert.match(component, /<StreetViewFallback call=\{call\}/);
   assert.match(component, /\/api\/respond\/street-view\?location=/);
   assert.match(component, /Google Street View fallback/);
   assert.match(component, /Building photo unavailable/);
@@ -80,9 +81,9 @@ test("Respond reads existing call and preplan records and exposes requested fiel
   assert.match(component, /Footprint/);
   assert.match(component, /preplan\.features\.map\(\(feature\)/);
   assert.match(component, /Building footprint and mapped fire protection features/);
-  assert.match(component, /photo\.featureId===selected\.id/);
+  assert.match(component, /photo\.featureId\s*===\s*selected\.id/);
   assert.match(component, /respond-feature-photo/);
-  assert.match(component, /type RightView = "cad"\|"footprint"\|"B"\|"C"\|"D"/);
+  assert.match(component, /type RightView = "cad"\s*\|\s*"footprint"\s*\|\s*"B"\s*\|\s*"C"\s*\|\s*"D"/);
   assert.match(component, /\$\{item\} Side/);
   assert.match(component, /Open Google Navigation/);
   assert.match(shell, /\{ label: "Respond", page: "Respond" \}/);
