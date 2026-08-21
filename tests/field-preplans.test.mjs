@@ -164,6 +164,9 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(styles, /\.preplan-builder-focused/);
   assert.match(styles, /\.preplan-builder-focused>\*\{min-width:0\}/);
   assert.match(styles, /@media\(max-width:1150px\)\{\.preplan-builder-focused\{grid-template-columns:minmax\(0,1fr\)\}/);
+  assert.match(styles, /\.preplan-focus-map-panel\{grid-template-columns:minmax\(0,1fr\)\}/);
+  assert.match(styles, /\.preplan-focus-map-panel>\*\{min-width:0\}/);
+  assert.match(styles, /\.preplan-focus-map-panel>\.field-map-toolbar\{flex-wrap:wrap\}/);
   assert.match(styles, /\.preplan-record-view/);
   assert.match(styles, /\.preplan-record-feature-actions/);
   assert.match(page, /Map & Search/);
