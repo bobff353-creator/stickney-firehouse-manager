@@ -24,3 +24,22 @@ test("hose-lay and target-hazard results remain explicit for firefighters", () =
   assert.match(panel, /Source:/);
   assert.match(panel, /recommendedHoseFeet/);
 });
+
+test("HazMat zones require a verified linked material and positive circle radius", () => {
+  assert.match(panel, /saveHazmatZone/);
+  assert.match(panel, /Select verified material/);
+  assert.match(panel, /Radius \(feet\)/);
+  assert.match(panel, /Map placement remains pending/);
+  assert.match(route, /action === "saveHazmatZone"/);
+  assert.match(route, /field_preplans\.manage_hazmat/);
+  assert.match(route, /Circle zones require a positive radius in feet/);
+  assert.match(route, /The selected HazMat record does not belong to this preplan/);
+});
+
+test("secure attachments use the authenticated asset API and accepted file types", () => {
+  assert.match(panel, /new FormData\(\)/);
+  assert.match(panel, /\/api\/field-preplans\/assets/);
+  assert.match(panel, /image\/jpeg,image\/png,image\/webp,application\/pdf/);
+  assert.match(panel, /Files are served only through the authenticated preplan endpoint/);
+  assert.doesNotMatch(panel, /item\.objectKey/);
+});

@@ -99,6 +99,21 @@ export async function POST(request: Request) {
       return Response.json({ ok:true,id });
     }
 
+    if (action === "saveHazmatZone") {
+      await requirePermission(request, db, "field_preplans.manage_hazmat");
+      const id=text(body.id,80)||crypto.randomUUID(),hazmatId=text(body.hazmatId,80),label=text(body.label,120),zoneType=text(body.zoneType,40)||"isolation";
+      const geometryType=text(body.geometryType,20)||"circle",radiusFeet=body.radiusFeet==null?null:Number(body.radiusFeet);
+      if(!hazmatId||!label)return Response.json({error:"HazMat record and zone label are required."},{status:400});
+      if(geometryType==="circle"&&(!Number.isFinite(radiusFeet)||Number(radiusFeet)<=0))return Response.json({error:"Circle zones require a positive radius in feet."},{status:400});
+      const hazard=await db.prepare("SELECT id,level_id levelId FROM field_preplan_hazmat WHERE id=? AND preplan_id=? AND archived=0").bind(hazmatId,preplanId).first<{id:string;levelId:string|null}>();
+      if(!hazard)return Response.json({error:"The selected HazMat record does not belong to this preplan."},{status:400});
+      const levelId=text(body.levelId,80)||hazard.levelId||null;
+      if(levelId){const level=await db.prepare("SELECT id FROM field_preplan_levels WHERE id=? AND preplan_id=? AND archived=0").bind(levelId,preplanId).first();if(!level)return Response.json({error:"Active preplan level not found."},{status:400});}
+      await db.prepare("INSERT INTO field_preplan_hazmat_zones(id,preplan_id,hazmat_id,level_id,zone_type,geometry_type,geometry,label,radius_feet,fill_color,line_color,opacity,line_width,line_style,effective_at,expires_at,archived,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET hazmat_id=excluded.hazmat_id,level_id=excluded.level_id,zone_type=excluded.zone_type,geometry_type=excluded.geometry_type,geometry=excluded.geometry,label=excluded.label,radius_feet=excluded.radius_feet,fill_color=excluded.fill_color,line_color=excluded.line_color,opacity=excluded.opacity,line_width=excluded.line_width,line_style=excluded.line_style,effective_at=excluded.effective_at,expires_at=excluded.expires_at,archived=excluded.archived,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP")
+        .bind(id,preplanId,hazmatId,levelId,zoneType,geometryType,json(body.geometry,{}),label,radiusFeet,text(body.fillColor,20)||"#dc2626",text(body.lineColor,20)||"#991b1b",Math.max(0,Math.min(1,Number(body.opacity??.2))),Math.max(1,Number(body.lineWidth??3)),text(body.lineStyle,20)||"solid",text(body.effectiveAt,40)||null,text(body.expiresAt,40)||null,body.archived?1:0,user,user).run();
+      return Response.json({ok:true,id});
+    }
+
     if (action === "saveAnnotation") {
       await requirePermission(request, db, "field_preplans.manage_layers");
       const id=text(body.id,80)||crypto.randomUUID(),levelId=text(body.levelId,80),name=text(body.name,120),annotationType=text(body.annotationType,40);
