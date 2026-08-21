@@ -1658,7 +1658,7 @@ td strong { font-size: 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+  *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }
 
 .record-credibility { margin: 0 0 20px; border: 1px solid #c9d4dc; border-left: 4px solid #173f5f; border-radius: 10px; background: #fff; box-shadow: 0 3px 12px rgba(16,40,61,.06); overflow: hidden; }

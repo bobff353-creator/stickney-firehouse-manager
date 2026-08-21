@@ -4,6 +4,8 @@ Automated checks cover lifecycle dates, hidden expiration behavior, level labels
 
 Responsive guardrail tests preserve the required 360×800, 390×844, 768×1024, 1024×768, 1366×768, and 1920×1080 verification matrix. They enforce Respond overflow containment, reachable level navigation, safe-area padding, stacked phone controls, readable long values, and 44-pixel operational actions. These automated contracts supplement rather than replace the signed-in visual checks below.
 
+Reduced-motion checks ensure the operating-system preference disables animations, transitions, and smooth scrolling while retaining Respond's ten-second data refresh, textual emergency labels, and offline warning state.
+
 Manual preview checks must cover:
 
 1. Open an existing legacy preplan and confirm its original fields, footprint, features, and photos are unchanged.
