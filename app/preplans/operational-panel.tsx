@@ -51,7 +51,7 @@ export default function OperationalPreplanPanel({preplanId,canEdit=false}:{prepl
       if(!editor)return;
       if(editor==="asset"){
         if(!assetFile)throw new Error("Choose a JPG, PNG, WebP, or PDF attachment.");
-        const upload=new FormData();upload.set("preplanId",preplanId);upload.set("category",form.assetCategory);upload.set("caption",form.caption);if(levelId)upload.set("levelId",levelId);upload.set("file",assetFile);
+        const upload=new FormData();upload.set("preplanId",preplanId);upload.set("assetType",form.assetCategory);upload.set("caption",form.caption);if(levelId)upload.set("levelId",levelId);upload.set("asset",assetFile);
         const response=await fetch("/api/field-preplans/assets",{method:"POST",body:upload});const body=await response.json() as {error?:string};if(!response.ok)throw new Error(body.error||"Unable to upload attachment.");
         setEditor("");setForm(blankForm);setAssetFile(null);setReloadKey((value)=>value+1);return;
       }

@@ -13,3 +13,10 @@ test("operational preplan assets remain private and permission checked",async()=
   assert.match(download,/field_preplans\.view/);assert.match(download,/private, no-store/);assert.match(download,/nosniff/);
   assert.doesNotMatch(upload,/NEXT_PUBLIC_/);assert.doesNotMatch(download,/NEXT_PUBLIC_/);
 });
+
+test("Operational panel sends the attachment field names accepted by the API",async()=>{
+  const panel=await readFile(new URL("../app/preplans/operational-panel.tsx",import.meta.url),"utf8");
+  assert.match(panel,/upload\.set\("assetType",form\.assetCategory\)/);
+  assert.match(panel,/upload\.set\("asset",assetFile\)/);
+  assert.doesNotMatch(panel,/upload\.set\("file",assetFile\)/);
+});
