@@ -77,8 +77,17 @@ For each manual run, record the date, tester, branch and commit, Vercel deployme
 - Automated support: reduced-motion, safe-area, focus-restoration, screen-reader footprint alternative, responsive matrix, and overflow contracts pass in the repository suite. Formal instrumented color-contrast analysis remains required before production promotion.
 - Cleanup audit: both responsive/offline acceptance dispatch IDs and matching Daily Log call rows returned zero. Production remained unchanged.
 
+### 2026-08-21 — Isolated migration inventory and backup readiness
+
+- Target confirmation: verified `codex/preplan-operational-v2-approved` at `65ba8f3`, origin `bobff353-creator/stickney-firehouse-manager`, Vercel project `prj_RTtTvD39FwyEGUovkPg8wxrdJCtF`, and isolated Supabase preview project `pzgvlslcaoqtrnaqyjmd`.
+- Current tooling: Supabase CLI `2.115.0`; the current Supabase changelog contains no breaking change that alters this logical-backup procedure.
+- Exact preview inventory: one preplan, one level, one revision, six reviews, and one settings row. Alerts, annotations, assets, feature-level links, HazMat records and zones, hose lays, photo annotations, risk factors, and spaces each contain zero rows.
+- Backup attempt: `supabase db dump --linked --project-ref pzgvlslcaoqtrnaqyjmd --schema firehouse` was attempted against the isolated preview only. The CLI stopped before producing content because Docker Desktop is unavailable, and no standalone `pg_dump` client is installed. The empty partial output was removed.
+- Readiness decision: exact row-count inventory is complete, but a restorable logical backup and restore rehearsal are not complete. Production backup, storage inventory, migration, restore, and promotion were not attempted.
+- Rollback boundary: application rollback remains the first response for an application-only failure. The additive database tables must not be dropped during incident response; a production change window still requires a fresh approved backup and preservation of newer records for reconciliation.
+
 ## Release decision
 
 The focused gate is `npm run verify:preplan-v2`. It runs scoped lint, a production build, and the focused Operational Preplan/Respond test suite. The repository-wide `npm run lint` remains a separate whole-portal check; failures outside the Preplan scope must be reported rather than hidden.
 
-Production promotion requires explicit authorization plus completed manual evidence for all seven scenarios, a literal device-network-offline check, formal color-contrast analysis, migration backup, and rollback readiness. The role matrix, private upload/stream/denial/cleanup, controlled Respond cache fallback/reconnect, sign-out clearing, responsive viewport, touch-target, and keyboard gates are complete on the isolated preview only.
+Production promotion requires explicit authorization plus completed manual evidence for all seven scenarios, a literal device-network-offline check, formal color-contrast analysis, a restorable migration backup, and rollback readiness. The role matrix, private upload/stream/denial/cleanup, controlled Respond cache fallback/reconnect, sign-out clearing, responsive viewport, touch-target, keyboard, and isolated row-inventory gates are complete on the preview only. The logical backup and restore rehearsal remain blocked by the missing local dump runtime.
