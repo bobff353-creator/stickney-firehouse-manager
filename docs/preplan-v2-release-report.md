@@ -73,7 +73,7 @@ No current screenshot or signed-in browser evidence is attached. The in-app brow
 
 All seven scenarios remain tracked in `docs/preplan-v2-acceptance.md` as automated-contract-pass/manual-acceptance-outstanding. The role matrix, private upload/stream/denial/cleanup, offline reconnect and sign-out clearing, real viewport inspection, focus/contrast, and isolated migration checks are not complete.
 
-The read-only environment findings are recorded in `docs/preplan-v2-environment-audit.md`. Branch-specific Supabase configuration exists and differs from the production fallback, but direct preview-project, RLS, Storage, and record-isolation proof is still required.
+The read-only environment findings are recorded in `docs/preplan-v2-environment-audit.md`. The isolated Supabase branch has no production-data copy; Operational Preplan tables, RLS, policies, markers, private bucket restrictions, and isolated fixture counts were verified directly. Vercel-to-branch request proof and resolution of the branch’s `MIGRATIONS_FAILED` status remain required.
 
 ## Exact production prerequisites
 

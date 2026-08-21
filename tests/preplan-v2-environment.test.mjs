@@ -17,8 +17,13 @@ test("preview database routing uses deployment Supabase coordinates instead of D
 });
 
 test("environment audit does not overstate preview isolation", () => {
-  assert.match(audit, /configuration evidence, not end-to-end isolation proof/);
+  assert.match(audit, /project reference `pzgvlslcaoqtrnaqyjmd`/);
+  assert.match(audit, /with_data: false/);
+  assert.match(audit, /18 present, 18 with RLS enabled, 18 policies total/);
+  assert.match(audit, /one in review.*zero published/);
+  assert.match(audit, /MIGRATIONS_FAILED/);
+  assert.match(audit, /deployment-to-project-reference match cannot be independently read back/);
   assert.match(audit, /Do not run migrations, fixtures, uploads, lifecycle actions, or destructive browser tests/);
-  assert.match(audit, /Confirm it is not the production project reference/);
+  assert.match(audit, /non-Preplan security advisor findings/);
   assert.doesNotMatch(audit, /SUPABASE_SECRET_KEY\s*=/);
 });
