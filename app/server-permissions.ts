@@ -18,9 +18,8 @@ async function employeePermissions(
     .filter((item) => saved.has(item.key) ? saved.get(item.key) : defaults.has(item.key))
     .map((item) => item.key));
   for (const override of overrides.results) {
-    override.effect === "allow"
-      ? selected.add(override.permissionKey as PermissionKey)
-      : selected.delete(override.permissionKey as PermissionKey);
+    if (override.effect === "allow") selected.add(override.permissionKey as PermissionKey);
+    else selected.delete(override.permissionKey as PermissionKey);
   }
   selected.add("payroll.view_own");
   return selected;

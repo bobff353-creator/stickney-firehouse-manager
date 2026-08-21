@@ -255,7 +255,7 @@ export async function POST(request: Request) {
       case "saveEmployeeScheduler": return await saveEmployeeScheduler(db, payload, requireAdmin);
       case "reviewClaim": return await reviewClaim(db, current, payload, requireAdmin);
       case "reviewTrade": return await reviewTrade(db, current, payload, requireAdmin);
-      case "reviewTimeOff": return await reviewTimeOff(db, current, payload, requireAdmin);
+      case "reviewTimeOff": return await reviewTimeOff(db, current, payload);
       case "saveOtSettings": return await saveOtSettings(db, payload, requireAdmin);
       case "saveOtTiming": return await saveOtTiming(db, payload, requireAdmin);
       case "saveDistributionWeights": return await saveDistributionWeights(db, payload, requireAdmin);
@@ -656,7 +656,7 @@ async function reviewTrade(db: Db, current: Viewer, payload: Record<string, unkn
   return ok();
 }
 
-async function reviewTimeOff(db: Db, current: Viewer, payload: Record<string, unknown>, requireAdmin: () => void) {
+async function reviewTimeOff(db: Db, current: Viewer, payload: Record<string, unknown>) {
   // Approver must be an Officer/AO; admins may also review.
   const id = String(payload.id ?? "");
   const decision = String(payload.decision ?? "");

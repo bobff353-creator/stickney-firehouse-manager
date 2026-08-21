@@ -28,7 +28,8 @@ async function effectivePermissions(db: Awaited<ReturnType<typeof ensureDatabase
   const selected = new Set(permissionCatalog.filter((permission) => saved.has(permission.key) ? saved.get(permission.key) : defaults.has(permission.key)).map((permission) => permission.key));
   for (const override of overrides.results) {
     if (!validPermission(override.permissionKey)) continue;
-    override.effect === "allow" ? selected.add(override.permissionKey) : selected.delete(override.permissionKey);
+    if (override.effect === "allow") selected.add(override.permissionKey);
+    else selected.delete(override.permissionKey);
   }
   selected.add("payroll.view_own");
   return [...selected];
@@ -63,7 +64,10 @@ export async function GET(request: Request) {
   for (const row of overrideRows.results) (overrides[row.employeeId] ??= {})[row.permissionKey] = row.effect;
   const employeeRows = employees.results.map((employee) => {
     const effective = new Set(employee.isAdmin ? permissionCatalog.map((permission) => permission.key) : rankSettings[employee.rank] ?? defaultPermissionsForRank(employee.rank));
-    for (const [key, effect] of Object.entries(overrides[employee.id] ?? {})) effect === "allow" ? effective.add(key as PermissionKey) : effective.delete(key as PermissionKey);
+    for (const [key, effect] of Object.entries(overrides[employee.id] ?? {})) {
+      if (effect === "allow") effective.add(key as PermissionKey);
+      else effective.delete(key as PermissionKey);
+    }
     effective.add("payroll.view_own");
     return { ...employee, effectivePermissions: [...effective] };
   });

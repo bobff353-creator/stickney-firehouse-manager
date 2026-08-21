@@ -131,7 +131,7 @@ export default function PushNotifications() {
     {state === "on" ? <div className="push-notification-actions"><button type="button" disabled={busy} onClick={() => void sendTest()}>Send test</button><button type="button" disabled={busy} onClick={() => void disable()}>Turn off</button></div>
       : state === "off" ? <button type="button" disabled={busy || !publicKey} onClick={() => void enable()}>{busy ? "Working..." : "Enable"}</button>
       : null}
-    {state === "blocked" && <p>Notifications are blocked. Allow them in the phone's notification settings, then reopen the installed app.</p>}
+    {state === "blocked" && <p>Notifications are blocked. Allow them in the phone’s notification settings, then reopen the installed app.</p>}
     {state === "unsupported" && <p>This browser does not support background phone alerts.</p>}
     {state === "unconfigured" && <p>The department push service is not configured yet.</p>}
     {message && <p role="status">{message}</p>}

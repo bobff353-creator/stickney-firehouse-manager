@@ -81,6 +81,7 @@ const employeeEligibleForRole = (employee: Employee, role: string) => {
 };
 
 export default function StationScheduler({ testMember = null }: { testMember?: TestMember | null }) {
+  void testMember;
   const [data, setData] = useState<Data | null>(null);
   const [tab, setTab] = useState("calendar");
   const [error, setError] = useState("");
@@ -887,7 +888,7 @@ function OtListScreen({ data, act, busy }: { data: Data; act: (b: Record<string,
   return (
     <div className="scheduler-grid">
       <section className="wide">
-        <h3>Open shifts I'm eligible for</h3>
+        <h3>Open shifts I’m eligible for</h3>
         {!openEligible.length && <p className="muted">No open shifts for your roles right now.</p>}
         {openEligible.map((s) => {
           const award = data.awardBySlot[s.id];
@@ -904,7 +905,7 @@ function OtListScreen({ data, act, busy }: { data: Data; act: (b: Record<string,
               )}
               {offer && offer.status === "offered" && (
                 <div className="row-actions">
-                  <span>You're on the call list (#{offer.rank}):</span>
+                  <span>You’re on the call list (#{offer.rank}):</span>
                   <button disabled={busy} onClick={() => act({ action: "respondOtOffer", slotId: s.id, decision: "accept" })}>Accept</button>
                   <button className="danger" disabled={busy} onClick={() => act({ action: "respondOtOffer", slotId: s.id, decision: "decline" })}>Decline</button>
                 </div>

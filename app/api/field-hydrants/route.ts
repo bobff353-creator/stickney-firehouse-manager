@@ -9,7 +9,7 @@ async function access(request:Request,db:Db){
   const row=email?await db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.is_admin,0) isAdmin FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(ep.email)=? LIMIT 1").bind(email).first<{id:string;name:string;rank:string;isAdmin:number}>():null;
   const admin=owners.includes(email)||Boolean(row?.isAdmin);if(!row&&!admin)return{view:false,edit:false,actor:""};if(admin)return{view:true,edit:true,actor:row?.name||email};
   const [rankRows,overrides]=await Promise.all([db.prepare("SELECT permission_key permissionKey,allowed FROM rank_permissions WHERE rank=?").bind(row!.rank).all<{permissionKey:string;allowed:number}>(),db.prepare("SELECT permission_key permissionKey,effect FROM employee_permission_overrides WHERE employee_id=?").bind(row!.id).all<{permissionKey:string;effect:"allow"|"deny"}>()]);
-  const set=new Set(rankRows.results.length?rankRows.results.filter((item)=>item.allowed).map((item)=>item.permissionKey):defaultPermissionsForRank(row!.rank));for(const item of overrides.results)item.effect==="allow"?set.add(item.permissionKey):set.delete(item.permissionKey);
+  const set=new Set(rankRows.results.length?rankRows.results.filter((item)=>item.allowed).map((item)=>item.permissionKey):defaultPermissionsForRank(row!.rank));for(const item of overrides.results){if(item.effect==="allow")set.add(item.permissionKey);else set.delete(item.permissionKey);}
   return{view:set.has("field_preplans.view"),edit:set.has("field_preplans.edit"),actor:row!.name};
 }
 const txt=(value:unknown,max=1000)=>String(value??"").trim().slice(0,max);
