@@ -173,6 +173,19 @@ test("portal PINs are hashed, attempt-limited, and enforced through a secure unl
   assert.match(gateway, /action: "set"/);
 });
 
+test("verified roster members can securely reset a forgotten private PIN", () => {
+  assert.match(gateway, /Forgot PIN\? Reset with employee number/);
+  assert.match(gateway, /action: "reset"/);
+  assert.match(gateway, /Reset PIN and open app/);
+  assert.match(pinRoute, /action === "reset"/);
+  assert.match(pinRoute, /portal_activation_attempts/);
+  assert.match(pinRoute, /Too many reset attempts/);
+  assert.match(pinRoute, /timingSafeEqual/);
+  assert.match(pinRoute, /client\.rpc\("set_portal_pin"/);
+  assert.match(pinRoute, /syncPasswordLogin/);
+  assert.doesNotMatch(gateway, /FIREHOUSE_DATABASE_SECRET|PORTAL_PIN_PASSWORD_PEPPER/);
+});
+
 test("30 minutes of inactivity locks without unmounting unfinished work", () => {
   assert.match(sessionIdleLock, /const inactivityLimitMs = 30 \* 60 \* 1000/);
   assert.match(sessionIdleLock, /The app locked after 30 minutes without activity\. Your unfinished work is still here\./);

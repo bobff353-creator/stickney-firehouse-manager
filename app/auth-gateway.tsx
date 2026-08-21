@@ -7,7 +7,7 @@ import SessionIdleLock from "./session-idle-lock";
 import { clearCachedRespondPackets } from "./preplans/offline-cache";
 import { getSupabaseBrowserClient } from "./supabase-browser";
 
-type Mode = "loading" | "sign-in" | "new-user" | "checking" | "set-pin" | "pin" | "authorized" | "waiting";
+type Mode = "loading" | "sign-in" | "new-user" | "checking" | "set-pin" | "pin" | "reset-pin" | "authorized" | "waiting";
 
 function clearAccessCache() {
   document.cookie = "__Secure-firehouse-access=; Path=/; Max-Age=0; SameSite=Lax; Secure";
@@ -206,6 +206,42 @@ export default function AuthGateway({
     setMode("authorized");
   }
 
+  async function resetPin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!/^\d{4,6}$/.test(employeeNumber)) {
+      setMessage("Enter your 4 to 6 digit employee number.");
+      return;
+    }
+    if (!/^\d{4,6}$/.test(pin)) {
+      setMessage("Choose a new private PIN containing 4 to 6 digits.");
+      return;
+    }
+    if (employeeNumber === pin) {
+      setMessage("Choose a private PIN that is different from your employee number.");
+      return;
+    }
+    if (pin !== pinConfirmation) {
+      setMessage("The two private PIN entries do not match.");
+      return;
+    }
+    setMessage("Resetting your portal PIN...");
+    const response = await fetch("/api/auth/pin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "reset", temporaryPin: employeeNumber, pin }),
+    });
+    const payload = await response.json().catch(() => ({})) as { error?: string };
+    if (!response.ok) {
+      setMessage(payload.error || "The PIN could not be reset.");
+      return;
+    }
+    setEmployeeNumber("");
+    setPin("");
+    setPinConfirmation("");
+    setMessage("");
+    setMode("authorized");
+  }
+
   async function activateNewUser(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!/^\d{4,6}$/.test(employeeNumber)) {
@@ -318,6 +354,31 @@ export default function AuthGateway({
             {message ? <p className="login-message" role="status">{message}</p> : null}
             <button className="login-primary" type="submit">Unlock app</button>
           </form>
+          <button type="button" className="login-link-button" onClick={() => { setEmployeeNumber(""); setPin(""); setPinConfirmation(""); setMessage(""); setMode("reset-pin"); }}>Forgot PIN? Reset with employee number</button>
+          <button type="button" className="login-link-button" onClick={signOut}>Use a different account</button>
+        </section>
+      </main>
+    );
+  }
+
+  if (mode === "reset-pin") {
+    return (
+      <main className="login-shell">
+        <section className="login-card login-reset-card">
+          <span className="login-app-mark" aria-hidden="true">SFD</span>
+          <p className="login-eyebrow">VERIFIED ACCOUNT · PIN RESET</p>
+          <h1>Reset your portal PIN</h1>
+          <p>Confirm the employee number saved on your active record, then choose the private PIN you will use from now on.</p>
+          <dl className="invite-account-summary"><div><dt>Verified account</dt><dd>{user?.email}</dd></div><div><dt>Department</dt><dd>Stickney Fire Department</dd></div></dl>
+          <form onSubmit={resetPin}>
+            <label>Employee number<input autoFocus type="password" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={employeeNumber} onChange={(event) => setEmployeeNumber(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
+            <label>New private PIN<input type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
+            <label>Enter private PIN again<input type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pinConfirmation} onChange={(event) => setPinConfirmation(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
+            {message ? <p className="login-message" role="status">{message}</p> : null}
+            <button className="login-primary" type="submit">Reset PIN and open app</button>
+          </form>
+          <small className="pin-security-note">Five incorrect employee-number attempts temporarily lock PIN reset.</small>
+          <button type="button" className="login-link-button" onClick={() => { setEmployeeNumber(""); setPin(""); setPinConfirmation(""); setMessage(""); setMode("pin"); }}>Back to PIN unlock</button>
           <button type="button" className="login-link-button" onClick={signOut}>Use a different account</button>
         </section>
       </main>
