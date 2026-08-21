@@ -164,8 +164,12 @@ type RespondData = {
       levelId?: string;
       zoneType: string;
       geometryType: string;
+      geometry: unknown;
       label: string;
       radiusFeet?: number;
+      fillColor?: string;
+      lineColor?: string;
+      opacity?: number;
     }>;
     hoseLays: Array<{
       id: string;
@@ -287,6 +291,10 @@ function verificationDate(value?: string) {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+function operationalColor(value: string | undefined, fallback: string) {
+  return value && /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
 }
 
 function StreetViewFallback({ call }: { call: ActiveCall }) {
@@ -558,7 +566,9 @@ export default function Respond({
     selectedHazmat = visibleHazmat.find((item) => item.id === selectedHazmatId),
     selectedHazmatZones = selectedHazmat
       ? (data?.operational?.hazmatZones.filter(
-          (zone) => zone.hazmatId === selectedHazmat.id,
+          (zone) =>
+            zone.hazmatId === selectedHazmat.id &&
+            (!zone.levelId || zone.levelId === selectedLevel?.id),
         ) ?? [])
       : [],
     selectedHazmatSds = selectedHazmat
@@ -1000,6 +1010,64 @@ export default function Respond({
                   </dd>
                 </div>
               </dl>
+              {selectedHazmatZones.length > 0 && (
+                <section
+                  className="respond-hazmat-zones"
+                  aria-label="Active HazMat isolation and evacuation zones"
+                >
+                  <header>
+                    <strong>ACTIVE OPERATIONAL ZONES</strong>
+                    <span>
+                      {selectedLevel?.name || "Arrival / Ground"} · Confirm wind
+                      and current official guidance
+                    </span>
+                  </header>
+                  <div>
+                    {selectedHazmatZones.map((zone) => {
+                      const mapped = zone.geometry != null;
+                      return (
+                        <article key={zone.id}>
+                          <span
+                            className="respond-zone-symbol"
+                            style={{
+                              borderColor: operationalColor(
+                                zone.lineColor,
+                                "#ef4444",
+                              ),
+                              backgroundColor: operationalColor(
+                                zone.fillColor,
+                                "#7f1d1d",
+                              ),
+                              opacity:
+                                zone.opacity == null
+                                  ? 0.85
+                                  : Math.min(1, Math.max(0.35, zone.opacity)),
+                            }}
+                            aria-hidden="true"
+                          />
+                          <div>
+                            <b>{zone.zoneType.toUpperCase()} ZONE</b>
+                            <strong>{zone.label || "Unlabeled zone"}</strong>
+                            <span>
+                              {zone.radiusFeet
+                                ? `${zone.radiusFeet.toLocaleString()} ft radius`
+                                : "Distance not recorded"}
+                              {" · "}
+                              {mapped
+                                ? `${zone.geometryType} geometry mapped`
+                                : "Location not mapped"}
+                            </span>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                  <small>
+                    Saved preplan zones are planning references. Do not infer a
+                    distance when none is recorded.
+                  </small>
+                </section>
+              )}
               <p>
                 <strong>Operational warning:</strong>{" "}
                 {selectedHazmat.notes ||

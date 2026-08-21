@@ -184,7 +184,7 @@ export async function GET(request: Request) {
             .all<Row>(),
           db
             .prepare(
-              "SELECT id,hazmat_id hazmatId,level_id levelId,zone_type zoneType,geometry_type geometryType,label,radius_feet radiusFeet,effective_at effectiveAt,expires_at expiresAt FROM field_preplan_hazmat_zones WHERE preplan_id=? AND archived=0 ORDER BY zone_type,label",
+              "SELECT id,hazmat_id hazmatId,level_id levelId,zone_type zoneType,geometry_type geometryType,geometry,label,radius_feet radiusFeet,fill_color fillColor,line_color lineColor,opacity,effective_at effectiveAt,expires_at expiresAt FROM field_preplan_hazmat_zones WHERE preplan_id=? AND archived=0 ORDER BY zone_type,label",
             )
             .bind(preplanId)
             .all<Row>(),
@@ -238,12 +238,17 @@ export async function GET(request: Request) {
               expirationAction: item.expirationAction as never,
             }),
           ),
-          hazmatZones: hazmatZones.results.filter((item) =>
-            isOperationallyVisible({
-              effectiveAt: String(item.effectiveAt || ""),
-              expiresAt: String(item.expiresAt || ""),
-            }),
-          ),
+          hazmatZones: hazmatZones.results
+            .filter((item) =>
+              isOperationallyVisible({
+                effectiveAt: String(item.effectiveAt || ""),
+                expiresAt: String(item.expiresAt || ""),
+              }),
+            )
+            .map((item) => ({
+              ...item,
+              geometry: parseJson<unknown>(item.geometry, null),
+            })),
           hoseLays: hoseLays.results.map((item) => ({
             ...item,
             route: parseJson<unknown[]>(item.path, []),

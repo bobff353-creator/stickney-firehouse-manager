@@ -25,7 +25,7 @@ test("Respond loads complete published HazMat emergency fields and active zones"
     route,
     /FROM field_preplan_hazmat_zones WHERE preplan_id=\? AND archived=0/,
   );
-  assert.match(route, /hazmatZones: hazmatZones\.results\.filter/);
+  assert.match(route, /hazmatZones:\s*hazmatZones\.results\s*\.filter/);
 });
 
 test("HazMat detail exposes the required emergency information without invented values", () => {
