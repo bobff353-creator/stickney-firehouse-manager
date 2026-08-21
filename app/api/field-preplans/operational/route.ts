@@ -3,6 +3,7 @@ import { canReadPreplanLifecycle, hasPermission, preplanReadAccess } from "../..
 import type { PermissionKey } from "../../../permissions";
 import { calculateHoseLay, calculateTargetHazard, normalizedLevelLabel } from "../../../preplans/domain";
 import { constructionProfile, occupancyProfile } from "../../../preplans/profiles";
+import { nextPublicationStatus } from "../../../preplans/publication-workflow.mjs";
 
 type Db = Awaited<ReturnType<typeof ensureDatabase>>;
 type Body = Record<string, unknown>;
@@ -221,7 +222,8 @@ export async function POST(request: Request) {
       const permission:PermissionKey = action === "publish" || action === "archive" ? "field_preplans.publish" : "field_preplans.review";
       await requirePermission(request, db, permission);
       const current = await db.prepare("SELECT revision_number revisionNumber,publication_status publicationStatus FROM field_preplans WHERE id=?").bind(preplanId).first<{revisionNumber:number;publicationStatus:string}>();
-      const nextStatus = action === "submitReview" ? "in_review" : action === "returnDraft" ? "draft" : action === "publish" ? "published" : "archived";
+      const nextStatus = nextPublicationStatus(current?.publicationStatus, action);
+      if (!nextStatus) return Response.json({ error:`${action} is not available while this preplan is ${current?.publicationStatus || "unknown"}.` }, { status:409 });
       const revision = Math.max(1,Number(current?.revisionNumber||1)) + (action === "publish" ? 1 : 0);
       if (action === "publish") {
         const snapshot = await buildSnapshot(db,preplanId);

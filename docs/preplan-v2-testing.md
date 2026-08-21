@@ -10,6 +10,8 @@ Respond's tactical footprint keeps its SVG visual layer out of the accessibility
 
 Lifecycle permission checks cover ordinary published viewing, editor/reviewer/publisher working access, creator ownership, employee allow/deny resolution through the existing permission service, filtered list responses, and denied direct operational URLs without revealing that a private draft exists.
 
+The isolated publication workflow test runs draft → review → publish without a live database, verifies that only publishing increments the revision and captures a snapshot, confirms Respond selects only published records, rejects invalid lifecycle shortcuts, and keeps the visible workflow actions synchronized with the server state machine.
+
 Manual preview checks must cover:
 
 1. Open an existing legacy preplan and confirm its original fields, footprint, features, and photos are unchanged.
