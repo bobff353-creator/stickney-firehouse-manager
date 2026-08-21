@@ -20,3 +20,9 @@ test("Operational panel sends the attachment field names accepted by the API",as
   assert.match(panel,/upload\.set\("asset",assetFile\)/);
   assert.doesNotMatch(panel,/upload\.set\("file",assetFile\)/);
 });
+
+test("private portal storage preserves the accepted attachment MIME type",async()=>{
+  const storage=await readFile(new URL("../app/portal-storage.ts",import.meta.url),"utf8");
+  assert.match(storage,/new Blob\(\[bytes\], \{ type: options\.httpMetadata\.contentType \}\)/);
+  assert.match(storage,/contentType: options\.httpMetadata\.contentType/);
+});

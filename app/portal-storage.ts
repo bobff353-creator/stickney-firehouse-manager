@@ -29,7 +29,8 @@ export function getPortalStorage(): PortalStorage {
     },
     async put(key, value, options) {
       const supabase = await getSupabaseServerClient();
-      const blob = await new Response(value).blob();
+      const bytes = await new Response(value).arrayBuffer();
+      const blob = new Blob([bytes], { type: options.httpMetadata.contentType });
       const { error } = await supabase.storage.from(bucketName).upload(key, blob, {
         contentType: options.httpMetadata.contentType,
         upsert: true,
