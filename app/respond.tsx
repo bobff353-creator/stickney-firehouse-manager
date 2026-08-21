@@ -564,7 +564,27 @@ export default function Respond({
     visibleHoseLays =
       data?.operational?.hoseLays.filter(
         (item) => !item.levelId || item.levelId === selectedLevel?.id,
-      ) ?? [];
+      ) ?? [],
+    specialPopulations = data?.operational
+      ? [
+          data.operational.occupancy.nonAmbulatory === "yes"
+            ? "Non-ambulatory"
+            : null,
+          data.operational.occupancy.sleepingOccupants === "yes"
+            ? "Sleeping occupants"
+            : null,
+          data.operational.occupancy.children === "yes" ? "Children" : null,
+          data.operational.occupancy.elderly === "yes" ? "Elderly" : null,
+          data.operational.occupancy.assistanceNeeded === "yes"
+            ? "Assistance needed"
+            : null,
+        ].filter(Boolean)
+      : [],
+    fireProtection = plan
+      ? [plan.sprinklerSystem, plan.fdc, plan.riser, plan.alarmSystem].filter(
+          Boolean,
+        )
+      : [];
   if (!data && !error)
     return (
       <section className="respond-page">
@@ -948,6 +968,95 @@ export default function Respond({
             </section>
           )}
         </>
+      )}
+      {plan && (
+        <section
+          className="respond-quick-building"
+          aria-label="Quick building intelligence"
+        >
+          <header>
+            <span>FIRST 30 SECONDS</span>
+            <h2>Quick building intelligence</h2>
+          </header>
+          <dl>
+            <div>
+              <dt>Construction</dt>
+              <dd>
+                {data?.operational?.construction.constructionType ||
+                  plan.constructionType ||
+                  plan.construction ||
+                  "Not verified"}
+              </dd>
+            </div>
+            <div>
+              <dt>Floors</dt>
+              <dd>
+                Above{" "}
+                {data?.operational?.construction.floorsAboveGrade ??
+                  plan.floorCount ??
+                  "?"}{" "}
+                · Below{" "}
+                {data?.operational?.construction.floorsBelowGrade ??
+                  "Not verified"}
+              </dd>
+            </div>
+            <div>
+              <dt>Building area</dt>
+              <dd>
+                {plan.footprintSquareFeet > 0
+                  ? `${Math.round(plan.footprintSquareFeet).toLocaleString()} sq ft`
+                  : "Not verified"}
+              </dd>
+            </div>
+            <div>
+              <dt>Advisory fire flow</dt>
+              <dd>
+                {plan.suggestedFireFlowGpm > 0
+                  ? `${Math.round(plan.suggestedFireFlowGpm).toLocaleString()} GPM · ${plan.suggestedFireFlowDuration || "?"} hr`
+                  : "Not calculated"}
+              </dd>
+            </div>
+            <div>
+              <dt>Occupancy</dt>
+              <dd>
+                {data?.operational?.occupancy.classification || "Not verified"}
+              </dd>
+            </div>
+            <div>
+              <dt>Special population</dt>
+              <dd>
+                {specialPopulations.length
+                  ? specialPopulations.join(" · ")
+                  : "None verified"}
+              </dd>
+            </div>
+            <div>
+              <dt>Fire protection</dt>
+              <dd>
+                {fireProtection.length
+                  ? fireProtection.join(" · ")
+                  : "Not verified"}
+              </dd>
+            </div>
+            <div>
+              <dt>Contacts</dt>
+              <dd>{plan.contactInfo || "No emergency contact recorded"}</dd>
+            </div>
+            <div>
+              <dt>Water supply</dt>
+              <dd>
+                {data?.nearestHydrants?.length
+                  ? `${data.nearestHydrants.length} mapped nearby · nearest ${data.nearestHydrants[0].distanceFeet.toLocaleString()} ft · ${data.nearestHydrants[0].serviceStatus.replaceAll("_", " ")}`
+                  : "No verified nearby hydrant"}
+              </dd>
+            </div>
+          </dl>
+          <p>
+            Fire-flow value is an advisory planning estimate. Confirm adopted
+            code requirements, sprinkler demand, hose allowance, and current
+            water-supply conditions.
+          </p>
+        </section>
       )}
       <section className="respond-glance" aria-label="Matched response records">
         <article>
