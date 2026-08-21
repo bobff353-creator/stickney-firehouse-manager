@@ -88,7 +88,7 @@ export async function GET(request: Request) {
 
     const planRows = await db
       .prepare(
-        "SELECT id,business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,footprint_square_feet footprintSquareFeet,floor_count floorCount,construction_type constructionType,suggested_fire_flow_gpm suggestedFireFlowGpm,suggested_fire_flow_duration suggestedFireFlowDuration,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,status,construction_profile constructionProfile,occupancy_profile occupancyProfile,updated_at updatedAt FROM field_preplans WHERE COALESCE(publication_status,'published')='published' ORDER BY updated_at DESC",
+        "SELECT id,business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,footprint_square_feet footprintSquareFeet,floor_count floorCount,construction_type constructionType,suggested_fire_flow_gpm suggestedFireFlowGpm,suggested_fire_flow_duration suggestedFireFlowDuration,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,status,target_hazard_level targetHazardLevel,target_hazard_reasons targetHazardReasons,construction_profile constructionProfile,occupancy_profile occupancyProfile,updated_at updatedAt FROM field_preplans WHERE COALESCE(publication_status,'published')='published' ORDER BY updated_at DESC",
       )
       .all<Row>();
     const plans: Array<
@@ -136,6 +136,10 @@ export async function GET(request: Request) {
       ]);
       preplan = {
         ...matched.plan,
+        targetHazardReasons: parseJson<string[]>(
+          matched.plan.targetHazardReasons,
+          [],
+        ),
         features: features.results,
         photos: photos.results.map((photo) => ({
           ...photo,
@@ -168,7 +172,7 @@ export async function GET(request: Request) {
             .all<Row>(),
           db
             .prepare(
-              "SELECT id,level_id levelId,space_id spaceId,title,instructions message,severity,effective_at effectiveAt,expires_at expiresAt,expiration_action expirationAction FROM field_preplan_alerts WHERE preplan_id=? AND archived=0 AND pin_to_respond=1 ORDER BY severity DESC,created_at DESC",
+              "SELECT id,level_id levelId,space_id spaceId,alert_type alertType,title,instructions message,severity,effective_at effectiveAt,expires_at expiresAt,expiration_action expirationAction,verified_at verifiedAt FROM field_preplan_alerts WHERE preplan_id=? AND archived=0 AND pin_to_respond=1 ORDER BY severity DESC,created_at DESC",
             )
             .bind(preplanId)
             .all<Row>(),
@@ -212,13 +216,21 @@ export async function GET(request: Request) {
         operational = {
           levels: levels.results,
           spaces: spaces.results,
-          alerts: alerts.results.filter((item) =>
-            isOperationallyVisible({
-              effectiveAt: String(item.effectiveAt || ""),
-              expiresAt: String(item.expiresAt || ""),
-              expirationAction: item.expirationAction as never,
-            }),
-          ),
+          alerts: alerts.results
+            .filter((item) =>
+              isOperationallyVisible({
+                effectiveAt: String(item.effectiveAt || ""),
+                expiresAt: String(item.expiresAt || ""),
+                expirationAction: item.expirationAction as never,
+              }),
+            )
+            .map((item) => ({
+              ...item,
+              expiredUnverified:
+                item.expirationAction === "require_verification" &&
+                Boolean(item.expiresAt) &&
+                new Date(String(item.expiresAt)).getTime() <= Date.now(),
+            })),
           hazmat: hazmat.results.filter((item) =>
             isOperationallyVisible({
               effectiveAt: String(item.effectiveAt || ""),

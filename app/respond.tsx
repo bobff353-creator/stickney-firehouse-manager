@@ -54,6 +54,8 @@ type Preplan = {
   fdc: string;
   sprinklerSystem: string;
   status: string;
+  targetHazardLevel?: string;
+  targetHazardReasons?: string[];
   updatedAt: string;
   features: Feature[];
   photos: Photo[];
@@ -128,9 +130,14 @@ type RespondData = {
       title: string;
       message: string;
       severity: string;
+      alertType?: string;
       levelId?: string;
       spaceId?: string;
+      effectiveAt?: string;
       expiresAt?: string;
+      expirationAction?: string;
+      verifiedAt?: string;
+      expiredUnverified?: boolean;
     }>;
     hazmat: Array<{
       id: string;
@@ -783,9 +790,42 @@ export default function Respond({
               </strong>
             </header>
             <div>
+              {plan?.targetHazardLevel &&
+                (plan.targetHazardLevel !== "low" ||
+                  Boolean(plan.targetHazardReasons?.length)) && (
+                  <article className="critical target-hazard">
+                    <b>
+                      TARGET HAZARD · {plan.targetHazardLevel.toUpperCase()}
+                    </b>
+                    <strong>{plan.businessName || plan.address}</strong>
+                    <span>
+                      {plan.targetHazardReasons?.length
+                        ? plan.targetHazardReasons.join(" · ")
+                        : "Target-hazard classification is published; review the full preplan."}
+                    </span>
+                  </article>
+                )}
+              {plan?.accessInfo?.trim() && (
+                <article className="warning access-problem">
+                  <b>ACCESS PROBLEM / ENTRY NOTE</b>
+                  <strong>Published access intelligence</strong>
+                  <span>{plan.accessInfo}</span>
+                </article>
+              )}
               {visibleAlerts.slice(0, 3).map((alert) => (
-                <article key={alert.id} className={alert.severity}>
-                  <b>{alert.severity.toUpperCase()}</b>
+                <article
+                  key={alert.id}
+                  className={`${alert.severity}${alert.expiredUnverified ? " expired-unverified" : ""}`}
+                >
+                  <b>
+                    {alert.expiredUnverified
+                      ? "EXPIRED — VERIFY"
+                      : alert.alertType?.toLowerCase().includes("command")
+                        ? "COMMAND NOTE"
+                        : alert.effectiveAt || alert.expiresAt
+                          ? "TEMPORARY HAZARD"
+                          : alert.severity.toUpperCase()}
+                  </b>
                   <strong>{alert.title}</strong>
                   <span>{alert.message}</span>
                 </article>
