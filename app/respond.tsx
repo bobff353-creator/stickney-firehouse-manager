@@ -518,8 +518,23 @@ function FootprintDiagram({
 }: {
   preplan: Preplan;
   selectedId: string;
-  onSelect: (item: QuickItem) => void;
+  onSelect: (item: QuickItem, trigger?: HTMLElement | null) => void;
 }) {
+  const featureItem = (feature: Preplan["features"][number]): QuickItem => ({
+    id: feature.id,
+    label:
+      feature.label ||
+      featureLabels[feature.featureType] ||
+      feature.featureType,
+    summary:
+      feature.systemType ||
+      featureLabels[feature.featureType] ||
+      feature.featureType,
+    details: feature.details,
+    status: feature.serviceStatus,
+    latitude: feature.latitude,
+    longitude: feature.longitude,
+  });
   const points = [
     ...preplan.footprint.map((point) => ({
       latitude: point.lat,
@@ -556,8 +571,8 @@ function FootprintDiagram({
     <div className="respond-footprint">
       <svg
         viewBox="0 0 100 100"
-        role="img"
-        aria-label="Building footprint and mapped fire protection features"
+        aria-hidden="true"
+        focusable="false"
       >
         <path d="M92 14 L92 4 L88 9 Z" className="north-arrow" />
         <text x="92" y="3" textAnchor="middle">
@@ -570,23 +585,7 @@ function FootprintDiagram({
             <g
               key={feature.id}
               className={selectedId === feature.id ? "selected" : ""}
-              onClick={() =>
-                onSelect({
-                  id: feature.id,
-                  label:
-                    feature.label ||
-                    featureLabels[feature.featureType] ||
-                    feature.featureType,
-                  summary:
-                    feature.systemType ||
-                    featureLabels[feature.featureType] ||
-                    feature.featureType,
-                  details: feature.details,
-                  status: feature.serviceStatus,
-                  latitude: feature.latitude,
-                  longitude: feature.longitude,
-                })
-              }
+              onClick={() => onSelect(featureItem(feature))}
             >
               <circle cx={p.x} cy={p.y} r="5" />
               <text x={p.x} y={p.y + 1.4} textAnchor="middle">
@@ -596,7 +595,44 @@ function FootprintDiagram({
           );
         })}
       </svg>
-      <small>Tap a symbol for its quick location and system details.</small>
+      <small aria-hidden="true">
+        Tap a symbol for its quick location and system details.
+      </small>
+      <section
+        className="respond-footprint-alternative"
+        aria-labelledby="respond-mapped-systems-title"
+      >
+        <h3 id="respond-mapped-systems-title">Mapped system locations</h3>
+        <p className="sr-only">
+          Building footprint and mapped fire protection features are listed as
+          text controls below.
+        </p>
+        {preplan.features.length ? (
+          <ul>
+            {preplan.features.map((feature) => {
+              const item = featureItem(feature);
+              return (
+                <li key={feature.id}>
+                  <button
+                    type="button"
+                    aria-pressed={selectedId === feature.id}
+                    onClick={(event) => onSelect(item, event.currentTarget)}
+                    data-test-safe
+                  >
+                    <strong>{item.label}</strong>
+                    <span>
+                      {item.summary || "System type not entered"} ·{" "}
+                      {item.status?.replaceAll("_", " ") || "Status not reported"}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p>No mapped fire-protection systems are published.</p>
+        )}
+      </section>
     </div>
   );
 }
@@ -1863,7 +1899,7 @@ export default function Respond({
                   <FootprintDiagram
                     preplan={plan}
                     selectedId={selected?.id || ""}
-                    onSelect={setSelected}
+                    onSelect={openQuickInformation}
                   />
                 </>
               ) : (

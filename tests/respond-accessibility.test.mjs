@@ -49,3 +49,13 @@ test("Respond operational detail dialogs support Escape and restore trigger focu
   assert.match(respond, /quickTriggerRef\.current/);
   assert.match(respond, /requestAnimationFrame\(\(\) => target\?\.focus\(\)\)/);
 });
+
+test("Respond footprint has a keyboard and screen-reader map alternative", () => {
+  assert.match(respond, /aria-hidden="true"\s+focusable="false"/);
+  assert.match(respond, /aria-labelledby="respond-mapped-systems-title"/);
+  assert.match(respond, /id="respond-mapped-systems-title">Mapped system locations/);
+  assert.match(respond, /onSelect\(item, event\.currentTarget\)/);
+  assert.match(respond, /aria-pressed=\{selectedId === feature\.id\}/);
+  assert.match(respond, /No mapped fire-protection systems are published/);
+  assert.match(css, /respond-footprint-alternative button\{[^}]*min-height:44px/);
+});

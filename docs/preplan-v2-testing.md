@@ -6,6 +6,8 @@ Responsive guardrail tests preserve the required 360×800, 390×844, 768×1024, 
 
 Reduced-motion checks ensure the operating-system preference disables animations, transitions, and smooth scrolling while retaining Respond's ten-second data refresh, textual emergency labels, and offline warning state.
 
+Respond's tactical footprint keeps its SVG visual layer out of the accessibility tree and exposes every mapped system through a visible, keyboard-operable text list with truthful empty and unknown states.
+
 Manual preview checks must cover:
 
 1. Open an existing legacy preplan and confirm its original fields, footprint, features, and photos are unchanged.
