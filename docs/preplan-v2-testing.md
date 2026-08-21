@@ -2,6 +2,8 @@
 
 Automated checks cover lifecycle dates, hidden expiration behavior, level labels, plan coordinates, polygon area, hose sections/reserve/capacity, explainable hazard scores, fire-area controlling flow, conservative CAD room matching, ERG source pinning, private asset controls, normalized migration tables, legacy Arrival backfill, RLS, and route-to-migration column contracts.
 
+Responsive guardrail tests preserve the required 360×800, 390×844, 768×1024, 1024×768, 1366×768, and 1920×1080 verification matrix. They enforce Respond overflow containment, reachable level navigation, safe-area padding, stacked phone controls, readable long values, and 44-pixel operational actions. These automated contracts supplement rather than replace the signed-in visual checks below.
+
 Manual preview checks must cover:
 
 1. Open an existing legacy preplan and confirm its original fields, footprint, features, and photos are unchanged.
