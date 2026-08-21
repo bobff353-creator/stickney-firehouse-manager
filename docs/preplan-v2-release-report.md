@@ -57,12 +57,12 @@ npx --yes vercel@latest inspect <preview-url> --wait --scope fire-pre-plan-pro
 npx --yes vercel@latest logs <preview-url> --level error --since 10m --scope fire-pre-plan-pro
 ```
 
-Results at commit `3d341ed`:
+Results at the preview health-checkpoint update:
 
 - Repository lint: passed with zero errors and zero warnings.
-- Production Next.js build and TypeScript: passed; 52 static routes generated.
-- Complete portal suite: 284 passed, 0 failed, 0 skipped.
-- Focused Preplan gate: scoped lint, production build, 108 passed.
+- Production Next.js build and TypeScript: passed; 53 routes generated.
+- Complete portal suite: 286 passed, 0 failed, 0 skipped.
+- Focused Preplan gate: scoped lint, production build, 110 passed.
 - Preview deployment: Ready; stable branch alias attached.
 - Runtime error scan immediately after deployment: no logs found.
 - Working tree: clean except the existing untracked `supabase/.temp/` CLI metadata directory.

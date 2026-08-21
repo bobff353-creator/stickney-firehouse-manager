@@ -25,7 +25,7 @@ test("release report separates automated preview evidence from production readin
   for (const section of ["Release status", "Implemented capability", "Architecture and persistence", "Permissions and security", "API and UI changes", "Verification evidence", "Browser and acceptance evidence", "Exact production prerequisites"]) {
     assert.match(releaseReport, new RegExp(`## ${section}`));
   }
-  assert.match(releaseReport, /284 passed, 0 failed, 0 skipped/);
+  assert.match(releaseReport, /286 passed, 0 failed, 0 skipped/);
   assert.match(releaseReport, /No current screenshot or signed-in browser evidence is attached/);
   assert.match(releaseReport, /Obtain explicit production-promotion authorization/);
   assert.doesNotMatch(releaseReport, /production release is complete|production migration passed/i);

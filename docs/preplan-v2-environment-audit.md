@@ -18,7 +18,7 @@ Branch: `codex/preplan-operational-v2-approved`
 
 Supabase branch discovery identified development branch `preplan-operational-v2-approved`, project reference `pzgvlslcaoqtrnaqyjmd`, under production parent `ukpdacqjmhvlhmrwxtcx`. Supabase reports `with_data: false`, so production rows were not copied into the branch. The branch contains only the deliberately installed preview fixture footprint described below.
 
-Vercel redacts the branch-specific Supabase URL as `[SENSITIVE]`, so the deployment-to-project-reference match cannot be independently read back through the CLI. The matching branch name, timing, branch-specific variables, and isolated fixture behavior are strong configuration evidence, but the signed-in preview must still confirm that its requests reach `pzgvlslcaoqtrnaqyjmd` before write testing.
+Vercel redacts the branch-specific Supabase URL as `[SENSITIVE]`, so the deployment-to-project-reference match cannot be independently read back through the CLI. A browser-safe `/api/health` endpoint now reports only the selected public project reference, environment, and deployment commit; it never returns a URL, publishable key, secret, credential, or record data. The deployed endpoint must report `pzgvlslcaoqtrnaqyjmd` before write testing.
 
 Supabase reports the branch status as `MIGRATIONS_FAILED`. The current migration history nevertheless includes the portal prerequisites, Operational Preplan migration, foreign-key indexes, lockdown, credential rotation, and preview fixtures. Direct read-only inspection confirms the resulting tables and markers exist. Treat the failed status as unresolved branch-health metadata until its original migration failure is identified or Supabase reports a clean branch state.
 
@@ -39,7 +39,7 @@ Do not run migrations, fixtures, uploads, lifecycle actions, or destructive brow
 ## Isolation checklist
 
 1. Resolve or explain the Supabase `MIGRATIONS_FAILED` branch status.
-2. Confirm through a signed-in preview request that Vercel reaches `pzgvlslcaoqtrnaqyjmd`.
+2. Confirm the deployed `/api/health` response reports Preview and `pzgvlslcaoqtrnaqyjmd`, then confirm the same target through a signed-in preview request.
 3. Inspect the exact policy definitions for the 18 operational tables and Storage objects, not only policy counts.
 4. Confirm the preview fixtures are approved for testing and contain no production-protected content.
 5. Review the non-Preplan security advisor findings and document disposition.
