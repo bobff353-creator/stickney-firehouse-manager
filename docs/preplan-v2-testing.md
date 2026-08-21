@@ -12,6 +12,27 @@ Lifecycle permission checks cover ordinary published viewing, editor/reviewer/pu
 
 The isolated publication workflow test runs draft → review → publish without a live database, verifies that only publishing increments the revision and captures a snapshot, confirms Respond selects only published records, rejects invalid lifecycle shortcuts, and keeps the visible workflow actions synchronized with the server state machine.
 
+## Phase 8 release gate
+
+Run `npm run verify:preplan-v2` before publishing a preview checkpoint. It performs a production build followed by the focused Operational Preplan, Respond, migration, permission, responsive, accessibility, and legacy-compatibility tests. The command is read-only with respect to hosted data and must never create, edit, publish, archive, or delete production records.
+
+| Verification area | Current evidence | Status |
+| --- | --- | --- |
+| Domain calculations and lifecycle dates | Deterministic Node tests | Automated |
+| Operational API validation and cross-preplan safeguards | Route contract tests | Automated |
+| Migration, legacy Arrival backfill, and bootstrap marker | Migration and bootstrap tests | Automated |
+| Draft visibility and direct URL permission enforcement | Permission contract tests | Automated |
+| Draft → review → publish → Respond lifecycle | Isolated state-machine and route contract test | Automated, no live database |
+| Respond alerts, rooms, levels, HazMat, zones, hose lays, attachments, offline rules, and existing behavior | Respond contract tests | Automated |
+| Phone, iPad, desktop, touch targets, keyboard tabs, reduced motion, and map alternative | Responsive and accessibility guardrails | Automated source contracts |
+| Actual file upload, authorized streaming, denial, and storage cleanup | Signed-in preview with isolated test storage | Manual required |
+| Real firefighter, editor, reviewer, publisher, administrator, allow override, and deny override sessions | Signed-in preview role matrix | Manual required |
+| Complete 20-step authoring-to-Respond scenario at phone, iPad, and desktop sizes | Maintained browser runner plus isolated test database/storage | Not automated yet |
+| Offline browser cache, reconnect, and private-data clearing | Signed-in browser with controlled network state | Manual required |
+| Visual contrast, focus order, long-content layout, and map interaction | Human preview inspection | Manual required |
+
+Automated source contracts are regression safeguards, not substitutes for the remaining signed-in browser and storage checks. Production promotion is not authorized by a passing release gate alone.
+
 Manual preview checks must cover:
 
 1. Open an existing legacy preplan and confirm its original fields, footprint, features, and photos are unchanged.
