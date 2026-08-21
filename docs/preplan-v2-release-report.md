@@ -61,8 +61,8 @@ Results at commit `3d341ed`:
 
 - Repository lint: passed with zero errors and zero warnings.
 - Production Next.js build and TypeScript: passed; 52 static routes generated.
-- Complete portal suite: 282 passed, 0 failed, 0 skipped.
-- Focused Preplan gate: scoped lint, production build, 106 passed.
+- Complete portal suite: 284 passed, 0 failed, 0 skipped.
+- Focused Preplan gate: scoped lint, production build, 108 passed.
 - Preview deployment: Ready; stable branch alias attached.
 - Runtime error scan immediately after deployment: no logs found.
 - Working tree: clean except the existing untracked `supabase/.temp/` CLI metadata directory.
@@ -72,6 +72,8 @@ Results at commit `3d341ed`:
 No current screenshot or signed-in browser evidence is attached. The in-app browser controller failed before navigation because its local runtime could not write required kernel assets. This is not evidence that the portal passed or failed visual verification.
 
 All seven scenarios remain tracked in `docs/preplan-v2-acceptance.md` as automated-contract-pass/manual-acceptance-outstanding. The role matrix, private upload/stream/denial/cleanup, offline reconnect and sign-out clearing, real viewport inspection, focus/contrast, and isolated migration checks are not complete.
+
+The read-only environment findings are recorded in `docs/preplan-v2-environment-audit.md`. Branch-specific Supabase configuration exists and differs from the production fallback, but direct preview-project, RLS, Storage, and record-isolation proof is still required.
 
 ## Exact production prerequisites
 
@@ -84,4 +86,4 @@ All seven scenarios remain tracked in `docs/preplan-v2-acceptance.md` as automat
 7. Take a production backup and storage inventory, record row counts and current production SHA, approve a change window, and confirm rollback ownership.
 8. Obtain explicit production-promotion authorization. Apply the migration and promote only after post-migration and established-login checks pass.
 
-See `docs/preplan-v2-architecture.md`, `docs/preplan-v2-testing.md`, `docs/preplan-v2-acceptance.md`, and `docs/preplan-v2-data-migration.md` for the maintained operating detail.
+See `docs/preplan-v2-architecture.md`, `docs/preplan-v2-testing.md`, `docs/preplan-v2-acceptance.md`, `docs/preplan-v2-environment-audit.md`, and `docs/preplan-v2-data-migration.md` for the maintained operating detail.
