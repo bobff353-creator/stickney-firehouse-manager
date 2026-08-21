@@ -4,6 +4,7 @@ import { distanceFeet, normalizeResponseAddress, rankPreplanMatch, suggestedStic
 import { normalizeApparatusUnit, respondingUnitsIncludeUnit } from "../../respond-device";
 import { hasPermission } from "../../server-permissions";
 import { isOperationallyVisible, matchCadRoom } from "../../preplans/domain";
+import { constructionProfile, occupancyProfile } from "../../preplans/profiles";
 
 type Row = Record<string, unknown>;
 
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
     const recentCalls = recentRows.results;
     if (!activeCall) return Response.json({ activeCall: null, preplan: null, match: null, cadUpdates: [], recentCalls, boxCard: null, nearestHydrants: [], apparatusFilter: apparatus || null, generatedAt: new Date().toISOString() }, { headers: { "cache-control": "no-store" } });
 
-    const planRows = await db.prepare("SELECT id,business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,footprint_square_feet footprintSquareFeet,floor_count floorCount,construction_type constructionType,suggested_fire_flow_gpm suggestedFireFlowGpm,suggested_fire_flow_duration suggestedFireFlowDuration,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,status,updated_at updatedAt FROM field_preplans WHERE COALESCE(publication_status,'published')='published' ORDER BY updated_at DESC").all<Row>();
+    const planRows = await db.prepare("SELECT id,business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,footprint_square_feet footprintSquareFeet,floor_count floorCount,construction_type constructionType,suggested_fire_flow_gpm suggestedFireFlowGpm,suggested_fire_flow_duration suggestedFireFlowDuration,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,status,construction_profile constructionProfile,occupancy_profile occupancyProfile,updated_at updatedAt FROM field_preplans WHERE COALESCE(publication_status,'published')='published' ORDER BY updated_at DESC").all<Row>();
     const plans: Array<Row & { id: unknown; address: string; latitude: number; longitude: number; footprint: unknown[] }> = planRows.results.map((row) => ({
       ...row,
       id: row.id,
@@ -67,7 +68,7 @@ export async function GET(request: Request) {
           db.prepare("SELECT revision_number revisionNumber,created_at publishedAt FROM field_preplan_revisions WHERE preplan_id=? AND publication_status='published' ORDER BY revision_number DESC LIMIT 1").bind(preplanId).first<Row>(),
         ]);
         const roomCandidates=spaces.results.map((space)=>({id:String(space.id),name:String(space.name),aliases:parseJson<string[]>(space.aliases,[]),levelId:String(space.levelId||"")}));
-        operational={levels:levels.results,spaces:spaces.results,alerts:alerts.results.filter((item)=>isOperationallyVisible({effectiveAt:String(item.effectiveAt||""),expiresAt:String(item.expiresAt||""),expirationAction:item.expirationAction as never})),hazmat:hazmat.results.filter((item)=>isOperationallyVisible({effectiveAt:String(item.effectiveAt||""),expiresAt:String(item.expiresAt||""),expirationAction:item.expirationAction as never})),hoseLays:hoseLays.results,revision,roomMatch:matchCadRoom(`${activeCall.narrative||""} ${activeCall.address||""}`,roomCandidates)};
+        operational={levels:levels.results,spaces:spaces.results,alerts:alerts.results.filter((item)=>isOperationallyVisible({effectiveAt:String(item.effectiveAt||""),expiresAt:String(item.expiresAt||""),expirationAction:item.expirationAction as never})),hazmat:hazmat.results.filter((item)=>isOperationallyVisible({effectiveAt:String(item.effectiveAt||""),expiresAt:String(item.expiresAt||""),expirationAction:item.expirationAction as never})),hoseLays:hoseLays.results,construction:constructionProfile(matched.plan.constructionProfile),occupancy:occupancyProfile(matched.plan.occupancyProfile),revision,roomMatch:matchCadRoom(`${activeCall.narrative||""} ${activeCall.address||""}`,roomCandidates)};
       } catch {
         operational=null;
       }

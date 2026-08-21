@@ -2,6 +2,7 @@ import { ensureDatabase } from "../../../../db/bootstrap";
 import { hasPermission } from "../../../server-permissions";
 import type { PermissionKey } from "../../../permissions";
 import { calculateHoseLay, calculateTargetHazard, normalizedLevelLabel } from "../../../preplans/domain";
+import { constructionProfile, occupancyProfile } from "../../../preplans/profiles";
 
 type Db = Awaited<ReturnType<typeof ensureDatabase>>;
 type Body = Record<string, unknown>;
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
     const preplanId = text(new URL(request.url).searchParams.get("preplanId"), 80);
     if (!preplanId || !await preplanExists(db, preplanId)) return Response.json({ error:"Preplan not found." }, { status:404 });
     const [plan, levels, spaces, alerts, hazmat, zones, annotations, assets, hoseLays, risks, reviews, revisions] = await Promise.all([
-      db.prepare("SELECT publication_status publicationStatus,completeness_status completenessStatus,revision_number revisionNumber,last_verified_at lastVerifiedAt,next_review_date nextReviewDate,target_hazard_level targetHazardLevel,target_hazard_reasons targetHazardReasons FROM field_preplans WHERE id=?").bind(preplanId).first(),
+      db.prepare("SELECT publication_status publicationStatus,completeness_status completenessStatus,revision_number revisionNumber,last_verified_at lastVerifiedAt,next_review_date nextReviewDate,target_hazard_level targetHazardLevel,target_hazard_reasons targetHazardReasons,construction_profile constructionProfile,occupancy_profile occupancyProfile FROM field_preplans WHERE id=?").bind(preplanId).first(),
       db.prepare("SELECT id,preplan_id preplanId,name,short_label shortLabel,layer_type layerType,floor_index floorIndex,grade_designation gradeDesignation,sort_order sortOrder,is_default isDefault,respond_visible respondVisible,hidden,archived,background_type backgroundType,background_asset_id backgroundAssetId,background_transform backgroundTransform,opacity,updated_by updatedBy,updated_at updatedAt FROM field_preplan_levels WHERE preplan_id=? ORDER BY archived,sort_order,name").bind(preplanId).all(),
       db.prepare("SELECT id,preplan_id preplanId,level_id levelId,display_name name,room_number roomNumber,aliases,cad_keywords cadKeywords,space_type spaceType,geometry,access_notes accessNotes,fire_protection_notes fireProtectionNotes,hazards,archived,updated_by updatedBy,updated_at updatedAt FROM field_preplan_spaces WHERE preplan_id=? ORDER BY archived,display_name").bind(preplanId).all(),
       db.prepare("SELECT id,preplan_id preplanId,level_id levelId,space_id spaceId,alert_type alertType,title,instructions message,severity,display_order displayOrder,pin_to_respond pinToRespond,effective_at effectiveAt,expires_at expiresAt,expiration_action expirationAction,verified_by verifiedBy,verified_at verifiedAt,archived,updated_by updatedBy,updated_at updatedAt FROM field_preplan_alerts WHERE preplan_id=? ORDER BY archived,severity DESC,created_at DESC").bind(preplanId).all(),
@@ -43,7 +44,7 @@ export async function GET(request: Request) {
       db.prepare("SELECT id,preplan_id preplanId,revision_number revisionNumber,action,comment,actor,created_at createdAt FROM field_preplan_reviews WHERE preplan_id=? ORDER BY created_at DESC").bind(preplanId).all(),
       db.prepare("SELECT id,preplan_id preplanId,revision_number revisionNumber,publication_status publicationStatus,summary,actor,created_at createdAt,restored_from_revision restoredFromRevision FROM field_preplan_revisions WHERE preplan_id=? ORDER BY revision_number DESC").bind(preplanId).all(),
     ]);
-    return Response.json({ plan, levels:levels.results, spaces:spaces.results, alerts:alerts.results, hazmat:hazmat.results, zones:zones.results, annotations:annotations.results, assets:assets.results, hoseLays:hoseLays.results, risks:risks.results, reviews:reviews.results, revisions:revisions.results });
+    return Response.json({ plan:plan?{...plan,constructionProfile:constructionProfile(plan.constructionProfile),occupancyProfile:occupancyProfile(plan.occupancyProfile)}:plan, levels:levels.results, spaces:spaces.results, alerts:alerts.results, hazmat:hazmat.results, zones:zones.results, annotations:annotations.results, assets:assets.results, hoseLays:hoseLays.results, risks:risks.results, reviews:reviews.results, revisions:revisions.results });
   } catch (error) {
     if (error instanceof Response) return error;
     return Response.json({ error:error instanceof Error ? error.message : "Unable to load operational preplan." }, { status:500 });
@@ -149,6 +150,15 @@ export async function POST(request: Request) {
       const result=calculateTargetHazard(factors.results.map((item)=>({...item,manualOverride:Boolean(item.manualOverride)})),integer(body.targetHazardOverride));
       await db.prepare("UPDATE field_preplans SET target_hazard_level=?,target_hazard_override=?,target_hazard_reasons=?,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(result.level,integer(body.targetHazardOverride),JSON.stringify(result.reasons),user,preplanId).run();
       return Response.json({ok:true,id,targetHazard:result});
+    }
+
+    if (action === "saveConstructionProfile" || action === "saveOccupancyProfile") {
+      await requirePermission(request, db, "field_preplans.edit");
+      const isConstruction=action==="saveConstructionProfile";
+      const profile=isConstruction?constructionProfile(body.profile):occupancyProfile(body.profile);
+      const column=isConstruction?"construction_profile":"occupancy_profile";
+      await db.prepare(`UPDATE field_preplans SET ${column}=?,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(JSON.stringify(profile),user,preplanId).run();
+      return Response.json({ok:true,profile});
     }
 
     if (action === "verifyRecord") {
