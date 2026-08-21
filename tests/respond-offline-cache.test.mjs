@@ -38,4 +38,6 @@ test("offline Respond is explicitly read-only and timestamped", () => {
 test("sign-out clears private Respond packets", () => {
   assert.match(auth, /SIGNED_OUT/);
   assert.match(auth, /clearCachedRespondPackets/);
+  assert.match(auth, /await clearCachedRespondPackets\(\)\.catch/);
+  assert.match(auth, /auth\.signOut\(\{ scope: "local" \}\)/);
 });

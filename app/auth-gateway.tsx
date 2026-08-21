@@ -281,12 +281,14 @@ export default function AuthGateway({
 
   async function signOut() {
     clearAccessCache();
-    await fetch("/api/auth/pin", { method: "DELETE" }).catch(() => undefined);
-    await getSupabaseBrowserClient().auth.signOut();
+    await clearCachedRespondPackets().catch(() => undefined);
+    const pinCleanup = fetch("/api/auth/pin", { method: "DELETE" }).catch(() => undefined);
+    await getSupabaseBrowserClient().auth.signOut({ scope: "local" });
     setPin("");
     setUser(null);
     setMode("sign-in");
     setMessage("Signed out.");
+    void pinCleanup;
   }
 
   if (mode === "authorized") {
