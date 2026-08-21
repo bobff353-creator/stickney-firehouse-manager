@@ -166,7 +166,7 @@ export async function GET(request: Request) {
             .all<Row>(),
           db
             .prepare(
-              "SELECT id,level_id levelId,display_name name,aliases,space_type spaceType FROM field_preplan_spaces WHERE preplan_id=? AND archived=0 ORDER BY display_name",
+              "SELECT id,level_id levelId,display_name name,room_number roomNumber,aliases,cad_keywords cadKeywords,space_type spaceType,geometry,coordinate_space coordinateSpace,access_notes accessNotes,fire_protection_notes fireProtectionNotes,hazards FROM field_preplan_spaces WHERE preplan_id=? AND archived=0 ORDER BY display_name",
             )
             .bind(preplanId)
             .all<Row>(),
@@ -210,12 +210,20 @@ export async function GET(request: Request) {
         const roomCandidates = spaces.results.map((space) => ({
           id: String(space.id),
           name: String(space.name),
-          aliases: parseJson<string[]>(space.aliases, []),
+          aliases: [
+            ...parseJson<string[]>(space.aliases, []),
+            ...parseJson<string[]>(space.cadKeywords, []),
+          ],
           levelId: String(space.levelId || ""),
         }));
         operational = {
           levels: levels.results,
-          spaces: spaces.results,
+          spaces: spaces.results.map((space) => ({
+            ...space,
+            aliases: parseJson<string[]>(space.aliases, []),
+            cadKeywords: parseJson<string[]>(space.cadKeywords, []),
+            geometry: parseJson<unknown>(space.geometry, []),
+          })),
           alerts: alerts.results
             .filter((item) =>
               isOperationallyVisible({

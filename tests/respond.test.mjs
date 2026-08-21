@@ -83,7 +83,7 @@ test("Respond reads existing call and preplan records and exposes requested fiel
   assert.match(component, /Building footprint and mapped fire protection features/);
   assert.match(component, /photo\.featureId\s*===\s*selected\.id/);
   assert.match(component, /respond-feature-photo/);
-  assert.match(component, /type RightView = "cad"\s*\|\s*"footprint"\s*\|\s*"B"\s*\|\s*"C"\s*\|\s*"D"/);
+  assert.match(component, /type RightView = "cad"\s*\|\s*"floorplan"\s*\|\s*"footprint"\s*\|\s*"B"\s*\|\s*"C"\s*\|\s*"D"/);
   assert.match(component, /\$\{item\} Side/);
   assert.match(component, /Open Google Navigation/);
   assert.match(shell, /\{ label: "Respond", page: "Respond" \}/);

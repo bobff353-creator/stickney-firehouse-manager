@@ -124,7 +124,20 @@ type RespondData = {
       shortLabel: string;
       isDefault: number;
     }>;
-    spaces: Array<{ id: string; levelId: string; name: string }>;
+    spaces: Array<{
+      id: string;
+      levelId: string;
+      name: string;
+      roomNumber?: string;
+      aliases: string[];
+      cadKeywords: string[];
+      spaceType: string;
+      geometry: unknown;
+      coordinateSpace: string;
+      accessNotes?: string;
+      fireProtectionNotes?: string;
+      hazards?: string;
+    }>;
     alerts: Array<{
       id: string;
       title: string;
@@ -219,7 +232,7 @@ type QuickItem = {
   locationDescription?: string;
   verifiedAt?: string;
 };
-type RightView = "cad" | "footprint" | "B" | "C" | "D";
+type RightView = "cad" | "floorplan" | "footprint" | "B" | "C" | "D";
 
 const featureLabels: Record<string, string> = {
   alarm: "Alarm",
@@ -295,6 +308,131 @@ function verificationDate(value?: string) {
 
 function operationalColor(value: string | undefined, fallback: string) {
   return value && /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
+}
+
+function normalizedRoomPolygon(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((point) => {
+      if (!point || typeof point !== "object") return null;
+      const candidate = point as { x?: unknown; y?: unknown };
+      const x = Number(candidate.x);
+      const y = Number(candidate.y);
+      return Number.isFinite(x) &&
+        Number.isFinite(y) &&
+        x >= 0 &&
+        x <= 1 &&
+        y >= 0 &&
+        y <= 1
+        ? { x, y }
+        : null;
+    })
+    .filter((point): point is { x: number; y: number } => Boolean(point));
+}
+
+function FloorPlanView({
+  asset,
+  spaces,
+  matchedRoomId,
+}: {
+  asset?: NonNullable<RespondData["operational"]>["assets"][number];
+  spaces: NonNullable<RespondData["operational"]>["spaces"];
+  matchedRoomId?: string;
+}) {
+  const imageAsset = asset?.contentType.startsWith("image/") ? asset : null;
+  return (
+    <div className="respond-floor-plan">
+      <header>
+        <span>TACTICAL FLOOR PLAN</span>
+        <strong>
+          {matchedRoomId
+            ? "CAD room highlighted"
+            : "No reliable CAD room highlight"}
+        </strong>
+      </header>
+      {imageAsset ? (
+        <div className="respond-floor-canvas">
+          <img
+            src={`/api/field-preplans/assets/${encodeURIComponent(imageAsset.id)}`}
+            alt={
+              imageAsset.caption ||
+              imageAsset.filename ||
+              "Published floor plan"
+            }
+          />
+          <svg
+            viewBox="0 0 100 100"
+            role="img"
+            aria-label="Saved rooms over the published floor plan"
+          >
+            {spaces.map((space) => {
+              const points = normalizedRoomPolygon(space.geometry);
+              if (points.length < 3) return null;
+              const center = points.reduce(
+                (sum, point) => ({
+                  x: sum.x + point.x / points.length,
+                  y: sum.y + point.y / points.length,
+                }),
+                { x: 0, y: 0 },
+              );
+              return (
+                <g
+                  key={space.id}
+                  className={space.id === matchedRoomId ? "matched" : ""}
+                >
+                  <polygon
+                    points={points
+                      .map((point) => `${point.x * 100},${point.y * 100}`)
+                      .join(" ")}
+                  />
+                  <text
+                    x={center.x * 100}
+                    y={center.y * 100}
+                    textAnchor="middle"
+                  >
+                    {space.roomNumber || space.name}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      ) : asset ? (
+        <a
+          className="respond-floor-file"
+          href={`/api/field-preplans/assets/${encodeURIComponent(asset.id)}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Open private floor-plan file ↗
+        </a>
+      ) : (
+        <div className="respond-empty compact">
+          <strong>No floor plan published for this level</strong>
+          <span>Room details remain available below when saved.</span>
+        </div>
+      )}
+      <div className="respond-room-list" aria-label="Rooms on selected level">
+        {spaces.length ? (
+          spaces.map((space) => (
+            <article
+              key={space.id}
+              className={space.id === matchedRoomId ? "matched" : ""}
+            >
+              <strong>{space.name}</strong>
+              <span>
+                {space.spaceType.replaceAll("_", " ")}
+                {space.hazards ? ` · Hazard: ${space.hazards}` : ""}
+              </span>
+              {space.accessNotes && <small>Access: {space.accessNotes}</small>}
+            </article>
+          ))
+        ) : (
+          <span>No saved rooms on this level.</span>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function StreetViewFallback({ call }: { call: ActiveCall }) {
@@ -542,6 +680,9 @@ export default function Respond({
       : undefined;
   const selectedLevel =
       data?.operational?.levels.find((level) => level.id === selectedLevelId) ??
+      data?.operational?.levels.find(
+        (level) => level.id === data.operational?.roomMatch?.room?.levelId,
+      ) ??
       data?.operational?.levels.find((level) => Boolean(level.isDefault)) ??
       data?.operational?.levels[0] ??
       null,
@@ -557,6 +698,13 @@ export default function Respond({
       data?.operational?.assets.filter(
         (item) => !item.levelId || item.levelId === selectedLevel?.id,
       ) ?? [],
+    visibleSpaces =
+      data?.operational?.spaces.filter(
+        (space) => space.levelId === selectedLevel?.id,
+      ) ?? [],
+    floorPlanAsset = visibleAttachments.find(
+      (asset) => asset.category.toLowerCase() === "floor_plan",
+    ),
     pinnedAttachments = visibleAttachments.filter((item) =>
       Boolean(item.pinToRespond),
     ),
@@ -793,11 +941,21 @@ export default function Respond({
                 {data.operational.revision?.revisionNumber ?? "LEGACY"} ·{" "}
                 {selectedLevel?.name || "Arrival / Ground"}
               </span>
-              <strong>
-                {data.operational.roomMatch?.room
-                  ? `CAD room match: ${data.operational.roomMatch.room.name}`
-                  : "No reliable CAD room match"}
-              </strong>
+              {data.operational.roomMatch?.room ? (
+                <button
+                  className="respond-room-match-action"
+                  onClick={() => {
+                    setSelectedLevelId(
+                      data.operational?.roomMatch?.room?.levelId || "",
+                    );
+                    setView("floorplan");
+                  }}
+                >
+                  Open matched room · {data.operational.roomMatch.room.name}
+                </button>
+              ) : (
+                <strong>No reliable CAD room match</strong>
+              )}
             </header>
             <div>
               {plan?.targetHazardLevel &&
@@ -1447,22 +1605,24 @@ export default function Respond({
         </main>
         <aside className="respond-context">
           <nav>
-            {(["cad", "footprint", "B", "C", "D"] as RightView[]).map(
-              (item) => (
-                <button
-                  key={item}
-                  className={view === item ? "active" : ""}
-                  onClick={() => setView(item)}
-                  data-test-safe
-                >
-                  {item === "cad"
-                    ? "CAD Notes"
+            {(
+              ["cad", "floorplan", "footprint", "B", "C", "D"] as RightView[]
+            ).map((item) => (
+              <button
+                key={item}
+                className={view === item ? "active" : ""}
+                onClick={() => setView(item)}
+                data-test-safe
+              >
+                {item === "cad"
+                  ? "CAD Notes"
+                  : item === "floorplan"
+                    ? "Floor Plan"
                     : item === "footprint"
                       ? "Footprint"
                       : `${item} Side`}
-                </button>
-              ),
-            )}
+              </button>
+            ))}
           </nav>
           <div className="respond-context-body">
             {view === "cad" && (
@@ -1496,6 +1656,13 @@ export default function Respond({
                   </div>
                 )}
               </>
+            )}
+            {view === "floorplan" && (
+              <FloorPlanView
+                asset={floorPlanAsset}
+                spaces={visibleSpaces}
+                matchedRoomId={data?.operational?.roomMatch?.room?.id}
+              />
             )}
             {view === "footprint" &&
               (plan ? (
