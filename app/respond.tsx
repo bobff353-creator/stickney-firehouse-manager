@@ -141,6 +141,24 @@ type RespondData = {
       quantityUnit?: string;
       levelId?: string;
       spaceId?: string;
+      storageType?: string;
+      physicalState?: string;
+      exactLocation?: string;
+      nfpaHealth?: number;
+      nfpaFlammability?: number;
+      nfpaInstability?: number;
+      nfpaSpecial?: string;
+      dateVerified?: string;
+      notes?: string;
+    }>;
+    hazmatZones: Array<{
+      id: string;
+      hazmatId: string;
+      levelId?: string;
+      zoneType: string;
+      geometryType: string;
+      label: string;
+      radiusFeet?: number;
     }>;
     hoseLays: Array<{
       id: string;
@@ -151,6 +169,7 @@ type RespondData = {
     }>;
     assets: Array<{
       id: string;
+      hazmatId?: string;
       levelId?: string;
       category: string;
       filename: string;
@@ -402,6 +421,7 @@ export default function Respond({
   const [monitorMode, setMonitorMode] = useState(false);
   const [selectedLevelId, setSelectedLevelId] = useState("");
   const [showAllAttachments, setShowAllAttachments] = useState(false);
+  const [selectedHazmatId, setSelectedHazmatId] = useState("");
   const pageRef = useRef<HTMLElement>(null);
   const load = useCallback(async () => {
     try {
@@ -519,7 +539,20 @@ export default function Respond({
     ),
     shownAttachments = showAllAttachments
       ? visibleAttachments
-      : pinnedAttachments;
+      : pinnedAttachments,
+    selectedHazmat = visibleHazmat.find((item) => item.id === selectedHazmatId),
+    selectedHazmatZones = selectedHazmat
+      ? (data?.operational?.hazmatZones.filter(
+          (zone) => zone.hazmatId === selectedHazmat.id,
+        ) ?? [])
+      : [],
+    selectedHazmatSds = selectedHazmat
+      ? (data?.operational?.assets.filter(
+          (asset) =>
+            asset.hazmatId === selectedHazmat.id &&
+            asset.category.toLowerCase() === "sds",
+        ) ?? [])
+      : [];
   if (!data && !error)
     return (
       <section className="respond-page">
@@ -727,17 +760,19 @@ export default function Respond({
               ))}
               {visibleHazmat.slice(0, 3).map((item) => (
                 <article key={item.id} className="hazmat">
-                  <b>HAZMAT</b>
-                  <strong>{item.materialName}</strong>
-                  <span>
-                    {item.unNumber
-                      ? `UN/NA ${item.unNumber}`
-                      : "UN/NA not entered"}{" "}
-                    ·{" "}
-                    {item.ergGuideNumber
-                      ? `ERG ${item.ergGuideNumber}`
-                      : "Verify in official ERG"}
-                  </span>
+                  <button onClick={() => setSelectedHazmatId(item.id)}>
+                    <b>HAZMAT · OPEN DETAIL</b>
+                    <strong>{item.materialName}</strong>
+                    <span>
+                      {item.unNumber
+                        ? `UN/NA ${item.unNumber}`
+                        : "UN/NA not entered"}{" "}
+                      ·{" "}
+                      {item.ergGuideNumber
+                        ? `ERG ${item.ergGuideNumber}`
+                        : "Verify in official ERG"}
+                    </span>
+                  </button>
                 </article>
               ))}
               {hasConstructionProfile(data.operational.construction) && (
@@ -800,6 +835,106 @@ export default function Respond({
               )}
             </div>
           </section>
+          {selectedHazmat && (
+            <section
+              className="respond-hazmat-detail"
+              aria-label="HazMat detail"
+            >
+              <header>
+                <div>
+                  <span>HAZMAT EMERGENCY DETAIL</span>
+                  <h2>{selectedHazmat.materialName}</h2>
+                  <strong>
+                    {selectedHazmat.unNumber
+                      ? `UN/NA ${selectedHazmat.unNumber}`
+                      : "UN/NA not entered"}{" "}
+                    ·{" "}
+                    {selectedHazmat.ergGuideNumber
+                      ? `ERG ${selectedHazmat.ergGuideNumber}`
+                      : "Verify in official ERG"}
+                  </strong>
+                </div>
+                <button
+                  onClick={() => setSelectedHazmatId("")}
+                  aria-label="Close HazMat detail"
+                >
+                  ×
+                </button>
+              </header>
+              <dl>
+                <div>
+                  <dt>Quantity / container</dt>
+                  <dd>
+                    {selectedHazmat.quantity != null
+                      ? `${selectedHazmat.quantity} ${selectedHazmat.quantityUnit || "units"}`
+                      : "Quantity not verified"}{" "}
+                    · {selectedHazmat.storageType || "Container not entered"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Physical state</dt>
+                  <dd>{selectedHazmat.physicalState || "Not entered"}</dd>
+                </div>
+                <div>
+                  <dt>Exact location</dt>
+                  <dd>
+                    {selectedHazmat.exactLocation ||
+                      "Exact location not entered"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>NFPA 704</dt>
+                  <dd>
+                    Health {selectedHazmat.nfpaHealth ?? "?"} · Flammability{" "}
+                    {selectedHazmat.nfpaFlammability ?? "?"} · Instability{" "}
+                    {selectedHazmat.nfpaInstability ?? "?"}
+                    {selectedHazmat.nfpaSpecial
+                      ? ` · ${selectedHazmat.nfpaSpecial}`
+                      : ""}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Date verified</dt>
+                  <dd>{verificationDate(selectedHazmat.dateVerified)}</dd>
+                </div>
+                <div>
+                  <dt>Isolation / evacuation zones</dt>
+                  <dd>
+                    {selectedHazmatZones.length
+                      ? selectedHazmatZones
+                          .map(
+                            (zone) =>
+                              `${zone.label || zone.zoneType}${zone.radiusFeet ? ` · ${zone.radiusFeet} ft` : ""}`,
+                          )
+                          .join("; ")
+                      : "No active zones recorded"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>SDS</dt>
+                  <dd>
+                    {selectedHazmatSds.length
+                      ? selectedHazmatSds.map((asset) => (
+                          <a
+                            key={asset.id}
+                            href={`/api/field-preplans/assets/${encodeURIComponent(asset.id)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {asset.caption || asset.filename} ↗
+                          </a>
+                        ))
+                      : "No SDS attachment recorded"}
+                  </dd>
+                </div>
+              </dl>
+              <p>
+                <strong>Operational warning:</strong>{" "}
+                {selectedHazmat.notes ||
+                  "Confirm conditions, container integrity, wind, isolation distance, and the current official ERG before entry."}
+              </p>
+            </section>
+          )}
         </>
       )}
       <section className="respond-glance" aria-label="Matched response records">

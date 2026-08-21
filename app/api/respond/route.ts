@@ -144,51 +144,65 @@ export async function GET(request: Request) {
       };
       try {
         const preplanId = String(matched.plan.id);
-        const [levels, spaces, alerts, hazmat, hoseLays, assets, revision] =
-          await Promise.all([
-            db
-              .prepare(
-                "SELECT id,name,short_label shortLabel,layer_type layerType,sort_order sortOrder,is_default isDefault FROM field_preplan_levels WHERE preplan_id=? AND archived=0 AND respond_visible=1 ORDER BY sort_order,name",
-              )
-              .bind(preplanId)
-              .all<Row>(),
-            db
-              .prepare(
-                "SELECT id,level_id levelId,display_name name,aliases,space_type spaceType FROM field_preplan_spaces WHERE preplan_id=? AND archived=0 ORDER BY display_name",
-              )
-              .bind(preplanId)
-              .all<Row>(),
-            db
-              .prepare(
-                "SELECT id,level_id levelId,space_id spaceId,title,instructions message,severity,effective_at effectiveAt,expires_at expiresAt,expiration_action expirationAction FROM field_preplan_alerts WHERE preplan_id=? AND archived=0 AND pin_to_respond=1 ORDER BY severity DESC,created_at DESC",
-              )
-              .bind(preplanId)
-              .all<Row>(),
-            db
-              .prepare(
-                "SELECT id,level_id levelId,space_id spaceId,un_na_number unNumber,chemical_name materialName,erg_guide_number ergGuideNumber,quantity,quantity_unit quantityUnit,physical_state physicalState,container_type storageType,notes,effective_at effectiveAt,expires_at expiresAt,expiration_action expirationAction FROM field_preplan_hazmat WHERE preplan_id=? AND archived=0 ORDER BY chemical_name",
-              )
-              .bind(preplanId)
-              .all<Row>(),
-            db
-              .prepare(
-                "SELECT id,level_id levelId,name,total_distance_feet totalDistanceFeet,hose_size_inches hoseSizeInches,recommended_hose_feet recommendedHoseFeet,supply_line_label supplyLineLabel,apparatus_capacity_feet apparatusCapacityFeet,notes FROM field_preplan_hose_lays WHERE preplan_id=? AND archived=0 ORDER BY name",
-              )
-              .bind(preplanId)
-              .all<Row>(),
-            db
-              .prepare(
-                "SELECT id,level_id levelId,category,original_filename filename,mime_type contentType,caption,pin_to_respond pinToRespond,created_at createdAt FROM field_preplan_assets WHERE preplan_id=? AND archived=0 ORDER BY pin_to_respond DESC,sort_order,created_at DESC",
-              )
-              .bind(preplanId)
-              .all<Row>(),
-            db
-              .prepare(
-                "SELECT revision_number revisionNumber,created_at publishedAt FROM field_preplan_revisions WHERE preplan_id=? AND publication_status='published' ORDER BY revision_number DESC LIMIT 1",
-              )
-              .bind(preplanId)
-              .first<Row>(),
-          ]);
+        const [
+          levels,
+          spaces,
+          alerts,
+          hazmat,
+          hazmatZones,
+          hoseLays,
+          assets,
+          revision,
+        ] = await Promise.all([
+          db
+            .prepare(
+              "SELECT id,name,short_label shortLabel,layer_type layerType,sort_order sortOrder,is_default isDefault FROM field_preplan_levels WHERE preplan_id=? AND archived=0 AND respond_visible=1 ORDER BY sort_order,name",
+            )
+            .bind(preplanId)
+            .all<Row>(),
+          db
+            .prepare(
+              "SELECT id,level_id levelId,display_name name,aliases,space_type spaceType FROM field_preplan_spaces WHERE preplan_id=? AND archived=0 ORDER BY display_name",
+            )
+            .bind(preplanId)
+            .all<Row>(),
+          db
+            .prepare(
+              "SELECT id,level_id levelId,space_id spaceId,title,instructions message,severity,effective_at effectiveAt,expires_at expiresAt,expiration_action expirationAction FROM field_preplan_alerts WHERE preplan_id=? AND archived=0 AND pin_to_respond=1 ORDER BY severity DESC,created_at DESC",
+            )
+            .bind(preplanId)
+            .all<Row>(),
+          db
+            .prepare(
+              "SELECT id,level_id levelId,space_id spaceId,un_na_number unNumber,chemical_name materialName,erg_guide_number ergGuideNumber,quantity,quantity_unit quantityUnit,physical_state physicalState,container_type storageType,exact_location exactLocation,nfpa_health nfpaHealth,nfpa_flammability nfpaFlammability,nfpa_instability nfpaInstability,nfpa_special nfpaSpecial,date_verified dateVerified,notes,effective_at effectiveAt,expires_at expiresAt,expiration_action expirationAction FROM field_preplan_hazmat WHERE preplan_id=? AND archived=0 ORDER BY chemical_name",
+            )
+            .bind(preplanId)
+            .all<Row>(),
+          db
+            .prepare(
+              "SELECT id,hazmat_id hazmatId,level_id levelId,zone_type zoneType,geometry_type geometryType,label,radius_feet radiusFeet,effective_at effectiveAt,expires_at expiresAt FROM field_preplan_hazmat_zones WHERE preplan_id=? AND archived=0 ORDER BY zone_type,label",
+            )
+            .bind(preplanId)
+            .all<Row>(),
+          db
+            .prepare(
+              "SELECT id,level_id levelId,name,total_distance_feet totalDistanceFeet,hose_size_inches hoseSizeInches,recommended_hose_feet recommendedHoseFeet,supply_line_label supplyLineLabel,apparatus_capacity_feet apparatusCapacityFeet,notes FROM field_preplan_hose_lays WHERE preplan_id=? AND archived=0 ORDER BY name",
+            )
+            .bind(preplanId)
+            .all<Row>(),
+          db
+            .prepare(
+              "SELECT id,hazmat_id hazmatId,level_id levelId,category,original_filename filename,mime_type contentType,caption,pin_to_respond pinToRespond,created_at createdAt FROM field_preplan_assets WHERE preplan_id=? AND archived=0 ORDER BY pin_to_respond DESC,sort_order,created_at DESC",
+            )
+            .bind(preplanId)
+            .all<Row>(),
+          db
+            .prepare(
+              "SELECT revision_number revisionNumber,created_at publishedAt FROM field_preplan_revisions WHERE preplan_id=? AND publication_status='published' ORDER BY revision_number DESC LIMIT 1",
+            )
+            .bind(preplanId)
+            .first<Row>(),
+        ]);
         const roomCandidates = spaces.results.map((space) => ({
           id: String(space.id),
           name: String(space.name),
@@ -210,6 +224,12 @@ export async function GET(request: Request) {
               effectiveAt: String(item.effectiveAt || ""),
               expiresAt: String(item.expiresAt || ""),
               expirationAction: item.expirationAction as never,
+            }),
+          ),
+          hazmatZones: hazmatZones.results.filter((item) =>
+            isOperationallyVisible({
+              effectiveAt: String(item.effectiveAt || ""),
+              expiresAt: String(item.expiresAt || ""),
             }),
           ),
           hoseLays: hoseLays.results,
