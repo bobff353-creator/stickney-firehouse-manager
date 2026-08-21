@@ -1,7 +1,14 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- preplan photos are protected runtime records. */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { formatRespondMilitaryTime, formatRespondTime } from "./respond-time";
 import {
   cacheRespondPacket,
@@ -251,6 +258,14 @@ type QuickItem = {
   verifiedAt?: string;
 };
 type RightView = "cad" | "floorplan" | "footprint" | "B" | "C" | "D";
+const respondViews: RightView[] = [
+  "cad",
+  "floorplan",
+  "footprint",
+  "B",
+  "C",
+  "D",
+];
 
 const featureLabels: Record<string, string> = {
   alarm: "Alarm",
@@ -701,6 +716,27 @@ export default function Respond({
     }
     setMonitorMode(true);
     await pageRef.current?.requestFullscreen().catch(() => {});
+  }
+  function moveContextTab(
+    event: KeyboardEvent<HTMLButtonElement>,
+    current: RightView,
+  ) {
+    const index = respondViews.indexOf(current);
+    const keyTargets: Partial<Record<string, number>> = {
+      Home: 0,
+      End: respondViews.length - 1,
+      ArrowLeft: (index - 1 + respondViews.length) % respondViews.length,
+      ArrowUp: (index - 1 + respondViews.length) % respondViews.length,
+      ArrowRight: (index + 1) % respondViews.length,
+      ArrowDown: (index + 1) % respondViews.length,
+    };
+    const target = keyTargets[event.key];
+    if (target == null) return;
+    event.preventDefault();
+    setView(respondViews[target]);
+    const buttons =
+      event.currentTarget.parentElement?.querySelectorAll("button");
+    buttons?.item(target).focus();
   }
   const quickItems = useMemo<QuickItem[]>(() => {
     const plan = data?.preplan;
@@ -1699,14 +1735,18 @@ export default function Respond({
           </footer>
         </main>
         <aside className="respond-context">
-          <nav>
-            {(
-              ["cad", "floorplan", "footprint", "B", "C", "D"] as RightView[]
-            ).map((item) => (
+          <nav role="tablist" aria-label="Response tactical views">
+            {respondViews.map((item) => (
               <button
                 key={item}
+                id={`respond-tab-${item}`}
+                role="tab"
+                aria-selected={view === item}
+                aria-controls={`respond-panel-${item}`}
+                tabIndex={view === item ? 0 : -1}
                 className={view === item ? "active" : ""}
                 onClick={() => setView(item)}
+                onKeyDown={(event) => moveContextTab(event, item)}
                 data-test-safe
               >
                 {item === "cad"
@@ -1719,7 +1759,13 @@ export default function Respond({
               </button>
             ))}
           </nav>
-          <div className="respond-context-body">
+          <div
+            id={`respond-panel-${view}`}
+            role="tabpanel"
+            aria-labelledby={`respond-tab-${view}`}
+            tabIndex={0}
+            className="respond-context-body"
+          >
             {view === "cad" && (
               <>
                 <header>
