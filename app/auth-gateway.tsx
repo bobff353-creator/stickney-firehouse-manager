@@ -4,6 +4,7 @@ import type { User } from "@supabase/supabase-js";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import PayrollApp from "./payroll-app";
 import SessionIdleLock from "./session-idle-lock";
+import { clearCachedRespondPackets } from "./preplans/offline-cache";
 import { getSupabaseBrowserClient } from "./supabase-browser";
 
 type Mode = "loading" | "sign-in" | "new-user" | "checking" | "set-pin" | "pin" | "authorized" | "waiting";
@@ -42,6 +43,7 @@ export default function AuthGateway({
       if (event === "SIGNED_OUT" || !session?.user) {
         if (event === "SIGNED_OUT") {
           clearAccessCache();
+          void clearCachedRespondPackets().catch(() => undefined);
           setUser(null);
           setMode("sign-in");
         }

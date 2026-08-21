@@ -4,6 +4,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatRespondMilitaryTime, formatRespondTime } from "./respond-time";
 import {
+  cacheRespondPacket,
+  clearCachedRespondPackets,
+  getCachedRespondPacket,
+  removeCachedRespondPacket,
+} from "./preplans/offline-cache";
+import {
   hasConstructionProfile,
   hasOccupancyProfile,
   type ConstructionProfile,
@@ -102,6 +108,7 @@ type NearbyHydrant = {
   distanceFeet: number;
 };
 type RespondData = {
+  departmentId: string;
   activeCall: ActiveCall | null;
   preplan: Preplan | null;
   match: { method: "address" | "gps"; distanceFeet: number } | null;
@@ -220,6 +227,17 @@ type RespondData = {
     };
   };
 };
+
+function isCachedRespondData(value: unknown): value is RespondData {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<RespondData>;
+  return Boolean(
+    candidate.departmentId &&
+    candidate.activeCall?.reportNumber &&
+    candidate.preplan?.id &&
+    candidate.generatedAt,
+  );
+}
 type QuickItem = {
   id: string;
   label: string;
@@ -583,7 +601,13 @@ export default function Respond({
   const [selectedLevelId, setSelectedLevelId] = useState("");
   const [showAllAttachments, setShowAllAttachments] = useState(false);
   const [selectedHazmatId, setSelectedHazmatId] = useState("");
+  const [respondSource, setRespondSource] = useState<"live" | "offline">(
+    "live",
+  );
+  const [cachedAt, setCachedAt] = useState("");
+  const [isOnline, setIsOnline] = useState(true);
   const pageRef = useRef<HTMLElement>(null);
+  const departmentIdRef = useRef("");
   const load = useCallback(async () => {
     try {
       const query = apparatus
@@ -595,9 +619,41 @@ export default function Respond({
       const body = (await response.json()) as RespondData & { error?: string };
       if (!response.ok)
         throw new Error(body.error || "Unable to load Respond.");
+      departmentIdRef.current = body.departmentId;
       setData(body);
+      setRespondSource("live");
+      setCachedAt("");
       setError("");
+      if (body.activeCall && body.preplan && body.departmentId) {
+        const savedAt = new Date().toISOString();
+        await cacheRespondPacket({
+          id: `${body.departmentId}:${apparatus || "all"}`,
+          departmentId: body.departmentId,
+          apparatus,
+          cachedAt: savedAt,
+          payload: body,
+        }).catch(() => undefined);
+      } else if (body.departmentId) {
+        await removeCachedRespondPacket(body.departmentId, apparatus).catch(
+          () => undefined,
+        );
+      }
     } catch (value) {
+      const departmentId = departmentIdRef.current;
+      if (departmentId) {
+        const cached = await getCachedRespondPacket<RespondData>(
+          departmentId,
+          apparatus,
+        ).catch(() => null);
+        if (cached && isCachedRespondData(cached.payload)) {
+          setData(cached.payload);
+          setCachedAt(cached.cachedAt);
+          setRespondSource("offline");
+          setError("");
+          return;
+        }
+        if (cached) await clearCachedRespondPackets().catch(() => undefined);
+      }
       setError(
         value instanceof Error ? value.message : "Unable to load Respond.",
       );
@@ -609,6 +665,24 @@ export default function Respond({
     return () => {
       window.clearTimeout(initial);
       window.clearInterval(timer);
+    };
+  }, [load]);
+  useEffect(() => {
+    const update = () => {
+      const online = window.navigator.onLine;
+      setIsOnline(online);
+      void load();
+    };
+    const initial = window.setTimeout(
+      () => setIsOnline(window.navigator.onLine),
+      0,
+    );
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.clearTimeout(initial);
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
     };
   }, [load]);
   useEffect(() => {
@@ -911,6 +985,27 @@ export default function Respond({
         <span>Updated {displayTime(data?.generatedAt || "")}</span>
         {error && <span className="warning">{error}</span>}
       </div>
+      {respondSource === "offline" && (
+        <section className="respond-offline-banner" role="status">
+          <strong>OFFLINE — READ-ONLY PREPLAN</strong>
+          <span>
+            Using the last published response packet saved at{" "}
+            {verificationDate(cachedAt)}. It may not reflect current conditions.
+          </span>
+          <small>
+            Live CAD updates, private files, navigation, and current hydrant
+            status may be unavailable until the connection returns.
+          </small>
+        </section>
+      )}
+      {!isOnline && respondSource !== "offline" && (
+        <section className="respond-offline-banner unavailable" role="status">
+          <strong>OFFLINE — NO MATCHED PREPLAN CACHE</strong>
+          <span>
+            No cached active-call packet is available for this device.
+          </span>
+        </section>
+      )}
       {data?.operational && (
         <>
           <nav className="respond-level-switcher" aria-label="Preplan level">

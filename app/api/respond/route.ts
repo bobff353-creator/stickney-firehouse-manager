@@ -33,6 +33,7 @@ export async function GET(request: Request) {
         { error: "Field response access is required." },
         { status: 403 },
       );
+    const departmentId = request.headers.get("x-department-id")?.trim() || "";
 
     const apparatus = normalizeApparatusUnit(
       new URL(request.url).searchParams.get("apparatus"),
@@ -81,6 +82,7 @@ export async function GET(request: Request) {
           boxCard: null,
           nearestHydrants: [],
           apparatusFilter: apparatus || null,
+          departmentId,
           generatedAt: new Date().toISOString(),
         },
         { headers: { "cache-control": "no-store" } },
@@ -384,6 +386,7 @@ export async function GET(request: Request) {
         boxCard,
         nearestHydrants,
         apparatusFilter: apparatus || null,
+        departmentId,
         generatedAt: new Date().toISOString(),
       },
       { headers: { "cache-control": "no-store" } },
