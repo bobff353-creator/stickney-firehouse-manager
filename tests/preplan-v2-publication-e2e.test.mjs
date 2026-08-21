@@ -46,3 +46,13 @@ test("the editor renders only actions allowed for the current lifecycle state", 
     assert.match(panel, new RegExp(`publicationActions\\.has\\("${action}"\\)`));
   }
 });
+
+test("the live API and panel gate controls with the signed-in member's effective permissions", () => {
+  assert.match(operationalRoute, /permissionKeys:PermissionKey\[\]/);
+  assert.match(operationalRoute, /Promise\.all\(permissionKeys\.map\(\(permission\)=>hasPermission/);
+  assert.match(operationalRoute, /permissions \}/);
+  assert.match(panel, /allowed\("field_preplans\.review"\)/);
+  assert.match(panel, /allowed\("field_preplans\.publish"\)/);
+  assert.match(panel, /allowed\(editorPermissions\[key\]\)/);
+  assert.match(panel, /allowed\("field_preplans\.verify_expiring"\)/);
+});
