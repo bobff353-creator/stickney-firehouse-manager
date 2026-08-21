@@ -120,6 +120,7 @@ test("new employees self-activate with roster email and employee number before c
   assert.match(gateway, /fetch\("\/api\/auth\/activate"/);
   assert.match(proxy, /"\/api\/auth\/activate"/);
   assert.match(supabaseAdmin, /SUPABASE_SECRET_KEY/);
+  assert.match(supabaseAdmin, /decoded\.role === "service_role"/);
   assert.match(supabaseAdmin, /import "server-only"/);
   assert.match(activationRoute, /employee_profiles/);
   assert.match(activationRoute, /timingSafeEqual/);
