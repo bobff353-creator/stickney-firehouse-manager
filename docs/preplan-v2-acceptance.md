@@ -9,7 +9,7 @@ This ledger maps the required acceptance scenarios to current evidence. Automate
 | C — Temporary road closure | Effective/expiration state, require-verification behavior, expiring queue actions, audit contract, and no automatic deletion | Create controlled active and expired records; verify Arrival/IAP visibility and authorized extend, resolve, and archive actions at controlled times | Automated contracts pass; manual acceptance outstanding |
 | D — Hose lay | Segment totals, reserve and section rounding, independent supply options, verified capacity comparison, deficit, and unverified-not-zero behavior | Draw the approved multi-segment route from a test hydrant, reload it, publish it, and compare against a verified test apparatus inventory | Automated contracts pass; manual acceptance outstanding |
 | E — Target hazard | Explainable factor scoring, override validation, published Respond banner, and readable reasons | Save the three approved factors, exercise authorized override/review, publish, and visually verify the High Target Hazard presentation | Automated contracts pass; manual acceptance outstanding |
-| F — Draft and publication | Draft ownership, unauthorized concealment, reviewer/publisher transitions, immutable snapshots, Respond published-only selection, and restore-as-new-revision | Exercise distinct firefighter, reviewer, publisher, administrator, employee-allow, and employee-deny sessions against isolated data | Automated contracts pass; administrator publication/search evidence recorded; role matrix outstanding |
+| F — Draft and publication | Draft ownership, unauthorized concealment, reviewer/publisher transitions, immutable snapshots, Respond published-only selection, and restore-as-new-revision | Complete the remaining controlled lifecycle-mutation and private-draft concealment checks | Automated contracts pass; administrator publication/search and seven-session role matrix recorded |
 | G — Legacy preplan | Idempotent Arrival backfill, feature/photo relationship preservation, legacy publication, bootstrap marker separation, and legacy Respond contracts | Open a copied or approved legacy record and verify its original contacts, footprint, features, A–D photos, fire-flow data, and Respond visibility before and after migration | Automated contracts pass; manual acceptance outstanding |
 
 ## Evidence record
@@ -28,6 +28,18 @@ For each manual run, record the date, tester, branch and commit, Vercel deployme
 - Database confirmation: read-only query returned `publication_status=published`, `revision_number=2`, and one immutable revision snapshot.
 - Console evidence: not available because automated browser control was unavailable; no console-error claim is made.
 - Cleanup: the approved preview fixture remains published at revision 2 for subsequent isolated acceptance work. No fake CAD incident, production record, upload, or destructive action was created.
+
+### 2026-08-21 — Signed-in role and override matrix
+
+- Tester: six clearly labeled preview-only employees plus the existing `User Preview Verification` administrator.
+- Branch and commit: `codex/preplan-operational-v2-approved` at `6d737c8`.
+- Deployment: `dpl_JEAWRXDBVehLM9mJq8FpiETFFTwJ`; protected stable preview alias.
+- Isolated database: Supabase project `pzgvlslcaoqtrnaqyjmd`; production accounts, records, storage, and environment variables were not used or changed.
+- Sessions exercised: distinct firefighter, editor, lieutenant reviewer, publisher allow-override, member edit allow-override, firefighter edit deny-override, and administrator identities. Every non-admin identity was activated through the real roster activation flow without sending email.
+- Observed result: firefighter/editor and edit-allow sessions could edit ordinary response data but had no publication actions; reviewer could return a published record to draft and edit risk factors but could not publish or archive; publisher could publish/archive but not review risk factors; edit-deny could read the published fixture but had no Edit Preplan, publication workflow, or operational-data controls; administrator had all tested controls.
+- Authorization correction: the live operational API now returns only the signed-in member's effective Preplan permissions, and the panel hides controls that the server would reject. The server-side permission checks remain authoritative.
+- Preview repair: the isolated legacy branch received the repository-equivalent activation-attempt table/function compatibility layer and its own verified Supabase admin credential. The portal now accepts either a new `sb_secret_` server key or a JWT whose decoded role is exactly `service_role`; the key stays server-only.
+- Cleanup: all matrix sessions were signed out. The labeled preview-only identities remain active for the remaining controlled acceptance scenarios; no department email was sent and no production state changed.
 
 ## Release decision
 
