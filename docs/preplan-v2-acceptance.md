@@ -52,8 +52,20 @@ For each manual run, record the date, tester, branch and commit, Vercel deployme
 - Correction verified: private storage now rebuilds uploaded streams as a Blob with the route-accepted MIME type instead of silently changing them to `application/octet-stream`.
 - Cleanup audit: temporary auth users, employee profiles, employee rows, pay-scale rows, attachment metadata rows, and matching storage objects all returned zero after cleanup. No acceptance attachment or temporary identity remains.
 
+### 2026-08-21 — Respond packet fallback, reconnect, and sign-out clearing
+
+- Tester: signed-in `Preview Matrix, Firefighter` preview-only identity; no production account was used.
+- Branch and commit: `codex/preplan-operational-v2-approved` at `a442d93`.
+- Deployment: `dpl_8UoPFKnDwWKjMstj3BRqbfjeizFq`; immutable preview URL `stickney-firehouse-manager-fa7bgi53j-fire-pre-plan-pro.vercel.app` and protected stable preview alias.
+- Isolated fixture: dispatch `PREVIEW-OFFLINE-ACCEPTANCE`, visibly labeled `PREVIEW ONLY CACHE TEST`, matched the published `preview-ui-verification` record by its non-production address.
+- Live packet: Respond displayed the active call, published revision 2, truthful unknown values, and the preview-only CAD note before caching the department-scoped packet.
+- Controlled failure and reconnect: a temporary `field_preplans.view` deny override made the real Respond API reject this preview account. Respond retained the matched packet behind the timestamped `OFFLINE — READ-ONLY PREPLAN` warning and limitations. Removing the override returned the same mounted view to live status on its next refresh.
+- Sign-out correction: sign-out now explicitly clears private Respond packets before locally ending the Supabase session; server PIN-cookie cleanup no longer blocks the signed-out UI. The deployed browser reached the explicit `Signed out.` state.
+- Cleanup audit: the preview dispatch and temporary permission override both returned zero, and the test account was signed out. Production remained unchanged.
+- Browser limitation: the available browser controller could not toggle its network adapter, so this run exercised the identical fetch-failure/cache-fallback path with a server authorization denial. A literal device-network-offline toggle remains required before production promotion.
+
 ## Release decision
 
 The focused gate is `npm run verify:preplan-v2`. It runs scoped lint, a production build, and the focused Operational Preplan/Respond test suite. The repository-wide `npm run lint` remains a separate whole-portal check; failures outside the Preplan scope must be reported rather than hidden.
 
-Production promotion requires explicit authorization plus completed manual evidence for all seven scenarios, offline cache/reconnect/sign-out clearing, responsive viewports, accessibility inspection, migration backup, and rollback readiness. The role matrix and private upload/stream/denial/cleanup gates are complete on the isolated preview only.
+Production promotion requires explicit authorization plus completed manual evidence for all seven scenarios, a literal device-network-offline check, responsive viewports, accessibility inspection, migration backup, and rollback readiness. The role matrix, private upload/stream/denial/cleanup, controlled Respond cache fallback/reconnect, and sign-out clearing gates are complete on the isolated preview only.
