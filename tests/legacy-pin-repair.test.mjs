@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const loginRoute = readFileSync("app/api/auth/login/route.ts", "utf8");
+const pinRoute = readFileSync("app/api/auth/pin/route.ts", "utf8");
 const gateway = readFileSync("app/auth-gateway.tsx", "utf8");
 const edgeFunction = readFileSync("supabase/functions/portal-pin-session/index.ts", "utf8");
 const migration = readFileSync("supabase/migrations/20260820203252_repair_legacy_pin_login.sql", "utf8");
@@ -21,4 +22,10 @@ test("a verified legacy PIN repairs the Supabase password server-side and retrie
   assert.match(edgeFunction, /auth\.admin\.updateUserById/);
   assert.match(edgeFunction, /SUPABASE_SERVICE_ROLE_KEY/);
   assert.doesNotMatch(gateway, /Older account only/);
+});
+
+test("a verified PIN unlock is not denied by optional login metadata repair", () => {
+  assert.match(pinRoute, /loginUpgradePending = Boolean\(passwordError\)/);
+  assert.match(pinRoute, /unlocked: true, loginUpgradePending/);
+  assert.doesNotMatch(pinRoute, /older account still needs its one-time login upgrade/i);
 });

@@ -150,13 +150,12 @@ export async function POST(request: Request) {
   }
   const { data: userData } = await client.auth.getUser();
   const passwordVersion = Number(userData.user?.user_metadata?.portal_pin_password_version ?? 0);
+  let loginUpgradePending = false;
   if (passwordVersion < 1 && userData.user?.email) {
     const passwordError = await syncPasswordLogin(client, userData.user.email, pin);
-    if (passwordError) {
-      return Response.json({ error: "Your PIN is correct, but this older account still needs its one-time login upgrade. Try again from the email link." }, { status: 503 });
-    }
+    loginUpgradePending = Boolean(passwordError);
   }
-  return withUnlockCookie({ ok: true, configured: true, unlocked: true }, result.unlock_token);
+  return withUnlockCookie({ ok: true, configured: true, unlocked: true, loginUpgradePending }, result.unlock_token);
 }
 
 export async function DELETE() {
