@@ -129,6 +129,16 @@ For each manual run, record the date, tester, branch and commit, Vercel deployme
 - Layer cleanup: authorized archive controls retired the annotation first and then the non-default IAP layer. Server checks prevent archiving Arrival and reject a level archive while active child records remain. The active record returned to one `Arrival / Site` level, no tactical annotations, and no console errors; archived audit rows remain in the isolated preview.
 - Scenario C result: controlled active/expired timing, Arrival/IAP visibility, extend, resolve, annotation archive, alert archive, and layer archive are verified. Scenario C is complete on the isolated preview.
 
+### 2026-08-21 — Scenario D hose-lay persistence and cleanup
+
+- Tester and scope: signed-in `User Preview Verification` administrator on the protected stable preview alias and isolated Supabase project `pzgvlslcaoqtrnaqyjmd`; production was not changed.
+- Controlled data: a clearly labeled temporary preview hydrant and hose lay recorded three segments of 120, 85, and 40 feet. The editor computed 245 feet total and recommended 400 feet from 100-foot reserve and section values.
+- Persistence: after reload, the saved source hydrant, segment distances, computed total, recommendation, supply-line context, and intentionally unverified apparatus state remained visible.
+- Honest limitation: the preview contains no verified fleet apparatus. No apparatus record was fabricated, so apparatus-capacity comparison remains outstanding. The editor persists auditable segment distances but does not yet capture drawn route geometry; that requirement also remains outstanding.
+- Cleanup and defect correction: the hose lay was archived. Temporary hydrant deletion exposed incompatible data-changing CTE and `DELETE ... RETURNING` query shapes in the portal RPC; commits `fe2950e` and `534b7e9` replaced them with portable existence checking and run-mode deletes.
+- Deployed verification: deployment `dpl_HeRrwdtFaJ2Wzofvd9Lw6a5WNCBR` became Ready and served the protected alias. Retrying the already-confirmed cleanup reported `Hydrant deleted`; the directory returned to `1 preplans · 0 hydrants`, and the preplan returned to `HOSE LAYS 0` / `None calculated`, with both temporary names absent.
+- Scenario D result: source selection, multi-segment distance persistence, total/recommendation calculation, reload, archive, and cleanup are verified. Scenario D remains partial pending drawn route geometry and verified apparatus-capacity comparison.
+
 ## Release decision
 
 The focused gate is `npm run verify:preplan-v2`. It runs scoped lint, a production build, and the focused Operational Preplan/Respond test suite. The repository-wide `npm run lint` remains a separate whole-portal check; failures outside the Preplan scope must be reported rather than hidden.
