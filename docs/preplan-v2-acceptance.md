@@ -116,6 +116,17 @@ For each manual run, record the date, tester, branch and commit, Vercel deployme
 - Published visibility: after publication, the same real edit-deny account could open the test fixture again and saw `PREPLAN 2.0 · PUBLISHED` while edit and publication controls remained absent.
 - Console and cleanup: no warning or error entries were captured during concealment, lifecycle transition, or post-publication verification. The fixture was left published at revision 3; production accounts, records, storage, environment variables, and deployment were not changed.
 
+### 2026-08-21 — Temporary-alert expiration controls and review actions
+
+- Tester: signed-in `User Preview Verification` administrator on the protected stable preview alias; isolated Supabase project `pzgvlslcaoqtrnaqyjmd` only.
+- Branch and deployment: `codex/preplan-operational-v2-approved` at `869c347`; deployment `dpl_xjtLWQHmyVgzFQ9pLM88DgHSPURS` and protected stable preview alias.
+- Defect found and corrected: automated entry into the `datetime-local` controls visibly changed the inputs but the React form submitted empty effective and expiration values. The controls now persist input events, and authorized reviewers can archive any active response alert without deleting its audit history.
+- Controlled records: a clearly labeled active road-closure alert displayed `WARNING · EXPIRING` on Arrival with its 10:30 PM expiration; a clearly labeled expired closure entered the open Expiring Items queue as `EXPIRED`. No record claimed to be an actual department restriction.
+- Authorized actions: the expired record was extended 30 days to September 20, then resolved; the remaining active record was archived through the queue. Read-only API evidence contained `expiration_extend_alert`, `expiration_resolve_alert`, and `expiration_archive_alert` audit actions.
+- Cleanup: the three undated defect-reproduction alerts and both controlled dated alerts are archived, not deleted. The live panel returned to `Expiring items 0`, `No active response alerts are recorded`, and no visible `PREVIEW ONLY` alert. Archived audit rows remain intentionally in the isolated preview.
+- Validation: the focused expiration and release-ledger tests pass; scoped Preplan lint passes; the production build compiled successfully. The first focused-gate run correctly exposed a stale ledger assertion after Scenario F was completed; that assertion was updated to the new evidence contract.
+- Remaining Scenario C boundary: Arrival visibility and the authorized expiration actions are verified. Incident Action Plan layer visibility has not yet been exercised, so Scenario C remains incomplete.
+
 ## Release decision
 
 The focused gate is `npm run verify:preplan-v2`. It runs scoped lint, a production build, and the focused Operational Preplan/Respond test suite. The repository-wide `npm run lint` remains a separate whole-portal check; failures outside the Preplan scope must be reported rather than hidden.
