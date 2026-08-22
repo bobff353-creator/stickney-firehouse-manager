@@ -31,3 +31,11 @@ test("Field Preplans exposes a truthful review queue with explicit actions",()=>
   assert.match(panel,/Expired records are never automatically deleted/);
   assert.match(panel,/No operational records expire within 30 days/);
 });
+
+test("alert date controls persist input events and authorized alerts can be archived",()=>{
+  assert.match(panel,/type="datetime-local" value=\{form\.effectiveAt\} onInput=/);
+  assert.match(panel,/type="datetime-local" value=\{form\.expiresAt\} onInput=/);
+  assert.match(panel,/field_preplans\.verify_expiring/);
+  assert.match(panel,/Archive alert/);
+  assert.match(panel,/kind:"alert"/);
+});
