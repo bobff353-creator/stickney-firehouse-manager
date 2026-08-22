@@ -23,8 +23,10 @@ test("Phase 9 ledger keeps every required acceptance scenario honest", () => {
   for (const scenario of ["A — School fire", "B — Chlorine hazard", "C — Temporary road closure", "D — Hose lay", "E — Target hazard", "F — Draft and publication", "G — Legacy preplan"]) {
     assert.match(acceptance, new RegExp(scenario));
   }
-  assert.equal((acceptance.match(/manual acceptance outstanding/g) ?? []).length, 5);
+  assert.equal((acceptance.match(/manual acceptance outstanding/g) ?? []).length, 3);
   assert.match(acceptance, /C — Temporary road closure[\s\S]*Complete on isolated preview/);
+  assert.match(acceptance, /D — Hose lay[\s\S]*Partial on isolated preview/);
+  assert.match(acceptance, /E — Target hazard[\s\S]*controlled call cleanup pending/);
   assert.match(acceptance, /F — Draft and publication[\s\S]*Complete on isolated preview/);
   assert.match(acceptance, /Draft concealment and lifecycle mutation/);
   assert.match(acceptance, /Production promotion requires explicit authorization/);
