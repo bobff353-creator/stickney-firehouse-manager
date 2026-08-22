@@ -69,6 +69,9 @@ type Preplan = {
   status: string;
   targetHazardLevel?: string;
   targetHazardReasons?: string[];
+  targetHazardFactorScore?: number;
+  targetHazardOverride?: number;
+  targetHazardScore?: number;
   updatedAt: string;
   features: Feature[];
   photos: Photo[];
@@ -1178,6 +1181,12 @@ export default function Respond({
                       TARGET HAZARD · {plan.targetHazardLevel.toUpperCase()}
                     </b>
                     <strong>{plan.businessName || plan.address}</strong>
+                    <span>
+                      Published score {Number(plan.targetHazardScore ?? 0)}
+                      {Number(plan.targetHazardOverride ?? 0) !== 0
+                        ? ` · Factors ${Number(plan.targetHazardFactorScore ?? 0)} · Authorized override ${Number(plan.targetHazardOverride) > 0 ? "+" : ""}${Number(plan.targetHazardOverride)}`
+                        : ""}
+                    </span>
                     <span>
                       {plan.targetHazardReasons?.length
                         ? plan.targetHazardReasons.join(" · ")
