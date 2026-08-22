@@ -1,7 +1,7 @@
 import { ensureDatabase } from "../../../../db/bootstrap";
 import { canReadPreplanLifecycle, hasPermission, preplanReadAccess } from "../../../server-permissions";
 import type { PermissionKey } from "../../../permissions";
-import { calculateHoseLay, calculateTargetHazard, normalizedLevelLabel } from "../../../preplans/domain";
+import { calculateHoseLay, calculateTargetHazard, normalizedLevelLabel, parseJson } from "../../../preplans/domain";
 import { constructionProfile, occupancyProfile } from "../../../preplans/profiles";
 import { nextPublicationStatus } from "../../../preplans/publication-workflow.mjs";
 
@@ -53,7 +53,7 @@ export async function GET(request: Request) {
       Promise.all(permissionKeys.map((permission)=>hasPermission(request,db,permission))),
     ]);
     const permissions=Object.fromEntries(permissionKeys.map((permission,index)=>[permission,permissionValues[index]]));
-    return Response.json({ plan:plan?{...plan,constructionProfile:constructionProfile(plan.constructionProfile),occupancyProfile:occupancyProfile(plan.occupancyProfile)}:plan, levels:levels.results, spaces:spaces.results, alerts:alerts.results, hazmat:hazmat.results, zones:zones.results, annotations:annotations.results, assets:assets.results, hoseLays:hoseLays.results, hydrants:hydrants.results, apparatus:apparatus.results, risks:risks.results, reviews:reviews.results, revisions:revisions.results, permissions });
+    return Response.json({ plan:plan?{...plan,constructionProfile:constructionProfile(plan.constructionProfile),occupancyProfile:occupancyProfile(plan.occupancyProfile)}:plan, levels:levels.results, spaces:spaces.results, alerts:alerts.results, hazmat:hazmat.results, zones:zones.results, annotations:annotations.results, assets:assets.results, hoseLays:hoseLays.results.map((item)=>({...item,path:parseJson(item.path,[])})), hydrants:hydrants.results, apparatus:apparatus.results, risks:risks.results, reviews:reviews.results, revisions:revisions.results, permissions });
   } catch (error) {
     if (error instanceof Response) return error;
     return Response.json({ error:error instanceof Error ? error.message : "Unable to load operational preplan." }, { status:500 });

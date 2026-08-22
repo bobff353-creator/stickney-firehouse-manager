@@ -47,6 +47,7 @@ test("hose-lay authoring requires and presents persisted drawn route geometry", 
   assert.match(route, /path\.length<2/);
   assert.match(route, /Draw a valid hose route with at least two preplan points/);
   assert.match(route, /json\(path,\[\]\)/);
+  assert.match(route, /path:parseJson\(item\.path,\[\]\)/);
 });
 
 test("HazMat zones require a verified linked material and positive circle radius", () => {
