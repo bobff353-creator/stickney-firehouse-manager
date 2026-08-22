@@ -95,8 +95,18 @@ For each manual run, record the date, tester, branch and commit, Vercel deployme
 - Validation: focused contrast/auth/Respond tests, repository lint, production build, and `git diff --check` passed before the final CSS-only Respond correction; the final correction then passed its focused tests, repository lint, and deployed measurement.
 - Separate console finding: Google Maps reported `InvalidKeyMapError`/`InvalidKey` on the preview. This is an unresolved map-key configuration issue, not a color-contrast failure; no clean-console claim is made for this run.
 
+### 2026-08-21 — Protected-preview Google Maps verification
+
+- Tester: signed-in `Preview Matrix, Firefighter` preview-only identity on the protected stable preview alias.
+- Branch and commit: `codex/preplan-operational-v2-approved` at `0b49585`.
+- Deployment: `dpl_84t6yqFcsxCopAGVeKEyiaXcftzM`; immutable preview URL `stickney-firehouse-manager-6g8pdbm3n-fire-pre-plan-pro.vercel.app` and protected stable preview alias.
+- Configuration boundary: the valid browser key is stored as a sensitive Vercel Preview variable scoped only to `codex/preplan-operational-v2-approved`. The protected preview origin was added to the existing Google Maps browser-key website restrictions. Production Vercel variables and the production deployment were not changed.
+- Observed result: the published `preview-ui-verification` record rendered Google satellite imagery, standard Google map controls and attribution, the preplan overlay, and the expected map position at zoom 20.
+- Console result: no warning or error entries were present after the signed-in Field Preplans record and Google map finished loading. The earlier `InvalidKeyMapError` and `InvalidKey` warning did not recur.
+- Secret handling: the key value was transferred directly from the system clipboard into the sensitive branch-scoped variable and was not printed, written to a repository file, or committed.
+
 ## Release decision
 
 The focused gate is `npm run verify:preplan-v2`. It runs scoped lint, a production build, and the focused Operational Preplan/Respond test suite. The repository-wide `npm run lint` remains a separate whole-portal check; failures outside the Preplan scope must be reported rather than hidden.
 
-Production promotion requires explicit authorization plus completed manual evidence for all seven scenarios, a literal device-network-offline check, a restorable migration backup, and rollback readiness. The role matrix, private upload/stream/denial/cleanup, controlled Respond cache fallback/reconnect, sign-out clearing, responsive viewport, touch-target, keyboard, formal color-contrast, and isolated row-inventory gates are complete on the preview only. The logical backup and restore rehearsal remain blocked by the missing local dump runtime, and the preview Google Maps key error remains unresolved.
+Production promotion requires explicit authorization plus completed manual evidence for all seven scenarios, a literal device-network-offline check, a restorable migration backup, and rollback readiness. The role matrix, private upload/stream/denial/cleanup, controlled Respond cache fallback/reconnect, sign-out clearing, responsive viewport, touch-target, keyboard, formal color-contrast, Google Maps, and isolated row-inventory gates are complete on the preview only. The logical backup and restore rehearsal remains blocked by the missing local dump runtime.
