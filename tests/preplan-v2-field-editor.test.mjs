@@ -60,3 +60,11 @@ test("revision UI discloses restore scope and requires an explicit confirmation"
   assert.match(panel, /Current private attachments and legacy mapped systems (?:will be|are) preserved/);
   assert.doesNotMatch(route.match(/const restoreTables = \{[\s\S]*?\} as const;/)?.[0] ?? "", /field_preplan_assets|field_preplan_features/);
 });
+
+test("layer cleanup protects Arrival and requires child records to be archived first", () => {
+  assert.match(panel, /archiveOperationalRecord\("annotation",item\.id\)/);
+  assert.match(panel, /Archive selected level/);
+  assert.match(route, /The default Arrival level cannot be archived/);
+  assert.match(route, /Archive active records on this level before archiving the level/);
+  assert.match(route, /field_preplan_annotations SET archived=1/);
+});

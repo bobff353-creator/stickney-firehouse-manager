@@ -80,6 +80,27 @@ export async function POST(request: Request) {
       return Response.json({ ok:true,id });
     }
 
+    if (action === "archiveOperationalRecord") {
+      await requirePermission(request, db, "field_preplans.manage_layers");
+      const kind=text(body.kind,20),id=text(body.id,80);
+      if(!id||!["level","annotation"].includes(kind))return Response.json({error:"A valid operational record is required."},{status:400});
+      if(kind==="annotation"){
+        const record=await db.prepare("SELECT id FROM field_preplan_annotations WHERE id=? AND preplan_id=? AND archived=0").bind(id,preplanId).first();
+        if(!record)return Response.json({error:"The active tactical annotation was not found in this preplan."},{status:404});
+        await db.prepare("UPDATE field_preplan_annotations SET archived=1,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND preplan_id=?").bind(user,id,preplanId).run();
+      }else{
+        const level=await db.prepare("SELECT id,is_default isDefault FROM field_preplan_levels WHERE id=? AND preplan_id=? AND archived=0").bind(id,preplanId).first<{id:string;isDefault:number}>();
+        if(!level)return Response.json({error:"The active preplan level was not found."},{status:404});
+        if(level.isDefault)return Response.json({error:"The default Arrival level cannot be archived."},{status:400});
+        const childTables=["field_preplan_spaces","field_preplan_alerts","field_preplan_hazmat","field_preplan_hazmat_zones","field_preplan_annotations","field_preplan_assets","field_preplan_hose_lays"];
+        for(const table of childTables){
+          if(await db.prepare(`SELECT id FROM ${table} WHERE preplan_id=? AND level_id=? AND archived=0 LIMIT 1`).bind(preplanId,id).first())return Response.json({error:"Archive active records on this level before archiving the level."},{status:409});
+        }
+        await db.prepare("UPDATE field_preplan_levels SET archived=1,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND preplan_id=?").bind(user,id,preplanId).run();
+      }
+      return Response.json({ok:true,id,kind});
+    }
+
     if (action === "saveSpace") {
       await requirePermission(request, db, "field_preplans.manage_layers");
       const id = text(body.id,80)||crypto.randomUUID(), levelId=text(body.levelId,80), name=text(body.name,120);
