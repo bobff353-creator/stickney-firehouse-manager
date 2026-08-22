@@ -25,6 +25,17 @@ test("hose-lay and target-hazard results remain explicit for firefighters", () =
   assert.match(panel, /recommendedHoseFeet/);
 });
 
+test("hose-lay authoring persists measured segments, a verified source, and auditable inventory context", () => {
+  assert.match(panel, /Route segments/);
+  assert.match(panel, /Source hydrant/);
+  assert.match(panel, /Apparatus \/ inventory reference/);
+  assert.match(panel, /Inventory verified at/);
+  assert.match(panel, /archiveOperationalRecord\("hoseLay",item\.id\)/);
+  assert.match(route, /Route segment distances must equal the measured route total/);
+  assert.match(route, /The selected source hydrant was not found/);
+  assert.match(route, /Verified apparatus capacity requires an apparatus reference and verification date/);
+});
+
 test("HazMat zones require a verified linked material and positive circle radius", () => {
   assert.match(panel, /saveHazmatZone/);
   assert.match(panel, /Select verified material/);
