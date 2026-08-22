@@ -86,8 +86,17 @@ For each manual run, record the date, tester, branch and commit, Vercel deployme
 - Readiness decision: exact row-count inventory is complete, but a restorable logical backup and restore rehearsal are not complete. Production backup, storage inventory, migration, restore, and promotion were not attempted.
 - Rollback boundary: application rollback remains the first response for an application-only failure. The additive database tables must not be dropped during incident response; a production change window still requires a fresh approved backup and preservation of newer records for reconciliation.
 
+### 2026-08-21 — Instrumented color-contrast verification
+
+- Tester: signed-in `Preview Matrix, Firefighter` preview-only identity on the protected stable preview alias; production accounts and data were not used.
+- Corrections: login-card labels, light Preplan record labels and empty states, dark Operational Preplan revision/expiration content, portal sync/search/footer labels, and Respond idle/empty text received explicit AA palettes with source regression assertions.
+- Deployments: login correction `dpl_7KPuGvqj6FMA6JeCc2TJwXMxmEKU`; signed-in Preplan correction `dpl_Ge4NpgPExFrz2esYGMUxGCfpu8R7`; final Respond correction `dpl_FJ2gAVqRmmAVPksJscmZDL6oWdWL`.
+- Deployed measurements: login labels 6.66:1 and 5.40:1; Operational Preplan revision/expiration headings 15.27:1 and supporting text 11.11:1; light Preplan labels/empty states at least 5.10:1; Respond idle/empty text at least 5.11:1. Each measured normal-text pair exceeds the WCAG AA 4.5:1 threshold.
+- Validation: focused contrast/auth/Respond tests, repository lint, production build, and `git diff --check` passed before the final CSS-only Respond correction; the final correction then passed its focused tests, repository lint, and deployed measurement.
+- Separate console finding: Google Maps reported `InvalidKeyMapError`/`InvalidKey` on the preview. This is an unresolved map-key configuration issue, not a color-contrast failure; no clean-console claim is made for this run.
+
 ## Release decision
 
 The focused gate is `npm run verify:preplan-v2`. It runs scoped lint, a production build, and the focused Operational Preplan/Respond test suite. The repository-wide `npm run lint` remains a separate whole-portal check; failures outside the Preplan scope must be reported rather than hidden.
 
-Production promotion requires explicit authorization plus completed manual evidence for all seven scenarios, a literal device-network-offline check, formal color-contrast analysis, a restorable migration backup, and rollback readiness. The role matrix, private upload/stream/denial/cleanup, controlled Respond cache fallback/reconnect, sign-out clearing, responsive viewport, touch-target, keyboard, and isolated row-inventory gates are complete on the preview only. The logical backup and restore rehearsal remain blocked by the missing local dump runtime.
+Production promotion requires explicit authorization plus completed manual evidence for all seven scenarios, a literal device-network-offline check, a restorable migration backup, and rollback readiness. The role matrix, private upload/stream/denial/cleanup, controlled Respond cache fallback/reconnect, sign-out clearing, responsive viewport, touch-target, keyboard, formal color-contrast, and isolated row-inventory gates are complete on the preview only. The logical backup and restore rehearsal remain blocked by the missing local dump runtime, and the preview Google Maps key error remains unresolved.
