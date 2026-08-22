@@ -150,6 +150,14 @@ For each manual run, record the date, tester, branch and commit, Vercel deployme
 - Cleanup: the controlled call was closed normally with time out 2237 and time in 2242, returning Respond to `No active call`. A direct isolated-preview query confirmed that the apparent extra blank UI row was never persisted; the closed `PREVIEW-SCENARIO-E` evidence call is the only stored row for the date. No deletion was necessary.
 - Scenario E result: all approved factors, readable reasons, transparent scoring, authorized override, revision publication, Respond presentation, and active-call cleanup are verified. Scenario E is complete on the isolated preview.
 
+### 2026-08-21 — Scenario G legacy-source readiness
+
+- Scope: read-only inspection of the isolated Supabase preview, repository artifacts, configured environment-key names, Git/Vercel identity, and the unauthenticated production health boundary. No hosted record, file, secret, or production setting was changed.
+- Preview inventory: the isolated project contains only `preview-ui-verification`, the synthetic acceptance record. It has empty contacts, footprint, features, photos, and fire-flow data; it therefore cannot prove legacy preservation. The preview import table contains zero rows and zero linked records.
+- Repository inventory: no approved legacy preplan export, workbook, fixture, backup, or photo set is present. The only matching source files are additive migration contracts and documentation; they verify structure but cannot replace record-level before/after evidence.
+- Production boundary: the clean production health route requires an authenticated portal session. Vercel confirms that the production database connection is configured as a hidden environment value, but no secret value was pulled or exposed and no production query was attempted.
+- Scenario G result: automated migration contracts remain passing, but manual acceptance is blocked until the user approves a specific legacy record or authorizes a source-preserving copy from production into the isolated preview. Invented legacy data is not an acceptable substitute.
+
 ## Release decision
 
 The focused gate is `npm run verify:preplan-v2`. It runs scoped lint, a production build, and the focused Operational Preplan/Respond test suite. The repository-wide `npm run lint` remains a separate whole-portal check; failures outside the Preplan scope must be reported rather than hidden.
