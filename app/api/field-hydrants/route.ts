@@ -30,10 +30,12 @@ export async function GET(request:Request){
 export async function POST(request:Request){
   try{const db=await ensureDatabase(),auth=await access(request,db);if(!auth.edit)return Response.json({error:"Field hydrant edit permission is required."},{status:403});const body=await request.json() as Record<string,unknown>,action=txt(body.action,40);
     if(action==="deleteHydrant"){const id=txt(body.id,80),confirmation=txt(body.confirmation,20);if(!id||confirmation!=="DELETE")return Response.json({error:"Confirm Delete is required before a hydrant can be removed."},{status:400});
+      const existing=await db.prepare("SELECT id FROM field_hydrants WHERE id=?").bind(id).first<{id:string}>();
+      if(!existing)return Response.json({error:"Hydrant not found."},{status:404});
       await db.prepare("DELETE FROM field_hydrant_flow_tests WHERE test_hydrant_id=? OR flow_hydrant_id=?").bind(id,id).run();
       await db.prepare("DELETE FROM field_hydrant_flushes WHERE hydrant_id=?").bind(id).run();
-      const removed=await db.prepare("DELETE FROM field_hydrants WHERE id=? RETURNING id").bind(id).all<{id:string}>();
-      if(!removed.results.length)return Response.json({error:"Hydrant not found."},{status:404});return Response.json({ok:true,id});}
+      await db.prepare("DELETE FROM field_hydrants WHERE id=?").bind(id).run();
+      return Response.json({ok:true,id});}
     if(action==="saveHydrant"){const id=txt(body.id,80)||crypto.randomUUID(),lat=num(body.latitude),lng=num(body.longitude),count=num(body.portCount),sizes=Array.isArray(body.portSizes)?body.portSizes.map((item)=>txt(item,20)).filter(Boolean).slice(0,3):[];if(!validCoordinate(lat,lng)||!Number.isInteger(count)||count<1||count>3)return Response.json({error:"Current GPS location and a one, two, or three-port layout are required."},{status:400});
       await db.prepare("INSERT INTO field_hydrants(id,hydrant_number,address,latitude,longitude,service_status,manufacturer,model,port_count,port_sizes,notes,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET hydrant_number=excluded.hydrant_number,address=excluded.address,latitude=excluded.latitude,longitude=excluded.longitude,service_status=excluded.service_status,manufacturer=excluded.manufacturer,model=excluded.model,port_count=excluded.port_count,port_sizes=excluded.port_sizes,notes=excluded.notes,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP")
         .bind(id,txt(body.hydrantNumber,80),txt(body.address,240),lat,lng,body.serviceStatus==="out_of_service"?"out_of_service":"in_service",txt(body.manufacturer,120),txt(body.model,120),count,JSON.stringify(sizes),txt(body.notes),auth.actor,auth.actor).run();return Response.json({ok:true,id});}
