@@ -34,6 +34,8 @@ test("hose-lay authoring persists measured segments, a verified source, and audi
   assert.match(route, /Route segment distances must equal the measured route total/);
   assert.match(route, /The selected source hydrant was not found/);
   assert.match(route, /Verified apparatus capacity requires an apparatus reference and verification date/);
+  assert.match(route, /The selected active apparatus was not found/);
+  assert.match(route, /FROM fleet_apparatus/);
 });
 
 test("HazMat zones require a verified linked material and positive circle radius", () => {
