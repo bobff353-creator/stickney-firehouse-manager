@@ -38,6 +38,17 @@ test("hose-lay authoring persists measured segments, a verified source, and audi
   assert.match(route, /FROM fleet_apparatus/);
 });
 
+test("hose-lay authoring requires and presents persisted drawn route geometry", () => {
+  assert.match(panel, /Draw route geometry/);
+  assert.match(panel, /Hose route drawing surface/);
+  assert.match(panel, /path:hosePath/);
+  assert.match(panel, /Saved drawn route/);
+  assert.match(panel, /Drawn route geometry not recorded/);
+  assert.match(route, /path\.length<2/);
+  assert.match(route, /Draw a valid hose route with at least two preplan points/);
+  assert.match(route, /json\(path,\[\]\)/);
+});
+
 test("HazMat zones require a verified linked material and positive circle radius", () => {
   assert.match(panel, /saveHazmatZone/);
   assert.match(panel, /Select verified material/);
