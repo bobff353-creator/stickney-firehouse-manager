@@ -50,6 +50,17 @@ test("hose-lay authoring requires and presents persisted drawn route geometry", 
   assert.match(route, /path:parseJson\(item\.path,\[\]\)/);
 });
 
+test("room and stair authoring persists CAD terms and normalized highlight geometry", () => {
+  assert.match(panel, /Room polygon drawing surface/);
+  assert.match(panel, /Room polygon ready to save/);
+  assert.match(panel, /CAD keywords/);
+  assert.match(panel, /<option value="stair">Stair<\/option>/);
+  assert.match(panel, /geometry:spaceGeometry/);
+  assert.match(route, /Draw a valid room polygon with at least three floor-plan corners/);
+  assert.match(route, /room_number=excluded\.room_number/);
+  assert.match(route, /json\(geometry,\[\]\)/);
+});
+
 test("HazMat zones require a verified linked material and positive circle radius", () => {
   assert.match(panel, /saveHazmatZone/);
   assert.match(panel, /Select verified material/);
