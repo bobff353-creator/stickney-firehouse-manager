@@ -4,7 +4,7 @@ This ledger maps the required acceptance scenarios to current evidence. Automate
 
 | Scenario | Automated evidence | Isolated preview evidence still required | Status |
 | --- | --- | --- | --- |
-| A — School fire | Levels, room aliases, conservative CAD room matching, suggested level, room highlight, critical-alert priority, and return-to-Arrival behavior | Author a school record with two floors, two stairs, systems, and a private second-floor plan; publish it; inject approved test CAD narrative; verify phone, iPad, and desktop Respond behavior | Automated contracts pass; manual acceptance outstanding |
+| A — School fire | Levels, room aliases, conservative CAD room matching, suggested level, room highlight, critical-alert priority, and return-to-Arrival behavior | Completed on the isolated preview with a controlled two-floor school, two stairs, private second-floor plan, approved CAD narrative, and phone/iPad/desktop Respond checks | Complete on isolated preview |
 | B — Chlorine hazard | HazMat validation, pinned ERG source boundary, mapped/unmapped zones, level filtering, structured Respond fields, and private SDS route | Save verified chlorine/UN 1017 values without guessed distances; upload and stream a test SDS; publish; render approved isolation and evacuation geometry | Automated contracts pass; manual acceptance outstanding |
 | C — Temporary road closure | Effective/expiration state, require-verification behavior, expiring queue actions, audit contract, and no automatic deletion | Completed on the isolated preview with controlled active/expired alerts and a temporary Incident Action Plan layer | Complete on isolated preview |
 | D — Hose lay | Segment totals, reserve and section rounding, independent supply options, verified capacity comparison, deficit, and unverified-not-zero behavior | Compare the persisted result against a verified test apparatus inventory | Partial on isolated preview: drawn route geometry, source, segments, totals, recommendation, reload, archive behavior, and prior cleanup verified; apparatus capacity remains outstanding |
@@ -15,6 +15,18 @@ This ledger maps the required acceptance scenarios to current evidence. Automate
 ## Evidence record
 
 For each manual run, record the date, tester, branch and commit, Vercel deployment ID, isolated database/storage identifier, browser and viewport, test record IDs, observed result, screenshots, console errors, and cleanup result. Do not place secrets, signed asset URLs, or protected record content in the evidence.
+
+### 2026-08-23 — Scenario A school CAD room match and responsive Respond verification
+
+- Tester and scope: signed-in `User Preview Verification` administrator on the protected stable preview alias; isolated Supabase project `pzgvlslcaoqtrnaqyjmd` only. Production was not changed.
+- Branch and deployment: `codex/preplan-operational-v2-approved` at `c4244f4`; deployment `dpl_245NUDu6XjNTfg1gmsWMJDVYzpdR` on the protected stable preview alias.
+- Controlled record: `PREVIEW ONLY — Scenario A School`, record ID `ef090ac4-a0ac-4aae-9553-10d1b830af6a`, with a measured four-corner test footprint, two floor levels, monitored-alarm/wet-sprinkler summary, and revision 2 published.
+- Operational data: active second-floor spaces are exactly `Science Lab 204`, `Stair A`, and `Stair B`. Each is clearly labeled as controlled data; all three have saved normalized geometry and CAD aliases/keywords. An accidental duplicate no-geometry `Stair A` created during live verification was identified by exact ID and archived, leaving three active spaces.
+- Private plan and alert: a clearly labeled synthetic second-floor PNG was stored through the authenticated private attachment flow. It depicts Science Lab 204 between Stair A and Stair B and states that it is not operational data. A controlled critical alert was published with the record.
+- CAD evidence: controlled incident `PREVIEW-SCENARIO-A` used the single-room narrative `PREVIEW ONLY APPROVED TEST: Smoke in Science Lab 204 on the second floor.` Respond matched the preplan by exact stored address, conservatively selected `Second Floor`, exposed `Open matched room · Science Lab 204`, and rendered `CAD room highlighted` over the private plan. Stair A and Stair B remained visible as alternate access context without making the narrative ambiguous.
+- Responsive evidence: the same live matched packet was checked at 390×844 phone, 820×1180 iPad, and 1440×900 desktop overrides. Each retained the room match/highlight, and measured document width equaled client width at every viewport (no horizontal document overflow). The temporary viewport override was reset afterward.
+- Cleanup: the dispatch was cleared and its projected Daily Log call was closed at 2050. A fresh authenticated Respond API request returned `activeCall: null`. The controlled school fixture remains published for later isolated acceptance work; no production account, record, storage object, or deployment was changed.
+- Console evidence: no console collection was performed during this run, so no clean-console claim is made.
 
 ### 2026-08-21 — Administrator publication and Respond search
 
