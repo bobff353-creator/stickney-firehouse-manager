@@ -195,6 +195,7 @@ export default function InventoryOperations({
   const [deficiencyItem, setDeficiencyItem] = useState<Row | null>(null);
   const [numericReadings, setNumericReadings] = useState<Record<string, string>>({});
   const [editingEquipment, setEditingEquipment] = useState<Row | null>(null);
+  const [selectedDirectoryEquipment, setSelectedDirectoryEquipment] = useState<Row | null>(null);
   const [scannerTarget, setScannerTarget] = useState<"create" | "edit" | "search">("create");
   const [equipmentSearch, setEquipmentSearch] = useState("");
   const equipmentFormRef = useRef<HTMLFormElement>(null);
@@ -567,8 +568,25 @@ export default function InventoryOperations({
           <div className="equipment-search-tools"><label>Search equipment<input value={equipmentSearch} onChange={(event) => setEquipmentSearch(event.target.value)} placeholder="Name, barcode, serial, compartment, or unit" /></label><button type="button" onClick={() => { setScannerTarget("search"); setScannerOpen(true); }}>Scan Barcode</button></div>
           {equipmentMatches.length ? <div className="equipment-directory">{equipmentMatches.map((item) => {
             const apparatus = data.apparatus.find((row) => value(row, "id") === value(item, "apparatus_id"));
-            return <article key={value(item, "id")}><div><strong>{value(item, "name")}</strong><small>{apparatus ? value(apparatus, "name") : "Unknown apparatus"} · {value(item, "compartment_label") || "Location not recorded"}</small></div><dl><div><dt>Barcode</dt><dd>{value(item, "barcode") || "Not assigned"}</dd></div><div><dt>Serial</dt><dd>{value(item, "serial_number") || "Not recorded"}</dd></div><div><dt>Required</dt><dd>{value(item, "quantity_required") || "1"}</dd></div></dl></article>;
+            return <button className="equipment-record-button" type="button" key={value(item, "id")} onClick={() => setSelectedDirectoryEquipment(item)} aria-label={`View ${value(item, "name")} equipment record`}><div><strong>{value(item, "name")}</strong><small>{apparatus ? value(apparatus, "name") : "Unknown apparatus"} · {value(item, "compartment_label") || "Location not recorded"}</small></div><dl><div><dt>Barcode</dt><dd>{value(item, "barcode") || "Not assigned"}</dd></div><div><dt>Serial</dt><dd>{value(item, "serial_number") || "Not recorded"}</dd></div><div><dt>Required</dt><dd>{value(item, "quantity_required") || "1"}</dd></div></dl></button>;
           })}</div> : <div className="ops-empty"><strong>No equipment matches this search.</strong><p>Try a unit name, compartment, asset tag, barcode, or serial number.</p></div>}
+          {selectedDirectoryEquipment ? (() => {
+            const apparatus = data.apparatus.find((row) => value(row, "id") === value(selectedDirectoryEquipment, "apparatus_id"));
+            return <article className="equipment-record-summary" aria-label="Selected equipment record">
+              <header><div><span>SELECTED EQUIPMENT</span><h3>{value(selectedDirectoryEquipment, "name")}</h3></div><button type="button" onClick={() => setSelectedDirectoryEquipment(null)}>Close</button></header>
+              <dl>
+                <div><dt>Assigned vehicle</dt><dd>{apparatus ? value(apparatus, "name") : "Not recorded"}</dd></div>
+                <div><dt>Exact location</dt><dd>{value(selectedDirectoryEquipment, "compartment_label") || "Not recorded"}</dd></div>
+                <div><dt>Category</dt><dd>{formatStatus(selectedDirectoryEquipment.equipment_category) || "Equipment"}</dd></div>
+                <div><dt>Manufacturer / model</dt><dd>{[value(selectedDirectoryEquipment, "manufacturer"), value(selectedDirectoryEquipment, "model")].filter(Boolean).join(" · ") || "Not recorded"}</dd></div>
+                <div><dt>Serial number</dt><dd>{value(selectedDirectoryEquipment, "serial_number") || "Not recorded"}</dd></div>
+                <div><dt>Barcode / asset tag</dt><dd>{value(selectedDirectoryEquipment, "barcode") || "Not assigned"}</dd></div>
+                <div><dt>Required quantity</dt><dd>{value(selectedDirectoryEquipment, "quantity_required") || "1"}</dd></div>
+                <div><dt>Required checks</dt><dd>{Array.isArray(selectedDirectoryEquipment.check_types) && selectedDirectoryEquipment.check_types.length ? selectedDirectoryEquipment.check_types.map(formatStatus).join(", ") : "Not assigned"}</dd></div>
+              </dl>
+              {canSetup ? <button className="ops-primary" type="button" onClick={() => setEditingEquipment(selectedDirectoryEquipment)}>Edit equipment parameters</button> : null}
+            </article>;
+          })() : null}
         </section>
       ) : null}
 

@@ -26,3 +26,11 @@ test("crew landing page exposes a short operational workflow", () => {
   }
   assert.match(shell, /Track failed items without duplicate work/);
 });
+
+test("equipment directory opens a safe summary before administrator editing", () => {
+  assert.match(operations, /Selected equipment record/);
+  assert.match(operations, /Assigned vehicle/);
+  assert.match(operations, /Exact location/);
+  assert.match(operations, /Edit equipment parameters/);
+  assert.match(operations, /canSetup \? <button className="ops-primary"/);
+});
