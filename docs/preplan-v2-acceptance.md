@@ -19,6 +19,7 @@ For each manual run, record the date, tester, branch and commit, Vercel deployme
 ### 2026-08-23 — Scenario D Engine 1203 capacity comparison
 
 - Tester and scope: signed-in `User Preview Verification` administrator on the protected stable preview alias; isolated Supabase project `pzgvlslcaoqtrnaqyjmd` only. Production was not changed.
+- Branch and deployment: `codex/preplan-operational-v2-approved` at `5ea7484`; deployment `dpl_DRt3shoNTmnBFZ1ytZP2zD9dNcSe` became Ready on the protected stable preview alias.
 - User-confirmed inventory fact: the user supplied 750 feet as Engine 1203's 4-inch LDH capacity on 2026-08-23. The isolated apparatus reference `preview-scenario-d-engine-1203` states that exact source and date, is visibly labeled `PREVIEW ONLY`, and asserts no manufacturer or unrelated inventory facts.
 - Persisted hose lay: `PREVIEW ONLY — Scenario D Engine 1203 verified capacity` stores three normalized route points, independent segments of 120, 85, and 40 feet, a measured total of 245 feet, 100-foot reserve, 100-foot section rounding, 4-inch LDH, a 400-foot recommendation, the selected Engine 1203 reference, 750-foot capacity, verification timestamp, and source note.
 - Publication and Respond: the fixture published as revision 6. Controlled dispatch `PREVIEW-SCENARIO-D-CAPACITY` matched by exact stored address and displayed the 245-foot route, 400-foot recommendation, 750-foot apparatus capacity, saved three-point route, source note, and `Verified apparatus capacity covers this recommendation.`
