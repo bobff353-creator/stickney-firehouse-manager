@@ -690,7 +690,7 @@ export default function InventoryOperations({
       {view === "builder" && canSetup ? (
         <>
         <section className="ops-card">
-          <header><div><span>BUILD INVENTORY CHECKLISTS</span><h2>Add real equipment and choose its inspections</h2></div><b>{data.equipment.length} items</b></header>
+          <header><div><span>ADMIN · CHECK PARAMETERS &amp; LOCATIONS</span><h2>Add or edit equipment, its exact location, and required checks</h2></div><b>{data.equipment.length} items</b></header>
           <label className="unit-picker">Apparatus
             <select value={selectedApparatusId} onChange={(event) => setSelectedApparatusId(event.target.value)}>
               {data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")}</option>)}
@@ -700,7 +700,7 @@ export default function InventoryOperations({
             const form = new FormData(event.currentTarget);
             submit(event, "equipment", { action: "create_equipment", compartmentId: form.get("compartmentId"), name: form.get("name"), manufacturer: form.get("manufacturer"), model: form.get("model"), serialNumber: form.get("serialNumber"), barcode: form.get("barcode"), quantityRequired: form.get("quantityRequired"), equipmentCategory: form.get("equipmentCategory"), checkTypes: form.getAll("checkTypes") });
           }}>
-            <label>Compartment<select name="compartmentId" required>{selectedCompartments.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "label")} · {value(item, "side")}</option>)}</select></label>
+            <label>Required equipment location<select name="compartmentId" required>{selectedCompartments.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "label")} · {value(item, "side")}</option>)}</select></label>
             <label>Equipment or check item name<input name="name" required /></label>
             <label>Type<select name="equipmentCategory"><option value="vehicle">Vehicle</option><option value="air_pack">Air pack</option><option value="equipment">Equipment</option></select></label>
             <label>Manufacturer<input name="manufacturer" /></label>
@@ -708,7 +708,7 @@ export default function InventoryOperations({
             <label>Serial number<input name="serialNumber" /></label>
             <label>Barcode / asset tag<input name="barcode" /></label>
             <label>Required quantity<input name="quantityRequired" type="number" min="1" defaultValue="1" /></label>
-            <fieldset className="ops-check-grid ops-span-2"><legend>Include in checks</legend>{inspectionTypes.map(([id, label]) => <label key={id}><input type="checkbox" name="checkTypes" value={id} defaultChecked={id === "inventory"} /> {label}</label>)}</fieldset>
+            <fieldset className="ops-check-grid ops-span-2"><legend>Required check parameters</legend>{inspectionTypes.map(([id, label]) => <label key={id}><input type="checkbox" name="checkTypes" value={id} defaultChecked={id === "inventory"} /> {label}</label>)}</fieldset>
             <button className="ops-scan-button" type="button" onClick={() => { setScannerTarget("create"); setScannerOpen(true); }}>Scan barcode</button>
             <button className="ops-primary" disabled={Boolean(busy)}>Add to Inventory</button>
           </form>}
@@ -963,7 +963,7 @@ export default function InventoryOperations({
             <header><div><span>EDIT INVENTORY ITEM</span><h3>{value(editingEquipment, "name")}</h3></div><button type="button" onClick={() => setEditingEquipment(null)}>Cancel</button></header>
             {value(editingEquipment, "photo_url") ? <img className="equipment-editor-photo" src={value(editingEquipment, "photo_url")} alt={value(editingEquipment, "name")} /> : null}
             <div className="ops-form ops-form-wide">
-              <label>Compartment<select name="compartmentId" defaultValue={value(editingEquipment, "compartment_id")}>{data.compartments.filter((item) => value(item, "apparatus_id") === value(editingEquipment, "apparatus_id")).map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "label")}</option>)}</select></label>
+              <label>Required equipment location<select name="compartmentId" defaultValue={value(editingEquipment, "compartment_id")}>{data.compartments.filter((item) => value(item, "apparatus_id") === value(editingEquipment, "apparatus_id")).map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "label")}</option>)}</select></label>
               <label>Item name<input name="name" defaultValue={value(editingEquipment, "name")} required /></label>
               <label>Type<select name="equipmentCategory" defaultValue={value(editingEquipment, "equipment_category")}><option value="vehicle">Vehicle</option><option value="air_pack">Air pack</option><option value="equipment">Equipment</option></select></label>
               <label>Required quantity<input name="quantityRequired" type="number" min="1" defaultValue={value(editingEquipment, "quantity_required")} /></label>
@@ -971,7 +971,7 @@ export default function InventoryOperations({
               <label>Model<input name="model" defaultValue={value(editingEquipment, "model")} /></label>
               <label>Serial number<input name="serialNumber" defaultValue={value(editingEquipment, "serial_number")} /></label>
               <label>Barcode / asset tag<input name="barcode" defaultValue={value(editingEquipment, "barcode")} /></label>
-              <fieldset className="ops-check-grid ops-span-2"><legend>Include in checks</legend>{inspectionTypes.map(([id, label]) => <label key={id}><input type="checkbox" name="checkTypes" value={id} defaultChecked={Array.isArray(editingEquipment.check_types) && editingEquipment.check_types.includes(id)} /> {label}</label>)}</fieldset>
+              <fieldset className="ops-check-grid ops-span-2"><legend>Required check parameters</legend>{inspectionTypes.map(([id, label]) => <label key={id}><input type="checkbox" name="checkTypes" value={id} defaultChecked={Array.isArray(editingEquipment.check_types) && editingEquipment.check_types.includes(id)} /> {label}</label>)}</fieldset>
               <label className="ops-span-2">Take or attach item photo<input name="photo" type="file" accept="image/*" capture="environment" /></label>
               <button className="ops-scan-button" type="button" onClick={() => { setScannerTarget("edit"); setScannerOpen(true); }}>Scan barcode</button>
               <button className="ops-primary" disabled={Boolean(busy)}>Save item</button>

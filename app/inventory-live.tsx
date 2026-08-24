@@ -496,24 +496,24 @@ export default function Inventory360({
           <span aria-hidden="true">←</span>
           <b>Firehouse Manager</b>
         </Link>
-        <button className="brand" onClick={() => setView("due")} aria-label="Inventory home">
-          <span className="brand-badge">INV</span>
+        <button className="brand" onClick={() => setView("due")} aria-label="Vehicle Checks and Inventory home">
+          <span className="brand-badge">VCI</span>
           <span>
-            <b>Inventory</b>
-            <small>READINESS - ASSETS - SERVICE</small>
+            <b>Vehicle Checks &amp; Inventory</b>
+            <small>CHECKS - LOCATIONS - ASSETS - SERVICE</small>
           </span>
         </button>
         <span className="inventory-breadcrumb" aria-label="Current location">
-          Station Duties <b>/ Inventory</b>
+          Station Duties <b>/ Vehicle Checks &amp; Inventory</b>
         </span>
-        <nav className="desktop-nav" aria-label="Inventory sections">
+        <nav className="desktop-nav" aria-label="Vehicle checks and inventory sections">
           {([
             ["due", "Due Now"],
             ["fleet", "Fleet"],
             ["equipment", "Equipment"],
             ["stock", "Meds & Stock"],
             ["service", "Repairs"],
-            ...(canSetup ? [["setup", "Build & Templates"]] : []),
+            ...(canSetup ? [["setup", "Admin Configuration"]] : []),
           ] as [View, string][]).map(([id, label]) => (
             <button
               key={id}
@@ -557,6 +557,20 @@ export default function Inventory360({
               <p>Daily checks, scheduled weekly checks, and shared inspections already in progress appear here.</p>
             </div>
           </div>
+          <nav className="inventory-workflow" aria-label="Vehicle checks and inventory workflow">
+            <button type="button" className="active" onClick={() => setView("due")}>
+              <span>1</span><b>Due today</b><small>Start or resume required checks</small>
+            </button>
+            <button type="button" onClick={() => setView("fleet")}>
+              <span>2</span><b>Choose a vehicle</b><small>Open any configured unit check</small>
+            </button>
+            <button type="button" onClick={() => setView("equipment")}>
+              <span>3</span><b>Find equipment</b><small>Search or scan its exact location</small>
+            </button>
+            <button type="button" onClick={() => setView("service")}>
+              <span>4</span><b>Repair follow-up</b><small>Track failed items without duplicate work</small>
+            </button>
+          </nav>
           <InventoryOperations view="due" onSetup={() => setView("setup")} onOpenUnit={(apparatusId, checkType) => { setSelectedApparatusId(apparatusId); setSelectedCheckType(checkType); window.history.replaceState(null, "", `/inventory?apparatus=${encodeURIComponent(apparatusId)}&check=${checkType}`); setView("check"); }} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
         </section>
       ) : null}
@@ -695,8 +709,8 @@ export default function Inventory360({
               })}
               {canSetup ? <button className="add-unit-card" onClick={() => setView("setup")}>
                 <Icon>+</Icon>
-                <b>Build Fleet &amp; Inventory</b>
-                <span>Compartments - real photographs - hotspots</span>
+                <b>Configure Vehicle Checks &amp; Inventory</b>
+                <span>Locations - check parameters - photographs - hotspots</span>
               </button> : null}
             </div>
           ) : null}
@@ -713,7 +727,7 @@ export default function Inventory360({
             </div>
             <div className="heading-actions">
               <button className="secondary" onClick={() => setView("fleet")}>Back to fleet</button>
-              {canSetup ? <button className="primary" onClick={() => setView("setup")}>Build Fleet &amp; Inventory</button> : null}
+              {canSetup ? <button className="primary" onClick={() => setView("setup")}>Admin Configuration</button> : null}
             </div>
           </div>
           <InventoryOperations key={`${selectedApparatusId}-${selectedCheckType}`} view="check" onSetup={() => setView("setup")} initialApparatusId={selectedApparatusId} initialCheckType={selectedCheckType} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
@@ -813,12 +827,19 @@ export default function Inventory360({
         <section className="setup-page">
           <div className="setup-intro">
             <button onClick={() => setView("fleet")}>Back to fleet</button>
-            <span className="eyebrow">ADMINISTRATOR · BUILD &amp; TEMPLATES</span>
-            <h1>Add apparatus, compartments, photographs, and inspection inventory.</h1>
+            <span className="eyebrow">ADMINISTRATOR · VEHICLE CHECKS &amp; INVENTORY</span>
+            <h1>Edit vehicle, check, equipment, and location parameters.</h1>
             <p>
-              Inventory preserves real apparatus identities, photographs,
-              compartments, equipment, and hotspot geometry.
+              Administrators control the apparatus profile, check schedule,
+              equipment assignment, required quantity, exact storage location,
+              photographs, and hotspot geometry.
             </p>
+            <div className="admin-control-matrix" aria-label="Administrator configuration controls">
+              <article><b>Vehicle parameters</b><span>Identity, status, VIN, service profile, and weekly due day</span></article>
+              <article><b>Check parameters</b><span>Daily, weekly, inventory, and air-pack checklist inclusion</span></article>
+              <article><b>Equipment location</b><span>Apparatus, compartment, side, quantity, barcode, and item photo</span></article>
+              <article><b>Readiness &amp; service</b><span>Exceptions, repair notices, stock, and replacement tracking</span></article>
+            </div>
             <div className="source-truth-banner admin-source-truth">
               <b>Source of truth</b>
               <span>Apparatus identity: Department inventory</span>
