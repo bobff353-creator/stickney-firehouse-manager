@@ -5,7 +5,7 @@ This ledger maps the required acceptance scenarios to current evidence. Automate
 | Scenario | Automated evidence | Isolated preview evidence still required | Status |
 | --- | --- | --- | --- |
 | A — School fire | Levels, room aliases, conservative CAD room matching, suggested level, room highlight, critical-alert priority, and return-to-Arrival behavior | Completed on the isolated preview with a controlled two-floor school, two stairs, private second-floor plan, approved CAD narrative, and phone/iPad/desktop Respond checks | Complete on isolated preview |
-| B — Chlorine hazard | HazMat validation, pinned ERG source boundary, mapped/unmapped zones, level filtering, structured Respond fields, and private SDS route | Save verified chlorine/UN 1017 values without guessed distances; upload and stream a test SDS; publish; render approved isolation and evacuation geometry | Automated contracts pass; manual acceptance outstanding |
+| B — Chlorine hazard | HazMat validation, pinned ERG source boundary, mapped/unmapped zones, level filtering, structured Respond fields, and private SDS route | Completed on the isolated preview with PHMSA-sourced small-spill geometry, a linked private test SDS, revision publication, and a controlled Respond call | Complete on isolated preview |
 | C — Temporary road closure | Effective/expiration state, require-verification behavior, expiring queue actions, audit contract, and no automatic deletion | Completed on the isolated preview with controlled active/expired alerts and a temporary Incident Action Plan layer | Complete on isolated preview |
 | D — Hose lay | Segment totals, reserve and section rounding, independent supply options, verified capacity comparison, deficit, and unverified-not-zero behavior | Compare the persisted result against a verified test apparatus inventory | Partial on isolated preview: drawn route geometry, source, segments, totals, recommendation, reload, archive behavior, and prior cleanup verified; apparatus capacity remains outstanding |
 | E — Target hazard | Explainable factor scoring, override validation, published Respond banner, and readable reasons | Completed on the isolated preview with three controlled factors, authorized override, publication, and Respond verification | Complete on isolated preview |
@@ -15,6 +15,18 @@ This ledger maps the required acceptance scenarios to current evidence. Automate
 ## Evidence record
 
 For each manual run, record the date, tester, branch and commit, Vercel deployment ID, isolated database/storage identifier, browser and viewport, test record IDs, observed result, screenshots, console errors, and cleanup result. Do not place secrets, signed asset URLs, or protected record content in the evidence.
+
+### 2026-08-23 — Scenario B chlorine, zones, private SDS, and Respond verification
+
+- Tester and scope: signed-in `User Preview Verification` administrator on the protected stable preview alias; isolated Supabase project `pzgvlslcaoqtrnaqyjmd` and its private `firehouse-portal` storage only. Production was not changed.
+- Branch and starting deployment: `codex/preplan-operational-v2-approved` from `de5c4ee`; protected stable preview deployment `dpl_DZkRAQD5ZifrJwvc1TpYK8ai2dLr`. The SDS-linkage correction and this evidence are released in the subsequent commits recorded by Git/Vercel.
+- Controlled record: `preview-ui-verification`, visibly labeled `PREVIEW ONLY - Operational Preplan Verification`, remained the non-production acceptance fixture. It published as revision 5.
+- Verified material: `PREVIEW ONLY — Chlorine acceptance fixture`, HazMat record `d835f68a-3bc4-4c6f-9567-53c89a65d572`, stored UN 1017 and ERG Guide 124. Quantity, container/storage, physical state, exact location, and verification date remained explicitly unavailable rather than fabricated.
+- Official geometry boundary: the PHMSA ERG 2024 small-spill row supplied the 200 ft initial-isolation distance and 0.2 mi daytime protective-action distance. The saved preview zones use 200 ft and 1,056 ft radii, name the small-spill/daytime condition, and instruct responders to confirm wind, conditions, and current official guidance. No large-spill or nighttime value was inferred.
+- Private SDS evidence: asset `eed7fa4f-cd2a-4602-bd8e-c51900420ab4` is a synthetic PNG prominently labeled `PREVIEW ONLY — CONTROLLED TEST SDS` and `Not a manufacturer Safety Data Sheet`. Authenticated streaming loaded the 1200×1550 image from the private asset endpoint. The test exposed and corrected a real authoring gap: SDS uploads now require and persist a verified same-preplan HazMat relationship, which Respond uses instead of guessing by filename or category alone.
+- Respond evidence: controlled isolated dispatch `PREVIEW-SCENARIO-B` matched the fixture by exact stored address. Revision 5 rendered chlorine, UN 1017, ERG 124, truthful unknown quantity/container/location/NFPA fields, both active mapped zones, the operational confirmation warning, and the linked private SDS in the HazMat emergency detail.
+- Cleanup: the controlled dispatch was cleared, its projected Daily Log row was closed at 2110, and Respond returned to `No active call` with the test incident absent. The clearly labeled published fixture, zones, and private SDS remain for later isolated acceptance work.
+- Console evidence: no console collection was performed during this run, so no clean-console claim is made.
 
 ### 2026-08-23 — Scenario A school CAD room match and responsive Respond verification
 
