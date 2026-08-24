@@ -27,7 +27,7 @@ test("Phase 9 ledger keeps every required acceptance scenario honest", () => {
   assert.match(acceptance, /A — School fire[\s\S]*Complete on isolated preview/);
   assert.match(acceptance, /B — Chlorine hazard[\s\S]*Complete on isolated preview/);
   assert.match(acceptance, /C — Temporary road closure[\s\S]*Complete on isolated preview/);
-  assert.match(acceptance, /D — Hose lay[\s\S]*Partial on isolated preview/);
+  assert.match(acceptance, /D — Hose lay[\s\S]*Complete on isolated preview/);
   assert.match(acceptance, /E — Target hazard[\s\S]*Complete on isolated preview/);
   assert.match(acceptance, /F — Draft and publication[\s\S]*Complete on isolated preview/);
   assert.match(acceptance, /Draft concealment and lifecycle mutation/);
