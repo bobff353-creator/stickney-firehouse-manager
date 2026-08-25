@@ -3,7 +3,7 @@
 /* Authenticated inventory images must load directly so the browser sends the department session cookie. */
 /* eslint-disable @next/next/no-img-element */
 
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { IScannerControls } from "@zxing/browser";
 
@@ -184,6 +184,60 @@ function parseScannedEquipment(rawValue: string): ScannedEquipment {
   return fields;
 }
 
+function EmployeeNotifyPicker({
+  employees,
+  selectedIds,
+  onChange,
+  emptyText,
+  className = "",
+}: {
+  employees: Employee[];
+  selectedIds: string[];
+  onChange: (employeeIds: string[]) => void;
+  emptyText: string;
+  className?: string;
+}) {
+  const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query.trim().toLowerCase());
+  const filteredEmployees = useMemo(() => employees.filter((employee) => (
+    !deferredQuery || `${employee.name} ${employee.rank || ""}`.toLowerCase().includes(deferredQuery)
+  )), [deferredQuery, employees]);
+  const selectedEmployees = useMemo(() => {
+    const selected = new Set(selectedIds);
+    return employees.filter((employee) => selected.has(employee.id));
+  }, [employees, selectedIds]);
+  const toggleEmployee = (employeeId: string) => {
+    onChange(selectedIds.includes(employeeId)
+      ? selectedIds.filter((id) => id !== employeeId)
+      : [...selectedIds, employeeId]);
+  };
+  const selectMatching = () => {
+    onChange([...new Set([...selectedIds, ...filteredEmployees.map((employee) => employee.id)])]);
+  };
+
+  return <fieldset className={`employee-notify-picker ${className}`.trim()}>
+    <legend>Employees to notify</legend>
+    <div className="employee-notify-summary">
+      <div><strong>{selectedIds.length ? `${selectedIds.length} selected` : "No employees selected"}</strong><span>Recipients receive this repair notice.</span></div>
+      {selectedIds.length ? <button type="button" onClick={() => onChange([])}>Clear</button> : null}
+    </div>
+    {selectedEmployees.length ? <div className="employee-notify-selected" aria-label="Selected employees">{selectedEmployees.map((employee) => <span key={employee.id}>{employee.name}<button type="button" aria-label={`Remove ${employee.name}`} onClick={() => toggleEmployee(employee.id)}>×</button></span>)}</div> : null}
+    {employees.length ? <details className="employee-notify-directory">
+      <summary><span>Choose employees</span><small>{employees.length} available</small></summary>
+      <div className="employee-notify-tools">
+        <label><span>Search by name or rank</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Start typing a name…" /></label>
+        <button type="button" disabled={!filteredEmployees.length} onClick={selectMatching}>Select matching</button>
+      </div>
+      <div className="employee-notify-roster" role="group" aria-label="Employee recipients">
+        {filteredEmployees.length ? filteredEmployees.map((employee) => <label key={employee.id}>
+          <input type="checkbox" name="assignedEmployeeIds" value={employee.id} checked={selectedIds.includes(employee.id)} onChange={() => toggleEmployee(employee.id)} />
+          <span><strong>{employee.name}</strong>{employee.rank ? <small>{employee.rank}</small> : null}</span>
+        </label>) : <p>No employees match that search.</p>}
+      </div>
+    </details> : <p className="employee-notify-empty">{emptyText}</p>}
+  </fieldset>;
+}
+
 export default function InventoryOperations({
   view,
   onSetup,
@@ -214,6 +268,8 @@ export default function InventoryOperations({
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerMessage, setScannerMessage] = useState("");
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [repairNoticeAssignees, setRepairNoticeAssignees] = useState<string[]>([]);
+  const [deficiencyAssignees, setDeficiencyAssignees] = useState<string[]>([]);
   const [viewerEmployeeId, setViewerEmployeeId] = useState("");
   const [selectedApparatusId, setSelectedApparatusId] = useState(initialApparatusId);
   const [selectedCheckId, setSelectedCheckId] = useState("");
@@ -622,7 +678,7 @@ export default function InventoryOperations({
           </div>
         </div> : <div className="check-actions" aria-label={`Check ${value(item, "equipment_name")}`}>
           <button className="pass" disabled={Boolean(busy) || !canCheck} onClick={() => void recordCheckItems(`item-${itemId}`, { action: "record_check_item", checkItemId: itemId, result: "pass" })}>Pass</button>
-          <button className="failed" disabled={Boolean(busy) || !canCheck} onClick={() => setDeficiencyItem(item)}>Issue</button>
+          <button className="failed" disabled={Boolean(busy) || !canCheck} onClick={() => { setDeficiencyAssignees([]); setDeficiencyItem(item); }}>Issue</button>
           <button disabled={Boolean(busy) || !canCheck} onClick={() => void recordCheckItems(`item-${itemId}`, { action: "record_check_item", checkItemId: itemId, result: "not_applicable" })}>N/A</button>
           <button className="relocate" disabled={Boolean(busy) || !canCheck || Boolean(pendingLocationChange)} onClick={() => openRelocation(item)}>{pendingLocationChange ? "Move pending" : "Move"}</button>
         </div>}
@@ -1172,7 +1228,7 @@ export default function InventoryOperations({
               event.preventDefault();
               const element = event.currentTarget;
               const form = new FormData(element);
-              const employeeIds = form.getAll("assignedEmployeeIds").map(String);
+              const employeeIds = repairNoticeAssignees;
               const employeeNames = employeeIds.map((id) => employees.find((employee) => employee.id === id)?.name || "").filter(Boolean);
               const photo = form.get("photo");
               void (async () => {
@@ -1180,7 +1236,10 @@ export default function InventoryOperations({
                   setBusy("notice");
                   const evidencePhotoId = photo instanceof File && photo.size > 0 ? await uploadEvidence(String(form.get("apparatusId")), photo) : "";
                   const saved = await action("notice", { action: "create_notice", apparatusId: form.get("apparatusId"), priority: form.get("priority"), notes: form.get("notes"), issueCategories: form.getAll("issueCategories"), assignedEmployeeIds: employeeIds, assignedEmployeeNames: employeeNames, evidencePhotoId });
-                  if (saved) element.reset();
+                  if (saved) {
+                    element.reset();
+                    setRepairNoticeAssignees([]);
+                  }
                 } catch (caught) {
                   setError(caught instanceof Error ? caught.message : "The notice could not be saved.");
                 } finally {
@@ -1191,7 +1250,7 @@ export default function InventoryOperations({
               <label>Apparatus<select name="apparatusId" required>{data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")} · Fleet: {formatStatus(item.status)}</option>)}</select></label>
               <label>Priority<select name="priority"><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option><option value="routine">Routine</option></select></label>
               <fieldset className="ops-check-grid ops-span-2"><legend>Notice type</legend>{categoryOptions.map(([id, label]) => <label key={id}><input type="checkbox" name="issueCategories" value={id} /> {label}</label>)}</fieldset>
-              <fieldset className="ops-check-grid ops-span-2"><legend>Employees to notify</legend>{employees.length ? employees.map((employee) => <label key={employee.id}><input type="checkbox" name="assignedEmployeeIds" value={employee.id} /> {employee.name}{employee.rank ? ` · ${employee.rank}` : ""}</label>) : <p>Employee selection is available to an authorized officer or administrator.</p>}</fieldset>
+              <EmployeeNotifyPicker className="ops-span-2" employees={employees} selectedIds={repairNoticeAssignees} onChange={setRepairNoticeAssignees} emptyText="Employee selection is available to an authorized officer or administrator." />
               <label className="ops-span-2">Notice / repair details<textarea name="notes" rows={4} required /></label>
               <label className="ops-span-2">Attach photo (optional)<input name="photo" type="file" accept="image/*" capture="environment" /></label>
               <button className="ops-primary" disabled={Boolean(busy)}>Assign repair notice</button>
@@ -1364,7 +1423,7 @@ export default function InventoryOperations({
             event.preventDefault();
             const form = new FormData(event.currentTarget);
             const photo = form.get("photo");
-            const employeeIds = form.getAll("assignedEmployeeIds").map(String);
+            const employeeIds = deficiencyAssignees;
             const employeeNames = employeeIds.map((id) => employees.find((employee) => employee.id === id)?.name || "").filter(Boolean);
             if (!(photo instanceof File) || !photo.size) {
               setError("Attach a photo of the failed item.");
@@ -1375,7 +1434,10 @@ export default function InventoryOperations({
                 setBusy("deficiency");
                 const evidencePhotoId = await uploadEvidence(selectedApparatusId, photo, value(deficiencyItem, "id"));
                 const saved = await recordCheckItems("deficiency", { action: "record_check_item", checkItemId: value(deficiencyItem, "id"), result: "failed", notes: form.get("notes"), issueCategories: form.getAll("issueCategories"), assignedEmployeeIds: employeeIds, assignedEmployeeNames: employeeNames, evidencePhotoId });
-                if (saved) setDeficiencyItem(null);
+                if (saved) {
+                  setDeficiencyAssignees([]);
+                  setDeficiencyItem(null);
+                }
               } catch (caught) {
                 setError(caught instanceof Error ? caught.message : "The deficiency could not be saved.");
               } finally {
@@ -1383,12 +1445,12 @@ export default function InventoryOperations({
               }
             })();
           }}>
-            <header><div><span>FAILED INSPECTION ITEM</span><h3>{value(deficiencyItem, "equipment_name")}</h3></div><button type="button" onClick={() => setDeficiencyItem(null)}>Cancel</button></header>
+            <header><div><span>FAILED INSPECTION ITEM</span><h3>{value(deficiencyItem, "equipment_name")}</h3></div><button type="button" onClick={() => { setDeficiencyAssignees([]); setDeficiencyItem(null); }}>Cancel</button></header>
             <p>Describe what failed and attach a picture. This creates the repair notice and Live Ops equipment issue.</p>
             <fieldset className="ops-check-grid"><legend>Issue type</legend>{categoryOptions.map(([id, label]) => <label key={id}><input type="checkbox" name="issueCategories" value={id} defaultChecked={(value(activeCheck, "check_type") === "air_pack" ? id === "air_pack" : id === "equipment")} /> {label}</label>)}</fieldset>
             <label>Failure notes<textarea name="notes" rows={4} required placeholder="What failed, where it is located, and whether the unit is impaired" /></label>
             <label>Required photo<input name="photo" type="file" accept="image/*" capture="environment" required /></label>
-            <fieldset className="ops-check-grid"><legend>Employees to notify</legend>{employees.length ? employees.map((employee) => <label key={employee.id}><input type="checkbox" name="assignedEmployeeIds" value={employee.id} /> {employee.name}{employee.rank ? ` · ${employee.rank}` : ""}</label>) : <p>An officer can assign this repair from the Repairs section.</p>}</fieldset>
+            <EmployeeNotifyPicker employees={employees} selectedIds={deficiencyAssignees} onChange={setDeficiencyAssignees} emptyText="An officer can assign this repair from the Repairs section." />
             <button className="ops-primary" disabled={Boolean(busy)}>Save failed item and create repair</button>
           </form>
         </div>

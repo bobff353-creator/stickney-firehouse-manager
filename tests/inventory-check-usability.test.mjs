@@ -42,3 +42,13 @@ test("check controls remain touch-friendly on phones", () => {
   assert.match(styles, /\.check-actions button\{min-height:50px/);
   assert.match(styles, /\.check-completion-bar\{bottom:74px/);
 });
+
+test("repair recipient selection stays compact and searchable", () => {
+  assert.match(operations, /function EmployeeNotifyPicker/);
+  assert.match(operations, /Search by name or rank/);
+  assert.match(operations, /Select matching/);
+  assert.match(operations, /No employees selected/);
+  assert.match(operations, /employee-notify-selected/);
+  assert.match(styles, /\.employee-notify-roster\{[^}]*max-height:240px[^}]*overflow-y:auto/);
+  assert.match(styles, /@media\(max-width:680px\)\{\.employee-notify-tools,\.employee-notify-roster\{grid-template-columns:1fr/);
+});
