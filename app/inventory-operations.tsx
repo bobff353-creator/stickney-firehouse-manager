@@ -643,6 +643,12 @@ export default function InventoryOperations({
   const pendingLocationChangeByEquipmentId = new Map(
     pendingLocationChanges.map((item) => [value(item, "equipment_id"), item]),
   );
+  const relocationEquipment = relocationItem
+    ? data.equipment.find((item) => value(item, "id") === value(relocationItem, "equipment_id"))
+    : undefined;
+  const relocationCurrentApparatus = relocationEquipment
+    ? data.apparatus.find((item) => value(item, "id") === value(relocationEquipment, "apparatus_id"))
+    : undefined;
   const openRelocation = (item: Row) => {
     const equipment = data.equipment.find((row) => value(row, "id") === value(item, "equipment_id"));
     const apparatusId = equipment ? value(equipment, "apparatus_id") : selectedApparatusId;
@@ -664,7 +670,7 @@ export default function InventoryOperations({
           <strong>{value(item, "equipment_name")}{Number(item.quantity_required || 1) > 1 ? ` × ${item.quantity_required}` : ""}</strong>
           <small>{compartment}</small>
           {value(item, "source_form") ? <details className="check-item-details"><summary>Details</summary><p>{value(item, "source_form")}</p></details> : null}
-          {pendingLocationChange ? <small className="location-change-pending">Location change awaiting administrator review</small> : null}
+          {pendingLocationChange ? <small className="location-change-pending">Wrong location reported · awaiting administrator review</small> : null}
         </div>
         <div className="check-result">
           <span>{numericItem && savedReading ? `${savedReading}${value(item, "response_type") === "mileage" || /\b(mileage|odometer)\b/i.test(value(item, "equipment_name")) ? " miles" : ""}` : value(item, "result").replace("_", " ")}</span>
@@ -680,7 +686,7 @@ export default function InventoryOperations({
           <button className="pass" disabled={Boolean(busy) || !canCheck} onClick={() => void recordCheckItems(`item-${itemId}`, { action: "record_check_item", checkItemId: itemId, result: "pass" })}>Pass</button>
           <button className="failed" disabled={Boolean(busy) || !canCheck} onClick={() => { setDeficiencyAssignees([]); setDeficiencyItem(item); }}>Issue</button>
           <button disabled={Boolean(busy) || !canCheck} onClick={() => void recordCheckItems(`item-${itemId}`, { action: "record_check_item", checkItemId: itemId, result: "not_applicable" })}>N/A</button>
-          <button className="relocate" disabled={Boolean(busy) || !canCheck || Boolean(pendingLocationChange)} onClick={() => openRelocation(item)}>{pendingLocationChange ? "Move pending" : "Move"}</button>
+          <button className="relocate" disabled={Boolean(busy) || !canCheck || Boolean(pendingLocationChange)} onClick={() => openRelocation(item)}>{pendingLocationChange ? "Location review pending" : "Wrong location"}</button>
         </div>}
       </article>
     );
@@ -1104,7 +1110,7 @@ export default function InventoryOperations({
       {view === "builder" && canSetup ? (
         <>
         <section className="ops-card location-approval-card">
-          <header><div><span>ADMIN · LOCATION APPROVALS</span><h2>Approve equipment moves</h2></div><b>{pendingLocationChanges.length} pending</b></header>
+          <header><div><span>ADMIN · WRONG-LOCATION APPROVALS</span><h2>Confirm or deny reported equipment placements</h2></div><b>{pendingLocationChanges.length} pending</b></header>
           {pendingLocationChanges.length ? <div className="location-approval-list">{pendingLocationChanges.map((request) => {
             const requestId = value(request, "id");
             return <article key={requestId}>
@@ -1403,17 +1409,18 @@ export default function InventoryOperations({
               requestNotes: form.get("requestNotes"),
             }).then((saved) => { if (saved) setRelocationItem(null); });
           }}>
-            <header><div><span>REQUEST LOCATION CHANGE</span><h3>{value(relocationItem, "equipment_name")}</h3></div><button type="button" onClick={() => setRelocationItem(null)}>Cancel</button></header>
-            <p>The current apparatus is selected automatically. Choose the apparatus and one of its configured compartments; an administrator must approve the move.</p>
-            <label>Destination apparatus<select value={relocationApparatusId} onChange={(event) => {
+            <header><div><span>WRONG LOCATION</span><h3>{value(relocationItem, "equipment_name")}</h3></div><button type="button" onClick={() => setRelocationItem(null)}>Cancel</button></header>
+            <p>This starts on the vehicle you are checking. Confirm the vehicle where you physically found the item, then choose one of that vehicle&apos;s configured compartments. An administrator must approve the placement before the equipment record and future inventories change.</p>
+            <div className="relocation-current-location"><span>Currently assigned</span><strong>{relocationCurrentApparatus ? value(relocationCurrentApparatus, "name") : "Current vehicle"} · {value(relocationItem, "compartment_label") || "Location not assigned"}</strong></div>
+            <label>Vehicle where item was found<select value={relocationApparatusId} onChange={(event) => {
               const apparatusId = event.target.value;
               const firstCompartment = data.compartments.find((item) => value(item, "apparatus_id") === apparatusId);
               setRelocationApparatusId(apparatusId);
               setRelocationCompartmentId(firstCompartment ? value(firstCompartment, "id") : "");
             }}>{data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")}</option>)}</select></label>
-            <label>Destination compartment<select value={relocationCompartmentId} onChange={(event) => setRelocationCompartmentId(event.target.value)} required><option value="" disabled>Choose a configured compartment</option>{data.compartments.filter((item) => value(item, "apparatus_id") === relocationApparatusId).map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "label")} · {formatStatus(item.side)}</option>)}</select></label>
-            <label>Why is this item moving?<textarea name="requestNotes" rows={3} placeholder="Optional note for the administrator" /></label>
-            <button className="ops-primary" disabled={Boolean(busy) || !relocationApparatusId || !relocationCompartmentId}>Send for administrator approval</button>
+            <label>Compartment where item was found<select value={relocationCompartmentId} onChange={(event) => setRelocationCompartmentId(event.target.value)} required><option value="" disabled>Choose a configured compartment</option>{data.compartments.filter((item) => value(item, "apparatus_id") === relocationApparatusId).map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "label")} · {formatStatus(item.side)}</option>)}</select></label>
+            <label>Note for the administrator<textarea name="requestNotes" rows={3} placeholder="Optional: where you found it or why it was moved" /></label>
+            <button className="ops-primary" disabled={Boolean(busy) || !relocationApparatusId || !relocationCompartmentId}>Submit wrong location for approval</button>
           </form>
         </div>
       ) : null}

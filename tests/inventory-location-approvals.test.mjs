@@ -8,15 +8,18 @@ const migration = await readFile(new URL("../supabase/migrations/20260825044346_
 
 test("crew location requests default to the equipment apparatus and its configured compartments", () => {
   assert.match(operations, /const apparatusId = equipment \? value\(equipment, "apparatus_id"\) : selectedApparatusId/);
-  assert.match(operations, /Destination apparatus/);
-  assert.match(operations, /Destination compartment/);
+  assert.match(operations, /"Wrong location"/);
+  assert.match(operations, /Vehicle where item was found/);
+  assert.match(operations, /Compartment where item was found/);
+  assert.match(operations, /Currently assigned/);
+  assert.match(operations, /Submit wrong location for approval/);
   assert.match(operations, /data\.compartments\.filter\(\(item\) => value\(item, "apparatus_id"\) === relocationApparatusId\)/);
   assert.match(operations, /request_location_change/);
-  assert.match(operations, /Location change awaiting administrator review/);
+  assert.match(operations, /Wrong location reported · awaiting administrator review/);
 });
 
 test("administrator review can approve or deny a pending move", () => {
-  assert.match(operations, /ADMIN · LOCATION APPROVALS/);
+  assert.match(operations, /ADMIN · WRONG-LOCATION APPROVALS/);
   assert.match(operations, /Approve and move equipment/);
   assert.match(operations, /decision: "approved"/);
   assert.match(operations, /decision: "denied"/);
