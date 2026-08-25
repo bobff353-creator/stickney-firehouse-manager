@@ -2186,6 +2186,41 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .scheduler .standings-cols em { color: #9aa6b3; font-size: 10px; text-transform: uppercase; }
 .scheduler .standings-cols li { color: #e9edf2; }
 
+/* Scheduler-only space optimization: preserve the dark design and give the calendar the screen. */
+.app-shell:has(.scheduler) { grid-template-rows: 58px minmax(calc(100vh - 58px), auto) auto; }
+.app-shell:has(.scheduler) .topbar { min-height: 58px; padding-inline: clamp(14px, 2vw, 28px); }
+.app-shell:has(.scheduler) .topbar-context { gap: 1px; }
+.app-shell:has(.scheduler) .topbar-context strong { font-size: 16px; }
+.app-shell:has(.scheduler) .sync-indicator { min-height: 42px; }
+.workspace:has(.scheduler) { padding-top: 14px; padding-bottom: 22px; }
+.app-shell:has(.scheduler) .portal-footer { padding: 10px clamp(16px, 2vw, 30px) 8px; gap: 8px 18px; }
+.app-shell:has(.scheduler) .footer-identity { gap: 8px; }
+.app-shell:has(.scheduler) .footer-identity img { width: 38px; height: 38px; }
+.app-shell:has(.scheduler) .footer-identity strong { font-size: 12px; }
+.app-shell:has(.scheduler) .footer-identity span,
+.app-shell:has(.scheduler) .footer-identity a { font-size: 10px; }
+.app-shell:has(.scheduler) .footer-links button { min-height: 32px; font-size: 10px; }
+.app-shell:has(.scheduler) .portal-footer > p { padding-top: 6px; font-size: 9px; }
+.scheduler { padding: 14px 16px 16px; }
+.scheduler-brand { padding: 0 0 8px; }
+.scheduler-brand-mark { width: 34px; height: 34px; flex-basis: 34px; font-size: 17px; }
+.scheduler-brand strong { font-size: 17px; }
+.scheduler-brand span { font-size: 9px; }
+.scheduler-view-bar { padding-top: 8px; }
+.scheduler-view-bar > span { min-height: 32px; }
+.scheduler-notice { padding: 9px 0 4px; }
+.scheduler .notice-chip { min-height: 30px; }
+.scheduler-tabs { margin: 6px 0 10px; }
+.scheduler-tabs button { min-height: 38px; }
+.scheduler-month-card { padding: 13px !important; }
+.scheduler-month-head { margin-bottom: 7px; }
+.scheduler-legend { margin-bottom: 8px; }
+.scheduler-weekdays { margin-bottom: 4px; }
+.scheduler-month > button,
+.scheduler-month .calendar-blank { min-height: clamp(150px, 18vh, 190px); }
+.scheduler .calendar-slot { font-size: 9px; line-height: 1.28; }
+.scheduler .calendar-slot small { font-size: 8px; }
+
 @media (max-width: 720px) {
   .scheduler { width: calc(100% + 28px); margin: -14px; padding: 14px; border-radius: 0; box-shadow: none; }
   .scheduler-brand strong { font-size: 17px; }
