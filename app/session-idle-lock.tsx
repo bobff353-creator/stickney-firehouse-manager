@@ -4,7 +4,7 @@ import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 import { getSupabaseBrowserClient } from "./supabase-browser";
 
 const inactivityLimitMs = 30 * 60 * 1000;
-const unlockRefreshMs = 5 * 60 * 1000;
+const unlockRefreshThrottleMs = 60 * 1000;
 
 function clearAccessCache() {
   document.cookie = "__Secure-firehouse-access=; Path=/; Max-Age=0; SameSite=Lax; Secure";
@@ -24,7 +24,8 @@ export default function SessionIdleLock({
   useEffect(() => {
     if (locked) return;
     let lastActivity = Date.now();
-    let lastUnlockRefresh = Date.now();
+    let lastUnlockRefresh = 0;
+    let unlockRefreshTimer: number | undefined;
 
     const lock = () => {
       setLocked(true);
@@ -33,16 +34,21 @@ export default function SessionIdleLock({
       void fetch("/api/auth/pin", { method: "DELETE" }).catch(() => undefined);
     };
     const refreshUnlock = async () => {
+      lastUnlockRefresh = Date.now();
       const response = await fetch("/api/auth/pin", { method: "PATCH", cache: "no-store" }).catch(() => null);
       if (response?.status === 423) lock();
     };
-    const recordActivity = () => {
-      const now = Date.now();
-      lastActivity = now;
-      if (now - lastUnlockRefresh >= unlockRefreshMs) {
-        lastUnlockRefresh = now;
+    const scheduleUnlockRefresh = () => {
+      if (unlockRefreshTimer !== undefined) return;
+      const delay = Math.max(0, unlockRefreshThrottleMs - (Date.now() - lastUnlockRefresh));
+      unlockRefreshTimer = window.setTimeout(() => {
+        unlockRefreshTimer = undefined;
         void refreshUnlock();
-      }
+      }, delay);
+    };
+    const recordActivity = () => {
+      lastActivity = Date.now();
+      scheduleUnlockRefresh();
     };
     const checkInactivity = () => {
       if (Date.now() - lastActivity >= inactivityLimitMs) lock();
@@ -59,6 +65,7 @@ export default function SessionIdleLock({
     return () => {
       activityEvents.forEach((eventName) => window.removeEventListener(eventName, recordActivity));
       document.removeEventListener("visibilitychange", checkVisibility);
+      if (unlockRefreshTimer !== undefined) window.clearTimeout(unlockRefreshTimer);
       window.clearInterval(timer);
     };
   }, [locked]);

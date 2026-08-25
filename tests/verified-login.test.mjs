@@ -196,6 +196,10 @@ test("verified roster members can securely reset a forgotten private PIN", () =>
 
 test("30 minutes of inactivity locks without unmounting unfinished work", () => {
   assert.match(sessionIdleLock, /const inactivityLimitMs = 30 \* 60 \* 1000/);
+  assert.match(sessionIdleLock, /const unlockRefreshThrottleMs = 60 \* 1000/);
+  assert.match(sessionIdleLock, /const scheduleUnlockRefresh = \(\) =>/);
+  assert.match(sessionIdleLock, /lastActivity = Date\.now\(\);\s+scheduleUnlockRefresh\(\);/);
+  assert.match(sessionIdleLock, /window\.clearTimeout\(unlockRefreshTimer\)/);
   assert.match(sessionIdleLock, /The app locked after 30 minutes without activity\. Your unfinished work is still here\./);
   assert.match(sessionIdleLock, /<div aria-hidden=\{locked\}[\s\S]*\{children\}[\s\S]*\{locked \? <main className="session-lock-overlay"/);
   assert.match(sessionIdleLock, /method: "PATCH"/);
