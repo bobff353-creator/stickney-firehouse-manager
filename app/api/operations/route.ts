@@ -71,6 +71,8 @@ export async function GET(request: Request) {
       restockRequestsResult,
       equipmentPhotosResult,
       locationChangesResult,
+      scbaTemplatesResult,
+      scbaEntriesResult,
     ] = await Promise.all([
       supabase
         .from("inventory_apparatus_profiles")
@@ -154,6 +156,17 @@ export async function GET(request: Request) {
         .eq("department_id", departmentId)
         .order("requested_at", { ascending: false })
         .limit(250),
+      supabase
+        .from("inventory_scba_templates")
+        .select("id,apparatus_id,pack_positions,include_rit,spare_bottle_count,active,updated_by,updated_at")
+        .eq("department_id", departmentId)
+        .order("updated_at", { ascending: false }),
+      collectPages((from, to) => supabase
+        .from("inventory_scba_check_entries")
+        .select("id,check_id,section,label,sort_order,harness_number,cylinder_number,psi,result,notes,checked_by,checked_at")
+        .eq("department_id", departmentId)
+        .order("sort_order")
+        .range(from, to)),
     ]);
     const firstError = [
       apparatusResult,
@@ -171,6 +184,8 @@ export async function GET(request: Request) {
       restockRequestsResult,
       equipmentPhotosResult,
       locationChangesResult,
+      scbaTemplatesResult,
+      scbaEntriesResult,
     ].find((result) => result.error)?.error;
     if (firstError) throw firstError;
 
@@ -283,6 +298,8 @@ export async function GET(request: Request) {
       stock,
       restockRequests,
       locationChanges,
+      scbaTemplates: scbaTemplatesResult.data || [],
+      scbaEntries: scbaEntriesResult.data || [],
       viewer: {
         email: session.context.user.email,
         role: session.context.role,
@@ -308,7 +325,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json() as Record<string, unknown>;
     const action = clean(body.action, 60);
-    const requiredPermission = ["start_check", "record_check_item", "bulk_record_check_items", "complete_check", "adjust_stock", "request_restock", "request_location_change"].includes(action)
+    const requiredPermission = ["start_check", "record_check_item", "record_scba_entry", "bulk_record_check_items", "complete_check", "adjust_stock", "request_restock", "request_location_change"].includes(action)
       ? "inventory.check" as const
       : ["create_notice", "create_work_order", "close_work_order", "update_work_order_status", "set_equipment_status"].includes(action)
         ? "inventory.repairs.manage" as const
@@ -360,6 +377,48 @@ export async function POST(request: Request) {
       const { error } = await supabase.from("inventory_inspection_schedules").delete().eq("department_id", departmentId).eq("id", id);
       if (error) throw error;
       return privateJson({ deleted: id });
+    }
+
+    if (action === "save_scba_template") {
+      const apparatusId = clean(body.apparatusId, 80);
+      const packPositions = stringList(body.packPositions, undefined, 12)
+        .map((position) => position.slice(0, 80));
+      const spareBottleCount = number(body.spareBottleCount, -1);
+      const includeRit = body.includeRit !== false;
+      if (!apparatusId || spareBottleCount < 0 || spareBottleCount > 20 || (!packPositions.length && !includeRit && spareBottleCount === 0)) {
+        return privateJson({ error: "Choose an eligible apparatus and keep at least one SCBA pack, RIT bag, or spare bottle on the checklist." }, 400);
+      }
+      const { data: apparatus } = await supabase
+        .from("inventory_apparatus_profiles")
+        .select("id,name,asset_type")
+        .eq("department_id", departmentId)
+        .eq("id", apparatusId)
+        .maybeSingle();
+      const excluded = !apparatus
+        || clean(apparatus.name, 80).toLowerCase() === "1211"
+        || clean(apparatus.name, 80).toLowerCase().includes("utv")
+        || clean(apparatus.asset_type, 80).toLowerCase() === "utv";
+      if (excluded) return privateJson({ error: "Weekly SCBA templates are not assigned to the UTV or 1211." }, 400);
+      const { data: existing } = await supabase
+        .from("inventory_scba_templates")
+        .select("id")
+        .eq("department_id", departmentId)
+        .eq("apparatus_id", apparatusId)
+        .maybeSingle();
+      const changes = {
+        pack_positions: packPositions,
+        include_rit: includeRit,
+        spare_bottle_count: spareBottleCount,
+        active: true,
+        updated_by: actor,
+        updated_at: new Date().toISOString(),
+      };
+      const query = existing
+        ? supabase.from("inventory_scba_templates").update(changes).eq("department_id", departmentId).eq("id", existing.id).select("id").single()
+        : supabase.from("inventory_scba_templates").insert({ id: crypto.randomUUID(), department_id: departmentId, apparatus_id: apparatusId, created_by: actor, ...changes }).select("id").single();
+      const { data: template, error } = await query;
+      if (error) throw error;
+      return privateJson({ templateId: template.id });
     }
 
     if (action === "request_location_change") {
@@ -644,12 +703,20 @@ export async function POST(request: Request) {
         .eq("department_id", departmentId)
         .eq("id", apparatusId)
         .maybeSingle();
-      const { data: equipment } = await supabase
-        .from("inventory_equipment")
-        .select("id,check_types")
-        .eq("department_id", departmentId)
-        .eq("apparatus_id", apparatusId)
-        .is("retired_at", null);
+      const [{ data: equipment }, { data: scbaTemplate }] = await Promise.all([
+        supabase
+          .from("inventory_equipment")
+          .select("id,check_types")
+          .eq("department_id", departmentId)
+          .eq("apparatus_id", apparatusId)
+          .is("retired_at", null),
+        supabase
+          .from("inventory_scba_templates")
+          .select("id,pack_positions,include_rit,spare_bottle_count,active")
+          .eq("department_id", departmentId)
+          .eq("apparatus_id", apparatusId)
+          .maybeSingle(),
+      ]);
       if (!apparatus) {
         return privateJson({ error: "Select a saved department apparatus." }, 400);
       }
@@ -669,9 +736,14 @@ export async function POST(request: Request) {
       const includedEquipment = (equipment || []).filter((item) => (
         Array.isArray(item.check_types) && item.check_types.includes(checkType)
       ));
-      if (!includedEquipment.length) {
+      const configuredScbaEntries = checkType === "air_pack" && scbaTemplate?.active
+        ? (Array.isArray(scbaTemplate.pack_positions) ? scbaTemplate.pack_positions.length : 0)
+          + (scbaTemplate.include_rit ? 1 : 0)
+          + Math.max(0, Number(scbaTemplate.spare_bottle_count || 0))
+        : 0;
+      if (checkType === "air_pack" ? !configuredScbaEntries : !includedEquipment.length) {
         return privateJson(
-          { error: `Add at least one item to the ${checkType.replace("_", " ")} check before starting it.` },
+          { error: checkType === "air_pack" ? "An administrator must configure this apparatus weekly SCBA template before starting it." : `Add at least one item to the ${checkType.replace("_", " ")} check before starting it.` },
           400,
         );
       }
@@ -699,17 +771,83 @@ export async function POST(request: Request) {
         }
       }
       if (checkError) throw checkError;
-      const { error: itemError } = await supabase.from("inventory_check_items").insert(
-        includedEquipment.map((item) => ({
-          id: crypto.randomUUID(),
-          department_id: departmentId,
-          check_id: checkId,
-          equipment_id: item.id,
-          result: "pending",
-        })),
-      );
+      const { error: itemError } = checkType === "air_pack"
+        ? await supabase.from("inventory_scba_check_entries").insert([
+          ...(scbaTemplate?.pack_positions || []).map((label: string, index: number) => ({
+            id: crypto.randomUUID(), department_id: departmentId, check_id: checkId,
+            section: "pack", label, sort_order: index + 1, result: "pending",
+          })),
+          ...(scbaTemplate?.include_rit ? [{
+            id: crypto.randomUUID(), department_id: departmentId, check_id: checkId,
+            section: "rit", label: "R.I.T. Bag", sort_order: 100, result: "pending",
+          }] : []),
+          ...Array.from({ length: Math.max(0, Number(scbaTemplate?.spare_bottle_count || 0)) }, (_, index) => ({
+            id: crypto.randomUUID(), department_id: departmentId, check_id: checkId,
+            section: "spare", label: `Spare #${index + 1}`, sort_order: 200 + index, result: "pending",
+          })),
+        ])
+        : await supabase.from("inventory_check_items").insert(
+          includedEquipment.map((item) => ({
+            id: crypto.randomUUID(),
+            department_id: departmentId,
+            check_id: checkId,
+            equipment_id: item.id,
+            result: "pending",
+          })),
+        );
       if (itemError) throw itemError;
       return privateJson({ checkId }, 201);
+    }
+
+    if (action === "record_scba_entry") {
+      const entryId = clean(body.entryId, 80);
+      const result = clean(body.result, 40);
+      const harnessNumber = clean(body.harnessNumber, 80) || null;
+      const cylinderNumber = clean(body.cylinderNumber, 80) || null;
+      const psi = number(body.psi, -1);
+      const notes = clean(body.notes, 500) || null;
+      if (!entryId || !["pass", "failed", "not_applicable"].includes(result)) {
+        return privateJson({ error: "Choose Pass, Issue, or N/A for this SCBA entry." }, 400);
+      }
+      const { data: entry } = await supabase
+        .from("inventory_scba_check_entries")
+        .select("id,check_id,section")
+        .eq("department_id", departmentId)
+        .eq("id", entryId)
+        .maybeSingle();
+      if (!entry) return privateJson({ error: "This SCBA checklist entry was not found." }, 404);
+      const { data: check } = await supabase
+        .from("inventory_checks")
+        .select("id,status,check_type")
+        .eq("department_id", departmentId)
+        .eq("id", entry.check_id)
+        .eq("status", "in_progress")
+        .eq("check_type", "air_pack")
+        .maybeSingle();
+      if (!check) return privateJson({ error: "This weekly SCBA check is no longer active." }, 409);
+      if (result !== "not_applicable") {
+        if (entry.section === "pack" && !harnessNumber) return privateJson({ error: "Enter the SCBA harness number." }, 400);
+        if (!cylinderNumber) return privateJson({ error: "Enter the cylinder number." }, 400);
+        if (psi < 0 || psi > 6000) return privateJson({ error: "Enter a PSI reading from 0 to 6000." }, 400);
+      }
+      if (result === "failed" && !notes) return privateJson({ error: "Describe the SCBA deficiency before saving an issue." }, 400);
+      const { data: savedEntry, error } = await supabase
+        .from("inventory_scba_check_entries")
+        .update({
+          harness_number: result === "not_applicable" ? null : harnessNumber,
+          cylinder_number: result === "not_applicable" ? null : cylinderNumber,
+          psi: result === "not_applicable" ? null : psi,
+          result,
+          notes,
+          checked_by: actor,
+          checked_at: new Date().toISOString(),
+        })
+        .eq("department_id", departmentId)
+        .eq("id", entryId)
+        .select("id,check_id,section,label,sort_order,harness_number,cylinder_number,psi,result,notes,checked_by,checked_at")
+        .single();
+      if (error) throw error;
+      return privateJson({ scbaEntry: savedEntry });
     }
 
     if (action === "record_check_item") {
@@ -931,15 +1069,24 @@ export async function POST(request: Request) {
 
     if (action === "complete_check") {
       const checkId = clean(body.checkId, 80);
+      const { data: completingCheck } = await supabase
+        .from("inventory_checks")
+        .select("id,check_type")
+        .eq("department_id", departmentId)
+        .eq("id", checkId)
+        .eq("status", "in_progress")
+        .maybeSingle();
+      if (!completingCheck) return privateJson({ error: "This apparatus check is no longer active." }, 409);
+      const pendingTable = completingCheck.check_type === "air_pack" ? "inventory_scba_check_entries" : "inventory_check_items";
       const { count } = await supabase
-        .from("inventory_check_items")
+        .from(pendingTable)
         .select("id", { count: "exact", head: true })
         .eq("department_id", departmentId)
         .eq("check_id", checkId)
         .eq("result", "pending");
       if (Number(count || 0) > 0) {
         return privateJson(
-          { error: "Record every equipment item before completing the check." },
+          { error: completingCheck.check_type === "air_pack" ? "Record every SCBA pack, RIT bag, and spare bottle before completing the check." : "Record every equipment item before completing the check." },
           409,
         );
       }

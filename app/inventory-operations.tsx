@@ -34,6 +34,8 @@ type OperationsData = {
   stock: Row[];
   restockRequests: Row[];
   locationChanges: Row[];
+  scbaTemplates: Row[];
+  scbaEntries: Row[];
   viewer?: { email?: string; role?: string };
   error?: string;
 };
@@ -53,6 +55,8 @@ const emptyData: OperationsData = {
   stock: [],
   restockRequests: [],
   locationChanges: [],
+  scbaTemplates: [],
+  scbaEntries: [],
 };
 
 const inspectionTypes = [
@@ -69,6 +73,12 @@ const categoryOptions = [
 ] as const;
 
 const weekDays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function isScbaEligible(apparatus: Row) {
+  const name = value(apparatus, "name").toLowerCase();
+  const assetType = value(apparatus, "asset_type").toLowerCase();
+  return name !== "1211" && !name.includes("utv") && assetType !== "utv";
+}
 
 function value(row: Row, key: string) {
   const item = row[key];
@@ -236,6 +246,87 @@ function EmployeeNotifyPicker({
       </div>
     </details> : <p className="employee-notify-empty">{emptyText}</p>}
   </fieldset>;
+}
+
+function ScbaTemplateEditor({
+  apparatus,
+  template,
+  busy,
+  onSave,
+}: {
+  apparatus: Row;
+  template?: Row;
+  busy: boolean;
+  onSave: (payload: Record<string, unknown>) => Promise<boolean>;
+}) {
+  const [positions, setPositions] = useState<string[]>(Array.isArray(template?.pack_positions) ? template.pack_positions.map(String) : []);
+  const [includeRit, setIncludeRit] = useState(template ? template.include_rit !== false : true);
+  const [spareCount, setSpareCount] = useState(Number(template?.spare_bottle_count || 0));
+  return <form className="scba-template-editor" onSubmit={(event) => {
+    event.preventDefault();
+    void onSave({
+      action: "save_scba_template",
+      apparatusId: value(apparatus, "id"),
+      packPositions: positions.map((position) => position.trim()).filter(Boolean),
+      includeRit,
+      spareBottleCount: spareCount,
+    });
+  }}>
+    <header><div><span>WEEKLY AIR PACK TEMPLATE</span><h3>{value(apparatus, "name")}</h3></div><b>{positions.length} riding positions</b></header>
+    <p>Set the SCBA riding positions carried on this rig. The weekly sheet also records each harness number, cylinder number, 4500-PSI reading, electronics result, RIT bag, and spare cylinders.</p>
+    <fieldset><legend>SCBA pack riding positions</legend>
+      {positions.length ? positions.map((position, index) => <div className="scba-position-editor" key={index}>
+        <label><span>Position {index + 1}</span><input value={position} onChange={(event) => setPositions((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} required /></label>
+        <button type="button" onClick={() => setPositions((current) => current.filter((_, itemIndex) => itemIndex !== index))}>Remove</button>
+      </div>) : <div className="ops-empty"><strong>No riding positions configured.</strong><p>Add the first position or keep only the RIT/spare bottle sections.</p></div>}
+      <button type="button" className="scba-add-position" disabled={positions.length >= 12} onClick={() => setPositions((current) => [...current, `Riding position ${current.length + 1}`])}>+ Add riding position</button>
+    </fieldset>
+    <div className="scba-template-options">
+      <label><input type="checkbox" checked={includeRit} onChange={(event) => setIncludeRit(event.target.checked)} /> Include R.I.T. bag check</label>
+      <label><span>Spare bottle count</span><input type="number" min="0" max="20" value={spareCount} onChange={(event) => setSpareCount(Number(event.target.value))} /></label>
+    </div>
+    <button className="ops-primary" disabled={busy || (!positions.length && !includeRit && spareCount === 0)}>Save weekly SCBA template</button>
+  </form>;
+}
+
+function ScbaEntryEditor({
+  entry,
+  busy,
+  canCheck,
+  onSave,
+}: {
+  entry: Row;
+  busy: boolean;
+  canCheck: boolean;
+  onSave: (payload: Record<string, unknown>) => Promise<boolean>;
+}) {
+  const savedResult = value(entry, "result") || "pending";
+  const [result, setResult] = useState(savedResult === "pending" ? "pass" : savedResult);
+  const isPack = value(entry, "section") === "pack";
+  const isNotApplicable = result === "not_applicable";
+  return <form className={`scba-entry result-${savedResult}`} onSubmit={(event) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    void onSave({
+      action: "record_scba_entry",
+      entryId: value(entry, "id"),
+      harnessNumber: form.get("harnessNumber"),
+      cylinderNumber: form.get("cylinderNumber"),
+      psi: form.get("psi"),
+      result,
+      notes: form.get("notes"),
+    });
+  }}>
+    <header><div><span>{formatStatus(entry.section)}</span><h4>{value(entry, "label")}</h4></div><b>{formatStatus(savedResult)}</b></header>
+    <div className="scba-entry-fields">
+      {isPack ? <label><span>Harness number</span><input name="harnessNumber" defaultValue={value(entry, "harness_number")} required={!isNotApplicable} /></label> : null}
+      <label><span>Cylinder number</span><input name="cylinderNumber" defaultValue={value(entry, "cylinder_number")} required={!isNotApplicable} /></label>
+      <label><span>PSI (fill to 4500)</span><input name="psi" type="number" inputMode="numeric" min="0" max="6000" defaultValue={value(entry, "psi")} required={!isNotApplicable} placeholder="4500" /></label>
+      <label><span>{isPack ? "Electronics operational" : "Condition"}</span><select value={result} onChange={(event) => setResult(event.target.value)}><option value="pass">Pass</option><option value="failed">Issue</option><option value="not_applicable">N/A</option></select></label>
+    </div>
+    <label className="scba-entry-notes"><span>Deficiency / note</span><textarea name="notes" rows={2} defaultValue={value(entry, "notes")} required={result === "failed"} placeholder={result === "failed" ? "Describe the issue" : "Optional note"} /></label>
+    <footer>{value(entry, "checked_at") ? <small>Saved {formatDate(entry.checked_at)} by {value(entry, "checked_by") || "department crew"}</small> : <small>Not checked yet</small>}<button className="ops-primary" disabled={busy || !canCheck}>{savedResult === "pending" ? "Save entry" : "Update entry"}</button></footer>
+  </form>;
 }
 
 export default function InventoryOperations({
@@ -416,6 +507,8 @@ export default function InventoryOperations({
         stock: payload.stock || [],
         restockRequests: payload.restockRequests || [],
         locationChanges: payload.locationChanges || [],
+        scbaTemplates: payload.scbaTemplates || [],
+        scbaEntries: payload.scbaEntries || [],
         viewer: payload.viewer,
       });
       if (contextPromise) {
@@ -479,11 +572,16 @@ export default function InventoryOperations({
         setMessage(`Resumed the shared ${value(data.apparatus.find((item) => value(item, "id") === selectedApparatusId) || {}, "name")} ${initialCheckType.replace("_", " ")} inspection.`);
         return;
       }
-      const configuredItems = data.equipment.filter((item) => (
-        value(item, "apparatus_id") === selectedApparatusId
-        && Array.isArray(item.check_types)
-        && item.check_types.includes(initialCheckType)
-      )).length;
+      const scbaTemplate = data.scbaTemplates.find((item) => value(item, "apparatus_id") === selectedApparatusId && item.active !== false);
+      const configuredItems = initialCheckType === "air_pack"
+        ? (Array.isArray(scbaTemplate?.pack_positions) ? scbaTemplate.pack_positions.length : 0)
+          + (scbaTemplate?.include_rit ? 1 : 0)
+          + Number(scbaTemplate?.spare_bottle_count || 0)
+        : data.equipment.filter((item) => (
+          value(item, "apparatus_id") === selectedApparatusId
+          && Array.isArray(item.check_types)
+          && item.check_types.includes(initialCheckType)
+        )).length;
       if (!configuredItems) {
         setError(`This apparatus does not have any items configured for its ${initialCheckType.replace("_", " ")} inspection.`);
         return;
@@ -614,9 +712,13 @@ export default function InventoryOperations({
   const activeItems = activeCheck
     ? data.checkItems.filter((item) => value(item, "check_id") === value(activeCheck, "id"))
     : [];
-  const pendingItems = activeItems.filter((item) => value(item, "result") === "pending").length;
-  const completedItems = activeItems.length - pendingItems;
-  const checkProgress = activeItems.length ? Math.round((completedItems / activeItems.length) * 100) : 0;
+  const activeScbaEntries = activeCheck && value(activeCheck, "check_type") === "air_pack"
+    ? data.scbaEntries.filter((item) => value(item, "check_id") === value(activeCheck, "id"))
+    : [];
+  const activeChecklistRows = value(activeCheck || {}, "check_type") === "air_pack" ? activeScbaEntries : activeItems;
+  const pendingItems = activeChecklistRows.filter((item) => value(item, "result") === "pending").length;
+  const completedItems = activeChecklistRows.length - pendingItems;
+  const checkProgress = activeChecklistRows.length ? Math.round((completedItems / activeChecklistRows.length) * 100) : 0;
   const checkCompartments = [...new Set(activeItems.map((item) => value(item, "compartment_label") || "Location not assigned"))];
   const filteredActiveItems = activeItems.filter((item) => {
     const result = value(item, "result");
@@ -691,15 +793,28 @@ export default function InventoryOperations({
       </article>
     );
   };
-  const remainingForCheck = (checkId: string) => data.checkItems.filter((item) => (
-    value(item, "check_id") === checkId && value(item, "result") === "pending"
-  )).length;
+  const remainingForCheck = (checkId: string) => {
+    const check = data.checks.find((item) => value(item, "id") === checkId);
+    const rows = value(check || {}, "check_type") === "air_pack" ? data.scbaEntries : data.checkItems;
+    return rows.filter((item) => value(item, "check_id") === checkId && value(item, "result") === "pending").length;
+  };
   const selectedApparatus = data.apparatus.find((item) => value(item, "id") === selectedApparatusId);
+  const eligibleScbaApparatus = data.apparatus.filter(isScbaEligible);
+  const selectedScbaApparatus = eligibleScbaApparatus.find((item) => value(item, "id") === selectedApparatusId) || eligibleScbaApparatus[0];
+  const selectedScbaTemplate = selectedScbaApparatus
+    ? data.scbaTemplates.find((item) => value(item, "apparatus_id") === value(selectedScbaApparatus, "id"))
+    : undefined;
   const selectedEquipment = data.equipment.filter((item) => value(item, "apparatus_id") === selectedApparatusId);
   const selectedCompartments = data.compartments.filter((item) => value(item, "apparatus_id") === selectedApparatusId);
-  const configuredItemsFor = (checkType: string) => selectedEquipment.filter((item) => (
-    Array.isArray(item.check_types) && item.check_types.includes(checkType)
-  )).length;
+  const configuredItemsFor = (checkType: string) => {
+    if (checkType === "air_pack") {
+      const template = data.scbaTemplates.find((item) => value(item, "apparatus_id") === selectedApparatusId && item.active !== false);
+      return (Array.isArray(template?.pack_positions) ? template.pack_positions.length : 0)
+        + (template?.include_rit ? 1 : 0)
+        + Number(template?.spare_bottle_count || 0);
+    }
+    return selectedEquipment.filter((item) => Array.isArray(item.check_types) && item.check_types.includes(checkType)).length;
+  };
   const myOpenRepairs = data.workOrders.filter((item) => (
     value(item, "status") !== "closed"
     && Array.isArray(item.assigned_employee_ids)
@@ -757,7 +872,14 @@ export default function InventoryOperations({
     const schedules = data.inspectionSchedules.filter((schedule) => value(schedule, "apparatus_id") === apparatusId && Number(schedule.day_of_week) === todayDay && schedule.active !== false);
     return schedules.flatMap((schedule) => {
       const checkType = value(schedule, "check_type") as CheckCard["checkType"];
-      if (!equipment.some((item) => Array.isArray(item.check_types) && item.check_types.includes(checkType))) return [];
+      const scbaTemplate = data.scbaTemplates.find((item) => value(item, "apparatus_id") === apparatusId && item.active !== false);
+      const scbaConfigured = (Array.isArray(scbaTemplate?.pack_positions) ? scbaTemplate.pack_positions.length : 0)
+        + (scbaTemplate?.include_rit ? 1 : 0)
+        + Number(scbaTemplate?.spare_bottle_count || 0);
+      const configured = checkType === "air_pack"
+        ? scbaConfigured
+        : equipment.filter((item) => Array.isArray(item.check_types) && item.check_types.includes(checkType)).length;
+      if (!configured) return [];
       const completedInWindow = data.checks.some((check) => value(check, "apparatus_id") === apparatusId
         && value(check, "check_type") === checkType
         && value(check, "status") === "completed"
@@ -768,9 +890,11 @@ export default function InventoryOperations({
           : new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value(check, "completed_at"))) === chicagoToday));
       if (completedInWindow) return [];
       const active = data.checks.find((check) => value(check, "apparatus_id") === apparatusId && value(check, "check_type") === checkType && value(check, "status") === "in_progress");
-      const checkItems = active ? data.checkItems.filter((item) => value(item, "check_id") === value(active, "id")) : [];
+      const checkItems = active
+        ? (checkType === "air_pack" ? data.scbaEntries : data.checkItems).filter((item) => value(item, "check_id") === value(active, "id"))
+        : [];
       const pending = checkItems.filter((item) => value(item, "result") === "pending").length;
-      return [{ apparatusId, name: value(apparatus, "name"), checkType, active, pending, total: checkItems.length, configured: equipment.filter((item) => Array.isArray(item.check_types) && item.check_types.includes(checkType)).length, dueStart: value(schedule, "start_time"), dueEnd: value(schedule, "end_time") } as CheckCard];
+      return [{ apparatusId, name: value(apparatus, "name"), checkType, active, pending, total: checkItems.length, configured, dueStart: value(schedule, "start_time"), dueEnd: value(schedule, "end_time") } as CheckCard];
     });
   });
   const inventoryChecks: CheckCard[] = data.apparatus.flatMap((apparatus) => {
@@ -811,7 +935,17 @@ export default function InventoryOperations({
     });
   }
 
-  const reportItemsFor = (check: Row) => data.checkItems.filter((item) => value(item, "check_id") === value(check, "id"));
+  const reportItemsFor = (check: Row): Row[] => value(check, "check_type") === "air_pack"
+    ? data.scbaEntries.filter((item) => value(item, "check_id") === value(check, "id")).map((item) => ({
+      ...item,
+      equipment_name: value(item, "label"),
+      compartment_label: value(item, "section") === "pack" ? "SCBA packs" : value(item, "section") === "rit" ? "R.I.T. bag" : "Spare bottles",
+      numeric_reading: item.psi,
+    }))
+    : data.checkItems.filter((item) => value(item, "check_id") === value(check, "id"));
+  const reportReading = (item: Row) => value(item, "section")
+    ? [value(item, "harness_number") ? `Harness ${value(item, "harness_number")}` : "", value(item, "cylinder_number") ? `Cylinder ${value(item, "cylinder_number")}` : "", value(item, "psi") ? `${value(item, "psi")} PSI` : "", value(item, "notes")].filter(Boolean).join(" · ") || "—"
+    : displayNumericReading(item.numeric_reading) || value(item, "notes") || "—";
   const reportSummaryFor = (check: Row) => {
     const items = reportItemsFor(check);
     const issues = items.filter((item) => ["failed", "missing", "damaged"].includes(value(item, "result"))).length;
@@ -996,7 +1130,7 @@ export default function InventoryOperations({
               <header><div><span>STICKNEY FIRE DEPARTMENT · CHECK REPORT</span><h2>{value(selectedReportCheck, "apparatus_name")} · {formatStatus(selectedReportCheck.check_type)}</h2></div><button type="button" onClick={() => setSelectedReportCheck(null)}>Close</button></header>
               <div className="report-metadata"><span><b>Report ID</b>{value(selectedReportCheck, "id")}</span><span><b>Started</b>{formatDate(selectedReportCheck.started_at)}</span><span><b>Completed</b>{formatDate(selectedReportCheck.completed_at)}</span><span><b>Completed by</b>{value(selectedReportCheck, "started_by") || "Not recorded"}</span><span><b>Approval</b>{formatStatus(selectedReportCheck.review_status)}</span><span><b>Reviewed by</b>{value(selectedReportCheck, "reviewed_by") || "Pending"}</span></div>
               {value(selectedReportCheck, "review_notes") ? <blockquote>{value(selectedReportCheck, "review_notes")}</blockquote> : null}
-              <table><thead><tr><th>Equipment</th><th>Location</th><th>Result</th><th>Reading / notes</th><th>Checked by</th></tr></thead><tbody>{summary.items.map((item) => <tr key={value(item, "id")}><td>{value(item, "equipment_name")}</td><td>{value(item, "compartment_label")}</td><td>{formatStatus(item.result)}</td><td>{displayNumericReading(item.numeric_reading) || value(item, "notes") || "—"}</td><td>{value(item, "checked_by") || "—"}</td></tr>)}</tbody></table>
+              <table><thead><tr><th>Equipment</th><th>Location</th><th>Result</th><th>Reading / notes</th><th>Checked by</th></tr></thead><tbody>{summary.items.map((item) => <tr key={value(item, "id")}><td>{value(item, "equipment_name")}</td><td>{value(item, "compartment_label")}</td><td>{formatStatus(item.result)}</td><td>{reportReading(item)}</td><td>{value(item, "checked_by") || "—"}</td></tr>)}</tbody></table>
               <footer><span>{summary.items.length} items</span><span>{summary.passed} passed</span><span>{summary.issues} issues</span><span>Generated {formatDate(Date.now())}</span></footer>
               <div className="report-detail-actions"><button type="button" onClick={() => printReport(selectedReportCheck)}>Print report</button><button type="button" onClick={() => emailReport(selectedReportCheck)}>Email summary</button></div>
             </section>;
@@ -1077,10 +1211,18 @@ export default function InventoryOperations({
                 <small>Work one location at a time. Passed items leave the Pending view immediately; issues still require notes and a photo.</small>
               </div>
               <section className="check-progress-summary" aria-label="Inspection progress">
-                <div><strong>{completedItems} of {activeItems.length} completed</strong><span>{pendingItems} remaining</span></div>
+                <div><strong>{completedItems} of {activeChecklistRows.length} completed</strong><span>{pendingItems} remaining</span></div>
                 <div className="check-progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={checkProgress}><i style={{ width: `${checkProgress}%` }} /></div>
                 <small>{checkProgress}% complete · your selections save immediately</small>
               </section>
+              {value(activeCheck, "check_type") === "air_pack" ? <div className="scba-check-worklist">
+                <div className="scba-check-guidance"><strong>Weekly SCBA readiness</strong><span>Record the harness, cylinder, 4500-PSI reading, and operational result. RIT and spare-cylinder rows follow the saved rig template.</span></div>
+                {(["pack", "rit", "spare"] as const).map((section) => {
+                  const entries = activeScbaEntries.filter((entry) => value(entry, "section") === section);
+                  if (!entries.length) return null;
+                  return <section className="scba-check-section" key={section}><header><div><span>SCBA CHECK</span><h3>{section === "pack" ? "SCBA packs" : section === "rit" ? "R.I.T. bag" : "Spare bottles"}</h3></div><b>{entries.filter((entry) => value(entry, "result") !== "pending").length} / {entries.length}</b></header><div className="scba-entry-list">{entries.map((entry) => <ScbaEntryEditor key={`${value(entry, "id")}-${value(entry, "checked_at")}`} entry={entry} busy={Boolean(busy)} canCheck={canCheck} onSave={(payload) => action(`scba-${value(entry, "id")}`, payload)} />)}</div></section>;
+                })}
+              </div> : <>
               <div className="check-worklist-tools">
                 <label>Find an item<input type="search" value={checkSearch} onChange={(event) => setCheckSearch(event.target.value)} placeholder="Search equipment or location" /></label>
                 <label>Show<select value={checkResultFilter} onChange={(event) => setCheckResultFilter(event.target.value as typeof checkResultFilter)}><option value="pending">Pending</option><option value="all">All items</option><option value="completed">Completed</option><option value="failed">Issues</option></select></label>
@@ -1098,6 +1240,7 @@ export default function InventoryOperations({
                   </section>
                 );
               }) : <div className="ops-empty check-filter-empty"><strong>No items match these filters</strong><p>Change the search, status, or location to see more checklist items.</p><button type="button" onClick={() => { setCheckSearch(""); setCheckResultFilter("pending"); setCheckCompartmentFilter("all"); }}>Clear filters</button></div>}
+              </>}
               <div className="check-completion-bar">
                 <div><strong>{pendingItems ? `${pendingItems} items still need a result` : "Ready for administrator review"}</strong><small>{pendingItems ? "Finish the remaining locations before completing this inspection." : "Submitting creates a printable report and sends this check to the approval queue."}</small></div>
                 <button className="ops-primary" disabled={Boolean(busy) || pendingItems > 0 || !canCheck} onClick={() => void action("complete", { action: "complete_check", checkId: value(activeCheck, "id") })}>Submit {formatStatus(activeCheck.check_type)} check</button>
@@ -1122,6 +1265,14 @@ export default function InventoryOperations({
               <div className="location-review-actions"><button type="button" disabled={Boolean(busy)} onClick={() => void action(`deny-location-${requestId}`, { action: "review_location_change", requestId, decision: "denied", reviewNotes: locationReviewNotes[requestId] || "" })}>Deny</button><button className="ops-primary" type="button" disabled={Boolean(busy)} onClick={() => void action(`approve-location-${requestId}`, { action: "review_location_change", requestId, decision: "approved", reviewNotes: locationReviewNotes[requestId] || "" })}>Approve and move equipment</button></div>
             </article>;
           })}</div> : <div className="ops-empty due-clear"><strong>No location changes are waiting.</strong><p>Crew requests submitted during Inventory checks will appear here for approval.</p></div>}
+        </section>
+        <section className="ops-card scba-template-card">
+          <header><div><span>ADMIN · WEEKLY SCBA CHECKLISTS</span><h2>Air pack positions, RIT bag, and spare bottles by rig</h2></div><b>{data.scbaTemplates.length} configured</b></header>
+          <p className="scba-template-note">Every configured rig is included except the UTV and 1211. Changes apply to future weekly air-pack checks; saved reports keep the values recorded at the time of inspection.</p>
+          {selectedScbaApparatus ? <>
+            <label className="unit-picker">Apparatus<select value={value(selectedScbaApparatus, "id")} onChange={(event) => setSelectedApparatusId(event.target.value)}>{eligibleScbaApparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")} · {value(item, "asset_type")}</option>)}</select></label>
+            <ScbaTemplateEditor key={`${value(selectedScbaApparatus, "id")}-${value(selectedScbaTemplate || {}, "updated_at")}`} apparatus={selectedScbaApparatus} template={selectedScbaTemplate} busy={Boolean(busy)} onSave={(payload) => action(`scba-template-${value(selectedScbaApparatus, "id")}`, payload)} />
+          </> : <div className="ops-empty"><strong>No eligible apparatus are configured.</strong><p>Add a rig other than the UTV or 1211 before building a weekly SCBA checklist.</p></div>}
         </section>
         <section className="ops-card">
           <header><div><span>ADMIN · CHECK PARAMETERS &amp; LOCATIONS</span><h2>Add or edit equipment, its exact location, and required checks</h2></div><b>{data.equipment.length} items</b></header>
