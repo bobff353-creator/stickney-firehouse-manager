@@ -60,6 +60,15 @@ test("compact TV panels fit without internal staffing scrollbars or oversized he
   assert.match(staffing, /additional assignments remain on the full schedule/);
 });
 
+test("training rotations use a bounded two-column TV layout", async () => {
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(styles, /\.tv-display \.training-board \{[^}]*height: 100%;[^}]*grid-template-rows: auto minmax\(0,1fr\) auto;[^}]*overflow: hidden/);
+  assert.match(styles, /\.tv-display \.training-course-list \{[^}]*grid-template-columns: repeat\(2,minmax\(0,1fr\)\);[^}]*grid-template-rows: repeat\(3,minmax\(0,1fr\)\);[^}]*overflow: hidden/);
+  assert.match(styles, /\.tv-display \.training-course-list a:last-child:nth-child\(odd\) \{ grid-column: 1\/-1; \}/);
+  assert.match(styles, /\.tv-display \.training-disclaimer \{ display: none; \}/);
+});
+
 test("24/7 TV mode prevents stalled refreshes and recovers after device interruptions", async () => {
   const [board, app] = await Promise.all([
     readFile(new URL("../app/operations-board.tsx", import.meta.url), "utf8"),

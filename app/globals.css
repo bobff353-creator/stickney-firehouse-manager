@@ -976,8 +976,17 @@ td strong { font-size: 16px; }
 .tv-display .fatality-total { padding: 5px 8px; }
 .tv-display .fatality-total > strong { font-size: 27px; }
 .tv-display .fatality-list a { padding: 3px 6px; }
-.tv-display .training-provider { padding: 5px 8px; }
-.tv-display .training-course-list a { min-height: 0; padding: 4px 7px; }
+.tv-display .training-board { box-sizing: border-box; height: 100%; min-height: 0; grid-template-rows: auto minmax(0,1fr) auto; overflow: hidden; }
+.tv-display .training-provider { min-height: 0; padding: 5px 8px; }
+.tv-display .training-provider strong { font-size: 13px; line-height: 1.1; }
+.tv-display .training-course-list { min-height: 0; grid-template-columns: repeat(2,minmax(0,1fr)); grid-template-rows: repeat(3,minmax(0,1fr)); align-content: stretch; overflow: hidden; }
+.tv-display .training-course-list a { box-sizing: border-box; height: 100%; min-height: 0; padding: 4px 7px; grid-template-columns: 54px minmax(0,1fr) auto; gap: 6px; overflow: hidden; }
+.tv-display .training-course-list a:last-child:nth-child(odd) { grid-column: 1/-1; }
+.tv-display .training-course-list time { font-size: 9px; }
+.tv-display .training-course-list strong { font-size: 10px; line-height: 1.1; }
+.tv-display .training-course-list span { overflow: hidden; font-size: 7px; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
+.tv-display .training-source { overflow: hidden; font-size: 8px; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
+.tv-display .training-disclaimer { display: none; }
 .tv-display .current-duty-card,.tv-display .board-grid.redesigned .current-duty-card { min-height: 0; height: 100%; padding: 10px !important; gap: 4px; }
 .tv-display .board-grid.redesigned .current-duty-card > p { font-size: clamp(15px,1.6vw,21px); }
 .tv-display .board-duty-checks { gap: 4px; }
@@ -1114,6 +1123,11 @@ td strong { font-size: 16px; }
 .training-course-list a > b { color: #82c7de; font-size: 12px; }
 .training-source { color: #9edcf0; font-size: 10px; font-weight: 850; text-decoration: none; }
 .training-disclaimer { margin: 0 !important; color: #8fa5af !important; font-size: 9px; line-height: 1.35; }
+@media (min-width: 900px) {
+  .operations-board .training-course-list { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .operations-board .training-course-list a { min-height: 54px; grid-template-columns: 62px minmax(0,1fr) auto; }
+  .operations-board .training-course-list a:last-child:nth-child(odd) { grid-column: 1/-1; }
+}
 .board-grid.redesigned .rotating-panel > .rotation-content { min-height: 440px; align-content: start; }
 .board-grid.redesigned .current-duty-card { min-height: 400px; }
 .board-grid.redesigned .current-duty-card > p { font-size: clamp(23px,2.4vw,34px); }
