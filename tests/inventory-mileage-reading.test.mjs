@@ -10,12 +10,12 @@ test("mileage and odometer checklist items use a numeric entry instead of result
   assert.match(operations, /\(mileage\|odometer\)/i);
   assert.match(operations, /type="number"/);
   assert.match(operations, /inputMode="decimal"/);
-  assert.match(operations, /Save mileage/);
+  assert.match(operations, /Save reading/);
   assert.match(operations, /numericItem \? <div className="numeric-reading-entry"/);
 });
 
 test("server validates and stores a nonnegative numeric reading", () => {
-  assert.match(route, /Enter the current mileage or odometer reading/);
+  assert.match(route, /Enter the required numeric reading/);
   assert.match(route, /numeric_reading: isNumericReadingItem \? numericReading : null/);
   assert.match(route, /numericReading === null/);
   assert.match(route, /numericReading < 0/);

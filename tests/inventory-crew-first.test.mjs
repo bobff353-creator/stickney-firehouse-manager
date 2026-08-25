@@ -33,7 +33,7 @@ test("Inventory exposes barcode search, expirations, and restock approvals", asy
   ]);
 
   assert.match(shell, /Scan Barcode/);
-  assert.match(operations, /Name, barcode, serial, compartment, or unit/);
+  assert.match(operations, /Name, barcode, serial, compartment, kit, or unit/);
   assert.match(operations, /Lot number/);
   assert.match(operations, /Expiration date/);
   assert.match(operations, /Request restock/);

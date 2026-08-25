@@ -13,7 +13,7 @@ import {
   useState,
 } from "react";
 
-type View = "due" | "fleet" | "inventory" | "check" | "equipment" | "readiness" | "service" | "stock" | "setup";
+type View = "due" | "fleet" | "inventory" | "check" | "equipment" | "reports" | "readiness" | "service" | "stock" | "setup";
 type LoadState = "loading" | "ready" | "unavailable";
 type FleetFilter = "all" | "in-service" | "out-impaired" | "digital-twins";
 
@@ -260,6 +260,7 @@ function InventoryNavIcon({ view }: { view: Exclude<View, "setup" | "readiness" 
     {view === "fleet" ? <><path d="M3 15V8h11l4 4h3v3"/><path d="M5 15h14M7 15a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM17 15a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM14 8v4h4"/></> : null}
     {view === "inventory" ? <><path d="M7 4h10v17H7z"/><path d="M9 4V2h6v2M10 9h4M10 13h4M10 17h4"/></> : null}
     {view === "equipment" ? <><path d="m4 7 8-4 8 4-8 4-8-4Z"/><path d="M4 7v10l8 4 8-4V7M12 11v10"/></> : null}
+    {view === "reports" ? <><path d="M6 3h9l3 3v15H6z"/><path d="M15 3v4h4M9 11h6M9 15h6M9 19h4"/></> : null}
     {view === "service" ? <><path d="m14 6 4-3 3 3-3 4-4-4ZM14 6 4 16v4h4L18 10"/><path d="m4 20-1 1"/></> : null}
     {view === "stock" ? <><path d="m4 7 8-4 8 4-8 4-8-4Z"/><path d="M4 7v10l8 4 8-4V7M12 11v10"/></> : null}
   </svg>;
@@ -515,6 +516,7 @@ export default function Inventory360({
             ["equipment", "Equipment"],
             ["stock", "Meds & Stock"],
             ["service", "Repairs"],
+            ["reports", "Reports"],
             ...(canSetup ? [["setup", "Admin Configuration"]] : []),
           ] as [View, string][]).map(([id, label]) => (
             <button
@@ -759,6 +761,13 @@ export default function Inventory360({
         </section>
       ) : null}
 
+      {view === "reports" ? (
+        <section className="page reports-page">
+          <div className="page-heading compact crew-heading"><div><span className="eyebrow">CHECK REPORTS &amp; APPROVALS</span><h1>Review, print, and email completed work.</h1><p>Daily, weekly, inventory, and air-pack checks create permanent reports. Administrators approve new completions here.</p></div></div>
+          <InventoryOperations view="reports" onSetup={() => setView("setup")} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+        </section>
+      ) : null}
+
       {view === "readiness" ? (
         <section className="page">
           <div className="page-heading compact">
@@ -902,6 +911,7 @@ export default function Inventory360({
           ["inventory", "Inventory"],
           ["equipment", "Equipment"],
           ["service", "Repairs"],
+          ["reports", "Reports"],
           ["stock", "Stock"],
         ] as [Exclude<View, "setup" | "readiness" | "check">, string][]).map(([id, label]) => (
           <button

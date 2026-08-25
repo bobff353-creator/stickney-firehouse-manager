@@ -7,7 +7,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import Link from "next/link";
 import type { IScannerControls } from "@zxing/browser";
 
-type OperationsView = "due" | "inventory" | "check" | "equipment" | "readiness" | "service" | "stock" | "builder" | "legacy_check" | "legacy_service";
+type OperationsView = "due" | "inventory" | "check" | "equipment" | "reports" | "readiness" | "service" | "stock" | "builder" | "legacy_check" | "legacy_service";
 type Row = Record<string, string | number | string[] | null>;
 type CheckCard = {
   apparatusId: string;
@@ -24,6 +24,7 @@ type OperationsData = {
   apparatus: Row[];
   compartments: Row[];
   equipment: Row[];
+  retiredEquipment: Row[];
   checks: Row[];
   checkItems: Row[];
   exceptions: Row[];
@@ -40,6 +41,7 @@ const emptyData: OperationsData = {
   apparatus: [],
   compartments: [],
   equipment: [],
+  retiredEquipment: [],
   checks: [],
   checkItems: [],
   exceptions: [],
@@ -87,7 +89,15 @@ function formatStatus(input: Row[string]) {
 }
 
 function isNumericReadingItem(item: Row) {
-  return /\b(mileage|odometer)\b/i.test(value(item, "equipment_name"));
+  return ["numeric", "mileage", "quantity"].includes(value(item, "response_type"))
+    || /\b(mileage|odometer)\b/i.test(value(item, "equipment_name"));
+}
+
+function numericReadingLabel(item: Row) {
+  const responseType = value(item, "response_type");
+  if (responseType === "quantity") return "Quantity counted";
+  if (responseType === "mileage") return "Current mileage / odometer";
+  return "Numeric reading";
 }
 
 function numericReadingInputValue(input: Row[string]) {
@@ -209,6 +219,11 @@ export default function InventoryOperations({
   const [selectedDirectoryEquipment, setSelectedDirectoryEquipment] = useState<Row | null>(null);
   const [scannerTarget, setScannerTarget] = useState<"create" | "edit" | "search">("create");
   const [equipmentSearch, setEquipmentSearch] = useState("");
+  const [equipmentRigFilter, setEquipmentRigFilter] = useState("all");
+  const [equipmentSort, setEquipmentSort] = useState<"rig" | "name" | "compartment" | "status">("rig");
+  const [repairEquipment, setRepairEquipment] = useState<Row | null>(null);
+  const [selectedReportCheck, setSelectedReportCheck] = useState<Row | null>(null);
+  const [checkReviewNotes, setCheckReviewNotes] = useState<Record<string, string>>({});
   const [checkSearch, setCheckSearch] = useState("");
   const [checkResultFilter, setCheckResultFilter] = useState<"pending" | "all" | "completed" | "failed">("pending");
   const [checkCompartmentFilter, setCheckCompartmentFilter] = useState("all");
@@ -327,6 +342,7 @@ export default function InventoryOperations({
         apparatus: payload.apparatus || [],
         compartments: payload.compartments || [],
         equipment: payload.equipment || [],
+        retiredEquipment: payload.retiredEquipment || [],
         checks: payload.checks || [],
         checkItems: payload.checkItems || [],
         exceptions: payload.exceptions || [],
@@ -572,14 +588,14 @@ export default function InventoryOperations({
           {pendingLocationChange ? <small className="location-change-pending">Location change awaiting administrator review</small> : null}
         </div>
         <div className="check-result">
-          <span>{numericItem && savedReading ? `${savedReading} miles` : value(item, "result").replace("_", " ")}</span>
+          <span>{numericItem && savedReading ? `${savedReading}${value(item, "response_type") === "mileage" || /\b(mileage|odometer)\b/i.test(value(item, "equipment_name")) ? " miles" : ""}` : value(item, "result").replace("_", " ")}</span>
           {value(item, "result") !== "pending" && value(item, "checked_by") ? <small>By {value(item, "checked_by")} · {formatDate(item.checked_at)}</small> : null}
         </div>
         {numericItem ? <div className="numeric-reading-entry">
-          <label htmlFor={`numeric-reading-${itemId}`}>Current mileage / odometer</label>
+          <label htmlFor={`numeric-reading-${itemId}`}>{numericReadingLabel(item)}</label>
           <div>
-            <input id={`numeric-reading-${itemId}`} type="number" inputMode="decimal" min="0" step="0.1" placeholder="Enter mileage" value={reading} onChange={(event) => setNumericReadings((current) => ({ ...current, [itemId]: event.target.value }))} disabled={Boolean(busy) || !canCheck} />
-            <button type="button" disabled={Boolean(busy) || !canCheck || reading.trim() === "" || !Number.isFinite(Number(reading)) || Number(reading) < 0} onClick={() => void recordCheckItems(`item-${itemId}`, { action: "record_check_item", checkItemId: itemId, result: "pass", numericReading: reading })}>Save mileage</button>
+            <input id={`numeric-reading-${itemId}`} type="number" inputMode="decimal" min="0" step="0.1" placeholder="Enter reading" value={reading} onChange={(event) => setNumericReadings((current) => ({ ...current, [itemId]: event.target.value }))} disabled={Boolean(busy) || !canCheck} />
+            <button type="button" disabled={Boolean(busy) || !canCheck || reading.trim() === "" || !Number.isFinite(Number(reading)) || Number(reading) < 0} onClick={() => void recordCheckItems(`item-${itemId}`, { action: "record_check_item", checkItemId: itemId, result: "pass", numericReading: reading })}>Save reading</button>
           </div>
         </div> : <div className="check-actions" aria-label={`Check ${value(item, "equipment_name")}`}>
           <button className="pass" disabled={Boolean(busy) || !canCheck} onClick={() => void recordCheckItems(`item-${itemId}`, { action: "record_check_item", checkItemId: itemId, result: "pass" })}>Pass</button>
@@ -618,13 +634,28 @@ export default function InventoryOperations({
   }, [data.stock]);
   const equipmentMatches = useMemo(() => {
     const query = equipmentSearch.trim().toLowerCase();
-    if (!query) return data.equipment;
-    return data.equipment.filter((item) => {
+    const apparatusName = (item: Row) => value(data.apparatus.find((row) => value(row, "id") === value(item, "apparatus_id")) || {}, "name");
+    const matches = data.equipment.filter((item) => {
       const apparatus = data.apparatus.find((row) => value(row, "id") === value(item, "apparatus_id"));
-      return [value(item, "name"), value(item, "manufacturer"), value(item, "model"), value(item, "serial_number"), value(item, "barcode"), value(item, "compartment_label"), apparatus ? value(apparatus, "name") : ""]
+      const matchesRig = equipmentRigFilter === "all" || value(item, "apparatus_id") === equipmentRigFilter;
+      const matchesQuery = !query || [value(item, "name"), value(item, "manufacturer"), value(item, "model"), value(item, "serial_number"), value(item, "barcode"), value(item, "compartment_label"), value(item, "item_type"), value(item, "service_status"), apparatus ? value(apparatus, "name") : ""]
         .some((field) => field.toLowerCase().includes(query));
+      return matchesRig && matchesQuery;
     });
-  }, [data.apparatus, data.equipment, equipmentSearch]);
+    return [...matches].sort((left, right) => {
+      const leftKey = equipmentSort === "name" ? value(left, "name")
+        : equipmentSort === "compartment" ? `${apparatusName(left)} ${value(left, "compartment_label")} ${value(left, "name")}`
+          : equipmentSort === "status" ? `${value(left, "service_status")} ${apparatusName(left)} ${value(left, "name")}`
+            : `${apparatusName(left)} ${value(left, "compartment_label")} ${value(left, "name")}`;
+      const rightKey = equipmentSort === "name" ? value(right, "name")
+        : equipmentSort === "compartment" ? `${apparatusName(right)} ${value(right, "compartment_label")} ${value(right, "name")}`
+          : equipmentSort === "status" ? `${value(right, "service_status")} ${apparatusName(right)} ${value(right, "name")}`
+            : `${apparatusName(right)} ${value(right, "compartment_label")} ${value(right, "name")}`;
+      return leftKey.localeCompare(rightKey, undefined, { numeric: true, sensitivity: "base" });
+    });
+  }, [data.apparatus, data.equipment, equipmentRigFilter, equipmentSearch, equipmentSort]);
+  const completedChecks = useMemo(() => data.checks.filter((check) => value(check, "status") === "completed"), [data.checks]);
+  const pendingCheckReviews = useMemo(() => completedChecks.filter((check) => value(check, "review_status") === "pending"), [completedChecks]);
   const today = new Date();
   const chicagoWeekday = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", weekday: "short" }).format(today);
   const todayDay = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(chicagoWeekday);
@@ -634,7 +665,12 @@ export default function InventoryOperations({
     const equipment = data.equipment.filter((item) => value(item, "apparatus_id") === apparatusId);
     const required = (["daily", ...(Number(apparatus.weekly_due_day) === todayDay ? ["weekly"] : [])] as Array<"daily" | "weekly">).filter((checkType) => equipment.some((item) => Array.isArray(item.check_types) && item.check_types.includes(checkType)));
     return required.flatMap((checkType) => {
-      const completedToday = data.checks.some((check) => value(check, "apparatus_id") === apparatusId && value(check, "check_type") === checkType && value(check, "status") === "completed" && value(check, "completed_at") && new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value(check, "completed_at"))) === chicagoToday);
+      const completedToday = data.checks.some((check) => value(check, "apparatus_id") === apparatusId
+        && value(check, "check_type") === checkType
+        && value(check, "status") === "completed"
+        && value(check, "review_status") !== "changes_requested"
+        && value(check, "completed_at")
+        && new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value(check, "completed_at"))) === chicagoToday);
       if (completedToday) return [];
       const active = data.checks.find((check) => value(check, "apparatus_id") === apparatusId && value(check, "check_type") === checkType && value(check, "status") === "in_progress");
       const checkItems = active ? data.checkItems.filter((item) => value(item, "check_id") === value(active, "id")) : [];
@@ -680,6 +716,36 @@ export default function InventoryOperations({
     });
   }
 
+  const reportItemsFor = (check: Row) => data.checkItems.filter((item) => value(item, "check_id") === value(check, "id"));
+  const reportSummaryFor = (check: Row) => {
+    const items = reportItemsFor(check);
+    const issues = items.filter((item) => ["failed", "missing", "damaged"].includes(value(item, "result"))).length;
+    const passed = items.filter((item) => value(item, "result") === "pass").length;
+    return { items, issues, passed };
+  };
+  const emailReport = (check: Row) => {
+    const summary = reportSummaryFor(check);
+    const subject = `${value(check, "apparatus_name")} ${formatStatus(check.check_type)} check report`;
+    const body = [
+      "Stickney Fire Department — Vehicle Checks & Inventory",
+      `Report: ${value(check, "id")}`,
+      `Apparatus: ${value(check, "apparatus_name")}`,
+      `Check: ${formatStatus(check.check_type)}`,
+      `Started: ${formatDate(check.started_at)}`,
+      `Completed: ${formatDate(check.completed_at)}`,
+      `Completed by: ${value(check, "started_by") || "Not recorded"}`,
+      `Review: ${formatStatus(check.review_status)}`,
+      `Items: ${summary.items.length} · Passed: ${summary.passed} · Issues: ${summary.issues}`,
+      "",
+      ...summary.items.filter((item) => value(item, "result") !== "pass").map((item) => `${value(item, "equipment_name")}: ${formatStatus(item.result)}${value(item, "notes") ? ` — ${value(item, "notes")}` : ""}`),
+    ].join("\n");
+    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+  const printReport = (check: Row) => {
+    setSelectedReportCheck(check);
+    window.setTimeout(() => window.print(), 80);
+  };
+
   if (loading) return <div className="ops-state">Loading saved Inventory records…</div>;
   if (error && !data.configured) {
     return (
@@ -721,29 +787,96 @@ export default function InventoryOperations({
       {view === "equipment" ? (
         <section className="ops-card equipment-search-card">
           <header><div><span>EQUIPMENT DIRECTORY</span><h2>Search all apparatus and compartments</h2></div><b>{equipmentMatches.length} results</b></header>
-          <div className="equipment-search-tools"><label>Search equipment<input value={equipmentSearch} onChange={(event) => setEquipmentSearch(event.target.value)} placeholder="Name, barcode, serial, compartment, or unit" /></label><button type="button" onClick={() => { setScannerTarget("search"); setScannerOpen(true); }}>Scan Barcode</button></div>
+          <div className="equipment-search-tools">
+            <label className="equipment-search-query">Search equipment<input value={equipmentSearch} onChange={(event) => setEquipmentSearch(event.target.value)} placeholder="Name, barcode, serial, compartment, kit, or unit" /></label>
+            <label>Apparatus<select value={equipmentRigFilter} onChange={(event) => setEquipmentRigFilter(event.target.value)}><option value="all">All apparatus</option>{data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")}</option>)}</select></label>
+            <label>Sort by<select value={equipmentSort} onChange={(event) => setEquipmentSort(event.target.value as typeof equipmentSort)}><option value="rig">Rig and compartment</option><option value="name">Item name</option><option value="compartment">Compartment</option><option value="status">Service status</option></select></label>
+            <button type="button" onClick={() => { setScannerTarget("search"); setScannerOpen(true); }}>Scan Barcode</button>
+          </div>
           {equipmentMatches.length ? <div className="equipment-directory">{equipmentMatches.map((item) => {
             const apparatus = data.apparatus.find((row) => value(row, "id") === value(item, "apparatus_id"));
-            return <button className="equipment-record-button" type="button" key={value(item, "id")} onClick={() => setSelectedDirectoryEquipment(item)} aria-label={`View ${value(item, "name")} equipment record`}><div><strong>{value(item, "name")}</strong><small>{apparatus ? value(apparatus, "name") : "Unknown apparatus"} · {value(item, "compartment_label") || "Location not recorded"}</small></div><dl><div><dt>Barcode</dt><dd>{value(item, "barcode") || "Not assigned"}</dd></div><div><dt>Serial</dt><dd>{value(item, "serial_number") || "Not recorded"}</dd></div><div><dt>Required</dt><dd>{value(item, "quantity_required") || "1"}</dd></div></dl></button>;
+            return <button className="equipment-record-button" type="button" key={value(item, "id")} onClick={() => setSelectedDirectoryEquipment(item)} aria-label={`View ${value(item, "name")} equipment record`}><div><span className={`equipment-status status-${value(item, "service_status") || "in_service"}`}>{formatStatus(item.service_status) || "In Service"}</span><strong>{value(item, "name")}</strong><small>{apparatus ? value(apparatus, "name") : "Unknown apparatus"} · {value(item, "compartment_label") || "Location not recorded"}</small></div><dl><div><dt>Type</dt><dd>{formatStatus(item.item_type) || "Individual"}</dd></div><div><dt>Serial</dt><dd>{value(item, "serial_number") || "Not recorded"}</dd></div><div><dt>Required</dt><dd>{value(item, "quantity_required") || "1"}</dd></div></dl></button>;
           })}</div> : <div className="ops-empty"><strong>No equipment matches this search.</strong><p>Try a unit name, compartment, asset tag, barcode, or serial number.</p></div>}
           {selectedDirectoryEquipment ? (() => {
             const apparatus = data.apparatus.find((row) => value(row, "id") === value(selectedDirectoryEquipment, "apparatus_id"));
+            const parent = data.equipment.find((item) => value(item, "id") === value(selectedDirectoryEquipment, "parent_equipment_id"));
+            const containedItems = data.equipment.filter((item) => value(item, "parent_equipment_id") === value(selectedDirectoryEquipment, "id"));
             return <article className="equipment-record-summary" aria-label="Selected equipment record">
               <header><div><span>SELECTED EQUIPMENT</span><h3>{value(selectedDirectoryEquipment, "name")}</h3></div><button type="button" onClick={() => setSelectedDirectoryEquipment(null)}>Close</button></header>
+              {value(selectedDirectoryEquipment, "photo_url") ? <img className="equipment-record-photo" src={value(selectedDirectoryEquipment, "photo_url")} alt={value(selectedDirectoryEquipment, "name")} /> : null}
               <dl>
                 <div><dt>Assigned vehicle</dt><dd>{apparatus ? value(apparatus, "name") : "Not recorded"}</dd></div>
                 <div><dt>Exact location</dt><dd>{value(selectedDirectoryEquipment, "compartment_label") || "Not recorded"}</dd></div>
-                <div><dt>Category</dt><dd>{formatStatus(selectedDirectoryEquipment.equipment_category) || "Equipment"}</dd></div>
+                <div><dt>Item / grouping type</dt><dd>{formatStatus(selectedDirectoryEquipment.item_type) || "Individual"}{parent ? ` · inside ${value(parent, "name")}` : ""}</dd></div>
+                <div><dt>Service status</dt><dd>{formatStatus(selectedDirectoryEquipment.service_status) || "In Service"}</dd></div>
                 <div><dt>Manufacturer / model</dt><dd>{[value(selectedDirectoryEquipment, "manufacturer"), value(selectedDirectoryEquipment, "model")].filter(Boolean).join(" · ") || "Not recorded"}</dd></div>
                 <div><dt>Serial number</dt><dd>{value(selectedDirectoryEquipment, "serial_number") || "Not recorded"}</dd></div>
                 <div><dt>Barcode / asset tag</dt><dd>{value(selectedDirectoryEquipment, "barcode") || "Not assigned"}</dd></div>
                 <div><dt>Required quantity</dt><dd>{value(selectedDirectoryEquipment, "quantity_required") || "1"}</dd></div>
                 <div><dt>Required checks</dt><dd>{Array.isArray(selectedDirectoryEquipment.check_types) && selectedDirectoryEquipment.check_types.length ? selectedDirectoryEquipment.check_types.map(formatStatus).join(", ") : "Not assigned"}</dd></div>
+                <div><dt>Check response</dt><dd>{formatStatus(selectedDirectoryEquipment.response_type) || "Pass Fail"}</dd></div>
+                <div><dt>Purchase / in service</dt><dd>{[value(selectedDirectoryEquipment, "purchase_date"), value(selectedDirectoryEquipment, "in_service_date")].filter(Boolean).join(" · ") || "Not recorded"}</dd></div>
+                <div><dt>Expiration</dt><dd>{value(selectedDirectoryEquipment, "expiration_date") || "Not tracked"}</dd></div>
+                <div><dt>Contained equipment</dt><dd>{containedItems.length ? `${containedItems.length} linked item${containedItems.length === 1 ? "" : "s"}` : "None"}</dd></div>
               </dl>
-              {canSetup ? <button className="ops-primary" type="button" onClick={() => setEditingEquipment(selectedDirectoryEquipment)}>Edit equipment parameters</button> : null}
+              {value(selectedDirectoryEquipment, "service_notes") ? <p className="equipment-service-note">{value(selectedDirectoryEquipment, "service_notes")}</p> : null}
+              <div className="equipment-record-actions">
+                {canSetup ? <button className="ops-primary" type="button" onClick={() => setEditingEquipment(selectedDirectoryEquipment)}>Edit complete asset record</button> : null}
+                {canManageRepairs ? <button type="button" onClick={() => setRepairEquipment(selectedDirectoryEquipment)}>Create repair ticket</button> : null}
+                {canManageRepairs && value(selectedDirectoryEquipment, "service_status") !== "out_of_service" ? <button type="button" onClick={() => void action(`oos-${value(selectedDirectoryEquipment, "id")}`, { action: "set_equipment_status", equipmentId: value(selectedDirectoryEquipment, "id"), serviceStatus: "out_of_service", serviceNotes: "Placed out of service from equipment directory" }).then((saved) => { if (saved) setSelectedDirectoryEquipment(null); })}>Place out of service</button> : null}
+                {canManageRepairs && value(selectedDirectoryEquipment, "service_status") === "out_of_service" ? <button type="button" onClick={() => void action(`return-${value(selectedDirectoryEquipment, "id")}`, { action: "set_equipment_status", equipmentId: value(selectedDirectoryEquipment, "id"), serviceStatus: "in_service", serviceNotes: "Returned to service from equipment directory" }).then((saved) => { if (saved) setSelectedDirectoryEquipment(null); })}>Return to service</button> : null}
+              </div>
             </article>;
           })() : null}
         </section>
+      ) : null}
+
+      {view === "reports" ? (
+        <div className="inventory-reports-workspace">
+          {canSetup ? <section className="ops-card check-approval-card">
+            <header><div><span>ADMINISTRATOR APPROVALS</span><h2>Completed checks awaiting review</h2></div><b>{pendingCheckReviews.length} pending</b></header>
+            {pendingCheckReviews.length ? <div className="check-approval-list">{pendingCheckReviews.map((check) => {
+              const summary = reportSummaryFor(check);
+              const checkId = value(check, "id");
+              return <article key={checkId}>
+                <div><span>{formatStatus(check.check_type)} check</span><h3>{value(check, "apparatus_name")}</h3><small>Completed {formatDate(check.completed_at)} by {value(check, "started_by") || "department crew"}</small></div>
+                <dl><div><dt>Items</dt><dd>{summary.items.length}</dd></div><div><dt>Passed</dt><dd>{summary.passed}</dd></div><div><dt>Issues</dt><dd>{summary.issues}</dd></div></dl>
+                <label>Administrator review note<textarea rows={2} value={checkReviewNotes[checkId] || ""} onChange={(event) => setCheckReviewNotes((current) => ({ ...current, [checkId]: event.target.value }))} placeholder="Required when returning for correction" /></label>
+                <div className="check-review-actions"><button type="button" onClick={() => setSelectedReportCheck(check)}>Review report</button><button type="button" disabled={Boolean(busy)} onClick={() => void action(`changes-${checkId}`, { action: "review_check", checkId, decision: "changes_requested", reviewNotes: checkReviewNotes[checkId] || "" })}>Request changes</button><button className="ops-primary" type="button" disabled={Boolean(busy)} onClick={() => void action(`approve-${checkId}`, { action: "review_check", checkId, decision: "approved", reviewNotes: checkReviewNotes[checkId] || "" })}>Approve check</button></div>
+              </article>;
+            })}</div> : <div className="ops-empty due-clear"><strong>All completed checks are reviewed.</strong><p>New daily, weekly, inventory, and air-pack checks appear here after completion.</p></div>}
+          </section> : null}
+
+          <section className="ops-card inventory-report-history">
+            <header><div><span>REPORTS</span><h2>Vehicle checks and inventory history</h2></div><b>{completedChecks.length} reports</b></header>
+            <p className="report-help">Every completed Daily, Weekly, Inventory, and Air Pack check creates a printable report. Email opens a prepared summary in your device&apos;s email application.</p>
+            {completedChecks.length ? <div className="inventory-report-list">{completedChecks.map((check) => {
+              const summary = reportSummaryFor(check);
+              return <article key={value(check, "id")}>
+                <div><span>{formatStatus(check.check_type)}</span><h3>{value(check, "apparatus_name")}</h3><small>{formatDate(check.completed_at)} · {summary.items.length} items · {summary.issues} issues</small></div>
+                <b className={`review-${value(check, "review_status") || "pending"}`}>{formatStatus(check.review_status) || "Pending"}</b>
+                <div><button type="button" onClick={() => setSelectedReportCheck(check)}>View</button><button type="button" onClick={() => printReport(check)}>Print</button><button type="button" onClick={() => emailReport(check)}>Email summary</button></div>
+              </article>;
+            })}</div> : <div className="ops-empty"><strong>No completed check reports yet.</strong><p>Reports appear automatically when an apparatus check is completed.</p></div>}
+          </section>
+
+          <section className="ops-card inventory-lifecycle-report">
+            <header><div><span>ASSET LIFECYCLE</span><h2>Repairs and retired equipment</h2></div><b>{data.workOrders.length + data.retiredEquipment.length} records</b></header>
+            <div className="lifecycle-report-grid"><article><strong>{data.workOrders.filter((item) => value(item, "status") !== "closed").length}</strong><span>Open repair tickets</span></article><article><strong>{data.workOrders.filter((item) => value(item, "status") === "closed").length}</strong><span>Completed repairs</span></article><article><strong>{data.retiredEquipment.length}</strong><span>Retired equipment records</span></article><article><strong>{data.equipment.filter((item) => value(item, "service_status") === "out_of_service").length}</strong><span>Items out of service</span></article></div>
+          </section>
+
+          {selectedReportCheck ? (() => {
+            const summary = reportSummaryFor(selectedReportCheck);
+            return <section className="ops-card inventory-report-detail inventory-report-print-host">
+              <header><div><span>STICKNEY FIRE DEPARTMENT · CHECK REPORT</span><h2>{value(selectedReportCheck, "apparatus_name")} · {formatStatus(selectedReportCheck.check_type)}</h2></div><button type="button" onClick={() => setSelectedReportCheck(null)}>Close</button></header>
+              <div className="report-metadata"><span><b>Report ID</b>{value(selectedReportCheck, "id")}</span><span><b>Started</b>{formatDate(selectedReportCheck.started_at)}</span><span><b>Completed</b>{formatDate(selectedReportCheck.completed_at)}</span><span><b>Completed by</b>{value(selectedReportCheck, "started_by") || "Not recorded"}</span><span><b>Approval</b>{formatStatus(selectedReportCheck.review_status)}</span><span><b>Reviewed by</b>{value(selectedReportCheck, "reviewed_by") || "Pending"}</span></div>
+              {value(selectedReportCheck, "review_notes") ? <blockquote>{value(selectedReportCheck, "review_notes")}</blockquote> : null}
+              <table><thead><tr><th>Equipment</th><th>Location</th><th>Result</th><th>Reading / notes</th><th>Checked by</th></tr></thead><tbody>{summary.items.map((item) => <tr key={value(item, "id")}><td>{value(item, "equipment_name")}</td><td>{value(item, "compartment_label")}</td><td>{formatStatus(item.result)}</td><td>{displayNumericReading(item.numeric_reading) || value(item, "notes") || "—"}</td><td>{value(item, "checked_by") || "—"}</td></tr>)}</tbody></table>
+              <footer><span>{summary.items.length} items</span><span>{summary.passed} passed</span><span>{summary.issues} issues</span><span>Generated {formatDate(Date.now())}</span></footer>
+              <div className="report-detail-actions"><button type="button" onClick={() => printReport(selectedReportCheck)}>Print report</button><button type="button" onClick={() => emailReport(selectedReportCheck)}>Email summary</button></div>
+            </section>;
+          })() : null}
+        </div>
       ) : null}
 
       {view === "check" ? (
@@ -841,8 +974,8 @@ export default function InventoryOperations({
                 );
               }) : <div className="ops-empty check-filter-empty"><strong>No items match these filters</strong><p>Change the search, status, or location to see more checklist items.</p><button type="button" onClick={() => { setCheckSearch(""); setCheckResultFilter("pending"); setCheckCompartmentFilter("all"); }}>Clear filters</button></div>}
               <div className="check-completion-bar">
-                <div><strong>{pendingItems ? `${pendingItems} items still need a result` : "All items have a result"}</strong><small>{pendingItems ? "Finish the remaining locations before completing this inspection." : "Review any issues, then complete the inspection."}</small></div>
-                <button className="ops-primary" disabled={Boolean(busy) || pendingItems > 0 || !canCheck} onClick={() => void action("complete", { action: "complete_check", checkId: value(activeCheck, "id") })}>Complete {formatStatus(activeCheck.check_type)} inspection</button>
+                <div><strong>{pendingItems ? `${pendingItems} items still need a result` : "Ready for administrator review"}</strong><small>{pendingItems ? "Finish the remaining locations before completing this inspection." : "Submitting creates a printable report and sends this check to the approval queue."}</small></div>
+                <button className="ops-primary" disabled={Boolean(busy) || pendingItems > 0 || !canCheck} onClick={() => void action("complete", { action: "complete_check", checkId: value(activeCheck, "id") })}>Submit {formatStatus(activeCheck.check_type)} check</button>
               </div>
             </div>
           ) : null}
@@ -925,7 +1058,7 @@ export default function InventoryOperations({
                     </div>}
                   </article>
                 )})}
-                <button className="ops-primary" disabled={Boolean(busy) || pendingItems > 0} onClick={() => void action("complete", { action: "complete_check", checkId: value(activeCheck, "id") })}>Complete apparatus check</button>
+                <button className="ops-primary" disabled={Boolean(busy) || pendingItems > 0} onClick={() => void action("complete", { action: "complete_check", checkId: value(activeCheck, "id") })}>Submit apparatus check for approval</button>
               </div>
             ) : (
               <form className="ops-form" onSubmit={(event) => {
@@ -1150,6 +1283,22 @@ export default function InventoryOperations({
           </form>
         </div>
       ) : null}
+      {repairEquipment ? (
+        <div className="camera-overlay" role="presentation">
+          <form className="camera-panel equipment-repair-panel" role="dialog" aria-modal="true" aria-label="Create equipment repair ticket" onSubmit={(event) => {
+            event.preventDefault();
+            const form = new FormData(event.currentTarget);
+            void action(`repair-${value(repairEquipment, "id")}`, { action: "create_work_order", apparatusId: value(repairEquipment, "apparatus_id"), equipmentId: value(repairEquipment, "id"), priority: form.get("priority"), summary: form.get("summary"), details: form.get("details") }).then((saved) => { if (saved) { setRepairEquipment(null); setSelectedDirectoryEquipment(null); } });
+          }}>
+            <header><div><span>NEW REPAIR TICKET</span><h3>{value(repairEquipment, "name")}</h3></div><button type="button" onClick={() => setRepairEquipment(null)}>Cancel</button></header>
+            <p>This item will be marked In Repair and the ticket will appear in the Repairs board.</p>
+            <label>Priority<select name="priority" defaultValue="routine"><option value="routine">Routine</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select></label>
+            <label>Repair summary<input name="summary" defaultValue={`Repair ${value(repairEquipment, "name")}`} required /></label>
+            <label>Problem and work needed<textarea name="details" rows={5} required placeholder="Describe the problem, current condition, and required work" /></label>
+            <button className="ops-primary" disabled={Boolean(busy)}>Create repair ticket</button>
+          </form>
+        </div>
+      ) : null}
       {editingEquipment ? (
         <div className="camera-overlay" role="presentation">
           <form ref={equipmentEditorRef} className="camera-panel equipment-editor" role="dialog" aria-modal="true" aria-label="Edit inventory item" onSubmit={(event) => {
@@ -1159,12 +1308,12 @@ export default function InventoryOperations({
             void (async () => {
               try {
                 setBusy("edit-equipment");
-                const saved = await action("edit-equipment", { action: "update_equipment", equipmentId: value(editingEquipment, "id"), compartmentId: form.get("compartmentId"), name: form.get("name"), manufacturer: form.get("manufacturer"), model: form.get("model"), serialNumber: form.get("serialNumber"), barcode: form.get("barcode"), quantityRequired: form.get("quantityRequired"), equipmentCategory: form.get("equipmentCategory"), checkTypes: form.getAll("checkTypes") });
+                const saved = await action("edit-equipment", { action: "update_equipment", equipmentId: value(editingEquipment, "id"), compartmentId: form.get("compartmentId"), name: form.get("name"), manufacturer: form.get("manufacturer"), model: form.get("model"), serialNumber: form.get("serialNumber"), barcode: form.get("barcode"), quantityRequired: form.get("quantityRequired"), equipmentCategory: form.get("equipmentCategory"), checkTypes: form.getAll("checkTypes"), itemType: form.get("itemType"), parentEquipmentId: form.get("parentEquipmentId"), purchaseDate: form.get("purchaseDate"), inServiceDate: form.get("inServiceDate"), expirationDate: form.get("expirationDate"), responseType: form.get("responseType"), serviceStatus: form.get("serviceStatus"), serviceNotes: form.get("serviceNotes"), retirementReason: form.get("retirementReason") });
                 if (saved && photo instanceof File && photo.size > 0) {
                   await uploadEquipmentPhoto(editingEquipment, photo);
                   await load();
                 }
-                if (saved) setEditingEquipment(null);
+                if (saved) { setEditingEquipment(null); setSelectedDirectoryEquipment(null); }
               } catch (caught) {
                 setError(caught instanceof Error ? caught.message : "The equipment could not be saved.");
               } finally {
@@ -1175,14 +1324,23 @@ export default function InventoryOperations({
             <header><div><span>EDIT INVENTORY ITEM</span><h3>{value(editingEquipment, "name")}</h3></div><button type="button" onClick={() => setEditingEquipment(null)}>Cancel</button></header>
             {value(editingEquipment, "photo_url") ? <img className="equipment-editor-photo" src={value(editingEquipment, "photo_url")} alt={value(editingEquipment, "name")} /> : null}
             <div className="ops-form ops-form-wide">
-              <label>Required equipment location<select name="compartmentId" defaultValue={value(editingEquipment, "compartment_id")}>{data.compartments.filter((item) => value(item, "apparatus_id") === value(editingEquipment, "apparatus_id")).map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "label")}</option>)}</select></label>
+              <label>Apparatus and compartment<select name="compartmentId" defaultValue={value(editingEquipment, "compartment_id")}>{data.apparatus.flatMap((apparatus) => data.compartments.filter((item) => value(item, "apparatus_id") === value(apparatus, "id")).map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(apparatus, "name")} · {value(item, "label")}</option>))}</select></label>
               <label>Item name<input name="name" defaultValue={value(editingEquipment, "name")} required /></label>
               <label>Type<select name="equipmentCategory" defaultValue={value(editingEquipment, "equipment_category")}><option value="vehicle">Vehicle</option><option value="air_pack">Air pack</option><option value="equipment">Equipment</option></select></label>
+              <label>Item / grouping type<select name="itemType" defaultValue={value(editingEquipment, "item_type") || "individual"}><option value="individual">Individual item</option><option value="kit">Kit</option><option value="bag">Bag</option><option value="toolbox">Tool box</option><option value="container">Container</option><option value="consumable">Consumable</option></select></label>
+              <label className="ops-span-2">Contained in kit, bag, or tool box<select name="parentEquipmentId" defaultValue={value(editingEquipment, "parent_equipment_id")}><option value="">Not grouped inside another item</option>{data.equipment.filter((item) => value(item, "id") !== value(editingEquipment, "id") && ["kit", "bag", "toolbox", "container"].includes(value(item, "item_type"))).map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(data.apparatus.find((apparatus) => value(apparatus, "id") === value(item, "apparatus_id")) || {}, "name")} · {value(item, "name")}</option>)}</select></label>
               <label>Required quantity<input name="quantityRequired" type="number" min="1" defaultValue={value(editingEquipment, "quantity_required")} /></label>
               <label>Manufacturer<input name="manufacturer" defaultValue={value(editingEquipment, "manufacturer")} /></label>
               <label>Model<input name="model" defaultValue={value(editingEquipment, "model")} /></label>
               <label>Serial number<input name="serialNumber" defaultValue={value(editingEquipment, "serial_number")} /></label>
               <label>Barcode / asset tag<input name="barcode" defaultValue={value(editingEquipment, "barcode")} /></label>
+              <label>Purchase date<input name="purchaseDate" type="date" defaultValue={value(editingEquipment, "purchase_date")} /></label>
+              <label>Placed in service<input name="inServiceDate" type="date" defaultValue={value(editingEquipment, "in_service_date")} /></label>
+              <label>Expiration date<input name="expirationDate" type="date" defaultValue={value(editingEquipment, "expiration_date")} /></label>
+              <label>Check response<select name="responseType" defaultValue={value(editingEquipment, "response_type") || "pass_fail"}><option value="pass_fail">Pass / fail</option><option value="quantity">Quantity count</option><option value="expiration_date">Expiration date</option><option value="numeric">Numeric reading</option><option value="mileage">Mileage / odometer</option><option value="text">Text entry</option></select></label>
+              <label>Service status<select name="serviceStatus" defaultValue={value(editingEquipment, "service_status") || "in_service"}><option value="in_service">In service</option><option value="out_of_service">Out of service</option><option value="in_repair">In repair</option><option value="retired">Retired</option></select></label>
+              <label>Retirement reason<input name="retirementReason" defaultValue={value(editingEquipment, "retirement_reason")} placeholder="Required when retiring equipment" /></label>
+              <label className="ops-span-2">Asset and service notes<textarea name="serviceNotes" rows={3} defaultValue={value(editingEquipment, "service_notes")} placeholder="Condition, warranty, inspection interval, replacement notes, or service history" /></label>
               <fieldset className="ops-check-grid ops-span-2"><legend>Required check parameters</legend>{inspectionTypes.map(([id, label]) => <label key={id}><input type="checkbox" name="checkTypes" value={id} defaultChecked={Array.isArray(editingEquipment.check_types) && editingEquipment.check_types.includes(id)} /> {label}</label>)}</fieldset>
               <label className="ops-span-2">Take or attach item photo<input name="photo" type="file" accept="image/*" capture="environment" /></label>
               <button className="ops-scan-button" type="button" onClick={() => { setScannerTarget("edit"); setScannerOpen(true); }}>Scan barcode</button>

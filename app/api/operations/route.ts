@@ -85,14 +85,14 @@ export async function GET(request: Request) {
         .order("sort_order"),
       collectPages((from, to) => supabase
         .from("inventory_equipment")
-        .select("id,apparatus_id,compartment_id,name,manufacturer,model,serial_number,barcode,quantity_required,equipment_category,check_types,source_form,item_order,retired_at")
+        .select("id,apparatus_id,compartment_id,name,manufacturer,model,serial_number,barcode,quantity_required,equipment_category,check_types,source_form,item_order,retired_at,item_type,parent_equipment_id,purchase_date,in_service_date,expiration_date,response_type,service_status,service_notes,retirement_reason,retired_by,updated_at")
         .eq("department_id", departmentId)
         .order("item_order")
         .order("name")
         .range(from, to)),
       supabase
         .from("inventory_checks")
-        .select("id,apparatus_id,shift_id,check_type,status,started_by,started_at,completed_at")
+        .select("id,apparatus_id,shift_id,check_type,status,started_by,started_at,completed_at,review_status,reviewed_by,reviewed_at,review_notes")
         .eq("department_id", departmentId)
         .in("status", ["in_progress", "completed"])
         .order("started_at", { ascending: false }),
@@ -175,6 +175,7 @@ export async function GET(request: Request) {
         : null,
     }));
     const equipment = allEquipment.filter((item) => !item.retired_at);
+    const retiredEquipment = allEquipment.filter((item) => Boolean(item.retired_at));
     const equipmentById = new Map(allEquipment.map((item) => [item.id, item]));
     const apparatusById = new Map(apparatus.map((item) => [item.id, item]));
     const checks = (checksResult.data || []).map((check) => ({
@@ -190,6 +191,9 @@ export async function GET(request: Request) {
         compartment_label: equipmentItem?.compartment_label || "",
         quantity_required: equipmentItem?.quantity_required || 1,
         source_form: equipmentItem?.source_form || null,
+        response_type: equipmentItem?.response_type || "pass_fail",
+        expiration_date: equipmentItem?.expiration_date || null,
+        service_status: equipmentItem?.service_status || "in_service",
       };
     });
     const exceptions = (exceptionsResult.data || []).map((item) => ({
@@ -245,6 +249,7 @@ export async function GET(request: Request) {
       apparatus,
       compartments,
       equipment,
+      retiredEquipment,
       checks,
       checkItems,
       exceptions,
@@ -279,7 +284,7 @@ export async function POST(request: Request) {
     const action = clean(body.action, 60);
     const requiredPermission = ["start_check", "record_check_item", "bulk_record_check_items", "complete_check", "adjust_stock", "request_restock", "request_location_change"].includes(action)
       ? "inventory.check" as const
-      : ["create_notice", "create_work_order", "close_work_order", "update_work_order_status"].includes(action)
+      : ["create_notice", "create_work_order", "close_work_order", "update_work_order_status", "set_equipment_status"].includes(action)
         ? "inventory.repairs.manage" as const
         : "inventory.setup.manage" as const;
     if (!canMutateInventory(session.context, requiredPermission)) {
@@ -418,6 +423,13 @@ export async function POST(request: Request) {
         check_types: stringList(body.checkTypes, checkTypes, 4).length
           ? stringList(body.checkTypes, checkTypes, 4)
           : ["inventory"],
+        item_type: clean(body.itemType, 40) || "individual",
+        purchase_date: clean(body.purchaseDate, 40) || null,
+        in_service_date: clean(body.inServiceDate, 40) || null,
+        expiration_date: clean(body.expirationDate, 40) || null,
+        response_type: clean(body.responseType, 40) || "pass_fail",
+        service_status: "in_service",
+        service_notes: clean(body.serviceNotes, 1000) || null,
       };
       const { error } = await supabase.from("inventory_equipment").insert(record);
       if (error) throw error;
@@ -443,10 +455,29 @@ export async function POST(request: Request) {
           .eq("id", compartmentId)
           .maybeSingle(),
       ]);
-      if (!equipment || !compartment || equipment.apparatus_id !== compartment.apparatus_id || !name) {
-        return privateJson({ error: "Choose a saved item, its apparatus compartment, and a name." }, 400);
+      if (!equipment || !compartment || !name) {
+        return privateJson({ error: "Choose a saved item, apparatus compartment, and name." }, 400);
       }
+      const parentEquipmentId = clean(body.parentEquipmentId, 80) || null;
+      if (parentEquipmentId === equipmentId) {
+        return privateJson({ error: "An item cannot be grouped inside itself." }, 400);
+      }
+      if (parentEquipmentId) {
+        const { data: parentEquipment } = await supabase
+          .from("inventory_equipment")
+          .select("id,apparatus_id")
+          .eq("department_id", departmentId)
+          .eq("id", parentEquipmentId)
+          .is("retired_at", null)
+          .maybeSingle();
+        if (!parentEquipment || parentEquipment.apparatus_id !== compartment.apparatus_id) {
+          return privateJson({ error: "Choose a kit or container assigned to the selected apparatus." }, 400);
+        }
+      }
+      const serviceStatus = clean(body.serviceStatus, 40) || "in_service";
+      const retiring = serviceStatus === "retired";
       const changes = {
+        apparatus_id: compartment.apparatus_id,
         compartment_id: compartmentId,
         name,
         manufacturer: clean(body.manufacturer) || null,
@@ -460,6 +491,18 @@ export async function POST(request: Request) {
         check_types: stringList(body.checkTypes, checkTypes, 4).length
           ? stringList(body.checkTypes, checkTypes, 4)
           : ["inventory"],
+        item_type: clean(body.itemType, 40) || "individual",
+        parent_equipment_id: parentEquipmentId,
+        purchase_date: clean(body.purchaseDate, 40) || null,
+        in_service_date: clean(body.inServiceDate, 40) || null,
+        expiration_date: clean(body.expirationDate, 40) || null,
+        response_type: clean(body.responseType, 40) || "pass_fail",
+        service_status: serviceStatus,
+        service_notes: clean(body.serviceNotes, 1000) || null,
+        retired_at: retiring ? new Date().toISOString() : null,
+        retired_by: retiring ? actor : null,
+        retirement_reason: retiring ? clean(body.retirementReason, 1000) || "Retired by administrator" : null,
+        updated_at: new Date().toISOString(),
       };
       const { error } = await supabase
         .from("inventory_equipment")
@@ -468,6 +511,58 @@ export async function POST(request: Request) {
         .eq("id", equipmentId);
       if (error) throw error;
       return privateJson({ equipment: { id: equipmentId, ...changes } });
+    }
+
+    if (action === "review_check") {
+      const checkId = clean(body.checkId, 80);
+      const decision = clean(body.decision, 40);
+      const reviewNotes = clean(body.reviewNotes, 1000);
+      if (!checkId || !["approved", "changes_requested"].includes(decision)) {
+        return privateJson({ error: "Choose Approve or Request changes for a completed check." }, 400);
+      }
+      if (decision === "changes_requested" && !reviewNotes) {
+        return privateJson({ error: "Enter the correction needed before returning this check." }, 400);
+      }
+      const { data: reviewedCheck, error: reviewError } = await supabase
+        .from("inventory_checks")
+        .update({
+          review_status: decision,
+          reviewed_by: actor,
+          reviewed_at: new Date().toISOString(),
+          review_notes: reviewNotes || null,
+        })
+        .eq("department_id", departmentId)
+        .eq("id", checkId)
+        .eq("status", "completed")
+        .eq("review_status", "pending")
+        .select("id,review_status,reviewed_by,reviewed_at,review_notes")
+        .maybeSingle();
+      if (reviewError) throw reviewError;
+      if (!reviewedCheck) return privateJson({ error: "This completed check is no longer awaiting review." }, 409);
+      return privateJson({ check: reviewedCheck });
+    }
+
+    if (action === "set_equipment_status") {
+      const equipmentId = clean(body.equipmentId, 80);
+      const serviceStatus = clean(body.serviceStatus, 40);
+      if (!equipmentId || !["in_service", "out_of_service", "in_repair"].includes(serviceStatus)) {
+        return privateJson({ error: "Choose In service, Out of service, or In repair." }, 400);
+      }
+      const { data: updatedEquipment, error: statusError } = await supabase
+        .from("inventory_equipment")
+        .update({
+          service_status: serviceStatus,
+          service_notes: clean(body.serviceNotes, 1000) || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("department_id", departmentId)
+        .eq("id", equipmentId)
+        .is("retired_at", null)
+        .select("id,service_status,service_notes,updated_at")
+        .maybeSingle();
+      if (statusError) throw statusError;
+      if (!updatedEquipment) return privateJson({ error: "This active equipment record was not found." }, 404);
+      return privateJson({ equipment: updatedEquipment });
     }
 
     if (action === "start_check") {
@@ -576,7 +671,7 @@ export async function POST(request: Request) {
           .maybeSingle(),
         supabase
           .from("inventory_equipment")
-          .select("id,name,equipment_category")
+          .select("id,name,equipment_category,response_type")
           .eq("department_id", departmentId)
           .eq("id", item.equipment_id)
           .maybeSingle(),
@@ -586,19 +681,20 @@ export async function POST(request: Request) {
       }
       const notes = clean(body.notes, 500) || null;
       const equipmentName = clean(equipment.name, 300);
-      const isNumericReadingItem = /\b(mileage|odometer)\b/i.test(equipmentName);
+      const isNumericReadingItem = ["numeric", "mileage", "quantity"].includes(equipment.response_type || "")
+        || /\b(mileage|odometer)\b/i.test(equipmentName);
       const numericReadingInput = body.numericReading;
       const numericReading = numericReadingInput === null || numericReadingInput === undefined || numericReadingInput === ""
         ? null
         : Number(numericReadingInput);
       if (isNumericReadingItem && (numericReading === null || !Number.isFinite(numericReading) || numericReading < 0)) {
         return privateJson(
-          { error: "Enter the current mileage or odometer reading before saving this item." },
+          { error: "Enter the required numeric reading before saving this item." },
           400,
         );
       }
       if (isNumericReadingItem && result !== "pass") {
-        return privateJson({ error: "Mileage and odometer items must be saved as a numeric reading." }, 400);
+        return privateJson({ error: "This item must be saved as a numeric reading." }, 400);
       }
       const evidencePhotoId = clean(body.evidencePhotoId, 80) || null;
       const assignedEmployeeIds = stringList(body.assignedEmployeeIds);
@@ -737,13 +833,18 @@ export async function POST(request: Request) {
       const equipmentIds = [...new Set((requestedItems || []).map((item) => item.equipment_id))];
       const { data: bulkEquipment, error: equipmentError } = await supabase
         .from("inventory_equipment")
-        .select("id,name")
+        .select("id,name,response_type")
         .eq("department_id", departmentId)
         .in("id", equipmentIds);
       if (equipmentError) throw equipmentError;
-      const equipmentNames = new Map((bulkEquipment || []).map((item) => [item.id, item.name]));
+      const equipmentByIdForBulk = new Map((bulkEquipment || []).map((item) => [item.id, item]));
       const safeIds = (requestedItems || [])
-        .filter((item) => item.result === "pending" && !/\b(mileage|odometer)\b/i.test(equipmentNames.get(item.equipment_id) || ""))
+        .filter((item) => {
+          const equipment = equipmentByIdForBulk.get(item.equipment_id);
+          return item.result === "pending"
+            && !["numeric", "mileage", "quantity"].includes(equipment?.response_type || "")
+            && !/\b(mileage|odometer)\b/i.test(equipment?.name || "");
+        })
         .map((item) => item.id);
       if (!safeIds.length) {
         return privateJson({ error: "No pending standard items were available to pass." }, 409);
@@ -777,7 +878,7 @@ export async function POST(request: Request) {
       }
       const { error } = await supabase
         .from("inventory_checks")
-        .update({ status: "completed", completed_at: new Date().toISOString() })
+        .update({ status: "completed", completed_at: new Date().toISOString(), review_status: "pending", reviewed_by: null, reviewed_at: null, review_notes: null })
         .eq("department_id", departmentId)
         .eq("id", checkId)
         .eq("status", "in_progress");
@@ -854,6 +955,7 @@ export async function POST(request: Request) {
 
     if (action === "create_work_order") {
       const apparatusId = clean(body.apparatusId, 80);
+      const equipmentId = clean(body.equipmentId, 80) || null;
       const summary = clean(body.summary);
       if (!apparatusId || !summary) {
         return privateJson(
@@ -861,10 +963,21 @@ export async function POST(request: Request) {
           400,
         );
       }
+      if (equipmentId) {
+        const { data: equipment } = await supabase
+          .from("inventory_equipment")
+          .select("id")
+          .eq("department_id", departmentId)
+          .eq("apparatus_id", apparatusId)
+          .eq("id", equipmentId)
+          .maybeSingle();
+        if (!equipment) return privateJson({ error: "The selected equipment is not assigned to that apparatus." }, 400);
+      }
       const record = {
         id: crypto.randomUUID(),
         department_id: departmentId,
         apparatus_id: apparatusId,
+        equipment_id: equipmentId,
         status: "new",
         priority: clean(body.priority, 40) || "routine",
         summary,
@@ -878,6 +991,15 @@ export async function POST(request: Request) {
       };
       const { error } = await supabase.from("inventory_work_orders").insert(record);
       if (error) throw error;
+      if (equipmentId) {
+        const { error: equipmentStatusError } = await supabase
+          .from("inventory_equipment")
+          .update({ service_status: "in_repair", updated_at: new Date().toISOString() })
+          .eq("department_id", departmentId)
+          .eq("id", equipmentId)
+          .is("retired_at", null);
+        if (equipmentStatusError) throw equipmentStatusError;
+      }
       return privateJson({ workOrder: record }, 201);
     }
 
@@ -894,7 +1016,7 @@ export async function POST(request: Request) {
       }
       const { data: workOrder } = await supabase
         .from("inventory_work_orders")
-        .select("id,linked_exception_id")
+        .select("id,linked_exception_id,equipment_id")
         .eq("department_id", departmentId)
         .eq("id", workOrderId)
         .neq("status", "closed")
@@ -929,6 +1051,15 @@ export async function POST(request: Request) {
           .eq("id", workOrder.linked_exception_id)
           .neq("status", "resolved");
         if (resolveError) throw resolveError;
+      }
+      if (workOrder.equipment_id) {
+        const { error: equipmentStatusError } = await supabase
+          .from("inventory_equipment")
+          .update({ service_status: "in_service", updated_at: new Date().toISOString() })
+          .eq("department_id", departmentId)
+          .eq("id", workOrder.equipment_id)
+          .is("retired_at", null);
+        if (equipmentStatusError) throw equipmentStatusError;
       }
       return privateJson({ closed: true });
     }
