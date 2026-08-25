@@ -23,7 +23,7 @@ test("admin configuration exposes vehicle, check, and equipment location control
 });
 
 test("crew landing page exposes a short operational workflow", () => {
-  for (const step of ["Due today", "Choose a vehicle", "Find equipment", "Repair follow-up"]) {
+  for (const step of ["Due today", "Inventory check", "Choose an apparatus", "Find equipment", "Repair follow-up"]) {
     assert.match(shell, new RegExp(step));
   }
   assert.match(shell, /Track failed items without duplicate work/);

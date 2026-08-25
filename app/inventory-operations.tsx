@@ -7,8 +7,17 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import Link from "next/link";
 import type { IScannerControls } from "@zxing/browser";
 
-type OperationsView = "due" | "check" | "equipment" | "readiness" | "service" | "stock" | "builder" | "legacy_check" | "legacy_service";
+type OperationsView = "due" | "inventory" | "check" | "equipment" | "readiness" | "service" | "stock" | "builder" | "legacy_check" | "legacy_service";
 type Row = Record<string, string | number | string[] | null>;
+type CheckCard = {
+  apparatusId: string;
+  name: string;
+  checkType: "daily" | "weekly" | "inventory";
+  active: Row | undefined;
+  pending: number;
+  total: number;
+  configured: number;
+};
 type Employee = { id: string; name: string; rank?: string };
 type OperationsData = {
   configured: boolean;
@@ -507,7 +516,7 @@ export default function InventoryOperations({
   const chicagoWeekday = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", weekday: "short" }).format(today);
   const todayDay = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(chicagoWeekday);
   const chicagoToday = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(today);
-  const dueChecks = data.apparatus.flatMap((apparatus) => {
+  const dueChecks: CheckCard[] = data.apparatus.flatMap((apparatus) => {
     const apparatusId = value(apparatus, "id");
     const equipment = data.equipment.filter((item) => value(item, "apparatus_id") === apparatusId);
     const required = (["daily", ...(Number(apparatus.weekly_due_day) === todayDay ? ["weekly"] : [])] as Array<"daily" | "weekly">).filter((checkType) => equipment.some((item) => Array.isArray(item.check_types) && item.check_types.includes(checkType)));
@@ -520,6 +529,35 @@ export default function InventoryOperations({
       return [{ apparatusId, name: value(apparatus, "name"), checkType, active, pending, total: checkItems.length, configured: equipment.filter((item) => Array.isArray(item.check_types) && item.check_types.includes(checkType)).length }];
     });
   });
+  const inventoryChecks: CheckCard[] = data.apparatus.flatMap((apparatus) => {
+    const apparatusId = value(apparatus, "id");
+    const configured = data.equipment.filter((item) => (
+      value(item, "apparatus_id") === apparatusId
+      && Array.isArray(item.check_types)
+      && item.check_types.includes("inventory")
+    )).length;
+    const active = data.checks.find((check) => (
+      value(check, "apparatus_id") === apparatusId
+      && value(check, "check_type") === "inventory"
+      && value(check, "status") === "in_progress"
+    ));
+    const checkItems = active ? data.checkItems.filter((item) => value(item, "check_id") === value(active, "id")) : [];
+    const pending = checkItems.filter((item) => value(item, "result") === "pending").length;
+    return [{ apparatusId, name: value(apparatus, "name"), checkType: "inventory" as const, active, pending, total: checkItems.length, configured }];
+  });
+
+  const renderCheckCards = (
+    checks: CheckCard[],
+    labelFor: (checkType: "daily" | "weekly" | "inventory") => string,
+  ) => <div className="due-check-grid">{checks.map((item) => {
+    const complete = item.total ? item.total - item.pending : 0;
+    const percent = item.total ? Math.round((complete / item.total) * 100) : 0;
+    return <article key={`${item.apparatusId}-${item.checkType}`} className={item.active ? "in-progress" : "pending"}>
+      <div><span>{labelFor(item.checkType)}</span><h3>{item.name}</h3><p>{item.active ? `${item.pending} of ${item.total} items remaining. Crew progress is shared.` : `${item.configured} configured items are ready to check.`}</p></div>
+      <div className="due-progress" aria-label={`${percent}% complete`}><i style={{ width: `${percent}%` }} /></div>
+      <button type="button" disabled={!canCheck || (!item.active && item.configured === 0)} onClick={() => onOpenUnit?.(item.apparatusId, item.checkType)}>{item.active ? "Resume check" : item.configured ? "Start check" : "Not configured"}</button>
+    </article>;
+  })}</div>;
 
   function submit(event: FormEvent<HTMLFormElement>, name: string, payload: Record<string, unknown>) {
     event.preventDefault();
@@ -548,17 +586,22 @@ export default function InventoryOperations({
       {error ? <div className="ops-message ops-error" role="alert">{error}</div> : null}
 
       {view === "due" ? (
-        <section className="ops-card due-now-card">
-          <header><div><span>DUE NOW</span><h2>{dueChecks.length ? `${dueChecks.length} required check${dueChecks.length === 1 ? "" : "s"}` : "All required checks are complete"}</h2></div><b>{data.checks.filter((check) => value(check, "status") === "in_progress").length} in progress</b></header>
-          {dueChecks.length ? <div className="due-check-grid">{dueChecks.map((item) => {
-            const complete = item.total ? item.total - item.pending : 0;
-            const percent = item.total ? Math.round((complete / item.total) * 100) : 0;
-            return <article key={`${item.apparatusId}-${item.checkType}`} className={item.active ? "in-progress" : "pending"}>
-              <div><span>{item.checkType === "weekly" ? "WEEKLY · DUE TODAY" : "DAILY · DUE TODAY"}</span><h3>{item.name}</h3><p>{item.active ? `${item.pending} of ${item.total} items remaining. Crew progress is shared.` : `${item.configured} configured items are ready to check.`}</p></div>
-              <div className="due-progress" aria-label={`${percent}% complete`}><i style={{ width: `${percent}%` }} /></div>
-              <button type="button" disabled={!canCheck} onClick={() => onOpenUnit?.(item.apparatusId, item.checkType)}>{item.active ? "Resume check" : "Start check"}</button>
-            </article>;
-          })}</div> : <div className="ops-empty due-clear"><strong>No required Fleet checks are waiting.</strong><p>Completed daily and scheduled weekly checks fall off this list automatically.</p></div>}
+        <>
+          <section className="ops-card due-now-card">
+            <header><div><span>APPARATUS CHECKS DUE NOW</span><h2>{dueChecks.length ? `${dueChecks.length} required check${dueChecks.length === 1 ? "" : "s"}` : "All required checks are complete"}</h2></div><b>{data.checks.filter((check) => value(check, "status") === "in_progress" && value(check, "check_type") !== "inventory").length} in progress</b></header>
+            {dueChecks.length ? renderCheckCards(dueChecks, (checkType) => checkType === "weekly" ? "WEEKLY · DUE TODAY" : "DAILY · DUE TODAY") : <div className="ops-empty due-clear"><strong>No required apparatus checks are waiting.</strong><p>Completed daily and scheduled weekly checks fall off this list automatically.</p></div>}
+          </section>
+          <section className="ops-card inventory-checks-card">
+            <header><div><span>SEPARATE INVENTORY CHECKS</span><h2>Inventory by apparatus</h2></div><b>{inventoryChecks.length} apparatus</b></header>
+            {inventoryChecks.length ? renderCheckCards(inventoryChecks, () => "INVENTORY CHECK") : <div className="ops-empty"><strong>No apparatus inventory checks are configured.</strong><p>An administrator can assign equipment to the Inventory check in Admin Configuration.</p></div>}
+          </section>
+        </>
+      ) : null}
+
+      {view === "inventory" ? (
+        <section className="ops-card inventory-checks-card standalone-inventory-checks">
+          <header><div><span>APPARATUS INVENTORY</span><h2>Choose the apparatus to inventory</h2></div><b>{inventoryChecks.length} apparatus</b></header>
+          {inventoryChecks.length ? renderCheckCards(inventoryChecks, () => "INVENTORY CHECK") : <div className="ops-empty"><strong>No apparatus inventory checks are configured.</strong><p>An administrator can assign equipment to the Inventory check in Admin Configuration.</p></div>}
         </section>
       ) : null}
 

@@ -13,7 +13,7 @@ import {
   useState,
 } from "react";
 
-type View = "due" | "fleet" | "check" | "equipment" | "readiness" | "service" | "stock" | "setup";
+type View = "due" | "fleet" | "inventory" | "check" | "equipment" | "readiness" | "service" | "stock" | "setup";
 type LoadState = "loading" | "ready" | "unavailable";
 type FleetFilter = "all" | "in-service" | "out-impaired" | "digital-twins";
 
@@ -258,6 +258,7 @@ function InventoryNavIcon({ view }: { view: Exclude<View, "setup" | "readiness" 
   return <svg className="inventory-nav-icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" {...common}>
     {view === "due" ? <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2M8 3l-2 2M16 3l2 2"/></> : null}
     {view === "fleet" ? <><path d="M3 15V8h11l4 4h3v3"/><path d="M5 15h14M7 15a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM17 15a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM14 8v4h4"/></> : null}
+    {view === "inventory" ? <><path d="M7 4h10v17H7z"/><path d="M9 4V2h6v2M10 9h4M10 13h4M10 17h4"/></> : null}
     {view === "equipment" ? <><path d="m4 7 8-4 8 4-8 4-8-4Z"/><path d="M4 7v10l8 4 8-4V7M12 11v10"/></> : null}
     {view === "service" ? <><path d="m14 6 4-3 3 3-3 4-4-4ZM14 6 4 16v4h4L18 10"/><path d="m4 20-1 1"/></> : null}
     {view === "stock" ? <><path d="m4 7 8-4 8 4-8 4-8-4Z"/><path d="M4 7v10l8 4 8-4V7M12 11v10"/></> : null}
@@ -510,6 +511,7 @@ export default function Inventory360({
           {([
             ["due", "Due Now"],
             ["fleet", "Fleet"],
+            ["inventory", "Inventory"],
             ["equipment", "Equipment"],
             ["stock", "Meds & Stock"],
             ["service", "Repairs"],
@@ -554,24 +556,40 @@ export default function Inventory360({
             <div>
               <span className="eyebrow">TODAY&apos;S REQUIRED WORK</span>
               <h1>What must I check right now?</h1>
-              <p>Daily checks, scheduled weekly checks, and shared inspections already in progress appear here.</p>
+              <p>Daily and scheduled weekly apparatus checks appear first. Inventory stays separate and is matched to each apparatus below.</p>
             </div>
           </div>
           <nav className="inventory-workflow" aria-label="Vehicle checks and inventory workflow">
             <button type="button" className="active" onClick={() => setView("due")}>
               <span>1</span><b>Due today</b><small>Start or resume required checks</small>
             </button>
+            <button type="button" onClick={() => setView("inventory")}>
+              <span>2</span><b>Inventory check</b><small>Open the inventory for each apparatus</small>
+            </button>
             <button type="button" onClick={() => setView("fleet")}>
-              <span>2</span><b>Choose a vehicle</b><small>Open any configured unit check</small>
+              <span>3</span><b>Choose an apparatus</b><small>Open any configured unit check</small>
             </button>
             <button type="button" onClick={() => setView("equipment")}>
-              <span>3</span><b>Find equipment</b><small>Search or scan its exact location</small>
+              <span>4</span><b>Find equipment</b><small>Search or scan its exact location</small>
             </button>
             <button type="button" onClick={() => setView("service")}>
-              <span>4</span><b>Repair follow-up</b><small>Track failed items without duplicate work</small>
+              <span>5</span><b>Repair follow-up</b><small>Track failed items without duplicate work</small>
             </button>
           </nav>
           <InventoryOperations view="due" onSetup={() => setView("setup")} onOpenUnit={(apparatusId, checkType) => { setSelectedApparatusId(apparatusId); setSelectedCheckType(checkType); window.history.replaceState(null, "", `/inventory?apparatus=${encodeURIComponent(apparatusId)}&check=${checkType}`); setView("check"); }} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+        </section>
+      ) : null}
+
+      {view === "inventory" ? (
+        <section className="page inventory-checks-page">
+          <div className="page-heading compact crew-heading">
+            <div>
+              <span className="eyebrow">APPARATUS INVENTORY</span>
+              <h1>Inventory checks by apparatus.</h1>
+              <p>Each apparatus has its own inventory check, progress, and completion record.</p>
+            </div>
+          </div>
+          <InventoryOperations view="inventory" onSetup={() => setView("setup")} onOpenUnit={(apparatusId, checkType) => { setSelectedApparatusId(apparatusId); setSelectedCheckType(checkType); window.history.replaceState(null, "", `/inventory?apparatus=${encodeURIComponent(apparatusId)}&check=${checkType}`); setView("check"); }} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
         </section>
       ) : null}
 
@@ -881,6 +899,7 @@ export default function Inventory360({
         {([
           ["due", "Due"],
           ["fleet", "Fleet"],
+          ["inventory", "Inventory"],
           ["equipment", "Equipment"],
           ["service", "Repairs"],
           ["stock", "Stock"],

@@ -12,11 +12,11 @@ test("Inventory opens on crew work and keeps setup administrator-only", async ()
     read("app/permissions.ts"),
   ]);
 
-  for (const label of ["Due Now", "Fleet", "Equipment", "Meds & Stock", "Repairs", "Admin Configuration"]) {
+  for (const label of ["Due Now", "Fleet", "Inventory", "Equipment", "Meds & Stock", "Repairs", "Admin Configuration"]) {
     assert.match(shell, new RegExp(label.replace("&", "&")));
   }
   assert.match(shell, /view === "setup" && canSetup/);
-  assert.match(operations, /No required Fleet checks are waiting/);
+  assert.match(operations, /No required apparatus checks are waiting/);
   for (const stage of ["New", "Assigned", "In Repair", "Waiting Parts", "Completed"]) {
     assert.match(operations, new RegExp(stage));
   }
