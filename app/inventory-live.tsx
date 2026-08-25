@@ -329,6 +329,7 @@ export default function Inventory360({
   const [fleetOperations, setFleetOperations] = useState<FleetOperationsSummary>(emptyFleetOperations);
   const [toast, setToast] = useState("");
   const [scanRequest, setScanRequest] = useState(0);
+  const [setupWorkspace, setSetupWorkspace] = useState<"apparatus" | "checks">("apparatus");
   const canCheck = permissions.includes("inventory.check");
   const canManageRepairs = permissions.includes("inventory.repairs.manage");
   const canSetup = permissions.includes("inventory.setup.manage");
@@ -852,54 +853,54 @@ export default function Inventory360({
 
       {view === "setup" && canSetup ? (
         <section className="setup-page">
-          <div className="setup-intro">
-            <button onClick={() => setView("fleet")}>Back to fleet</button>
-            <span className="eyebrow">ADMINISTRATOR · VEHICLE CHECKS &amp; INVENTORY</span>
-            <h1>Edit vehicle, check, equipment, and location parameters.</h1>
-            <p>
-              Administrators control the apparatus profile, check schedule,
-              equipment assignment, required quantity, exact storage location,
-              photographs, and hotspot geometry.
-            </p>
-            <div className="admin-control-matrix" aria-label="Administrator configuration controls">
-              <article><b>Vehicle parameters</b><span>Identity, status, VIN, service profile, and weekly due day</span></article>
-              <article><b>Check parameters</b><span>Daily, weekly, inventory, and air-pack checklist inclusion</span></article>
-              <article><b>Equipment location</b><span>Apparatus, compartment, side, quantity, barcode, and item photo</span></article>
-              <article><b>Readiness &amp; service</b><span>Exceptions, repair notices, stock, and replacement tracking</span></article>
+          <header className="setup-intro">
+            <div className="setup-intro-topline">
+              <button onClick={() => setView("fleet")}>← Back to fleet</button>
+              <span className="eyebrow">ADMINISTRATOR · VEHICLE CHECKS &amp; INVENTORY</span>
             </div>
-            <div className="source-truth-banner admin-source-truth">
-              <b>Source of truth</b>
-              <span>Apparatus identity: Department inventory</span>
-              <span>Inventory storage: {twinState === "ready" ? "Connected" : twinState === "loading" ? "Checking" : "Unavailable"}</span>
+            <div className="setup-intro-summary">
+              <div>
+                <h1>Configuration workspace</h1>
+                <p>Choose one task area at a time. Update apparatus and locations, or manage the checklists and equipment assigned to them.</p>
+              </div>
+              <div className="setup-source-summary" aria-label="Configuration source status">
+                <article><span>DEPARTMENT FLEET</span><strong>{suite.apparatus.length}</strong><small>saved units</small></article>
+                <article><span>INVENTORY RECORDS</span><strong>{twinState === "ready" ? twinData.apparatus.length : "—"}</strong><small>{twinState === "ready" ? "connected" : twinState === "loading" ? "checking" : "unavailable"}</small></article>
+              </div>
             </div>
-            <div className="capture-answer">
-              <span>SOURCE CONTROL</span>
-              <strong>{suite.apparatus.length} department unit{suite.apparatus.length === 1 ? "" : "s"}</strong>
-              <p>The roster starts empty and shows only saved department apparatus.</p>
-              <strong>{twinState === "ready" ? `${twinData.apparatus.length} Inventory record${twinData.apparatus.length === 1 ? "" : "s"}` : "Inventory storage unavailable"}</strong>
-              <p>Supabase stores department-scoped digital-twin records and private original media.</p>
-            </div>
-          </div>
+            <nav className="setup-workspace-tabs" aria-label="Administrator configuration workspaces">
+              <button type="button" className={setupWorkspace === "apparatus" ? "active" : ""} aria-current={setupWorkspace === "apparatus" ? "page" : undefined} onClick={() => setSetupWorkspace("apparatus")}>
+                <span>1</span><b>Apparatus &amp; locations</b><small>Identity, status, VIN, compartments, photos, and hotspots</small>
+              </button>
+              <button type="button" className={setupWorkspace === "checks" ? "active" : ""} aria-current={setupWorkspace === "checks" ? "page" : undefined} onClick={() => setSetupWorkspace("checks")}>
+                <span>2</span><b>Checks &amp; equipment</b><small>Schedules, checklist inclusion, quantities, assets, and approvals</small>
+              </button>
+            </nav>
+          </header>
           <div className="capture-workspace">
-            {twinState === "loading" ? (
-              <OperationalState title="Checking Inventory storage" kind="loading">
-                Verifying the department&apos;s digital-twin database and media bindings.
-              </OperationalState>
-            ) : twinState === "unavailable" ? (
-              <OperationalState title="Digital-twin storage is unavailable" kind="unavailable">
-                {twinData.error || "Inventory records and private photo storage are unavailable."}
-                {" "}No changes can be saved until department storage is available.
-              </OperationalState>
-            ) : (
-              <DigitalTwinBuilder
-                data={twinData}
-                suiteApparatus={suite.apparatus}
-                onReload={loadTwin}
-                onFleetReload={loadSuite}
-                notify={showToast}
-              />
-            )}
-            <InventoryOperations view="builder" onSetup={() => setView("setup")} initialApparatusId={selectedApparatusId} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+            <div className="setup-workspace-panel" hidden={setupWorkspace !== "apparatus"}>
+              {twinState === "loading" ? (
+                <OperationalState title="Checking Inventory storage" kind="loading">
+                  Verifying the department&apos;s digital-twin database and media bindings.
+                </OperationalState>
+              ) : twinState === "unavailable" ? (
+                <OperationalState title="Digital-twin storage is unavailable" kind="unavailable">
+                  {twinData.error || "Inventory records and private photo storage are unavailable."}
+                  {" "}No changes can be saved until department storage is available.
+                </OperationalState>
+              ) : (
+                <DigitalTwinBuilder
+                  data={twinData}
+                  suiteApparatus={suite.apparatus}
+                  onReload={loadTwin}
+                  onFleetReload={loadSuite}
+                  notify={showToast}
+                />
+              )}
+            </div>
+            <div className="setup-workspace-panel" hidden={setupWorkspace !== "checks"}>
+              <InventoryOperations view="builder" onSetup={() => setView("setup")} initialApparatusId={selectedApparatusId} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+            </div>
           </div>
         </section>
       ) : null}
@@ -960,6 +961,7 @@ function DigitalTwinBuilder({
   } | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [builderStep, setBuilderStep] = useState<"identity" | "compartments" | "photos" | "hotspots">("identity");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraVideoRef = useRef<HTMLVideoElement>(null);
 
@@ -983,6 +985,8 @@ function DigitalTwinBuilder({
   )).length;
   const approvedPhotos = photos.filter((photo) => photo.approval_status === "approved");
   const selectedHotspotPhoto = approvedPhotos.find((photo) => photo.id === hotspotPhotoId);
+  const selectedPhotoIds = new Set(photos.map((photo) => photo.id));
+  const hotspotCount = data.hotspots.filter((hotspot) => selectedPhotoIds.has(hotspot.photo_view_id)).length;
 
   async function jsonAction(payload: Record<string, unknown>) {
     const response = await fetch("/api/digital-twin", {
@@ -1370,7 +1374,16 @@ function DigitalTwinBuilder({
         </div>
       ) : null}
 
-      <section className="builder-section">
+      <nav className="builder-section-nav" aria-label="Apparatus configuration steps">
+        {([
+          ["identity", "Apparatus", selectedApparatus ? selectedApparatus.name : "Add unit"],
+          ["compartments", "Compartments", `${compartments.length} saved`],
+          ["photos", "Photos", `${captured} of ${requiredPhotoViews.length}`],
+          ["hotspots", "Hotspots", `${hotspotCount} mapped`],
+        ] as const).map(([id, label, detail], index) => <button key={id} type="button" className={builderStep === id ? "active" : ""} aria-current={builderStep === id ? "step" : undefined} onClick={() => setBuilderStep(id)}><span>{index + 1}</span><b>{label}</b><small>{detail}</small></button>)}
+      </nav>
+
+      <section className="builder-section" hidden={builderStep !== "identity"}>
         <div>
           <span className="eyebrow">1 - APPARATUS IDENTITY</span>
           <h3>Add and manage department apparatus</h3>
@@ -1488,7 +1501,7 @@ function DigitalTwinBuilder({
         /> : null}
       </section>
 
-      <section className="builder-section">
+      <section className="builder-section" hidden={builderStep !== "compartments"}>
         <div>
           <span className="eyebrow">2 - COMPARTMENTS</span>
           <h3>Create stable storage locations</h3>
@@ -1556,7 +1569,7 @@ function DigitalTwinBuilder({
         </div>
       </section>
 
-      <section className="builder-section">
+      <section className="builder-section" hidden={builderStep !== "photos"}>
         <div>
           <span className="eyebrow">3 - PHOTO CAPTURE</span>
           <h3>Capture matching closed and open views</h3>
@@ -1675,7 +1688,7 @@ function DigitalTwinBuilder({
         </div>
       </section>
 
-      <section className="builder-section">
+      <section className="builder-section" hidden={builderStep !== "hotspots"}>
         <div>
           <span className="eyebrow">4 - HOTSPOTS</span>
           <h3>Connect a photograph to a saved compartment</h3>

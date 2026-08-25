@@ -6,6 +6,7 @@ const shell = await readFile(new URL("../app/inventory-live.tsx", import.meta.ur
 const operations = await readFile(new URL("../app/inventory-operations.tsx", import.meta.url), "utf8");
 const layout = await readFile(new URL("../app/inventory/layout.tsx", import.meta.url), "utf8");
 const portal = await readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8");
+const styles = await readFile(new URL("../app/inventory/inventory.css", import.meta.url), "utf8");
 
 test("inventory is named Inventory & Apparatus Checks throughout the application shell", () => {
   assert.match(layout, /Inventory & Apparatus Checks/);
@@ -15,11 +16,26 @@ test("inventory is named Inventory & Apparatus Checks throughout the application
 });
 
 test("admin configuration exposes vehicle, check, and equipment location controls", () => {
-  assert.match(shell, /Vehicle parameters/);
-  assert.match(shell, /Check parameters/);
-  assert.match(shell, /Equipment location/);
+  assert.match(shell, /Apparatus &amp; locations/);
+  assert.match(shell, /Checks &amp; equipment/);
+  assert.match(shell, /Identity, status, VIN, compartments, photos, and hotspots/);
+  assert.match(shell, /Schedules, checklist inclusion, quantities, assets, and approvals/);
   assert.match(operations, /Apparatus and compartment/);
   assert.match(operations, /Required check parameters/);
+});
+
+test("administrator setup avoids a single scroll-of-death workspace", () => {
+  assert.match(shell, /const \[setupWorkspace, setSetupWorkspace\]/);
+  assert.match(shell, /hidden=\{setupWorkspace !== "apparatus"\}/);
+  assert.match(shell, /hidden=\{setupWorkspace !== "checks"\}/);
+  assert.match(shell, /const \[builderStep, setBuilderStep\]/);
+  assert.match(shell, /className="builder-section-nav"/);
+  assert.match(shell, /hidden=\{builderStep !== "identity"\}/);
+  assert.match(shell, /hidden=\{builderStep !== "compartments"\}/);
+  assert.match(shell, /hidden=\{builderStep !== "photos"\}/);
+  assert.match(shell, /hidden=\{builderStep !== "hotspots"\}/);
+  assert.match(styles, /\.setup-workspace-tabs/);
+  assert.match(styles, /\.builder-section\[hidden\]\{display:none!important\}/);
 });
 
 test("crew landing page exposes a short operational workflow", () => {
