@@ -7,6 +7,7 @@ test("Acting Officer pay is a straight one-dollar stipend per AO hour", () => {
   assert.equal(calculateGrossPay({
     regularHours: 0,
     overtimeHours: 0,
+    workDetailHours: 0,
     holidayHours: 0,
     actingOfficerHours: 24,
     dpwHours: 0,
@@ -21,6 +22,7 @@ test("AO stipend is not multiplied by overtime or holiday rates", () => {
   assert.equal(calculateGrossPay({
     regularHours: 0,
     overtimeHours: 0,
+    workDetailHours: 0,
     holidayHours: 0,
     actingOfficerHours: 24,
     dpwHours: 0,
@@ -35,6 +37,7 @@ test("DelGatto July 11–25 regression total remains 3066.50 with 24 AO hours", 
   assert.equal(calculateGrossPay({
     regularHours: 0,
     overtimeHours: 0,
+    workDetailHours: 0,
     holidayHours: 0,
     actingOfficerHours: 24,
     dpwHours: 0,
@@ -43,4 +46,19 @@ test("DelGatto July 11–25 regression total remains 3066.50 with 24 AO hours", 
     holidayRate: 33,
     dpwMultiplier: 1.5,
   }) + 3042.5, 3066.5);
+});
+
+test("Iovino August 11-25 regression pays Work Detail and DPW at premium rates", () => {
+  assert.equal(calculateGrossPay({
+    regularHours: 0,
+    overtimeHours: 0,
+    workDetailHours: 4,
+    holidayHours: 0,
+    actingOfficerHours: 0,
+    dpwHours: 42,
+    regularRate: 27.56,
+    overtimeRate: 41.34,
+    holidayRate: 41.34,
+    dpwMultiplier: 1.5,
+  }), 1901.64);
 });

@@ -38,7 +38,7 @@ export function payrollExportRows(
   const actingOfficer = total("actingOfficer");
   const holiday = total("holiday");
   const dpw = total("dpw");
-  const baseHours = shift + drill + workDetail + callback;
+  const baseHours = shift + drill + callback;
   const overtimeHours = Math.max(baseHours - overtimeThreshold, 0);
   const regularHours = Math.max(baseHours - overtimeHours, 0);
   const rows: Array<Array<string | number>> = [];
@@ -52,9 +52,9 @@ export function payrollExportRows(
     numberCell(callback),
     0,
     numberCell(holiday),
-    numberCell(regularHours + holiday + dpw),
+    numberCell(regularHours + workDetail + holiday + dpw),
     moneyCell(employee.regularRate),
-    moneyCell(regularHours * employee.regularRate + holiday * employee.holidayRate + dpw * employee.regularRate * dpwMultiplier),
+    moneyCell(regularHours * employee.regularRate + workDetail * employee.overtimeRate + holiday * employee.holidayRate + dpw * employee.regularRate * dpwMultiplier),
   ]);
 
   if (overtimeHours > 0) {

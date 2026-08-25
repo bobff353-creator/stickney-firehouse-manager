@@ -34,4 +34,5 @@ test("export keeps detailed work categories in the regular employee row", () => 
   ], 106, 1.5);
 
   assert.deepEqual(rows[0].slice(0, 9), ["Wyant, Robert", "Lieutenant", 43, 0, 4.5, 0, 0, 0, 47.5]);
+  assert.equal(rows[0][10], "1318.38", "Work Detail uses the premium rate in payroll exports");
 });

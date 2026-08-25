@@ -47,6 +47,7 @@ export type PayrollSourceRow = {
   rank: string;
   payScaleId: string;
   regularRate: number;
+  overtimeRate: number;
   holidayRate: number;
 };
 
@@ -54,6 +55,7 @@ export type RateHistoryRow = {
   payScaleId: string;
   effectiveDate: string;
   regularRate: number;
+  overtimeRate: number;
   holidayRate: number;
 };
 
@@ -84,6 +86,7 @@ function effectiveRate(row: PayrollSourceRow, history: RateHistoryRow[]) {
     .sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))[0];
   return {
     regularRate: Number(match?.regularRate ?? row.regularRate ?? 0),
+    overtimeRate: Number(match?.overtimeRate ?? row.overtimeRate ?? 0),
     holidayRate: Number(match?.holidayRate ?? row.holidayRate ?? 0),
   };
 }
@@ -112,6 +115,8 @@ export function buildPayrollDetails(
       cost = hours * rates.holidayRate;
     } else if (category === "dpw") {
       cost = hours * rates.regularRate * dpwMultiplier;
+    } else if (category === "workDetail") {
+      cost = hours * rates.overtimeRate;
     } else {
       const key = `${row.employeeId}:${row.periodStart}`;
       const before = running.get(key) || 0;

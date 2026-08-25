@@ -360,7 +360,8 @@ export default function PayrollApp({
     if (!data) return { hours: 0, regularHours: 0, overtimeHours: 0, holidayHours: 0, actingHours: 0, dpwHours: 0, gross: 0, status: "Not started" as const, issues: [] as string[] };
     const employeeEntries = data.entries.filter((entry) => entry.employeeId === employee.id);
     const total = (category: Category) => employeeEntries.filter((entry) => entry.category === category).reduce((sum, entry) => sum + entry.hours, 0);
-    const baseHours = total("shift") + total("drill") + total("workDetail") + total("callback");
+    const workDetailHours = total("workDetail");
+    const baseHours = total("shift") + total("drill") + total("callback");
     const overtimeHours = Math.max(baseHours - data.settings.overtimeThreshold, 0);
     const regularHours = Math.max(baseHours - overtimeHours, 0);
     const holidayHours = total("holiday");
@@ -369,6 +370,7 @@ export default function PayrollApp({
     const gross = calculateGrossPay({
       regularHours,
       overtimeHours,
+      workDetailHours,
       holidayHours,
       actingOfficerHours: actingHours,
       dpwHours,
@@ -383,9 +385,9 @@ export default function PayrollApp({
       const dayActing = employeeEntries.filter((entry) => entry.workDate === date && entry.category === "actingOfficer").reduce((sum, entry) => sum + entry.hours, 0);
       if (dayActing > dayHours && dayActing > 0) issues.push(`${dayLabel(date)} acting-officer hours exceed worked hours`);
     }
-    const hours = baseHours + holidayHours + dpwHours;
+    const hours = baseHours + workDetailHours + holidayHours + dpwHours;
     const status = employeeEntries.length === 0 ? "Not started" as const : issues.length ? "Review" as const : "Ready" as const;
-    return { hours, regularHours, overtimeHours, holidayHours, actingHours, dpwHours, gross, status, issues };
+    return { hours, regularHours, overtimeHours, workDetailHours, holidayHours, actingHours, dpwHours, gross, status, issues };
   }, [data]);
 
   const payrollEmployees = useMemo(() => (data?.employees ?? []).filter((employee) => {
