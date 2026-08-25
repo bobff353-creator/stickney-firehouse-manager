@@ -660,9 +660,23 @@ export default function PayrollApp({
   useEffect(() => {
     if ((testMember || (data && !data.viewer.isAdmin && viewerPermissions)) && !visibleNav.includes(activeNav)) setActiveNav(homePage);
   }, [activeNav, data, homePage, testMember, viewerPermissions, visibleNav]);
+  async function openInventory() {
+    setMobileMenuOpen(false);
+    setGlobalSearchOpen(false);
+    const response = await fetch("/api/auth/pin", { method: "PATCH", cache: "no-store" }).catch(() => null);
+    if (response?.ok) {
+      window.location.assign("/inventory");
+      return;
+    }
+    if (response?.status === 423) {
+      window.dispatchEvent(new Event("firehouse:session-lock"));
+      return;
+    }
+    setError("Inventory secure access could not be verified. Try again.");
+  }
   function navigate(page: NavItem) {
     if (page === "Inventory") {
-      window.location.assign("/inventory");
+      void openInventory();
       return;
     }
     setActiveNav(page);

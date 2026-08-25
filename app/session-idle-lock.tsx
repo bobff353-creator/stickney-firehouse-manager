@@ -59,11 +59,13 @@ export default function SessionIdleLock({
 
     const activityEvents: Array<keyof WindowEventMap> = ["pointerdown", "keydown", "touchstart", "scroll"];
     activityEvents.forEach((eventName) => window.addEventListener(eventName, recordActivity, { passive: true }));
+    window.addEventListener("firehouse:session-lock", lock);
     document.addEventListener("visibilitychange", checkVisibility);
     const timer = window.setInterval(checkInactivity, 15_000);
     void refreshUnlock();
     return () => {
       activityEvents.forEach((eventName) => window.removeEventListener(eventName, recordActivity));
+      window.removeEventListener("firehouse:session-lock", lock);
       document.removeEventListener("visibilitychange", checkVisibility);
       if (unlockRefreshTimer !== undefined) window.clearTimeout(unlockRefreshTimer);
       window.clearInterval(timer);
