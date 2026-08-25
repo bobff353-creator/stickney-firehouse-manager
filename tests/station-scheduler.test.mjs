@@ -31,7 +31,7 @@ test("station scheduler tables exist in schema and bootstrap", async () => {
   for (const table of [
     "station_shift_types", "station_shift_type_roles", "station_schedule_entries", "station_shift_slots",
     "station_standing_assignments", "station_trade_requests", "station_shift_claims", "station_time_off_requests",
-    "station_time_off_dates", "station_unavailability", "station_reminder_rules", "station_ot_settings",
+    "station_time_off_dates", "station_unavailability", "station_availability", "station_reminder_rules", "station_ot_settings",
     "station_ot_timing", "station_ot_interest", "station_ot_offers", "station_distribution_weights",
   ]) {
     assert.equal(bootstrap.includes(`CREATE TABLE IF NOT EXISTS ${table}`), true, `bootstrap creates ${table}`);
@@ -51,7 +51,7 @@ test("scheduler uses the scoped Stickney mobile workspace instead of prototype b
 
   assert.equal(component.includes("Stickney Scheduler"), true);
   assert.equal(component.includes("Station 14"), false);
-  for (const label of ["Calendar", "Shift Builder", "Roster & Assignments", "Trades", "Requests", "Auto-Distribution", "Overtime", "Time Off", "Reminders"]) {
+  for (const label of ["Calendar", "Shift Builder", "Roster & Assignments", "Trades", "Requests", "Auto-Distribution", "Overtime", "Availability", "Time Off", "Reminders"]) {
     assert.equal(component.includes(`\"${label}\"`), true, `${label} remains available`);
   }
   assert.equal(component.includes("scheduler-month"), true);
@@ -219,7 +219,7 @@ test("API route implements the full admin and employee action set", async () => 
     "addDaySlot", "updateDaySlot", "deleteDaySlot",
     "reviewTimeOff", "saveOtSettings", "saveOtTiming", "saveDistributionWeights", "runAutoDistribution",
     "buildOtCallList", "awardOtOffer", "saveReminderRule", "submitClaim", "submitTrade", "respondTrade",
-    "submitTimeOff", "setOtInterest", "respondOtOffer", "saveMyNotifyPrefs",
+    "submitTimeOff", "setOtInterest", "respondOtOffer", "saveMyNotifyPrefs", "saveAvailability", "deleteAvailability",
   ]) {
     assert.equal(route.includes(`case "${action}"`), true, `action ${action}`);
   }
@@ -228,6 +228,36 @@ test("API route implements the full admin and employee action set", async () => 
   // Time off approvers must be Officer/AO and dates must be the member's own scheduled days.
   assert.equal(route.includes("Choose an Officer/AO as the approver."), true);
   assert.equal(route.includes("not your scheduled shift days"), true);
+});
+
+test("employees can submit, revise, and remove day-by-day availability", async () => {
+  const [component, route, schema, bootstrap, migration, styles] = await Promise.all([
+    read("../app/station-scheduler.tsx"),
+    read("../app/api/station-scheduler/route.ts"),
+    read("../db/schema.ts"),
+    read("../db/bootstrap.ts"),
+    read("../supabase/migrations/20260825010000_add_station_employee_availability.sql"),
+    read("../app/globals.css"),
+  ]);
+  for (const source of [schema, bootstrap, migration]) {
+    assert.equal(source.includes("station_availability"), true);
+    assert.equal(source.includes("availability_date"), true);
+    assert.equal(source.includes("start_time"), true);
+    assert.equal(source.includes("end_time"), true);
+  }
+  assert.equal(migration.includes("enable row level security"), true);
+  assert.equal(component.includes('"My Availability"'), true);
+  assert.equal(component.includes("Select one or more days"), true);
+  assert.equal(component.includes("Repeat weekly"), true);
+  assert.equal(component.includes('action: "saveAvailability"'), true);
+  assert.equal(component.includes('action: "deleteAvailability"'), true);
+  assert.equal(component.includes("calendar-availability-summary"), true);
+  assert.equal(styles.includes(".availability-workspace"), true);
+  assert.equal(route.includes("ON CONFLICT(employee_id,availability_date) DO UPDATE"), true, "saving the same day edits the existing entry");
+  assert.equal(route.includes("const requested = current.isAdmin ? String(payload.memberId"), true, "employees cannot write another member's availability");
+  assert.equal(route.includes("That employee marked themselves unavailable for this time."), true, "manual assignments respect unavailable windows");
+  assert.equal(route.includes("availabilityBlocksShift"), true, "partial-day conflicts are checked against shift times");
+  assert.equal(route.includes("status='unavailable'"), true, "auto-distribution and OT respect explicit unavailability");
 });
 
 test("scheduler date range casts stored text dates before Postgres comparison", async () => {

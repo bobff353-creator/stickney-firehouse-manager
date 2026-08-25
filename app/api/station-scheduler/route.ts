@@ -80,6 +80,31 @@ const shiftHours = (startTime: string, endTime: string) => {
   return span / 60;
 };
 
+type AvailabilityWindow = {
+  employeeId: string;
+  allDay: number;
+  startTime: string;
+  endTime: string;
+};
+
+const timeMinutes = (value: string) => Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5));
+const availabilityBlocksShift = (window: AvailabilityWindow, shiftStart: string, shiftEnd: string) => {
+  if (window.allDay) return true;
+  const availabilityStart = timeMinutes(window.startTime);
+  let availabilityEnd = timeMinutes(window.endTime);
+  const scheduledStart = timeMinutes(shiftStart);
+  let scheduledEnd = timeMinutes(shiftEnd);
+  if (availabilityEnd <= availabilityStart) availabilityEnd += 1440;
+  if (scheduledEnd <= scheduledStart) scheduledEnd += 1440;
+  return availabilityStart < scheduledEnd && scheduledStart < availabilityEnd;
+};
+
+async function isExplicitlyUnavailable(db: Db, employeeId: string, date: string, startTime: string, endTime: string) {
+  const row = await db.prepare("SELECT employee_id employeeId,all_day allDay,start_time startTime,end_time endTime FROM station_availability WHERE employee_id=? AND availability_date=? AND status='unavailable' LIMIT 1")
+    .bind(employeeId, date).first<AvailabilityWindow>();
+  return Boolean(row && availabilityBlocksShift(row, startTime, endTime));
+}
+
 async function loadEmployees(db: Db): Promise<EmployeeRow[]> {
   const rows = await db.prepare(
     "SELECT e.id,e.name,p.label rank,COALESCE(ep.email,'') email,COALESCE(ep.phone,'') phone,COALESCE(ep.station_roles,'[]') roles,COALESCE(ep.start_date,'') startDate,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.station_ot_hours,0) otHours,COALESCE(ep.station_mandatory_hours,0) mandatoryHours,COALESCE(ep.station_hours_this_period,0) hoursThisPeriod,COALESCE(ep.station_off_duty,0) offDuty,COALESCE(ep.station_last_mandated,'') lastMandated,COALESCE(ep.station_consecutive_mandatory,0) consecutiveMandatory,COALESCE(ep.station_notify_email,1) notifyEmail,COALESCE(ep.station_notify_text,0) notifyText FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND COALESCE(TRIM(ep.end_date),'')='' ORDER BY e.name COLLATE NOCASE",
@@ -144,7 +169,7 @@ export async function GET(request: Request) {
     const today = chicagoToday();
     const employees = await loadEmployees(db);
 
-    const [shiftTypes, shiftTypeRoles, entries, slots, standing, trades, claims, timeOff, timeOffDates, reminderRules, timing, weights, interest, offers] = await Promise.all([
+    const [shiftTypes, shiftTypeRoles, entries, slots, standing, trades, claims, timeOff, timeOffDates, availability, reminderRules, timing, weights, interest, offers] = await Promise.all([
       db.prepare("SELECT id,name,start_time startTime,end_time endTime,anchor_date anchorDate,repeat_every_days repeatEveryDays,color,active,sort_order sortOrder FROM station_shift_types ORDER BY active DESC,sort_order,name COLLATE NOCASE").all(),
       db.prepare("SELECT id,shift_type_id shiftTypeId,role,count FROM station_shift_type_roles").all(),
       db.prepare("SELECT en.id,en.entry_date entryDate,en.shift_type_id shiftTypeId FROM station_schedule_entries en JOIN station_shift_types t ON t.id=en.shift_type_id WHERE date(entry_date)>=date(?, '-45 day') AND t.active=1 ORDER BY en.entry_date").bind(today).all(),
@@ -154,6 +179,7 @@ export async function GET(request: Request) {
       db.prepare("SELECT c.id,c.slot_id slotId,c.role,c.employee_id employeeId,e.name employeeName,c.note,c.status,c.created_at createdAt,en.entry_date entryDate FROM station_shift_claims c JOIN station_shift_slots s ON s.id=c.slot_id JOIN station_schedule_entries en ON en.id=s.entry_id JOIN employees e ON e.id=c.employee_id ORDER BY CASE c.status WHEN 'pending' THEN 0 ELSE 1 END,c.created_at DESC LIMIT 200").all(),
       db.prepare("SELECT r.id,r.employee_id employeeId,e.name employeeName,r.type,r.approver_employee_id approverEmployeeId,ap.name approverName,r.note,r.status,r.created_at createdAt FROM station_time_off_requests r JOIN employees e ON e.id=r.employee_id LEFT JOIN employees ap ON ap.id=r.approver_employee_id ORDER BY CASE r.status WHEN 'pending' THEN 0 ELSE 1 END,r.created_at DESC LIMIT 200").all(),
       db.prepare("SELECT request_id requestId,off_date offDate FROM station_time_off_dates").all(),
+      db.prepare("SELECT a.id,a.employee_id employeeId,e.name employeeName,a.availability_date availabilityDate,a.status,a.all_day allDay,a.start_time startTime,a.end_time endTime,a.note,a.updated_at updatedAt FROM station_availability a JOIN employees e ON e.id=a.employee_id WHERE date(a.availability_date)>=date(?, '-45 day') ORDER BY a.availability_date,e.name COLLATE NOCASE").bind(today).all(),
       db.prepare("SELECT id,type,label,offsets,email_enabled emailEnabled,text_enabled textEnabled,target,enabled FROM station_reminder_rules ORDER BY label").all(),
       db.prepare("SELECT award_days_out awardDaysOut,complete_by_days_out completeByDaysOut FROM station_ot_timing WHERE id=1").first<{ awardDaysOut: number; completeByDaysOut: number }>(),
       db.prepare("SELECT seniority_weight seniorityWeight,hours_weight hoursWeight,custom_weight customWeight,custom_label customLabel FROM station_distribution_weights WHERE id=1").first(),
@@ -207,6 +233,7 @@ export async function GET(request: Request) {
       claims: current.isAdmin ? claims.results : (claims.results as { employeeId: string }[]).filter((c) => c.employeeId === current.employeeId),
       timeOff: current.isAdmin ? timeOff.results : (timeOff.results as { employeeId: string; approverEmployeeId: string }[]).filter((r) => r.employeeId === current.employeeId || r.approverEmployeeId === current.employeeId),
       timeOffDates: timeOffDates.results,
+      availability: current.isAdmin ? availability.results : (availability.results as { employeeId: string }[]).filter((row) => row.employeeId === current.employeeId),
       reminderRules: current.isAdmin ? reminderRules.results : [],
       otSettings: current.isAdmin ? { voluntary, mandatory } : null,
       otTiming,
@@ -271,6 +298,8 @@ export async function POST(request: Request) {
       case "setOtInterest": return await setOtInterest(db, current, payload);
       case "respondOtOffer": return await respondOtOffer(db, current, payload);
       case "saveMyNotifyPrefs": return await saveMyNotifyPrefs(db, current, payload);
+      case "saveAvailability": return await saveAvailability(db, current, payload);
+      case "deleteAvailability": return await deleteAvailability(db, current, payload);
       default: return Response.json({ error: "Unsupported scheduler action." }, { status: 400 });
     }
   } catch (error) {
@@ -473,9 +502,10 @@ async function assignSlot(db: Db, payload: Record<string, unknown>, requireAdmin
   const slotId = String(payload.slotId ?? "");
   const employeeId = String(payload.employeeId ?? "");
   if (!slotId || !employeeId) return bad("Choose a slot and an employee.");
-  const slot = await db.prepare("SELECT role FROM station_shift_slots WHERE id=?").bind(slotId).first<{ role: string }>();
+  const slot = await db.prepare("SELECT s.role,en.entry_date entryDate,COALESCE(NULLIF(s.start_time,''),t.start_time) startTime,COALESCE(NULLIF(s.end_time,''),t.end_time) endTime FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id WHERE s.id=?").bind(slotId).first<{ role: string; entryDate: string; startTime: string; endTime: string }>();
   if (!slot) return bad("That position is no longer available.", 409);
   if (!await isEligibleEmployeeForRole(db, employeeId, slot.role)) return bad("That employee is not active and qualified for this position.", 409);
+  if (await isExplicitlyUnavailable(db, employeeId, slot.entryDate, slot.startTime, slot.endTime)) return bad("That employee marked themselves unavailable for this time.", 409);
   await clearSlotWorkflows(db, slotId);
   const result = await db.prepare("UPDATE station_shift_slots SET employee_id=?,status='filled' WHERE id=?").bind(employeeId, slotId).run();
   if (!result.meta.changes) return bad("That slot is unavailable.", 409);
@@ -721,6 +751,10 @@ async function runAutoDistribution(db: Db, payload: Record<string, unknown>, req
   for (const row of (await db.prepare("SELECT employee_id employeeId,off_date offDate FROM station_unavailability").all<{ employeeId: string; offDate: string }>()).results) {
     (unavailable.get(row.offDate) ?? unavailable.set(row.offDate, new Set()).get(row.offDate)!).add(row.employeeId);
   }
+  const availabilityByDate = new Map<string, AvailabilityWindow[]>();
+  for (const row of (await db.prepare("SELECT employee_id employeeId,availability_date availabilityDate,all_day allDay,start_time startTime,end_time endTime FROM station_availability WHERE status='unavailable'").all<AvailabilityWindow & { availabilityDate: string }>()).results) {
+    (availabilityByDate.get(row.availabilityDate) ?? availabilityByDate.set(row.availabilityDate, []).get(row.availabilityDate)!).push(row);
+  }
 
   const openSlots: OpenSlot[] = openRows.map((r) => ({ slotId: r.id, date: r.entryDate, role: r.role, hours: shiftHours(r.startTime, r.endTime) }));
   const distEmployees: DistributionEmployee[] = employees.map((e) => ({
@@ -731,6 +765,7 @@ async function runAutoDistribution(db: Db, payload: Record<string, unknown>, req
   for (const row of openRows) {
     eligibility[row.id] = employees.filter((e) => {
       if (unavailable.get(row.entryDate)?.has(e.id)) return false;
+      if (availabilityByDate.get(row.entryDate)?.some((window) => window.employeeId === e.id && availabilityBlocksShift(window, row.startTime, row.endTime))) return false;
       return eligibleForRole(row.role, { roles: parseRoles(e.roles), rank: e.rank, actingOfficerEligible: Boolean(e.actingOfficerEligible) });
     }).map((e) => e.id);
   }
@@ -755,13 +790,14 @@ async function buildOtCallList(db: Db, payload: Record<string, unknown>, require
   const slotId = String(payload.slotId ?? "");
   const mode = String(payload.mode ?? "voluntary") as OtMode;
   if (!["voluntary", "mandatory"].includes(mode)) return bad("Choose voluntary or mandatory.");
-  const slot = await db.prepare("SELECT s.id,s.role,en.entry_date entryDate FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id WHERE s.id=? AND s.status='open'").bind(slotId).first<{ id: string; role: string; entryDate: string }>();
+  const slot = await db.prepare("SELECT s.id,s.role,en.entry_date entryDate,COALESCE(NULLIF(s.start_time,''),t.start_time) startTime,COALESCE(NULLIF(s.end_time,''),t.end_time) endTime FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id WHERE s.id=? AND s.status='open'").bind(slotId).first<{ id: string; role: string; entryDate: string; startTime: string; endTime: string }>();
   if (!slot) return bad("That slot is no longer open.", 409);
   const settings = await otSettings(db, mode);
   const today = chicagoToday();
   const employees = await loadEmployees(db);
 
   const unavailable = new Set((await db.prepare("SELECT employee_id employeeId FROM station_unavailability WHERE off_date=?").bind(slot.entryDate).all<{ employeeId: string }>()).results.map((r) => r.employeeId));
+  const explicitUnavailable = (await db.prepare("SELECT employee_id employeeId,all_day allDay,start_time startTime,end_time endTime FROM station_availability WHERE availability_date=? AND status='unavailable'").bind(slot.entryDate).all<AvailabilityWindow>()).results;
   const scheduledThatDay = (await busyEmployeesByDate(db, [slot.entryDate]))[slot.entryDate] ?? new Set();
   const declined = new Set((await db.prepare("SELECT employee_id employeeId FROM station_ot_offers WHERE slot_id=? AND status='declined'").bind(slotId).all<{ employeeId: string }>()).results.map((r) => r.employeeId));
 
@@ -770,7 +806,7 @@ async function buildOtCallList(db: Db, payload: Record<string, unknown>, require
     .map((e) => ({
       employeeId: e.id, name: e.name, otHours: e.otHours, mandatoryHours: e.mandatoryHours,
       seniority: seniorityFromStartDate(e.startDate, today),
-      offDuty: Boolean(e.offDuty) || unavailable.has(e.id),
+      offDuty: Boolean(e.offDuty) || unavailable.has(e.id) || explicitUnavailable.some((window) => window.employeeId === e.id && availabilityBlocksShift(window, slot.startTime, slot.endTime)),
       alreadyScheduled: scheduledThatDay.has(e.id),
       declined: declined.has(e.id),
       lastMandated: e.lastMandated,
@@ -796,6 +832,7 @@ async function awardOtOffer(db: Db, payload: Record<string, unknown>, requireAdm
   if (!await isSchedulableEmployee(db, employeeId)) return bad("That employee has a Last Day and is no longer available for scheduling.", 409);
   const slot = await db.prepare("SELECT s.id,COALESCE(NULLIF(s.start_time,''),t.start_time) startTime,COALESCE(NULLIF(s.end_time,''),t.end_time) endTime,en.entry_date entryDate FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id WHERE s.id=? AND s.status='open'").bind(slotId).first<{ id: string; startTime: string; endTime: string; entryDate: string }>();
   if (!slot) return bad("That slot is no longer open.", 409);
+  if (await isExplicitlyUnavailable(db, employeeId, slot.entryDate, slot.startTime, slot.endTime)) return bad("That employee marked themselves unavailable for this time.", 409);
   const hours = shiftHours(slot.startTime, slot.endTime);
   const filled = await db.prepare("UPDATE station_shift_slots SET employee_id=?,status='filled' WHERE id=? AND status='open'").bind(employeeId, slotId).run();
   if (!filled.meta.changes) return bad("That slot was already filled.", 409);
@@ -829,12 +866,48 @@ function actingId(current: Viewer, payload: Record<string, unknown>): string {
   return requested || current.employeeId || "";
 }
 
+async function saveAvailability(db: Db, current: Viewer, payload: Record<string, unknown>) {
+  const employeeId = actingId(current, payload);
+  if (!employeeId || !await isSchedulableEmployee(db, employeeId)) return bad("Choose an active employee.");
+  const dates = [...new Set(Array.isArray(payload.dates) ? payload.dates.map(String).filter((date) => iso.test(date)) : [])].sort();
+  if (!dates.length) return bad("Choose at least one date.");
+  if (dates.length > 93) return bad("Save no more than 93 dates at one time.");
+  const status = String(payload.status ?? "available");
+  if (!['available', 'unavailable'].includes(status)) return bad("Choose available or unavailable.");
+  const allDay = payload.allDay ? 1 : 0;
+  const startTime = normalizeScheduleTime(String(payload.startTime ?? "06:00"));
+  const endTime = normalizeScheduleTime(String(payload.endTime ?? "18:00"));
+  if (!startTime || !endTime) return bad("Enter valid start and end times.");
+  const note = String(payload.note ?? "").trim().slice(0, 240);
+  await runWritesChunked(db, dates.map((date) => db.prepare("INSERT INTO station_availability(id,employee_id,availability_date,status,all_day,start_time,end_time,note) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(employee_id,availability_date) DO UPDATE SET status=excluded.status,all_day=excluded.all_day,start_time=excluded.start_time,end_time=excluded.end_time,note=excluded.note,updated_at=CURRENT_TIMESTAMP")
+    .bind(crypto.randomUUID(), employeeId, date, status, allDay, startTime, endTime, note)));
+
+  const placeholders = dates.map(() => "?").join(",");
+  const conflicts = await db.prepare(`SELECT DISTINCT en.entry_date entryDate FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id WHERE s.employee_id=? AND en.entry_date IN (${placeholders}) ORDER BY en.entry_date`)
+    .bind(employeeId, ...dates).all<{ entryDate: string }>();
+  const conflictCount = status === "unavailable" ? conflicts.results.length : 0;
+  return ok({
+    note: conflictCount
+      ? `Availability saved. ${conflictCount} selected day${conflictCount === 1 ? " has" : "s have"} an existing assignment; the assignment was not changed.`
+      : `Availability saved for ${dates.length} day${dates.length === 1 ? "" : "s"}.`,
+  });
+}
+
+async function deleteAvailability(db: Db, current: Viewer, payload: Record<string, unknown>) {
+  const employeeId = actingId(current, payload);
+  const date = String(payload.date ?? "");
+  if (!employeeId || !iso.test(date)) return bad("Choose an availability date.");
+  await db.prepare("DELETE FROM station_availability WHERE employee_id=? AND availability_date=?").bind(employeeId, date).run();
+  return ok({ note: "Availability entry removed." });
+}
+
 async function submitClaim(db: Db, current: Viewer, payload: Record<string, unknown>) {
   const employeeId = actingId(current, payload);
   const slotId = String(payload.slotId ?? "");
   if (!employeeId || !slotId) return bad("Choose an open shift.");
-  const slot = await db.prepare("SELECT s.id,s.role,s.status FROM station_shift_slots s WHERE s.id=?").bind(slotId).first<{ id: string; role: string; status: string }>();
+  const slot = await db.prepare("SELECT s.id,s.role,s.status,en.entry_date entryDate,COALESCE(NULLIF(s.start_time,''),t.start_time) startTime,COALESCE(NULLIF(s.end_time,''),t.end_time) endTime FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id WHERE s.id=?").bind(slotId).first<{ id: string; role: string; status: string; entryDate: string; startTime: string; endTime: string }>();
   if (!slot || slot.status !== "open") return bad("That shift is no longer open.", 409);
+  if (await isExplicitlyUnavailable(db, employeeId, slot.entryDate, slot.startTime, slot.endTime)) return bad("Your saved availability marks you unavailable for this shift.", 409);
   const emp = await db.prepare("SELECT p.label rank,COALESCE(ep.station_roles,'[]') roles,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1 AND COALESCE(TRIM(ep.end_date),'')=''").bind(employeeId).first<{ rank: string; roles: string; actingOfficerEligible: number }>();
   if (!emp || !eligibleForRole(slot.role, { roles: parseRoles(emp.roles), rank: emp.rank, actingOfficerEligible: Boolean(emp.actingOfficerEligible) })) return bad("You are not eligible for this role.", 403);
   const existing = await db.prepare("SELECT id FROM station_shift_claims WHERE slot_id=? AND employee_id=? AND status='pending'").bind(slotId, employeeId).first();

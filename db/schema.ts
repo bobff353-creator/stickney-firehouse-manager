@@ -697,6 +697,24 @@ export const stationUnavailability = sqliteTable("station_unavailability", {
   requestId: text("request_id").references(() => stationTimeOffRequests.id),
 }, (table) => [uniqueIndex("station_unavailability_idx").on(table.employeeId, table.offDate)]);
 
+// Employee-entered daily availability is separate from approved time off. A
+// member may revise one saved availability window per calendar day.
+export const stationAvailability = sqliteTable("station_availability", {
+  id: text("id").primaryKey(),
+  employeeId: text("employee_id").notNull().references(() => employees.id),
+  availabilityDate: text("availability_date").notNull(),
+  status: text("status").notNull().default("available"), // available | unavailable
+  allDay: integer("all_day", { mode: "boolean" }).notNull().default(true),
+  startTime: text("start_time").notNull().default("06:00"),
+  endTime: text("end_time").notNull().default("18:00"),
+  note: text("note").notNull().default(""),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("station_availability_employee_date_idx").on(table.employeeId, table.availabilityDate),
+  index("station_availability_date_idx").on(table.availabilityDate, table.status),
+]);
+
 export const stationReminderRules = sqliteTable("station_reminder_rules", {
   id: text("id").primaryKey(),
   type: text("type").notNull(), // shift_request | request_deadline | open_shift_blast

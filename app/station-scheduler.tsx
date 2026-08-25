@@ -20,6 +20,7 @@ type Trade = { id: string; slotId: string; role: string; fromEmployeeId: string;
 type Claim = { id: string; slotId: string; role: string; employeeId: string; employeeName: string; note: string; status: string; createdAt: string; entryDate: string };
 type TimeOff = { id: string; employeeId: string; employeeName: string; type: string; approverEmployeeId: string; approverName?: string; note: string; status: string; createdAt: string };
 type TimeOffDate = { requestId: string; offDate: string };
+type Availability = { id: string; employeeId: string; employeeName: string; availabilityDate: string; status: "available" | "unavailable"; allDay: number; startTime: string; endTime: string; note: string; updatedAt: string };
 type ReminderRule = { id: string; type: string; label: string; offsets: string; emailEnabled: number; textEnabled: number; target: string; enabled: number };
 type OtSetting = { exemptOffDuty: boolean; exemptAlreadyScheduled: boolean; exemptDeclined: boolean; exemptRecentlyMandated: boolean; recentDays: number; exemptMaxConsecutive: boolean; maxConsecutive: number; priorityOrder: string[] };
 type OtOffer = { id: string; slotId: string; employeeId: string; employeeName: string; mode: string; status: string; rank: number };
@@ -42,6 +43,7 @@ type Data = {
   claims: Claim[];
   timeOff: TimeOff[];
   timeOffDates: TimeOffDate[];
+  availability: Availability[];
   reminderRules: ReminderRule[];
   otSettings: { voluntary: OtSetting; mandatory: OtSetting } | null;
   otTiming: { awardDaysOut: number; completeByDaysOut: number };
@@ -74,6 +76,18 @@ const shiftColorHex: Record<string, string> = {
 const shiftTextColor = (color: string) => ["gold", "orange", "green"].includes(color) ? "#111827" : "#ffffff";
 const monthTitle = (value: string) => new Date(`${value.slice(0, 7)}-01T12:00:00`).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 const fourDigitTime = (value: string) => value.replace(":", "").slice(0, 4);
+const availabilityOverlaps = (row: Availability, startTime: string, endTime: string) => {
+  if (row.status !== "unavailable") return false;
+  if (row.allDay) return true;
+  const minutes = (value: string) => Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5));
+  const rowStart = minutes(row.startTime);
+  let rowEnd = minutes(row.endTime);
+  const shiftStart = minutes(startTime);
+  let shiftEnd = minutes(endTime);
+  if (rowEnd <= rowStart) rowEnd += 1440;
+  if (shiftEnd <= shiftStart) shiftEnd += 1440;
+  return rowStart < shiftEnd && shiftStart < rowEnd;
+};
 const employeeEligibleForRole = (employee: Employee, role: string) => {
   if (role === "Firefighter" || role === "Training/Orientation") return true;
   if (role === "Officer/AO") return /\b(chief|captain|lieutenant)\b/i.test(employee.rank) || parseRoles(employee.roles).includes(role);
@@ -130,10 +144,10 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
   const adminTabs = [
     ["calendar", "Calendar"], ["shiftTypes", "Shift Builder"], ["roster", "Roster & Assignments"],
     ["trades", "Trades"], ["requests", "Requests"], ["distribution", "Auto-Distribution"],
-    ["overtime", "Overtime"], ["timeoff", "Time Off"], ["reminders", "Reminders"],
+    ["overtime", "Overtime"], ["availability", "Availability"], ["timeoff", "Time Off"], ["reminders", "Reminders"],
   ] as const;
   const employeeTabs = [
-    ["calendar", "Calendar"], ["myrequests", "My Requests"], ["otlist", "Overtime List"], ["timeoff", "Time Off"],
+    ["calendar", "Calendar"], ["availability", "My Availability"], ["myrequests", "My Requests"], ["otlist", "Overtime List"], ["timeoff", "Time Off"],
   ] as const;
   const tabs = isAdmin ? adminTabs : employeeTabs;
 
@@ -167,6 +181,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
       {tab === "requests" && isAdmin && <RequestsScreen data={data} act={act} busy={busy} employeeName={employeeName} mode="claims" />}
       {tab === "trades" && isAdmin && <RequestsScreen data={data} act={act} busy={busy} employeeName={employeeName} mode="trades" />}
       {tab === "timeoff" && <TimeOffScreen data={data} isAdmin={isAdmin} act={act} busy={busy} />}
+      {tab === "availability" && <AvailabilityScreen data={data} isAdmin={isAdmin} act={act} busy={busy} />}
       {tab === "overtime" && isAdmin && <OvertimeScreen data={data} act={act} busy={busy} employeeName={employeeName} />}
       {tab === "distribution" && isAdmin && <DistributionScreen data={data} act={act} busy={busy} />}
       {tab === "reminders" && isAdmin && <RemindersScreen data={data} act={act} busy={busy} />}
@@ -217,7 +232,13 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
     for (const slot of data.slots) grouped.set(slot.entryDate, [...(grouped.get(slot.entryDate) ?? []), slot]);
     return grouped;
   }, [data.slots]);
+  const availabilityByDate = useMemo(() => {
+    const grouped = new Map<string, Availability[]>();
+    for (const row of data.availability) grouped.set(row.availabilityDate, [...(grouped.get(row.availabilityDate) ?? []), row]);
+    return grouped;
+  }, [data.availability]);
   const daySlots = slotsByDate.get(selectedDate) ?? [];
+  const dayAvailability = availabilityByDate.get(selectedDate) ?? [];
   const selectedDayShiftIds = useMemo(
     () => new Set((entriesByDate.get(selectedDate) ?? []).map((entry) => entry.shiftTypeId)),
     [entriesByDate, selectedDate],
@@ -287,6 +308,9 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
               const visibleEntry = entries[entryPosition];
               const shift = visibleEntry ? data.shiftTypes.find((item) => item.id === visibleEntry.shiftTypeId) : null;
               const visibleSlots = visibleEntry ? (slotsByDate.get(date) ?? []).filter((slot) => slot.entryId === visibleEntry.id) : [];
+              const availability = availabilityByDate.get(date) ?? [];
+              const availableCount = availability.filter((row) => row.status === "available").length;
+              const unavailableCount = availability.filter((row) => row.status === "unavailable").length;
               const hasOpen = visibleSlots.some((slot) => slot.status === "open");
               const coverageSummary = visibleSlots.map((slot) => slot.status === "open" ? `Open ${slot.role}` : `${employeeName(slot.employeeId)} assigned ${slot.role}`).join(", ");
               const ariaLabel = [`Open ${friendlyDate(date)}`, shift?.name, coverageSummary].filter(Boolean).join("; ");
@@ -298,6 +322,10 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
               } as CSSProperties : undefined;
               return <button type="button" role="gridcell" key={date} style={calendarStyle} className={`${date === selectedDate ? "selected " : ""}${date === data.today ? "today " : ""}${shift ? "calendar-has-shift" : ""}`} onClick={() => { setSelectedDate(date); setDayViewOpen(true); }} aria-label={ariaLabel}>
                 <span className="calendar-day-number">{day}{hasOpen && <i className="open-dot" />}</span>
+                {!!availability.length && <span className="calendar-availability-summary">
+                  {!!availableCount && <small className="available">{isAdmin ? `${availableCount} available` : "Available"}</small>}
+                  {!!unavailableCount && <small className="unavailable">{isAdmin ? `${unavailableCount} unavailable` : "Unavailable"}</small>}
+                </span>}
                 {visibleEntry && shift ? (
                   <span className="calendar-shift-summary">
                     <strong>
@@ -332,6 +360,15 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
               </div>
             </header>
             <div className="scheduler-day-dialog-body">
+              {!!dayAvailability.length && <section className="scheduler-day-availability" aria-label="Employee availability">
+                <div className="entry-head"><strong>Availability</strong><span>{dayAvailability.length} submitted</span></div>
+                <div className="availability-day-list">
+                  {dayAvailability.map((row) => <span key={row.id} className={`availability-pill ${row.status}`}>
+                    <b>{isAdmin ? row.employeeName : row.status === "available" ? "You are available" : "You are unavailable"}</b>
+                    <small>{row.allDay ? "All day" : `${row.startTime}–${row.endTime}`}</small>
+                  </span>)}
+                </div>
+              </section>}
               {isAdmin && <div className="inline-form add-day-shift">
                 <select aria-label="Matching built shift to add" value={newShiftType} disabled={!matchingBuiltShifts.length} onChange={(e) => setNewShiftType(e.target.value)}>
                   <option value="">{matchingBuiltShifts.length ? "Add a matching built shift to this day…" : "All matching built shifts are already on this day"}</option>
@@ -357,6 +394,7 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
                         const eligibleEmployees = data.employees.filter((employee) => employeeEligibleForRole(employee, slot.role));
                         const currentEmployee = data.employees.find((employee) => employee.id === slot.employeeId);
                         const assignableEmployees = currentEmployee && !eligibleEmployees.some((employee) => employee.id === currentEmployee.id) ? [currentEmployee, ...eligibleEmployees] : eligibleEmployees;
+                        const unavailableIds = new Set(dayAvailability.filter((row) => availabilityOverlaps(row, slot.startTime, slot.endTime)).map((row) => row.employeeId));
                         return (
                           <li key={slot.id} className={slot.status === "open" ? `open${award?.window === "overdue" ? " urgent" : ""}` : ""}>
                             <div className="scheduler-position-summary">
@@ -366,7 +404,7 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
                             </div>
                             {isAdmin && <label className="scheduler-employee-select"><span>Assigned employee</span><select aria-label={`Assigned employee for ${slot.role}`} disabled={busy} value={slot.employeeId ?? ""} onChange={(e) => e.target.value ? act({ action: "assignSlot", slotId: slot.id, employeeId: e.target.value }) : act({ action: "clearSlot", slotId: slot.id })}>
                               <option value="">Open position</option>
-                              {assignableEmployees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name} · {employee.rank}</option>)}
+                              {assignableEmployees.map((employee) => <option key={employee.id} value={employee.id} disabled={unavailableIds.has(employee.id) && employee.id !== slot.employeeId}>{employee.name} · {employee.rank}{unavailableIds.has(employee.id) ? " · unavailable" : ""}</option>)}
                             </select></label>}
                             {isAdmin && Boolean(slot.isExtra) && <ExtraDaySlotEditor key={`${slot.id}-${slot.role}-${slot.startTime}-${slot.endTime}-${slot.employeeId ?? ""}`} slot={slot} roles={data.dayPositionRoles ?? data.roles} employees={data.employees} act={act} busy={busy} />}
                             {canClaim && <button className="link" disabled={busy} onClick={() => act({ action: "submitClaim", slotId: slot.id })}>Request</button>}
@@ -610,6 +648,123 @@ function RequestsScreen({ data, act, busy, employeeName, mode }: { data: Data; a
       </section>}
     </div>
   );
+}
+
+function AvailabilityScreen({ data, isAdmin, act, busy }: { data: Data; isAdmin: boolean; act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean }) {
+  const initialMemberId = data.viewer.employeeId ?? data.employees[0]?.id ?? "";
+  const [memberId, setMemberId] = useState(initialMemberId);
+  const [monthDate, setMonthDate] = useState(`${data.today.slice(0, 7)}-01`);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [status, setStatus] = useState<"available" | "unavailable">("available");
+  const [allDay, setAllDay] = useState(true);
+  const [startTime, setStartTime] = useState("06:00");
+  const [endTime, setEndTime] = useState("18:00");
+  const [repeatWeeks, setRepeatWeeks] = useState(0);
+  const [note, setNote] = useState("");
+  const monthKey = monthDate.slice(0, 7);
+  const firstDay = new Date(`${monthKey}-01T12:00:00`);
+  const daysInMonth = new Date(firstDay.getFullYear(), firstDay.getMonth() + 1, 0).getDate();
+  const cells = Array.from({ length: firstDay.getDay() + daysInMonth }, (_, index) => index < firstDay.getDay() ? null : index - firstDay.getDay() + 1);
+  const memberEntries = data.availability.filter((row) => row.employeeId === memberId);
+  const entryByDate = new Map(memberEntries.map((row) => [row.availabilityDate, row]));
+  const changeMonth = (delta: number) => {
+    const next = new Date(firstDay.getFullYear(), firstDay.getMonth() + delta, 1, 12);
+    setMonthDate(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-01`);
+    setPicked([]);
+  };
+  const editEntry = (entry: Availability) => {
+    setPicked([entry.availabilityDate]);
+    setStatus(entry.status);
+    setAllDay(Boolean(entry.allDay));
+    setStartTime(entry.startTime);
+    setEndTime(entry.endTime);
+    setNote(entry.note);
+    setRepeatWeeks(0);
+    setMonthDate(`${entry.availabilityDate.slice(0, 7)}-01`);
+  };
+  const expandedDates = () => {
+    const dates = new Set(picked);
+    for (const pickedDate of picked) {
+      const base = new Date(`${pickedDate}T12:00:00`);
+      for (let week = 1; week <= repeatWeeks; week += 1) {
+        const next = new Date(base);
+        next.setDate(next.getDate() + week * 7);
+        dates.add(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(next.getDate()).padStart(2, "0")}`);
+      }
+    }
+    return [...dates].sort();
+  };
+
+  return <div className="availability-workspace">
+    <section className="availability-intro">
+      <div>
+        <span className="section-kicker">Employee scheduling</span>
+        <h3>{isAdmin ? "Department availability" : "My availability"}</h3>
+        <p className="muted">Mark the days and times you can or cannot work. This does not request an open shift or replace a time-off request.</p>
+      </div>
+      {isAdmin && <label><span>Employee</span><select value={memberId} onChange={(event) => { setMemberId(event.target.value); setPicked([]); }}>
+        {data.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name} — {employee.rank}</option>)}
+      </select></label>}
+    </section>
+
+    <div className="availability-layout">
+      <section className="availability-calendar-card">
+        <div className="scheduler-month-head">
+          <div><span className="section-kicker">Select one or more days</span><h3>{monthTitle(monthDate)}</h3></div>
+          <div><button type="button" aria-label="Previous month" onClick={() => changeMonth(-1)}>‹</button><button type="button" aria-label="Next month" onClick={() => changeMonth(1)}>›</button></div>
+        </div>
+        <div className="availability-weekdays" aria-hidden="true">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <span key={day}>{day}</span>)}</div>
+        <div className="availability-month" role="grid" aria-label={`Availability for ${monthTitle(monthDate)}`}>
+          {cells.map((day, index) => {
+            if (!day) return <span className="availability-blank" key={`availability-blank-${index}`} />;
+            const date = `${monthKey}-${String(day).padStart(2, "0")}`;
+            const existing = entryByDate.get(date);
+            const selected = picked.includes(date);
+            return <button type="button" role="gridcell" key={date} className={`${selected ? "selected " : ""}${existing?.status ?? ""}`} aria-pressed={selected} onClick={() => setPicked((current) => current.includes(date) ? current.filter((item) => item !== date) : [...current, date])}>
+              <b>{day}</b>
+              {existing && <small>{existing.status === "available" ? "Available" : "Unavailable"}<span>{existing.allDay ? "All day" : `${existing.startTime}–${existing.endTime}`}</span></small>}
+            </button>;
+          })}
+        </div>
+        <p className="muted availability-selection-help">{picked.length ? `${picked.length} day${picked.length === 1 ? "" : "s"} selected` : "Tap any day to select it. Select multiple days before saving."}</p>
+      </section>
+
+      <section className="availability-editor">
+        <span className="section-kicker">Availability details</span>
+        <h3>Set selected days</h3>
+        <div className="availability-status-options" role="radiogroup" aria-label="Availability status">
+          <button type="button" className={status === "available" ? "current available" : ""} aria-pressed={status === "available"} onClick={() => setStatus("available")}><b>Available</b><small>I can work these times</small></button>
+          <button type="button" className={status === "unavailable" ? "current unavailable" : ""} aria-pressed={status === "unavailable"} onClick={() => setStatus("unavailable")}><b>Unavailable</b><small>Do not schedule me</small></button>
+        </div>
+        <label className="availability-all-day chip"><input type="checkbox" checked={allDay} onChange={(event) => setAllDay(event.target.checked)} />All day</label>
+        {!allDay && <div className="availability-times">
+          <label><span>From</span><input type="time" step="900" value={startTime} onChange={(event) => setStartTime(event.target.value)} /></label>
+          <label><span>To</span><input type="time" step="900" value={endTime} onChange={(event) => setEndTime(event.target.value)} /></label>
+        </div>}
+        <label><span>Repeat weekly</span><select value={repeatWeeks} onChange={(event) => setRepeatWeeks(Number(event.target.value))}>
+          <option value={0}>Do not repeat</option>
+          <option value={1}>Repeat for 2 weeks</option><option value={3}>Repeat for 4 weeks</option><option value={7}>Repeat for 8 weeks</option><option value={11}>Repeat for 12 weeks</option>
+        </select></label>
+        <label><span>Note (optional)</span><textarea rows={3} maxLength={240} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Example: Available after training" /></label>
+        <button disabled={busy || !memberId || !picked.length} onClick={async () => {
+          const result = await act({ action: "saveAvailability", memberId, dates: expandedDates(), status, allDay, startTime, endTime, note });
+          if (result) { setPicked([]); setRepeatWeeks(0); setNote(""); }
+        }}>{busy ? "Saving…" : `Save ${picked.length || ""} selected day${picked.length === 1 ? "" : "s"}`}</button>
+        <p className="muted availability-safety-note">Existing assignments stay in place. If you mark an already scheduled day unavailable, the scheduler will flag the conflict for review.</p>
+      </section>
+    </div>
+
+    <section className="availability-saved-list">
+      <div className="entry-head"><div><span className="section-kicker">Saved entries</span><h3>{data.employees.find((employee) => employee.id === memberId)?.name || "Employee"}</h3></div><span>{memberEntries.length} total</span></div>
+      {!memberEntries.length && <p className="muted">No availability has been submitted yet.</p>}
+      <div className="availability-entry-grid">
+        {memberEntries.slice().sort((a, b) => a.availabilityDate.localeCompare(b.availabilityDate)).map((entry) => <article key={entry.id} className={`availability-entry ${entry.status}`}>
+          <div><b>{friendlyDate(entry.availabilityDate)}</b><span>{entry.status === "available" ? "Available" : "Unavailable"} · {entry.allDay ? "All day" : `${entry.startTime}–${entry.endTime}`}</span>{entry.note && <small>{entry.note}</small>}</div>
+          <div className="row-actions"><button className="link" onClick={() => editEntry(entry)}>Edit</button><button className="link danger" disabled={busy} onClick={() => act({ action: "deleteAvailability", memberId, date: entry.availabilityDate })}>Remove</button></div>
+        </article>)}
+      </div>
+    </section>
+  </div>;
 }
 
 function TimeOffScreen({ data, isAdmin, act, busy }: { data: Data; isAdmin: boolean; act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean }) {
