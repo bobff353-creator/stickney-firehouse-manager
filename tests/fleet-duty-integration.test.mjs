@@ -39,9 +39,9 @@ test("links Fleet weekly due days to Duties, Daily Log, and Live Operations", as
     read("app/api/dashboard/route.ts"),
     read("app/operations-board.tsx"),
   ]);
-  assert.match(duties, /check=weekly/);
-  assert.match(duties, /Resume shared weekly check/);
-  assert.match(duties, /Fleet weekly checks/);
+  assert.match(duties, /check=\$\{encodeURIComponent\(check\.checkType\)\}/);
+  assert.match(duties, /Resume shared check/);
+  assert.match(duties, /Scheduled apparatus and inventory checks/);
   assert.match(digitalTwinRoute, /update_weekly_due_day/);
   assert.match(inventory, /Weekly check due day/);
   assert.match(inventory, /initialCheckType/);
@@ -51,10 +51,10 @@ test("links Fleet weekly due days to Duties, Daily Log, and Live Operations", as
   assert.match(dailyLog, /Fleet &amp; Inventory Checks/);
   assert.match(dashboard, /openFleetEquipmentIssues/);
   assert.match(board, /board-duty-checks/);
-  assert.match(board, /check=daily/);
+  assert.match(board, /check=\$\{encodeURIComponent\(check\.checkType\)\}/);
   assert.match(board, /dailyChecksNeedAttention/);
-  assert.match(board, /activeWeeklyChecks/);
-  assert.match(board, /scheduled weekly vehicle checks are completed/);
+  assert.match(board, /dailyFleetChecks/);
+  assert.match(board, /scheduled checks are completed/);
   assert.match(dailyDutyRoute, /pendingDailyFleetChecks/);
 });
 
@@ -76,9 +76,9 @@ test("blocks Officer Sign Out until required daily and scheduled weekly Fleet ch
   assert.match(dailyLog, /Fleet checks required before sign out/);
   assert.match(dailyLog, /acceptedFleetDuties/);
   assert.match(dailyLog, /I acknowledge that all required Fleet checks and assigned\s+duties/);
-  assert.match(projections, /checkType: "weekly"/);
-  assert.match(projections, /checkType: "daily"/);
-  assert.match(projections, /weekly_due_day/);
+  assert.match(projections, /inventory_inspection_schedules/);
+  assert.match(projections, /require_officer_signoff/);
+  assert.match(projections, /scheduledCheckCompleted/);
   assert.match(migration, /ADD COLUMN IF NOT EXISTS fleet_duties_acknowledged integer NOT NULL DEFAULT 0/);
   assert.match(styles, /Daily Log uses a dark phone workspace/);
   assert.match(styles, /\.officer-actions button:disabled\{[^}]*opacity:\.78/);

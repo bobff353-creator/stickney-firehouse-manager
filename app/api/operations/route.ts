@@ -25,6 +25,7 @@ function stringList(value: unknown, allowed?: Set<string>, limit = 25) {
 
 const checkTypes = new Set(["daily", "weekly", "inventory", "air_pack"]);
 const issueCategories = new Set(["vehicle", "air_pack", "equipment"]);
+const serviceTypes = new Set(["inspection", "preventive", "repair", "recall", "tires", "fluids", "electrical", "body", "other"]);
 
 function privateJson(value: unknown, status = 200) {
   return Response.json(value, {
@@ -63,6 +64,8 @@ export async function GET(request: Request) {
       checkItemsResult,
       exceptionsResult,
       workOrdersResult,
+      workOrderDocumentsResult,
+      inspectionSchedulesResult,
       stockItemsResult,
       stockLotsResult,
       restockRequestsResult,
@@ -109,9 +112,20 @@ export async function GET(request: Request) {
         .order("opened_at", { ascending: false }),
       supabase
         .from("inventory_work_orders")
-        .select("id,apparatus_id,equipment_id,status,priority,summary,details,assigned_to,opened_by,opened_at,due_at,closed_at,linked_exception_id,assigned_employee_ids,assigned_employee_names,repair_date,repair_cost,vendor,invoice_number,resolution_notes,closed_by")
+        .select("id,apparatus_id,equipment_id,status,priority,summary,details,assigned_to,opened_by,opened_at,due_at,closed_at,linked_exception_id,assigned_employee_ids,assigned_employee_names,repair_date,repair_cost,vendor,invoice_number,resolution_notes,closed_by,service_type,odometer,labor_hours,performed_by,parts_used,next_service_due_date,next_service_due_mileage")
         .eq("department_id", departmentId)
         .order("opened_at", { ascending: false }),
+      supabase
+        .from("inventory_work_order_documents")
+        .select("id,apparatus_id,work_order_id,document_type,original_filename,mime_type,byte_size,note,uploaded_by,uploaded_at")
+        .eq("department_id", departmentId)
+        .order("uploaded_at", { ascending: false }),
+      supabase
+        .from("inventory_inspection_schedules")
+        .select("id,apparatus_id,check_type,day_of_week,start_time,end_time,active,feeds_daily_duties,feeds_operations_board,require_officer_signoff,updated_by,updated_at")
+        .eq("department_id", departmentId)
+        .order("day_of_week")
+        .order("start_time"),
       supabase
         .from("inventory_stock_items")
         .select("id,name,sku,barcode,unit,par_level,reorder_point,expiration_tracked")
@@ -150,6 +164,8 @@ export async function GET(request: Request) {
       checkItemsResult,
       exceptionsResult,
       workOrdersResult,
+      workOrderDocumentsResult,
+      inspectionSchedulesResult,
       stockItemsResult,
       stockLotsResult,
       restockRequestsResult,
@@ -208,6 +224,14 @@ export async function GET(request: Request) {
       apparatus_status: apparatusById.get(item.apparatus_id)?.status || "not_recorded",
       equipment_name: equipmentById.get(item.equipment_id)?.name || "",
     }));
+    const workOrderDocuments = (workOrderDocumentsResult.data || []).map((item) => ({
+      ...item,
+      url: `/api/operations/documents/${item.id}`,
+    }));
+    const inspectionSchedules = (inspectionSchedulesResult.data || []).map((item) => ({
+      ...item,
+      apparatus_name: apparatusById.get(item.apparatus_id)?.name || "Unknown apparatus",
+    }));
     const lots = stockLotsResult.data || [];
     const stock = (stockItemsResult.data || []).flatMap((item) => {
       const itemLots = lots.filter((lot) => lot.stock_item_id === item.id);
@@ -254,6 +278,8 @@ export async function GET(request: Request) {
       checkItems,
       exceptions,
       workOrders,
+      workOrderDocuments,
+      inspectionSchedules,
       stock,
       restockRequests,
       locationChanges,
@@ -294,6 +320,47 @@ export async function POST(request: Request) {
     const actorId = session.context.user.id;
     const actor = session.context.user.email;
     const supabase = await createInventorySupabaseClient();
+
+    if (action === "save_inspection_schedule") {
+      const id = clean(body.id, 80);
+      const apparatusId = clean(body.apparatusId, 80);
+      const checkType = clean(body.checkType, 40);
+      const dayOfWeek = number(body.dayOfWeek, -1);
+      const startTime = clean(body.startTime, 8);
+      const endTime = clean(body.endTime, 8);
+      if (!apparatusId || !checkTypes.has(checkType) || dayOfWeek < 0 || dayOfWeek > 6 || !/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime) || endTime <= startTime) {
+        return privateJson({ error: "Choose an apparatus, inspection type, weekday, and a valid start/end time window." }, 400);
+      }
+      const { data: apparatus } = await supabase.from("inventory_apparatus_profiles").select("id").eq("department_id", departmentId).eq("id", apparatusId).maybeSingle();
+      if (!apparatus) return privateJson({ error: "The selected apparatus was not found." }, 404);
+      const row = {
+        department_id: departmentId,
+        apparatus_id: apparatusId,
+        check_type: checkType,
+        day_of_week: dayOfWeek,
+        start_time: startTime,
+        end_time: endTime,
+        active: body.active !== false,
+        feeds_daily_duties: body.feedsDailyDuties !== false,
+        feeds_operations_board: body.feedsOperationsBoard !== false,
+        require_officer_signoff: body.requireOfficerSignoff !== false,
+        updated_by: actor,
+        updated_at: new Date().toISOString(),
+      };
+      const query = id
+        ? supabase.from("inventory_inspection_schedules").update(row).eq("department_id", departmentId).eq("id", id).select("id").maybeSingle()
+        : supabase.from("inventory_inspection_schedules").upsert({ id: crypto.randomUUID(), ...row, created_by: actor }, { onConflict: "department_id,apparatus_id,check_type,day_of_week" }).select("id").maybeSingle();
+      const { data, error } = await query;
+      if (error) throw error;
+      return privateJson({ scheduleId: data?.id });
+    }
+
+    if (action === "delete_inspection_schedule") {
+      const id = clean(body.id, 80);
+      const { error } = await supabase.from("inventory_inspection_schedules").delete().eq("department_id", departmentId).eq("id", id);
+      if (error) throw error;
+      return privateJson({ deleted: id });
+    }
 
     if (action === "request_location_change") {
       const checkItemId = clean(body.checkItemId, 80);
@@ -957,12 +1024,15 @@ export async function POST(request: Request) {
       const apparatusId = clean(body.apparatusId, 80);
       const equipmentId = clean(body.equipmentId, 80) || null;
       const summary = clean(body.summary);
+      const requestedServiceType = clean(body.serviceType, 40) || "repair";
+      const odometer = body.odometer === "" || body.odometer === null || body.odometer === undefined ? null : number(body.odometer, -1);
       if (!apparatusId || !summary) {
         return privateJson(
           { error: "Select an apparatus and describe the work needed." },
           400,
         );
       }
+      if (!serviceTypes.has(requestedServiceType) || (odometer !== null && odometer < 0)) return privateJson({ error: "Choose a valid service type and nonnegative odometer reading." }, 400);
       if (equipmentId) {
         const { data: equipment } = await supabase
           .from("inventory_equipment")
@@ -988,6 +1058,8 @@ export async function POST(request: Request) {
         assigned_employee_ids: stringList(body.assignedEmployeeIds),
         assigned_employee_names: stringList(body.assignedEmployeeNames),
         opened_by: actor,
+        service_type: requestedServiceType,
+        odometer,
       };
       const { error } = await supabase.from("inventory_work_orders").insert(record);
       if (error) throw error;
@@ -1008,7 +1080,11 @@ export async function POST(request: Request) {
       const repairDate = clean(body.repairDate, 40);
       const resolutionNotes = clean(body.resolutionNotes, 1000);
       const repairCost = Number(body.repairCost);
-      if (!repairDate || !resolutionNotes || !Number.isFinite(repairCost) || repairCost < 0) {
+      const serviceType = clean(body.serviceType, 40) || "repair";
+      const odometer = body.odometer === "" || body.odometer === null || body.odometer === undefined ? null : number(body.odometer, -1);
+      const laborHours = body.laborHours === "" || body.laborHours === null || body.laborHours === undefined ? null : Number(body.laborHours);
+      const nextServiceMileage = body.nextServiceDueMileage === "" || body.nextServiceDueMileage === null || body.nextServiceDueMileage === undefined ? null : number(body.nextServiceDueMileage, -1);
+      if (!repairDate || !resolutionNotes || !Number.isFinite(repairCost) || repairCost < 0 || !serviceTypes.has(serviceType) || (odometer !== null && odometer < 0) || (laborHours !== null && (!Number.isFinite(laborHours) || laborHours < 0)) || (nextServiceMileage !== null && nextServiceMileage < 0)) {
         return privateJson(
           { error: "Repair date, repair details, and a valid cost are required." },
           400,
@@ -1033,6 +1109,13 @@ export async function POST(request: Request) {
           invoice_number: clean(body.invoiceNumber, 120) || null,
           resolution_notes: resolutionNotes,
           closed_by: actor,
+          service_type: serviceType,
+          odometer,
+          labor_hours: laborHours,
+          performed_by: clean(body.performedBy, 240) || clean(body.vendor, 240) || null,
+          parts_used: clean(body.partsUsed, 2000) || null,
+          next_service_due_date: clean(body.nextServiceDueDate, 40) || null,
+          next_service_due_mileage: nextServiceMileage,
         })
         .eq("department_id", departmentId)
         .eq("id", workOrderId)

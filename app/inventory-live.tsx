@@ -825,7 +825,7 @@ export default function Inventory360({
       ) : null}
 
       {view === "service" ? (
-        <section className="page">
+        <section className="page service-page">
           <div className="page-heading compact">
             <div>
               <span className="eyebrow">ASSIGNED REPAIRS</span>

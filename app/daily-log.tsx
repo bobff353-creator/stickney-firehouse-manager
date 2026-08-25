@@ -57,9 +57,11 @@ type ApparatusCheck = {
 type RequiredFleetCheck = {
   apparatusId: string;
   unit: string;
-  checkType: "daily" | "weekly";
+  checkType: "daily" | "weekly" | "inventory" | "air_pack";
   status: "pending" | "in_progress";
   startedAt: string | null;
+  startTime: string;
+  endTime: string;
 };
 type CallbackEmployee = {
   employeeId: string;
@@ -229,7 +231,7 @@ function shiftMinutes(value: string, shiftKey: string) {
   return shiftKey === "overnight" && total <= 360 ? total + 1440 : total;
 }
 const fleetCheckList = (checks: RequiredFleetCheck[]) =>
-  checks.map((check) => `${check.unit} ${check.checkType}`).join(", ");
+  checks.map((check) => `${check.unit} ${check.checkType.replaceAll("_", " ")} (${check.startTime}–${check.endTime})`).join(", ");
 
 function CallbackPanel({ call, logDate }: { call: CallRow; logDate: string }) {
   const [open, setOpen] = useState(false);

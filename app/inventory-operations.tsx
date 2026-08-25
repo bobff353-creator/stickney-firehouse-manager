@@ -8,11 +8,11 @@ import Link from "next/link";
 import type { IScannerControls } from "@zxing/browser";
 
 type OperationsView = "due" | "inventory" | "check" | "equipment" | "reports" | "readiness" | "service" | "stock" | "builder" | "legacy_check" | "legacy_service";
-type Row = Record<string, string | number | string[] | null>;
+type Row = Record<string, string | number | boolean | string[] | null>;
 type CheckCard = {
   apparatusId: string;
   name: string;
-  checkType: "daily" | "weekly" | "inventory";
+  checkType: "daily" | "weekly" | "inventory" | "air_pack";
   active: Row | undefined;
   pending: number;
   total: number;
@@ -29,6 +29,8 @@ type OperationsData = {
   checkItems: Row[];
   exceptions: Row[];
   workOrders: Row[];
+  workOrderDocuments: Row[];
+  inspectionSchedules: Row[];
   stock: Row[];
   restockRequests: Row[];
   locationChanges: Row[];
@@ -46,6 +48,8 @@ const emptyData: OperationsData = {
   checkItems: [],
   exceptions: [],
   workOrders: [],
+  workOrderDocuments: [],
+  inspectionSchedules: [],
   stock: [],
   restockRequests: [],
   locationChanges: [],
@@ -63,6 +67,8 @@ const categoryOptions = [
   ["air_pack", "Air pack"],
   ["equipment", "Equipment"],
 ] as const;
+
+const weekDays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 function value(row: Row, key: string) {
   const item = row[key];
@@ -222,6 +228,8 @@ export default function InventoryOperations({
   const [equipmentRigFilter, setEquipmentRigFilter] = useState("all");
   const [equipmentSort, setEquipmentSort] = useState<"rig" | "name" | "compartment" | "status">("rig");
   const [repairEquipment, setRepairEquipment] = useState<Row | null>(null);
+  const [maintenanceApparatusId, setMaintenanceApparatusId] = useState("all");
+  const [selectedMaintenanceOrder, setSelectedMaintenanceOrder] = useState<Row | null>(null);
   const [selectedReportCheck, setSelectedReportCheck] = useState<Row | null>(null);
   const [checkReviewNotes, setCheckReviewNotes] = useState<Record<string, string>>({});
   const [checkSearch, setCheckSearch] = useState("");
@@ -347,6 +355,8 @@ export default function InventoryOperations({
         checkItems: payload.checkItems || [],
         exceptions: payload.exceptions || [],
         workOrders: payload.workOrders || [],
+        workOrderDocuments: payload.workOrderDocuments || [],
+        inspectionSchedules: payload.inspectionSchedules || [],
         stock: payload.stock || [],
         restockRequests: payload.restockRequests || [],
         locationChanges: payload.locationChanges || [],
@@ -512,6 +522,19 @@ export default function InventoryOperations({
     return payload.photo.id;
   }
 
+  async function uploadMaintenanceDocument(workOrderId: string, file: File, documentType: string, note: string) {
+    const form = new FormData();
+    form.set("workOrderId", workOrderId);
+    form.set("file", file);
+    form.set("documentType", documentType);
+    form.set("note", note);
+    const response = await fetch("/api/operations/documents", { method: "POST", body: form });
+    const payload = await response.json().catch(() => ({})) as { document?: { id?: string }; error?: string };
+    if (!response.ok || !payload.document?.id) throw new Error(payload.error || "The service document could not be saved.");
+    await load({ background: true });
+    setMessage("Service document added to the apparatus maintenance history.");
+  }
+
   async function uploadEquipmentPhoto(item: Row, photo: File) {
     const form = new FormData();
     form.set("apparatusId", value(item, "apparatus_id"));
@@ -621,6 +644,12 @@ export default function InventoryOperations({
     && Boolean(viewerEmployeeId)
     && item.assigned_employee_ids.includes(viewerEmployeeId)
   ));
+  const maintenanceOrders = useMemo(() => data.workOrders.filter((item) => maintenanceApparatusId === "all" || value(item, "apparatus_id") === maintenanceApparatusId), [data.workOrders, maintenanceApparatusId]);
+  const documentsForOrder = (orderId: string) => data.workOrderDocuments.filter((item) => value(item, "work_order_id") === orderId);
+  const printMaintenanceTicket = (order: Row) => {
+    setSelectedMaintenanceOrder(order);
+    window.setTimeout(() => window.print(), 80);
+  };
   const stockRows = useMemo(() => {
     const grouped = new Map<string, { row: Row; total: number; lots: Row[] }>();
     for (const row of data.stock) {
@@ -663,19 +692,23 @@ export default function InventoryOperations({
   const dueChecks: CheckCard[] = data.apparatus.flatMap((apparatus) => {
     const apparatusId = value(apparatus, "id");
     const equipment = data.equipment.filter((item) => value(item, "apparatus_id") === apparatusId);
-    const required = (["daily", ...(Number(apparatus.weekly_due_day) === todayDay ? ["weekly"] : [])] as Array<"daily" | "weekly">).filter((checkType) => equipment.some((item) => Array.isArray(item.check_types) && item.check_types.includes(checkType)));
-    return required.flatMap((checkType) => {
-      const completedToday = data.checks.some((check) => value(check, "apparatus_id") === apparatusId
+    const schedules = data.inspectionSchedules.filter((schedule) => value(schedule, "apparatus_id") === apparatusId && Number(schedule.day_of_week) === todayDay && schedule.active !== false);
+    return schedules.flatMap((schedule) => {
+      const checkType = value(schedule, "check_type") as CheckCard["checkType"];
+      if (!equipment.some((item) => Array.isArray(item.check_types) && item.check_types.includes(checkType))) return [];
+      const completedInWindow = data.checks.some((check) => value(check, "apparatus_id") === apparatusId
         && value(check, "check_type") === checkType
         && value(check, "status") === "completed"
         && value(check, "review_status") !== "changes_requested"
         && value(check, "completed_at")
-        && new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value(check, "completed_at"))) === chicagoToday);
-      if (completedToday) return [];
+        && (checkType === "weekly"
+          ? (() => { const completed = new Date(value(check, "completed_at")); const todayAtNoon = new Date(`${chicagoToday}T12:00:00Z`); const mondayOffset = (todayAtNoon.getUTCDay() + 6) % 7; todayAtNoon.setUTCDate(todayAtNoon.getUTCDate() - mondayOffset); return completed >= todayAtNoon; })()
+          : new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value(check, "completed_at"))) === chicagoToday));
+      if (completedInWindow) return [];
       const active = data.checks.find((check) => value(check, "apparatus_id") === apparatusId && value(check, "check_type") === checkType && value(check, "status") === "in_progress");
       const checkItems = active ? data.checkItems.filter((item) => value(item, "check_id") === value(active, "id")) : [];
       const pending = checkItems.filter((item) => value(item, "result") === "pending").length;
-      return [{ apparatusId, name: value(apparatus, "name"), checkType, active, pending, total: checkItems.length, configured: equipment.filter((item) => Array.isArray(item.check_types) && item.check_types.includes(checkType)).length }];
+      return [{ apparatusId, name: value(apparatus, "name"), checkType, active, pending, total: checkItems.length, configured: equipment.filter((item) => Array.isArray(item.check_types) && item.check_types.includes(checkType)).length, dueStart: value(schedule, "start_time"), dueEnd: value(schedule, "end_time") } as CheckCard];
     });
   });
   const inventoryChecks: CheckCard[] = data.apparatus.flatMap((apparatus) => {
@@ -697,7 +730,7 @@ export default function InventoryOperations({
 
   const renderCheckCards = (
     checks: CheckCard[],
-    labelFor: (checkType: "daily" | "weekly" | "inventory") => string,
+    labelFor: (checkType: CheckCard["checkType"]) => string,
   ) => <div className="due-check-grid">{checks.map((item) => {
     const complete = item.total ? item.total - item.pending : 0;
     const percent = item.total ? Math.round((complete / item.total) * 100) : 0;
@@ -768,7 +801,7 @@ export default function InventoryOperations({
         <>
           <section className="ops-card due-now-card">
             <header><div><span>APPARATUS CHECKS DUE NOW</span><h2>{dueChecks.length ? `${dueChecks.length} required check${dueChecks.length === 1 ? "" : "s"}` : "All required checks are complete"}</h2></div><b>{data.checks.filter((check) => value(check, "status") === "in_progress" && value(check, "check_type") !== "inventory").length} in progress</b></header>
-            {dueChecks.length ? renderCheckCards(dueChecks, (checkType) => checkType === "weekly" ? "WEEKLY · DUE TODAY" : "DAILY · DUE TODAY") : <div className="ops-empty due-clear"><strong>No required apparatus checks are waiting.</strong><p>Completed daily and scheduled weekly checks fall off this list automatically.</p></div>}
+            {dueChecks.length ? renderCheckCards(dueChecks, (checkType) => `${formatStatus(checkType)} · DUE TODAY`) : <div className="ops-empty due-clear"><strong>No required apparatus checks are waiting.</strong><p>Completed scheduled checks fall off this list automatically.</p></div>}
           </section>
           <section className="ops-card inventory-checks-card">
             <header><div><span>SEPARATE INVENTORY CHECKS</span><h2>Inventory by apparatus</h2></div><b>{inventoryChecks.length} apparatus</b></header>
@@ -778,10 +811,40 @@ export default function InventoryOperations({
       ) : null}
 
       {view === "inventory" ? (
-        <section className="ops-card inventory-checks-card standalone-inventory-checks">
-          <header><div><span>APPARATUS INVENTORY</span><h2>Choose the apparatus to inventory</h2></div><b>{inventoryChecks.length} apparatus</b></header>
-          {inventoryChecks.length ? renderCheckCards(inventoryChecks, () => "INVENTORY CHECK") : <div className="ops-empty"><strong>No apparatus inventory checks are configured.</strong><p>An administrator can assign equipment to the Inventory check in Admin Configuration.</p></div>}
-        </section>
+        <>
+          <section className="ops-card inventory-checks-card standalone-inventory-checks">
+            <header><div><span>APPARATUS INVENTORY</span><h2>Choose the apparatus to inventory</h2></div><b>{inventoryChecks.length} apparatus</b></header>
+            {inventoryChecks.length ? renderCheckCards(inventoryChecks, () => "INVENTORY CHECK") : <div className="ops-empty"><strong>No apparatus inventory checks are configured.</strong><p>An administrator can assign equipment to the Inventory check in Admin Configuration.</p></div>}
+          </section>
+          {canSetup ? <section className="ops-card inspection-scheduler-card">
+            <header><div><span>ADMIN INSPECTION SCHEDULER</span><h2>Set required day and completion window</h2><p>Scheduled checks automatically appear in Daily Duties and Live Operations and can block officer sign-out until completed.</p></div><b>{data.inspectionSchedules.filter((item) => item.active !== false).length} active</b></header>
+            <form className="inspection-schedule-form" onSubmit={(event) => {
+              const form = new FormData(event.currentTarget);
+              submit(event, "inspection-schedule", { action: "save_inspection_schedule", apparatusId: form.get("apparatusId"), checkType: form.get("checkType"), dayOfWeek: form.get("dayOfWeek"), startTime: form.get("startTime"), endTime: form.get("endTime"), feedsDailyDuties: true, feedsOperationsBoard: true, requireOfficerSignoff: true });
+            }}>
+              <label>Apparatus<select name="apparatusId" required>{data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")}</option>)}</select></label>
+              <label>Check type<select name="checkType" defaultValue="inventory">{inspectionTypes.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
+              <label>Day of week<select name="dayOfWeek" defaultValue={todayDay}>{weekDays.map((day, index) => <option key={day} value={index}>{day}</option>)}</select></label>
+              <label>Start time<input name="startTime" type="time" defaultValue="06:00" required /></label>
+              <label>Due by<input name="endTime" type="time" defaultValue="12:00" required /></label>
+              <button className="ops-primary" disabled={Boolean(busy)}>Add or replace schedule</button>
+            </form>
+            <div className="inspection-schedule-list">{data.inspectionSchedules.map((schedule) => <form key={value(schedule, "id")} onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              void action(`schedule-${value(schedule, "id")}`, { action: "save_inspection_schedule", id: value(schedule, "id"), apparatusId: value(schedule, "apparatus_id"), checkType: value(schedule, "check_type"), dayOfWeek: value(schedule, "day_of_week"), startTime: form.get("startTime"), endTime: form.get("endTime"), active: Boolean(form.get("active")), feedsDailyDuties: Boolean(form.get("feedsDailyDuties")), feedsOperationsBoard: Boolean(form.get("feedsOperationsBoard")), requireOfficerSignoff: Boolean(form.get("requireOfficerSignoff")) });
+            }}>
+              <div><strong>{value(schedule, "apparatus_name")}</strong><span>{weekDays[Number(schedule.day_of_week)]} · {formatStatus(schedule.check_type)}</span></div>
+              <label>Start<input name="startTime" type="time" defaultValue={value(schedule, "start_time").slice(0, 5)} /></label>
+              <label>Due by<input name="endTime" type="time" defaultValue={value(schedule, "end_time").slice(0, 5)} /></label>
+              <label className="schedule-toggle"><input name="active" type="checkbox" defaultChecked={schedule.active !== false} /> Active</label>
+              <label className="schedule-toggle"><input name="feedsDailyDuties" type="checkbox" defaultChecked={schedule.feeds_daily_duties !== false} /> Daily Duties</label>
+              <label className="schedule-toggle"><input name="feedsOperationsBoard" type="checkbox" defaultChecked={schedule.feeds_operations_board !== false} /> Ops Board</label>
+              <label className="schedule-toggle"><input name="requireOfficerSignoff" type="checkbox" defaultChecked={schedule.require_officer_signoff !== false} /> Sign-out required</label>
+              <button disabled={Boolean(busy)}>Save</button><button className="danger" type="button" disabled={Boolean(busy)} onClick={() => void action(`delete-schedule-${value(schedule, "id")}`, { action: "delete_inspection_schedule", id: value(schedule, "id") })}>Remove</button>
+            </form>)}</div>
+          </section> : null}
+        </>
       ) : null}
 
       {view === "equipment" ? (
@@ -1134,6 +1197,22 @@ export default function InventoryOperations({
               <button className="ops-primary" disabled={Boolean(busy)}>Assign repair notice</button>
             </form>}
           </section> : null}
+          {canManageRepairs ? <section className="ops-card maintenance-work-order-create">
+            <header><div><span>NEW APPARATUS WORK ORDER</span><h2>Record repair or preventive maintenance</h2></div></header>
+            <form className="ops-form ops-form-wide" onSubmit={(event) => {
+              const form = new FormData(event.currentTarget);
+              submit(event, "apparatus-work-order", { action: "create_work_order", apparatusId: form.get("apparatusId"), priority: form.get("priority"), serviceType: form.get("serviceType"), odometer: form.get("odometer"), summary: form.get("summary"), details: form.get("details"), assignedTo: form.get("assignedTo") });
+            }}>
+              <label>Apparatus<select name="apparatusId" required>{data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")}</option>)}</select></label>
+              <label>Service type<select name="serviceType" defaultValue="preventive"><option value="inspection">Inspection</option><option value="preventive">Preventive maintenance</option><option value="repair">Repair</option><option value="recall">Recall</option><option value="tires">Tires</option><option value="fluids">Fluids</option><option value="electrical">Electrical</option><option value="body">Body</option><option value="other">Other</option></select></label>
+              <label>Priority<select name="priority" defaultValue="routine"><option value="routine">Routine</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select></label>
+              <label>Current mileage / odometer<input name="odometer" type="number" min="0" step="1" /></label>
+              <label className="ops-span-2">Summary<input name="summary" required placeholder="Example: Annual pump service" /></label>
+              <label className="ops-span-2">Requested work<textarea name="details" rows={3} /></label>
+              <label>Assigned shop or employee<input name="assignedTo" /></label>
+              <button className="ops-primary" disabled={Boolean(busy)}>Open work order</button>
+            </form>
+          </section> : null}
           <section className="ops-card assigned-repairs">
             <header><div><span>MY ASSIGNED REPAIRS</span><h2>Repairs assigned to this employee</h2></div><b>{myOpenRepairs.length} open</b></header>
             {myOpenRepairs.length ? <div className="ops-list">{myOpenRepairs.map((item) => <article key={value(item, "id")}><div><strong>{value(item, "summary")}</strong><small>{value(item, "apparatus_name")} · Opened {formatDate(item.opened_at)}</small></div><span className={`priority-${value(item, "priority")}`}>{value(item, "priority")} · {formatStatus(normalizedRepairStatus(item))}</span><p>{value(item, "details")}</p>{canManageRepairs ? <><RepairStatusControl item={item} busy={Boolean(busy)} onUpdate={action} /><RepairCompletionForm item={item} busy={Boolean(busy)} onComplete={action} /></> : null}</article>)}</div> : <div className="ops-empty"><strong>No repairs assigned to you</strong><p>Open notices assigned to this employee will appear here and on the home page.</p></div>}
@@ -1145,6 +1224,37 @@ export default function InventoryOperations({
               return <section key={stage} className={`repair-column stage-${stage}`}><header><strong>{label}</strong><span>{stageItems.length}</span></header>{stageItems.length ? stageItems.map((item) => <article key={value(item, "id")}><div><strong>{value(item, "summary")}</strong><small>{value(item, "apparatus_name")} · Opened {formatDate(item.opened_at)}</small></div><span className={`priority-${value(item, "priority")}`}>{formatStatus(item.priority)}</span>{value(item, "details") ? <p>{value(item, "details")}</p> : null}{Array.isArray(item.assigned_employee_names) && item.assigned_employee_names.length ? <small>Assigned to {item.assigned_employee_names.join(", ")}</small> : null}{stage === "closed" ? <p>Repaired {value(item, "repair_date")} · Cost ${Number(item.repair_cost || 0).toFixed(2)}{value(item, "vendor") ? ` · ${value(item, "vendor")}` : ""}<br />{value(item, "resolution_notes")}</p> : canManageRepairs ? <><RepairStatusControl item={item} busy={Boolean(busy)} onUpdate={action} /><RepairCompletionForm item={item} busy={Boolean(busy)} onComplete={action} /></> : null}</article>) : <p className="repair-column-empty">No repairs</p>}</section>;
             })}</div> : <div className="ops-empty"><strong>No repair records yet</strong><p>Failed inspections and assigned repair notices create records automatically.</p></div>}
           </section>
+          <section className="ops-card apparatus-maintenance-history">
+            <header><div><span>PERMANENT APPARATUS RECORD</span><h2>Maintenance history, service tickets, and receipts</h2><p>Filter by apparatus to review every repair, who performed it, costs, parts, mileage, and uploaded documents.</p></div><b>{maintenanceOrders.length} records</b></header>
+            <label className="maintenance-apparatus-filter">Apparatus<select value={maintenanceApparatusId} onChange={(event) => setMaintenanceApparatusId(event.target.value)}><option value="all">All apparatus</option>{data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")}</option>)}</select></label>
+            {maintenanceOrders.length ? <div className="maintenance-timeline">{maintenanceOrders.map((item) => {
+              const orderId = value(item, "id");
+              const documents = documentsForOrder(orderId);
+              return <article key={orderId} className={value(item, "status") === "closed" ? "completed" : "open"}>
+                <header><div><span>{formatStatus(item.service_type) || "Repair"}</span><h3>{value(item, "apparatus_name")} · {value(item, "summary")}</h3><small>Opened {formatDate(item.opened_at)} by {value(item, "opened_by") || "Not recorded"}</small></div><b>{formatStatus(item.status)}</b></header>
+                <p>{value(item, "details") || value(item, "resolution_notes") || "No service detail recorded."}</p>
+                <dl><div><dt>Work performed by</dt><dd>{value(item, "performed_by") || value(item, "vendor") || value(item, "assigned_to") || "Not recorded"}</dd></div><div><dt>Service date</dt><dd>{value(item, "repair_date") || "Open"}</dd></div><div><dt>Odometer</dt><dd>{value(item, "odometer") ? Number(item.odometer).toLocaleString() : "Not recorded"}</dd></div><div><dt>Labor</dt><dd>{value(item, "labor_hours") ? `${value(item, "labor_hours")} hours` : "Not recorded"}</dd></div><div><dt>Cost</dt><dd>{item.repair_cost !== null && item.repair_cost !== "" ? `$${Number(item.repair_cost).toFixed(2)}` : "Not recorded"}</dd></div><div><dt>Invoice / PO</dt><dd>{value(item, "invoice_number") || "Not recorded"}</dd></div><div><dt>Next service</dt><dd>{value(item, "next_service_due_date") || "Not scheduled"}{value(item, "next_service_due_mileage") ? ` · ${Number(item.next_service_due_mileage).toLocaleString()} miles` : ""}</dd></div></dl>
+                {value(item, "parts_used") ? <p><strong>Parts/materials:</strong> {value(item, "parts_used")}</p> : null}
+                <div className="maintenance-documents"><strong>Documents</strong>{documents.length ? documents.map((document) => <a key={value(document, "id")} href={value(document, "url")} target="_blank" rel="noreferrer" download><span>{formatStatus(document.document_type)}</span><b>{value(document, "original_filename")}</b><small>{formatDate(document.uploaded_at)}</small></a>) : <span>No service tickets or receipts uploaded.</span>}</div>
+                <div className="maintenance-actions"><button type="button" onClick={() => printMaintenanceTicket(item)}>Print service ticket</button>{canManageRepairs ? <form onSubmit={(event) => {
+                  event.preventDefault();
+                  const form = new FormData(event.currentTarget);
+                  const file = form.get("file");
+                  if (!(file instanceof File) || !file.size) return setError("Choose a service ticket, receipt, invoice, or photo.");
+                  setBusy(`document-${orderId}`);
+                  const formElement = event.currentTarget;
+                  void uploadMaintenanceDocument(orderId, file, String(form.get("documentType") || "other"), String(form.get("note") || "")).then(() => formElement.reset()).catch((caught) => setError(caught instanceof Error ? caught.message : "The service document could not be saved.")).finally(() => setBusy(""));
+                }}><select name="documentType" aria-label="Document type"><option value="service_ticket">Service ticket</option><option value="receipt">Receipt</option><option value="invoice">Invoice</option><option value="warranty">Warranty</option><option value="inspection">Inspection</option><option value="photo">Photo</option><option value="other">Other</option></select><input name="file" type="file" accept="application/pdf,image/*" aria-label="Choose service document" required /><input name="note" placeholder="Optional document note" aria-label="Document note" /><button disabled={Boolean(busy)}>Upload document</button></form> : null}</div>
+              </article>;
+            })}</div> : <div className="ops-empty"><strong>No maintenance history for this apparatus.</strong><p>Create a repair or preventive maintenance work order to begin its permanent record.</p></div>}
+          </section>
+          {selectedMaintenanceOrder ? <section className="ops-card maintenance-ticket-print-host">
+            <header><div><span>STICKNEY FIRE DEPARTMENT · APPARATUS SERVICE TICKET</span><h2>{value(selectedMaintenanceOrder, "apparatus_name")} · {value(selectedMaintenanceOrder, "summary")}</h2></div><button type="button" onClick={() => setSelectedMaintenanceOrder(null)}>Close</button></header>
+            <div className="report-metadata"><span><b>Ticket ID</b>{value(selectedMaintenanceOrder, "id")}</span><span><b>Service type</b>{formatStatus(selectedMaintenanceOrder.service_type)}</span><span><b>Status</b>{formatStatus(selectedMaintenanceOrder.status)}</span><span><b>Opened</b>{formatDate(selectedMaintenanceOrder.opened_at)}</span><span><b>Service date</b>{value(selectedMaintenanceOrder, "repair_date") || "Pending"}</span><span><b>Performed by</b>{value(selectedMaintenanceOrder, "performed_by") || value(selectedMaintenanceOrder, "vendor") || "Not recorded"}</span><span><b>Odometer</b>{value(selectedMaintenanceOrder, "odometer") || "Not recorded"}</span><span><b>Labor</b>{value(selectedMaintenanceOrder, "labor_hours") ? `${value(selectedMaintenanceOrder, "labor_hours")} hours` : "Not recorded"}</span><span><b>Cost</b>${Number(selectedMaintenanceOrder.repair_cost || 0).toFixed(2)}</span><span><b>Invoice / PO</b>{value(selectedMaintenanceOrder, "invoice_number") || "Not recorded"}</span></div>
+            <h3>Reported condition</h3><p>{value(selectedMaintenanceOrder, "details") || "Not recorded"}</p><h3>Work completed</h3><p>{value(selectedMaintenanceOrder, "resolution_notes") || "Pending"}</p><h3>Parts and materials</h3><p>{value(selectedMaintenanceOrder, "parts_used") || "None recorded"}</p>
+            <footer><span>Closed by: {value(selectedMaintenanceOrder, "closed_by") || "Pending"}</span><span>Next service: {value(selectedMaintenanceOrder, "next_service_due_date") || "Not scheduled"}</span><span>Generated {formatDate(Date.now())}</span></footer>
+            <button type="button" onClick={() => window.print()}>Print / Save PDF</button>
+          </section> : null}
         </>
       ) : null}
 
@@ -1288,11 +1398,13 @@ export default function InventoryOperations({
           <form className="camera-panel equipment-repair-panel" role="dialog" aria-modal="true" aria-label="Create equipment repair ticket" onSubmit={(event) => {
             event.preventDefault();
             const form = new FormData(event.currentTarget);
-            void action(`repair-${value(repairEquipment, "id")}`, { action: "create_work_order", apparatusId: value(repairEquipment, "apparatus_id"), equipmentId: value(repairEquipment, "id"), priority: form.get("priority"), summary: form.get("summary"), details: form.get("details") }).then((saved) => { if (saved) { setRepairEquipment(null); setSelectedDirectoryEquipment(null); } });
+            void action(`repair-${value(repairEquipment, "id")}`, { action: "create_work_order", apparatusId: value(repairEquipment, "apparatus_id"), equipmentId: value(repairEquipment, "id"), priority: form.get("priority"), serviceType: form.get("serviceType"), odometer: form.get("odometer"), summary: form.get("summary"), details: form.get("details") }).then((saved) => { if (saved) { setRepairEquipment(null); setSelectedDirectoryEquipment(null); } });
           }}>
             <header><div><span>NEW REPAIR TICKET</span><h3>{value(repairEquipment, "name")}</h3></div><button type="button" onClick={() => setRepairEquipment(null)}>Cancel</button></header>
             <p>This item will be marked In Repair and the ticket will appear in the Repairs board.</p>
             <label>Priority<select name="priority" defaultValue="routine"><option value="routine">Routine</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select></label>
+            <label>Service type<select name="serviceType" defaultValue="repair"><option value="inspection">Inspection</option><option value="preventive">Preventive maintenance</option><option value="repair">Repair</option><option value="recall">Recall</option><option value="tires">Tires</option><option value="fluids">Fluids</option><option value="electrical">Electrical</option><option value="body">Body</option><option value="other">Other</option></select></label>
+            <label>Current mileage / odometer<input name="odometer" type="number" min="0" step="1" /></label>
             <label>Repair summary<input name="summary" defaultValue={`Repair ${value(repairEquipment, "name")}`} required /></label>
             <label>Problem and work needed<textarea name="details" rows={5} required placeholder="Describe the problem, current condition, and required work" /></label>
             <button className="ops-primary" disabled={Boolean(busy)}>Create repair ticket</button>
@@ -1400,12 +1512,19 @@ function RepairCompletionForm({
     <form className="repair-completion-form" onSubmit={(event) => {
       event.preventDefault();
       const form = new FormData(event.currentTarget);
-      void onComplete(`close-${value(item, "id")}`, { action: "close_work_order", workOrderId: value(item, "id"), repairDate: form.get("repairDate"), repairCost: form.get("repairCost"), vendor: form.get("vendor"), invoiceNumber: form.get("invoiceNumber"), resolutionNotes: form.get("resolutionNotes") });
+      void onComplete(`close-${value(item, "id")}`, { action: "close_work_order", workOrderId: value(item, "id"), repairDate: form.get("repairDate"), repairCost: form.get("repairCost"), serviceType: form.get("serviceType"), odometer: form.get("odometer"), laborHours: form.get("laborHours"), vendor: form.get("vendor"), performedBy: form.get("performedBy"), invoiceNumber: form.get("invoiceNumber"), partsUsed: form.get("partsUsed"), nextServiceDueDate: form.get("nextServiceDueDate"), nextServiceDueMileage: form.get("nextServiceDueMileage"), resolutionNotes: form.get("resolutionNotes") });
     }}>
       <label>Repair date<input name="repairDate" type="date" required /></label>
+      <label>Service type<select name="serviceType" defaultValue={value(item, "service_type") || "repair"}><option value="inspection">Inspection</option><option value="preventive">Preventive maintenance</option><option value="repair">Repair</option><option value="recall">Recall</option><option value="tires">Tires</option><option value="fluids">Fluids</option><option value="electrical">Electrical</option><option value="body">Body</option><option value="other">Other</option></select></label>
       <label>Cost<input name="repairCost" type="number" min="0" step="0.01" defaultValue="0.00" required /></label>
-      <label>Vendor / repaired by<input name="vendor" /></label>
+      <label>Current mileage / odometer<input name="odometer" type="number" min="0" step="1" defaultValue={value(item, "odometer")} /></label>
+      <label>Labor hours<input name="laborHours" type="number" min="0" step="0.25" /></label>
+      <label>Vendor / shop<input name="vendor" /></label>
+      <label>Technician / work performed by<input name="performedBy" /></label>
       <label>Invoice / PO<input name="invoiceNumber" /></label>
+      <label>Next service date<input name="nextServiceDueDate" type="date" /></label>
+      <label>Next service mileage<input name="nextServiceDueMileage" type="number" min="0" step="1" /></label>
+      <label className="ops-span-2">Parts and materials<textarea name="partsUsed" rows={2} /></label>
       <label className="ops-span-2">Repair details<textarea name="resolutionNotes" rows={3} required /></label>
       <button disabled={busy}>Mark repaired and clear Live Ops issue</button>
     </form>

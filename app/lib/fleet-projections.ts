@@ -6,6 +6,9 @@ export type FleetDutyCheck = {
   status: "pending" | "in_progress" | "completed";
   startedAt: string | null;
   completedAt: string | null;
+  checkType: "daily" | "weekly" | "inventory" | "air_pack";
+  startTime: string;
+  endTime: string;
 };
 
 export type FleetDailyCheck = {
@@ -13,10 +16,13 @@ export type FleetDailyCheck = {
   unit: string;
   status: "pending" | "in_progress";
   startedAt: string | null;
+  checkType: "daily" | "weekly" | "inventory" | "air_pack";
+  startTime: string;
+  endTime: string;
 };
 
 export type RequiredFleetCheck = FleetDailyCheck & {
-  checkType: "daily" | "weekly";
+  checkType: "daily" | "weekly" | "inventory" | "air_pack";
 };
 
 export type DailyLogApparatusCheck = {
@@ -72,6 +78,14 @@ export function dailyFleetCheckUrgency(minutes: number) {
   return "overdue" as const;
 }
 
+function scheduledCheckCompleted(check: { status?: unknown; completed_at?: unknown; review_status?: unknown }, checkType: string, date: string) {
+  if (check.status !== "completed" || !check.completed_at || check.review_status === "changes_requested") return false;
+  const completedDate = chicagoCalendarDate(String(check.completed_at));
+  if (checkType !== "weekly") return completedDate === date;
+  const week = chicagoWeekForDate(date);
+  return completedDate >= week.start && completedDate < week.end;
+}
+
 export async function weeklyDutyCheckMap(
   supabase: SupabaseClient,
   departmentId: string,
@@ -81,44 +95,49 @@ export async function weeklyDutyCheckMap(
   const result = new Map<string, FleetDutyCheck[]>();
   if (!departmentId) return result;
 
-  const [{ data: apparatus, error: apparatusError }, { data: checks, error: checksError }] = await Promise.all([
+  const [{ data: schedules, error: scheduleError }, { data: apparatus, error: apparatusError }, { data: checks, error: checksError }] = await Promise.all([
+    supabase
+      .from("inventory_inspection_schedules")
+      .select("apparatus_id,check_type,day_of_week,start_time,end_time")
+      .eq("department_id", departmentId)
+      .eq("active", true)
+      .eq("feeds_daily_duties", true),
     supabase
       .from("inventory_apparatus_profiles")
-      .select("id,name,weekly_due_day")
+      .select("id,name")
       .eq("department_id", departmentId),
     supabase
       .from("inventory_checks")
-      .select("id,apparatus_id,status,started_at,completed_at")
+      .select("id,apparatus_id,check_type,status,started_at,completed_at,review_status")
       .eq("department_id", departmentId)
-      .eq("check_type", "weekly")
       .in("status", ["in_progress", "completed"])
       .order("started_at", { ascending: false })
-      .limit(500),
+      .limit(1000),
   ]);
-  if (apparatusError || checksError) throw apparatusError || checksError;
+  if (scheduleError || apparatusError || checksError) throw scheduleError || apparatusError || checksError;
 
-  const week = chicagoWeekForDate(date);
   for (const duty of duties) {
     const dutyId = String(duty.id || "");
     const dueDay = Number(duty.dayOfWeek);
-    const links = (apparatus || []).filter((vehicle) => vehicle.weekly_due_day !== null && Number(vehicle.weekly_due_day) === dueDay).map((vehicle) => {
+    const links = (schedules || []).filter((schedule) => Number(schedule.day_of_week) === dueDay).flatMap((schedule) => {
+      const vehicle = (apparatus || []).find((item) => item.id === schedule.apparatus_id);
+      if (!vehicle) return [];
       const unit = String(vehicle.name || "Apparatus");
-      const vehicleChecks = (checks || []).filter((check) => check.apparatus_id === vehicle.id);
-      const completed = vehicleChecks.find((check) => (
-        check.status === "completed"
-        && check.completed_at
-        && chicagoCalendarDate(check.completed_at) >= week.start
-        && chicagoCalendarDate(check.completed_at) < week.end
-      ));
+      const checkType = String(schedule.check_type) as FleetDutyCheck["checkType"];
+      const vehicleChecks = (checks || []).filter((check) => check.apparatus_id === vehicle.id && check.check_type === checkType);
+      const completed = vehicleChecks.find((check) => scheduledCheckCompleted(check, checkType, date));
       const inProgress = vehicleChecks.find((check) => check.status === "in_progress");
       const active = completed || inProgress;
-      return {
+      return [{
         apparatusId: String(vehicle.id),
         unit,
+        checkType,
+        startTime: String(schedule.start_time).slice(0, 5),
+        endTime: String(schedule.end_time).slice(0, 5),
         status: completed ? "completed" as const : inProgress ? "in_progress" as const : "pending" as const,
         startedAt: active?.started_at ? String(active.started_at) : null,
         completedAt: completed?.completed_at ? String(completed.completed_at) : null,
-      };
+      }];
     }).sort((left, right) => left.unit.localeCompare(right.unit, undefined, { numeric: true }));
     result.set(dutyId, links);
   }
@@ -131,49 +150,47 @@ export async function pendingDailyFleetChecks(
   date = chicagoCalendarDate(new Date()),
 ): Promise<FleetDailyCheck[]> {
   if (!departmentId) return [];
-  const [{ data: configuredItems, error: itemError }, { data: apparatus, error: apparatusError }, { data: checks, error: checksError }] = await Promise.all([
+  const dueDay = new Date(`${date}T12:00:00Z`).getUTCDay();
+  const [{ data: schedules, error: scheduleError }, { data: apparatus, error: apparatusError }, { data: checks, error: checksError }] = await Promise.all([
     supabase
-      .from("inventory_equipment")
-      .select("apparatus_id")
+      .from("inventory_inspection_schedules")
+      .select("apparatus_id,check_type,start_time,end_time")
       .eq("department_id", departmentId)
-      .contains("check_types", ["daily"])
-      .is("retired_at", null),
+      .eq("day_of_week", dueDay)
+      .eq("active", true)
+      .eq("feeds_operations_board", true),
     supabase
       .from("inventory_apparatus_profiles")
       .select("id,name")
       .eq("department_id", departmentId),
     supabase
       .from("inventory_checks")
-      .select("id,apparatus_id,status,started_at,completed_at")
+      .select("id,apparatus_id,check_type,status,started_at,completed_at,review_status")
       .eq("department_id", departmentId)
-      .eq("check_type", "daily")
       .in("status", ["in_progress", "completed"])
       .order("started_at", { ascending: false })
-      .limit(500),
+      .limit(1000),
   ]);
-  if (itemError || apparatusError || checksError) throw itemError || apparatusError || checksError;
+  if (scheduleError || apparatusError || checksError) throw scheduleError || apparatusError || checksError;
 
-  const configuredApparatusIds = new Set(
-    (configuredItems || []).map((item) => String(item.apparatus_id || "")).filter(Boolean),
-  );
-  return (apparatus || []).flatMap((vehicle) => {
-    const apparatusId = String(vehicle.id || "");
-    if (!configuredApparatusIds.has(apparatusId)) return [];
-    const vehicleChecks = (checks || []).filter((check) => check.apparatus_id === vehicle.id);
-    const completedToday = vehicleChecks.some((check) => (
-      check.status === "completed"
-      && check.completed_at
-      && chicagoCalendarDate(check.completed_at) === date
-    ));
-    if (completedToday) return [];
+  return (schedules || []).flatMap((schedule) => {
+    const vehicle = (apparatus || []).find((item) => item.id === schedule.apparatus_id);
+    if (!vehicle) return [];
+    const apparatusId = String(vehicle.id);
+    const checkType = String(schedule.check_type) as FleetDailyCheck["checkType"];
+    const vehicleChecks = (checks || []).filter((check) => check.apparatus_id === vehicle.id && check.check_type === checkType);
+    if (vehicleChecks.some((check) => scheduledCheckCompleted(check, checkType, date))) return [];
     const inProgress = vehicleChecks.find((check) => check.status === "in_progress");
     return [{
       apparatusId,
       unit: String(vehicle.name || "Apparatus"),
+      checkType,
+      startTime: String(schedule.start_time).slice(0, 5),
+      endTime: String(schedule.end_time).slice(0, 5),
       status: inProgress ? "in_progress" as const : "pending" as const,
       startedAt: inProgress?.started_at ? String(inProgress.started_at) : null,
     }];
-  }).sort((left, right) => left.unit.localeCompare(right.unit, undefined, { numeric: true }));
+  }).sort((left, right) => `${left.startTime} ${left.unit} ${left.checkType}`.localeCompare(`${right.startTime} ${right.unit} ${right.checkType}`, undefined, { numeric: true }));
 }
 
 export async function incompleteRequiredFleetChecks(
@@ -181,50 +198,45 @@ export async function incompleteRequiredFleetChecks(
   departmentId: string,
   date: string,
 ): Promise<RequiredFleetCheck[]> {
-  const daily = await pendingDailyFleetChecks(supabase, departmentId, date);
   const dueDay = new Date(`${date}T12:00:00Z`).getUTCDay();
-
-  const [{ data: apparatus, error: apparatusError }, { data: checks, error: checksError }] = await Promise.all([
+  const [{ data: schedules, error: scheduleError }, { data: apparatus, error: apparatusError }, { data: checks, error: checksError }] = await Promise.all([
+    supabase
+      .from("inventory_inspection_schedules")
+      .select("apparatus_id,check_type,start_time,end_time")
+      .eq("department_id", departmentId)
+      .eq("day_of_week", dueDay)
+      .eq("active", true)
+      .eq("require_officer_signoff", true),
     supabase
       .from("inventory_apparatus_profiles")
-      .select("id,name,weekly_due_day")
-      .eq("department_id", departmentId)
-      .eq("weekly_due_day", dueDay),
+      .select("id,name")
+      .eq("department_id", departmentId),
     supabase
       .from("inventory_checks")
-      .select("id,apparatus_id,status,started_at,completed_at")
+      .select("id,apparatus_id,check_type,status,started_at,completed_at,review_status")
       .eq("department_id", departmentId)
-      .eq("check_type", "weekly")
       .in("status", ["in_progress", "completed"])
       .order("started_at", { ascending: false })
-      .limit(500),
+      .limit(1000),
   ]);
-  if (apparatusError || checksError) throw apparatusError || checksError;
-
-  const week = chicagoWeekForDate(date);
-  const weekly = (apparatus || []).flatMap((vehicle) => {
-    const unit = String(vehicle.name || "Apparatus");
-    const vehicleChecks = (checks || []).filter((check) => check.apparatus_id === vehicle.id);
-    const completed = vehicleChecks.some((check) => (
-      check.status === "completed"
-      && check.completed_at
-      && chicagoCalendarDate(check.completed_at) >= week.start
-      && chicagoCalendarDate(check.completed_at) < week.end
-    ));
-    if (completed) return [];
+  if (scheduleError || apparatusError || checksError) throw scheduleError || apparatusError || checksError;
+  return (schedules || []).flatMap((schedule) => {
+    const vehicle = (apparatus || []).find((item) => item.id === schedule.apparatus_id);
+    if (!vehicle) return [];
+    const checkType = String(schedule.check_type) as RequiredFleetCheck["checkType"];
+    const vehicleChecks = (checks || []).filter((check) => check.apparatus_id === vehicle.id && check.check_type === checkType);
+    if (vehicleChecks.some((check) => scheduledCheckCompleted(check, checkType, date))) return [];
     const inProgress = vehicleChecks.find((check) => check.status === "in_progress");
     return [{
       apparatusId: String(vehicle.id),
-      unit,
-      checkType: "weekly" as const,
+      unit: String(vehicle.name || "Apparatus"),
+      checkType,
+      startTime: String(schedule.start_time).slice(0, 5),
+      endTime: String(schedule.end_time).slice(0, 5),
       status: inProgress ? "in_progress" as const : "pending" as const,
       startedAt: inProgress?.started_at ? String(inProgress.started_at) : null,
     }];
   });
-  return [
-    ...daily.map((check) => ({ ...check, checkType: "daily" as const })),
-    ...weekly,
-  ];
 }
 
 export async function completedApparatusChecksForDate(
