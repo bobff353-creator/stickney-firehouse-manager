@@ -18,6 +18,13 @@ test("crew location requests default to the equipment apparatus and its configur
   assert.match(operations, /Wrong location reported · awaiting administrator review/);
 });
 
+test("wrong-location controls are limited to inventory checks", () => {
+  assert.match(operations, /const activeAllowsRelocation = activeCheckType === "inventory"/);
+  assert.match(operations, /activeAllowsRelocation \? <button className="relocate"/);
+  assert.match(operations, /relocationItem && activeCheck && activeAllowsRelocation/);
+  assert.match(route, /\.eq\("check_type", "inventory"\)/);
+});
+
 test("administrator review can approve or deny a pending move", () => {
   assert.match(operations, /ADMIN · WRONG-LOCATION APPROVALS/);
   assert.match(operations, /Approve and move equipment/);

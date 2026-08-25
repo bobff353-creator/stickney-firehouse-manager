@@ -715,7 +715,9 @@ export default function InventoryOperations({
   const activeScbaEntries = activeCheck && value(activeCheck, "check_type") === "air_pack"
     ? data.scbaEntries.filter((item) => value(item, "check_id") === value(activeCheck, "id"))
     : [];
-  const activeChecklistRows = value(activeCheck || {}, "check_type") === "air_pack" ? activeScbaEntries : activeItems;
+  const activeCheckType = value(activeCheck || {}, "check_type");
+  const activeAllowsRelocation = activeCheckType === "inventory";
+  const activeChecklistRows = activeCheckType === "air_pack" ? activeScbaEntries : activeItems;
   const pendingItems = activeChecklistRows.filter((item) => value(item, "result") === "pending").length;
   const completedItems = activeChecklistRows.length - pendingItems;
   const checkProgress = activeChecklistRows.length ? Math.round((completedItems / activeChecklistRows.length) * 100) : 0;
@@ -765,7 +767,9 @@ export default function InventoryOperations({
     const savedReading = displayNumericReading(item.numeric_reading);
     const reading = numericReadings[itemId] ?? numericReadingInputValue(item.numeric_reading);
     const compartment = value(item, "compartment_label") || "Location not assigned";
-    const pendingLocationChange = pendingLocationChangeByEquipmentId.get(value(item, "equipment_id"));
+    const pendingLocationChange = activeAllowsRelocation
+      ? pendingLocationChangeByEquipmentId.get(value(item, "equipment_id"))
+      : undefined;
     return (
       <article key={itemId} className={`check-row result-${value(item, "result")} ${numericItem ? "numeric-reading-row" : ""}`}>
         <div className="check-item-copy">
@@ -788,7 +792,7 @@ export default function InventoryOperations({
           <button className="pass" disabled={Boolean(busy) || !canCheck} onClick={() => void recordCheckItems(`item-${itemId}`, { action: "record_check_item", checkItemId: itemId, result: "pass" })}>Pass</button>
           <button className="failed" disabled={Boolean(busy) || !canCheck} onClick={() => { setDeficiencyAssignees([]); setDeficiencyItem(item); }}>Issue</button>
           <button disabled={Boolean(busy) || !canCheck} onClick={() => void recordCheckItems(`item-${itemId}`, { action: "record_check_item", checkItemId: itemId, result: "not_applicable" })}>N/A</button>
-          <button className="relocate" disabled={Boolean(busy) || !canCheck || Boolean(pendingLocationChange)} onClick={() => openRelocation(item)}>{pendingLocationChange ? "Location review pending" : "Wrong location"}</button>
+          {activeAllowsRelocation ? <button className="relocate" disabled={Boolean(busy) || !canCheck || Boolean(pendingLocationChange)} onClick={() => openRelocation(item)}>{pendingLocationChange ? "Location review pending" : "Wrong location"}</button> : null}
         </div>}
       </article>
     );
@@ -1547,7 +1551,7 @@ export default function InventoryOperations({
           </section>
         </div>
       ) : null}
-      {relocationItem && activeCheck ? (
+      {relocationItem && activeCheck && activeAllowsRelocation ? (
         <div className="camera-overlay" role="presentation">
           <form className="camera-panel relocation-panel" role="dialog" aria-modal="true" aria-label="Request an equipment location change" onSubmit={(event) => {
             event.preventDefault();
