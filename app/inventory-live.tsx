@@ -496,17 +496,17 @@ export default function Inventory360({
           <span aria-hidden="true">←</span>
           <b>Firehouse Manager</b>
         </Link>
-        <button className="brand" onClick={() => setView("due")} aria-label="Vehicle Checks and Inventory home">
-          <span className="brand-badge">VCI</span>
+        <button className="brand" onClick={() => setView("due")} aria-label="Inventory and Apparatus Checks home">
+          <span className="brand-badge">IAC</span>
           <span>
-            <b>Vehicle Checks &amp; Inventory</b>
+            <b>Inventory &amp; Apparatus Checks</b>
             <small>CHECKS - LOCATIONS - ASSETS - SERVICE</small>
           </span>
         </button>
         <span className="inventory-breadcrumb" aria-label="Current location">
-          Station Duties <b>/ Vehicle Checks &amp; Inventory</b>
+          Station Duties <b>/ Inventory &amp; Apparatus Checks</b>
         </span>
-        <nav className="desktop-nav" aria-label="Vehicle checks and inventory sections">
+        <nav className="desktop-nav" aria-label="Inventory and apparatus check sections">
           {([
             ["due", "Due Now"],
             ["fleet", "Fleet"],
@@ -698,7 +698,7 @@ export default function Inventory360({
                       </div>
                       <button className="card-action" onClick={() => void openUnit(unit)}>
                         <span className="card-action-copy">
-                          <strong>Open Unit Checks &amp; Inventory</strong>
+                          <strong>Open Apparatus Checks &amp; Inventory</strong>
                           <small>Daily · Weekly · Inventory · Air Pack</small>
                         </span>
                         <span className="card-action-arrow" aria-hidden="true">→</span>
@@ -709,7 +709,7 @@ export default function Inventory360({
               })}
               {canSetup ? <button className="add-unit-card" onClick={() => setView("setup")}>
                 <Icon>+</Icon>
-                <b>Configure Vehicle Checks &amp; Inventory</b>
+                <b>Configure Inventory &amp; Apparatus Checks</b>
                 <span>Locations - check parameters - photographs - hotspots</span>
               </button> : null}
             </div>

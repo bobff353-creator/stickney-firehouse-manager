@@ -14,7 +14,7 @@ test("fleet cards clearly open unit checks and stay readable on dark phones", as
     readFile(new URL("../app/inventory-live.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/inventory-operations.tsx", import.meta.url), "utf8"),
   ]);
-  assert.match(fleet, /Open Unit Checks &amp; Inventory/);
+  assert.match(fleet, /Open Apparatus Checks &amp; Inventory/);
   assert.match(fleet, /Daily · Weekly · Inventory · Air Pack/);
   assert.match(operations, /inspection-choice-action[^\n]*Tap to resume[^\n]*Tap to open/);
   assert.match(styles, /\.card-action \{[^}]*min-height: 58px;[^}]*background: var\(--red\)/);

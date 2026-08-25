@@ -7,7 +7,7 @@ const modules = [
   ["respond", "Respond 360"],
   ["preplans", "PrePlan 360"],
   ["inspections", "Inspection 360"],
-  ["inventory", "Inventory"],
+  ["inventory", "Inventory & Apparatus Checks"],
   ["schedule", "Schedule 360"],
   ["training", "Training 360"],
   ["fire-reports", "Fire Reports"],
