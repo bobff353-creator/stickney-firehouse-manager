@@ -1,4 +1,4 @@
-import { ACTING_OFFICER_STIPEND_PER_HOUR } from "./payroll-calculation.ts";
+import { ACTING_OFFICER_STIPEND_PER_HOUR, workDetailRateForRank } from "./payroll-calculation.ts";
 
 export type PayrollExportEmployee = {
   name: string;
@@ -54,7 +54,7 @@ export function payrollExportRows(
     numberCell(holiday),
     numberCell(regularHours + workDetail + holiday + dpw),
     moneyCell(employee.regularRate),
-    moneyCell(regularHours * employee.regularRate + workDetail * employee.overtimeRate + holiday * employee.holidayRate + dpw * employee.regularRate * dpwMultiplier),
+    moneyCell(regularHours * employee.regularRate + workDetail * workDetailRateForRank(employee.rank, employee.regularRate, employee.overtimeRate) + holiday * employee.holidayRate + dpw * employee.regularRate * dpwMultiplier),
   ]);
 
   if (overtimeHours > 0) {

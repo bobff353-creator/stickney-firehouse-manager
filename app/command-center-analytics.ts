@@ -1,5 +1,5 @@
 import { holidayForDate } from "./holidays.ts";
-import { ACTING_OFFICER_STIPEND_PER_HOUR } from "./payroll-calculation.ts";
+import { ACTING_OFFICER_STIPEND_PER_HOUR, workDetailRateForRank } from "./payroll-calculation.ts";
 
 export type StaffingSourceRow = {
   date: string;
@@ -116,7 +116,7 @@ export function buildPayrollDetails(
     } else if (category === "dpw") {
       cost = hours * rates.regularRate * dpwMultiplier;
     } else if (category === "workDetail") {
-      cost = hours * rates.overtimeRate;
+      cost = hours * workDetailRateForRank(row.rank, rates.regularRate, rates.overtimeRate);
     } else {
       const key = `${row.employeeId}:${row.periodStart}`;
       const before = running.get(key) || 0;

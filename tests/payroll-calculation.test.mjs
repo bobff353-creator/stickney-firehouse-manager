@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ACTING_OFFICER_STIPEND_PER_HOUR, calculateGrossPay } from "../app/payroll-calculation.ts";
+import { ACTING_OFFICER_STIPEND_PER_HOUR, calculateGrossPay, workDetailRateForRank } from "../app/payroll-calculation.ts";
 
 test("Acting Officer pay is a straight one-dollar stipend per AO hour", () => {
   assert.equal(ACTING_OFFICER_STIPEND_PER_HOUR, 1);
@@ -13,6 +13,7 @@ test("Acting Officer pay is a straight one-dollar stipend per AO hour", () => {
     dpwHours: 0,
     regularRate: 22,
     overtimeRate: 33,
+    workDetailRate: 33,
     holidayRate: 33,
     dpwMultiplier: 1.5,
   }), 24);
@@ -28,6 +29,7 @@ test("AO stipend is not multiplied by overtime or holiday rates", () => {
     dpwHours: 0,
     regularRate: 100,
     overtimeRate: 150,
+    workDetailRate: 150,
     holidayRate: 150,
     dpwMultiplier: 1.5,
   }), 24);
@@ -43,6 +45,7 @@ test("DelGatto July 11–25 regression total remains 3066.50 with 24 AO hours", 
     dpwHours: 0,
     regularRate: 22,
     overtimeRate: 33,
+    workDetailRate: 33,
     holidayRate: 33,
     dpwMultiplier: 1.5,
   }) + 3042.5, 3066.5);
@@ -58,7 +61,24 @@ test("Iovino August 11-25 regression pays Work Detail and DPW at premium rates",
     dpwHours: 42,
     regularRate: 27.56,
     overtimeRate: 41.34,
+    workDetailRate: workDetailRateForRank("Lieutenant", 27.56, 41.34),
     holidayRate: 41.34,
     dpwMultiplier: 1.5,
   }), 1901.64);
+});
+
+test("Captain Work Detail remains at the Captain straight-time rate", () => {
+  assert.equal(calculateGrossPay({
+    regularHours: 66,
+    overtimeHours: 0,
+    workDetailHours: 7,
+    holidayHours: 0,
+    actingOfficerHours: 0,
+    dpwHours: 0,
+    regularRate: 28.94,
+    overtimeRate: 43.41,
+    workDetailRate: workDetailRateForRank("Captain", 28.94, 43.41),
+    holidayRate: 43.41,
+    dpwMultiplier: 1.5,
+  }), 2112.62);
 });

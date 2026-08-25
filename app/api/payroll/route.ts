@@ -1,6 +1,6 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 import { employeeNameFromParts, formatEmployeeName } from "../../employee-names";
-import { roundPayrollUpToCent } from "../../payroll-rounding";
+import { roundPayrollToCent } from "../../payroll-rounding";
 import { ACTING_OFFICER_STIPEND_PER_HOUR } from "../../payroll-calculation";
 
 const categories = ["shift", "drill", "workDetail", "callback", "actingOfficer", "holiday", "dpw"] as const;
@@ -131,7 +131,7 @@ export async function POST(request: Request) {
       for (const scale of scales) {
         const regularRate = Number(scale.regularRate);
         if (!Number.isFinite(regularRate) || regularRate < 0) return Response.json({ error: "Every pay rate must be a valid amount." }, { status: 400 });
-        const premiumRate = roundPayrollUpToCent(regularRate * 1.5);
+        const premiumRate = roundPayrollToCent(regularRate * 1.5);
         const payScaleId = String(scale.id);
         await db.prepare("INSERT INTO pay_rate_history (id, pay_scale_id, effective_date, regular_rate, overtime_rate, holiday_rate, created_by) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(pay_scale_id, effective_date) DO UPDATE SET regular_rate = excluded.regular_rate, overtime_rate = excluded.overtime_rate, holiday_rate = excluded.holiday_rate, created_by = excluded.created_by, created_at = CURRENT_TIMESTAMP").bind(crypto.randomUUID(), payScaleId, effectiveDate, regularRate, premiumRate, premiumRate, viewer.displayName).run();
         await db.prepare("UPDATE pay_scales SET regular_rate = (SELECT regular_rate FROM pay_rate_history WHERE pay_scale_id = ? AND date(effective_date) <= date('now') ORDER BY effective_date DESC LIMIT 1), overtime_rate = (SELECT overtime_rate FROM pay_rate_history WHERE pay_scale_id = ? AND date(effective_date) <= date('now') ORDER BY effective_date DESC LIMIT 1), holiday_rate = (SELECT holiday_rate FROM pay_rate_history WHERE pay_scale_id = ? AND date(effective_date) <= date('now') ORDER BY effective_date DESC LIMIT 1) WHERE id = ?").bind(payScaleId, payScaleId, payScaleId, payScaleId).run();

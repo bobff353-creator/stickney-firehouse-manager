@@ -18,8 +18,8 @@ import PwaInstall from "./pwa-install";
 import CommandCenter from "./command-center";
 import DailyDuties from "./daily-duties";
 import { compareEmployeeNames, employeeNameFromParts, formatEmployeeName, splitEmployeeName } from "./employee-names";
-import { roundPayrollUpToCent } from "./payroll-rounding";
-import { ACTING_OFFICER_STIPEND_PER_HOUR, calculateGrossPay } from "./payroll-calculation";
+import { roundPayrollToCent } from "./payroll-rounding";
+import { ACTING_OFFICER_STIPEND_PER_HOUR, calculateGrossPay, workDetailRateForRank } from "./payroll-calculation";
 import { payrollExportRows } from "./payroll-export";
 import WorkDetails from "./work-details";
 import StationScheduler from "./station-scheduler";
@@ -376,6 +376,7 @@ export default function PayrollApp({
       dpwHours,
       regularRate: employee.regularRate,
       overtimeRate: employee.overtimeRate,
+      workDetailRate: workDetailRateForRank(employee.rank, employee.regularRate, employee.overtimeRate),
       holidayRate: employee.holidayRate,
       dpwMultiplier: data.settings.dpwMultiplier,
     });
@@ -528,7 +529,7 @@ export default function PayrollApp({
   }
 
   function changeBaseRate(index: number, value: number) {
-    const calculated = roundPayrollUpToCent(value * 1.5);
+    const calculated = roundPayrollToCent(value * 1.5);
     setScaleDraft((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, regularRate: value, overtimeRate: calculated, holidayRate: calculated } : item));
   }
 
