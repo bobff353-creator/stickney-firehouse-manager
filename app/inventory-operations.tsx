@@ -30,6 +30,7 @@ type OperationsData = {
   workOrders: Row[];
   stock: Row[];
   restockRequests: Row[];
+  locationChanges: Row[];
   viewer?: { email?: string; role?: string };
   error?: string;
 };
@@ -45,6 +46,7 @@ const emptyData: OperationsData = {
   workOrders: [],
   stock: [],
   restockRequests: [],
+  locationChanges: [],
 };
 
 const inspectionTypes = [
@@ -211,6 +213,10 @@ export default function InventoryOperations({
   const [checkResultFilter, setCheckResultFilter] = useState<"pending" | "all" | "completed" | "failed">("pending");
   const [checkCompartmentFilter, setCheckCompartmentFilter] = useState("all");
   const [bulkPassGroup, setBulkPassGroup] = useState<{ label: string; itemIds: string[] } | null>(null);
+  const [relocationItem, setRelocationItem] = useState<Row | null>(null);
+  const [relocationApparatusId, setRelocationApparatusId] = useState("");
+  const [relocationCompartmentId, setRelocationCompartmentId] = useState("");
+  const [locationReviewNotes, setLocationReviewNotes] = useState<Record<string, string>>({});
   const equipmentFormRef = useRef<HTMLFormElement>(null);
   const equipmentEditorRef = useRef<HTMLFormElement>(null);
   const scannerVideoRef = useRef<HTMLVideoElement>(null);
@@ -327,6 +333,7 @@ export default function InventoryOperations({
         workOrders: payload.workOrders || [],
         stock: payload.stock || [],
         restockRequests: payload.restockRequests || [],
+        locationChanges: payload.locationChanges || [],
         viewer: payload.viewer,
       });
       if (contextPromise) {
@@ -537,18 +544,32 @@ export default function InventoryOperations({
     groups.set(label, group);
     return groups;
   }, new Map<string, Row[]>())];
+  const pendingLocationChanges = data.locationChanges.filter((item) => value(item, "status") === "pending");
+  const pendingLocationChangeByEquipmentId = new Map(
+    pendingLocationChanges.map((item) => [value(item, "equipment_id"), item]),
+  );
+  const openRelocation = (item: Row) => {
+    const equipment = data.equipment.find((row) => value(row, "id") === value(item, "equipment_id"));
+    const apparatusId = equipment ? value(equipment, "apparatus_id") : selectedApparatusId;
+    const availableCompartments = data.compartments.filter((row) => value(row, "apparatus_id") === apparatusId);
+    setRelocationItem(item);
+    setRelocationApparatusId(apparatusId);
+    setRelocationCompartmentId(equipment ? value(equipment, "compartment_id") : value(availableCompartments[0] || {}, "id"));
+  };
   const renderActiveItem = (item: Row) => {
     const itemId = value(item, "id");
     const numericItem = isNumericReadingItem(item);
     const savedReading = displayNumericReading(item.numeric_reading);
     const reading = numericReadings[itemId] ?? numericReadingInputValue(item.numeric_reading);
     const compartment = value(item, "compartment_label") || "Location not assigned";
+    const pendingLocationChange = pendingLocationChangeByEquipmentId.get(value(item, "equipment_id"));
     return (
       <article key={itemId} className={`check-row result-${value(item, "result")} ${numericItem ? "numeric-reading-row" : ""}`}>
         <div className="check-item-copy">
           <strong>{value(item, "equipment_name")}{Number(item.quantity_required || 1) > 1 ? ` × ${item.quantity_required}` : ""}</strong>
           <small>{compartment}</small>
           {value(item, "source_form") ? <details className="check-item-details"><summary>Details</summary><p>{value(item, "source_form")}</p></details> : null}
+          {pendingLocationChange ? <small className="location-change-pending">Location change awaiting administrator review</small> : null}
         </div>
         <div className="check-result">
           <span>{numericItem && savedReading ? `${savedReading} miles` : value(item, "result").replace("_", " ")}</span>
@@ -564,6 +585,7 @@ export default function InventoryOperations({
           <button className="pass" disabled={Boolean(busy) || !canCheck} onClick={() => void recordCheckItems(`item-${itemId}`, { action: "record_check_item", checkItemId: itemId, result: "pass" })}>Pass</button>
           <button className="failed" disabled={Boolean(busy) || !canCheck} onClick={() => setDeficiencyItem(item)}>Issue</button>
           <button disabled={Boolean(busy) || !canCheck} onClick={() => void recordCheckItems(`item-${itemId}`, { action: "record_check_item", checkItemId: itemId, result: "not_applicable" })}>N/A</button>
+          <button className="relocate" disabled={Boolean(busy) || !canCheck || Boolean(pendingLocationChange)} onClick={() => openRelocation(item)}>{pendingLocationChange ? "Move pending" : "Move"}</button>
         </div>}
       </article>
     );
@@ -829,6 +851,20 @@ export default function InventoryOperations({
 
       {view === "builder" && canSetup ? (
         <>
+        <section className="ops-card location-approval-card">
+          <header><div><span>ADMIN · LOCATION APPROVALS</span><h2>Approve equipment moves</h2></div><b>{pendingLocationChanges.length} pending</b></header>
+          {pendingLocationChanges.length ? <div className="location-approval-list">{pendingLocationChanges.map((request) => {
+            const requestId = value(request, "id");
+            return <article key={requestId}>
+              <div className="location-change-route"><span>{value(request, "from_apparatus_name")} · {value(request, "from_compartment_label")}</span><b>→</b><span>{value(request, "proposed_apparatus_name")} · {value(request, "proposed_compartment_label")}</span></div>
+              <h3>{value(request, "equipment_name")}</h3>
+              <p>Requested by {value(request, "requested_by_email")} · {formatDate(request.requested_at)}</p>
+              {value(request, "request_notes") ? <blockquote>{value(request, "request_notes")}</blockquote> : null}
+              <label>Administrator review note<textarea rows={2} value={locationReviewNotes[requestId] || ""} onChange={(event) => setLocationReviewNotes((current) => ({ ...current, [requestId]: event.target.value }))} placeholder="Optional approval or denial note" /></label>
+              <div className="location-review-actions"><button type="button" disabled={Boolean(busy)} onClick={() => void action(`deny-location-${requestId}`, { action: "review_location_change", requestId, decision: "denied", reviewNotes: locationReviewNotes[requestId] || "" })}>Deny</button><button className="ops-primary" type="button" disabled={Boolean(busy)} onClick={() => void action(`approve-location-${requestId}`, { action: "review_location_change", requestId, decision: "approved", reviewNotes: locationReviewNotes[requestId] || "" })}>Approve and move equipment</button></div>
+            </article>;
+          })}</div> : <div className="ops-empty due-clear"><strong>No location changes are waiting.</strong><p>Crew requests submitted during Inventory checks will appear here for approval.</p></div>}
+        </section>
         <section className="ops-card">
           <header><div><span>ADMIN · CHECK PARAMETERS &amp; LOCATIONS</span><h2>Add or edit equipment, its exact location, and required checks</h2></div><b>{data.equipment.length} items</b></header>
           <label className="unit-picker">Apparatus
@@ -1050,6 +1086,33 @@ export default function InventoryOperations({
             <p>Use this only after physically checking every listed item in this location. Mileage and odometer entries are excluded and still require a number.</p>
             <div className="bulk-pass-actions"><button type="button" onClick={() => setBulkPassGroup(null)}>Go back</button><button className="ops-primary" type="button" disabled={Boolean(busy) || !canCheck} onClick={() => void recordCheckItems("bulk-pass", { action: "bulk_record_check_items", checkId: value(activeCheck, "id"), checkItemIds: bulkPassGroup.itemIds }).then((saved) => { if (saved) setBulkPassGroup(null); })}>Confirm {bulkPassGroup.itemIds.length} items passed</button></div>
           </section>
+        </div>
+      ) : null}
+      {relocationItem && activeCheck ? (
+        <div className="camera-overlay" role="presentation">
+          <form className="camera-panel relocation-panel" role="dialog" aria-modal="true" aria-label="Request an equipment location change" onSubmit={(event) => {
+            event.preventDefault();
+            const form = new FormData(event.currentTarget);
+            void action("location-change", {
+              action: "request_location_change",
+              checkItemId: value(relocationItem, "id"),
+              proposedApparatusId: relocationApparatusId,
+              proposedCompartmentId: relocationCompartmentId,
+              requestNotes: form.get("requestNotes"),
+            }).then((saved) => { if (saved) setRelocationItem(null); });
+          }}>
+            <header><div><span>REQUEST LOCATION CHANGE</span><h3>{value(relocationItem, "equipment_name")}</h3></div><button type="button" onClick={() => setRelocationItem(null)}>Cancel</button></header>
+            <p>The current apparatus is selected automatically. Choose the apparatus and one of its configured compartments; an administrator must approve the move.</p>
+            <label>Destination apparatus<select value={relocationApparatusId} onChange={(event) => {
+              const apparatusId = event.target.value;
+              const firstCompartment = data.compartments.find((item) => value(item, "apparatus_id") === apparatusId);
+              setRelocationApparatusId(apparatusId);
+              setRelocationCompartmentId(firstCompartment ? value(firstCompartment, "id") : "");
+            }}>{data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")}</option>)}</select></label>
+            <label>Destination compartment<select value={relocationCompartmentId} onChange={(event) => setRelocationCompartmentId(event.target.value)} required><option value="" disabled>Choose a configured compartment</option>{data.compartments.filter((item) => value(item, "apparatus_id") === relocationApparatusId).map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "label")} · {formatStatus(item.side)}</option>)}</select></label>
+            <label>Why is this item moving?<textarea name="requestNotes" rows={3} placeholder="Optional note for the administrator" /></label>
+            <button className="ops-primary" disabled={Boolean(busy) || !relocationApparatusId || !relocationCompartmentId}>Send for administrator approval</button>
+          </form>
         </div>
       ) : null}
       {deficiencyItem && activeCheck ? (

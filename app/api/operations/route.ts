@@ -67,6 +67,7 @@ export async function GET(request: Request) {
       stockLotsResult,
       restockRequestsResult,
       equipmentPhotosResult,
+      locationChangesResult,
     ] = await Promise.all([
       supabase
         .from("inventory_apparatus_profiles")
@@ -133,6 +134,12 @@ export async function GET(request: Request) {
         .not("equipment_id", "is", null)
         .is("replaced_at", null)
         .order("captured_at", { ascending: false }),
+      supabase
+        .from("inventory_location_change_requests")
+        .select("id,equipment_id,check_item_id,from_apparatus_id,from_compartment_id,proposed_apparatus_id,proposed_compartment_id,status,request_notes,requested_by_email,requested_at,reviewed_by_email,reviewed_at,review_notes")
+        .eq("department_id", departmentId)
+        .order("requested_at", { ascending: false })
+        .limit(250),
     ]);
     const firstError = [
       apparatusResult,
@@ -147,6 +154,7 @@ export async function GET(request: Request) {
       stockLotsResult,
       restockRequestsResult,
       equipmentPhotosResult,
+      locationChangesResult,
     ].find((result) => result.error)?.error;
     if (firstError) throw firstError;
 
@@ -224,6 +232,14 @@ export async function GET(request: Request) {
       stock_item_name: (stockItemsResult.data || []).find((item) => item.id === request.stock_item_id)?.name || "Supply",
       unit: (stockItemsResult.data || []).find((item) => item.id === request.stock_item_id)?.unit || "units",
     }));
+    const locationChanges = (locationChangesResult.data || []).map((request) => ({
+      ...request,
+      equipment_name: equipmentById.get(request.equipment_id)?.name || "Equipment",
+      from_apparatus_name: apparatusById.get(request.from_apparatus_id)?.name || "Unknown apparatus",
+      from_compartment_label: compartmentById.get(request.from_compartment_id)?.label || "Unknown location",
+      proposed_apparatus_name: apparatusById.get(request.proposed_apparatus_id)?.name || "Unknown apparatus",
+      proposed_compartment_label: compartmentById.get(request.proposed_compartment_id)?.label || "Unknown location",
+    }));
     return privateJson({
       configured: true,
       apparatus,
@@ -235,6 +251,7 @@ export async function GET(request: Request) {
       workOrders,
       stock,
       restockRequests,
+      locationChanges,
       viewer: {
         email: session.context.user.email,
         role: session.context.role,
@@ -260,7 +277,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json() as Record<string, unknown>;
     const action = clean(body.action, 60);
-    const requiredPermission = ["start_check", "record_check_item", "bulk_record_check_items", "complete_check", "adjust_stock", "request_restock"].includes(action)
+    const requiredPermission = ["start_check", "record_check_item", "bulk_record_check_items", "complete_check", "adjust_stock", "request_restock", "request_location_change"].includes(action)
       ? "inventory.check" as const
       : ["create_notice", "create_work_order", "close_work_order", "update_work_order_status"].includes(action)
         ? "inventory.repairs.manage" as const
@@ -272,6 +289,102 @@ export async function POST(request: Request) {
     const actorId = session.context.user.id;
     const actor = session.context.user.email;
     const supabase = await createInventorySupabaseClient();
+
+    if (action === "request_location_change") {
+      const checkItemId = clean(body.checkItemId, 80);
+      const proposedApparatusId = clean(body.proposedApparatusId, 80);
+      const proposedCompartmentId = clean(body.proposedCompartmentId, 80);
+      const [{ data: checkItem }, { data: proposedCompartment }] = await Promise.all([
+        supabase
+          .from("inventory_check_items")
+          .select("id,equipment_id,check_id")
+          .eq("department_id", departmentId)
+          .eq("id", checkItemId)
+          .maybeSingle(),
+        supabase
+          .from("inventory_compartments")
+          .select("id,apparatus_id")
+          .eq("department_id", departmentId)
+          .eq("apparatus_id", proposedApparatusId)
+          .eq("id", proposedCompartmentId)
+          .maybeSingle(),
+      ]);
+      if (!checkItem || !proposedCompartment) {
+        return privateJson({ error: "Choose an active Inventory item and a saved destination compartment." }, 400);
+      }
+      const [{ data: check }, { data: equipment }] = await Promise.all([
+        supabase
+          .from("inventory_checks")
+          .select("id")
+          .eq("department_id", departmentId)
+          .eq("id", checkItem.check_id)
+          .eq("check_type", "inventory")
+          .eq("status", "in_progress")
+          .maybeSingle(),
+        supabase
+          .from("inventory_equipment")
+          .select("id,apparatus_id,compartment_id")
+          .eq("department_id", departmentId)
+          .eq("id", checkItem.equipment_id)
+          .is("retired_at", null)
+          .maybeSingle(),
+      ]);
+      if (!check || !equipment) {
+        return privateJson({ error: "That equipment record is no longer available." }, 404);
+      }
+      if (equipment.apparatus_id === proposedApparatusId && equipment.compartment_id === proposedCompartmentId) {
+        return privateJson({ error: "Choose a different apparatus or compartment for this location request." }, 400);
+      }
+      const requestRecord = {
+        id: crypto.randomUUID(),
+        department_id: departmentId,
+        equipment_id: equipment.id,
+        check_item_id: checkItem.id,
+        from_apparatus_id: equipment.apparatus_id,
+        from_compartment_id: equipment.compartment_id,
+        proposed_apparatus_id: proposedApparatusId,
+        proposed_compartment_id: proposedCompartmentId,
+        status: "pending",
+        request_notes: clean(body.requestNotes, 500) || null,
+        requested_by: actorId,
+        requested_by_email: actor,
+      };
+      const { data: locationRequest, error: requestError } = await supabase
+        .from("inventory_location_change_requests")
+        .insert(requestRecord)
+        .select("id,equipment_id,check_item_id,from_apparatus_id,from_compartment_id,proposed_apparatus_id,proposed_compartment_id,status,request_notes,requested_by_email,requested_at")
+        .single();
+      if (requestError?.code === "23505") {
+        return privateJson({ error: "This equipment already has a location change waiting for administrator review." }, 409);
+      }
+      if (requestError) throw requestError;
+      return privateJson({ locationRequest }, 201);
+    }
+
+    if (action === "review_location_change") {
+      const requestId = clean(body.requestId, 80);
+      const decision = clean(body.decision, 20);
+      if (!requestId || !["approved", "denied"].includes(decision)) {
+        return privateJson({ error: "Choose Approve or Deny for a pending location request." }, 400);
+      }
+      const { data: locationRequest, error: reviewError } = await supabase
+        .from("inventory_location_change_requests")
+        .update({
+          status: decision,
+          reviewed_by_email: actor,
+          review_notes: clean(body.reviewNotes, 500) || null,
+        })
+        .eq("department_id", departmentId)
+        .eq("id", requestId)
+        .eq("status", "pending")
+        .select("id,equipment_id,status,reviewed_by_email,reviewed_at,review_notes")
+        .single();
+      if (reviewError?.code === "PGRST116") {
+        return privateJson({ error: "This location request is no longer pending." }, 409);
+      }
+      if (reviewError) throw reviewError;
+      return privateJson({ locationRequest });
+    }
 
     if (action === "create_equipment") {
       const compartmentId = clean(body.compartmentId, 80);
