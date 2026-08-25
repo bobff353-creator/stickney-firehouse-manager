@@ -5,6 +5,7 @@ import test from "node:test";
 const gateway = readFileSync(new URL("../app/auth-gateway.tsx", import.meta.url), "utf8");
 const sessionIdleLock = readFileSync(new URL("../app/session-idle-lock.tsx", import.meta.url), "utf8");
 const inventoryPage = readFileSync(new URL("../app/inventory/page.tsx", import.meta.url), "utf8");
+const inventoryAccessGate = readFileSync(new URL("../app/components/InventoryAccessGate.tsx", import.meta.url), "utf8");
 const inventorySession = readFileSync(new URL("../app/lib/inventory-session.ts", import.meta.url), "utf8");
 const payrollApp = readFileSync(new URL("../app/payroll-app.tsx", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
@@ -47,10 +48,11 @@ test("verified invited email login confirms once and then uses email plus PIN", 
   assert.match(confirmation, /verifyOtp/);
 });
 
-test("recently verified access stays mounted during silent token revalidation", () => {
+test("the portal does not render authorized records until the PIN session is verified", () => {
   assert.match(authContext, /__Secure-firehouse-access=verified/);
-  assert.match(page, /recentlyVerified/);
-  assert.match(gateway, /initiallyVerified \? "authorized" : "loading"/);
+  assert.match(page, /<AuthGateway \/>/);
+  assert.match(gateway, /useState<Mode>\("loading"\)/);
+  assert.match(gateway, /checkAccess\(data\.user, true\)/);
   assert.match(gateway, /event === "TOKEN_REFRESHED"/);
   assert.match(gateway, /checkAccess\(session\.user, false\)/);
   assert.match(gateway, /response\.status !== 401 && !blocking/);
@@ -207,4 +209,14 @@ test("approved legacy accounts must create a PIN before opening Inventory", () =
   assert.match(inventorySession, /if \(!pinStatus\?\.configured\)/);
   assert.match(inventorySession, /create your 4 to 6 digit PIN before opening Inventory/);
   assert.match(inventorySession, /status: 423/);
+});
+
+test("an authenticated member can unlock an expired PIN session directly from Inventory", () => {
+  assert.match(inventoryPage, /status=\{session\.status\}/);
+  assert.match(inventoryAccessGate, /status === 423/);
+  assert.match(inventoryAccessGate, /fetch\("\/api\/auth\/pin"/);
+  assert.match(inventoryAccessGate, /action: "verify"/);
+  assert.match(inventoryAccessGate, /Unlock and reopen Inventory/);
+  assert.match(inventoryAccessGate, /window\.location\.reload\(\)/);
+  assert.doesNotMatch(inventoryAccessGate, /localStorage|sessionStorage/);
 });

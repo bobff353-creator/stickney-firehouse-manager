@@ -14,13 +14,11 @@ function clearAccessCache() {
 }
 
 export default function AuthGateway({
-  initiallyVerified,
   initialPage,
 }: {
-  initiallyVerified: boolean;
   initialPage?: "Dashboard" | "Inventory";
 }) {
-  const [mode, setMode] = useState<Mode>(initiallyVerified ? "authorized" : "loading");
+  const [mode, setMode] = useState<Mode>("loading");
   const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState("");
   const [pin, setPin] = useState("");
@@ -33,7 +31,7 @@ export default function AuthGateway({
   useEffect(() => {
     const client = getSupabaseBrowserClient();
     void client.auth.getUser().then(({ data }) => {
-      if (data.user) void checkAccess(data.user, !initiallyVerified);
+      if (data.user) void checkAccess(data.user, true);
       else {
         clearAccessCache();
         setMode("sign-in");
@@ -51,14 +49,12 @@ export default function AuthGateway({
       }
       if (event === "SIGNED_IN") {
         if (pinLoginRef.current) return;
-        void checkAccess(session.user, !initiallyVerified);
+        void checkAccess(session.user, true);
       } else if (event === "USER_UPDATED" || event === "TOKEN_REFRESHED") {
         void checkAccess(session.user, false);
       }
     });
     return () => data.subscription.unsubscribe();
-    // Access checks deliberately key off auth events; routine refreshes stay non-blocking.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function checkAccess(nextUser: User, blocking = true) {

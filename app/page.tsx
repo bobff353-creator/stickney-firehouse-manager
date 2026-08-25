@@ -1,9 +1,5 @@
-import { cookies } from "next/headers";
 import AuthGateway from "./auth-gateway";
 
-export default async function Home() {
-  const cookieStore = await cookies();
-  const recentlyVerified = cookieStore.get("__Secure-firehouse-access")?.value === "verified";
-  const pinUnlocked = Boolean(cookieStore.get("__Secure-firehouse-pin")?.value);
-  return <AuthGateway initiallyVerified={recentlyVerified && pinUnlocked} />;
+export default function Home() {
+  return <AuthGateway />;
 }

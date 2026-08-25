@@ -16,6 +16,7 @@ export default async function Home({
       <InventoryAccessGate
         unavailable={session.status === 503}
         message={session.error}
+        status={session.status}
       />
     );
   }
