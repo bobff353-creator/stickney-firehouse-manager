@@ -275,9 +275,15 @@ export default function PayrollApp({
       const settings = readRespondDeviceSettings(window.localStorage);
       setRespondDeviceSettings(settings);
       const params = new URLSearchParams(window.location.search);
-      if (params.get("display") === "tv") {
+      const requestedDisplay = params.get("display");
+      if (requestedDisplay === "portal") window.localStorage.removeItem("stickney-operations-tv-mode");
+      if (requestedDisplay === "tv" || (requestedDisplay !== "portal" && window.localStorage.getItem("stickney-operations-tv-mode") === "true")) {
         setActiveNav("Operations Board");
         setTvMode(true);
+        if (requestedDisplay !== "tv") {
+          params.set("display", "tv");
+          window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}${window.location.hash}`);
+        }
         return;
       }
       if (params.get("page")?.toLowerCase() === "respond") {
@@ -813,8 +819,13 @@ export default function PayrollApp({
           {activeNav === "Operations Board" && <OperationsBoard tvMode={tvMode} onTvModeChange={(enabled) => {
             setTvMode(enabled);
             const url = new URL(window.location.href);
-            if (enabled) url.searchParams.set("display", "tv");
-            else url.searchParams.delete("display");
+            if (enabled) {
+              url.searchParams.set("display", "tv");
+              window.localStorage.setItem("stickney-operations-tv-mode", "true");
+            } else {
+              url.searchParams.set("display", "portal");
+              window.localStorage.removeItem("stickney-operations-tv-mode");
+            }
             window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
           }} onNewActiveCall={(call) => {
             if (respondDeviceSettings.mode === "operations-alert" && activeNav === "Operations Board") {

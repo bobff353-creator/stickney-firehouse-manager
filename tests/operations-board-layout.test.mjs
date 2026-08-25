@@ -43,3 +43,20 @@ test("TV rotation keeps every operations slide mounted and preserves the last go
   assert.match(styles, /\.rotation-slide\[hidden\] \{ display: none !important; \}/);
   assert.match(board, /The last confirmed board remains on screen/);
 });
+
+test("24/7 TV mode prevents stalled refreshes and recovers after device interruptions", async () => {
+  const [board, app] = await Promise.all([
+    readFile(new URL("../app/operations-board.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(board, /loadInProgressRef/);
+  assert.match(board, /controller\.abort\(\), 15000/);
+  assert.match(board, /wakeLock/);
+  assert.match(board, /visibilitychange/);
+  assert.match(board, /window\.addEventListener\("online", recover\)/);
+  assert.match(board, /24\/7 station mode/);
+  assert.doesNotMatch(board, /Exit TV mode/);
+  assert.match(app, /stickney-operations-tv-mode/);
+  assert.match(app, /requestedDisplay === "portal"/);
+});

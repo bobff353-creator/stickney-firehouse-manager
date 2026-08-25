@@ -20,6 +20,8 @@ type WeatherData = { location: string; days: WeatherDay[]; hours?: WeatherHour[]
 type FleetApparatus = { id:string; unitNumber:string; name:string; status:string };
 type TrainingCourse = { title: string; dates: string; endDate: string; location?: string; url: string };
 type TrainingProvider = { name: string; shortName: string; sourceUrl: string; checked: string; courses: TrainingCourse[] };
+type WakeLockHandle = { release: () => Promise<void>; addEventListener: (type: "release", listener: () => void) => void };
+type JsonResponse<T> = { ok: boolean; payload: T | null };
 type Rotation = "equipment" | "duty" | "news" | "fatalities" | "romeoville" | "ifsi" | "nipsta";
 type HeaderRotation = "title" | "today" | "hourly" | "tomorrow";
 const rotationOrder: Rotation[] = ["equipment", "duty", "news", "fatalities", "romeoville", "ifsi", "nipsta"];
@@ -82,6 +84,12 @@ const alertToneIds = new Set<string>(alertTones.map((tone) => tone.id));
 const displayName = formatEmployeeName;
 const shiftLabel = (value: string) => value === "morning" ? "6:00 AM – Noon" : value === "afternoon" ? "Noon – 6:00 PM" : "6:00 PM – 6:00 AM";
 
+async function fetchBoardJson<T>(url: string, signal: AbortSignal): Promise<JsonResponse<T>> {
+  const response = await fetch(url, { cache: "no-store", signal });
+  const payload = await response.json().catch(() => null) as T | null;
+  return { ok: response.ok, payload };
+}
+
 function TrainingCourses({ provider, today }: { provider: TrainingProvider; today: string }) {
   const upcoming = provider.courses.filter((course) => course.endDate >= today).slice(0, 5);
   return <div className="training-board">
@@ -97,6 +105,7 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
   const [alertEnabled, setAlertEnabled] = useState(false), [alertTone, setAlertTone] = useState<AlertTone>("minitor-two-tone"), [alertPanelOpen, setAlertPanelOpen] = useState(false);
   const [rotationPaused,setRotationPaused]=useState(false),[lastRefresh,setLastRefresh]=useState<Date|null>(null);
   const alertEnabledRef = useRef(false), alertToneRef = useRef<AlertTone>("minitor-two-tone"), seenCallIdsRef = useRef<Set<string> | null>(null), audioContextRef = useRef<AudioContext | null>(null), onNewActiveCallRef = useRef(onNewActiveCall);
+  const loadInProgressRef = useRef(false), wakeLockRef = useRef<WakeLockHandle | null>(null);
   const playAlert = useCallback(async (toneId = alertToneRef.current) => {
     const AudioContextClass = window.AudioContext;
     const context = audioContextRef.current ?? new AudioContextClass();
@@ -130,25 +139,22 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
     });
   }, []);
   const load = useCallback(async () => {
+    if (loadInProgressRef.current) return;
+    loadInProgressRef.current = true;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 15000);
     try {
-      const [dashboardResponse, dutiesResponse, newsResponse, fatalitiesResponse, weatherResponse, fleetResponse] = await Promise.all([
-        fetch("/api/dashboard"),
-        fetch("/api/daily-duties"),
-        fetch("/api/close-call-news"),
-        fetch("/api/usfa-fatalities"),
-        fetch("/api/weather"),
-        fetch("/api/suite-context"),
+      const [dashboard, dutiesResult, newsResult, fatalitiesResult, weatherResult, fleetResult] = await Promise.all([
+        fetchBoardJson<BoardData>("/api/dashboard", controller.signal),
+        fetchBoardJson<{ currentDuty?: CurrentDuty | null; dailyFleetChecks?: DailyFleetCheck[] }>("/api/daily-duties", controller.signal).catch(() => ({ ok: false, payload: null })),
+        fetchBoardJson<{ items?: CloseCallReport[] }>("/api/close-call-news", controller.signal).catch(() => ({ ok: false, payload: null })),
+        fetchBoardJson<UsfaData>("/api/usfa-fatalities", controller.signal).catch(() => ({ ok: false, payload: null })),
+        fetchBoardJson<WeatherData>("/api/weather", controller.signal).catch(() => ({ ok: false, payload: null })),
+        fetchBoardJson<{ apparatus?: FleetApparatus[] }>("/api/suite-context", controller.signal).catch(() => ({ ok: false, payload: null })),
       ]);
-      const [result, duties, reports, usfa, forecast, fleet] = await Promise.all([
-        dashboardResponse.json() as Promise<BoardData>,
-        dutiesResponse.json().catch(() => ({})) as Promise<{ currentDuty?: CurrentDuty | null; dailyFleetChecks?: DailyFleetCheck[] }>,
-        newsResponse.json().catch(() => ({})) as Promise<{ items?: CloseCallReport[] }>,
-        fatalitiesResponse.json().catch(() => null) as Promise<UsfaData | null>,
-        weatherResponse.json().catch(() => null) as Promise<WeatherData | null>,
-        fleetResponse.json().catch(() => ({})) as Promise<{ apparatus?: FleetApparatus[] }>,
-      ]);
-      if (!dashboardResponse.ok) {
-        setError(result.error || "Unable to load live operations");
+      const result = dashboard.payload;
+      if (!dashboard.ok || !result) {
+        setError(result?.error || "Unable to load live operations");
         return;
       }
       const incomingIds = new Set(result.activeCalls.map((call) => call.reportNumber).filter(Boolean));
@@ -161,27 +167,74 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
         seenCallIdsRef.current = incomingIds;
       }
       const committed = new Set(result.activeCalls.flatMap((call) => call.respondingUnits.split(/[\s,;/]+/)).filter(Boolean));
-      const fleetStatuses = (fleet.apparatus ?? []).map((unit) => ({
+      const fleetStatuses = (fleetResult.payload?.apparatus ?? []).map((unit) => ({
         unit: unit.unitNumber || unit.name,
         status: committed.has(unit.unitNumber) ? "Committed to call" : unit.status.toLowerCase().replaceAll(/[\s_-]/g, "") === "inservice" ? "Available" : unit.status || "Status not reported",
       }));
       setData({ ...result, apparatus: fleetStatuses.length ? fleetStatuses : result.apparatus });
       setLastRefresh(new Date());
       setError("");
-      if (dutiesResponse.ok) {
-        setCurrentDuty(duties.currentDuty ?? null);
-        setDailyFleetChecks(duties.dailyFleetChecks ?? []);
+      if (dutiesResult.ok && dutiesResult.payload) {
+        setCurrentDuty(dutiesResult.payload.currentDuty ?? null);
+        setDailyFleetChecks(dutiesResult.payload.dailyFleetChecks ?? []);
       }
-      if (newsResponse.ok) setNews(reports.items ?? []);
-      if (fatalitiesResponse.ok && usfa) setFatalities(usfa);
-      if (weatherResponse.ok && forecast) setWeather(forecast);
+      if (newsResult.ok && newsResult.payload) setNews(newsResult.payload.items ?? []);
+      if (fatalitiesResult.ok && fatalitiesResult.payload) setFatalities(fatalitiesResult.payload);
+      if (weatherResult.ok && weatherResult.payload) setWeather(weatherResult.payload);
     } catch {
+      controller.abort();
       setError("Live updates are temporarily delayed. The last confirmed board remains on screen.");
+    } finally {
+      window.clearTimeout(timeout);
+      loadInProgressRef.current = false;
     }
   }, [playAlert]);
   useEffect(() => { onNewActiveCallRef.current = onNewActiveCall; }, [onNewActiveCall]);
   useEffect(() => { const timer = window.setTimeout(() => { const storedTone = window.localStorage.getItem("stickney-call-alert-tone") || ""; const selectedTone = alertToneIds.has(storedTone) ? storedTone as AlertTone : "minitor-two-tone"; const enabled = window.localStorage.getItem("stickney-call-alert-enabled") === "true"; setAlertTone(selectedTone); setAlertEnabled(enabled); alertToneRef.current = selectedTone; alertEnabledRef.current = enabled; }, 0); return () => window.clearTimeout(timer); }, []);
   useEffect(() => { const initial = window.setTimeout(() => void load(), 0); const refresh = window.setInterval(() => void load(), 30000); const ticker = window.setInterval(() => setClock(new Date()), 1000); const rotate = rotationPaused?0:window.setInterval(() => setRotation((current) => rotationOrder[(rotationOrder.indexOf(current) + 1) % rotationOrder.length]), 12000); const rotateHeader = rotationPaused?0:window.setInterval(() => setHeaderRotation((current) => headerRotationOrder[(headerRotationOrder.indexOf(current) + 1) % headerRotationOrder.length]), 8000); return () => { window.clearTimeout(initial); window.clearInterval(refresh); window.clearInterval(ticker); if(rotate)window.clearInterval(rotate);if(rotateHeader)window.clearInterval(rotateHeader); }; }, [load,rotationPaused]);
+  useEffect(() => {
+    if (!tvMode) return;
+    let disposed = false;
+    const requestWakeLock = async () => {
+      const wakeLockManager = (window.navigator as Navigator & { wakeLock?: { request: (type: "screen") => Promise<WakeLockHandle> } }).wakeLock;
+      if (!wakeLockManager || document.visibilityState !== "visible" || wakeLockRef.current) return;
+      try {
+        const lock = await wakeLockManager.request("screen");
+        if (disposed) {
+          await lock.release();
+          return;
+        }
+        wakeLockRef.current = lock;
+        lock.addEventListener("release", () => {
+          wakeLockRef.current = null;
+          if (!disposed) window.setTimeout(() => void requestWakeLock(), 1000);
+        });
+      } catch {
+        // The board remains usable on TV browsers without the Screen Wake Lock API.
+      }
+    };
+    const recover = () => {
+      if (document.visibilityState === "visible") {
+        void requestWakeLock();
+        void load();
+      }
+    };
+    window.localStorage.setItem("stickney-operations-tv-mode", "true");
+    document.title = "Live Operations Board · 24/7 Station Display";
+    void requestWakeLock();
+    document.addEventListener("visibilitychange", recover);
+    window.addEventListener("online", recover);
+    window.addEventListener("pageshow", recover);
+    return () => {
+      disposed = true;
+      document.removeEventListener("visibilitychange", recover);
+      window.removeEventListener("online", recover);
+      window.removeEventListener("pageshow", recover);
+      const lock = wakeLockRef.current;
+      wakeLockRef.current = null;
+      if (lock) void lock.release();
+    };
+  }, [load, tvMode]);
   const next = useMemo(() => nextOperationsShiftChange(clock), [clock]);
   const activeCall = data?.activeCalls[0];
   const headerWeather = headerRotation === "today" ? weather?.days[0] : headerRotation === "tomorrow" ? weather?.days[1] : null;
@@ -203,10 +256,6 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
       // layout still works and the device browser can be placed in full screen.
     }
   }
-  async function exitTvMode() {
-    if (document.fullscreenElement) await document.exitFullscreen();
-    onTvModeChange?.(false);
-  }
   async function toggleCallAlerts() {
     const enabled = !alertEnabledRef.current;
     alertEnabledRef.current = enabled;
@@ -224,8 +273,8 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
   return <section className={`operations-board${tvMode ? " tv-display" : ""}`}>
     <div className="board-display-controls">
       {alertPanelOpen && <div className="call-alert-settings"><strong>New-call sound</strong><label><span>Alert tone</span><select value={alertTone} onChange={(event) => selectAlertTone(event.target.value)}>{alertTones.map((tone) => <option value={tone.id} key={tone.id}>{tone.label}</option>)}</select></label><div><button type="button" onClick={() => void playAlert(alertTone)}>Preview</button><button type="button" className={alertEnabled ? "enabled" : ""} onClick={() => void toggleCallAlerts()}>{alertEnabled ? "Disable alerts" : "Enable call alerts"}</button></div><small>Saved on this TV. Sounds only for newly received call numbers.</small></div>}
-      <div className="board-control-buttons"><span className={`board-heartbeat ${feedDegraded?"degraded":""}`}><i/>{feedDegraded?"Feed delayed":`Updated ${lastRefresh?.toLocaleTimeString([],{hour:"numeric",minute:"2-digit",second:"2-digit"})}`}</span><button type="button" onClick={()=>setRotationPaused((current)=>!current)}>{rotationPaused?"Resume rotation":"Pause rotation"}</button><button type="button" onClick={() => setAlertPanelOpen((open) => !open)} aria-expanded={alertPanelOpen}>Call sound: {alertEnabled ? "On" : "Off"}</button>{tvMode
-        ? <button type="button" onClick={() => void exitTvMode()} aria-label="Exit TV display mode">Exit TV mode</button>
+      <div className="board-control-buttons"><span className={`board-heartbeat ${feedDegraded?"degraded":""}`}><i/>{feedDegraded?"Feed delayed · reconnecting":`Updated ${lastRefresh?.toLocaleTimeString([],{hour:"numeric",minute:"2-digit",second:"2-digit"})}`}</span><button type="button" onClick={()=>setRotationPaused((current)=>!current)}>{rotationPaused?"Resume rotation":"Pause rotation"}</button><button type="button" onClick={() => setAlertPanelOpen((open) => !open)} aria-expanded={alertPanelOpen}>Call sound: {alertEnabled ? "On" : "Off"}</button>{tvMode
+        ? <span className="board-station-mode"><i/>24/7 station mode</span>
         : <button type="button" onClick={() => void enterTvMode()} aria-label="Open the Live Operations Board in full-screen TV mode">TV full screen</button>}</div>
     </div>
     <header className="board-header"><div className="board-header-rotation" aria-live="polite"><p>Stickney Fire Department</p>{headerRotation === "title" ? <div className="board-title-slide"><h1>Live Operations Board</h1><span>{data ? shiftLabel(data.currentShift) : "Loading current shift…"}</span></div> : headerRotation === "hourly" && weather?.hours?.length ? <div className="board-hourly-slide"><span className="weather-day">Berwyn hourly outlook</span><h1>Next 4 hours</h1><div className="board-hourly-grid">{weather.hours.slice(0, 4).map((hour) => <article key={hour.time}><time>{new Date(hour.time).toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric" })}</time><strong>{hour.temperature}°</strong><span>{hour.condition}</span><small>{hour.precipitationChance}% rain · {hour.windSpeed} mph</small></article>)}</div></div> : headerWeather ? <div className="board-weather-slide"><span className="weather-day">{headerRotation === "today" ? "Today’s Berwyn weather" : "Tomorrow’s Berwyn weather"}</span><h1>{headerWeather.condition}</h1><div><strong>{headerWeather.high}°</strong><span>High</span><b>{headerWeather.low}°</b><span>Low</span><small>{headerWeather.precipitationChance}% rain · Wind {headerWeather.windGust} mph</small></div>{weather?.detailUrl && <a href={weather.detailUrl} target="_blank" rel="noreferrer">Full Berwyn forecast on Weather.com ↗</a>}</div> : <div className="board-title-slide"><h1>Live Operations Board</h1><span>Weather forecast temporarily unavailable</span></div>}</div><div className="board-clock"><strong>{clock.toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit", second: "2-digit" })}</strong><span>{clock.toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "long", month: "long", day: "numeric" })}</span><small><i/> Live · refreshes every 30 seconds</small></div></header>
