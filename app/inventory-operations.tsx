@@ -207,6 +207,10 @@ export default function InventoryOperations({
   const [selectedDirectoryEquipment, setSelectedDirectoryEquipment] = useState<Row | null>(null);
   const [scannerTarget, setScannerTarget] = useState<"create" | "edit" | "search">("create");
   const [equipmentSearch, setEquipmentSearch] = useState("");
+  const [checkSearch, setCheckSearch] = useState("");
+  const [checkResultFilter, setCheckResultFilter] = useState<"pending" | "all" | "completed" | "failed">("pending");
+  const [checkCompartmentFilter, setCheckCompartmentFilter] = useState("all");
+  const [bulkPassGroup, setBulkPassGroup] = useState<{ label: string; itemIds: string[] } | null>(null);
   const equipmentFormRef = useRef<HTMLFormElement>(null);
   const equipmentEditorRef = useRef<HTMLFormElement>(null);
   const scannerVideoRef = useRef<HTMLVideoElement>(null);
@@ -440,6 +444,38 @@ export default function InventoryOperations({
     }
   }
 
+  async function recordCheckItems(name: string, payload: Record<string, unknown>) {
+    setBusy(name);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch("/api/operations", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json().catch(() => ({})) as { checkItems?: Row[]; error?: string };
+      if (!response.ok) throw new Error(result.error || "The inventory item could not be saved.");
+      const savedItems = result.checkItems || [];
+      const savedById = new Map(savedItems.map((item) => [value(item, "id"), item]));
+      setData((current) => ({
+        ...current,
+        checkItems: current.checkItems.map((item) => {
+          const saved = savedById.get(value(item, "id"));
+          return saved ? { ...item, ...saved } : item;
+        }),
+      }));
+      setLastSyncedAt(Date.now());
+      setMessage(savedItems.length > 1 ? `${savedItems.length} inventory items passed.` : "Inventory item saved.");
+      return true;
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The inventory item could not be saved.");
+      return false;
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function uploadEvidence(apparatusId: string, photo: File, checkItemId?: string) {
     const form = new FormData();
     form.set("apparatusId", apparatusId);
@@ -477,6 +513,61 @@ export default function InventoryOperations({
     ? data.checkItems.filter((item) => value(item, "check_id") === value(activeCheck, "id"))
     : [];
   const pendingItems = activeItems.filter((item) => value(item, "result") === "pending").length;
+  const completedItems = activeItems.length - pendingItems;
+  const checkProgress = activeItems.length ? Math.round((completedItems / activeItems.length) * 100) : 0;
+  const checkCompartments = [...new Set(activeItems.map((item) => value(item, "compartment_label") || "Location not assigned"))];
+  const filteredActiveItems = activeItems.filter((item) => {
+    const result = value(item, "result");
+    const failed = ["failed", "missing", "damaged"].includes(result);
+    const matchesResult = checkResultFilter === "all"
+      || (checkResultFilter === "pending" && result === "pending")
+      || (checkResultFilter === "failed" && failed)
+      || (checkResultFilter === "completed" && result !== "pending" && !failed);
+    const compartment = value(item, "compartment_label") || "Location not assigned";
+    const matchesCompartment = checkCompartmentFilter === "all" || compartment === checkCompartmentFilter;
+    const query = checkSearch.trim().toLowerCase();
+    const matchesSearch = !query || [value(item, "equipment_name"), compartment, value(item, "source_form")]
+      .some((field) => field.toLowerCase().includes(query));
+    return matchesResult && matchesCompartment && matchesSearch;
+  });
+  const groupedActiveItems = [...filteredActiveItems.reduce((groups, item) => {
+    const label = value(item, "compartment_label") || "Location not assigned";
+    const group = groups.get(label) || [];
+    group.push(item);
+    groups.set(label, group);
+    return groups;
+  }, new Map<string, Row[]>())];
+  const renderActiveItem = (item: Row) => {
+    const itemId = value(item, "id");
+    const numericItem = isNumericReadingItem(item);
+    const savedReading = displayNumericReading(item.numeric_reading);
+    const reading = numericReadings[itemId] ?? numericReadingInputValue(item.numeric_reading);
+    const compartment = value(item, "compartment_label") || "Location not assigned";
+    return (
+      <article key={itemId} className={`check-row result-${value(item, "result")} ${numericItem ? "numeric-reading-row" : ""}`}>
+        <div className="check-item-copy">
+          <strong>{value(item, "equipment_name")}{Number(item.quantity_required || 1) > 1 ? ` × ${item.quantity_required}` : ""}</strong>
+          <small>{compartment}</small>
+          {value(item, "source_form") ? <details className="check-item-details"><summary>Details</summary><p>{value(item, "source_form")}</p></details> : null}
+        </div>
+        <div className="check-result">
+          <span>{numericItem && savedReading ? `${savedReading} miles` : value(item, "result").replace("_", " ")}</span>
+          {value(item, "result") !== "pending" && value(item, "checked_by") ? <small>By {value(item, "checked_by")} · {formatDate(item.checked_at)}</small> : null}
+        </div>
+        {numericItem ? <div className="numeric-reading-entry">
+          <label htmlFor={`numeric-reading-${itemId}`}>Current mileage / odometer</label>
+          <div>
+            <input id={`numeric-reading-${itemId}`} type="number" inputMode="decimal" min="0" step="0.1" placeholder="Enter mileage" value={reading} onChange={(event) => setNumericReadings((current) => ({ ...current, [itemId]: event.target.value }))} disabled={Boolean(busy) || !canCheck} />
+            <button type="button" disabled={Boolean(busy) || !canCheck || reading.trim() === "" || !Number.isFinite(Number(reading)) || Number(reading) < 0} onClick={() => void recordCheckItems(`item-${itemId}`, { action: "record_check_item", checkItemId: itemId, result: "pass", numericReading: reading })}>Save mileage</button>
+          </div>
+        </div> : <div className="check-actions" aria-label={`Check ${value(item, "equipment_name")}`}>
+          <button className="pass" disabled={Boolean(busy) || !canCheck} onClick={() => void recordCheckItems(`item-${itemId}`, { action: "record_check_item", checkItemId: itemId, result: "pass" })}>Pass</button>
+          <button className="failed" disabled={Boolean(busy) || !canCheck} onClick={() => setDeficiencyItem(item)}>Issue</button>
+          <button disabled={Boolean(busy) || !canCheck} onClick={() => void recordCheckItems(`item-${itemId}`, { action: "record_check_item", checkItemId: itemId, result: "not_applicable" })}>N/A</button>
+        </div>}
+      </article>
+    );
+  };
   const remainingForCheck = (checkId: string) => data.checkItems.filter((item) => (
     value(item, "check_id") === checkId && value(item, "result") === "pending"
   )).length;
@@ -647,6 +738,9 @@ export default function InventoryOperations({
                 setSelectedApparatusId(event.target.value);
                 setSelectedCheckId("");
                 setInspectionMenuOpen(true);
+                setCheckSearch("");
+                setCheckResultFilter("pending");
+                setCheckCompartmentFilter("all");
               }}>
                 {data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")} · Fleet: {formatStatus(item.status)}</option>)}
               </select>
@@ -700,49 +794,34 @@ export default function InventoryOperations({
               <div className="active-inspection-title">
                 <span>{formatStatus(activeCheck.check_type)} inspection in progress</span>
                 <small>Shared department inspection · updates refresh every 5 seconds{lastSyncedAt ? ` · synced ${formatDate(lastSyncedAt)}` : ""}</small>
-                <small>Use Pass, Failed, or N/A for standard items. Mileage and odometer items require the current number. You may leave and resume at any time.</small>
+                <small>Work one location at a time. Passed items leave the Pending view immediately; issues still require notes and a photo.</small>
               </div>
-              {activeItems.map((item) => {
-                const itemId = value(item, "id");
-                const numericItem = isNumericReadingItem(item);
-                const savedReading = displayNumericReading(item.numeric_reading);
-                const reading = numericReadings[itemId] ?? numericReadingInputValue(item.numeric_reading);
+              <section className="check-progress-summary" aria-label="Inspection progress">
+                <div><strong>{completedItems} of {activeItems.length} completed</strong><span>{pendingItems} remaining</span></div>
+                <div className="check-progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={checkProgress}><i style={{ width: `${checkProgress}%` }} /></div>
+                <small>{checkProgress}% complete · your selections save immediately</small>
+              </section>
+              <div className="check-worklist-tools">
+                <label>Find an item<input type="search" value={checkSearch} onChange={(event) => setCheckSearch(event.target.value)} placeholder="Search equipment or location" /></label>
+                <label>Show<select value={checkResultFilter} onChange={(event) => setCheckResultFilter(event.target.value as typeof checkResultFilter)}><option value="pending">Pending</option><option value="all">All items</option><option value="completed">Completed</option><option value="failed">Issues</option></select></label>
+                <label>Location<select value={checkCompartmentFilter} onChange={(event) => setCheckCompartmentFilter(event.target.value)}><option value="all">All locations</option>{checkCompartments.map((label) => <option key={label} value={label}>{label}</option>)}</select></label>
+              </div>
+              {groupedActiveItems.length ? groupedActiveItems.map(([label, items]) => {
+                const pendingStandardItems = items.filter((item) => value(item, "result") === "pending" && !isNumericReadingItem(item));
                 return (
-                <article key={itemId} className={`check-row result-${value(item, "result")} ${numericItem ? "numeric-reading-row" : ""}`}>
-                  <div><strong>{value(item, "equipment_name")}{Number(item.quantity_required || 1) > 1 ? ` × ${item.quantity_required}` : ""}</strong><small>{value(item, "compartment_label")}{value(item, "source_form") ? ` · ${value(item, "source_form")}` : ""}</small></div>
-                  <div className="check-result">
-                    <span>{numericItem && savedReading ? `${savedReading} miles` : value(item, "result").replace("_", " ")}</span>
-                    {value(item, "result") !== "pending" && value(item, "checked_by") ? <small>By {value(item, "checked_by")} · {formatDate(item.checked_at)}</small> : null}
-                  </div>
-                  {numericItem ? <div className="numeric-reading-entry">
-                    <label htmlFor={`numeric-reading-${itemId}`}>Current mileage / odometer</label>
-                    <div>
-                      <input
-                        id={`numeric-reading-${itemId}`}
-                        type="number"
-                        inputMode="decimal"
-                        min="0"
-                        step="0.1"
-                        placeholder="Enter mileage"
-                        value={reading}
-                        onChange={(event) => setNumericReadings((current) => ({ ...current, [itemId]: event.target.value }))}
-                        disabled={Boolean(busy) || !canCheck}
-                      />
-                      <button
-                        type="button"
-                        disabled={Boolean(busy) || !canCheck || reading.trim() === "" || !Number.isFinite(Number(reading)) || Number(reading) < 0}
-                        onClick={() => void action(`item-${itemId}`, { action: "record_check_item", checkItemId: itemId, result: "pass", numericReading: reading })}
-                      >Save mileage</button>
-                    </div>
-                    <small>Numbers only. This replaces Pass / Failed / N/A for mileage items.</small>
-                  </div> : <div className="check-actions">
-                    <button disabled={Boolean(busy) || !canCheck} onClick={() => void action(`item-${value(item, "id")}`, { action: "record_check_item", checkItemId: value(item, "id"), result: "pass" })}>Pass</button>
-                    <button className="failed" disabled={Boolean(busy) || !canCheck} onClick={() => setDeficiencyItem(item)}>Failed</button>
-                    <button disabled={Boolean(busy) || !canCheck} onClick={() => void action(`item-${value(item, "id")}`, { action: "record_check_item", checkItemId: value(item, "id"), result: "not_applicable" })}>N/A</button>
-                  </div>}
-                </article>
-              )})}
-              <button className="ops-primary" disabled={Boolean(busy) || pendingItems > 0 || !canCheck} onClick={() => void action("complete", { action: "complete_check", checkId: value(activeCheck, "id") })}>Complete {formatStatus(activeCheck.check_type)} inspection</button>
+                  <section className="check-location-group" key={label}>
+                    <header>
+                      <div><span>LOCATION</span><h3>{label}</h3><small>{items.length} shown</small></div>
+                      {pendingStandardItems.length > 1 ? <button type="button" disabled={Boolean(busy) || !canCheck} onClick={() => setBulkPassGroup({ label, itemIds: pendingStandardItems.map((item) => value(item, "id")) })}>Pass remaining in this location</button> : null}
+                    </header>
+                    <div className="check-location-items">{items.map(renderActiveItem)}</div>
+                  </section>
+                );
+              }) : <div className="ops-empty check-filter-empty"><strong>No items match these filters</strong><p>Change the search, status, or location to see more checklist items.</p><button type="button" onClick={() => { setCheckSearch(""); setCheckResultFilter("pending"); setCheckCompartmentFilter("all"); }}>Clear filters</button></div>}
+              <div className="check-completion-bar">
+                <div><strong>{pendingItems ? `${pendingItems} items still need a result` : "All items have a result"}</strong><small>{pendingItems ? "Finish the remaining locations before completing this inspection." : "Review any issues, then complete the inspection."}</small></div>
+                <button className="ops-primary" disabled={Boolean(busy) || pendingItems > 0 || !canCheck} onClick={() => void action("complete", { action: "complete_check", checkId: value(activeCheck, "id") })}>Complete {formatStatus(activeCheck.check_type)} inspection</button>
+              </div>
             </div>
           ) : null}
         </section>
@@ -964,6 +1043,15 @@ export default function InventoryOperations({
           <aside className="controlled-medication-note"><strong>Controlled medications</strong><p>Narcotics are intentionally excluded from ordinary stock. Custody signatures, immutable audit history, and discrepancy handling require a separate protected module.</p></aside>
         </>
       ) : null}
+      {bulkPassGroup && activeCheck ? (
+        <div className="camera-overlay" role="presentation">
+          <section className="camera-panel bulk-pass-panel" role="dialog" aria-modal="true" aria-label="Confirm passing remaining inventory items">
+            <header><div><span>CONFIRM LOCATION</span><h3>Pass {bulkPassGroup.itemIds.length} items in {bulkPassGroup.label}?</h3></div><button type="button" onClick={() => setBulkPassGroup(null)}>Cancel</button></header>
+            <p>Use this only after physically checking every listed item in this location. Mileage and odometer entries are excluded and still require a number.</p>
+            <div className="bulk-pass-actions"><button type="button" onClick={() => setBulkPassGroup(null)}>Go back</button><button className="ops-primary" type="button" disabled={Boolean(busy) || !canCheck} onClick={() => void recordCheckItems("bulk-pass", { action: "bulk_record_check_items", checkId: value(activeCheck, "id"), checkItemIds: bulkPassGroup.itemIds }).then((saved) => { if (saved) setBulkPassGroup(null); })}>Confirm {bulkPassGroup.itemIds.length} items passed</button></div>
+          </section>
+        </div>
+      ) : null}
       {deficiencyItem && activeCheck ? (
         <div className="camera-overlay" role="presentation">
           <form className="camera-panel deficiency-panel" role="dialog" aria-modal="true" aria-label="Record failed inspection item" onSubmit={(event) => {
@@ -980,7 +1068,7 @@ export default function InventoryOperations({
               try {
                 setBusy("deficiency");
                 const evidencePhotoId = await uploadEvidence(selectedApparatusId, photo, value(deficiencyItem, "id"));
-                const saved = await action("deficiency", { action: "record_check_item", checkItemId: value(deficiencyItem, "id"), result: "failed", notes: form.get("notes"), issueCategories: form.getAll("issueCategories"), assignedEmployeeIds: employeeIds, assignedEmployeeNames: employeeNames, evidencePhotoId });
+                const saved = await recordCheckItems("deficiency", { action: "record_check_item", checkItemId: value(deficiencyItem, "id"), result: "failed", notes: form.get("notes"), issueCategories: form.getAll("issueCategories"), assignedEmployeeIds: employeeIds, assignedEmployeeNames: employeeNames, evidencePhotoId });
                 if (saved) setDeficiencyItem(null);
               } catch (caught) {
                 setError(caught instanceof Error ? caught.message : "The deficiency could not be saved.");

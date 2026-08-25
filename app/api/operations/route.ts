@@ -158,21 +158,24 @@ export async function GET(request: Request) {
       status: fleetStatuses.get(item.id) || "not_recorded",
     }));
     const compartments = compartmentsResult.data || [];
+    const compartmentById = new Map(compartments.map((item) => [item.id, item]));
     const allEquipment = (equipmentResult.data || []).map((item) => ({
       ...item,
-      compartment_label: compartments.find((row) => row.id === item.compartment_id)?.label || "",
+      compartment_label: compartmentById.get(item.compartment_id)?.label || "",
       photo_url: equipmentPhotosResult.data?.find((photo) => photo.equipment_id === item.id)
         ? `/api/digital-twin/media/${equipmentPhotosResult.data.find((photo) => photo.equipment_id === item.id)?.id}`
         : null,
     }));
     const equipment = allEquipment.filter((item) => !item.retired_at);
+    const equipmentById = new Map(allEquipment.map((item) => [item.id, item]));
+    const apparatusById = new Map(apparatus.map((item) => [item.id, item]));
     const checks = (checksResult.data || []).map((check) => ({
       ...check,
-      apparatus_name: apparatus.find((row) => row.id === check.apparatus_id)?.name || "",
-      apparatus_status: apparatus.find((row) => row.id === check.apparatus_id)?.status || "not_recorded",
+      apparatus_name: apparatusById.get(check.apparatus_id)?.name || "",
+      apparatus_status: apparatusById.get(check.apparatus_id)?.status || "not_recorded",
     }));
     const checkItems = (checkItemsResult.data || []).map((item) => {
-      const equipmentItem = allEquipment.find((row) => row.id === item.equipment_id);
+      const equipmentItem = equipmentById.get(item.equipment_id);
       return {
         ...item,
         equipment_name: equipmentItem?.name || "",
@@ -183,15 +186,15 @@ export async function GET(request: Request) {
     });
     const exceptions = (exceptionsResult.data || []).map((item) => ({
       ...item,
-      apparatus_name: apparatus.find((row) => row.id === item.apparatus_id)?.name || "",
-      apparatus_status: apparatus.find((row) => row.id === item.apparatus_id)?.status || "not_recorded",
-      equipment_name: equipment.find((row) => row.id === item.equipment_id)?.name || "",
+      apparatus_name: apparatusById.get(item.apparatus_id)?.name || "",
+      apparatus_status: apparatusById.get(item.apparatus_id)?.status || "not_recorded",
+      equipment_name: equipmentById.get(item.equipment_id)?.name || "",
     }));
     const workOrders = (workOrdersResult.data || []).map((item) => ({
       ...item,
-      apparatus_name: apparatus.find((row) => row.id === item.apparatus_id)?.name || "",
-      apparatus_status: apparatus.find((row) => row.id === item.apparatus_id)?.status || "not_recorded",
-      equipment_name: equipment.find((row) => row.id === item.equipment_id)?.name || "",
+      apparatus_name: apparatusById.get(item.apparatus_id)?.name || "",
+      apparatus_status: apparatusById.get(item.apparatus_id)?.status || "not_recorded",
+      equipment_name: equipmentById.get(item.equipment_id)?.name || "",
     }));
     const lots = stockLotsResult.data || [];
     const stock = (stockItemsResult.data || []).flatMap((item) => {
@@ -257,7 +260,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json() as Record<string, unknown>;
     const action = clean(body.action, 60);
-    const requiredPermission = ["start_check", "record_check_item", "complete_check", "adjust_stock", "request_restock"].includes(action)
+    const requiredPermission = ["start_check", "record_check_item", "bulk_record_check_items", "complete_check", "adjust_stock", "request_restock"].includes(action)
       ? "inventory.check" as const
       : ["create_notice", "create_work_order", "close_work_order", "update_work_order_status"].includes(action)
         ? "inventory.repairs.manage" as const
@@ -506,7 +509,7 @@ export async function POST(request: Request) {
           .maybeSingle();
         if (!evidence) return privateJson({ error: "The attached photo does not match this item." }, 400);
       }
-      const { error } = await supabase
+      const { data: updatedItem, error } = await supabase
         .from("inventory_check_items")
         .update({
           result,
@@ -516,7 +519,9 @@ export async function POST(request: Request) {
           checked_at: new Date().toISOString(),
         })
         .eq("department_id", departmentId)
-        .eq("id", checkItemId);
+        .eq("id", checkItemId)
+        .select("id,check_id,equipment_id,result,notes,numeric_reading,checked_by,checked_at")
+        .single();
       if (error) throw error;
       if (isFailure) {
         const { data: existing } = await supabase
@@ -587,7 +592,60 @@ export async function POST(request: Request) {
           if (orderError) throw orderError;
         }
       }
-      return privateJson({ saved: true });
+      return privateJson({ saved: true, checkItems: updatedItem ? [updatedItem] : [] });
+    }
+
+    if (action === "bulk_record_check_items") {
+      const checkId = clean(body.checkId, 80);
+      const requestedIds = stringList(body.checkItemIds, undefined, 250);
+      if (!checkId || !requestedIds.length) {
+        return privateJson({ error: "Choose at least one pending inventory item." }, 400);
+      }
+      const { data: check } = await supabase
+        .from("inventory_checks")
+        .select("id,check_type,status")
+        .eq("department_id", departmentId)
+        .eq("id", checkId)
+        .eq("status", "in_progress")
+        .maybeSingle();
+      if (!check || check.check_type !== "inventory") {
+        return privateJson({ error: "Bulk pass is available only for an active Inventory check." }, 400);
+      }
+      const { data: requestedItems, error: requestedError } = await supabase
+        .from("inventory_check_items")
+        .select("id,equipment_id,result")
+        .eq("department_id", departmentId)
+        .eq("check_id", checkId)
+        .in("id", requestedIds);
+      if (requestedError) throw requestedError;
+      if (!requestedItems?.length) {
+        return privateJson({ error: "Those pending inventory items are no longer available." }, 409);
+      }
+      const equipmentIds = [...new Set((requestedItems || []).map((item) => item.equipment_id))];
+      const { data: bulkEquipment, error: equipmentError } = await supabase
+        .from("inventory_equipment")
+        .select("id,name")
+        .eq("department_id", departmentId)
+        .in("id", equipmentIds);
+      if (equipmentError) throw equipmentError;
+      const equipmentNames = new Map((bulkEquipment || []).map((item) => [item.id, item.name]));
+      const safeIds = (requestedItems || [])
+        .filter((item) => item.result === "pending" && !/\b(mileage|odometer)\b/i.test(equipmentNames.get(item.equipment_id) || ""))
+        .map((item) => item.id);
+      if (!safeIds.length) {
+        return privateJson({ error: "No pending standard items were available to pass." }, 409);
+      }
+      const checkedAt = new Date().toISOString();
+      const { data: updatedItems, error: updateError } = await supabase
+        .from("inventory_check_items")
+        .update({ result: "pass", checked_by: actor, checked_at: checkedAt })
+        .eq("department_id", departmentId)
+        .eq("check_id", checkId)
+        .eq("result", "pending")
+        .in("id", safeIds)
+        .select("id,check_id,equipment_id,result,notes,numeric_reading,checked_by,checked_at");
+      if (updateError) throw updateError;
+      return privateJson({ saved: true, checkItems: updatedItems || [] });
     }
 
     if (action === "complete_check") {
