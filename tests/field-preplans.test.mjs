@@ -89,7 +89,7 @@ test("IFC Appendix B advisory flow uses total levels and sprinkler assumptions",
 });
 
 test("Field Preplans provides map-first quick and detailed capture", async () => {
-  const [page, api, photoApi, hydrantApi, bootstrap, shell, permissions, googleMap, mapsConfig, styles, fireFlow] = await Promise.all([
+  const [page, api, photoApi, hydrantApi, bootstrap, shell, permissions, googleMap, mapsConfig, styles, fireFlow, layout] = await Promise.all([
     readFile(new URL("../app/field-preplans.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/field-preplans/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/field-preplans/photos/route.ts", import.meta.url), "utf8"),
@@ -101,6 +101,7 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
     readFile(new URL("../app/api/maps-config/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../app/preplan-fire-flow.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(shell, /label: "Field"/);
   assert.match(shell, /activeNav === "Field Preplans"/);
@@ -172,6 +173,8 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(page, /Map & Search/);
   assert.match(page, /Build Queue/);
   assert.match(page, /preplan-step-tabs/);
+  assert.doesNotMatch(layout, /preplan-route\.js/);
+  assert.doesNotMatch(page, /preplan-step-selector/);
   assert.match(page, /preplan-subtabs/);
   assert.match(page, /preplan-photo-tabs/);
   assert.match(styles, /\.preplan-builder-focused>\.preplan-editor\{max-height:none;overflow:visible\}/);
