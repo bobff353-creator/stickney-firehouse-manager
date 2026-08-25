@@ -12,8 +12,8 @@ import { apparatus1203Compartments, apparatus1203Equipment, apparatus1203Vehicle
 import { apparatus1204Compartments, apparatus1204Equipment, apparatus1204VehicleChecks } from "../app/inventory-1204-import";
 
 const payScales = [
-  ["deputy-chief-1", "Chief — O'Dowd", 31, 46.5, 46.5, 1],
-  ["deputy-chief-2", "Chief — Babinec", 27.22, 40.83, 40.83, 2],
+  ["deputy-chief-1", "Chief", 31, 46.5, 46.5, 1],
+  ["deputy-chief-2", "Deputy Chief", 27.22, 40.83, 40.83, 2],
   ["captain", "Captain", 26.5, 39.75, 39.75, 3],
   ["lieutenant", "Lieutenant", 24.86, 37.29, 37.29, 4],
   ["firefighter", "Firefighter", 22, 33, 33, 5],
