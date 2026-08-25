@@ -88,13 +88,15 @@ export default function StaffingRotation({
     : current.type === "schedule"
       ? `Department schedule · ${schedule?.items.length ?? 0} assignment${schedule?.items.length === 1 ? "" : "s"}`
       : current.member.startDate;
+  const boardScheduleItems = mode === "board" ? schedule?.items.slice(0, 6) ?? [] : schedule?.items ?? [];
+  const hiddenBoardAssignments = mode === "board" ? Math.max(0, (schedule?.items.length ?? 0) - boardScheduleItems.length) : 0;
 
   const content = current.type === "current"
     ? <div className="staffing-current-list">{onDuty.length ? onDuty.map((person) => <div key={person.employeeId}><span>{formatEmployeeName(person.name)}{person.actingOfficer ? <b>AO</b> : null}</span><small>{person.rank} · {person.timeIn}–{person.timeOut}</small></div>) : <p>No current staffing has been entered.</p>}</div>
     : current.type === "schedule"
       ? schedule?.error
         ? <div className="aladtec-connection-state"><strong>{schedule.error}</strong><p>Assignments will reappear automatically when the department schedule is available.</p></div>
-        : <div className="schedule-24-list">{schedule?.items.length ? schedule.items.map((item) => <div key={item.id}><time>{timeRange(item)}</time><strong>{formatEmployeeName(item.employeeName)}</strong><small>{item.role}</small></div>) : <p>No department assignments overlap the next 24 hours.</p>}</div>
+        : <div className="schedule-24-list">{boardScheduleItems.length ? <>{boardScheduleItems.map((item) => <div key={item.id}><time>{timeRange(item)}</time><strong>{formatEmployeeName(item.employeeName)}</strong><small>{item.role}</small></div>)}{hiddenBoardAssignments ? <p className="schedule-24-overflow">+{hiddenBoardAssignments} additional assignments remain on the full schedule</p> : null}</> : <p>No department assignments overlap the next 24 hours.</p>}</div>
       : <div className="new-member-spotlight"><div className="new-member-photo">{current.member.photoUpdatedAt ? <img src={`/api/employee-photo/${current.member.id}?v=${encodeURIComponent(current.member.photoUpdatedAt)}`} alt={`${formatEmployeeName(current.member.name)} employee photo`} /> : <span>{initials(current.member.name)}</span>}</div><div><span>Welcome to Stickney Fire Department</span><strong>{formatEmployeeName(current.member.name)}</strong><p>{current.member.rank}</p><dl><div><dt>Employee ID</dt><dd>{current.member.employeeNumber || "Not entered"}</dd></div><div><dt>Start date</dt><dd>{new Date(`${current.member.startDate}T12:00:00`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</dd></div></dl><small>{joinedLabel(current.member.startDate)}</small></div></div>;
 
   if (mode === "board") {
