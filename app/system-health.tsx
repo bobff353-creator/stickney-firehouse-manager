@@ -31,7 +31,7 @@ export default function SystemHealth() {
     }
   }, []);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => { const timer = window.setTimeout(() => void refresh(), 0); return () => window.clearTimeout(timer); }, [refresh]);
 
   return <section className="system-health-page">
     <div className="standard-page-header system-health-header">

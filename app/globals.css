@@ -1129,6 +1129,43 @@ td strong { font-size: 16px; }
   .operations-board .training-course-list a { min-height: 54px; grid-template-columns: 62px minmax(0,1fr) auto; }
   .operations-board .training-course-list a:last-child:nth-child(odd) { grid-column: 1/-1; }
 }
+
+/* Operational road closures */
+.road-closures-page { margin: -10px auto 40px; max-width: 1500px; color: #102f46; }
+.road-closures-hero { padding: 26px 0 22px; border-bottom: 1px solid #c8d5dd; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+.road-closures-hero span,.road-closure-form>span,.active-road-list header span { color: #a21f25; font-size: 10px; font-weight: 900; letter-spacing: .14em; }
+.road-closures-hero h1 { margin: 5px 0 3px; font-size: clamp(34px,4vw,58px); font-weight: 500; letter-spacing: -.045em; }
+.road-closures-hero p { max-width: 780px; margin: 0; color: #526a7a; }
+.road-closures-hero>strong { padding: 10px 14px; border-radius: 4px; background: #dceae4; color: #087451; font-size: 12px; letter-spacing: .08em; white-space: nowrap; }
+.road-closures-hero>strong.has-closures { background: #ffe1dd; color: #a21f25; }
+.road-closure-message { margin: 16px 0; padding: 12px 15px; border: 1px solid #8fb5c3; background: #eef7f8; font-weight: 700; }
+.road-closure-layout { margin-top: 22px; display: grid; grid-template-columns: minmax(0,2fr) minmax(310px,.8fr); gap: 18px; align-items: stretch; }
+.road-map-toolbar { min-height: 52px; padding: 8px; border: 1px solid #b8c9d3; background: white; display: flex; align-items: center; gap: 7px; }
+.road-map-toolbar button { min-height: 35px; border: 1px solid #7895a7; background: white; color: #123c53; font-weight: 800; }
+.road-map-toolbar button.active { border-color: #b32228; background: #b32228; color: white; }
+.road-map-toolbar span { flex: 1; }
+.road-closure-map { position: relative; height: min(62vh,650px); min-height: 460px; border: 1px solid #b8c9d3; border-top: 0; overflow: hidden; background: #dce5e8; }
+.road-closure-map .google-map-base { position: absolute; inset: 0; }
+.road-closure-map svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.road-map-capture { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: transparent; cursor: crosshair; }
+.road-map-status { position: absolute; left: 14px; bottom: 14px; z-index: 2; padding: 9px 12px; border-radius: 4px; background: rgba(7,27,38,.9); color: white; font-size: 12px; font-weight: 800; pointer-events: none; }
+.active-road-closure,.draft-road-closure { fill: none; stroke: #dc252e; stroke-width: 12; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 1px 2px white); }
+.active-road-closure { stroke-dasharray: 18 9; animation: roadClosureMarch 1.3s linear infinite; }
+.draft-road-closure { stroke: #ffb316; stroke-width: 9; }
+@keyframes roadClosureMarch { to { stroke-dashoffset: -27; } }
+.road-closure-label,.road-detour-label { fill: #fff; stroke: #7b1115; stroke-width: 4px; paint-order: stroke; font-size: 17px; font-weight: 900; }
+.road-trace-point { fill: #ffb316; stroke: white; stroke-width: 3; }.road-trace-number { fill: #102f46; font-size: 10px; font-weight: 900; text-anchor: middle; }.road-detour-point { fill: #0b8d63; stroke: white; stroke-width: 5; }.road-detour-label { stroke: #075f47; }
+.road-closure-form { height: 100%; box-sizing: border-box; padding: 24px; border-top: 4px solid #b32228; background: #0e2635; color: white; }
+.road-closure-form h2 { margin: 6px 0 22px; font-size: 27px; }.road-closure-form label { display: grid; gap: 6px; margin: 14px 0; color: #bcd0dc; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; }
+.road-closure-form input,.road-closure-form textarea { box-sizing: border-box; width: 100%; padding: 12px; border: 1px solid #627d8d; background: #fff; color: #102f46; font: inherit; text-transform: none; letter-spacing: 0; }.road-closure-form textarea { min-height: 90px; resize: vertical; }
+.road-closure-form ol { padding-left: 22px; color: #bcd0dc; }.road-closure-form li { margin: 8px 0; }.road-closure-form li.done { color: #69e0ae; font-weight: 800; }
+.activate-road-closure { width: 100%; min-height: 48px; border: 0; background: #d92d35; color: white; font-weight: 900; }.activate-road-closure:disabled { opacity: .45; }.road-closure-form>small { display: block; margin-top: 14px; color: #a9c0cd; line-height: 1.45; }
+.active-road-list { margin-top: 22px; border-top: 4px solid #b32228; background: white; }.active-road-list>header { padding: 18px 22px; border: 1px solid #c7d5dd; display: flex; justify-content: space-between; align-items: center; }.active-road-list h2 { margin: 3px 0 0; font-size: 26px; }.active-road-list>header>b { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: #b32228; color: white; }
+.active-road-list article { padding: 18px 22px; border: 1px solid #c7d5dd; border-top: 0; display: flex; justify-content: space-between; gap: 20px; }.active-road-list article span { color: #b32228; font-size: 10px; font-weight: 900; letter-spacing: .12em; }.active-road-list article h3 { margin: 4px 0; font-size: 24px; }.active-road-list article p { margin: 0 0 7px; }.active-road-list article small { color: #607583; }.active-road-list article>div:last-child { display: flex; align-items: center; gap: 8px; }.active-road-list a,.active-road-list button { padding: 11px 13px; border: 1px solid #214c62; background: #214c62; color: white; text-decoration: none; font-weight: 900; white-space: nowrap; }.active-road-list button { border-color: #9c2a2f; background: white; color: #9c2a2f; }
+.road-closure-empty { margin: 0; padding: 28px; border: 1px solid #c7d5dd; border-top: 0; color: #607583; }.road-history-toggle { margin-top: 14px; border: 0; background: transparent; color: #214c62; font-weight: 800; }.road-closure-history article { padding: 12px; border-bottom: 1px solid #ccd7dd; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.board-road-closures { margin: 12px 0 0; border: 2px solid #ff676d; border-radius: 8px; background: #42191c; overflow: hidden; }.board-road-closures>header { padding: 7px 12px; background: #c62e36; display: flex; justify-content: space-between; font-size: 11px; font-weight: 900; letter-spacing: .1em; }.board-road-closures>div { display: grid; grid-template-columns: repeat(auto-fit,minmax(260px,1fr)); }.board-road-closures article { padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }.board-road-closures h2 { margin: 0; font-size: 19px; }.board-road-closures p,.board-road-closures small { margin: 2px 0 0; display: block; color: #ffd8d9; }.board-road-closures a { padding: 9px; border: 1px solid #ff9a9e; color: white; text-decoration: none; font-size: 10px; font-weight: 900; white-space: nowrap; }
+.tv-shell .operations-board:has(.board-road-closures) { grid-template-rows: 36px 100px auto 70px minmax(0,1fr) 78px; }.tv-display .board-road-closures { margin: 0; max-height: 86px; }.tv-display .board-road-closures>header { padding: 4px 9px; }.tv-display .board-road-closures article { padding: 5px 9px; }.tv-display .board-road-closures h2 { font-size: 15px; }.tv-display .board-road-closures p,.tv-display .board-road-closures small { font-size: 8px; }.tv-display .board-road-closures a { padding: 6px; font-size: 8px; }
+@media (max-width: 850px) { .road-closure-layout { grid-template-columns: 1fr; }.road-closure-map { min-height: 420px; }.road-map-toolbar { flex-wrap: wrap; }.road-map-toolbar span { display: none; }.active-road-list article { flex-direction: column; }.active-road-list article>div:last-child { flex-wrap: wrap; }.road-closure-history article { grid-template-columns: 1fr; } }
 .board-grid.redesigned .rotating-panel > .rotation-content { min-height: 440px; align-content: start; }
 .board-grid.redesigned .current-duty-card { min-height: 400px; }
 .board-grid.redesigned .current-duty-card > p { font-size: clamp(23px,2.4vw,34px); }

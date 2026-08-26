@@ -101,6 +101,7 @@ export async function GET(request: Request) {
     const activeCalls = [...localEmailActiveCalls.filter((call) => !manualReportNumbers.has(String(call.reportNumber || ""))), ...manualActiveCalls];
     const activeUnitText = activeCalls.map((call) => String(call.respondingUnits || "")).join(",");
     const apparatus = ["1201", "1203", "1204", "1205", "1207"].map((unit) => ({ unit, status: new RegExp(`(^|\\D)${unit}(\\D|$)`).test(activeUnitText) ? "Committed to call" : "Status not reported" }));
+    const roadClosures = await db.prepare("SELECT id, road_name roadName, reason, path_json pathJson, detour_latitude detourLatitude, detour_longitude detourLongitude, started_at startedAt, expected_clear_at expectedClearAt FROM road_closures WHERE status='active' ORDER BY datetime(started_at) DESC").all<{ id:string;roadName:string;reason:string;pathJson:string;detourLatitude:number;detourLongitude:number;startedAt:string;expectedClearAt:string|null }>();
     const openLogApprovals = (currentApproval?.signInAt ? 0 : 1) + (priorApproval?.signOutAt ? 0 : 1);
     return Response.json({
       asOf: new Date().toISOString(), date: now.date, currentShift, priorShift,
@@ -111,6 +112,7 @@ export async function GET(request: Request) {
       equipmentIssues: [...fleetIssues, ...issues.map((issue, index) => ({ id: `handoff-${index}-${issue.item}`, ...issue }))],
       activeCalls,
       apparatus,
+      roadClosures: roadClosures.results.map((closure) => { let path: Array<{lat:number;lng:number}> = []; try { path = JSON.parse(closure.pathJson); } catch {} return { ...closure, path, pathJson: undefined }; }),
       newMembers: newMembers.results,
       approvals: { logs: openLogApprovals, payroll: Number(payrollWaiting?.count || 0) },
       previousShift: { officer: priorApproval?.officerName || null, note: priorApproval?.signOutNote || priorApproval?.signInNote || (log as { shiftNotes?: string } | null)?.shiftNotes || "No handoff note was entered.", calls: calls.results },
