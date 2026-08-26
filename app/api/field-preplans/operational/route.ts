@@ -15,6 +15,20 @@ function integer(value: unknown, fallback = 0) { const parsed = Number(value); r
 function json(value: unknown, fallback: unknown) {
   try { return JSON.stringify(value ?? fallback); } catch { return JSON.stringify(fallback); }
 }
+type MapPoint = { lat:number;lng:number } | { x:number;y:number };
+function mapPoints(value:unknown):MapPoint[]{
+  if(!Array.isArray(value))return [];
+  return value.map((entry)=>{
+    const point=entry as {lat?:unknown;lng?:unknown;x?:unknown;y?:unknown};
+    if(point.lat!=null||point.lng!=null)return {lat:Number(point.lat),lng:Number(point.lng)};
+    return {x:Number(point.x),y:Number(point.y)};
+  });
+}
+function validMapPoint(point:MapPoint){
+  return "lat" in point
+    ? Number.isFinite(point.lat)&&Number.isFinite(point.lng)&&point.lat>=-90&&point.lat<=90&&point.lng>=-180&&point.lng<=180
+    : Number.isFinite(point.x)&&Number.isFinite(point.y)&&point.x>=0&&point.x<=1&&point.y>=0&&point.y<=1;
+}
 function actor(request: Request) { return text(request.headers.get("oai-authenticated-user-email"), 254).toLowerCase() || "Authenticated user"; }
 
 async function requirePermission(request: Request, db: Db, permission: PermissionKey) {
@@ -36,7 +50,7 @@ export async function GET(request: Request) {
     if (!lifecycle || !canReadPreplanLifecycle(lifecycle, readAccess)) return Response.json({ error:"Preplan not found." }, { status:404 });
     const permissionKeys:PermissionKey[]=["field_preplans.edit","field_preplans.publish","field_preplans.review","field_preplans.manage_layers","field_preplans.manage_hazmat","field_preplans.manage_attachments","field_preplans.verify_expiring"];
     const [plan, levels, spaces, alerts, hazmat, zones, annotations, assets, hoseLays, hydrants, apparatus, risks, reviews, revisions, permissionValues] = await Promise.all([
-      db.prepare("SELECT publication_status publicationStatus,completeness_status completenessStatus,revision_number revisionNumber,last_verified_at lastVerifiedAt,next_review_date nextReviewDate,target_hazard_level targetHazardLevel,target_hazard_reasons targetHazardReasons,construction_profile constructionProfile,occupancy_profile occupancyProfile FROM field_preplans WHERE id=?").bind(preplanId).first(),
+      db.prepare("SELECT publication_status publicationStatus,completeness_status completenessStatus,revision_number revisionNumber,last_verified_at lastVerifiedAt,next_review_date nextReviewDate,target_hazard_level targetHazardLevel,target_hazard_reasons targetHazardReasons,construction_profile constructionProfile,occupancy_profile occupancyProfile,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude FROM field_preplans WHERE id=?").bind(preplanId).first(),
       db.prepare("SELECT id,preplan_id preplanId,name,short_label shortLabel,layer_type layerType,floor_index floorIndex,grade_designation gradeDesignation,sort_order sortOrder,is_default isDefault,respond_visible respondVisible,hidden,archived,background_type backgroundType,background_asset_id backgroundAssetId,background_transform backgroundTransform,opacity,updated_by updatedBy,updated_at updatedAt FROM field_preplan_levels WHERE preplan_id=? ORDER BY archived,sort_order,name").bind(preplanId).all(),
       db.prepare("SELECT id,preplan_id preplanId,level_id levelId,display_name name,room_number roomNumber,aliases,cad_keywords cadKeywords,space_type spaceType,geometry,access_notes accessNotes,fire_protection_notes fireProtectionNotes,hazards,archived,updated_by updatedBy,updated_at updatedAt FROM field_preplan_spaces WHERE preplan_id=? ORDER BY archived,display_name").bind(preplanId).all(),
       db.prepare("SELECT id,preplan_id preplanId,level_id levelId,space_id spaceId,alert_type alertType,title,instructions message,severity,display_order displayOrder,pin_to_respond pinToRespond,effective_at effectiveAt,expires_at expiresAt,expiration_action expirationAction,verified_by verifiedBy,verified_at verifiedAt,archived,updated_by updatedBy,updated_at updatedAt FROM field_preplan_alerts WHERE preplan_id=? ORDER BY archived,severity DESC,created_at DESC").bind(preplanId).all(),
@@ -45,7 +59,7 @@ export async function GET(request: Request) {
       db.prepare("SELECT id,preplan_id preplanId,level_id levelId,annotation_type annotationType,operational_subtype operationalSubtype,name,label,geometry,coordinate_space coordinateSpace,line_color lineColor,fill_color fillColor,line_width lineWidth,opacity,effective_at effectiveAt,expires_at expiresAt,expiration_action expirationAction,verified_by verifiedBy,verified_at verifiedAt,archived,updated_by updatedBy,updated_at updatedAt FROM field_preplan_annotations WHERE preplan_id=? ORDER BY archived,sort_order").bind(preplanId).all(),
       db.prepare("SELECT id,preplan_id preplanId,level_id levelId,category assetType,original_filename filename,mime_type contentType,file_size sizeBytes,caption,created_by createdBy,created_at createdAt FROM field_preplan_assets WHERE preplan_id=? AND archived=0 ORDER BY sort_order,created_at DESC").bind(preplanId).all(),
       db.prepare("SELECT id,preplan_id preplanId,level_id levelId,name,source_hydrant_id sourceHydrantId,destination_side destinationSide,destination_feature_id destinationFeatureId,path,segment_distances segmentDistances,total_distance_feet totalDistanceFeet,hose_size_inches hoseSizeInches,section_length_feet sectionLengthFeet,reserve_feet reserveFeet,recommended_hose_feet recommendedHoseFeet,supply_line_label supplyLineLabel,apparatus_id apparatusId,apparatus_capacity_feet apparatusCapacityFeet,inventory_verified_at inventoryVerifiedAt,notes,archived,updated_by updatedBy,updated_at updatedAt FROM field_preplan_hose_lays WHERE preplan_id=? ORDER BY archived,name").bind(preplanId).all(),
-      db.prepare("SELECT id,hydrant_number hydrantNumber,address,service_status serviceStatus FROM field_hydrants ORDER BY hydrant_number,address").all(),
+      db.prepare("SELECT id,hydrant_number hydrantNumber,address,service_status serviceStatus,latitude,longitude FROM field_hydrants ORDER BY hydrant_number,address").all(),
       db.prepare("SELECT id,unit_number unitNumber,name,status,retired_at retiredAt FROM fleet_apparatus ORDER BY unit_number,name").all(),
       db.prepare("SELECT id,preplan_id preplanId,factor,score,explanation,source,manual_override manualOverride,reviewer,reviewed_at reviewedAt,updated_by updatedBy,updated_at updatedAt FROM field_preplan_risk_factors WHERE preplan_id=? ORDER BY factor").bind(preplanId).all(),
       db.prepare("SELECT id,preplan_id preplanId,revision_number revisionNumber,action,comment,actor,created_at createdAt FROM field_preplan_reviews WHERE preplan_id=? ORDER BY created_at DESC").bind(preplanId).all(),
@@ -53,7 +67,7 @@ export async function GET(request: Request) {
       Promise.all(permissionKeys.map((permission)=>hasPermission(request,db,permission))),
     ]);
     const permissions=Object.fromEntries(permissionKeys.map((permission,index)=>[permission,permissionValues[index]]));
-    return Response.json({ plan:plan?{...plan,constructionProfile:constructionProfile(plan.constructionProfile),occupancyProfile:occupancyProfile(plan.occupancyProfile)}:plan, levels:levels.results, spaces:spaces.results, alerts:alerts.results, hazmat:hazmat.results, zones:zones.results, annotations:annotations.results, assets:assets.results, hoseLays:hoseLays.results.map((item)=>({...item,path:parseJson(item.path,[])})), hydrants:hydrants.results, apparatus:apparatus.results, risks:risks.results, reviews:reviews.results, revisions:revisions.results, permissions });
+    return Response.json({ plan:plan?{...plan,constructionProfile:constructionProfile(plan.constructionProfile),occupancyProfile:occupancyProfile(plan.occupancyProfile)}:plan, levels:levels.results, spaces:spaces.results.map((item)=>({...item,geometry:parseJson(item.geometry,[])})), alerts:alerts.results, hazmat:hazmat.results, zones:zones.results, annotations:annotations.results, assets:assets.results, hoseLays:hoseLays.results.map((item)=>({...item,path:parseJson(item.path,[]),segmentDistances:parseJson(item.segmentDistances,[])})), hydrants:hydrants.results, apparatus:apparatus.results, risks:risks.results, reviews:reviews.results, revisions:revisions.results, permissions });
   } catch (error) {
     if (error instanceof Response) return error;
     return Response.json({ error:error instanceof Error ? error.message : "Unable to load operational preplan." }, { status:500 });
@@ -110,9 +124,9 @@ export async function POST(request: Request) {
     if (action === "saveSpace") {
       await requirePermission(request, db, "field_preplans.manage_layers");
       const id = text(body.id,80)||crypto.randomUUID(), levelId=text(body.levelId,80), name=text(body.name,120);
-      const geometry=Array.isArray(body.geometry)?body.geometry.map((value)=>{const point=value as {x?:unknown;y?:unknown};return {x:Number(point?.x),y:Number(point?.y)};}):[];
+      const geometry=mapPoints(body.geometry);
       if (!levelId || !name) return Response.json({ error:"Level and room name are required." }, { status:400 });
-      if(geometry.length>0&&(geometry.length<3||geometry.length>100||geometry.some((point)=>!Number.isFinite(point.x)||!Number.isFinite(point.y)||point.x<0||point.x>1||point.y<0||point.y>1)))return Response.json({error:"Draw a valid room polygon with at least three floor-plan corners."},{status:400});
+      if(geometry.length>0&&(geometry.length<3||geometry.length>100||geometry.some((point)=>!validMapPoint(point))))return Response.json({error:"Draw a valid room polygon with at least three map corners."},{status:400});
       const level = await db.prepare("SELECT id FROM field_preplan_levels WHERE id=? AND preplan_id=? AND archived=0").bind(levelId,preplanId).first();
       if (!level) return Response.json({ error:"Active preplan level not found." }, { status:400 });
       await db.prepare("INSERT INTO field_preplan_spaces(id,preplan_id,level_id,display_name,room_number,aliases,cad_keywords,space_type,geometry,coordinate_space,access_notes,fire_protection_notes,hazards,archived,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET level_id=excluded.level_id,display_name=excluded.display_name,room_number=excluded.room_number,aliases=excluded.aliases,cad_keywords=excluded.cad_keywords,space_type=excluded.space_type,geometry=excluded.geometry,coordinate_space=excluded.coordinate_space,access_notes=excluded.access_notes,fire_protection_notes=excluded.fire_protection_notes,hazards=excluded.hazards,archived=excluded.archived,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP")
@@ -169,13 +183,13 @@ export async function POST(request: Request) {
       const id=text(body.id,80)||crypto.randomUUID(),name=text(body.name,120),totalDistanceFeet=Number(body.totalDistanceFeet),hoseSizeInches=Number(body.hoseSizeInches);
       const sectionLengthFeet=Math.max(1,integer(body.sectionLengthFeet,100)),reserveFeet=Math.max(0,integer(body.reserveFeet,100));
       const segmentDistances=Array.isArray(body.segmentDistances)?body.segmentDistances.map(Number):[];
-      const path=Array.isArray(body.path)?body.path.map((value)=>{const point=value as {x?:unknown;y?:unknown};return {x:Number(point?.x),y:Number(point?.y)};}):[];
+      const path=mapPoints(body.path);
       const sourceHydrantId=text(body.sourceHydrantId,80)||null;
       const apparatusCapacityFeet=body.apparatusCapacityFeet==null?null:Math.max(0,integer(body.apparatusCapacityFeet));
       if(!name||!Number.isFinite(totalDistanceFeet)||totalDistanceFeet<0||!Number.isFinite(hoseSizeInches)||hoseSizeInches<=0)return Response.json({error:"Name, route distance, and hose size are required."},{status:400});
       if(segmentDistances.some((distance)=>!Number.isFinite(distance)||distance<=0))return Response.json({error:"Every route segment must be a positive distance in feet."},{status:400});
       if(segmentDistances.length&&Math.abs(segmentDistances.reduce((sum,distance)=>sum+distance,0)-totalDistanceFeet)>.01)return Response.json({error:"Route segment distances must equal the measured route total."},{status:400});
-      if(path.length<2||path.length>100||path.some((point)=>!Number.isFinite(point.x)||!Number.isFinite(point.y)||point.x<0||point.x>1||point.y<0||point.y>1))return Response.json({error:"Draw a valid hose route with at least two preplan points."},{status:400});
+      if(path.length<2||path.length>100||path.some((point)=>!validMapPoint(point)))return Response.json({error:"Draw a valid hose route with at least two map points."},{status:400});
       if(sourceHydrantId&&!await db.prepare("SELECT id FROM field_hydrants WHERE id=?").bind(sourceHydrantId).first())return Response.json({error:"The selected source hydrant was not found."},{status:400});
       const inventoryVerifiedAt=text(body.inventoryVerifiedAt,40)||null;
       if(apparatusCapacityFeet!=null&&(!text(body.apparatusId,80)||!inventoryVerifiedAt||Number.isNaN(Date.parse(inventoryVerifiedAt))))return Response.json({error:"Verified apparatus capacity requires an apparatus reference and verification date."},{status:400});

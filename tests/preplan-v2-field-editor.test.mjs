@@ -4,6 +4,7 @@ import fs from "node:fs";
 
 const panel = fs.readFileSync(new URL("../app/preplans/operational-panel.tsx", import.meta.url), "utf8");
 const route = fs.readFileSync(new URL("../app/api/field-preplans/operational/route.ts", import.meta.url), "utf8");
+const field = fs.readFileSync(new URL("../app/field-preplans.tsx", import.meta.url), "utf8");
 
 test("Field exposes persisted tactical annotation, hose-lay, and risk editors", () => {
   for (const action of ["saveAnnotation", "saveHoseLay", "saveRiskFactor"]) {
@@ -26,7 +27,7 @@ test("hose-lay and target-hazard results remain explicit for firefighters", () =
 });
 
 test("hose-lay authoring persists measured segments, a verified source, and auditable inventory context", () => {
-  assert.match(panel, /Route segments/);
+  assert.match(panel, /Verified route segments/);
   assert.match(panel, /Source hydrant/);
   assert.match(panel, /Apparatus \/ inventory reference/);
   assert.match(panel, /Inventory verified at/);
@@ -39,24 +40,29 @@ test("hose-lay authoring persists measured segments, a verified source, and audi
 });
 
 test("hose-lay authoring requires and presents persisted drawn route geometry", () => {
-  assert.match(panel, /Draw route geometry/);
-  assert.match(panel, /Hose route drawing surface/);
-  assert.match(panel, /path:hosePath/);
+  assert.match(panel, /Hydrant → A-side route/);
+  assert.match(panel, /Click the map to add roadway or driveway bends/);
+  assert.match(panel, /path:mapDraft/);
+  assert.match(panel, /routeDistanceFeet/);
+  assert.match(field, /operational-hose-map-overlay/);
+  assert.match(field, /operationalMapDraft\.points\.slice\(1,-1\)/);
   assert.match(panel, /Saved drawn route/);
   assert.match(panel, /Drawn route geometry not recorded/);
   assert.match(route, /path\.length<2/);
-  assert.match(route, /Draw a valid hose route with at least two preplan points/);
+  assert.match(route, /Draw a valid hose route with at least two map points/);
   assert.match(route, /json\(path,\[\]\)/);
   assert.match(route, /path:parseJson\(item\.path,\[\]\)/);
 });
 
-test("room and stair authoring persists CAD terms and normalized highlight geometry", () => {
-  assert.match(panel, /Room polygon drawing surface/);
-  assert.match(panel, /Room polygon ready to save/);
+test("room and stair authoring persists CAD terms and floor-specific map geometry", () => {
+  assert.match(panel, /Draw on the building map/);
+  assert.match(panel, /Room overlay is ready to save/);
   assert.match(panel, /CAD keywords/);
   assert.match(panel, /<option value="stair">Stair<\/option>/);
-  assert.match(panel, /geometry:spaceGeometry/);
-  assert.match(route, /Draw a valid room polygon with at least three floor-plan corners/);
+  assert.match(panel, /geometry:mapDraft/);
+  assert.match(panel, /The map displays operational drawings for this level only/);
+  assert.match(field, /operational-space-map-overlay/);
+  assert.match(route, /Draw a valid room polygon with at least three map corners/);
   assert.match(route, /room_number=excluded\.room_number/);
   assert.match(route, /json\(geometry,\[\]\)/);
 });
