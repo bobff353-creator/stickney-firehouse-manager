@@ -28,7 +28,20 @@ test("inventory uses its own full-width shell instead of the portal sidebar grid
     readFile(new URL("../app/inventory-live.tsx", import.meta.url), "utf8"),
   ]);
 
-  assert.match(inventory, /<main className="inventory-app-shell">/);
+  assert.match(inventory, /<main className="inventory-app-shell inventory-portal-refresh">/);
   assert.doesNotMatch(inventory, /<main className="app-shell">/);
   assert.match(styles, /\.inventory-app-shell \{ display: block; width: 100%; min-width: 0; min-height: 100vh; \}/);
+});
+
+test("inventory uses one clear workspace header and section bar", async () => {
+  const [styles, inventory] = await Promise.all([
+    readFile(new URL("../app/inventory/inventory.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/inventory-live.tsx", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(inventory, /className="inventory-command-hero"/);
+  assert.match(inventory, /aria-label="Inventory sections"/);
+  assert.match(inventory, /Live department records · no sample inventory/);
+  assert.match(styles, /\.inventory-section-nav\{/);
+  assert.match(styles, /\.inventory-command-hero\{/);
 });

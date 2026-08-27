@@ -17,6 +17,29 @@ type View = "due" | "fleet" | "inventory" | "check" | "equipment" | "reports" | 
 type LoadState = "loading" | "ready" | "unavailable";
 type FleetFilter = "all" | "in-service" | "out-impaired" | "digital-twins";
 
+const inventorySections: Array<[View, string]> = [
+  ["due", "Due Now"],
+  ["fleet", "Checks"],
+  ["inventory", "Inventory"],
+  ["equipment", "Equipment"],
+  ["reports", "Reports"],
+  ["service", "Repairs"],
+  ["stock", "Meds & Stock"],
+];
+
+const workspaceCopy: Record<View, { eyebrow: string; title: string; description: string }> = {
+  due: { eyebrow: "OPERATIONAL RECORDS", title: "Inventory & checks", description: "Choose the job you need to complete." },
+  fleet: { eyebrow: "INVENTORY WORKSPACE", title: "Operational checks", description: "Daily, weekly, inventory, and air-pack checks by apparatus." },
+  inventory: { eyebrow: "APPARATUS INVENTORY", title: "Inventory checks", description: "Start or resume the saved inventory for each apparatus." },
+  check: { eyebrow: "ACTIVE WORK", title: "Complete this check", description: "Work one location at a time. Every result saves to the department record." },
+  equipment: { eyebrow: "EQUIPMENT RECORDS", title: "Find equipment", description: "Search by name, apparatus, compartment, barcode, or serial number." },
+  reports: { eyebrow: "COMPLETED WORK", title: "Reports & approvals", description: "Review, approve, print, or email completed checks." },
+  readiness: { eyebrow: "READINESS EXCEPTIONS", title: "Items needing attention", description: "Review saved equipment problems and connected inventory updates." },
+  service: { eyebrow: "SERVICE & REPAIRS", title: "Repair records", description: "Report, assign, document, and close fleet repairs." },
+  stock: { eyebrow: "MEDICATIONS & SUPPLIES", title: "Meds & stock", description: "Track quantities, lots, expiration dates, and restocking." },
+  setup: { eyebrow: "ADMINISTRATION", title: "Build & templates", description: "Manage apparatus, compartments, equipment, schedules, and check templates." },
+};
+
 type SuiteDepartment = {
   id: string;
   name: string;
@@ -491,44 +514,29 @@ export default function Inventory360({
   }
 
   const activeDepartmentName = suite.department?.name || departmentName;
+  const activeWorkspace = workspaceCopy[view];
+  const checksInProgress = fleetOperations.checks.filter((check) => check.status === "in_progress").length;
+
+  function refreshWorkspace() {
+    void loadSuite();
+    void loadTwin(selectedApparatusId || undefined);
+    void loadFleetOperations();
+    showToast("Inventory refreshed");
+  }
 
   return (
-    <main className="inventory-app-shell">
+    <main className="inventory-app-shell inventory-portal-refresh">
       <header className="topbar">
         <Link className="portal-back" href="/" aria-label="Back to Firehouse Manager">
           <span aria-hidden="true">←</span>
-          <b>Firehouse Manager</b>
+          <b>Station Duties</b>
         </Link>
         <button className="brand" onClick={() => setView("due")} aria-label="Inventory and Apparatus Checks home">
-          <span className="brand-badge">IAC</span>
           <span>
+            <small>{activeDepartmentName}</small>
             <b>Inventory &amp; Apparatus Checks</b>
-            <small>CHECKS - LOCATIONS - ASSETS - SERVICE</small>
           </span>
         </button>
-        <span className="inventory-breadcrumb" aria-label="Current location">
-          Station Duties <b>/ Inventory &amp; Apparatus Checks</b>
-        </span>
-        <nav className="desktop-nav" aria-label="Inventory and apparatus check sections">
-          {([
-            ["due", "Due Now"],
-            ["fleet", "Fleet"],
-            ["inventory", "Inventory"],
-            ["equipment", "Equipment"],
-            ["stock", "Meds & Stock"],
-            ["service", "Repairs"],
-            ["reports", "Reports"],
-            ...(canSetup ? [["setup", "Admin Configuration"]] : []),
-          ] as [View, string][]).map(([id, label]) => (
-            <button
-              key={id}
-              className={view === id ? "active" : ""}
-              onClick={() => setView(id)}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
         <div className="top-actions">
           <button className="inventory-scan-global" onClick={() => { setView("equipment"); setScanRequest((current) => current + 1); }}>
             <Icon>▦</Icon> Scan Barcode
@@ -552,6 +560,43 @@ export default function Inventory360({
           </span>
         </div>
       </header>
+
+      <section className="inventory-command-header" aria-labelledby="inventory-workspace-title">
+        <button className="inventory-command-back" type="button" onClick={() => setView("due")}>← Inventory home</button>
+        <div className="inventory-command-hero">
+          <div>
+            <span>{activeWorkspace.eyebrow}</span>
+            <h1 id="inventory-workspace-title">{activeWorkspace.title}</h1>
+            <p>{activeWorkspace.description}</p>
+            <small><i /> Live department records · no sample inventory</small>
+          </div>
+          <button type="button" onClick={refreshWorkspace}>Refresh</button>
+        </div>
+        {view === "due" || view === "fleet" ? (
+          <div className="inventory-status-strip" aria-label="Inventory status summary">
+            <button type="button" onClick={() => openFleetFilter("in-service")}><strong>{inService}</strong><span>In service</span></button>
+            <button type="button" onClick={() => openFleetFilter("out-impaired")}><strong>{outOfService.length}</strong><span>Out / impaired</span></button>
+            <button type="button" onClick={() => setView("readiness")}><strong>{inventoryEvents.length}</strong><span>Readiness updates</span></button>
+            <button type="button" onClick={() => setView("fleet")}><strong>{checksInProgress}</strong><span>Checks in progress</span></button>
+          </div>
+        ) : null}
+        <nav className="inventory-section-nav" aria-label="Inventory sections">
+          {[
+            ...inventorySections,
+            ...(canSetup ? [["setup", "Build & templates"]] as Array<[View, string]> : []),
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={view === id || (view === "check" && id === "fleet") ? "active" : ""}
+              aria-current={view === id ? "page" : undefined}
+              onClick={() => setView(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+      </section>
 
       {view === "due" ? (
         <section className="page due-now-page">
