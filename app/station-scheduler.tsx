@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
-import { normalizeScheduleTime } from "./schedule-time";
+import { normalizeScheduleTime, scheduleTimeBlocks } from "./schedule-time";
 import { recurringShiftOccursOnDate } from "./station-scheduler-logic";
 
 type TestMember = { id: string; name: string; rank: string; effectivePermissions: string[] };
@@ -76,6 +76,7 @@ const shiftColorHex: Record<string, string> = {
 const shiftTextColor = (color: string) => ["gold", "orange", "green"].includes(color) ? "#111827" : "#ffffff";
 const monthTitle = (value: string) => new Date(`${value.slice(0, 7)}-01T12:00:00`).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 const fourDigitTime = (value: string) => value.replace(":", "").slice(0, 4);
+const calendarTimeBlocks = scheduleTimeBlocks.filter((block) => ["morning", "afternoon", "overnight"].includes(block.id));
 const availabilityOverlaps = (row: Availability, startTime: string, endTime: string) => {
   if (row.status !== "unavailable") return false;
   if (row.allDay) return true;
@@ -98,6 +99,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
   void testMember;
   const [data, setData] = useState<Data | null>(null);
   const [tab, setTab] = useState("calendar");
+  const [schedulerView, setSchedulerView] = useState<"admin" | "employee">("admin");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -140,7 +142,8 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
   if (error && !data) return <div className="scheduler"><p className="error">{error}</p></div>;
   if (!data) return <div className="scheduler"><p>Loading the scheduler…</p></div>;
 
-  const isAdmin = data.viewer.isAdmin;
+  const accountIsAdmin = data.viewer.isAdmin;
+  const isAdmin = accountIsAdmin && schedulerView === "admin";
   const adminTabs = [
     ["calendar", "Calendar"], ["shiftTypes", "Shift Builder"], ["roster", "Roster & Assignments"],
     ["trades", "Trades"], ["requests", "Requests"], ["distribution", "Auto-Distribution"],
@@ -161,9 +164,9 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
         </div>
         <span className="scheduler-live-dot" title="Connected to department records" aria-label="Connected to department records" />
       </header>
-      <div className="scheduler-view-bar" aria-label="Current scheduler view">
-        <span className={isAdmin ? "current" : ""}>Admin</span>
-        <span className={!isAdmin ? "current" : ""}>Employee</span>
+      <div className="scheduler-view-bar" aria-label="Choose scheduler view">
+        <button type="button" className={isAdmin ? "current" : ""} aria-pressed={isAdmin} disabled={!accountIsAdmin} title={accountIsAdmin ? "Open administrator scheduling tools" : "Administrator access is required"} onClick={() => { setSchedulerView("admin"); setTab("calendar"); }}>Admin</button>
+        <button type="button" className={!isAdmin ? "current" : ""} aria-pressed={!isAdmin} onClick={() => { setSchedulerView("employee"); setTab("calendar"); }}>Employee</button>
         <strong>{data.viewer.name || "Department member"}</strong>
       </div>
       <NoticeStrip notice={data.notice} isAdmin={isAdmin} upcoming={data.slots.filter((s) => s.employeeId === data.viewer.employeeId && s.entryDate >= data.today).length} />
@@ -207,13 +210,29 @@ function NoticeStrip({ notice, isAdmin, upcoming }: { notice: Notice; isAdmin: b
   </div>;
 }
 
+function CalendarShiftBand({ startTime, endTime, shift = null, slots = [] }: {
+  startTime: string; endTime: string; shift?: ShiftType | null; slots?: Slot[];
+}) {
+  if (!shift) return <span className="calendar-time-band empty"><small>{startTime}–{endTime}</small><em>Not scheduled</em></span>;
+  const openCount = slots.filter((slot) => slot.status === "open").length;
+  const assignedCount = slots.length - openCount;
+  const shiftHex = shiftColorHex[shift.color] ?? shift.color;
+  const style = {
+    "--calendar-shift-color": shiftHex,
+    "--calendar-shift-tint": `${shiftHex}30`,
+    "--calendar-shift-text": shiftTextColor(shift.color),
+  } as CSSProperties;
+  return <span className="calendar-time-band scheduled" style={style}>
+    <span><small>{startTime}–{endTime}</small><strong>{shift.name}</strong></span>
+    <b className={openCount ? "has-open" : ""}>{openCount ? `${openCount} open` : `${assignedCount} assigned`}</b>
+  </span>;
+}
+
 function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, busy, employeeName, shiftTypeName }: {
   data: Data; isAdmin: boolean; selectedDate: string; setSelectedDate: (d: string) => void;
   act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean; employeeName: (id: string | null | undefined) => string; shiftTypeName: (id: string) => string;
 }) {
   const [newShiftType, setNewShiftType] = useState("");
-  const [rotationIndex, setRotationIndex] = useState(0);
-  const [rotationPaused, setRotationPaused] = useState(false);
   const [dayViewOpen, setDayViewOpen] = useState(false);
   const myId = data.viewer.employeeId;
   const eligibleRoles = data.viewer.roles;
@@ -256,15 +275,8 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
   const dateForDay = (day: number) => `${monthKey}-${String(day).padStart(2, "0")}`;
   const changeMonth = (delta: number) => {
     const next = new Date(firstDay.getFullYear(), firstDay.getMonth() + delta, 1, 12);
-    setRotationIndex(0);
     setSelectedDate(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-01`);
   };
-
-  useEffect(() => {
-    if (rotationPaused) return;
-    const timer = window.setInterval(() => setRotationIndex((current) => current + 1), 12_000);
-    return () => window.clearInterval(timer);
-  }, [rotationPaused]);
 
   useEffect(() => {
     if (!dayViewOpen) return;
@@ -288,13 +300,12 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
         <div className="scheduler-month-head">
           <h3>{monthTitle(selectedDate)}</h3>
           <div className="scheduler-month-actions">
-            <button type="button" className="calendar-rotation-button" aria-pressed={rotationPaused} onClick={() => setRotationPaused((paused) => !paused)}>{rotationPaused ? "Resume rotation" : "Pause rotation"}</button>
             <button type="button" aria-label="Previous month" onClick={() => changeMonth(-1)}>‹</button>
             <button type="button" aria-label="Next month" onClick={() => changeMonth(1)}>›</button>
           </div>
         </div>
         <div className="scheduler-legend">
-          {data.shiftTypes.filter((s) => s.active).slice(0, 5).map((s) => <span key={s.id}><i style={{ background: shiftColorHex[s.color] ?? s.color }} />{s.name} · {s.startTime}–{s.endTime}</span>)}
+          {calendarTimeBlocks.map((block) => <span key={block.id}><i className={`time-dot ${block.id}`} />{block.startTime}–{block.endTime}</span>)}
           <span><i className="open-dot" />Open slot</span>
         </div>
         <div className="scheduler-calendar-scroll">
@@ -304,45 +315,33 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
               if (!day) return <span className="calendar-blank" key={`blank-${index}`} />;
               const date = dateForDay(day);
               const entries = entriesByDate.get(date) ?? [];
-              const entryPosition = entries.length ? rotationIndex % entries.length : 0;
-              const visibleEntry = entries[entryPosition];
-              const shift = visibleEntry ? data.shiftTypes.find((item) => item.id === visibleEntry.shiftTypeId) : null;
-              const visibleSlots = visibleEntry ? (slotsByDate.get(date) ?? []).filter((slot) => slot.entryId === visibleEntry.id) : [];
+              const shiftsForDate = entries.map((entry) => ({ entry, shift: data.shiftTypes.find((item) => item.id === entry.shiftTypeId) ?? null }));
+              const dateSlots = slotsByDate.get(date) ?? [];
               const availability = availabilityByDate.get(date) ?? [];
               const availableCount = availability.filter((row) => row.status === "available").length;
               const unavailableCount = availability.filter((row) => row.status === "unavailable").length;
-              const hasOpen = visibleSlots.some((slot) => slot.status === "open");
-              const coverageSummary = visibleSlots.map((slot) => slot.status === "open" ? `Open ${slot.role}` : `${employeeName(slot.employeeId)} assigned ${slot.role}`).join(", ");
-              const ariaLabel = [`Open ${friendlyDate(date)}`, shift?.name, coverageSummary].filter(Boolean).join("; ");
-              const shiftHex = shift ? (shiftColorHex[shift.color] ?? shift.color) : "";
-              const calendarStyle = shift ? {
-                "--calendar-shift-color": shiftHex,
-                "--calendar-shift-tint": `${shiftHex}30`,
-                "--calendar-shift-text": shiftTextColor(shift.color),
-              } as CSSProperties : undefined;
-              return <button type="button" role="gridcell" key={date} style={calendarStyle} className={`${date === selectedDate ? "selected " : ""}${date === data.today ? "today " : ""}${shift ? "calendar-has-shift" : ""}`} onClick={() => { setSelectedDate(date); setDayViewOpen(true); }} aria-label={ariaLabel}>
+              const hasOpen = dateSlots.some((slot) => slot.status === "open");
+              const coverageSummary = shiftsForDate.map(({ entry, shift }) => {
+                const slots = dateSlots.filter((slot) => slot.entryId === entry.id);
+                const openCount = slots.filter((slot) => slot.status === "open").length;
+                return `${shift?.startTime ?? ""}–${shift?.endTime ?? ""} ${shift?.name ?? "shift"}${openCount ? `, ${openCount} open` : ""}`;
+              }).join("; ");
+              const ariaLabel = [`Open ${friendlyDate(date)}`, coverageSummary || "No shifts scheduled"].join("; ");
+              const customShifts = shiftsForDate.filter(({ shift }) => shift && !calendarTimeBlocks.some((block) => block.startTime === shift.startTime && block.endTime === shift.endTime));
+              return <button type="button" role="gridcell" key={date} className={`${date === selectedDate ? "selected " : ""}${date === data.today ? "today " : ""}${entries.length ? "calendar-has-shift" : ""}`} onClick={() => { setSelectedDate(date); setDayViewOpen(true); }} aria-label={ariaLabel}>
                 <span className="calendar-day-number">{day}{hasOpen && <i className="open-dot" />}</span>
                 {!!availability.length && <span className="calendar-availability-summary">
                   {!!availableCount && <small className="available">{isAdmin ? `${availableCount} available` : "Available"}</small>}
                   {!!unavailableCount && <small className="unavailable">{isAdmin ? `${unavailableCount} unavailable` : "Unavailable"}</small>}
                 </span>}
-                {visibleEntry && shift ? (
-                  <span className="calendar-shift-summary">
-                    <strong>
-                      <span>{shift.name}</span>
-                      <small>{shift.startTime}–{shift.endTime}</small>
-                    </strong>
-                    <span className="calendar-shift-slots">
-                      {visibleSlots.map((slot) => (
-                        <span key={slot.id} className={slot.status === "open" ? "calendar-slot open" : "calendar-slot"}>
-                          <b>{slot.status === "open" ? "OPEN" : (employeeName(slot.employeeId) || "Assigned")}</b>
-                          <small>{slot.role}{slot.isExtra || slot.hasTimeOverride ? ` · ${slot.startTime}–${slot.endTime}` : ""}</small>
-                        </span>
-                      ))}
-                    </span>
-                    {entries.length > 1 && <small className="calendar-rotation-count">Shift {entryPosition + 1} of {entries.length}</small>}
-                  </span>
-                ) : <span className="calendar-no-shift">No shift</span>}
+                <span className="calendar-shift-sequence">
+                  {calendarTimeBlocks.map((block) => {
+                    const matches = shiftsForDate.filter(({ shift }) => shift?.startTime === block.startTime && shift?.endTime === block.endTime);
+                    if (!matches.length) return <CalendarShiftBand key={block.id} startTime={block.startTime} endTime={block.endTime} />;
+                    return matches.map(({ entry, shift }) => <CalendarShiftBand key={entry.id} startTime={block.startTime} endTime={block.endTime} shift={shift} slots={dateSlots.filter((slot) => slot.entryId === entry.id)} />);
+                  })}
+                  {customShifts.map(({ entry, shift }) => <CalendarShiftBand key={entry.id} startTime={shift?.startTime ?? ""} endTime={shift?.endTime ?? ""} shift={shift} slots={dateSlots.filter((slot) => slot.entryId === entry.id)} />)}
+                </span>
               </button>;
             })}
           </div>
