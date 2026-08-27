@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cachePublishedPreplan, getCachedPublishedPreplan } from "./offline-cache";
 import { isOperationallyVisible, lifecycleState } from "./domain";
 import { publicationActionsFor } from "./publication-workflow.mjs";
@@ -12,7 +12,30 @@ export type OperationalMapOverlay = { levelId:string; levelName:string; spaces:O
 export type OperationalMapDraft = { kind:"space"|"hoseLay"; levelId:string; points:OperationalMapPoint[] } | null;
 type ExpiringItem = Row & { kind:"alert"|"hazmat"|"zone"|"annotation";recordName:string;expiresAt?:unknown;effectiveAt?:unknown;expirationAction?:unknown };
 type OperationalPayload = { plan?:Row;levels:Row[];spaces:Row[];alerts:Row[];hazmat:Row[];zones:Row[];annotations:Row[];assets:Row[];hoseLays:Row[];hydrants:Row[];apparatus:Row[];risks:Row[];reviews:Row[];revisions:Row[];permissions?:Record<string,boolean> };
+type EditorKey = "level"|"space"|"alert"|"hazmat"|"zone"|"asset"|"annotation"|"hoseLay"|"risk"|"construction"|"occupancy";
+type WorkflowStep = "building"|"hazards"|"mapping"|"review";
 const empty:OperationalPayload={levels:[],spaces:[],alerts:[],hazmat:[],zones:[],annotations:[],assets:[],hoseLays:[],hydrants:[],apparatus:[],risks:[],reviews:[],revisions:[]};
+
+const workflowSteps:[WorkflowStep,string,string][]=[
+  ["building","Building & floors","Add floors, rooms, construction, and occupancy."],
+  ["hazards","Hazards & response","Record only verified hazards and crew warnings."],
+  ["mapping","Map & resources","Draw hose routes and add tactical files or notes."],
+  ["review","Review & publish","Check the saved information, then submit or publish."],
+];
+const editorStep:Record<EditorKey,WorkflowStep>={level:"building",space:"building",construction:"building",occupancy:"building",alert:"hazards",hazmat:"hazards",zone:"hazards",risk:"hazards",hoseLay:"mapping",annotation:"mapping",asset:"mapping"};
+const editorDetails:Record<EditorKey,{name:string;description:string}>={
+  level:{name:"Add a floor",description:"Create a basement, floor, roof, or other level."},
+  space:{name:"Draw a room or area",description:"Name the room, then click its corners on the map."},
+  construction:{name:"Building construction",description:"Record the verified roof, basement, and construction details."},
+  occupancy:{name:"People and occupancy",description:"Record who may be inside and when they are normally present."},
+  alert:{name:"Crew response alert",description:"Show responders a clear, time-aware warning."},
+  hazmat:{name:"Hazardous material",description:"Add a verified material, quantity, and ERG guide."},
+  zone:{name:"HazMat safety zone",description:"Connect a safety radius to a saved hazardous material."},
+  risk:{name:"Target-hazard factor",description:"Explain a verified risk and show its source."},
+  hoseLay:{name:"Draw a hydrant hose route",description:"Choose a hydrant and trace the route to the building."},
+  annotation:{name:"Tactical map note",description:"Add a named closure, staging point, or response note."},
+  asset:{name:"Photo, plan, or document",description:"Upload a secure file responders may need."},
+};
 
 function label(value:unknown,fallback="Not entered"){const result=String(value??"").trim();return result||fallback;}
 function date(value:unknown){const parsed=new Date(String(value??""));return Number.isFinite(parsed.getTime())?parsed.toLocaleString():"Not set";}
@@ -42,7 +65,11 @@ export default function OperationalPreplanPanel({preplanId,canEdit=false,mapDraf
   const [source,setSource]=useState<"loading"|"live"|"offline"|"unavailable">("loading");
   const [cachedAt,setCachedAt]=useState("");
   const [selectedLevel,setSelectedLevel]=useState("");
-  const [reloadKey,setReloadKey]=useState(0),[editor,setEditor]=useState<""|"level"|"space"|"alert"|"hazmat"|"zone"|"asset"|"annotation"|"hoseLay"|"risk"|"construction"|"occupancy">(""),[saving,setSaving]=useState(false),[saveError,setSaveError]=useState("");
+  const [reloadKey,setReloadKey]=useState(0),[editor,setEditor]=useState<""|EditorKey>(""),[saving,setSaving]=useState(false),[saveError,setSaveError]=useState("");
+  const [workflowStep,setWorkflowStep]=useState<WorkflowStep>("building");
+  const workflowInitialized=useRef(false);
+  const guidedStepRef=useRef<HTMLElement>(null);
+  const editorWorkspaceRef=useRef<HTMLFormElement>(null);
   const [assetFile,setAssetFile]=useState<File|null>(null);
   const blankForm={name:"",shortLabel:"",aliases:"",roomNumber:"",spaceType:"room",cadKeywords:"",accessNotes:"",fireProtectionNotes:"",hazards:"",severity:"warning",title:"",message:"",effectiveAt:"",expiresAt:"",materialName:"",unNumber:"",ergGuideNumber:"",quantity:"",quantityUnit:"",storageType:"",hazmatId:"",zoneType:"isolation",radiusFeet:"100",annotationType:"road_closure",label:"",assetCategory:"reference",caption:"",sourceHydrantId:"",segmentDistances:"",totalDistanceFeet:"",hoseSizeInches:"4",sectionLengthFeet:"100",reserveFeet:"100",supplyLineLabel:"",apparatusId:"",apparatusCapacityFeet:"",inventoryVerifiedAt:"",notes:"",factor:"",score:"",explanation:"",source:"",targetHazardOverride:"",constructionType:"",roofType:"",roofSupportSystem:"",lightweightConstruction:"unknown",bowstringTruss:"unknown",basementType:"",floorsAboveGrade:"",floorsBelowGrade:"",fortifiedAccess:"unknown",constructionNotes:"",occupancyClassification:"",daytimeOccupancy:"",nighttimeOccupancy:"",peakOccupancy:"",nonAmbulatory:"unknown",sleepingOccupants:"unknown",children:"unknown",elderly:"unknown",assistanceNeeded:"unknown",scheduleNotes:""};
   const [form,setForm]=useState<Record<string,string>>(blankForm);
@@ -69,6 +96,10 @@ export default function OperationalPreplanPanel({preplanId,canEdit=false,mapDraf
     }
     void load();return()=>{active=false};
   },[preplanId,reloadKey]);
+  function finishEditor(savedEditor:EditorKey){
+    const nextStep:Record<EditorKey,WorkflowStep>={level:"building",construction:"building",space:"hazards",occupancy:"hazards",alert:"mapping",hazmat:"hazards",zone:"mapping",risk:"mapping",hoseLay:"review",annotation:"review",asset:"review"};
+    setEditor("");setForm(blankForm);setAssetFile(null);setSaveError("");setWorkflowStep(nextStep[savedEditor]);onMapDrawingChange?.(null);setReloadKey((value)=>value+1);
+  }
   async function save(){
     setSaving(true);setSaveError("");
     try{
@@ -77,7 +108,7 @@ export default function OperationalPreplanPanel({preplanId,canEdit=false,mapDraf
         if(!assetFile)throw new Error("Choose a JPG, PNG, WebP, or PDF attachment.");
         const upload=new FormData();upload.set("preplanId",preplanId);upload.set("assetType",form.assetCategory);upload.set("caption",form.caption);if(levelId)upload.set("levelId",levelId);if(form.hazmatId)upload.set("hazmatId",form.hazmatId);upload.set("asset",assetFile);
         const response=await fetch("/api/field-preplans/assets",{method:"POST",body:upload});const body=await response.json() as {error?:string};if(!response.ok)throw new Error(body.error||"Unable to upload attachment.");
-        setEditor("");setForm(blankForm);setAssetFile(null);onMapDrawingChange?.(null);setReloadKey((value)=>value+1);return;
+        finishEditor(editor);return;
       }
       const actions={level:"saveLevel",space:"saveSpace",alert:"saveAlert",hazmat:"saveHazmat",zone:"saveHazmatZone",annotation:"saveAnnotation",hoseLay:"saveHoseLay",risk:"saveRiskFactor",construction:"saveConstructionProfile",occupancy:"saveOccupancyProfile"} as const;
       if(editor==="space"&&(!mapDraft||mapDraft.kind!=="space"||mapDraft.levelId!==levelId||mapDraft.points.length<3))throw new Error("Draw at least three room corners on the building map.");
@@ -92,7 +123,7 @@ export default function OperationalPreplanPanel({preplanId,canEdit=false,mapDraf
       if(editor==="occupancy")payload.profile={classification:form.occupancyClassification,daytimeOccupancy:form.daytimeOccupancy===""?null:Number(form.daytimeOccupancy),nighttimeOccupancy:form.nighttimeOccupancy===""?null:Number(form.nighttimeOccupancy),peakOccupancy:form.peakOccupancy===""?null:Number(form.peakOccupancy),nonAmbulatory:form.nonAmbulatory,sleepingOccupants:form.sleepingOccupants,children:form.children,elderly:form.elderly,assistanceNeeded:form.assistanceNeeded,scheduleNotes:form.scheduleNotes};
       const response=await fetch("/api/field-preplans/operational",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)});
       const body=await response.json() as {error?:string};if(!response.ok)throw new Error(body.error||"Unable to save operational record.");
-      setEditor("");setForm(blankForm);onMapDrawingChange?.(null);setReloadKey((value)=>value+1);
+      finishEditor(editor);
     }catch(error){setSaveError(error instanceof Error?error.message:"Unable to save operational record.");}finally{setSaving(false);}
   }
   async function transition(action:"submitReview"|"returnDraft"|"publish"|"archive"){
@@ -135,6 +166,34 @@ export default function OperationalPreplanPanel({preplanId,canEdit=false,mapDraf
   const expiringItems:ExpiringItem[]=([] as ExpiringItem[]).concat(data.alerts.map((item)=>({...item,kind:"alert",recordName:label(item.title,"Response alert")})),data.hazmat.map((item)=>({...item,kind:"hazmat",recordName:label(item.materialName,"HazMat record")})),data.zones.map((item)=>({...item,kind:"zone",recordName:label(item.label,"HazMat zone")})),data.annotations.map((item)=>({...item,kind:"annotation",recordName:label(item.name,"Tactical annotation")})))
     .filter((item)=>!item.archived&&item.expiresAt&&["expiring","expired"].includes(lifecycleState({effectiveAt:item.effectiveAt as string,expiresAt:item.expiresAt as string,expirationAction:item.expirationAction as never})))
     .sort((a,b)=>new Date(String(a.expiresAt)).getTime()-new Date(String(b.expiresAt)).getTime());
+  const activeZones=data.zones.filter((item)=>!item.archived&&(!item.levelId||!levelId||item.levelId===levelId));
+  const activeAssets=data.assets.filter((item)=>!item.archived&&(!item.levelId||!levelId||item.levelId===levelId));
+  const activeAnnotations=data.annotations.filter((item)=>!item.archived&&(!item.levelId||!levelId||item.levelId===levelId));
+  const hasConstruction=Object.entries(construction).some(([key,value])=>key!=="id"&&value!==""&&value!==null&&value!=="unknown");
+  const hasOccupancy=Object.entries(occupancy).some(([key,value])=>key!=="id"&&value!==""&&value!==null&&value!=="unknown");
+  const workflowCompleted:Record<WorkflowStep,boolean>={
+    building:levels.length>0&&(spaces.length>0||hasConstruction||hasOccupancy),
+    hazards:alerts.length>0||hazards.length>0||activeZones.length>0||data.risks.length>0,
+    mapping:hoseLays.length>0||activeAnnotations.length>0||activeAssets.length>0,
+    review:data.plan?.publicationStatus==="published",
+  };
+  const workflowIndex=workflowSteps.findIndex(([key])=>key===workflowStep);
+  const currentWorkflow=workflowSteps[workflowIndex]??workflowSteps[0];
+  const firstIncompleteStep=workflowSteps.find(([key])=>!workflowCompleted[key])?.[0]??"review";
+  useEffect(()=>{
+    if(source==="loading"||workflowInitialized.current)return;
+    workflowInitialized.current=true;
+    setWorkflowStep(firstIncompleteStep);
+  },[source,firstIncompleteStep]);
+  useEffect(()=>{
+    if(!editor||!editorWorkspaceRef.current)return;
+    const frame=requestAnimationFrame(()=>{
+      const workspace=editorWorkspaceRef.current;if(!workspace)return;
+      workspace.scrollIntoView({behavior:"smooth",block:"start"});
+      workspace.querySelector<HTMLElement>('input:not([type="hidden"]), select, textarea')?.focus({preventScroll:true});
+    });
+    return()=>cancelAnimationFrame(frame);
+  },[editor]);
   useEffect(()=>{
     if(!levelId)return;
     onMapOverlayChange?.({levelId,levelName:label(levels.find((item)=>item.id===levelId)?.name,"Selected level"),spaces:spaces.map((item)=>({id:item.id,levelId:item.levelId,name:item.name,geometry:mapPoints(item.geometry)})),hoseLays:hoseLays.map((item)=>({id:item.id,levelId:item.levelId,name:item.name,path:mapPoints(item.path)}))});
@@ -145,8 +204,13 @@ export default function OperationalPreplanPanel({preplanId,canEdit=false,mapDraf
     const destination=geographicPoint({lat:data.plan?.aSideLatitude??data.plan?.latitude,lng:data.plan?.aSideLongitude??data.plan?.longitude});
     if(source&&destination)onMapDrawingChange?.({kind:"hoseLay",levelId,points:[source,destination]});
   }
-  function startEditor(key:typeof editor){
+  function openWorkflowStep(step:WorkflowStep){
+    setWorkflowStep(step);setEditor("");setSaveError("");onMapDrawingChange?.(null);
+    requestAnimationFrame(()=>guidedStepRef.current?.scrollIntoView({behavior:"smooth",block:"start"}));
+  }
+  function startEditor(key:EditorKey){
     if(editor===key){setEditor("");onMapDrawingChange?.(null);return;}
+    setWorkflowStep(editorStep[key]);
     if(key==="construction")setForm({...blankForm,constructionType:label(construction.constructionType,""),roofType:label(construction.roofType,""),roofSupportSystem:label(construction.roofSupportSystem,""),lightweightConstruction:label(construction.lightweightConstruction,"unknown"),bowstringTruss:label(construction.bowstringTruss,"unknown"),basementType:label(construction.basementType,""),floorsAboveGrade:construction.floorsAboveGrade==null?"":String(construction.floorsAboveGrade),floorsBelowGrade:construction.floorsBelowGrade==null?"":String(construction.floorsBelowGrade),fortifiedAccess:label(construction.fortifiedAccess,"unknown"),constructionNotes:label(construction.notes,"")});
     else if(key==="occupancy")setForm({...blankForm,occupancyClassification:label(occupancy.classification,""),daytimeOccupancy:occupancy.daytimeOccupancy==null?"":String(occupancy.daytimeOccupancy),nighttimeOccupancy:occupancy.nighttimeOccupancy==null?"":String(occupancy.nighttimeOccupancy),peakOccupancy:occupancy.peakOccupancy==null?"":String(occupancy.peakOccupancy),nonAmbulatory:label(occupancy.nonAmbulatory,"unknown"),sleepingOccupants:label(occupancy.sleepingOccupants,"unknown"),children:label(occupancy.children,"unknown"),elderly:label(occupancy.elderly,"unknown"),assistanceNeeded:label(occupancy.assistanceNeeded,"unknown"),scheduleNotes:label(occupancy.scheduleNotes,"")});
     else setForm(blankForm);
@@ -158,10 +222,21 @@ export default function OperationalPreplanPanel({preplanId,canEdit=false,mapDraf
   if(source==="unavailable")return <section className="operational-preplan-panel"><h3>Operational intelligence</h3><p>The operational 2.0 record is not available yet. The approved legacy preplan above remains usable.</p></section>;
   return <section className="operational-preplan-panel" aria-label="Operational preplan intelligence">
     <header><div><span>PREPLAN 2.0 · {label(data.plan?.publicationStatus,"LEGACY").toUpperCase()}</span><h3>Operational intelligence</h3></div><div className={`operational-cache-state ${source}`}>{source==="offline"?"OFFLINE CACHED":data.plan?.publicationStatus==="published"?"LIVE PUBLISHED":"LIVE WORKING COPY"}<small>{cachedAt?date(cachedAt):""}</small></div></header>
-    {(allowed("field_preplans.review")||allowed("field_preplans.publish"))&&<div className="operational-publication-actions"><strong>Publication workflow</strong>{allowed("field_preplans.review")&&publicationActions.has("returnDraft")&&<button disabled={saving} onClick={()=>void transition("returnDraft")}>Return to draft</button>}{allowed("field_preplans.review")&&publicationActions.has("submitReview")&&<button disabled={saving} onClick={()=>void transition("submitReview")}>Submit for review</button>}{allowed("field_preplans.publish")&&publicationActions.has("publish")&&<button className="publish" disabled={saving} onClick={()=>void transition("publish")}>Publish revision</button>}{allowed("field_preplans.publish")&&publicationActions.has("archive")&&<button disabled={saving} onClick={()=>void transition("archive")}>Archive</button>}</div>}
-    {levels.length>0&&<nav aria-label="Building level"><label>Level<select value={levelId} onChange={(event)=>{const next=event.target.value;setSelectedLevel(next);if(editor==="space"||editor==="hoseLay")onMapDrawingStart?.(editor,next);}}>{levels.map((level)=><option key={level.id} value={level.id}>{label(level.name)}</option>)}</select></label><span className="operational-level-map-note">The map displays operational drawings for this level only.</span>{allowed("field_preplans.manage_layers")&&!levels.find((item)=>item.id===levelId)?.isDefault&&<button type="button" disabled={saving} onClick={()=>void archiveOperationalRecord("level",levelId)}>Archive selected level</button>}</nav>}
-    {canEdit&&<div className="operational-editor-actions"><span>Add verified operational data</span>{([['level','Level'],['space','Room / area'],['alert','Response alert'],['hazmat','HazMat'],['zone','HazMat zone'],['asset','Attachment'],['annotation','Tactical annotation'],['hoseLay','Hose lay'],['risk','Risk factor'],['construction','Construction'],['occupancy','Occupancy']] as const).filter(([key])=>allowed(editorPermissions[key])).map(([key,name])=><button type="button" className={editor===key?"active":""} key={key} onClick={()=>startEditor(key)}>+ {name}</button>)}</div>}
-    {editor&&<form className="operational-inline-editor" onSubmit={(event)=>{event.preventDefault();void save();}}><header><strong>{editor==="level"?"Add building level":editor==="space"?"Add room or operational area":editor==="alert"?"Add time-aware response alert":editor==="hazmat"?"Add HazMat inventory":editor==="zone"?"Add HazMat isolation or evacuation zone":editor==="asset"?"Upload secure operational attachment":editor==="annotation"?"Add named tactical annotation":editor==="hoseLay"?"Calculate and save hose lay":editor==="construction"?"Save verified construction intelligence":editor==="occupancy"?"Save verified occupancy intelligence":"Add transparent target-hazard factor"}</strong><button type="button" onClick={()=>{setEditor("");onMapDrawingChange?.(null);}} aria-label="Close editor">×</button></header>
+    {(canEdit||allowed("field_preplans.review")||allowed("field_preplans.publish"))&&<>
+      <nav className="operational-workflow-steps" aria-label="Preplan setup steps">
+        {workflowSteps.map(([key,name,description],index)=><button type="button" key={key} className={`${workflowStep===key?"active ":""}${workflowCompleted[key]?"complete":""}`} aria-current={workflowStep===key?"step":undefined} onClick={()=>openWorkflowStep(key)}><b>{workflowCompleted[key]?"✓":index+1}</b><span><strong>{name}</strong><small>{workflowCompleted[key]?"Saved information found":description}</small></span></button>)}
+      </nav>
+      {levels.length>0&&<nav className="operational-level-context" aria-label="Building level"><label><span>You are working on</span><select value={levelId} onChange={(event)=>{const next=event.target.value;setSelectedLevel(next);if(editor==="space"||editor==="hoseLay")onMapDrawingStart?.(editor,next);}}>{levels.map((level)=><option key={level.id} value={level.id}>{label(level.name)}</option>)}</select></label><span className="operational-level-map-note" title="The map displays operational drawings for this level only.">Rooms and hose routes shown on the map belong only to this level.</span>{allowed("field_preplans.manage_layers")&&!levels.find((item)=>item.id===levelId)?.isDefault&&<button type="button" aria-label="Archive selected level" disabled={saving} onClick={()=>void archiveOperationalRecord("level",levelId)}>Archive this level</button>}</nav>}
+      <section className="operational-guided-step" ref={guidedStepRef} aria-labelledby="operational-guided-step-title">
+        <header><div><span>STEP {workflowIndex+1} OF {workflowSteps.length}</span><h4 id="operational-guided-step-title">{currentWorkflow[1]}</h4><p>{currentWorkflow[2]}</p></div>{workflowCompleted[workflowStep]&&<strong className="operational-step-complete">✓ Saved</strong>}</header>
+        {canEdit&&workflowStep!=="review"&&<div className="operational-editor-actions">
+          {(["level","space","construction","occupancy","alert","hazmat","zone","risk","hoseLay","annotation","asset"] as EditorKey[]).filter((key)=>editorStep[key]===workflowStep&&allowed(editorPermissions[key])).map((key)=><button type="button" className={editor===key?"active":""} key={key} onClick={()=>startEditor(key)}><strong>{editorDetails[key].name}</strong><span>{editorDetails[key].description}</span><b aria-hidden="true">→</b></button>)}
+        </div>}
+        {workflowStep==="review"&&<div className="operational-review-step"><p>Review the saved summary below. If it is correct, move this preplan to the next publication status.</p>{(allowed("field_preplans.review")||allowed("field_preplans.publish"))?<div className="operational-publication-actions"><strong>Choose the next action</strong>{allowed("field_preplans.review")&&publicationActions.has("returnDraft")&&<button disabled={saving} onClick={()=>void transition("returnDraft")}>Return to draft</button>}{allowed("field_preplans.review")&&publicationActions.has("submitReview")&&<button disabled={saving} onClick={()=>void transition("submitReview")}>Submit for review</button>}{allowed("field_preplans.publish")&&publicationActions.has("publish")&&<button className="publish" disabled={saving} onClick={()=>void transition("publish")}>Publish revision</button>}{allowed("field_preplans.publish")&&publicationActions.has("archive")&&<button disabled={saving} onClick={()=>void transition("archive")}>Archive</button>}</div>:<p className="operational-empty">You can review this record, but your account cannot change its publication status.</p>}</div>}
+        <footer>{workflowIndex>0&&<button type="button" onClick={()=>openWorkflowStep(workflowSteps[workflowIndex-1][0])}>← Previous step</button>}<span/>{workflowIndex<workflowSteps.length-1&&<button type="button" className="continue" onClick={()=>openWorkflowStep(workflowSteps[workflowIndex+1][0])}>Continue to step {workflowIndex+2} →</button>}</footer>
+      </section>
+    </>}
+    {editor&&<form ref={editorWorkspaceRef} className="operational-inline-editor" onSubmit={(event)=>{event.preventDefault();void save();}}><header><div><span>NOW WORKING ON</span><strong>{editorDetails[editor].name}</strong><small>{editorDetails[editor].description}</small></div><button type="button" onClick={()=>{setEditor("");onMapDrawingChange?.(null);}} aria-label="Close editor">×</button></header>
       {editor==="level"&&<><label>Level name<input required value={form.name} onChange={(event)=>setForm({...form,name:event.target.value})} placeholder="Example: Basement 1"/></label><label>Short label<input value={form.shortLabel} onChange={(event)=>setForm({...form,shortLabel:event.target.value})} placeholder="Generated if blank"/></label></>}
       {editor==="space"&&<><label>Room / area name<input required value={form.name} onChange={(event)=>setForm({...form,name:event.target.value})} placeholder="Example: Electrical Room"/></label><label>Room number<input value={form.roomNumber} onChange={(event)=>setForm({...form,roomNumber:event.target.value})} placeholder="Example: 204"/></label><label>Space type<select value={form.spaceType} onChange={(event)=>setForm({...form,spaceType:event.target.value})}><option value="room">Room</option><option value="stair">Stair</option><option value="corridor">Corridor</option><option value="utility">Utility</option><option value="area">Operational area</option></select></label><label>CAD aliases<input value={form.aliases} onChange={(event)=>setForm({...form,aliases:event.target.value})} placeholder="Comma-separated dispatch names"/></label><label className="wide">CAD keywords<input value={form.cadKeywords} onChange={(event)=>setForm({...form,cadKeywords:event.target.value})} placeholder="Exact narrative terms, comma-separated"/></label><div className="wide operational-map-drawing-guide"><div><strong>Draw on the building map</strong><span>{activeMapPoints.length} corner{activeMapPoints.length===1?"":"s"}</span></div><p>Use Streets or Aerial above. Click each outside corner of this room on the highlighted footprint. Only <b>{label(levels.find((item)=>item.id===levelId)?.name,"this level")}</b> will display it.</p><div><button type="button" disabled={!activeMapPoints.length} onClick={()=>onMapDrawingChange?.({kind:"space",levelId,points:activeMapPoints.slice(0,-1)})}>Undo corner</button><button type="button" disabled={!activeMapPoints.length} onClick={()=>onMapDrawingChange?.({kind:"space",levelId,points:[]})}>Clear drawing</button></div><small>{activeMapPoints.length<3?"Add at least three corners on the map.":"Room overlay is ready to save."}</small></div><label>Access notes<textarea value={form.accessNotes} onChange={(event)=>setForm({...form,accessNotes:event.target.value})}/></label><label>Fire protection notes<textarea value={form.fireProtectionNotes} onChange={(event)=>setForm({...form,fireProtectionNotes:event.target.value})}/></label><label className="wide">Room hazards<textarea value={form.hazards} onChange={(event)=>setForm({...form,hazards:event.target.value})}/></label></>}
       {editor==="alert"&&<><label>Severity<select value={form.severity} onChange={(event)=>setForm({...form,severity:event.target.value})}><option value="informational">Informational</option><option value="caution">Caution</option><option value="warning">Warning</option><option value="critical">Critical</option></select></label><label>Alert title<input required value={form.title} onChange={(event)=>setForm({...form,title:event.target.value})}/></label><label className="wide">Crew message<textarea required value={form.message} onChange={(event)=>setForm({...form,message:event.target.value})}/></label><label>Effective at<input type="datetime-local" value={form.effectiveAt} onInput={(event)=>setForm({...form,effectiveAt:event.currentTarget.value})}/></label><label>Expires at<input type="datetime-local" value={form.expiresAt} onInput={(event)=>setForm({...form,expiresAt:event.currentTarget.value})}/></label></>}
@@ -173,7 +248,7 @@ export default function OperationalPreplanPanel({preplanId,canEdit=false,mapDraf
       {editor==="risk"&&<><label>Risk factor<input required value={form.factor} onChange={(event)=>setForm({...form,factor:event.target.value})} placeholder="Example: Bowstring truss"/></label><label>Score<input required type="number" min="-100" max="100" step="1" value={form.score} onChange={(event)=>setForm({...form,score:event.target.value})}/></label><label className="wide">Why this affects operations<textarea required value={form.explanation} onChange={(event)=>setForm({...form,explanation:event.target.value})}/></label><label className="wide">Verified source<input required value={form.source} onChange={(event)=>setForm({...form,source:event.target.value})} placeholder="Inspection, plan set, owner confirmation…"/></label><label>Authorized override<input type="number" min="-100" max="100" step="1" value={form.targetHazardOverride} onChange={(event)=>setForm({...form,targetHazardOverride:event.target.value})} placeholder="0"/></label></>}
       {editor==="construction"&&<><label>Construction type<input value={form.constructionType} onChange={(event)=>setForm({...form,constructionType:event.target.value})} placeholder="Verified construction type"/></label><label>Roof type<input value={form.roofType} onChange={(event)=>setForm({...form,roofType:event.target.value})}/></label><label>Roof support system<input value={form.roofSupportSystem} onChange={(event)=>setForm({...form,roofSupportSystem:event.target.value})} placeholder="Truss, bar joist, conventional…"/></label><label>Lightweight construction<select value={form.lightweightConstruction} onChange={(event)=>setForm({...form,lightweightConstruction:event.target.value})}><option value="unknown">Unknown / unverified</option><option value="yes">Yes</option><option value="no">No</option></select></label><label>Bowstring truss<select value={form.bowstringTruss} onChange={(event)=>setForm({...form,bowstringTruss:event.target.value})}><option value="unknown">Unknown / unverified</option><option value="yes">Yes</option><option value="no">No</option></select></label><label>Basement type<input value={form.basementType} onChange={(event)=>setForm({...form,basementType:event.target.value})}/></label><label>Floors above grade<input type="number" min="0" step="1" value={form.floorsAboveGrade} onChange={(event)=>setForm({...form,floorsAboveGrade:event.target.value})}/></label><label>Floors below grade<input type="number" min="0" step="1" value={form.floorsBelowGrade} onChange={(event)=>setForm({...form,floorsBelowGrade:event.target.value})}/></label><label>Fortified access<select value={form.fortifiedAccess} onChange={(event)=>setForm({...form,fortifiedAccess:event.target.value})}><option value="unknown">Unknown / unverified</option><option value="yes">Yes</option><option value="no">No</option></select></label><label className="wide">Construction notes<textarea value={form.constructionNotes} onChange={(event)=>setForm({...form,constructionNotes:event.target.value})}/></label><small className="wide">Unknown stays unknown. This profile does not automatically create a structural warning or target-hazard score.</small></>}
       {editor==="occupancy"&&<><label>Occupancy classification<input value={form.occupancyClassification} onChange={(event)=>setForm({...form,occupancyClassification:event.target.value})}/></label><label>Normal daytime occupancy<input type="number" min="0" step="1" value={form.daytimeOccupancy} onChange={(event)=>setForm({...form,daytimeOccupancy:event.target.value})}/></label><label>Normal nighttime occupancy<input type="number" min="0" step="1" value={form.nighttimeOccupancy} onChange={(event)=>setForm({...form,nighttimeOccupancy:event.target.value})}/></label><label>Peak occupancy<input type="number" min="0" step="1" value={form.peakOccupancy} onChange={(event)=>setForm({...form,peakOccupancy:event.target.value})}/></label>{([['nonAmbulatory','Non-ambulatory occupants'],['sleepingOccupants','Sleeping occupants'],['children','Children'],['elderly','Elderly residents'],['assistanceNeeded','Persons needing assistance']] as const).map(([key,name])=><label key={key}>{name}<select value={form[key]} onChange={(event)=>setForm({...form,[key]:event.target.value})}><option value="unknown">Unknown / unverified</option><option value="yes">Present</option><option value="no">Not present</option></select></label>)}<label className="wide">Schedule / special-event notes<textarea value={form.scheduleNotes} onChange={(event)=>setForm({...form,scheduleNotes:event.target.value})}/></label><small className="wide">Enter only verified normal conditions; incident conditions and CAD updates still control operational decisions.</small></>}
-      {saveError&&<p className="operational-save-error" role="alert">{saveError}</p>}<button className="primary-action" disabled={saving}>{saving?"Saving…":"Save operational record"}</button>
+      {saveError&&<p className="operational-save-error" role="alert">{saveError}</p>}<button className="primary-action" disabled={saving}>{saving?"Saving…":"Save and continue"}</button>
     </form>}
     <div className="operational-summary-grid">
       <article><span>LEVELS</span><strong>{levels.length}</strong><small>{levels.map((item)=>label(item.shortLabel)).join(" · ")||"Legacy arrival view"}</small></article>

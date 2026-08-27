@@ -6,6 +6,17 @@ const panel = fs.readFileSync(new URL("../app/preplans/operational-panel.tsx", i
 const route = fs.readFileSync(new URL("../app/api/field-preplans/operational/route.ts", import.meta.url), "utf8");
 const field = fs.readFileSync(new URL("../app/field-preplans.tsx", import.meta.url), "utf8");
 
+test("operational editing is presented as a guided four-step workflow", () => {
+  for (const label of ["Building & floors", "Hazards & response", "Map & resources", "Review & publish"]) {
+    assert.match(panel, new RegExp(label.replace("&", "&")));
+  }
+  assert.match(panel, /STEP \{workflowIndex\+1\} OF \{workflowSteps\.length\}/);
+  assert.match(panel, /Continue to step/);
+  assert.match(panel, /Save and continue/);
+  assert.match(panel, /scrollIntoView\(\{behavior:"smooth",block:"start"\}\)/);
+  assert.match(panel, /Saved information found/);
+});
+
 test("Field exposes persisted tactical annotation, hose-lay, and risk editors", () => {
   for (const action of ["saveAnnotation", "saveHoseLay", "saveRiskFactor"]) {
     assert.match(panel, new RegExp(action));
