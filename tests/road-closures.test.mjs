@@ -16,8 +16,19 @@ test("road closure mutations require same-origin incident command access", () =>
 test("closure creation requires a traced segment and bypass point", () => {
   assert.match(api, /path\.length < 2/);
   assert.match(api, /if \(!detourPoint\)/);
-  assert.match(page, /Trace at least two road points/);
-  assert.match(page, /Set the preferred bypass point/);
+  assert.match(page, /Finish trace → Set bypass/);
+  assert.match(page, /Use bypass point/);
+  assert.match(page, /disabled=\{busy\|\|!ready\}/);
+});
+
+test("guided map supports road lookup and movement while tracing", () => {
+  assert.match(api, /action === "locate"/);
+  assert.match(api, /maps\.googleapis\.com\/maps\/api\/geocode/);
+  assert.match(page, /Find on map/);
+  assert.match(page, /Use current location/);
+  assert.match(page, /onPointerMove/);
+  assert.match(page, /drag to move/);
+  assert.doesNotMatch(page, /window\.prompt/);
 });
 
 test("reopening preserves history instead of deleting the record", () => {

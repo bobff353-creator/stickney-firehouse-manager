@@ -46,6 +46,23 @@ export async function POST(request: Request) {
     if (!await hasPermission(request, db, "incident_command.manage")) return Response.json({ error: "Incident command permission is required." }, { status: 403 });
     const body = await request.json() as Record<string, unknown>;
     const actor = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() || "Department administrator";
+    if (body.action === "locate") {
+      const address = String(body.address || "").trim().slice(0, 240);
+      const apiKey = process.env.GOOGLE_MAPS_GEOCODING_KEY?.trim() || process.env.GOOGLE_MAPS_STREET_VIEW_KEY?.trim() || process.env.GOOGLE_MAPS_BROWSER_KEY?.trim();
+      if (!address) return Response.json({ error: "Enter a street, intersection, or address." }, { status: 400 });
+      if (!apiKey) return Response.json({ error: "Google address lookup is not configured." }, { status: 503 });
+      const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
+      url.searchParams.set("address", /,\s*(IL|Illinois)\b/i.test(address) ? address : `${address}, Stickney, IL`);
+      url.searchParams.set("components", "country:US");
+      url.searchParams.set("key", apiKey);
+      const response = await fetch(url, { cache: "no-store" });
+      const result = await response.json() as { status?:string;results?:Array<{formatted_address?:string;geometry?:{location?:Point}}> };
+      const location = point(result.results?.[0]?.geometry?.location);
+      if (!response.ok || result.status !== "OK" || !location || location.lat < 41 || location.lat > 42.5 || location.lng < -88.5 || location.lng > -87) {
+        return Response.json({ error: "No nearby matching road or intersection was found." }, { status: 404 });
+      }
+      return Response.json({ location, formattedAddress: String(result.results?.[0]?.formatted_address || address).slice(0, 240) });
+    }
     if (body.action === "clear") {
       const id = String(body.id || "").trim(), clearNote = String(body.clearNote || "").trim().slice(0, 500);
       if (!id) return Response.json({ error: "Choose a road closure to reopen." }, { status: 400 });
