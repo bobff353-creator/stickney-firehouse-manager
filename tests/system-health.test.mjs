@@ -5,17 +5,24 @@ import { readFileSync } from "node:fs";
 const route = readFileSync(new URL("../app/api/system-health/route.ts", import.meta.url), "utf8");
 const component = readFileSync(new URL("../app/system-health.tsx", import.meta.url), "utf8");
 const shell = readFileSync(new URL("../app/payroll-app.tsx", import.meta.url), "utf8");
+const providerHealthMigration = readFileSync(new URL("../supabase/migrations/20260830151225_add_system_health_usage_function.sql", import.meta.url), "utf8");
 
 test("system health is admin-only and uses live service checks", () => {
   assert.match(route, /hasPermission\(request, db, "settings\.manage"\)/);
   assert.match(route, /SELECT 1 AS online/);
-  assert.match(route, /auth\.admin\.listUsers/);
-  assert.match(route, /storage\.listBuckets/);
-  assert.match(route, /pg_database_size\(current_database\(\)\)/);
-  assert.match(route, /FROM storage\.objects/);
+  assert.match(route, /FROM system_health_usage\(\)/);
+  assert.match(route, /Authenticated accounts/);
+  assert.match(route, /department-protected health function/);
   assert.match(route, /VERCEL_GIT_COMMIT_SHA/);
   assert.match(route, /VERCEL_GIT_COMMIT_REF/);
   assert.match(route, /VERCEL_GIT_REPO_SLUG/);
+  assert.match(providerHealthMigration, /SECURITY DEFINER/);
+  assert.match(providerHealthMigration, /SET search_path = ''/);
+  assert.match(providerHealthMigration, /firehouse\.has_department_access\(\)/);
+  assert.match(providerHealthMigration, /FROM storage\.objects/);
+  assert.match(providerHealthMigration, /FROM auth\.users/);
+  assert.match(providerHealthMigration, /REVOKE ALL ON FUNCTION firehouse\.system_health_usage\(\) FROM anon/);
+  assert.match(providerHealthMigration, /GRANT EXECUTE ON FUNCTION firehouse\.system_health_usage\(\) TO authenticated/);
 });
 
 test("backup controls do not claim success without a connected verification feed", () => {

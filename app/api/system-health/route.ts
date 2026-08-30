@@ -1,6 +1,5 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 import { hasPermission } from "../../server-permissions";
-import { getSupabaseAdminClient } from "../../supabase-admin";
 
 type HealthState = "healthy" | "warning" | "unavailable";
 
@@ -67,72 +66,72 @@ export async function GET(request: Request) {
     checks.push({ id: "database", label: "Database", state: "warning", value: "Unavailable", detail: "The live verification query failed.", verifiedAt: checkedAt });
   }
 
-  let admin: ReturnType<typeof getSupabaseAdminClient> | null = null;
+  type ProviderUsage = {
+    databaseBytes: number | string;
+    storageBytes: number | string;
+    objectCount: number | string;
+    bucketCount: number | string;
+    authUserCount: number | string;
+  };
+
+  let providerUsage: ProviderUsage | null = null;
   try {
-    admin = getSupabaseAdminClient();
-    const usersResult = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    if (usersResult.error) throw usersResult.error;
+    providerUsage = await db.prepare(
+      "SELECT database_bytes AS databaseBytes, storage_bytes AS storageBytes, object_count AS objectCount, bucket_count AS bucketCount, auth_user_count AS authUserCount FROM system_health_usage()",
+    ).first<ProviderUsage>();
+    if (!providerUsage) throw new Error("Provider usage was not returned.");
+
+    const authUserCount = Number(providerUsage.authUserCount ?? 0);
     checks.push({
       id: "users",
-      label: "Verified portal users",
+      label: "Authenticated accounts",
       state: "healthy",
-      value: String(usersResult.data.users.length),
-      detail: usersResult.data.users.length === 1000 ? "At least 1,000 accounts; pagination is required for a final total." : "Counted directly from the authentication provider.",
+      value: String(Number.isFinite(authUserCount) ? authUserCount : 0),
+      detail: "Counted directly from Supabase Auth through a department-protected health function.",
       verifiedAt: checkedAt,
     });
-
   } catch {
-    checks.push({ id: "users", label: "Verified portal users", state: "warning", value: "Unavailable", detail: "The server-side authentication health check is not available.", verifiedAt: checkedAt });
+    checks.push({ id: "users", label: "Authenticated accounts", state: "warning", value: "Unavailable", detail: "The protected Supabase health function is not available.", verifiedAt: checkedAt });
   }
 
-  try {
-    if (!admin) admin = getSupabaseAdminClient();
-    const bucketsResult = await admin.storage.listBuckets();
-    if (bucketsResult.error) throw bucketsResult.error;
+  if (providerUsage) {
+    const bucketCount = Number(providerUsage.bucketCount ?? 0);
     checks.push({
       id: "file-storage",
       label: "File storage",
       state: "healthy",
       value: "Online",
-      detail: `${bucketsResult.data.length} storage bucket${bucketsResult.data.length === 1 ? "" : "s"} reachable. Stored-object usage is verified separately below.`,
+      detail: `${Number.isFinite(bucketCount) ? bucketCount : 0} storage bucket${bucketCount === 1 ? "" : "s"} reachable. Stored-object usage is verified separately below.`,
       verifiedAt: checkedAt,
     });
-  } catch {
+  } else {
     checks.push({ id: "file-storage", label: "File storage", state: "warning", value: "Unavailable", detail: "The server-side storage health check is not available.", verifiedAt: checkedAt });
   }
 
-  try {
-    const databaseUsage = await db.prepare(
-      "SELECT pg_database_size(current_database()) AS bytes",
-    ).first<{ bytes: number | string }>();
-    if (databaseUsage?.bytes === undefined || databaseUsage?.bytes === null) throw new Error("Database size was not returned.");
+  if (providerUsage) {
     checks.push({
       id: "database-usage",
       label: "Database used",
       state: "healthy",
-      value: formatBytes(databaseUsage.bytes),
+      value: formatBytes(providerUsage.databaseBytes),
       detail: "Measured live from the Supabase PostgreSQL database. Plan capacity remains in the provider billing dashboard.",
       verifiedAt: checkedAt,
     });
-  } catch {
+  } else {
     checks.push(unavailable("database-usage", "Database used", "The live PostgreSQL size query is not available.", checkedAt));
   }
 
-  try {
-    const storageUsage = await db.prepare(
-      "SELECT COUNT(*) AS object_count, COALESCE(SUM(CASE WHEN (metadata->>'size') ~ '^[0-9]+$' THEN (metadata->>'size')::bigint ELSE 0 END),0) AS bytes FROM storage.objects",
-    ).first<{ object_count: number | string; bytes: number | string }>();
-    if (storageUsage?.bytes === undefined || storageUsage?.bytes === null) throw new Error("Storage size was not returned.");
-    const objectCount = Number(storageUsage.object_count ?? 0);
+  if (providerUsage) {
+    const objectCount = Number(providerUsage.objectCount ?? 0);
     checks.push({
       id: "storage-usage",
       label: "File storage used",
       state: "healthy",
-      value: formatBytes(storageUsage.bytes),
+      value: formatBytes(providerUsage.storageBytes),
       detail: `${Number.isFinite(objectCount) ? objectCount : 0} stored object${objectCount === 1 ? "" : "s"} measured live. Plan capacity remains in the provider billing dashboard.`,
       verifiedAt: checkedAt,
     });
-  } catch {
+  } else {
     checks.push(unavailable("storage-usage", "File storage used", "The live Supabase Storage size query is not available.", checkedAt));
   }
 
