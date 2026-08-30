@@ -23,6 +23,15 @@ export type CommandUnitState = {
   crewStrength: number | null;
 };
 
+export type TacticalHazard = {
+  id: string;
+  label: string;
+  floor: string;
+  side: "" | "A" | "B" | "C" | "D";
+  createdAt: string;
+  createdBy: string;
+};
+
 export type IncidentCommandState = {
   revision: number;
   radioChannel: string;
@@ -39,10 +48,12 @@ export type IncidentCommandState = {
   building: { floorCount: number | null; basement: "unknown" | "present" | "none" };
   searches: Record<string, Partial<Record<SearchPhase, SearchStatus>>>;
   rit: { unitId: string; chiefEmployeeId: string; readiness: "not_reported" | "assembling" | "ready" };
-  rehab: { unitIds: string[]; chiefEmployeeId: string };
+  rehab: { unitIds: string[]; chiefEmployeeId: string; assignmentNote: string };
+  hazards: TacticalHazard[];
   support: Record<SupportResource, SupportStatus>;
   benchmarks: Record<string, { recordedAt: string; recordedBy: string }>;
   mayday: { active: boolean; activatedAt: string | null; activatedBy: string; resolvedAt: string | null; resolvedBy: string };
+  closeout: { endedAt: string | null; endedBy: string };
   updatedAt: string | null;
   updatedBy: string;
 };
@@ -59,10 +70,13 @@ export type CommandAction =
   | { action: "set-building"; floorCount: number | null; basement: IncidentCommandState["building"]["basement"] }
   | { action: "set-search"; level: string; phase: SearchPhase; status: SearchStatus }
   | { action: "set-rit"; unitId: string; chiefEmployeeId: string; readiness: IncidentCommandState["rit"]["readiness"] }
-  | { action: "set-rehab"; unitIds: string[]; chiefEmployeeId: string }
+  | { action: "set-rehab"; unitIds: string[]; chiefEmployeeId: string; assignmentNote?: string }
+  | { action: "add-hazard"; label: string; floor: string; side: TacticalHazard["side"] }
+  | { action: "remove-hazard"; hazardId: string }
   | { action: "set-support"; resource: SupportResource; status: SupportStatus }
   | { action: "record-benchmark"; benchmark: typeof benchmarkLabels[number] }
-  | { action: "set-mayday"; active: boolean; confirmation: string };
+  | { action: "set-mayday"; active: boolean; confirmation: string }
+  | { action: "end-call"; confirmation: string };
 
 const emptyPositions = () => Object.fromEntries(commandPositions.map((position) => [position, ""])) as Record<CommandPosition, string>;
 const emptySupport = () => Object.fromEntries(supportResources.map((resource) => [resource, "not_reported"])) as Record<SupportResource, SupportStatus>;
@@ -78,10 +92,12 @@ export function emptyIncidentCommandState(): IncidentCommandState {
     building: { floorCount: null, basement: "unknown" },
     searches: {},
     rit: { unitId: "", chiefEmployeeId: "", readiness: "not_reported" },
-    rehab: { unitIds: [], chiefEmployeeId: "" },
+    rehab: { unitIds: [], chiefEmployeeId: "", assignmentNote: "" },
+    hazards: [],
     support: emptySupport(),
     benchmarks: {},
     mayday: { active: false, activatedAt: null, activatedBy: "", resolvedAt: null, resolvedBy: "" },
+    closeout: { endedAt: null, endedBy: "" },
     updatedAt: null,
     updatedBy: "",
   };
@@ -120,10 +136,19 @@ export function normalizeIncidentCommandState(value: unknown): IncidentCommandSt
     building: { ...fallback.building, ...(candidate.building ?? {}) },
     searches: candidate.searches ?? {},
     rit: { ...fallback.rit, ...(candidate.rit ?? {}) },
-    rehab: { ...fallback.rehab, ...(candidate.rehab ?? {}) },
+    rehab: { ...fallback.rehab, ...(candidate.rehab ?? {}), assignmentNote: String(candidate.rehab?.assignmentNote ?? "").slice(0, 120) },
+    hazards: Array.isArray(candidate.hazards) ? candidate.hazards.filter((hazard) => hazard && typeof hazard === "object").map((hazard) => ({
+      id: String(hazard.id ?? "").slice(0, 80),
+      label: String(hazard.label ?? "").slice(0, 80),
+      floor: String(hazard.floor ?? "").slice(0, 40),
+      side: (["A", "B", "C", "D"].includes(String(hazard.side)) ? String(hazard.side) : "") as TacticalHazard["side"],
+      createdAt: String(hazard.createdAt ?? ""),
+      createdBy: String(hazard.createdBy ?? "").slice(0, 120),
+    })).filter((hazard) => hazard.id && hazard.label) : [],
     support: { ...fallback.support, ...(candidate.support ?? {}) },
     benchmarks: candidate.benchmarks ?? {},
     mayday: { ...fallback.mayday, ...(candidate.mayday ?? {}) },
+    closeout: { ...fallback.closeout, ...(candidate.closeout ?? {}) },
   };
 }
 
@@ -183,6 +208,8 @@ export function reduceIncidentCommandState(current: IncidentCommandState, mutati
   let eventType: string = mutation.action;
   let summary: string = mutation.action;
 
+  if (state.closeout.endedAt) throw new Error("This incident is closed. Reopen the active incident from CAD before making more changes.");
+
   if (mutation.action === "set-radio") {
     state.radioChannel = mutation.radioChannel.trim().slice(0, 80);
     summary = state.radioChannel ? `Radio channel set to ${state.radioChannel}` : "Radio channel cleared";
@@ -209,7 +236,18 @@ export function reduceIncidentCommandState(current: IncidentCommandState, mutati
       side: mutation.side && ["A", "B", "C", "D"].includes(mutation.side) ? mutation.side : "",
       crewStrength: Number.isFinite(crewStrength) ? crewStrength : null,
     };
-    summary = `${unitId} assigned to ${state.units[unitId].assignment}`;
+    if (state.units[unitId].assignment === "Rehab") {
+      state.units[unitId].status = "Rehab";
+      state.rehab.unitIds = [...new Set([...state.rehab.unitIds, unitId])];
+    } else {
+      state.rehab.unitIds = state.rehab.unitIds.filter((candidate) => candidate !== unitId);
+    }
+    if (state.units[unitId].assignment === "Primary Search" && floor && (state.searches[floor]?.primary ?? "not_started") === "not_started") {
+      state.searches[floor] = { ...(state.searches[floor] ?? {}), primary: "in_progress" };
+      summary = `${unitId} assigned to Primary Search on ${floor}; primary search started`;
+    } else {
+      summary = `${unitId} assigned to ${state.units[unitId].assignment}${floor ? ` on ${floor}` : ""}${state.units[unitId].side ? ` Side ${state.units[unitId].side}` : ""}`;
+    }
   } else if (mutation.action === "set-par-interval") {
     const interval = Number(mutation.intervalMinutes);
     if (![10, 15, 20, 30].includes(interval)) throw new Error("Select a valid PAR interval.");
@@ -251,8 +289,31 @@ export function reduceIncidentCommandState(current: IncidentCommandState, mutati
     };
     summary = `RIT status set to ${state.rit.readiness.replaceAll("_", " ")}`;
   } else if (mutation.action === "set-rehab") {
-    state.rehab = { unitIds: [...new Set(mutation.unitIds.map((unit) => validUnit(unit, context)))], chiefEmployeeId: validChiefAssignee(mutation.chiefEmployeeId, context) };
+    const unitIds = [...new Set(mutation.unitIds.map((unit) => validUnit(unit, context)))];
+    state.rehab = {
+      unitIds,
+      chiefEmployeeId: validChiefAssignee(mutation.chiefEmployeeId, context),
+      assignmentNote: String(mutation.assignmentNote ?? "").trim().replace(/\s+/g, " ").slice(0, 120),
+    };
+    for (const unitId of unitIds) {
+      const existing = state.units[unitId] ?? { assignment: "Staging" as const, status: "On scene" as const, floor: "", side: "" as const, crewStrength: null };
+      state.units[unitId] = { ...existing, assignment: "Rehab", status: "Rehab", floor: "", side: "" };
+    }
     summary = `Rehab assignment updated (${state.rehab.unitIds.length} unit${state.rehab.unitIds.length === 1 ? "" : "s"})`;
+  } else if (mutation.action === "add-hazard") {
+    const label = String(mutation.label ?? "").trim().replace(/\s+/g, " ").slice(0, 80);
+    if (!label) throw new Error("Select or type a hazard.");
+    const floor = String(mutation.floor ?? "").slice(0, 40);
+    if (floor && !context.validLevels.has(floor)) throw new Error("Select a valid hazard level.");
+    const side = mutation.side && ["A", "B", "C", "D"].includes(mutation.side) ? mutation.side : "";
+    if (!floor && !side) throw new Error("Place the hazard inside a level or on an exterior side.");
+    state.hazards.push({ id: crypto.randomUUID(), label, floor, side, createdAt: context.now, createdBy: context.actor });
+    summary = `${label} hazard added ${side ? `to Side ${side}` : `inside ${floor}`}`;
+  } else if (mutation.action === "remove-hazard") {
+    const hazard = state.hazards.find((candidate) => candidate.id === mutation.hazardId);
+    if (!hazard) throw new Error("That hazard is no longer on the board.");
+    state.hazards = state.hazards.filter((candidate) => candidate.id !== mutation.hazardId);
+    summary = `${hazard.label} hazard removed`;
   } else if (mutation.action === "set-support") {
     const resource = oneOf(supportResources, mutation.resource, "support resource");
     state.support[resource] = oneOf(supportStatuses, mutation.status, "support status");
@@ -272,6 +333,14 @@ export function reduceIncidentCommandState(current: IncidentCommandState, mutati
       summary = "MAYDAY / emergency traffic resolved";
     }
     eventType = mutation.active ? "mayday-activated" : "mayday-resolved";
+  } else if (mutation.action === "end-call") {
+    if (mutation.confirmation !== "END INCIDENT") throw new Error("Enter END INCIDENT to continue.");
+    if (state.mayday.active) throw new Error("Resolve the active MAYDAY before ending the incident.");
+    state.closeout = { endedAt: context.now, endedBy: context.actor };
+    state.par = { ...state.par, status: "paused", startedAt: null, remainingSeconds: remainingParSeconds(state, context.now) };
+    state.benchmarks["Incident terminated"] = { recordedAt: context.now, recordedBy: context.actor };
+    eventType = "incident-ended";
+    summary = "Incident command board ended and locked for reporting";
   }
 
   state.revision += 1;

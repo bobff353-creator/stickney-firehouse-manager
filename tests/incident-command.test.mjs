@@ -80,6 +80,29 @@ test("search completion, support, and tactical profile changes are revisioned", 
   assert.equal(support.state.revision, 3);
 });
 
+test("tactical assignment automates search and rehab without losing the audited unit location", async () => {
+  const { emptyIncidentCommandState, reduceIncidentCommandState } = await loadCommandModule();
+  const searching = reduceIncidentCommandState(emptyIncidentCommandState(), { action: "assign-unit", unitId: "E1201", assignment: "Primary Search", status: "On scene", floor: "Floor 1", side: "A" }, context());
+  assert.equal(searching.state.searches["Floor 1"].primary, "in_progress");
+  assert.match(searching.summary, /primary search started/);
+  const rehab = reduceIncidentCommandState(searching.state, { action: "assign-unit", unitId: "E1201", assignment: "Rehab", status: "Rehab", floor: "", side: "" }, context());
+  assert.deepEqual(rehab.state.rehab.unitIds, ["E1201"]);
+  assert.equal(rehab.state.units.E1201.status, "Rehab");
+});
+
+test("hazards and incident closeout are validated, timestamped, and locked", async () => {
+  const { emptyIncidentCommandState, reduceIncidentCommandState } = await loadCommandModule();
+  const hazard = reduceIncidentCommandState(emptyIncidentCommandState(), { action: "add-hazard", label: "Electrical", floor: "Floor 1", side: "" }, context());
+  assert.equal(hazard.state.hazards[0].label, "Electrical");
+  assert.equal(hazard.state.hazards[0].floor, "Floor 1");
+  assert.throws(() => reduceIncidentCommandState(hazard.state, { action: "end-call", confirmation: "yes" }, context()), /END INCIDENT/);
+  const ended = reduceIncidentCommandState(hazard.state, { action: "end-call", confirmation: "END INCIDENT" }, context());
+  assert.equal(ended.eventType, "incident-ended");
+  assert.equal(ended.state.closeout.endedBy, "Authenticated Officer");
+  assert.ok(ended.state.benchmarks["Incident terminated"]);
+  assert.throws(() => reduceIncidentCommandState(ended.state, { action: "set-radio", radioChannel: "Fireground" }, context()), /incident is closed/i);
+});
+
 test("Command Board is under Field, permission gated, durable, and contains no copied demo identity", async () => {
   const [app, page, route, permissions, bootstrap, migration] = await Promise.all([
     readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8"),
@@ -101,7 +124,7 @@ test("Command Board is under Field, permission gated, durable, and contains no c
   assert.match(page, /confirm-par-unit/);
   assert.match(page, /requestFullscreen/);
   assert.match(page, /dropUnitOnFloor/);
-  assert.match(page, /STAGED OR ON SCENE · DRAG TO A FLOOR/);
+  assert.match(page, /DRAG A UNIT, OR TAP IT THEN TAP A FLOOR \/ SIDE/);
   assert.match(page, /icb-command-assignees/);
   assert.match(page, /\+ ADD UNIT/);
   assert.match(page, /icb-add-unit-form/);
@@ -109,6 +132,16 @@ test("Command Board is under Field, permission gated, durable, and contains no c
   assert.match(page, /icb-rehab-chief-suggestions/);
   assert.match(page, /Select or type chief name\/unit/);
   assert.match(page, /icb-idle-body/);
+  assert.match(page, /icb-panel-toggle/);
+  assert.match(page, /dropUnitOnSide/);
+  assert.match(page, /dropUnitInRehab/);
+  assert.match(page, /Primary Search.*primary search/si);
+  assert.match(page, /armAlertTone/);
+  assert.match(page, /icb-hazard-editor/);
+  assert.match(page, /icb-history-drawer/);
+  assert.match(page, /END CALL/);
+  assert.match(page, /Print Report/);
+  assert.match(route, /UPDATE dispatch_incidents SET active=0,cleared_at/);
   assert.match(page, /ACTIVE-INCIDENT LAYOUT/);
   assert.match(page, /PREVIEW · NOT ACTIVE/);
   assert.match(page, /PAR \/ ACCOUNTABILITY/);

@@ -72,7 +72,7 @@ async function responseData(request: Request, db: Db) {
   const [preplan, boardRow, eventRows] = await Promise.all([
     matchedPreplan(db, incident),
     db.prepare("SELECT board_state boardState,revision,updated_by updatedBy,updated_at updatedAt FROM incident_command_boards WHERE incident_id=?").bind(incident.incidentId).first<Row>(),
-    db.prepare("SELECT id,revision,event_type eventType,summary,actor,created_at createdAt FROM incident_command_events WHERE incident_id=? ORDER BY revision DESC LIMIT 30").bind(incident.incidentId).all<Row>(),
+    db.prepare("SELECT id,revision,event_type eventType,summary,actor,created_at createdAt FROM incident_command_events WHERE incident_id=? ORDER BY revision DESC").bind(incident.incidentId).all<Row>(),
   ]);
   const state = normalizeIncidentCommandState(boardRow ? parseJson(boardRow.boardState, emptyIncidentCommandState()) : emptyIncidentCommandState());
   state.revision = Number(boardRow?.revision ?? state.revision);
@@ -128,9 +128,10 @@ export async function POST(request: Request) {
 
     const cadUnits = parseRespondingUnits(incident.respondingUnits);
     const incidentUnits = [...new Set([...cadUnits, ...state.manualUnits])];
+    const now = new Date().toISOString();
     const result = reduceIncidentCommandState(state, body.mutation, {
       actor,
-      now: new Date().toISOString(),
+      now,
       validPersonnel: new Set(people.map((person) => person.id)),
       validUnits: new Set(incidentUnits),
       validLevels: new Set(tacticalLevels(state, preplan ? Number(preplan.floorCount) : null)),
@@ -145,8 +146,11 @@ export async function POST(request: Request) {
           db.prepare("INSERT INTO incident_command_boards (incident_id,board_state,revision,updated_by,updated_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)").bind(incident.incidentId, JSON.stringify(result.state), result.state.revision, actor),
           db.prepare("INSERT INTO incident_command_events (id,incident_id,revision,event_type,summary,actor,event_payload,created_at) VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP)").bind(eventId, incident.incidentId, result.state.revision, result.eventType, result.summary, actor, JSON.stringify(body.mutation)),
         ];
+    if (body.mutation.action === "end-call" && !incident.incidentId.startsWith("daily-log:")) {
+      writes.push(db.prepare("UPDATE dispatch_incidents SET active=0,cleared_at=COALESCE(cleared_at,CURRENT_TIMESTAMP) WHERE incident_id=?").bind(incident.incidentId));
+    }
     await db.batch(writes);
-    return Response.json({ ok: true, state: result.state, event: { id: eventId, revision: result.state.revision, eventType: result.eventType, summary: result.summary, actor } });
+    return Response.json({ ok: true, state: result.state, event: { id: eventId, revision: result.state.revision, eventType: result.eventType, summary: result.summary, actor, createdAt: now } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Unable to update the Incident Command Board." }, { status: 400 });
   }

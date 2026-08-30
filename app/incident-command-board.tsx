@@ -14,6 +14,7 @@ import {
   type IncidentCommandState,
   type SearchPhase,
   type SearchStatus,
+  type TacticalHazard,
   type TacticalAssignment,
 } from "./incident-command-state";
 
@@ -54,13 +55,30 @@ type BoardData = {
 type ConfirmState =
   | { kind: "mayday"; active: boolean }
   | { kind: "search"; level: string; phase: SearchPhase }
+  | { kind: "end-call" }
   | null;
+type AssignmentDraft = {
+  unitId: string;
+  assignment: TacticalAssignment;
+  status: IncidentCommandState["units"][string]["status"];
+  floor: string;
+  side: IncidentCommandState["units"][string]["side"];
+  crewStrength: number | null;
+};
+type MutationResponse = { ok?: boolean; state?: IncidentCommandState; event?: AuditEvent; error?: string };
+
+const hazardOptions = ["Collapse", "Electrical", "Hazardous material", "Hole / opening", "Propane / gas", "Solar panels", "Structural damage", "Utilities"];
 
 const sentence = (value: string) => value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 const formatTime = (value?: string | null) => value ? new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
 
 export default function IncidentCommandBoard() {
   const boardRef = useRef<HTMLElement>(null);
+  const initialLoadStartedRef = useRef(false);
+  const alertAudioRef = useRef<AudioContext | null>(null);
+  const alertedParRef = useRef("");
+  const savingRef = useRef(false);
+  const closedRef = useRef(false);
   const [data, setData] = useState<BoardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -74,12 +92,20 @@ export default function IncidentCommandBoard() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showManualUnitEntry, setShowManualUnitEntry] = useState(false);
   const [manualUnitDraft, setManualUnitDraft] = useState("");
+  const [unitsExpanded, setUnitsExpanded] = useState(true);
+  const [assignmentsExpanded, setAssignmentsExpanded] = useState(true);
+  const [assignmentDraft, setAssignmentDraft] = useState<AssignmentDraft | null>(null);
+  const [hazardEditorOpen, setHazardEditorOpen] = useState(false);
+  const [hazardDraft, setHazardDraft] = useState<{ label: string; floor: string; side: TacticalHazard["side"] }>({ label: "", floor: "Level unknown", side: "" });
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [ritDraft, setRitDraft] = useState({
     unitId: "",
     chiefEmployeeId: "",
     readiness: "not_reported" as IncidentCommandState["rit"]["readiness"],
   });
-  const [rehabDraft, setRehabDraft] = useState({ unitIds: [] as string[], chiefEmployeeId: "" });
+  const [rehabDraft, setRehabDraft] = useState({ unitIds: [] as string[], chiefEmployeeId: "", assignmentNote: "" });
+  savingRef.current = saving;
+  closedRef.current = Boolean(data?.state?.closeout.endedAt);
 
   const load = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
@@ -97,8 +123,9 @@ export default function IncidentCommandBoard() {
   }, []);
 
   useEffect(() => {
-    const initialLoad = window.setTimeout(() => void load(), 0);
-    const poll = window.setInterval(() => { if (!saving) void load(true); }, 10_000);
+    const initialLoad = !initialLoadStartedRef.current ? window.setTimeout(() => void load(), 0) : 0;
+    initialLoadStartedRef.current = true;
+    const poll = window.setInterval(() => { if (!savingRef.current && !closedRef.current) void load(true); }, 10_000);
     const timer = window.setInterval(() => setClock(Date.now()), 1_000);
     const updateOnline = () => setOnline(navigator.onLine);
     const updateFullscreen = () => setIsFullscreen(document.fullscreenElement === boardRef.current);
@@ -114,17 +141,17 @@ export default function IncidentCommandBoard() {
       window.removeEventListener("offline", updateOnline);
       document.removeEventListener("fullscreenchange", updateFullscreen);
     };
-  }, [load, saving]);
+  }, [load]);
 
   useEffect(() => {
     if (!data?.state) return;
     const timeout = window.setTimeout(() => {
       setRadioDraft(data.state?.radioChannel ?? "");
       setRitDraft(data.state?.rit ?? { unitId: "", chiefEmployeeId: "", readiness: "not_reported" });
-      setRehabDraft(data.state?.rehab ?? { unitIds: [], chiefEmployeeId: "" });
+      setRehabDraft(data.state?.rehab ?? { unitIds: [], chiefEmployeeId: "", assignmentNote: "" });
     }, 0);
     return () => window.clearTimeout(timeout);
-  }, [data?.incident?.incidentId, data?.state]);
+  }, [data?.incident?.incidentId, data?.state?.revision]);
 
   const mutate = useCallback(async (mutation: CommandAction) => {
     if (!data?.incident || !data.state || saving) return;
@@ -140,12 +167,20 @@ export default function IncidentCommandBoard() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ incidentId: data.incident.incidentId, expectedRevision: data.state.revision, mutation }),
       });
-      const payload = await response.json() as BoardData;
+      const payload = await response.json() as MutationResponse;
       if (!response.ok) {
         if (response.status === 409) await load(true);
         throw new Error(payload.error || "Unable to save the command-board update.");
       }
-      await load(true);
+      if (payload.state && mutation.action === "end-call") {
+        setData((current) => current ? {
+          ...current,
+          state: payload.state ?? current.state,
+          events: payload.event ? [payload.event, ...current.events] : current.events,
+        } : current);
+      } else {
+        await load(true);
+      }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Unable to save the command-board update.");
     } finally {
@@ -165,8 +200,37 @@ export default function IncidentCommandBoard() {
     return Math.max(0, state.par.remainingSeconds - Math.floor((clock - Date.parse(state.par.startedAt)) / 1000));
   }, [clock, state]);
   const parText = `${String(Math.floor(parSeconds / 60)).padStart(2, "0")}:${String(parSeconds % 60).padStart(2, "0")}`;
+  const armAlertTone = useCallback(() => {
+    if (!alertAudioRef.current) alertAudioRef.current = new AudioContext();
+    if (alertAudioRef.current.state === "suspended") void alertAudioRef.current.resume();
+  }, []);
+  const playAlertTone = useCallback(() => {
+    const audio = alertAudioRef.current;
+    if (!audio || audio.state !== "running") return;
+    const start = audio.currentTime;
+    [0, 0.24].forEach((offset) => {
+      const oscillator = audio.createOscillator();
+      const gain = audio.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(880, start + offset);
+      gain.gain.setValueAtTime(0.0001, start + offset);
+      gain.gain.exponentialRampToValueAtTime(0.16, start + offset + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + offset + 0.18);
+      oscillator.connect(gain).connect(audio.destination);
+      oscillator.start(start + offset);
+      oscillator.stop(start + offset + 0.2);
+    });
+  }, []);
+  useEffect(() => {
+    const alarmKey = state?.par.startedAt ?? "";
+    if (state?.par.status === "running" && alarmKey && parSeconds === 0 && alertedParRef.current !== alarmKey) {
+      alertedParRef.current = alarmKey;
+      playAlertTone();
+      setNotice("PAR interval is due. Complete accountability, then reset the timer.");
+    }
+  }, [parSeconds, playAlertTone, state?.par.startedAt, state?.par.status]);
   const floorCount = state?.building.floorCount || data?.preplan?.floorCount || 1;
-  const commandDisabled = !data?.canManage || saving || !online;
+  const commandDisabled = !data?.canManage || saving || !online || Boolean(state?.closeout.endedAt);
   const onSceneUnits = [...new Set([...(data?.cadUnits ?? []), ...(state?.manualUnits ?? [])])];
   const stagedUnits = onSceneUnits.filter((unitId) => state?.units[unitId]?.status === "Staged" || state?.units[unitId]?.assignment === "Staging");
   const employeeName = (employeeId: string) => {
@@ -201,49 +265,50 @@ export default function IncidentCommandBoard() {
   };
   const unitsAtLevel = (level: string) => Object.entries(state?.units ?? {}).filter(([unitId, unit]) => onSceneUnits.includes(unitId) && unit.floor === level);
 
-  const assignTo = (assignment: TacticalAssignment, unitId = selectedUnit) => {
+  const openAssignmentEditor = (
+    unitId: string,
+    placement: Partial<Pick<AssignmentDraft, "assignment" | "status" | "floor" | "side">> = {},
+  ) => {
     if (!unitId) return setNotice("Select an on-scene unit first.");
-    const unit = state?.units[unitId];
-    void mutate({
-      action: "assign-unit",
+    const current = state?.units[unitId] ?? { assignment: "Staging" as const, status: "Responding" as const, floor: "", side: "" as const, crewStrength: null };
+    setSelectedUnit(unitId);
+    setAssignmentDraft({
       unitId,
-      assignment,
-      status: unit?.status,
-      floor: unit?.floor,
-      side: unit?.side,
-      crewStrength: unit?.crewStrength,
+      assignment: placement.assignment ?? current.assignment,
+      status: placement.status ?? current.status,
+      floor: placement.floor ?? current.floor,
+      side: placement.side ?? current.side,
+      crewStrength: current.crewStrength,
     });
+  };
+  const saveAssignment = () => {
+    if (!assignmentDraft) return;
+    const draft = assignmentDraft;
+    setAssignmentDraft(null);
+    void mutate({ action: "assign-unit", ...draft });
   };
   const placeUnit = (side: "" | "A" | "B" | "C" | "D") => {
     if (!selectedUnit) return setNotice("Select an on-scene unit first.");
-    const unit = state?.units[selectedUnit];
-    if (!unit) return setNotice("Assign the selected unit before placing it on the building.");
-    void mutate({
-      action: "assign-unit",
-      unitId: selectedUnit,
-      assignment: unit.assignment,
-      status: unit.status,
-      floor: activeLevel,
-      side,
-      crewStrength: unit.crewStrength,
-    });
+    openAssignmentEditor(selectedUnit, { floor: activeLevel, side, status: "On scene" });
   };
   const dropUnitOnFloor = (event: DragEvent<HTMLButtonElement>, level: string) => {
     event.preventDefault();
     const unitId = event.dataTransfer.getData("text/plain");
     if (!onSceneUnits.includes(unitId)) return setNotice("Only an on-scene incident unit can be dropped onto the building.");
-    const unit = state?.units[unitId] ?? { assignment: "Staging" as const, status: "Responding" as const, floor: "", side: "" as const, crewStrength: null };
-    setSelectedUnit(unitId);
     setSelectedLevel(level);
-    void mutate({
-      action: "assign-unit",
-      unitId,
-      assignment: unit.assignment,
-      status: "On scene",
-      floor: level,
-      side: "",
-      crewStrength: unit.crewStrength,
-    });
+    openAssignmentEditor(unitId, { status: "On scene", floor: level, side: "" });
+  };
+  const dropUnitOnSide = (event: DragEvent<HTMLButtonElement>, side: "A" | "B" | "C" | "D") => {
+    event.preventDefault();
+    const unitId = event.dataTransfer.getData("text/plain");
+    if (!onSceneUnits.includes(unitId)) return setNotice("Only an on-scene incident unit can be placed on a building side.");
+    openAssignmentEditor(unitId, { status: "On scene", floor: activeLevel, side });
+  };
+  const dropUnitInRehab = (event: DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    const unitId = event.dataTransfer.getData("text/plain");
+    if (!onSceneUnits.includes(unitId)) return setNotice("Only an on-scene incident unit can be assigned to rehab.");
+    openAssignmentEditor(unitId, { assignment: "Rehab", status: "Rehab", floor: "", side: "" });
   };
   const searchStatus = (level: string, phase: SearchPhase): SearchStatus => state?.searches[level]?.[phase] ?? "not_started";
   const changeSearch = (level: string, phase: SearchPhase) => {
@@ -270,8 +335,10 @@ export default function IncidentCommandBoard() {
     if (!pending) return;
     if (pending.kind === "mayday") {
       await mutate({ action: "set-mayday", active: pending.active, confirmation: pending.active ? "CONFIRM MAYDAY" : "RESOLVE MAYDAY" });
-    } else {
+    } else if (pending.kind === "search") {
       await mutate({ action: "set-search", level: pending.level, phase: pending.phase, status: "confirmed" });
+    } else {
+      await mutate({ action: "end-call", confirmation: "END INCIDENT" });
     }
   };
 
@@ -320,10 +387,56 @@ export default function IncidentCommandBoard() {
           label: "Confirm Search",
           tone: "warning" as const,
         }
+      : confirm?.kind === "end-call"
+        ? {
+            title: "End and lock this incident?",
+            description: "This is the second and final action. The board will be locked, the incident termination will be timestamped, and the closeout report will be available to print or email.",
+            label: "End Incident & Lock Board",
+            tone: "danger" as const,
+          }
       : { title: "", description: "", label: "", tone: "default" as const };
+
+  const reportLines = [
+    "STICKNEY FIRE DEPARTMENT — COMMAND BOARD REPORT",
+    `${data.incident.address || "Address not provided"} — ${data.incident.callType || "Call type not provided"}`,
+    `Report: ${data.incident.reportNumber || "Unavailable"}`,
+    `Dispatched: ${new Date(data.incident.dispatchedAt).toLocaleString()}`,
+    `Ended: ${state.closeout.endedAt ? new Date(state.closeout.endedAt).toLocaleString() : "Active"}`,
+    "",
+    "ACTIVITY HISTORY",
+    ...data.events.slice().reverse().map((event) => `${new Date(event.createdAt).toLocaleString()} — ${event.summary} — ${event.actor}`),
+  ];
+  const emailReportHref = `mailto:?subject=${encodeURIComponent(`Command Board report ${data.incident.reportNumber || data.incident.address}`)}&body=${encodeURIComponent(reportLines.join("\n"))}`;
 
   return <section ref={boardRef} className={`icb-page icb-reference${state.mayday.active ? " mayday-active" : ""}`}>
     <ConfirmDialog open={Boolean(confirm)} title={confirmCopy.title} description={confirmCopy.description} confirmLabel={confirmCopy.label} tone={confirmCopy.tone} busy={saving} onCancel={() => setConfirm(null)} onConfirm={() => void confirmAction()} />
+
+    {assignmentDraft && <div className="icb-editor-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setAssignmentDraft(null); }}>
+      <section className="icb-quick-editor" role="dialog" aria-modal="true" aria-labelledby="icb-assignment-title">
+        <header><div><small>UNIT ASSIGNMENT</small><strong id="icb-assignment-title">{assignmentDraft.unitId}</strong></div><button type="button" onClick={() => setAssignmentDraft(null)} aria-label="Close assignment editor">×</button></header>
+        <div className="icb-quick-editor-grid">
+          <label><span>Assignment</span><select value={assignmentDraft.assignment} onChange={(event) => setAssignmentDraft((current) => current ? { ...current, assignment: event.target.value as TacticalAssignment } : current)}>{tacticalAssignments.map((assignment) => <option key={assignment}>{assignment}</option>)}</select></label>
+          <label><span>Status</span><select value={assignmentDraft.status} onChange={(event) => setAssignmentDraft((current) => current ? { ...current, status: event.target.value as AssignmentDraft["status"] } : current)}>{["Responding", "Staged", "On scene", "Rehab", "Released"].map((status) => <option key={status}>{status}</option>)}</select></label>
+          <label><span>Level</span><select value={assignmentDraft.floor} onChange={(event) => setAssignmentDraft((current) => current ? { ...current, floor: event.target.value } : current)}><option value="">Outside / no level</option>{levels.map((level) => <option key={level}>{level}</option>)}</select></label>
+          <label><span>Side</span><select value={assignmentDraft.side} onChange={(event) => setAssignmentDraft((current) => current ? { ...current, side: event.target.value as AssignmentDraft["side"] } : current)}><option value="">Inside / no side</option>{["A", "B", "C", "D"].map((side) => <option key={side}>{side}</option>)}</select></label>
+          <label><span>Crew count</span><input type="number" inputMode="numeric" min="1" max="20" value={assignmentDraft.crewStrength ?? ""} onChange={(event) => setAssignmentDraft((current) => current ? { ...current, crewStrength: event.target.value ? Number(event.target.value) : null } : current)} placeholder="Not reported" /></label>
+        </div>
+        <p>{assignmentDraft.assignment === "Primary Search" ? "Saving starts the primary search for this level if it has not started." : assignmentDraft.assignment === "Rehab" ? "Saving moves the unit into Rehab automatically." : "Review the assignment and location, then save."}</p>
+        <footer><button type="button" onClick={() => setAssignmentDraft(null)}>Cancel</button><button type="button" className="primary" disabled={commandDisabled} onClick={saveAssignment}>Save Assignment</button></footer>
+      </section>
+    </div>}
+
+    {historyOpen && <aside className="icb-history-drawer" aria-label="Timestamped Command Board history">
+      <header><div><small>DOCUMENTED ACTIVITY</small><strong>{data.events.length} timestamped changes</strong></div><button type="button" onClick={() => setHistoryOpen(false)} aria-label="Close history">×</button></header>
+      <div>{data.events.length ? data.events.map((event) => <article key={event.id}><time>{new Date(event.createdAt).toLocaleString()}</time><strong>{event.summary}</strong><span>{event.actor} · revision {event.revision}</span></article>) : <p>No Command Board changes have been recorded yet.</p>}</div>
+    </aside>}
+
+    {state.closeout.endedAt && <section className="icb-closeout" role="dialog" aria-modal="true" aria-labelledby="icb-closeout-title">
+      <small>INCIDENT ENDED · BOARD LOCKED</small>
+      <h2 id="icb-closeout-title">Command report is ready</h2>
+      <p>Ended {new Date(state.closeout.endedAt).toLocaleString()} by {state.closeout.endedBy}. All {data.events.length} recorded changes remain timestamped.</p>
+      <div><button type="button" onClick={() => window.print()}>Print Report</button><a href={emailReportHref}>Email Report</a><button type="button" onClick={() => setHistoryOpen(true)}>View Activity</button><button type="button" className="secondary" onClick={() => { window.location.href = window.location.pathname; }}>Return to Portal</button></div>
+    </section>}
 
     <header className="icb-reference-header">
       <button className="icb-brand" onClick={() => { window.location.href = window.location.pathname; }} aria-label="Return to operations portal">
@@ -333,8 +446,8 @@ export default function IncidentCommandBoard() {
       <div className="icb-address"><strong>{data.incident.address || "Address not provided"}</strong><span>{data.incident.callType || "Call type not provided"} · #{data.incident.reportNumber || "Unavailable"}</span></div>
       <div className="icb-header-par"><span>PAR COUNTDOWN</span><strong className={parSeconds === 0 ? "due" : ""}>{parSeconds === 0 ? "DUE" : parText}</strong></div>
       <label className="icb-interval"><span>INTERVAL</span><select disabled={commandDisabled} value={state.par.intervalMinutes} onChange={(event) => void mutate({ action: "set-par-interval", intervalMinutes: Number(event.target.value) })}>{[10, 15, 20, 30].map((minutes) => <option key={minutes} value={minutes}>{minutes}</option>)}</select></label>
-      <button className="icb-header-action" disabled={commandDisabled} onClick={() => void mutate({ action: "toggle-par" })}>{state.par.status === "running" ? "Pause" : "Start"}</button>
-      <button className="icb-header-action" disabled={commandDisabled} onClick={() => void mutate({ action: "reset-par" })}>Reset</button>
+      <button className="icb-header-action" disabled={commandDisabled} onClick={() => { armAlertTone(); void mutate({ action: "toggle-par" }); }}>{state.par.status === "running" ? "Pause" : "Start"}</button>
+      <button className="icb-header-action" disabled={commandDisabled} onClick={() => { armAlertTone(); alertedParRef.current = ""; void mutate({ action: "reset-par" }); }}>Reset</button>
       <label className="icb-radio"><span>RADIO CHANNEL</span><input disabled={!data.canManage} value={radioDraft} onChange={(event) => setRadioDraft(event.target.value)} onBlur={() => { if (radioDraft !== state.radioChannel) void mutate({ action: "set-radio", radioChannel: radioDraft }); }} placeholder="Not assigned" /></label>
       <button className="icb-fullscreen" onClick={() => void toggleFullscreen()}>{isFullscreen ? "EXIT FULL SCREEN" : "FULL SCREEN"}</button>
       <button className={`icb-mayday ${state.mayday.active ? "active" : ""}`} disabled={commandDisabled} onClick={() => setConfirm({ kind: "mayday", active: !state.mayday.active })}>{state.mayday.active ? "RESOLVE MAYDAY" : "MAYDAY"}</button>
@@ -353,12 +466,13 @@ export default function IncidentCommandBoard() {
           <header><span>COMMAND POSITIONS</span><small>{commandPositions.filter((position) => state.positions[position]).length} ROLES</small></header>
           <div className="icb-command-grid">
             <datalist id="icb-command-assignees">{onSceneUnits.map((unitId) => <option value={unitId} key={unitId}>On-scene unit</option>)}</datalist>
-            {commandPositions.map((position, index) => <label className={index === 0 ? "primary" : ""} key={`${position}:${state.positions[position]}`}><span>{position.toUpperCase()}</span><input list="icb-command-assignees" disabled={commandDisabled} defaultValue={commandAssigneeLabel(state.positions[position])} placeholder={onSceneUnits.length ? "Select on-scene unit or type name/unit" : "Type name or unit"} onBlur={(event) => saveCommandPosition(position, event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} /></label>)}
+            {commandPositions.map((position, index) => <label className={index === 0 ? "primary" : ""} key={`${position}:${state.positions[position]}`}><span>{position.toUpperCase()}</span><input list="icb-command-assignees" disabled={commandDisabled} defaultValue={commandAssigneeLabel(state.positions[position])} placeholder="Type person, unit, or company" onBlur={(event) => saveCommandPosition(position, event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} /></label>)}
           </div>
         </section>
 
-        <section className="icb-dark-panel icb-onscene">
-          <header><span>UNITS ON SCENE</span><div className="icb-onscene-heading-actions"><small>{onSceneUnits.length} {onSceneUnits.length === 1 ? "UNIT" : "UNITS"}</small><button type="button" disabled={commandDisabled} aria-expanded={showManualUnitEntry} onClick={() => setShowManualUnitEntry((current) => !current)}>+ ADD UNIT</button></div></header>
+        <section className={`icb-dark-panel icb-onscene${unitsExpanded ? "" : " collapsed"}`}>
+          <header><button type="button" className="icb-panel-toggle" aria-expanded={unitsExpanded} onClick={() => setUnitsExpanded((current) => !current)}><span>UNITS ON SCENE</span><b>{unitsExpanded ? "−" : "+"}</b></button><div className="icb-onscene-heading-actions"><small>{onSceneUnits.length} {onSceneUnits.length === 1 ? "UNIT" : "UNITS"}</small><button type="button" disabled={commandDisabled} aria-expanded={showManualUnitEntry} onClick={() => { setUnitsExpanded(true); setShowManualUnitEntry((current) => !current); }}>+ ADD UNIT</button></div></header>
+          {unitsExpanded && <>
           {showManualUnitEntry && <form className="icb-add-unit-form" onSubmit={(event) => { event.preventDefault(); addManualUnit(); }}>
             <input autoFocus aria-label="Unit name or identifier" disabled={commandDisabled} maxLength={32} value={manualUnitDraft} onChange={(event) => setManualUnitDraft(event.target.value)} placeholder="Type unit, e.g. BC 1" />
             <button type="submit" disabled={commandDisabled || !manualUnitDraft.trim()}>ADD</button>
@@ -369,20 +483,21 @@ export default function IncidentCommandBoard() {
             const draggable = !commandDisabled;
             return <button key={unitId} draggable={draggable} title={draggable ? "Drag this on-scene unit to a tactical floor" : undefined} style={{ "--unit-color": ["#d9932f", "#32a975", "#28a9d1"][index % 3] } as CSSProperties} className={selectedUnit === unitId ? "selected" : ""} onDragStart={(event) => { if (!draggable) return event.preventDefault(); event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", unitId); setSelectedUnit(unitId); }} onClick={() => setSelectedUnit(unitId)}><strong>{unitId}</strong><span>{unit?.status || "Responding"}</span><i /></button>;
           })}</div>
-          <div className="icb-stage-strip"><span>STAGED OR ON SCENE · DRAG TO A FLOOR</span>{stagedUnits.map((unitId) => <button key={unitId} draggable={!commandDisabled} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", unitId); setSelectedUnit(unitId); }}>{unitId}</button>)}{stagedUnits.length === 0 && <small>Drag an on-scene unit card above</small>}</div>
+          <div className="icb-stage-strip"><span>DRAG A UNIT, OR TAP IT THEN TAP A FLOOR / SIDE</span>{stagedUnits.map((unitId) => <button key={unitId} draggable={!commandDisabled} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", unitId); setSelectedUnit(unitId); }}>{unitId}</button>)}{stagedUnits.length === 0 && <small>Select a unit card above</small>}</div>
+          </>}
         </section>
 
-        <section className="icb-dark-panel icb-assignment-panel">
-          <header><span>ASSIGNMENT STATUS</span><small>{onSceneUnits.length} {onSceneUnits.length === 1 ? "UNIT" : "UNITS"}</small></header>
-          <div className="icb-assignment-list">{onSceneUnits.map((unitId) => {
+        <section className={`icb-dark-panel icb-assignment-panel${assignmentsExpanded ? "" : " collapsed"}`}>
+          <header><button type="button" className="icb-panel-toggle" aria-expanded={assignmentsExpanded} onClick={() => setAssignmentsExpanded((current) => !current)}><span>ASSIGNMENT STATUS</span><b>{assignmentsExpanded ? "−" : "+"}</b></button><small>{onSceneUnits.length} {onSceneUnits.length === 1 ? "UNIT" : "UNITS"}</small></header>
+          {assignmentsExpanded && <div className="icb-assignment-list">{onSceneUnits.map((unitId) => {
             const unit = state.units[unitId];
             const confirmed = state.par.confirmations[unitId];
             return <article key={unitId} className={selectedUnit === unitId ? "selected" : ""} onClick={() => setSelectedUnit(unitId)}>
               <div><strong>{unitId}</strong><small>{unit ? `${unit.floor || "No level"} · ${unit.side ? `Side ${unit.side}` : "No side"}` : "Not assigned"}</small></div>
-              <select aria-label={`${unitId} assignment`} disabled={commandDisabled} value={unit?.assignment || ""} onChange={(event) => assignTo(event.target.value as TacticalAssignment, unitId)}><option value="">Assign</option>{tacticalAssignments.map((assignment) => <option key={assignment}>{assignment}</option>)}</select>
+              <button type="button" className="icb-edit-assignment" disabled={commandDisabled} onClick={(event) => { event.stopPropagation(); openAssignmentEditor(unitId); }}>{unit?.assignment || "Assign unit"}</button>
               <button className={confirmed ? "confirmed" : ""} disabled={commandDisabled || Boolean(confirmed)} onClick={(event) => { event.stopPropagation(); void mutate({ action: "confirm-par-unit", unitId }); }}>{confirmed ? "PAR ✓" : "PAR"}</button>
             </article>;
-          })}</div>
+          })}</div>}
         </section>
       </aside>
 
@@ -393,36 +508,44 @@ export default function IncidentCommandBoard() {
             <div className="icb-building-settings">
               <label><span>BUILDING HEIGHT</span><select disabled={commandDisabled} value={floorCount} onChange={(event) => void mutate({ action: "set-building", floorCount: Number(event.target.value), basement: state.building.basement })}>{Array.from({ length: 20 }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count} {count === 1 ? "Floor" : "Floors"}</option>)}</select></label>
               <label className="icb-basement"><input type="checkbox" disabled={commandDisabled} checked={state.building.basement === "present"} onChange={(event) => void mutate({ action: "set-building", floorCount, basement: event.target.checked ? "present" : "none" })} /><span>BASEMENT</span></label>
+              <button type="button" className="icb-add-hazard" disabled={commandDisabled} onClick={() => { setHazardDraft({ label: "", floor: activeLevel, side: "" }); setHazardEditorOpen(true); }}>+ HAZARD</button>
             </div>
           </header>
 
           <nav className="icb-floor-tabs" aria-label="Building floors">{levels.map((level) => <button key={level} className={activeLevel === level ? "active" : ""} onClick={() => setSelectedLevel(level)}>{level}</button>)}</nav>
 
+          {hazardEditorOpen && <form className="icb-hazard-editor" onSubmit={(event) => { event.preventDefault(); if (!hazardDraft.label.trim()) return setNotice("Select or type a hazard."); setHazardEditorOpen(false); void mutate({ action: "add-hazard", ...hazardDraft }); }}>
+            <label><span>HAZARD</span><input autoFocus list="icb-hazard-options" value={hazardDraft.label} onChange={(event) => setHazardDraft((current) => ({ ...current, label: event.target.value }))} placeholder="Select or type a hazard" /><datalist id="icb-hazard-options">{hazardOptions.map((hazard) => <option key={hazard}>{hazard}</option>)}</datalist></label>
+            <label><span>PLACE IT</span><select value={hazardDraft.side ? `side:${hazardDraft.side}` : `floor:${hazardDraft.floor}`} onChange={(event) => { const [kind, value] = event.target.value.split(":"); setHazardDraft((current) => kind === "side" ? { ...current, floor: "", side: value as TacticalHazard["side"] } : { ...current, floor: value, side: "" }); }}><optgroup label="Inside building">{levels.map((level) => <option key={level} value={`floor:${level}`}>{level}</option>)}</optgroup><optgroup label="Outside building">{["A", "B", "C", "D"].map((side) => <option key={side} value={`side:${side}`}>Side {side}</option>)}</optgroup></select></label>
+            <button type="submit">Place Hazard</button><button type="button" onClick={() => setHazardEditorOpen(false)}>Cancel</button>
+          </form>}
+
           <div className="icb-building-orientation">
-            <button className="icb-side side-c" disabled={commandDisabled} onClick={() => placeUnit("C")}><b>C</b><span>SIDE C</span></button>
-            <button className="icb-side side-b" disabled={commandDisabled} onClick={() => placeUnit("B")}><b>B</b><span>SIDE B</span></button>
+            <button className="icb-side side-c" disabled={commandDisabled} onDragOver={(event) => event.preventDefault()} onDrop={(event) => dropUnitOnSide(event, "C")} onClick={() => placeUnit("C")}><b>C</b><span>SIDE C</span>{state.hazards.some((hazard) => hazard.side === "C") && <i title={state.hazards.filter((hazard) => hazard.side === "C").map((hazard) => hazard.label).join(", ")}>!</i>}</button>
+            <button className="icb-side side-b" disabled={commandDisabled} onDragOver={(event) => event.preventDefault()} onDrop={(event) => dropUnitOnSide(event, "B")} onClick={() => placeUnit("B")}><b>B</b><span>SIDE B</span>{state.hazards.some((hazard) => hazard.side === "B") && <i title={state.hazards.filter((hazard) => hazard.side === "B").map((hazard) => hazard.label).join(", ")}>!</i>}</button>
             <div className="icb-building-stack" aria-label="Selectable stacked building floors">
               {levels.map((level, index) => {
                 const floorUnits = unitsAtLevel(level);
                 return <button key={level} className={`icb-building-floor${activeLevel === level ? " active" : ""}`} style={{ "--floor-order": index } as CSSProperties} onDragOver={(event) => { if (!commandDisabled) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => dropUnitOnFloor(event, level)} onClick={() => setSelectedLevel(level)}>
                   <span>LEVEL {levels.length - index}</span>
                   <strong>{level}</strong>
-                  <div>{floorUnits.length ? floorUnits.map(([unitId, unit]) => <b key={unitId} title={`${unit.assignment} · Side ${unit.side || "unassigned"}`}>{unitId}<small>{unit.side || "—"}</small></b>) : <em>No crews assigned</em>}</div>
+                  <div>{floorUnits.length ? floorUnits.map(([unitId, unit]) => <b key={unitId} title={`${unit.assignment} · Side ${unit.side || "unassigned"}`}>{unitId}<small>{unit.side || "—"}</small></b>) : <em>No crews assigned</em>}{state.hazards.filter((hazard) => hazard.floor === level && !hazard.side).map((hazard) => <span className="icb-hazard-chip" key={hazard.id} title={`${hazard.label} · recorded ${formatTime(hazard.createdAt)}`}>⚠ {hazard.label}</span>)}</div>
                 </button>;
               })}
             </div>
-            <button className="icb-side side-d" disabled={commandDisabled} onClick={() => placeUnit("D")}><b>D</b><span>SIDE D</span></button>
-            <button className="icb-side side-a" disabled={commandDisabled} onClick={() => placeUnit("A")}><b>A</b><span>A · ADDRESS SIDE</span></button>
+            <button className="icb-side side-d" disabled={commandDisabled} onDragOver={(event) => event.preventDefault()} onDrop={(event) => dropUnitOnSide(event, "D")} onClick={() => placeUnit("D")}><b>D</b><span>SIDE D</span>{state.hazards.some((hazard) => hazard.side === "D") && <i title={state.hazards.filter((hazard) => hazard.side === "D").map((hazard) => hazard.label).join(", ")}>!</i>}</button>
+            <button className="icb-side side-a" disabled={commandDisabled} onDragOver={(event) => event.preventDefault()} onDrop={(event) => dropUnitOnSide(event, "A")} onClick={() => placeUnit("A")}><b>A</b><span>A · ADDRESS SIDE</span>{state.hazards.some((hazard) => hazard.side === "A") && <i title={state.hazards.filter((hazard) => hazard.side === "A").map((hazard) => hazard.label).join(", ")}>!</i>}</button>
           </div>
           <div className="icb-building-instruction"><span>SELECTED TACTICAL LEVEL</span><strong>{activeLevel}</strong><small>{selectedUnit ? `${selectedUnit} selected · Tap A, B, C, or D to place` : "Select a unit, then select its building side"}</small></div>
         </section>
 
         <div className="icb-lower-center">
-          <section className="icb-dark-panel icb-rehab-sector">
+          <section className="icb-dark-panel icb-rehab-sector" onDragOver={(event) => { if (!commandDisabled) event.preventDefault(); }} onDrop={dropUnitInRehab}>
             <header><span>REHAB SECTOR</span><small>{rehabDraft.unitIds.length} UNITS</small></header>
             <div className="icb-rehab-fields">
               <label><span>REHAB CREW / AMBULANCE</span><div className="icb-rehab-units">{onSceneUnits.map((unitId) => <button type="button" key={unitId} className={rehabDraft.unitIds.includes(unitId) ? "active" : ""} disabled={!data.canManage} onClick={() => setRehabDraft((current) => ({ ...current, unitIds: current.unitIds.includes(unitId) ? current.unitIds.filter((unit) => unit !== unitId) : [...current.unitIds, unitId] }))}>{unitId}</button>)}</div></label>
               <label><span>REHAB CHIEF</span><datalist id="icb-rehab-chief-suggestions">{data.personnel.map((person) => <option key={person.id} value={formatEmployeeName(person.name)}>{person.rank}</option>)}</datalist><input list="icb-rehab-chief-suggestions" disabled={!data.canManage} maxLength={80} value={commandAssigneeLabel(rehabDraft.chiefEmployeeId)} onChange={(event) => setRehabDraft((current) => ({ ...current, chiefEmployeeId: encodeChiefAssignee(event.target.value) }))} placeholder="Select or type chief name/unit" /></label>
+              <label className="icb-rehab-note"><span>REHAB ASSIGNMENT / LOCATION</span><input disabled={!data.canManage} maxLength={120} value={rehabDraft.assignmentNote} onChange={(event) => setRehabDraft((current) => ({ ...current, assignmentNote: event.target.value }))} placeholder="Type assignment or rehab location" /></label>
               <button disabled={commandDisabled} onClick={() => void mutate({ action: "set-rehab", ...rehabDraft })}>SAVE REHAB</button>
             </div>
           </section>
@@ -450,9 +573,9 @@ export default function IncidentCommandBoard() {
           <div className="icb-search-key"><span><i className="active" /> ACTIVE</span><span><i className="clear" /> CLEAR</span></div>
         </section>
 
-        <section className="icb-dark-panel icb-rehab-list">
+        <section className="icb-dark-panel icb-rehab-list" onDragOver={(event) => { if (!commandDisabled) event.preventDefault(); }} onDrop={dropUnitInRehab}>
           <header><span>UNITS IN REHAB</span><small>{state.rehab.unitIds.length}</small></header>
-          <div>{state.rehab.unitIds.length ? state.rehab.unitIds.map((unitId) => <article key={unitId}><strong>{unitId}</strong><span>{employeeName(state.rehab.chiefEmployeeId)}</span></article>) : <p>No units assigned to rehab</p>}</div>
+          <div>{state.rehab.unitIds.length ? state.rehab.unitIds.map((unitId) => <article key={unitId}><strong>{unitId}</strong><span>{state.rehab.assignmentNote || employeeName(state.rehab.chiefEmployeeId)}</span></article>) : <p>Drag a unit here to assign it to rehab</p>}</div>
         </section>
 
         <section className="icb-dark-panel icb-utilities">
@@ -466,7 +589,7 @@ export default function IncidentCommandBoard() {
     <footer className="icb-reference-footer">
       <span>{saving ? "SAVING…" : "BOARD READY"} · REV {state.revision}</span>
       <span>LAST CHANGE {formatTime(state.updatedAt)} · {state.updatedBy || "NONE"}</span>
-      <span>{data.incident.source} · RECEIVED {formatTime(data.incident.receivedAt)}</span>
+      <div className="icb-footer-actions"><button type="button" onClick={() => setHistoryOpen(true)}>HISTORY · {data.events.length}</button><button type="button" className="end" disabled={commandDisabled || state.mayday.active} onClick={() => setConfirm({ kind: "end-call" })}>END CALL</button><span>{data.incident.source} · RECEIVED {formatTime(data.incident.receivedAt)}</span></div>
     </footer>
   </section>;
 }
