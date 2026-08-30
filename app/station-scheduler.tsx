@@ -728,7 +728,7 @@ function AvailabilityScreen({ data, isAdmin, act, busy }: { data: Data; isAdmin:
             const date = `${monthKey}-${String(day).padStart(2, "0")}`;
             const existing = entryByDate.get(date);
             const selected = picked.includes(date);
-            return <button type="button" role="gridcell" key={date} className={`${selected ? "selected " : ""}${existing?.status ?? ""}`} aria-pressed={selected} onClick={() => setPicked((current) => current.includes(date) ? current.filter((item) => item !== date) : [...current, date])}>
+            return <button type="button" role="gridcell" key={date} className={`${selected ? "selected " : ""}${existing?.status ?? ""}`} aria-selected={selected} onClick={() => setPicked((current) => current.includes(date) ? current.filter((item) => item !== date) : [...current, date])}>
               <b>{day}</b>
               {existing && <small>{existing.status === "available" ? "Available" : "Unavailable"}<span>{existing.allDay ? "All day" : `${existing.startTime}–${existing.endTime}`}</span></small>}
             </button>;

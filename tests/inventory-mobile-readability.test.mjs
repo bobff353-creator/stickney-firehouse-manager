@@ -54,4 +54,6 @@ test("inventory keeps desktop labels readable and removes the phone stock-table 
   assert.match(styles, /\.inventory-portal-refresh :is\([^}]*\) \{ min-height: 44px/);
   assert.match(styles, /\.inventory-portal-refresh \.stock-table article\{min-width:0/);
   assert.match(styles, /\.inventory-portal-refresh \.suite-switcher\{[^}]*bottom:calc\(78px/);
+  assert.match(styles, /\.inventory-portal-refresh \.mobile-nav\{grid-template-columns:repeat\(4,1fr\);height:auto;min-height:104px\}/);
+  assert.match(styles, /\.inventory-portal-refresh \.inventory-command-back \{ min-height: 44px; \}/);
 });

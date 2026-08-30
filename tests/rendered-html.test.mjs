@@ -20,7 +20,7 @@ test("runs the full portal natively on Vercel without a Sites proxy", async () =
   assert.match(payroll, /window\.location\.assign\("\/inventory"\)/);
   assert.match(layout, /training-route\.js/);
   assert.match(layout, /fleet-notices\.js/);
-  assert.match(layout, /preplan-route\.js/);
+  assert.doesNotMatch(layout, /preplan-route\.js/);
   assert.doesNotMatch([page, layout, payroll, confirm, packageJson].join("\n"), /chatgpt\.site|stickney-payroll-manager|cloudflare:workers|OAI-Sites/i);
 });
 
@@ -38,7 +38,7 @@ test("keeps the installable advanced fleet and inventory module", async () => {
   assert.equal(manifest.display, "standalone");
   assert.match(layout, /manifest: "\/manifest\.webmanifest"/);
   assert.match(inventoryPage, /verifyInventoryServerSession/);
-  assert.match(component, /Build & Templates/);
+  assert.match(component, /Build & templates/);
   assert.match(component, /Scan Barcode/);
   assert.match(component, /Due Now/);
   assert.match(component, /Save Fleet status/);
@@ -71,4 +71,12 @@ test("encodes callback rule text before the SQL gateway scans it", async () => {
 
   assert.match(encoded, /convert_from\(decode\('/);
   assert.doesNotMatch(encoded, /Back-to-back call/i);
+});
+
+test("shared portal actions retain field-ready touch targets", async () => {
+  const styles = await read("app/globals.css");
+
+  assert.match(styles, /\.footer-links button \{ min-height: 44px/);
+  assert.match(styles, /\.footer-links \.portal-version \{ min-height: 44px/);
+  assert.match(styles, /\.approval-lines button \{ min-height: 44px/);
 });

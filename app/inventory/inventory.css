@@ -831,6 +831,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .inventory-portal-refresh .equipment-record-button strong { font-size: 15px; }
 .inventory-portal-refresh .equipment-status { font-size: 10px; }
 .inventory-portal-refresh .mobile-nav button { min-height: 64px; font-size: 10px; }
+.inventory-portal-refresh .inventory-command-back { min-height: 44px; }
 
 @media(max-width:820px){
   body:has(.inventory-portal-refresh){padding-bottom:76px}
@@ -847,10 +848,10 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 
 @media(max-width:460px){
   .inventory-portal-refresh .brand small{display:none}
-  .inventory-portal-refresh .mobile-nav{grid-template-columns:repeat(3,1fr);height:auto;min-height:72px}
+  .inventory-portal-refresh .mobile-nav{grid-template-columns:repeat(4,1fr);height:auto;min-height:104px}
   .inventory-portal-refresh .mobile-nav button{min-height:52px}
-  body:has(.inventory-portal-refresh){padding-bottom:118px}
-  .inventory-portal-refresh .suite-switcher{bottom:calc(126px + env(safe-area-inset-bottom))}
+  body:has(.inventory-portal-refresh){padding-bottom:122px}
+  .inventory-portal-refresh .suite-switcher{bottom:calc(130px + env(safe-area-inset-bottom))}
 }
 
 /* Native-route recovery UI remains usable even when an Inventory component crashes. */

@@ -314,9 +314,9 @@ button { cursor: pointer; }
 .footer-identity a { width: fit-content; color: #315c78; font-size: 12px; font-weight: 750; text-decoration: none; }
 .footer-identity a:hover { text-decoration: underline; }
 .footer-links { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
-.footer-links button { min-height: 38px; padding: 0 12px; border: 1px solid #a9b7c1; border-radius: 6px; background: white; color: var(--navy); font-size: 12px; font-weight: 800; }
+.footer-links button { min-height: 44px; padding: 0 12px; border: 1px solid #a9b7c1; border-radius: 6px; background: white; color: var(--navy); font-size: 12px; font-weight: 800; }
 .footer-links button:hover { border-color: #6688a1; background: #f7fbfd; }
-.footer-links .portal-version { min-height: 34px; padding: 0 11px; border-color: #bcc8cf; border-radius: 999px; background: #dde5e9; color: #526677; font-size: 10px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
+.footer-links .portal-version { min-height: 44px; padding: 0 11px; border-color: #bcc8cf; border-radius: 999px; background: #dde5e9; color: #526677; font-size: 10px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
 .portal-footer > p { grid-column: 1 / -1; margin: 0; padding-top: 14px; border-top: 1px solid #d5dde1; color: #586b77; font-size: 11px; text-align: center; }
 .period-row { display: flex; justify-content: space-between; align-items: end; gap: 32px; margin-bottom: 30px; }
 .eyebrow { margin: 0 0 8px; color: var(--slate); font-size: 14px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
@@ -878,7 +878,7 @@ td strong { font-size: 16px; }
 .needs-attention .staffing-meter i { background: #bd7a0b; }
 .equipment ul { margin: 14px 0 0; padding-left: 18px; color: #694d19; font-size: 11px; }
 .approval-lines { margin-top: 15px; display: grid; gap: 7px; }
-.approval-lines button { min-height: 36px; padding: 0 10px; border: 1px solid #d6dee4; border-radius: 6px; background: white; color: #345166; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+.approval-lines button { min-height: 44px; padding: 0 10px; border: 1px solid #d6dee4; border-radius: 6px; background: white; color: #345166; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
 .approval-lines strong { font-size: 18px; }
 .previous-shift blockquote { margin: 15px 0 12px; padding: 12px 14px; border-left: 3px solid #7d9bb1; background: #f5f8fa; color: #344f63; font-size: 13px; line-height: 1.5; }
 .previous-shift > div:last-of-type { display: flex; gap: 14px; color: #657785; font-size: 11px; font-weight: 750; }
@@ -2399,7 +2399,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .app-shell:has(.scheduler) .footer-identity strong { font-size: 12px; }
 .app-shell:has(.scheduler) .footer-identity span,
 .app-shell:has(.scheduler) .footer-identity a { font-size: 10px; }
-.app-shell:has(.scheduler) .footer-links button { min-height: 32px; font-size: 10px; }
+.app-shell:has(.scheduler) .footer-links button { min-height: 44px; font-size: 10px; }
 .app-shell:has(.scheduler) .portal-footer > p { padding-top: 6px; font-size: 9px; }
 .scheduler { padding: 14px 16px 16px; }
 .scheduler-brand { padding: 0 0 8px; }
@@ -2478,7 +2478,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
   .scheduler { width: calc(100% + 20px); margin: -10px; padding: 11px; }
   .scheduler-brand-mark { width: 36px; height: 36px; flex-basis: 36px; }
   .scheduler-view-bar > button { padding: 0 11px; font-size: 11px; }
-  .scheduler-view-bar strong { max-width: 92px; font-size: 10px; }
+  .scheduler-view-bar strong { display: none; }
   .scheduler .notice-chip { min-height: 31px; padding: 0 7px 0 9px; }
   .scheduler .notice-chip b { min-width: 21px; height: 21px; }
   .scheduler-tabs button { font-size: 11px; }
