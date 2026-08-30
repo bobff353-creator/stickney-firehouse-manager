@@ -6,6 +6,8 @@ const route = readFileSync(new URL("../app/api/system-health/route.ts", import.m
 const component = readFileSync(new URL("../app/system-health.tsx", import.meta.url), "utf8");
 const shell = readFileSync(new URL("../app/payroll-app.tsx", import.meta.url), "utf8");
 const providerHealthMigration = readFileSync(new URL("../supabase/migrations/20260830151225_add_system_health_usage_function.sql", import.meta.url), "utf8");
+const loginAuditMigration = readFileSync(new URL("../supabase/migrations/20260830183000_add_portal_login_audit.sql", import.meta.url), "utf8");
+const loginRoute = readFileSync(new URL("../app/api/auth/login/route.ts", import.meta.url), "utf8");
 
 test("system health is admin-only and uses live service checks", () => {
   assert.match(route, /hasPermission\(request, db, "settings\.manage"\)/);
@@ -23,11 +25,22 @@ test("system health is admin-only and uses live service checks", () => {
   assert.match(providerHealthMigration, /FROM auth\.users/);
   assert.match(providerHealthMigration, /REVOKE ALL ON FUNCTION firehouse\.system_health_usage\(\) FROM anon/);
   assert.match(providerHealthMigration, /GRANT EXECUTE ON FUNCTION firehouse\.system_health_usage\(\) TO authenticated/);
+  assert.match(route, /FROM system_health_login_audit\(\)/);
+  assert.match(route, /building its first complete 24-hour window/);
+  assert.match(loginRoute, /INSERT INTO portal_login_audit/);
+  assert.match(loginRoute, /recordLoginAudit\("failed_pin"\)/);
+  assert.match(loginRoute, /recordLoginAudit\("success"\)/);
+  assert.match(loginAuditMigration, /CREATE TABLE IF NOT EXISTS firehouse\.portal_login_audit/);
+  assert.match(loginAuditMigration, /No email address|outcome text/);
+  assert.match(loginAuditMigration, /SECURITY DEFINER/);
+  assert.match(loginAuditMigration, /SET search_path = ''/);
+  assert.match(loginAuditMigration, /firehouse\.has_department_access\(\)/);
+  assert.match(loginAuditMigration, /REVOKE ALL ON TABLE firehouse\.portal_login_audit FROM anon/);
+  assert.match(loginAuditMigration, /GRANT EXECUTE ON FUNCTION firehouse\.system_health_login_audit\(\) TO authenticated/);
 });
 
 test("backup controls do not claim success without a connected verification feed", () => {
   assert.match(route, /Monitoring not connected/);
-  assert.match(route, /will not claim zero failures/);
   assert.match(route, /No automated restore test or checksum verification receipt is connected/);
   assert.match(route, /id: "database-usage"[\s\S]*state: "healthy"/);
   assert.match(route, /id: "storage-usage"[\s\S]*state: "healthy"/);

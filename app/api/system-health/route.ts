@@ -135,6 +135,38 @@ export async function GET(request: Request) {
     checks.push(unavailable("storage-usage", "File storage used", "The live Supabase Storage size query is not available.", checkedAt));
   }
 
+  type LoginAudit = {
+    monitoringSince: string;
+    attemptCount24h: number | string;
+    failedCount24h: number | string;
+    lastEventAt: string | null;
+  };
+
+  try {
+    const loginAudit = await db.prepare(
+      "SELECT monitoring_since AS monitoringSince, attempt_count_24h AS attemptCount24h, failed_count_24h AS failedCount24h, last_event_at AS lastEventAt FROM system_health_login_audit()",
+    ).first<LoginAudit>();
+    if (!loginAudit?.monitoringSince) throw new Error("Portal login audit status was not returned.");
+
+    const monitoringSince = new Date(loginAudit.monitoringSince);
+    const coverageHours = Math.max(0, (Date.now() - monitoringSince.getTime()) / 3_600_000);
+    const hasFullCoverage = Number.isFinite(coverageHours) && coverageHours >= 24;
+    const attemptCount = Number(loginAudit.attemptCount24h ?? 0);
+    const failedCount = Number(loginAudit.failedCount24h ?? 0);
+    checks.push({
+      id: "failed-logins",
+      label: "Failed portal logins · last 24 hours",
+      state: hasFullCoverage ? "healthy" : "warning",
+      value: hasFullCoverage ? String(failedCount) : `${failedCount} since enabled`,
+      detail: hasFullCoverage
+        ? `${attemptCount} well-formed portal PIN attempt${attemptCount === 1 ? "" : "s"} audited in Supabase. No email address or PIN is stored in this security log.`
+        : `Supabase audit recording is connected and building its first complete 24-hour window. Monitoring began ${monitoringSince.toLocaleString("en-US", { timeZone: "America/Chicago", dateStyle: "medium", timeStyle: "short" })}.`,
+      verifiedAt: checkedAt,
+    });
+  } catch {
+    checks.push(unavailable("failed-logins", "Failed portal logins · last 24 hours", "The private portal login audit feed is not available.", checkedAt));
+  }
+
   const commit = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) || "local";
   const environment = process.env.VERCEL_ENV || "local";
   const branch = process.env.VERCEL_GIT_COMMIT_REF?.trim();
@@ -154,7 +186,6 @@ export async function GET(request: Request) {
     unavailable("database-backup", "Last database backup", "Connect the database provider backup feed before displaying a successful backup date.", checkedAt),
     unavailable("file-backup", "Last file backup", "Connect an independent file-backup job and receipt feed before displaying a successful backup date.", checkedAt),
     unavailable("offsite-backup", "Off-site backup", "No independent off-site backup verification feed is connected.", checkedAt),
-    unavailable("failed-logins", "Failed logins · last 24 hours", "A complete authentication audit event feed has not been connected, so the portal will not claim zero failures.", checkedAt),
     unavailable("backup-verification", "Last backup verification", "No automated restore test or checksum verification receipt is connected.", checkedAt),
   );
 

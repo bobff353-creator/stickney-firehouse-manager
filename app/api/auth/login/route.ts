@@ -11,6 +11,7 @@ const unlockSeconds = 30 * 60;
 
 type PendingCookie = { name: string; value: string; options: CookieOptions };
 type LoginCheck = { ok?: boolean; email?: string; lockedUntil?: string | null };
+type LoginAuditOutcome = "success" | "failed_pin" | "session_failure" | "unlock_failure";
 
 async function repairLegacyPassword(email: string, pin: string, departmentId: string) {
   const { url, key } = getPublicSupabaseConfig();
@@ -49,10 +50,20 @@ export async function POST(request: Request) {
   }
 
   const database = createPostgresD1Adapter(getSupabaseSystemClient, "firehouse_server_sql", databaseSecret);
+  const recordLoginAudit = async (outcome: LoginAuditOutcome) => {
+    try {
+      await database.prepare(
+        "INSERT INTO portal_login_audit (department_id, outcome, occurred_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
+      ).bind(departmentId, outcome).run();
+    } catch {
+      // Audit storage must never disclose credentials or block a member from signing in.
+    }
+  };
   const check = await database.prepare(
     "SELECT ok, email, locked_until AS lockedUntil FROM verify_portal_login(?, ?, ?)",
   ).bind(email, pin, departmentId).first<LoginCheck>();
   if (!check?.ok || !check.email) {
+    await recordLoginAudit("failed_pin");
     return Response.json(
       {
         error: check?.lockedUntil
@@ -77,11 +88,13 @@ export async function POST(request: Request) {
   if (signInError || !signIn.user) {
     const repairedPassword = await repairLegacyPassword(check.email, pin, departmentId);
     if (!repairedPassword) {
+      await recordLoginAudit("session_failure");
       return Response.json({ error: "Your PIN is correct, but the account session could not be repaired. Try again." }, { status: 503 });
     }
     password = repairedPassword;
     ({ data: signIn, error: signInError } = await client.auth.signInWithPassword({ email: check.email, password }));
     if (signInError || !signIn.user) {
+      await recordLoginAudit("session_failure");
       return Response.json({ error: "Your PIN is correct, but sign-in could not be completed. Try again." }, { status: 503 });
     }
   }
@@ -89,8 +102,11 @@ export async function POST(request: Request) {
   const { data: verified, error: verifyError } = await client.rpc("verify_portal_pin", { p_pin: pin });
   const result = Array.isArray(verified) ? verified[0] as { ok?: boolean; unlock_token?: string } | undefined : undefined;
   if (verifyError || !result?.ok || !result.unlock_token) {
+    await recordLoginAudit("unlock_failure");
     return Response.json({ error: "The PIN could not unlock department records." }, { status: 401 });
   }
+
+  await recordLoginAudit("success");
 
   const response = NextResponse.json({ ok: true, email: check.email }, {
     headers: { "Cache-Control": "private, no-store, max-age=0" },
