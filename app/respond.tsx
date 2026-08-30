@@ -22,6 +22,13 @@ import {
   type ConstructionProfile,
   type OccupancyProfile,
 } from "./preplans/profiles";
+import {
+  readRespondProgress,
+  respondProgressSteps,
+  type RespondProgress,
+  type RespondProgressStatus,
+  writeRespondProgress,
+} from "./respond-progress";
 
 type Point = { lat: number; lng: number };
 type Feature = {
@@ -304,6 +311,11 @@ const featureSymbols: Record<string, string> = {
 };
 
 const displayTime = formatRespondTime;
+const respondProgressLabels: Record<RespondProgressStatus, string> = {
+  acknowledged: "Acknowledged",
+  en_route: "En route",
+  on_scene: "On scene",
+};
 function sidePhoto(preplan: Preplan | null, side: string) {
   return (
     preplan?.photos.find((photo) => photo.side.trim().toUpperCase() === side) ??
@@ -660,7 +672,11 @@ export default function Respond({
   );
   const [cachedAt, setCachedAt] = useState("");
   const [isOnline, setIsOnline] = useState(true);
+  const [crewProgress, setCrewProgress] = useState<RespondProgress | null>(null);
   const pageRef = useRef<HTMLElement>(null);
+  const arrivalRef = useRef<HTMLElement>(null);
+  const tacticalRef = useRef<HTMLElement>(null);
+  const hydrantRef = useRef<HTMLElement>(null);
   const departmentIdRef = useRef("");
   const hazmatCloseRef = useRef<HTMLButtonElement>(null);
   const hazmatTriggerRef = useRef<HTMLElement | null>(null);
@@ -744,6 +760,16 @@ export default function Respond({
     };
   }, [load]);
   useEffect(() => {
+    const reportNumber = data?.activeCall?.reportNumber;
+    if (!reportNumber) {
+      setCrewProgress(null);
+      return;
+    }
+    setCrewProgress(
+      readRespondProgress(window.localStorage, reportNumber, apparatus),
+    );
+  }, [apparatus, data?.activeCall?.reportNumber]);
+  useEffect(() => {
     const update = () => {
       if (!document.fullscreenElement) setMonitorMode(false);
     };
@@ -790,6 +816,29 @@ export default function Respond({
   function closeQuickInformation(restore = true) {
     setSelected(null);
     if (restore) restoreFocus(quickTriggerRef.current);
+  }
+  function updateCrewProgress(status: RespondProgressStatus) {
+    const reportNumber = data?.activeCall?.reportNumber;
+    if (!reportNumber) return;
+    const next = writeRespondProgress(
+      window.localStorage,
+      reportNumber,
+      apparatus,
+      status,
+    );
+    setCrewProgress(next);
+    if (status === "on_scene") {
+      window.requestAnimationFrame(() =>
+        arrivalRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      );
+    }
+  }
+  function openTacticalView(nextView: RightView) {
+    setView(nextView);
+    window.requestAnimationFrame(() => {
+      tacticalRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document.getElementById(`respond-tab-${nextView}`)?.focus();
+    });
   }
   async function toggleMonitor() {
     if (monitorMode) {
@@ -943,7 +992,10 @@ export default function Respond({
       ? [plan.sprinklerSystem, plan.fdc, plan.riser, plan.alarmSystem].filter(
           Boolean,
         )
-      : [];
+      : [],
+    crewProgressIndex = crewProgress
+      ? respondProgressSteps.indexOf(crewProgress.status)
+      : -1;
   if (!data && !error)
     return (
       <section className="respond-page">
@@ -1105,6 +1157,80 @@ export default function Respond({
         <span>Updated {displayTime(data?.generatedAt || "")}</span>
         {error && <span className="warning">{error}</span>}
       </div>
+      <section className="respond-field-toolbar" aria-label="Field response controls">
+        <div className="respond-progress-panel">
+          <div>
+            <span>THIS DEVICE{apparatus ? ` · UNIT ${apparatus}` : ""}</span>
+            <strong>Response progress</strong>
+            <small>
+              {crewProgress
+                ? `${respondProgressLabels[crewProgress.status]} · ${displayTime(crewProgress.updatedAt)}`
+                : "Select the crew's current step"}
+            </small>
+          </div>
+          <div className="respond-progress-steps" role="group" aria-label="Crew response progress on this device">
+            {respondProgressSteps.map((status, index) => {
+              const isCurrent = crewProgress?.status === status;
+              const isComplete = index < crewProgressIndex;
+              return (
+                <button
+                  key={status}
+                  type="button"
+                  className={isCurrent ? "current" : isComplete ? "complete" : ""}
+                  aria-pressed={isCurrent}
+                  onClick={() => updateCrewProgress(status)}
+                  data-test-safe
+                >
+                  <b>{index + 1}</b>
+                  <span>{respondProgressLabels[status]}</span>
+                </button>
+              );
+            })}
+          </div>
+          <small className="respond-progress-note">
+            Saved on this browser only · does not change CAD status
+          </small>
+        </div>
+        <nav className="respond-jump-actions" aria-label="Open response information">
+          <button type="button" onClick={() => openTacticalView("cad")}>
+            <b>CAD</b>
+            <span>Latest notes</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => openTacticalView("floorplan")}
+            disabled={!floorPlanAsset}
+          >
+            <b>Floor plan</b>
+            <span>{floorPlanAsset ? selectedLevel?.name || "Open level" : "Not published"}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => openTacticalView("footprint")}
+            disabled={!plan}
+          >
+            <b>Footprint</b>
+            <span>{plan ? "Systems map" : "No preplan"}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              hydrantRef.current?.scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+              })
+            }
+            disabled={!data?.nearestHydrants?.length}
+          >
+            <b>Hydrant</b>
+            <span>
+              {data?.nearestHydrants?.length
+                ? `${data.nearestHydrants[0].distanceFeet.toLocaleString()} ft away`
+                : "None verified"}
+            </span>
+          </button>
+        </nav>
+      </section>
       {respondSource === "offline" && (
         <section className="respond-offline-banner" role="status">
           <strong>OFFLINE — READ-ONLY PREPLAN</strong>
@@ -1147,6 +1273,7 @@ export default function Respond({
             </div>
           </nav>
           <section
+            ref={arrivalRef}
             className="respond-operational-banner"
             aria-label="Published operational preplan intelligence"
           >
@@ -1548,7 +1675,11 @@ export default function Respond({
           </p>
         </section>
       )}
-      <section className="respond-glance" aria-label="Matched response records">
+      <section
+        ref={hydrantRef}
+        className="respond-glance"
+        aria-label="Matched response records"
+      >
         <article>
           <span>BOX CARD</span>
           <strong>{data?.boxCard?.title || "No matching box card"}</strong>
@@ -1827,7 +1958,7 @@ export default function Respond({
             </span>
           </footer>
         </main>
-        <aside className="respond-context">
+        <aside ref={tacticalRef} className="respond-context">
           <nav role="tablist" aria-label="Response tactical views">
             {respondViews.map((item) => (
               <button

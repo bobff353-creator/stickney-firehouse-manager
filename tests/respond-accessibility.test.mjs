@@ -60,3 +60,12 @@ test("Respond footprint has a keyboard and screen-reader map alternative", () =>
   assert.match(respond, /No mapped fire-protection systems are published/);
   assert.match(css, /respond-footprint-alternative button\{[^}]*min-height:44px/);
 });
+
+test("Respond exposes clear device progress and one-tap tactical navigation", () => {
+  assert.match(respond, /aria-label="Field response controls"/);
+  assert.match(respond, /aria-label="Crew response progress on this device"/);
+  assert.match(respond, /aria-pressed=\{isCurrent\}/);
+  assert.match(respond, /does not change CAD status/);
+  assert.match(respond, /aria-label="Open response information"/);
+  assert.match(respond, /document\.getElementById\(`respond-tab-\$\{nextView\}`\)\?\.focus\(\)/);
+});

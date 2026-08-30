@@ -36,6 +36,10 @@ test("phone Respond stacks title actions and critical detail without tiny contro
   assert.match(css, /\.respond-intel-list button,\.respond-monitor,\.respond-title-actions button,\.respond-quick>button\{min-height:44px\}/);
   assert.match(css, /@media\(max-width:420px\)[^{]*\{[^]*\.respond-quick\.open dl\{grid-template-columns:1fr\}/);
   assert.match(css, /\.respond-operational-banner>div\{grid-template-columns:1fr\}/);
+  assert.match(css, /\.respond-progress-steps button\{[^}]*min-height:48px/);
+  assert.match(css, /@media\(max-width:650px\)[^{]*\{[^]*\.respond-progress-steps\{grid-template-columns:1fr\}/);
+  assert.match(css, /\.respond-jump-actions\{[^}]*grid-template-columns:repeat\(4/);
+  assert.match(css, /@media\(max-width:650px\)[^{]*\{[^]*\.respond-jump-actions\{grid-template-columns:repeat\(2/);
 });
 
 test("fullscreen apparatus and iPad views respect every safe-area inset", () => {
