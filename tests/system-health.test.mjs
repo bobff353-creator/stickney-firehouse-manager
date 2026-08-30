@@ -6,7 +6,7 @@ const route = readFileSync(new URL("../app/api/system-health/route.ts", import.m
 const component = readFileSync(new URL("../app/system-health.tsx", import.meta.url), "utf8");
 const shell = readFileSync(new URL("../app/payroll-app.tsx", import.meta.url), "utf8");
 const providerHealthMigration = readFileSync(new URL("../supabase/migrations/20260830151225_add_system_health_usage_function.sql", import.meta.url), "utf8");
-const loginAuditMigration = readFileSync(new URL("../supabase/migrations/20260830183000_add_portal_login_audit.sql", import.meta.url), "utf8");
+const loginAuditMigration = readFileSync(new URL("../supabase/migrations/20260830181919_add_portal_login_audit.sql", import.meta.url), "utf8");
 const loginRoute = readFileSync(new URL("../app/api/auth/login/route.ts", import.meta.url), "utf8");
 
 test("system health is admin-only and uses live service checks", () => {
