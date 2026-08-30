@@ -2420,6 +2420,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .scheduler-month .calendar-blank { min-height: clamp(150px, 18vh, 190px); }
 .scheduler .calendar-slot { font-size: 9px; line-height: 1.28; }
 .scheduler .calendar-slot small { font-size: 8px; }
+.scheduler-scroll-hint { display: none; }
 
 @media (max-width: 720px) {
   .scheduler { width: calc(100% + 28px); margin: -14px; padding: 14px; border-radius: 0; box-shadow: none; }
@@ -2433,8 +2434,10 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
   .scheduler-grid { grid-template-columns: minmax(0, 1fr); }
   .scheduler-grid > section, .scheduler-grid > section.wide { grid-column: 1; padding: 13px; }
   .scheduler-month-card { padding: 12px !important; }
-  .scheduler-calendar-scroll { margin-right: -12px; padding: 0 12px 8px 0; overflow-x: auto; overscroll-behavior-inline: contain; }
+  .scheduler-scroll-hint { display: block; margin: 0 0 8px; padding: 8px 10px; border-left: 4px solid var(--sched-blue); border-radius: 4px; background: #172638; color: #dce7f1; font-size: 11px; line-height: 1.35; }
+  .scheduler-calendar-scroll { margin-right: -12px; padding: 0 12px 10px 0; overflow-x: auto; overscroll-behavior-inline: contain; scroll-snap-type: x proximity; scrollbar-color: #61758b #16212d; }
   .scheduler-weekdays, .scheduler-month { min-width: 875px; gap: 4px; }
+  .scheduler-month > button { scroll-snap-align: start; }
   .scheduler-month > button, .scheduler-month .calendar-blank { min-height: 126px; padding: 5px; }
   .scheduler-month-head { align-items: flex-start; gap: 8px; }
   .scheduler-month-actions { flex-wrap: wrap; justify-content: flex-end; }

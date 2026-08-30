@@ -798,6 +798,61 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 @media(max-width:820px){.inventory-portal-refresh .topbar{height:64px}.inventory-portal-refresh .portal-back{width:42px;height:42px}.inventory-portal-refresh .brand small{display:block}.inventory-portal-refresh .brand b{font-size:13px}.inventory-portal-refresh .inventory-scan-global{min-width:42px;width:42px;padding:0;font-size:0}.inventory-portal-refresh .inventory-scan-global .icon{font-size:16px}.inventory-command-header{padding-top:20px}.inventory-command-back{margin-bottom:10px}.inventory-command-hero{min-height:150px;padding:23px 20px;border-radius:13px}.inventory-command-hero h1{font-size:34px}.inventory-command-hero p{font-size:12px}.inventory-command-hero>button{min-width:78px;min-height:44px}.inventory-portal-refresh>.page{padding:24px 14px 80px}.inventory-portal-refresh .ops-card{padding:17px}.inventory-portal-refresh .setup-page{margin-top:24px}.inventory-portal-refresh .setup-intro,.inventory-portal-refresh .capture-workspace{padding-left:16px;padding-right:16px}}
 @media(max-width:560px){.inventory-command-hero{align-items:flex-start;flex-direction:column}.inventory-command-hero>button{width:100%}.inventory-status-strip{gap:8px}.inventory-status-strip button{min-height:76px;padding:13px}.inventory-status-strip strong{font-size:22px}.inventory-portal-refresh .top-actions .alerts{display:none}.inventory-portal-refresh .check-row{grid-template-columns:1fr}.inventory-portal-refresh .check-actions{grid-column:1}}
 
+/* End-user usability baseline: readable on a station computer and easy to tap in the field. */
+.inventory-portal-refresh .brand small,
+.inventory-portal-refresh .desktop-nav button,
+.inventory-portal-refresh .connection,
+.inventory-portal-refresh .source-truth-banner,
+.inventory-portal-refresh .ops-card>header span,
+.inventory-portal-refresh .ops-card>header>b,
+.inventory-portal-refresh .ops-form label,
+.inventory-portal-refresh .ops-empty p,
+.inventory-portal-refresh .check-row small,
+.inventory-portal-refresh .check-row>span,
+.inventory-portal-refresh .ops-list article small,
+.inventory-portal-refresh .ops-list article>span,
+.inventory-portal-refresh .stock-grid small,
+.inventory-portal-refresh .stock-grid article>span,
+.inventory-portal-refresh .equipment-directory dt,
+.inventory-portal-refresh .equipment-directory small,
+.inventory-portal-refresh .equipment-record-summary dt,
+.inventory-portal-refresh .location-approval-list label { font-size: 11px; line-height: 1.35; }
+.inventory-portal-refresh .ops-form input,
+.inventory-portal-refresh .ops-form select,
+.inventory-portal-refresh .ops-form textarea,
+.inventory-portal-refresh .ops-empty,
+.inventory-portal-refresh .ops-list article>p,
+.inventory-portal-refresh .equipment-directory dd,
+.inventory-portal-refresh .equipment-record-summary dd,
+.inventory-portal-refresh .location-approval-list p,
+.inventory-portal-refresh .location-approval-list blockquote { font-size: 12px; line-height: 1.45; }
+.inventory-portal-refresh :is(.ops-primary,.ops-scan-button,.check-actions button,.ops-list article>button,.stock-actions button,.restock-request-button,.location-review-actions button) { min-height: 44px; padding-inline: 12px; font-size: 11px; }
+.inventory-portal-refresh .equipment-record-button { min-height: 86px; }
+.inventory-portal-refresh .equipment-record-button strong { font-size: 15px; }
+.inventory-portal-refresh .equipment-status { font-size: 10px; }
+.inventory-portal-refresh .mobile-nav button { min-height: 64px; font-size: 10px; }
+
+@media(max-width:820px){
+  body:has(.inventory-portal-refresh){padding-bottom:76px}
+  .inventory-portal-refresh .mobile-nav{height:68px;padding-bottom:env(safe-area-inset-bottom)}
+  .inventory-portal-refresh .suite-switcher{right:10px;bottom:calc(78px + env(safe-area-inset-bottom))}
+  .inventory-portal-refresh .stock-table{overflow:visible}
+  .inventory-portal-refresh .stock-head{display:none}
+  .inventory-portal-refresh .stock-table article{min-width:0;grid-template-columns:1fr 1fr;gap:9px;padding:14px}
+  .inventory-portal-refresh .stock-table article>span:first-child{grid-column:1/-1}
+  .inventory-portal-refresh .stock-table article>button{min-height:44px;justify-self:stretch}
+  .inventory-portal-refresh .repair-board{scroll-snap-type:x mandatory;scrollbar-color:#78949c #e6edef}
+  .inventory-portal-refresh .repair-column{scroll-snap-align:start}
+}
+
+@media(max-width:460px){
+  .inventory-portal-refresh .brand small{display:none}
+  .inventory-portal-refresh .mobile-nav{grid-template-columns:repeat(3,1fr);height:auto;min-height:72px}
+  .inventory-portal-refresh .mobile-nav button{min-height:52px}
+  body:has(.inventory-portal-refresh){padding-bottom:118px}
+  .inventory-portal-refresh .suite-switcher{bottom:calc(126px + env(safe-area-inset-bottom))}
+}
+
 /* Native-route recovery UI remains usable even when an Inventory component crashes. */
 .native-error-page {
   min-height: 100vh;

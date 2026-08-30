@@ -78,6 +78,8 @@ test("scheduler uses the scoped Stickney mobile workspace instead of prototype b
   assert.equal(styles.includes("button.calendar-has-shift"), true, "the visible shift keeps its saved color across the day card");
   assert.equal(styles.includes(".workspace:has(.scheduler)"), true, "scheduler uses the available workspace width");
   assert.equal(styles.includes("@media (max-width: 390px)"), true);
+  assert.equal(component.includes("Swipe sideways to see every day"), true, "phone users are told how to move through the full month");
+  assert.equal(styles.includes("scroll-snap-type: x proximity"), true, "the month settles on day columns instead of stopping between them");
 });
 
 test("production migrations install the scheduler before runtime bootstrap", async () => {

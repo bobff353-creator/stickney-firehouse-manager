@@ -45,3 +45,13 @@ test("inventory uses one clear workspace header and section bar", async () => {
   assert.match(styles, /\.inventory-section-nav\{/);
   assert.match(styles, /\.inventory-command-hero\{/);
 });
+
+test("inventory keeps desktop labels readable and removes the phone stock-table overflow", async () => {
+  const styles = await readFile(new URL("../app/inventory/inventory.css", import.meta.url), "utf8");
+
+  assert.match(styles, /End-user usability baseline/);
+  assert.match(styles, /\.inventory-portal-refresh \.ops-form label,[\s\S]*font-size: 11px/);
+  assert.match(styles, /\.inventory-portal-refresh :is\([^}]*\) \{ min-height: 44px/);
+  assert.match(styles, /\.inventory-portal-refresh \.stock-table article\{min-width:0/);
+  assert.match(styles, /\.inventory-portal-refresh \.suite-switcher\{[^}]*bottom:calc\(78px/);
+});

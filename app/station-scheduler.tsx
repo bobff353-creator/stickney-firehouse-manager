@@ -301,6 +301,7 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
           {data.shiftTypes.filter((s) => s.active).slice(0, 5).map((s) => <span key={s.id}><i style={{ background: shiftColorHex[s.color] ?? s.color }} />{s.name} · {s.startTime}–{s.endTime}</span>)}
           <span><i className="open-dot" />Open slot</span>
         </div>
+        <p className="scheduler-scroll-hint" aria-hidden="true">Swipe sideways to see every day. Tap a day to open its full schedule.</p>
         <div className="scheduler-calendar-scroll">
           <div className="scheduler-weekdays" aria-hidden="true">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => <span key={d}>{d}</span>)}</div>
           <div className="scheduler-month" role="grid" aria-label={monthTitle(selectedDate)}>
