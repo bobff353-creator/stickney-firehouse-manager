@@ -2,6 +2,7 @@
 /* eslint-disable @next/next/no-img-element -- Chief Board photos are served from the portal's authenticated R2 route. */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import styles from "./chief-board-panel.module.css";
 
 type Attachment = { id: string; filename: string; contentType: string; sizeBytes: number; url: string };
 type ChiefItem = {
@@ -23,10 +24,17 @@ type RiverGauge = {
   actionStage: number | null; minorStage: number | null; moderateStage: number | null; majorStage: number | null;
   inService: boolean; serviceMessage: string; sourceUrl: string; hydrographUrl: string; retrievedAt: string;
 };
-const emptyDraft = { itemType: "note" as "note" | "event", title: "", body: "", startsAt: "", endsAt: "", expiresAt: "" };
+const emptyDraft = { id: "", itemType: "note" as "note" | "event", title: "", body: "", startsAt: "", endsAt: "", expiresAt: "" };
 
 function dateTime(value: string) {
   return value ? new Date(value).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+}
+
+function localDateTimeInput(value: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 16);
 }
 
 function fileSize(bytes: number) {
@@ -75,6 +83,7 @@ export default function ChiefBoardPanel() {
   useEffect(() => { setCurrent((value) => value % slideCount); }, [slideCount]);
   const riverActive = current === items.length;
   const item = riverActive ? undefined : items[current];
+  const memos = items.filter((candidate) => candidate.itemType === "note");
   const riverScale = river?.majorStage || river?.moderateStage || river?.minorStage || river?.actionStage || 25;
   const riverPercent = river ? Math.max(0, Math.min(100, river.level / riverScale * 100)) : 0;
 
@@ -84,11 +93,35 @@ export default function ChiefBoardPanel() {
     setSelectedFiles([]);
   }
 
+  function editMemo(memo: ChiefItem) {
+    setDraft({ id: memo.id, itemType: "note", title: memo.title, body: memo.body, startsAt: "", endsAt: "", expiresAt: localDateTimeInput(memo.expiresAt) });
+    setSelectedFiles([]);
+  }
+
   async function save(event: React.FormEvent) {
     event.preventDefault();
     if (!draft || saving) return;
     setSaving(true);
     setMessage("");
+    if (draft.id) {
+      try {
+        const response = await fetch("/api/chief-board", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id: draft.id, title: draft.title, body: draft.body, expiresAt: draft.expiresAt ? new Date(draft.expiresAt).toISOString() : "" }),
+        });
+        const result = await response.json() as { error?: string };
+        if (!response.ok) return setMessage(result.error || "Unable to update the Chief memo.");
+        setDraft(null);
+        setMessage("Chief memo updated on the Live Operations Board.");
+        await load();
+      } catch {
+        setMessage("Unable to update the Chief memo. Check the connection and try again.");
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
     const form = new FormData();
     form.set("itemType", draft.itemType);
     form.set("title", draft.title);
@@ -125,7 +158,7 @@ export default function ChiefBoardPanel() {
   return <section className="board-panel chief-board-panel" aria-live="polite">
     <header>
       <div><h2>{riverActive ? "Des Plaines River · Lyons" : "Chief Notes & Events"}</h2><span>{current + 1} of {slideCount}</span></div>
-      {canEdit && <button className="chief-add-button" aria-label="Add Chief Note or Event" onClick={() => { setDraft({ ...emptyDraft }); setSelectedFiles([]); }}>+</button>}
+      {canEdit && <div className={styles.headerActions}>{memos.length > 0 && <button type="button" className={styles.editButton} onClick={() => editMemo(item?.itemType === "note" ? item : memos[0])}>Edit memo</button>}<button type="button" className="chief-add-button" aria-label="Add Chief Note or Event" onClick={() => { setDraft({ ...emptyDraft }); setSelectedFiles([]); }}>+</button></div>}
     </header>
     <div className="chief-board-content">
       {riverActive ? river ? <article className={`river-gauge-slide ${river.category}`}>
@@ -147,6 +180,7 @@ export default function ChiefBoardPanel() {
         </div>
         <h3>{item.title}</h3>
         <p>{item.body}</p>
+        {canEdit && item.itemType === "note" && <button type="button" className={styles.itemEditButton} onClick={() => editMemo(item)}>Edit this memo</button>}
         {!!item.attachments?.length && <div className="chief-attachments">
           {item.attachments.map((attachment) => attachment.contentType.startsWith("image/")
             ? <a key={attachment.id} href={attachment.url} target="_blank" rel="noreferrer" className="chief-photo"><img src={attachment.url} alt={attachment.filename}/></a>
@@ -157,17 +191,17 @@ export default function ChiefBoardPanel() {
     {message && <div className="chief-board-message" role="status">{message}</div>}
     {draft && <div className="chief-editor-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) closeEditor(); }}>
       <form className="chief-editor" onSubmit={(event) => void save(event)}>
-        <header><div><p>Administrator</p><h2>Add Board Information</h2></div><button type="button" aria-label="Close" disabled={saving} onClick={closeEditor}>×</button></header>
-        <label><span>Information type</span><select value={draft.itemType} onChange={(event) => setDraft({ ...draft, itemType: event.target.value as "note" | "event", startsAt: "", endsAt: "", expiresAt: "" })}><option value="note">Chief Note</option><option value="event">Event</option></select></label>
+        <header><div><p>Administrator</p><h2>{draft.id ? "Edit Chief Memo" : "Add Board Information"}</h2></div><button type="button" aria-label="Close" disabled={saving} onClick={closeEditor}>×</button></header>
+        {draft.id ? <label><span>Memo to edit</span><select value={draft.id} onChange={(event) => { const memo = memos.find((candidate) => candidate.id === event.target.value); if (memo) editMemo(memo); }}>{memos.map((memo) => <option value={memo.id} key={memo.id}>{memo.title}</option>)}</select></label> : <label><span>Information type</span><select value={draft.itemType} onChange={(event) => setDraft({ ...draft, itemType: event.target.value as "note" | "event", startsAt: "", endsAt: "", expiresAt: "" })}><option value="note">Chief Note</option><option value="event">Event</option></select></label>}
         {draft.itemType === "event" ? <div className="chief-date-grid">
           <label><span>Event starts</span><input required type="datetime-local" value={draft.startsAt} onChange={(event) => setDraft({ ...draft, startsAt: event.target.value })}/></label>
           <label><span>Event ends</span><input required type="datetime-local" min={draft.startsAt} value={draft.endsAt} onChange={(event) => setDraft({ ...draft, endsAt: event.target.value })}/></label>
         </div> : <label><span>Show note until (optional)</span><input type="datetime-local" value={draft.expiresAt} onChange={(event) => setDraft({ ...draft, expiresAt: event.target.value })}/><small>Leave blank to keep the note on the board.</small></label>}
         <label><span>Title</span><input required maxLength={80} value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder={draft.itemType === "event" ? "Example: Department training" : "Example: Message from the Chief"}/></label>
         <label><span>Message</span><textarea required rows={6} maxLength={700} value={draft.body} onChange={(event) => setDraft({ ...draft, body: event.target.value })}/></label>
-        <label><span>Attachments and photos (up to 5)</span><input ref={fileInput} type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,.pdf,.txt,.doc,.docx,.xls,.xlsx" onChange={(event) => setSelectedFiles(Array.from(event.target.files ?? []).slice(0, 5))}/><small>Each file can be up to 10 MB.</small></label>
+        {!draft.id ? <label><span>Attachments and photos (up to 5)</span><input ref={fileInput} type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,.pdf,.txt,.doc,.docx,.xls,.xlsx" onChange={(event) => setSelectedFiles(Array.from(event.target.files ?? []).slice(0, 5))}/><small>Each file can be up to 10 MB.</small></label> : <p className={styles.attachmentNotice}>Existing memo attachments stay connected when you save these changes.</p>}
         {!!selectedFiles.length && <div className="chief-selected-files">{selectedFiles.map((file, index) => <div key={`${file.name}-${index}`}><span>{file.name}</span><small>{fileSize(file.size)}</small><button type="button" aria-label={`Remove ${file.name}`} onClick={() => { const next = selectedFiles.filter((_, fileIndex) => fileIndex !== index); setSelectedFiles(next); if (!next.length && fileInput.current) fileInput.current.value = ""; }}>×</button></div>)}</div>}
-        <footer><button type="button" disabled={saving} onClick={closeEditor}>Cancel</button><button type="submit" disabled={saving}>{saving ? "Adding…" : draft.itemType === "event" ? "Add & Send Invites" : "Add to Board"}</button></footer>
+        <footer><button type="button" disabled={saving} onClick={closeEditor}>Cancel</button><button type="submit" disabled={saving}>{saving ? "Saving…" : draft.id ? "Save Memo Changes" : draft.itemType === "event" ? "Add & Send Invites" : "Add to Board"}</button></footer>
       </form>
     </div>}
   </section>;

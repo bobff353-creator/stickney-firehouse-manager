@@ -19,6 +19,18 @@ test("Chief Notes support expiration and durable private attachments", () => {
   assert.match(panel, /Attachments and photos \(up to 5\)/);
 });
 
+test("administrators can edit an existing Chief memo without replacing its attachments", () => {
+  assert.match(route, /export async function PATCH/);
+  assert.match(route, /Administrator privileges are required/);
+  assert.match(route, /UPDATE chief_board_items SET title = \?, body = \?, expires_at = \?, updated_at = CURRENT_TIMESTAMP/);
+  assert.match(route, /item_type = 'note' AND active = 1/);
+  assert.match(panel, /Edit memo/);
+  assert.match(panel, /Edit this memo/);
+  assert.match(panel, /method: "PATCH"/);
+  assert.match(panel, /Existing memo attachments stay connected/);
+  assert.match(panel, /Save Memo Changes/);
+});
+
 test("Chief events require a start and end and email active employee profiles", () => {
   assert.match(route, /requiredDate\(form\.get\("startsAt"\)/);
   assert.match(route, /requiredDate\(form\.get\("endsAt"\)/);

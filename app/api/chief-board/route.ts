@@ -251,3 +251,27 @@ export async function POST(request: Request) {
     return Response.json({ error: message }, { status });
   }
 }
+
+export async function PATCH(request: Request) {
+  try {
+    const db = await ensureDatabase();
+    if (!await isAdmin(request, db)) return Response.json({ error: "Administrator privileges are required." }, { status: 403 });
+    const payload = await request.json() as { id?: string; title?: string; body?: string; expiresAt?: string };
+    const id = String(payload.id ?? "").trim();
+    const title = String(payload.title ?? "").trim();
+    const detail = String(payload.body ?? "").trim();
+    if (!id) return Response.json({ error: "Select a Chief memo to edit." }, { status: 400 });
+    if (!title || !detail) return Response.json({ error: "A title and message are required." }, { status: 400 });
+    if (title.length > 80 || detail.length > 700) return Response.json({ error: "The memo is longer than the board allows." }, { status: 400 });
+    const existing = await db.prepare("SELECT id FROM chief_board_items WHERE id = ? AND item_type = 'note' AND active = 1 LIMIT 1").bind(id).first<{ id: string }>();
+    if (!existing) return Response.json({ error: "That Chief memo is no longer available." }, { status: 404 });
+    const expiresAt = optionalDate(payload.expiresAt ?? "");
+    if (expiresAt && Date.parse(expiresAt) <= Date.now()) return Response.json({ error: "The note end must be in the future." }, { status: 400 });
+    await db.prepare("UPDATE chief_board_items SET title = ?, body = ?, expires_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND item_type = 'note' AND active = 1").bind(title, detail, expiresAt, id).run();
+    return Response.json({ ok: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to update the Chief memo";
+    const status = /required|valid|future|longer|select/i.test(message) ? 400 : 500;
+    return Response.json({ error: message }, { status });
+  }
+}

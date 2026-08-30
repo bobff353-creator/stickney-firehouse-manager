@@ -1,0 +1,58 @@
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.editButton,
+.itemEditButton {
+  border: 1px solid #79b9d8;
+  border-radius: 6px;
+  background: #173f54;
+  color: #d9f2ff;
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.editButton {
+  min-height: 36px;
+  padding: 0 12px;
+}
+
+.itemEditButton {
+  margin-top: 10px;
+  min-height: 32px;
+  padding: 0 10px;
+}
+
+.editButton:hover,
+.editButton:focus-visible,
+.itemEditButton:hover,
+.itemEditButton:focus-visible {
+  border-color: #bfeaff;
+  background: #245c78;
+  outline: 3px solid #79b9d833;
+}
+
+.attachmentNotice {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #bfd0da;
+  border-radius: 7px;
+  background: #eaf3f7;
+  color: #3c5d70;
+  font-size: 11px;
+}
+
+:global(.tv-display) .editButton,
+:global(.tv-display) .itemEditButton {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .editButton {
+    min-height: 40px;
+    padding: 0 10px;
+  }
+}
