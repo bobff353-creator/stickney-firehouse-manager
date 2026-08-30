@@ -70,9 +70,10 @@ test("training rotations use a bounded two-column TV layout", async () => {
 });
 
 test("24/7 TV mode prevents stalled refreshes and recovers after device interruptions", async () => {
-  const [board, app] = await Promise.all([
+  const [board, app, styles] = await Promise.all([
     readFile(new URL("../app/operations-board.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
 
   assert.match(board, /loadInProgressRef/);
@@ -81,7 +82,13 @@ test("24/7 TV mode prevents stalled refreshes and recovers after device interrup
   assert.match(board, /visibilitychange/);
   assert.match(board, /window\.addEventListener\("online", recover\)/);
   assert.match(board, /24\/7 station mode/);
-  assert.doesNotMatch(board, /Exit TV mode/);
+  assert.match(board, /Exit full screen/);
+  assert.match(board, /document\.exitFullscreen\(\)/);
+  assert.match(board, /onTvModeChange\?\.\(false\)/);
+  assert.match(board, /aria-label="Exit full-screen TV mode and return to the portal"/);
+  assert.match(styles, /\.tv-display \.board-exit-tv\{[^}]*position:fixed;[^}]*opacity:\.2/);
+  assert.match(styles, /\.tv-display \.board-exit-tv:hover,\.tv-display \.board-exit-tv:focus-visible\{opacity:1/);
+  assert.match(styles, /@media\(hover:none\)\{\.tv-display \.board-exit-tv\{opacity:\.42\}\}/);
   assert.match(app, /stickney-operations-tv-mode/);
   assert.match(app, /requestedDisplay === "portal"/);
 });

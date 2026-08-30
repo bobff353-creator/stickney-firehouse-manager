@@ -260,6 +260,16 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
       // layout still works and the device browser can be placed in full screen.
     }
   }
+  async function exitTvMode() {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+    } catch {
+      // Always restore the portal layout even when a TV browser controls its
+      // own full-screen window outside the standard Fullscreen API.
+    } finally {
+      onTvModeChange?.(false);
+    }
+  }
   async function toggleCallAlerts() {
     const enabled = !alertEnabledRef.current;
     alertEnabledRef.current = enabled;
@@ -275,6 +285,7 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
     window.localStorage.setItem("stickney-call-alert-tone", selected);
   }
   return <section className={`operations-board${tvMode ? " tv-display" : ""}`}>
+    {tvMode && <button type="button" className="board-exit-tv" onClick={() => void exitTvMode()} aria-label="Exit full-screen TV mode and return to the portal"><span aria-hidden="true">×</span> Exit full screen</button>}
     <div className="board-display-controls">
       {alertPanelOpen && <div className="call-alert-settings"><strong>New-call sound</strong><label><span>Alert tone</span><select value={alertTone} onChange={(event) => selectAlertTone(event.target.value)}>{alertTones.map((tone) => <option value={tone.id} key={tone.id}>{tone.label}</option>)}</select></label><div><button type="button" onClick={() => void playAlert(alertTone)}>Preview</button><button type="button" className={alertEnabled ? "enabled" : ""} onClick={() => void toggleCallAlerts()}>{alertEnabled ? "Disable alerts" : "Enable call alerts"}</button></div><small>Saved on this TV. Sounds only for newly received call numbers.</small></div>}
       <div className="board-control-buttons"><span className={`board-heartbeat ${feedDegraded?"degraded":""}`}><i/>{feedDegraded?"Feed delayed · reconnecting":`Updated ${lastRefresh?.toLocaleTimeString([],{hour:"numeric",minute:"2-digit",second:"2-digit"})}`}</span><button type="button" onClick={()=>setRotationPaused((current)=>!current)}>{rotationPaused?"Resume rotation":"Pause rotation"}</button><button type="button" onClick={() => setAlertPanelOpen((open) => !open)} aria-expanded={alertPanelOpen}>Call sound: {alertEnabled ? "On" : "Off"}</button>{tvMode
