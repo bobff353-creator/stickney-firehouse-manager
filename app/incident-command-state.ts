@@ -28,8 +28,12 @@ export type TacticalHazard = {
   label: string;
   floor: string;
   side: "" | "A" | "B" | "C" | "D";
+  status: "active" | "mitigated" | "resolved";
+  mitigationNote: string;
   createdAt: string;
   createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
 };
 
 export type IncidentCommandState = {
@@ -72,6 +76,7 @@ export type CommandAction =
   | { action: "set-rit"; unitId: string; chiefEmployeeId: string; readiness: IncidentCommandState["rit"]["readiness"] }
   | { action: "set-rehab"; unitIds: string[]; chiefEmployeeId: string; assignmentNote?: string }
   | { action: "add-hazard"; label: string; floor: string; side: TacticalHazard["side"] }
+  | { action: "update-hazard"; hazardId: string; status: TacticalHazard["status"]; mitigationNote: string }
   | { action: "remove-hazard"; hazardId: string }
   | { action: "set-support"; resource: SupportResource; status: SupportStatus }
   | { action: "record-benchmark"; benchmark: typeof benchmarkLabels[number] }
@@ -142,8 +147,12 @@ export function normalizeIncidentCommandState(value: unknown): IncidentCommandSt
       label: String(hazard.label ?? "").slice(0, 80),
       floor: String(hazard.floor ?? "").slice(0, 40),
       side: (["A", "B", "C", "D"].includes(String(hazard.side)) ? String(hazard.side) : "") as TacticalHazard["side"],
+      status: (["active", "mitigated", "resolved"].includes(String(hazard.status)) ? String(hazard.status) : "active") as TacticalHazard["status"],
+      mitigationNote: String(hazard.mitigationNote ?? "").slice(0, 240),
       createdAt: String(hazard.createdAt ?? ""),
       createdBy: String(hazard.createdBy ?? "").slice(0, 120),
+      updatedAt: String(hazard.updatedAt ?? hazard.createdAt ?? ""),
+      updatedBy: String(hazard.updatedBy ?? hazard.createdBy ?? "").slice(0, 120),
     })).filter((hazard) => hazard.id && hazard.label) : [],
     support: { ...fallback.support, ...(candidate.support ?? {}) },
     benchmarks: candidate.benchmarks ?? {},
@@ -307,8 +316,17 @@ export function reduceIncidentCommandState(current: IncidentCommandState, mutati
     if (floor && !context.validLevels.has(floor)) throw new Error("Select a valid hazard level.");
     const side = mutation.side && ["A", "B", "C", "D"].includes(mutation.side) ? mutation.side : "";
     if (!floor && !side) throw new Error("Place the hazard inside a level or on an exterior side.");
-    state.hazards.push({ id: crypto.randomUUID(), label, floor, side, createdAt: context.now, createdBy: context.actor });
+    state.hazards.push({ id: crypto.randomUUID(), label, floor, side, status: "active", mitigationNote: "", createdAt: context.now, createdBy: context.actor, updatedAt: context.now, updatedBy: context.actor });
     summary = `${label} hazard added ${side ? `to Side ${side}` : `inside ${floor}`}`;
+  } else if (mutation.action === "update-hazard") {
+    const hazardIndex = state.hazards.findIndex((candidate) => candidate.id === mutation.hazardId);
+    if (hazardIndex < 0) throw new Error("That hazard is no longer on the board.");
+    const status = oneOf(["active", "mitigated", "resolved"] as const, mutation.status, "hazard status");
+    const mitigationNote = String(mutation.mitigationNote ?? "").trim().replace(/\s+/g, " ").slice(0, 240);
+    if (status !== "active" && !mitigationNote) throw new Error("Describe how the hazard was mitigated or resolved.");
+    const hazard = state.hazards[hazardIndex];
+    state.hazards[hazardIndex] = { ...hazard, status, mitigationNote, updatedAt: context.now, updatedBy: context.actor };
+    summary = `${hazard.label} hazard marked ${status}${mitigationNote ? ` — ${mitigationNote}` : ""}`;
   } else if (mutation.action === "remove-hazard") {
     const hazard = state.hazards.find((candidate) => candidate.id === mutation.hazardId);
     if (!hazard) throw new Error("That hazard is no longer on the board.");

@@ -1,0 +1,212 @@
+.boardGrid {
+  grid-template-columns: 252px minmax(470px, 1fr) 292px !important;
+}
+
+.searchToggle {
+  width: 100%;
+  height: 100%;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  font: inherit;
+}
+
+.searchToggle:hover,
+.searchToggle:focus-visible {
+  background: #273b46;
+  outline: 2px solid #c9ff2f;
+  outline-offset: -2px;
+}
+
+.searchToggle span {
+  color: #e5ebee;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .04em;
+}
+
+.searchToggle small {
+  color: #a9ff4f;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.searchPanel.expanded {
+  position: fixed;
+  z-index: 6500;
+  inset: 76px 24px 34px;
+  width: auto;
+  height: auto !important;
+  min-height: 0;
+  border: 2px solid #c9ff2f;
+  box-shadow: 0 0 0 100vmax #071016cc, 0 22px 70px #000;
+  grid-template-rows: 48px 38px minmax(0, 1fr) 34px !important;
+}
+
+.searchPanel.expanded .searchToggle span {
+  font-size: 18px;
+}
+
+.searchPanel.expanded :global(.icb-search-head),
+.searchPanel.expanded :global(.icb-search-row) {
+  grid-template-columns: minmax(140px, 1.2fr) repeat(3, minmax(130px, 1fr));
+}
+
+.searchPanel.expanded :global(.icb-search-head) {
+  padding: 0 18px;
+  font-size: 12px;
+}
+
+.searchPanel.expanded :global(.icb-search-grid) {
+  padding: 0 18px;
+}
+
+.searchPanel.expanded :global(.icb-search-row) {
+  min-height: 58px;
+}
+
+.searchPanel.expanded :global(.icb-search-row strong) {
+  font-size: 15px;
+}
+
+.searchPanel.expanded :global(.icb-search-row button) {
+  height: 42px;
+  font-size: 12px;
+}
+
+.boardGrid :global(.icb-building-floor .icb-floor-unit) {
+  padding: 4px 6px;
+  border-left: 3px solid #d89431;
+  border-radius: 2px;
+  background: #31434d;
+  color: #fff;
+  cursor: grab;
+  font-size: 10px;
+  font-weight: 950;
+  user-select: none;
+}
+
+.boardGrid :global(.icb-building-floor .icb-floor-unit:hover),
+.boardGrid :global(.icb-building-floor .icb-floor-unit:focus-visible) {
+  background: #425a67;
+  outline: 2px solid #c9ff2f;
+  outline-offset: 1px;
+}
+
+.boardGrid :global(.icb-building-floor .icb-floor-unit:active) {
+  cursor: grabbing;
+}
+
+.boardGrid :global(.icb-building-floor .icb-floor-unit small) {
+  margin-left: 5px;
+  color: #c9ff2f;
+}
+
+.boardGrid :global(.icb-hazard-chip) {
+  cursor: pointer;
+}
+
+.boardGrid :global(.icb-hazard-chip:hover),
+.boardGrid :global(.icb-hazard-chip:focus-visible) {
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+}
+
+.boardGrid :global(.icb-hazard-chip.mitigated) {
+  border-color: #60bde8;
+  background: #173d50;
+  color: #aee6ff;
+}
+
+.boardGrid :global(.icb-hazard-chip.resolved) {
+  border-color: #5fcf73;
+  background: #183d28;
+  color: #9ff4ad;
+}
+
+.hazardEditor {
+  width: min(620px, calc(100vw - 32px));
+}
+
+.hazardEditor :global(.icb-hazard-location) {
+  margin: 0;
+  color: #b9c5ca !important;
+}
+
+.hazardEditor :global(.icb-hazard-status-options) {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.hazardEditor :global(.icb-hazard-status-options button) {
+  min-height: 48px;
+  border: 1px solid #607580;
+  border-radius: 4px;
+  background: #243640;
+  color: #e7edef;
+  font-weight: 900;
+}
+
+.hazardEditor :global(.icb-hazard-status-options button.active) {
+  outline: 3px solid currentColor;
+  outline-offset: 1px;
+}
+
+.hazardEditor :global(.icb-hazard-status-options button.active.active) { color: #ffd36b; }
+.hazardEditor :global(.icb-hazard-status-options button.active.mitigated) { color: #8fdcff; }
+.hazardEditor :global(.icb-hazard-status-options button.active.resolved) { color: #94f1a4; }
+
+.hazardEditor :global(.icb-hazard-note) {
+  display: grid;
+  gap: 6px;
+}
+
+.hazardEditor :global(.icb-hazard-note span) {
+  color: #a8b5bb;
+  font-size: 9px;
+  font-weight: 950;
+}
+
+.hazardEditor :global(.icb-hazard-note textarea) {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 104px;
+  padding: 10px;
+  resize: vertical;
+  border: 1px solid #637781;
+  border-radius: 3px;
+  background: #22343e;
+  color: #fff;
+  font: inherit;
+}
+
+@media (max-width: 1080px) {
+  .boardGrid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .searchPanel.expanded {
+    inset: 70px 12px 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .searchPanel.expanded {
+    inset: 64px 7px 12px;
+  }
+
+  .searchPanel.expanded :global(.icb-search-head),
+  .searchPanel.expanded :global(.icb-search-row) {
+    grid-template-columns: 92px repeat(3, minmax(72px, 1fr));
+  }
+
+  .hazardEditor :global(.icb-hazard-status-options) {
+    grid-template-columns: 1fr;
+  }
+}

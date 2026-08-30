@@ -95,8 +95,15 @@ test("hazards and incident closeout are validated, timestamped, and locked", asy
   const hazard = reduceIncidentCommandState(emptyIncidentCommandState(), { action: "add-hazard", label: "Electrical", floor: "Floor 1", side: "" }, context());
   assert.equal(hazard.state.hazards[0].label, "Electrical");
   assert.equal(hazard.state.hazards[0].floor, "Floor 1");
-  assert.throws(() => reduceIncidentCommandState(hazard.state, { action: "end-call", confirmation: "yes" }, context()), /END INCIDENT/);
-  const ended = reduceIncidentCommandState(hazard.state, { action: "end-call", confirmation: "END INCIDENT" }, context());
+  assert.equal(hazard.state.hazards[0].status, "active");
+  assert.throws(() => reduceIncidentCommandState(hazard.state, { action: "update-hazard", hazardId: hazard.state.hazards[0].id, status: "mitigated", mitigationNote: "" }, context()), /Describe how/);
+  const mitigated = reduceIncidentCommandState(hazard.state, { action: "update-hazard", hazardId: hazard.state.hazards[0].id, status: "mitigated", mitigationNote: "Power isolated at the disconnect" }, context());
+  assert.equal(mitigated.state.hazards[0].status, "mitigated");
+  assert.equal(mitigated.state.hazards[0].mitigationNote, "Power isolated at the disconnect");
+  assert.equal(mitigated.state.hazards[0].createdBy, "Authenticated Officer");
+  assert.match(mitigated.summary, /marked mitigated/);
+  assert.throws(() => reduceIncidentCommandState(mitigated.state, { action: "end-call", confirmation: "yes" }, context()), /END INCIDENT/);
+  const ended = reduceIncidentCommandState(mitigated.state, { action: "end-call", confirmation: "END INCIDENT" }, context());
   assert.equal(ended.eventType, "incident-ended");
   assert.equal(ended.state.closeout.endedBy, "Authenticated Officer");
   assert.ok(ended.state.benchmarks["Incident terminated"]);
@@ -104,9 +111,10 @@ test("hazards and incident closeout are validated, timestamped, and locked", asy
 });
 
 test("Command Board is under Field, permission gated, durable, and contains no copied demo identity", async () => {
-  const [app, page, route, permissions, bootstrap, migration] = await Promise.all([
+  const [app, page, styles, route, permissions, bootstrap, migration] = await Promise.all([
     readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/incident-command-board.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/incident-command-board.module.css", import.meta.url), "utf8"),
     readFile(new URL("../app/api/incident-command/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/permissions.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/bootstrap.ts", import.meta.url), "utf8"),
@@ -124,6 +132,11 @@ test("Command Board is under Field, permission gated, durable, and contains no c
   assert.match(page, /confirm-par-unit/);
   assert.match(page, /requestFullscreen/);
   assert.match(page, /dropUnitOnFloor/);
+  assert.match(page, /update-hazard/);
+  assert.match(page, /icb-floor-unit/);
+  assert.match(page, /searchExpanded/);
+  assert.match(styles, /252px minmax\(470px, 1fr\) 292px/);
+  assert.match(styles, /\.searchPanel\.expanded/);
   assert.match(page, /DRAG A UNIT, OR TAP IT THEN TAP A FLOOR \/ SIDE/);
   assert.match(page, /icb-command-assignees/);
   assert.match(page, /\+ ADD UNIT/);

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from "react";
 import ConfirmDialog from "./confirm-dialog";
 import { formatEmployeeName } from "./employee-names";
+import styles from "./incident-command-board.module.css";
 import {
   commandPositions,
   searchPhases,
@@ -65,6 +66,11 @@ type AssignmentDraft = {
   side: IncidentCommandState["units"][string]["side"];
   crewStrength: number | null;
 };
+type HazardStatusDraft = {
+  hazardId: string;
+  status: TacticalHazard["status"];
+  mitigationNote: string;
+};
 type MutationResponse = { ok?: boolean; state?: IncidentCommandState; event?: AuditEvent; error?: string };
 
 const hazardOptions = ["Collapse", "Electrical", "Hazardous material", "Hole / opening", "Propane / gas", "Solar panels", "Structural damage", "Utilities"];
@@ -97,6 +103,8 @@ export default function IncidentCommandBoard() {
   const [assignmentDraft, setAssignmentDraft] = useState<AssignmentDraft | null>(null);
   const [hazardEditorOpen, setHazardEditorOpen] = useState(false);
   const [hazardDraft, setHazardDraft] = useState<{ label: string; floor: string; side: TacticalHazard["side"] }>({ label: "", floor: "Level unknown", side: "" });
+  const [hazardStatusDraft, setHazardStatusDraft] = useState<HazardStatusDraft | null>(null);
+  const [searchExpanded, setSearchExpanded] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [ritDraft, setRitDraft] = useState({
     unitId: "",
@@ -264,6 +272,7 @@ export default function IncidentCommandBoard() {
     void mutate({ action: "add-manual-unit", unitId });
   };
   const unitsAtLevel = (level: string) => Object.entries(state?.units ?? {}).filter(([unitId, unit]) => onSceneUnits.includes(unitId) && unit.floor === level);
+  const hazardForSide = (side: TacticalHazard["side"]) => state?.hazards.find((hazard) => hazard.side === side && hazard.status !== "resolved") ?? state?.hazards.find((hazard) => hazard.side === side);
 
   const openAssignmentEditor = (
     unitId: string,
@@ -291,7 +300,7 @@ export default function IncidentCommandBoard() {
     if (!selectedUnit) return setNotice("Select an on-scene unit first.");
     openAssignmentEditor(selectedUnit, { floor: activeLevel, side, status: "On scene" });
   };
-  const dropUnitOnFloor = (event: DragEvent<HTMLButtonElement>, level: string) => {
+  const dropUnitOnFloor = (event: DragEvent<HTMLElement>, level: string) => {
     event.preventDefault();
     const unitId = event.dataTransfer.getData("text/plain");
     if (!onSceneUnits.includes(unitId)) return setNotice("Only an on-scene incident unit can be dropped onto the building.");
@@ -309,6 +318,24 @@ export default function IncidentCommandBoard() {
     const unitId = event.dataTransfer.getData("text/plain");
     if (!onSceneUnits.includes(unitId)) return setNotice("Only an on-scene incident unit can be assigned to rehab.");
     openAssignmentEditor(unitId, { assignment: "Rehab", status: "Rehab", floor: "", side: "" });
+  };
+  const startUnitDrag = (event: DragEvent<HTMLElement>, unitId: string) => {
+    if (commandDisabled) return event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", unitId);
+    setSelectedUnit(unitId);
+  };
+  const openHazardStatusEditor = (hazard: TacticalHazard) => {
+    if (commandDisabled) return;
+    setHazardStatusDraft({ hazardId: hazard.id, status: hazard.status, mitigationNote: hazard.mitigationNote });
+  };
+  const saveHazardStatus = () => {
+    if (!hazardStatusDraft) return;
+    if (hazardStatusDraft.status !== "active" && !hazardStatusDraft.mitigationNote.trim()) return setNotice("Describe how the hazard was mitigated or resolved.");
+    const draft = hazardStatusDraft;
+    setHazardStatusDraft(null);
+    void mutate({ action: "update-hazard", ...draft });
   };
   const searchStatus = (level: string, phase: SearchPhase): SearchStatus => state?.searches[level]?.[phase] ?? "not_started";
   const changeSearch = (level: string, phase: SearchPhase) => {
@@ -426,6 +453,23 @@ export default function IncidentCommandBoard() {
       </section>
     </div>}
 
+    {hazardStatusDraft && (() => {
+      const hazard = state.hazards.find((candidate) => candidate.id === hazardStatusDraft.hazardId);
+      if (!hazard) return null;
+      return <div className="icb-editor-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setHazardStatusDraft(null); }}>
+        <section className={`icb-quick-editor icb-hazard-status-editor ${styles.hazardEditor}`} role="dialog" aria-modal="true" aria-labelledby="icb-hazard-status-title">
+          <header><div><small>TACTICAL HAZARD</small><strong id="icb-hazard-status-title">{hazard.label}</strong></div><button type="button" onClick={() => setHazardStatusDraft(null)} aria-label="Close hazard editor">×</button></header>
+          <p className="icb-hazard-location">{hazard.side ? `Outside · Side ${hazard.side}` : `Inside · ${hazard.floor}`} · Added {formatTime(hazard.createdAt)} by {hazard.createdBy}</p>
+          <div className="icb-hazard-status-options" role="group" aria-label="Hazard status">
+            {(["active", "mitigated", "resolved"] as const).map((status) => <button type="button" key={status} className={hazardStatusDraft.status === status ? `active ${status}` : status} onClick={() => setHazardStatusDraft((current) => current ? { ...current, status } : current)}>{status === "active" ? "⚠ Active" : status === "mitigated" ? "◐ Mitigated" : "✓ Resolved"}</button>)}
+          </div>
+          <label className="icb-hazard-note"><span>MITIGATION / RESOLUTION NOTE {hazardStatusDraft.status === "active" ? "(OPTIONAL)" : "(REQUIRED)"}</span><textarea autoFocus={hazardStatusDraft.status !== "active"} maxLength={240} value={hazardStatusDraft.mitigationNote} onChange={(event) => setHazardStatusDraft((current) => current ? { ...current, mitigationNote: event.target.value } : current)} placeholder="Describe what was corrected, isolated, or made safe" /></label>
+          <p>Saving creates a timestamped Command Board history entry. The hazard stays visible so crews can see its current status.</p>
+          <footer><button type="button" onClick={() => setHazardStatusDraft(null)}>Cancel</button><button type="button" className="primary" disabled={commandDisabled || (hazardStatusDraft.status !== "active" && !hazardStatusDraft.mitigationNote.trim())} onClick={saveHazardStatus}>Save Hazard Status</button></footer>
+        </section>
+      </div>;
+    })()}
+
     {historyOpen && <aside className="icb-history-drawer" aria-label="Timestamped Command Board history">
       <header><div><small>DOCUMENTED ACTIVITY</small><strong>{data.events.length} timestamped changes</strong></div><button type="button" onClick={() => setHistoryOpen(false)} aria-label="Close history">×</button></header>
       <div>{data.events.length ? data.events.map((event) => <article key={event.id}><time>{new Date(event.createdAt).toLocaleString()}</time><strong>{event.summary}</strong><span>{event.actor} · revision {event.revision}</span></article>) : <p>No Command Board changes have been recorded yet.</p>}</div>
@@ -467,7 +511,7 @@ export default function IncidentCommandBoard() {
     </div>
     {notice && <div className="icb-notice" role="alert">{notice}<button onClick={() => setNotice("")}>Dismiss</button></div>}
 
-    <div className="icb-reference-grid">
+    <div className={`icb-reference-grid ${styles.boardGrid}`}>
       <aside className="icb-reference-left">
         <section className="icb-dark-panel icb-command-positions">
           <header><span>COMMAND POSITIONS</span><small>{commandPositions.filter((position) => state.positions[position]).length} ROLES</small></header>
@@ -528,20 +572,20 @@ export default function IncidentCommandBoard() {
           </form>}
 
           <div className="icb-building-orientation">
-            <button className="icb-side side-c" disabled={commandDisabled} onDragOver={(event) => event.preventDefault()} onDrop={(event) => dropUnitOnSide(event, "C")} onClick={() => placeUnit("C")}><b>C</b><span>SIDE C</span>{state.hazards.some((hazard) => hazard.side === "C") && <i title={state.hazards.filter((hazard) => hazard.side === "C").map((hazard) => hazard.label).join(", ")}>!</i>}</button>
-            <button className="icb-side side-b" disabled={commandDisabled} onDragOver={(event) => event.preventDefault()} onDrop={(event) => dropUnitOnSide(event, "B")} onClick={() => placeUnit("B")}><b>B</b><span>SIDE B</span>{state.hazards.some((hazard) => hazard.side === "B") && <i title={state.hazards.filter((hazard) => hazard.side === "B").map((hazard) => hazard.label).join(", ")}>!</i>}</button>
+            <button className="icb-side side-c" disabled={commandDisabled} onDragOver={(event) => event.preventDefault()} onDrop={(event) => dropUnitOnSide(event, "C")} onClick={() => placeUnit("C")}><b>C</b><span>SIDE C</span>{hazardForSide("C") && <i role="button" tabIndex={0} title="Edit Side C hazard" onClick={(event) => { event.stopPropagation(); openHazardStatusEditor(hazardForSide("C")!); }}>!</i>}</button>
+            <button className="icb-side side-b" disabled={commandDisabled} onDragOver={(event) => event.preventDefault()} onDrop={(event) => dropUnitOnSide(event, "B")} onClick={() => placeUnit("B")}><b>B</b><span>SIDE B</span>{hazardForSide("B") && <i role="button" tabIndex={0} title="Edit Side B hazard" onClick={(event) => { event.stopPropagation(); openHazardStatusEditor(hazardForSide("B")!); }}>!</i>}</button>
             <div className="icb-building-stack" aria-label="Selectable stacked building floors">
               {levels.map((level, index) => {
                 const floorUnits = unitsAtLevel(level);
-                return <button key={level} className={`icb-building-floor${activeLevel === level ? " active" : ""}`} style={{ "--floor-order": index } as CSSProperties} onDragOver={(event) => { if (!commandDisabled) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => dropUnitOnFloor(event, level)} onClick={() => setSelectedLevel(level)}>
+                return <div role="button" tabIndex={0} aria-pressed={activeLevel === level} aria-disabled={commandDisabled} key={level} className={`icb-building-floor${activeLevel === level ? " active" : ""}`} style={{ "--floor-order": index } as CSSProperties} onDragOver={(event) => { if (!commandDisabled) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => dropUnitOnFloor(event, level)} onClick={() => setSelectedLevel(level)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedLevel(level); } }}>
                   <span>LEVEL {levels.length - index}</span>
                   <strong>{level}</strong>
-                  <div>{floorUnits.length ? floorUnits.map(([unitId, unit]) => <b key={unitId} title={`${unit.assignment} · Side ${unit.side || "unassigned"}`}>{unitId}<small>{unit.side || "—"}</small></b>) : <em>No crews assigned</em>}{state.hazards.filter((hazard) => hazard.floor === level && !hazard.side).map((hazard) => <span className="icb-hazard-chip" key={hazard.id} title={`${hazard.label} · recorded ${formatTime(hazard.createdAt)}`}>⚠ {hazard.label}</span>)}</div>
-                </button>;
+                  <div>{floorUnits.length ? floorUnits.map(([unitId, unit]) => <span role="button" tabIndex={0} draggable={!commandDisabled} className="icb-floor-unit" key={unitId} title={`${unit.assignment} · Side ${unit.side || "unassigned"} · drag or tap to reassign`} onDragStart={(event) => startUnitDrag(event, unitId)} onClick={(event) => { event.stopPropagation(); openAssignmentEditor(unitId); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); openAssignmentEditor(unitId); } }}>{unitId}<small>{unit.side || "—"}</small></span>) : <em>No crews assigned</em>}{state.hazards.filter((hazard) => hazard.floor === level && !hazard.side).map((hazard) => <span role="button" tabIndex={0} className={`icb-hazard-chip ${hazard.status}`} key={hazard.id} title={`${hazard.label} · ${hazard.status}${hazard.mitigationNote ? ` · ${hazard.mitigationNote}` : ""} · updated ${formatTime(hazard.updatedAt)}`} onClick={(event) => { event.stopPropagation(); openHazardStatusEditor(hazard); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); openHazardStatusEditor(hazard); } }}>{hazard.status === "active" ? "⚠" : hazard.status === "mitigated" ? "◐" : "✓"} {hazard.label}</span>)}</div>
+                </div>;
               })}
             </div>
-            <button className="icb-side side-d" disabled={commandDisabled} onDragOver={(event) => event.preventDefault()} onDrop={(event) => dropUnitOnSide(event, "D")} onClick={() => placeUnit("D")}><b>D</b><span>SIDE D</span>{state.hazards.some((hazard) => hazard.side === "D") && <i title={state.hazards.filter((hazard) => hazard.side === "D").map((hazard) => hazard.label).join(", ")}>!</i>}</button>
-            <button className="icb-side side-a" disabled={commandDisabled} onDragOver={(event) => event.preventDefault()} onDrop={(event) => dropUnitOnSide(event, "A")} onClick={() => placeUnit("A")}><b>A</b><span>A · ADDRESS SIDE</span>{state.hazards.some((hazard) => hazard.side === "A") && <i title={state.hazards.filter((hazard) => hazard.side === "A").map((hazard) => hazard.label).join(", ")}>!</i>}</button>
+            <button className="icb-side side-d" disabled={commandDisabled} onDragOver={(event) => event.preventDefault()} onDrop={(event) => dropUnitOnSide(event, "D")} onClick={() => placeUnit("D")}><b>D</b><span>SIDE D</span>{hazardForSide("D") && <i role="button" tabIndex={0} title="Edit Side D hazard" onClick={(event) => { event.stopPropagation(); openHazardStatusEditor(hazardForSide("D")!); }}>!</i>}</button>
+            <button className="icb-side side-a" disabled={commandDisabled} onDragOver={(event) => event.preventDefault()} onDrop={(event) => dropUnitOnSide(event, "A")} onClick={() => placeUnit("A")}><b>A</b><span>A · ADDRESS SIDE</span>{hazardForSide("A") && <i role="button" tabIndex={0} title="Edit Side A hazard" onClick={(event) => { event.stopPropagation(); openHazardStatusEditor(hazardForSide("A")!); }}>!</i>}</button>
           </div>
           <div className="icb-building-instruction"><span>SELECTED TACTICAL LEVEL</span><strong>{activeLevel}</strong><small>{selectedUnit ? `${selectedUnit} selected · Tap A, B, C, or D to place` : "Select a unit, then select its building side"}</small></div>
         </section>
@@ -570,8 +614,8 @@ export default function IncidentCommandBoard() {
       </main>
 
       <aside className="icb-reference-right">
-        <section className="icb-dark-panel icb-search-panel">
-          <header><span>SEARCH PROGRESS</span><small>PAR / SEARCH</small></header>
+        <section className={`icb-dark-panel icb-search-panel ${styles.searchPanel}${searchExpanded ? ` ${styles.expanded}` : ""}`}>
+          <header><button type="button" className={styles.searchToggle} aria-expanded={searchExpanded} title={searchExpanded ? "Return Search Progress to the board" : "Expand Search Progress"} onClick={() => setSearchExpanded((current) => !current)}><span>SEARCH PROGRESS</span><small>{searchExpanded ? "RESTORE BOARD ↙" : "EXPAND ↗"}</small></button></header>
           <div className="icb-search-head"><span>LEVEL</span>{searchPhases.map((phase) => <span key={phase}>{phase.toUpperCase()}</span>)}</div>
           <div className="icb-search-grid">{levels.map((level) => <div className="icb-search-row" key={level}><strong>{level}</strong>{searchPhases.map((phase) => {
             const status = searchStatus(level, phase);
