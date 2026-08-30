@@ -437,6 +437,13 @@ export default function IncidentCommandBoard() {
       <p>Ended {new Date(state.closeout.endedAt).toLocaleString()} by {state.closeout.endedBy}. All {data.events.length} recorded changes remain timestamped.</p>
       <div><button type="button" onClick={() => window.print()}>Print Report</button><a href={emailReportHref}>Email Report</a><button type="button" onClick={() => setHistoryOpen(true)}>View Activity</button><button type="button" className="secondary" onClick={() => { window.location.href = window.location.pathname; }}>Return to Portal</button></div>
     </section>}
+    <section className="icb-print-report" aria-hidden="true">
+      <h1>Stickney Fire Department — Command Board Report</h1>
+      <p><strong>{data.incident.address || "Address not provided"}</strong><br />{data.incident.callType || "Call type not provided"} · Report {data.incident.reportNumber || "Unavailable"}</p>
+      <p>Dispatched: {new Date(data.incident.dispatchedAt).toLocaleString()}<br />Ended: {state.closeout.endedAt ? new Date(state.closeout.endedAt).toLocaleString() : "Active"}</p>
+      <h2>Timestamped activity</h2>
+      {data.events.slice().reverse().map((event) => <article key={event.id}><time>{new Date(event.createdAt).toLocaleString()}</time><strong>{event.summary}</strong><span>{event.actor}</span></article>)}
+    </section>
 
     <header className="icb-reference-header">
       <button className="icb-brand" onClick={() => { window.location.href = window.location.pathname; }} aria-label="Return to operations portal">
