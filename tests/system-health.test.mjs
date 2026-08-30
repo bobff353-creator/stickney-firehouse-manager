@@ -11,13 +11,20 @@ test("system health is admin-only and uses live service checks", () => {
   assert.match(route, /SELECT 1 AS online/);
   assert.match(route, /auth\.admin\.listUsers/);
   assert.match(route, /storage\.listBuckets/);
+  assert.match(route, /pg_database_size\(current_database\(\)\)/);
+  assert.match(route, /FROM storage\.objects/);
   assert.match(route, /VERCEL_GIT_COMMIT_SHA/);
+  assert.match(route, /VERCEL_GIT_COMMIT_REF/);
+  assert.match(route, /VERCEL_GIT_REPO_SLUG/);
 });
 
 test("backup controls do not claim success without a connected verification feed", () => {
   assert.match(route, /Monitoring not connected/);
   assert.match(route, /will not claim zero failures/);
   assert.match(route, /No automated restore test or checksum verification receipt is connected/);
+  assert.match(route, /id: "database-usage"[\s\S]*state: "healthy"/);
+  assert.match(route, /id: "storage-usage"[\s\S]*state: "healthy"/);
+  assert.doesNotMatch(route, /Provider usage telemetry is not available to the portal runtime/);
   assert.doesNotMatch(route, /Aug 25|3\.7 GB|412 MB|All systems normal[^"\n]*,/);
 });
 
