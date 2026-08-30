@@ -26,6 +26,8 @@ test("guided map supports road lookup and movement while tracing", () => {
   assert.match(api, /maps\.googleapis\.com\/maps\/api\/geocode/);
   assert.match(page, /Find on map/);
   assert.match(page, /Use current location/);
+  assert.match(page, /Recenter map on Stickney/);
+  assert.doesNotMatch(page, />Center Stickney</);
   assert.match(page, /onPointerMove/);
   assert.match(page, /drag to move/);
   assert.doesNotMatch(page, /window\.prompt/);
