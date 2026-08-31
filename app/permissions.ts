@@ -16,6 +16,9 @@ export const permissionCatalog = [
   { key: "field_preplans.manage_settings", label: "Manage preplan calculation settings", group: "Field" },
   { key: "incident_command.view", label: "View Incident Command Board", group: "Field" },
   { key: "incident_command.manage", label: "Operate Incident Command Board", group: "Field" },
+  { key: "safety_inspections.view", label: "View monthly safety inspections and reports", group: "Field" },
+  { key: "safety_inspections.complete", label: "Complete and submit safety inspections", group: "Field" },
+  { key: "safety_inspections.manage", label: "Edit safety inspection checklists and reopen records", group: "Field" },
   { key: "scheduling.view", label: "View scheduling", group: "Scheduling" },
   { key: "scheduling.manage", label: "Manage schedules and requests", group: "Scheduling" },
   { key: "payroll.view_own", label: "View own timesheet", group: "Payroll", required: true },
@@ -37,9 +40,9 @@ export const permissionCatalog = [
 export type PermissionKey = typeof permissionCatalog[number]["key"];
 
 const allPermissions = permissionCatalog.map((permission) => permission.key);
-const memberPermissions: PermissionKey[] = ["dashboard.view", "operations_board.view", "scheduling.view", "payroll.view_own", "documents.view", "field_preplans.view", "inventory.view", "inventory.check"];
+const memberPermissions: PermissionKey[] = ["dashboard.view", "operations_board.view", "scheduling.view", "payroll.view_own", "documents.view", "field_preplans.view", "safety_inspections.view", "safety_inspections.complete", "inventory.view", "inventory.check"];
 const firefighterPermissions: PermissionKey[] = [...memberPermissions, "daily_log.view", "daily_log.manage", "field_preplans.edit", "incident_command.view"];
-const officerPermissions: PermissionKey[] = [...firefighterPermissions, "field_preplans.review", "field_preplans.verify_expiring", "employees.view", "contacts.view", "incident_command.manage", "inventory.repairs.manage"];
+const officerPermissions: PermissionKey[] = [...firefighterPermissions, "field_preplans.review", "field_preplans.verify_expiring", "employees.view", "contacts.view", "incident_command.manage", "safety_inspections.manage", "inventory.repairs.manage"];
 
 export function defaultPermissionsForRank(rank: string, isAdmin = false): PermissionKey[] {
   const value = rank.trim().toLowerCase();
