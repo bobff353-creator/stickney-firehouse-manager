@@ -46,6 +46,8 @@ test("the Out of Service exemption is enforced and explained across Fleet workfl
   assert.match(inventory, /Daily and weekly checks: Not needed/);
   assert.match(inventory, /will not appear overdue or block officer sign-out/);
   assert.match(operations, /Not needed — apparatus Out of Service/);
+  assert.match(operations, /if \(routineCheckNotNeeded\(apparatus, checkType\)\) return \[\]/);
+  assert.match(operations, /due-check-exemptions/);
   assert.match(duties, /Not needed — apparatus out of service/);
 });
 

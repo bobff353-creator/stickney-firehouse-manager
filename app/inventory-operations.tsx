@@ -881,12 +881,21 @@ export default function InventoryOperations({
   const chicagoWeekday = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", weekday: "short" }).format(today);
   const todayDay = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(chicagoWeekday);
   const chicagoToday = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(today);
+  const notNeededChecks = data.apparatus.flatMap((apparatus) => data.inspectionSchedules.flatMap((schedule) => {
+    const checkType = value(schedule, "check_type") as CheckCard["checkType"];
+    if (value(schedule, "apparatus_id") !== value(apparatus, "id")
+      || Number(schedule.day_of_week) !== todayDay
+      || schedule.active === false
+      || !routineCheckNotNeeded(apparatus, checkType)) return [];
+    return [{ apparatusId: value(apparatus, "id"), name: value(apparatus, "name"), checkType }];
+  }));
   const dueChecks: CheckCard[] = data.apparatus.flatMap((apparatus) => {
     const apparatusId = value(apparatus, "id");
     const equipment = data.equipment.filter((item) => value(item, "apparatus_id") === apparatusId);
     const schedules = data.inspectionSchedules.filter((schedule) => value(schedule, "apparatus_id") === apparatusId && Number(schedule.day_of_week) === todayDay && schedule.active !== false);
     return schedules.flatMap((schedule) => {
       const checkType = value(schedule, "check_type") as CheckCard["checkType"];
+      if (routineCheckNotNeeded(apparatus, checkType)) return [];
       const scbaTemplate = data.scbaTemplates.find((item) => value(item, "apparatus_id") === apparatusId && item.active !== false);
       const scbaConfigured = (Array.isArray(scbaTemplate?.pack_positions) ? scbaTemplate.pack_positions.length : 0)
         + (scbaTemplate?.include_rit ? 1 : 0)
@@ -1011,8 +1020,9 @@ export default function InventoryOperations({
       {view === "due" ? (
         <>
           <section className="ops-card due-now-card">
-            <header><div><span>APPARATUS CHECKS DUE NOW</span><h2>{dueChecks.length ? `${dueChecks.length} required check${dueChecks.length === 1 ? "" : "s"}` : "All required checks are complete"}</h2></div><b>{data.checks.filter((check) => value(check, "status") === "in_progress" && value(check, "check_type") !== "inventory").length} in progress</b></header>
+            <header><div><span>APPARATUS CHECKS DUE NOW</span><h2>{dueChecks.length ? `${dueChecks.length} required check${dueChecks.length === 1 ? "" : "s"}` : "All required checks are complete"}</h2></div><b>{data.checks.filter((check) => value(check, "status") === "in_progress" && value(check, "check_type") !== "inventory" && !routineCheckNotNeeded(data.apparatus.find((apparatus) => value(apparatus, "id") === value(check, "apparatus_id")), value(check, "check_type"))).length} in progress</b></header>
             {dueChecks.length ? renderCheckCards(dueChecks, (checkType) => `${formatStatus(checkType)} · DUE TODAY`) : <div className="ops-empty due-clear"><strong>No required apparatus checks are waiting.</strong><p>Completed scheduled checks fall off this list automatically.</p></div>}
+            {notNeededChecks.length ? <div className="due-check-exemptions" role="status"><strong>Not needed — apparatus Out of Service</strong><div>{notNeededChecks.map((check) => <span key={`${check.apparatusId}-${check.checkType}`}>{check.name} · {formatStatus(check.checkType)}</span>)}</div><small>These checks will resume automatically when Fleet returns the apparatus to service.</small></div> : null}
           </section>
           <section className="ops-card inventory-checks-card">
             <header><div><span>SEPARATE INVENTORY CHECKS</span><h2>Inventory by apparatus</h2></div><b>{inventoryChecks.length} apparatus</b></header>
