@@ -2197,6 +2197,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .scheduler-view-bar > button { min-height: 40px; padding: 0 17px; border: 1px solid var(--sched-line); border-radius: 0; background: #111a25; color: #b5c0cc; display: inline-flex; align-items: center; font-size: 13px; font-weight: 800; }
 .scheduler-view-bar > button:first-child { border-radius: 7px 0 0 7px; }
 .scheduler-view-bar > button:nth-child(2) { margin-left: -1px; border-radius: 0 7px 7px 0; }
+.scheduler-view-bar > button:only-of-type { border-radius: 7px; }
 .scheduler-view-bar > button:hover:not(:disabled) { position: relative; border-color: #5b7693; background: #1b2b3b; color: #fff; }
 .scheduler-view-bar > button:focus-visible { position: relative; z-index: 1; outline: 3px solid #6cb5e8; outline-offset: 2px; }
 .scheduler-view-bar > button.current { position: relative; z-index: 1; border-color: #d82935; background: #d82935; color: white; }
@@ -2255,6 +2256,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .scheduler-month-card { padding: 16px !important; }
 .scheduler-month-head { margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
 .scheduler-month-head h3 { margin: 0; font-size: 20px; }
+.scheduler-month-head h3 .personal-calendar-label { margin-top: 3px; color: #7fbfe8; display: block; font-size: 9px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
 .scheduler-month-head div { display: flex; gap: 6px; }
 .scheduler-month-head button { width: 38px; min-height: 38px; padding: 0; border-color: #344252; background: #1b2634; font-size: 20px; }
 .scheduler-month-head .calendar-rotation-button { width: auto; padding: 0 12px; font-size: 11px; }

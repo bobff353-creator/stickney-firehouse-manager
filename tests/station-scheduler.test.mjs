@@ -70,6 +70,10 @@ test("scheduler uses the scoped Stickney mobile workspace instead of prototype b
   assert.equal(component.includes("12_000"), true, "the shared time window rotates every 12 seconds");
   assert.equal(component.includes("Pause rotation"), true, "automatic rotation can be paused");
   assert.equal(component.includes('setSchedulerView("employee")'), true, "the Employee view is an interactive control");
+  assert.equal(component.includes(">My Schedule</button>"), true, "the personal calendar has a plain-language destination");
+  assert.equal(component.includes('slot.employeeId === myId'), true, "the personal month and day views filter assignments to the signed-in employee");
+  assert.equal(component.includes('row.employeeId === myId'), true, "the personal calendar does not show another employee's availability");
+  assert.equal(component.includes('You are not scheduled for this day.'), true, "an empty personal day has a clear and truthful state");
   assert.equal(component.includes('aria-label="Choose scheduler view"'), true, "the view switcher is clearly labeled");
   assert.equal(component.includes("datesWithActiveBuiltShifts"), true, "active Shift Builder entries take priority over retired imported overlaps");
   assert.equal(component.includes("matchingBuiltShifts"), true, "the day picker offers only builders matching the selected date's recurrence");
