@@ -4,31 +4,32 @@ import test from "node:test";
 
 const source = await readFile(new URL("../db/bootstrap.ts", import.meta.url), "utf8");
 const markerMigration = await readFile(
-  new URL("../supabase/migrations/20260811013542_add_callback_rule_evaluations.sql", import.meta.url),
+  new URL("../supabase/migrations/20260831191500_restore_monthly_safety_inspection_bootstrap_marker.sql", import.meta.url),
   "utf8",
 );
 
-test("database bootstrap uses a durable version fast path and applies new schema once", () => {
+test("database bootstrap uses a durable version fast path without runtime DDL", () => {
   assert.match(source, /runtime_bootstrap_version/);
-  assert.match(source, /marker\?\.value === runtimeBootstrapVersion/);
-  assert.match(source, /callback-rules-v2/);
-  assert.match(source, /A stale \(or missing\) runtime marker falls through to initializeDatabase/);
+  assert.match(source, /marker\?\.value !== runtimeBootstrapVersion/);
+  assert.match(source, /Apply the required Supabase migrations/);
   assert.match(source, /if \(ready\) return db/);
+  assert.doesNotMatch(source.slice(source.indexOf("export async function ensureDatabase")), /initializeDatabase\(db\)/);
   assert.doesNotMatch(source, /if \(ready\) \{[\s\S]*?importApproved1203WeeklyCheck/);
   assert.doesNotMatch(source, /if \(ready\) \{[\s\S]*?importApproved1204WeeklyCheck/);
 });
 
-test("concurrent cold requests share one database initialization", () => {
-  assert.match(source, /initializationPromise \?\?= initializeDatabase\(db\)/);
-  assert.match(source, /return await initializationPromise/);
+test("a stale production marker cannot trigger schema changes through the query gateway", () => {
+  const ensureDatabase = source.slice(source.indexOf("export async function ensureDatabase"));
+  assert.doesNotMatch(ensureDatabase, /CREATE TABLE|ALTER TABLE|initializeDatabase/);
 });
 
 test("the deployed migration advances the runtime bootstrap marker", () => {
   const version = source.match(/runtimeBootstrapVersion\s*=\s*"([^"]+)"/)?.[1];
 
   assert.ok(version, "runtime bootstrap version must be declared");
-  assert.match(markerMigration, /daily_log_callback_submissions/);
-  assert.match(markerMigration, /callback_payroll_aggregates/);
+  assert.match(markerMigration, /safety_inspection_templates/);
+  assert.match(markerMigration, /safety_inspection_template_items/);
+  assert.match(markerMigration, /extinguisher_item_count <> 24/);
   assert.ok(
     markerMigration.includes(version),
     `marker migration must install runtime bootstrap version ${version}`,

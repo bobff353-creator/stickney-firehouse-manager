@@ -662,30 +662,26 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
   return db;
 }
 
-let initializationPromise: Promise<Awaited<ReturnType<typeof getDatabaseBinding>>> | null = null;
-
 export async function ensureDatabase() {
   const db = await getDatabaseBinding();
   if (ready) return db;
 
+  let marker: { value: string } | null;
   try {
-    const marker = await db.prepare("SELECT value FROM system_meta WHERE key = 'runtime_bootstrap_version' LIMIT 1").first<{ value: string }>();
-    if (marker?.value === runtimeBootstrapVersion) {
-      ready = true;
-      return db;
-    }
-    // A stale (or missing) runtime marker falls through to initializeDatabase,
-    // which is fully idempotent (CREATE TABLE IF NOT EXISTS / ALTER guards /
-    // marker-gated seeds) and runs once per version bump to apply new schema —
-    // e.g. the Station Scheduler station_* tables added on 2026-08-07.
-  } catch {
-    // A new database does not have system_meta yet and needs the full bootstrap.
+    marker = await db.prepare("SELECT value FROM system_meta WHERE key = 'runtime_bootstrap_version' LIMIT 1").first<{ value: string }>();
+  } catch (error) {
+    throw new Error(
+      "Portal database schema check failed. Apply the required Supabase migrations before starting the portal.",
+      { cause: error },
+    );
   }
 
-  initializationPromise ??= initializeDatabase(db);
-  try {
-    return await initializationPromise;
-  } finally {
-    initializationPromise = null;
+  if (marker?.value !== runtimeBootstrapVersion) {
+    throw new Error(
+      `Portal database schema is not ready. Expected ${runtimeBootstrapVersion}; found ${marker?.value ?? "no runtime bootstrap marker"}. Apply the required Supabase migrations.`,
+    );
   }
+
+  ready = true;
+  return db;
 }
