@@ -67,3 +67,21 @@ test("inspection workflow validates, locks, reports, prints, emails, and accepts
   assert.match(attachments, /20 \* 1024 \* 1024/);
   assert.match(attachments, /application\/pdf/);
 });
+
+test("inspection forms are usable on desktop, tablet, and phone", async () => {
+  const [component, styles] = await Promise.all([
+    read("app/safety-inspections.tsx"),
+    read("app/globals.css"),
+  ]);
+  assert.match(component, /Simple field workflow/);
+  assert.match(component, /role="progressbar"/);
+  assert.match(component, /Jump to an inspection section/);
+  assert.match(component, /Search checkpoints/);
+  assert.match(component, /aria-pressed=/);
+  assert.doesNotMatch(component, /safety-template-card[^\n]+onClick/);
+  assert.match(styles, /Responsive Safety Inspections workspace/);
+  assert.match(styles, /@media\(max-width:800px\)/);
+  assert.match(styles, /@media\(max-width:560px\)/);
+  assert.match(styles, /\.safety-record-actions\{position:sticky/);
+  assert.match(styles, /\.safety-result-buttons button\{min-width:86px;min-height:46px/);
+});

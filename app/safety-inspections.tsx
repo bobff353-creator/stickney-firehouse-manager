@@ -42,6 +42,10 @@ function cadenceLabel(value: string) {
   return value === "weekly" ? "Weekly" : "Monthly";
 }
 
+function inspectionIcon(template: Template) {
+  return template.category === "Fire extinguishers" ? "FE" : template.cadence === "weekly" ? "EW" : "SI";
+}
+
 function parseLocationOptions(value: string) {
   try {
     const parsed = JSON.parse(value || "[]");
@@ -66,6 +70,8 @@ export default function SafetyInspections({ readOnly = false }: { readOnly?: boo
   const [templateDrafts, setTemplateDrafts] = useState<Template[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [templateFilter, setTemplateFilter] = useState("all");
+  const [editorSearch, setEditorSearch] = useState("");
+  const [editorSectionFilter, setEditorSectionFilter] = useState("all");
 
   const load = useCallback(async (inspectionId = "") => {
     setLoading(true);
@@ -109,6 +115,18 @@ export default function SafetyInspections({ readOnly = false }: { readOnly?: boo
   const currentEditable = Boolean(data?.inspection && draft && data.viewer.canComplete && !readOnly && data.inspection.status !== "submitted");
   const templateDraft = templateDrafts.find((item) => item.id === template?.id);
   const currentLocationOptions = parseLocationOptions(template?.locationOptions || "[]");
+  const editorItems = useMemo(() => itemDrafts.filter((item) => item.templateId === template?.id).sort((a, b) => a.sortOrder - b.sortOrder), [itemDrafts, template?.id]);
+  const editorSections = useMemo(() => [...new Set(editorItems.map((item) => item.sectionName).filter(Boolean))], [editorItems]);
+  const visibleEditorItems = useMemo(() => {
+    const query = editorSearch.trim().toLowerCase();
+    return editorItems.filter((item) => (editorSectionFilter === "all" || item.sectionName === editorSectionFilter) && (!query || `${item.sectionName} ${item.label} ${item.equipmentType}`.toLowerCase().includes(query)));
+  }, [editorItems, editorSearch, editorSectionFilter]);
+
+  function chooseTemplate(templateId: string) {
+    setSelectedTemplateId(templateId);
+    setEditorSearch("");
+    setEditorSectionFilter("all");
+  }
 
   async function post(body: Record<string, unknown>) {
     const response = await fetch("/api/safety-inspections", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -234,8 +252,13 @@ export default function SafetyInspections({ readOnly = false }: { readOnly?: boo
   if (editingChecklist && data.viewer.canManage) return <section className="safety-inspections-page safety-template-editor">
     <header className="safety-page-head"><div><p className="eyebrow">Field · Safety inspections</p><h1>Edit inspection forms</h1><p>Choose a form, then update its instructions, locations, and checkpoints. Submitted inspections retain their saved wording and results.</p></div><button className="quiet-button" onClick={() => setEditingChecklist(false)}>Back to inspections</button></header>
     {message && <div className="safety-message success" role="status">{message}</div>}{error && <div className="safety-message error" role="alert">{error}</div>}
-    <nav className="safety-template-tabs" aria-label="Inspection forms">{data.templates.map((entry) => <button type="button" key={entry.id} className={entry.id === template?.id ? "selected" : ""} onClick={() => setSelectedTemplateId(entry.id)}>{entry.title}</button>)}</nav>
+    <section className="safety-editor-picker" aria-labelledby="safety-editor-picker-title">
+      <div><p className="eyebrow">Form library</p><h2 id="safety-editor-picker-title">Choose the form to edit</h2><p>Changes affect new inspections only. Submitted records stay unchanged.</p></div>
+      <label><span>Inspection form</span><select value={template?.id || ""} onChange={(event) => chooseTemplate(event.target.value)}>{data.templates.map((entry) => <option key={entry.id} value={entry.id}>{entry.title}</option>)}</select></label>
+    </section>
+    <nav className="safety-template-tabs" aria-label="Inspection forms">{data.templates.map((entry) => <button type="button" key={entry.id} aria-current={entry.id === template?.id ? "page" : undefined} className={entry.id === template?.id ? "selected" : ""} onClick={() => chooseTemplate(entry.id)}>{entry.title}</button>)}</nav>
     {templateDraft && <section className="safety-template-settings">
+      <header><div><p className="eyebrow">Form settings</p><h2>{templateDraft.title}</h2></div><span>{editorItems.length} checkpoints</span></header>
       <label><span>Form name</span><input value={templateDraft.title} onChange={(event) => setTemplateDrafts((current) => current.map((entry) => entry.id === templateDraft.id ? { ...entry, title: event.target.value } : entry))}/></label>
       <label><span>Category</span><input value={templateDraft.category} onChange={(event) => setTemplateDrafts((current) => current.map((entry) => entry.id === templateDraft.id ? { ...entry, category: event.target.value } : entry))}/></label>
       <label><span>Frequency</span><select value={templateDraft.cadence} onChange={(event) => setTemplateDrafts((current) => current.map((entry) => entry.id === templateDraft.id ? { ...entry, cadence: event.target.value } : entry))}><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label>
@@ -243,14 +266,22 @@ export default function SafetyInspections({ readOnly = false }: { readOnly?: boo
       <label className="wide"><span>Facility choices (one per line; leave blank when the form does not need one)</span><textarea value={templateDraft.locationOptions} onChange={(event) => setTemplateDrafts((current) => current.map((entry) => entry.id === templateDraft.id ? { ...entry, locationOptions: event.target.value } : entry))}/></label>
       <div className="safety-template-setting-actions"><button className="quiet-button" disabled={saving} onClick={() => void addCheckpoint()}>Add checkpoint</button><button className="primary-action" disabled={saving} onClick={() => void saveTemplate(templateDraft)}>Save form settings</button></div>
     </section>}
-    <div className="safety-template-list">{itemDrafts.filter((item) => item.templateId === template?.id).sort((a,b) => a.sortOrder-b.sortOrder).map((item) => <article key={item.id}>
-      <label><span>Section</span><input value={item.sectionName} onChange={(event) => setItemDrafts((current) => current.map((entry) => entry.id === item.id ? { ...entry, sectionName: event.target.value } : entry))}/></label>
-      <label><span>Checkpoint</span><input value={item.label} onChange={(event) => setItemDrafts((current) => current.map((entry) => entry.id === item.id ? { ...entry, label: event.target.value } : entry))}/></label>
-      <label><span>Equipment / location detail</span><input value={item.equipmentType} onChange={(event) => setItemDrafts((current) => current.map((entry) => entry.id === item.id ? { ...entry, equipmentType: event.target.value } : entry))}/></label>
-      <label className="check"><input type="checkbox" checked={Boolean(item.required)} onChange={(event) => setItemDrafts((current) => current.map((entry) => entry.id === item.id ? { ...entry, required: event.target.checked ? 1 : 0 } : entry))}/><span>Required each {template?.cadence === "weekly" ? "week" : "month"}</span></label>
-      <label className="check"><input type="checkbox" checked={Boolean(item.active)} onChange={(event) => setItemDrafts((current) => current.map((entry) => entry.id === item.id ? { ...entry, active: event.target.checked ? 1 : 0 } : entry))}/><span>Active</span></label>
-      <button className="primary-action compact" disabled={saving} onClick={() => void saveChecklistItem(item)}>Save checkpoint</button>
-    </article>)}</div>
+    <section className="safety-editor-checkpoints" aria-labelledby="safety-editor-checkpoints-title">
+      <header><div><p className="eyebrow">Checkpoint editor</p><h2 id="safety-editor-checkpoints-title">Find and update a checkpoint</h2></div><span>{visibleEditorItems.length} of {editorItems.length} shown</span></header>
+      <div className="safety-editor-tools">
+        <label><span>Search checkpoints</span><input type="search" value={editorSearch} onChange={(event) => setEditorSearch(event.target.value)} placeholder="Search wording, equipment, or room…"/></label>
+        <label><span>Section</span><select value={editorSectionFilter} onChange={(event) => setEditorSectionFilter(event.target.value)}><option value="all">All sections</option>{editorSections.map((section) => <option key={section} value={section}>{section}</option>)}</select></label>
+      </div>
+      <div className="safety-template-list">{visibleEditorItems.map((item) => <article key={item.id}>
+        <header><span>Checkpoint {editorItems.indexOf(item) + 1}</span><strong>{item.label || "Untitled checkpoint"}</strong></header>
+        <div className="safety-template-fields">
+          <label><span>Section</span><input value={item.sectionName} onChange={(event) => setItemDrafts((current) => current.map((entry) => entry.id === item.id ? { ...entry, sectionName: event.target.value } : entry))}/></label>
+          <label><span>Checkpoint wording</span><input value={item.label} onChange={(event) => setItemDrafts((current) => current.map((entry) => entry.id === item.id ? { ...entry, label: event.target.value } : entry))}/></label>
+          <label><span>Equipment / location detail</span><input value={item.equipmentType} onChange={(event) => setItemDrafts((current) => current.map((entry) => entry.id === item.id ? { ...entry, equipmentType: event.target.value } : entry))}/></label>
+        </div>
+        <footer><div><label className="check"><input type="checkbox" checked={Boolean(item.required)} onChange={(event) => setItemDrafts((current) => current.map((entry) => entry.id === item.id ? { ...entry, required: event.target.checked ? 1 : 0 } : entry))}/><span>Required each {template?.cadence === "weekly" ? "week" : "month"}</span></label><label className="check"><input type="checkbox" checked={Boolean(item.active)} onChange={(event) => setItemDrafts((current) => current.map((entry) => entry.id === item.id ? { ...entry, active: event.target.checked ? 1 : 0 } : entry))}/><span>Active</span></label></div><button className="primary-action compact" disabled={saving} onClick={() => void saveChecklistItem(item)}>Save checkpoint</button></footer>
+      </article>)}{visibleEditorItems.length === 0 && <div className="safety-empty"><strong>No checkpoints found.</strong><span>Clear the search or choose another section.</span></div>}</div>
+    </section>
   </section>;
 
   if (data.inspection && draft) {
@@ -258,36 +289,45 @@ export default function SafetyInspections({ readOnly = false }: { readOnly?: boo
     const passed = draft.results.filter((item) => item.status === "pass").length;
     const deficient = draft.results.filter((item) => item.status === "deficient").length;
     const remaining = draft.results.filter((item) => item.status === "not_checked").length;
+    const completed = draft.results.length - remaining;
+    const percentComplete = draft.results.length ? Math.round((completed / draft.results.length) * 100) : 0;
     return <section className="safety-inspections-page safety-record-page">
-      <header className="safety-page-head"><div><p className="eyebrow">Field · Safety inspections</p><h1>{template?.title}</h1><p>{template?.description}</p></div><div className="safety-head-actions no-print"><button className="quiet-button" onClick={() => void load()}>All inspections</button><button className="quiet-button" onClick={() => window.print()}>Print / Save PDF</button><button className="quiet-button" onClick={emailDetail}>Email detailed report</button></div></header>
+      <header className="safety-page-head"><div><button className="safety-back-link no-print" onClick={() => void load()}>← All inspections</button><p className="eyebrow">Field · Safety inspections</p><h1>{template?.title}</h1><p>{template?.description}</p></div><div className="safety-head-actions no-print"><button className="quiet-button" onClick={() => window.print()}>Print / Save PDF</button><button className="quiet-button" onClick={emailDetail}>Email detailed report</button></div></header>
       {message && <div className="safety-message success" role="status">{message}</div>}{error && <div className="safety-message error" role="alert">{error}</div>}
       <div className="safety-record-identity"><label><span>Inspection date</span><input type="date" value={draft.date} readOnly={!currentEditable} onChange={(event) => setDraft({ ...draft, date: event.target.value })}/></label>{currentLocationOptions.length > 0 && <label><span>Facility inspected</span><select value={draft.location} disabled={!currentEditable} onChange={(event) => setDraft({ ...draft, location: event.target.value })}><option value="">Choose facility</option>{currentLocationOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>}<div><span>Inspector</span><strong>{data.inspection.inspectorName}</strong></div><div><span>Record status</span><strong className={`safety-status ${data.inspection.status}`}>{statusLabel(data.inspection.status)}</strong></div><div><span>Last update</span><strong>{data.inspection.updatedAt || "Not recorded"}</strong></div></div>
-      <div className="safety-progress" aria-label="Inspection progress"><span><b>{passed}</b> passed</span><span className={deficient ? "danger" : ""}><b>{deficient}</b> deficient</span><span><b>{remaining}</b> remaining</span></div>
-      {recordSections.map((section) => <section className="safety-section" key={section}><header><h2>{section}</h2><span>{recordItems.filter((item) => item.sectionName === section).length} checkpoints</span></header><div className="safety-checklist">
-        {recordItems.filter((item) => item.sectionName === section).map((item) => { const result = resultById.get(item.id); if (!result) return null; return <article className={`safety-check-row ${result.status}`} key={item.id}>
-          <div className="safety-item-name"><strong>{item.label}</strong><span>{item.equipmentType ? `${item.equipmentType} · ` : ""}{item.required ? "Required" : "Optional"}</span></div>
-          <div className="safety-result-buttons" role="group" aria-label={`Result for ${item.label}`}>{([['pass','Pass'],['deficient','Deficient'],['not_applicable','N/A']] as const).map(([value,label]) => <button type="button" key={value} disabled={!currentEditable} className={result.status === value ? "selected" : ""} onClick={() => updateResult(item.id,{status:value})}>{label}</button>)}</div>
+      <section className="safety-progress-panel" aria-labelledby="safety-progress-title">
+        <div className="safety-progress-heading"><div><span>Inspection progress</span><strong id="safety-progress-title">{completed} of {draft.results.length} complete</strong></div><b>{percentComplete}%</b></div>
+        <div className="safety-progress-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percentComplete} aria-label={`${percentComplete}% complete`}><span style={{ width: `${percentComplete}%` }}/></div>
+        <div className="safety-progress" aria-label="Inspection totals"><span><b>{passed}</b> passed</span><span className={deficient ? "danger" : ""}><b>{deficient}</b> deficient</span><span><b>{remaining}</b> remaining</span></div>
+      </section>
+      {recordSections.length > 1 && <nav className="safety-section-jump no-print" aria-label="Jump to an inspection section"><strong>Jump to section</strong><div>{recordSections.map((section, sectionIndex) => { const sectionItems = recordItems.filter((item) => item.sectionName === section); const sectionComplete = sectionItems.filter((item) => resultById.get(item.id)?.status !== "not_checked").length; return <a key={section} href={`#safety-section-${sectionIndex}`}><span>{section}</span><b>{sectionComplete}/{sectionItems.length}</b></a>; })}</div></nav>}
+      {recordSections.map((section, sectionIndex) => { const sectionItems = recordItems.filter((item) => item.sectionName === section); const sectionComplete = sectionItems.filter((item) => resultById.get(item.id)?.status !== "not_checked").length; return <section className="safety-section" id={`safety-section-${sectionIndex}`} key={section}><header><div><p>Section {sectionIndex + 1} of {recordSections.length}</p><h2>{section}</h2></div><span>{sectionComplete}/{sectionItems.length} complete</span></header><div className="safety-checklist">
+        {sectionItems.map((item, itemIndex) => { const result = resultById.get(item.id); if (!result) return null; return <article className={`safety-check-row ${result.status}`} key={item.id}>
+          <div className="safety-item-name"><span className="safety-check-number">{itemIndex + 1}</span><div><strong>{item.label}</strong><span>{item.equipmentType || "General condition"}</span></div>{item.required ? <b>Required</b> : <b className="optional">Optional</b>}</div>
+          <div className="safety-result-buttons" role="group" aria-label={`Result for ${item.label}`}>{([['pass','Pass'],['deficient','Deficient'],['not_applicable','N/A']] as const).map(([value,label]) => <button type="button" key={value} disabled={!currentEditable} aria-pressed={result.status === value} className={result.status === value ? "selected" : ""} onClick={() => updateResult(item.id,{status:value})}>{label}</button>)}</div>
           {result.status === "deficient" && <div className="safety-deficiency"><label><span>What is deficient and what action is needed? *</span><textarea readOnly={!currentEditable} value={result.deficiencyNote} onChange={(event) => updateResult(item.id,{deficiencyNote:event.target.value})}/></label><label className="check"><input type="checkbox" disabled={!currentEditable} checked={Boolean(result.correctedOnSite)} onChange={(event) => updateResult(item.id,{correctedOnSite:event.target.checked ? 1 : 0})}/><span>Corrected during this inspection</span></label></div>}
         </article>})}
-      </div></section>)}
+      </div></section>})}
       <section className="safety-notes"><label><span>Overall notes</span><textarea readOnly={!currentEditable} value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} placeholder="Condition, service needed, replacement information, or follow-up owner…"/></label></section>
       <section className="safety-attachments"><header><div><h2>Supporting files</h2><p>Add deficiency photos, service tags, or a PDF receipt.</p></div>{currentEditable && <label className="safety-upload no-print"><input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf" onChange={(event) => { void upload(event.target.files?.[0] || null); event.currentTarget.value=""; }}/><span>Attach file</span></label>}</header>{data.attachments.length ? <ul>{data.attachments.map((attachment) => <li key={attachment.id}><a href={`/api/safety-inspections/attachments/${attachment.id}`} target="_blank" rel="noreferrer">{attachment.filename}</a><span>{bytesLabel(attachment.sizeBytes)} · {attachment.createdBy}</span>{currentEditable && <button className="no-print" onClick={() => void removeAttachment(attachment.id)}>Remove</button>}</li>)}</ul> : <p className="safety-empty-inline">No files attached.</p>}</section>
-      <footer className="safety-record-actions no-print"><span>{data.inspection.status === "submitted" ? `Submitted ${data.inspection.submittedAt || ""} by ${data.inspection.submittedBy || data.inspection.inspectorName}` : "Save a draft at any time. Submission requires every required checkpoint to be completed."}</span><div>{data.inspection.status === "submitted" && data.viewer.canManage && <button className="quiet-button" disabled={saving} onClick={() => void reopen()}>Reopen for correction</button>}{currentEditable && <><button className="quiet-button" disabled={saving} onClick={() => void save(false)}>Save draft</button><button className="primary-action" disabled={saving} onClick={() => void save(true)}>Submit inspection</button></>}</div></footer>
+      <footer className="safety-record-actions no-print"><span>{data.inspection.status === "submitted" ? `Submitted ${data.inspection.submittedAt || ""} by ${data.inspection.submittedBy || data.inspection.inspectorName}` : remaining ? `${remaining} checkpoint${remaining === 1 ? "" : "s"} remaining. Save now and finish later on any device.` : "All checkpoints are complete. Review any deficiencies, then submit the inspection."}</span><div>{data.inspection.status === "submitted" && data.viewer.canManage && <button className="quiet-button" disabled={saving} onClick={() => void reopen()}>Reopen for correction</button>}{currentEditable && <><button className="quiet-button" disabled={saving} onClick={() => void save(false)}>{saving ? "Saving…" : "Save draft"}</button><button className="primary-action" disabled={saving} onClick={() => void save(true)}>Submit inspection</button></>}</div></footer>
     </section>;
   }
 
   return <section className="safety-inspections-page safety-report-page">
     <header className="safety-page-head"><div><p className="eyebrow">Field · Safety inspections</p><h1>Safety Inspections</h1><p>Choose the inspection you need, complete its checkpoints, and print or email general and detailed reports.</p></div><div className="safety-head-actions no-print">{data.viewer.canManage && <button className="quiet-button" onClick={() => setEditingChecklist(true)}>Edit inspection forms</button>}</div></header>
     {readOnly && <div className="safety-message">Test view is read only. Exit test view to start or edit an inspection.</div>}{message && <div className="safety-message success" role="status">{message}</div>}{error && <div className="safety-message error" role="alert">{error}</div>}
+    <section className="safety-workflow-guide no-print" aria-labelledby="safety-workflow-title"><div><p className="eyebrow">Simple field workflow</p><h2 id="safety-workflow-title">Start, check, and submit</h2></div><ol><li><b>1</b><span><strong>Choose a form</strong><small>Use the exact facility or safety inspection below.</small></span></li><li><b>2</b><span><strong>Complete checkpoints</strong><small>Mark Pass, Deficient, or N/A and add evidence.</small></span></li><li><b>3</b><span><strong>Submit and report</strong><small>Print, save as PDF, or prepare an email report.</small></span></li></ol></section>
+    <header className="safety-library-head"><div><p className="eyebrow">Available inspection forms</p><h2>What are you inspecting?</h2></div><span>{data.templates.length} forms</span></header>
     <div className="safety-template-grid">{data.templates.map((entry) => {
       const itemCount = data.templateItems.filter((item) => item.templateId === entry.id && item.active).length;
-      return <article className={`safety-template-card ${entry.id === template?.id ? "selected" : ""}`} key={entry.id} onClick={() => setSelectedTemplateId(entry.id)}>
-        <div><span className="safety-template-icon">{entry.category === "Fire extinguishers" ? "FE" : entry.cadence === "weekly" ? "EW" : "SI"}</span><div><p className="eyebrow">{entry.category}</p><h2>{entry.title}</h2><p>{entry.description}</p></div></div>
-        <dl><div><dt>Frequency</dt><dd>{cadenceLabel(entry.cadence)}</dd></div><div><dt>Checkpoints</dt><dd>{itemCount}</dd></div><div><dt>Inspector</dt><dd>{data.viewer.name}</dd></div></dl>
-        <button className="primary-action no-print" disabled={saving || readOnly || !data.viewer.canComplete} onClick={(event) => { event.stopPropagation(); void startInspection(entry.id); }}>Start {entry.cadence} check</button>
+      return <article className="safety-template-card" key={entry.id}>
+        <header><span className="safety-template-icon" aria-hidden="true">{inspectionIcon(entry)}</span><div><div className="safety-template-badges"><span>{cadenceLabel(entry.cadence)}</span><span>{entry.category}</span></div><h2>{entry.title}</h2></div></header>
+        <p>{entry.description}</p>
+        <footer><dl><div><dt>Checkpoints</dt><dd>{itemCount}</dd></div><div><dt>Inspector</dt><dd>{data.viewer.name}</dd></div></dl><button className="primary-action no-print" disabled={saving || readOnly || !data.viewer.canComplete} onClick={() => void startInspection(entry.id)}>Start inspection</button></footer>
       </article>;
     })}</div>
-    <section className="safety-report-tools no-print"><label><span>Month</span><input type="month" value={monthFilter} onChange={(event) => setMonthFilter(event.target.value)}/></label><label><span>Inspection form</span><select value={templateFilter} onChange={(event) => setTemplateFilter(event.target.value)}><option value="all">All inspection forms</option>{data.templates.map((entry) => <option value={entry.id} key={entry.id}>{entry.title}</option>)}</select></label><label><span>Status</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">All statuses</option><option value="draft">Draft</option><option value="reopened">Reopened</option><option value="submitted">Submitted</option></select></label><button className="quiet-button" onClick={() => window.print()}>Print general report</button><button className="quiet-button" onClick={emailSummary}>Email general report</button></section>
+    <section className="safety-report-controls no-print" aria-labelledby="safety-report-controls-title"><header><div><p className="eyebrow">Reports and records</p><h2 id="safety-report-controls-title">Find completed work</h2><p>Filter the history before printing or preparing an email.</p></div><div><button className="quiet-button" onClick={() => window.print()}>Print general report</button><button className="quiet-button" onClick={emailSummary}>Email general report</button></div></header><div className="safety-report-tools"><label><span>Month</span><input type="month" value={monthFilter} onChange={(event) => setMonthFilter(event.target.value)}/></label><label><span>Inspection form</span><select value={templateFilter} onChange={(event) => setTemplateFilter(event.target.value)}><option value="all">All inspection forms</option>{data.templates.map((entry) => <option value={entry.id} key={entry.id}>{entry.title}</option>)}</select></label><label><span>Status</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">All statuses</option><option value="draft">Draft</option><option value="reopened">Reopened</option><option value="submitted">Submitted</option></select></label></div></section>
     <div className="safety-kpis"><article><span>Records shown</span><strong>{filtered.length}</strong></article><article><span>Submitted</span><strong>{monthSubmitted}</strong></article><article className={monthDeficiencies ? "danger" : ""}><span>Deficiencies</span><strong>{monthDeficiencies}</strong></article><article><span>Available forms</span><strong>{data.templates.length}</strong></article></div>
     <section className="safety-report-table"><header><div><h2>Inspection history</h2><p>Open any record for the detailed printable or emailable report.</p></div><span>{monthFilter || "All dates"}</span></header>{filtered.length ? <div className="table-wrap"><table><thead><tr><th>Date</th><th>Inspection</th><th>Facility</th><th>Inspector</th><th>Status</th><th>Passed</th><th>Deficient</th><th className="no-print">Action</th></tr></thead><tbody>{filtered.map((item) => <tr key={item.id}><td data-label="Date">{displayDate(item.inspectionDate)}</td><td data-label="Inspection"><strong>{item.templateTitle}</strong></td><td data-label="Facility">{item.inspectionLocation || "—"}</td><td data-label="Inspector">{item.inspectorName}</td><td data-label="Status"><span className={`safety-status ${item.status}`}>{statusLabel(item.status)}</span></td><td data-label="Passed">{item.passedItems}/{item.totalItems}</td><td data-label="Deficient"><span className={item.deficientItems ? "safety-deficient-count" : ""}>{item.deficientItems}</span></td><td data-label="Action" className="no-print"><button className="quiet-button compact" onClick={() => void load(item.id)}>Open detailed report</button></td></tr>)}</tbody></table></div> : <div className="safety-empty"><strong>No inspections match this report.</strong><span>Choose another report filter or start an inspection above.</span></div>}</section>
   </section>;
