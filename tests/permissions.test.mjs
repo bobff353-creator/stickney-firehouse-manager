@@ -74,7 +74,8 @@ test("permission saves are verified and refresh the active permission snapshot",
 
 test("Dashboard disappears and cannot remain active when its permission is removed", async () => {
   const app = await readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8");
-  assert.match(app, /visibleNav\.includes\("Dashboard"\) && <button/);
+  assert.match(app, /featuredNavItems\.filter\(\(item\) => visibleNav\.includes\(item\.page\)\)/);
+  assert.match(app, /visibleFeaturedNav\.map\(\(item\) => <button/);
   assert.match(app, /!visibleNav\.includes\(activeNav\).*setActiveNav\(homePage\)/s);
   assert.match(app, /onClick=\{\(\) => navigate\(homePage\)\}/);
   assert.match(app, /firstPermitted.*setActiveNav\(firstPermitted \?\? "My Timesheet"\)/s);

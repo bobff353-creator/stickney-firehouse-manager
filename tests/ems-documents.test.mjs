@@ -9,8 +9,8 @@ test("EMS is a permission-gated Documents page for administrators and employees"
   ]);
   assert.match(app, /label: "Documents"[\s\S]*label: "EMS", page: "EMS"/);
   assert.match(app, /const employeeNavItems:[^\n]+"EMS"/);
-  assert.match(app, /memberDocumentItems = new Set<NavItem>\(\["Policies", "EMS"\]\)/);
-  assert.match(app, /<h2>Documents<\/h2>/);
+  assert.match(app, /visibleMoreNavGroups[\s\S]+visibleNav\.includes\(item\.page\)/);
+  assert.match(app, /desktop-more-nav-groups[\s\S]+group\.items\.map/);
   assert.match(app, /EMS: "documents\.view"/);
   assert.match(app, /activeNav === "EMS"/);
   assert.match(app, /Refusal of Medical Advice/);
