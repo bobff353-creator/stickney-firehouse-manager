@@ -72,7 +72,7 @@ test("Respond overview has desktop, tablet, and phone layouts", async () => {
   assert.match(css, /\.respond-map-controls button\{[^}]*min-height:40px/);
   assert.match(css, /\.respond-map-marker\{[^}]*width:31px;height:31px/);
   assert.match(css, /\.respond-task-guide\{[^}]*display:grid/);
-  assert.match(css, /@media\(max-width:900px\)[^{]*\{[^]*\.respond-task-actions\{[^}]*grid-column:1\/-1/);
+  assert.match(css, /@media\(max-width:1000px\)[^{]*\{[^]*\.respond-task-actions\{[^}]*grid-column:1\/-1/);
   assert.match(css, /@media\(max-width:520px\)[^{]*\{[^]*\.respond-task-guide\{[^}]*grid-template-columns:1fr/);
   assert.match(css, /@media\(max-width:520px\)[^{]*\{[^]*\.respond-overview-page \.respond-title-actions>\*\{flex:none/);
 });
