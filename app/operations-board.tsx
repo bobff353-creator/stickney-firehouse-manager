@@ -108,6 +108,7 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
   const [rotationPaused,setRotationPaused]=useState(false),[lastRefresh,setLastRefresh]=useState<Date|null>(null);
   const alertEnabledRef = useRef(false), alertToneRef = useRef<AlertTone>("minitor-two-tone"), seenCallIdsRef = useRef<Set<string> | null>(null), audioContextRef = useRef<AudioContext | null>(null), onNewActiveCallRef = useRef(onNewActiveCall);
   const loadInProgressRef = useRef(false), wakeLockRef = useRef<WakeLockHandle | null>(null);
+  const boardStartedAtRef = useRef(clock.getTime()), recoveryReloadRef = useRef(false);
   const playAlert = useCallback(async (toneId = alertToneRef.current) => {
     const AudioContextClass = window.AudioContext;
     const context = audioContextRef.current ?? new AudioContextClass();
@@ -237,6 +238,16 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
       if (lock) void lock.release();
     };
   }, [load, tvMode]);
+  useEffect(() => {
+    if (!tvMode || recoveryReloadRef.current || !window.navigator.onLine) return;
+    const lastConfirmedAt = lastRefresh?.getTime() ?? boardStartedAtRef.current;
+    if (clock.getTime() - lastConfirmedAt < 10 * 60 * 1000) return;
+    const previousRecovery = Number(window.localStorage.getItem("stickney-operations-tv-recovery") || 0);
+    if (Date.now() - previousRecovery < 30 * 60 * 1000) return;
+    recoveryReloadRef.current = true;
+    window.localStorage.setItem("stickney-operations-tv-recovery", String(Date.now()));
+    window.location.reload();
+  }, [clock, lastRefresh, tvMode]);
   const next = useMemo(() => nextOperationsShiftChange(clock), [clock]);
   const activeCall = data?.activeCalls[0];
   const headerWeather = headerRotation === "today" ? weather?.days[0] : headerRotation === "tomorrow" ? weather?.days[1] : null;

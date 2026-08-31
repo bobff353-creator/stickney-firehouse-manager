@@ -5,6 +5,7 @@ import { getSupabaseBrowserClient } from "./supabase-browser";
 
 const inactivityLimitMs = 30 * 60 * 1000;
 const unlockRefreshThrottleMs = 60 * 1000;
+const stationDisplayRefreshMs = 5 * 60 * 1000;
 
 function clearAccessCache() {
   document.cookie = "__Secure-firehouse-access=; Path=/; Max-Age=0; SameSite=Lax; Secure";
@@ -20,6 +21,21 @@ export default function SessionIdleLock({
   const [locked, setLocked] = useState(false);
   const [pin, setPin] = useState("");
   const [message, setMessage] = useState("");
+  const [stationDisplay, setStationDisplay] = useState(false);
+
+  useEffect(() => {
+    const syncDisplayMode = () => {
+      const requestedDisplay = new URLSearchParams(window.location.search).get("display");
+      setStationDisplay(requestedDisplay === "tv" || (requestedDisplay !== "portal" && window.localStorage.getItem("stickney-operations-tv-mode") === "true"));
+    };
+    syncDisplayMode();
+    window.addEventListener("popstate", syncDisplayMode);
+    window.addEventListener("firehouse:tv-mode", syncDisplayMode);
+    return () => {
+      window.removeEventListener("popstate", syncDisplayMode);
+      window.removeEventListener("firehouse:tv-mode", syncDisplayMode);
+    };
+  }, []);
 
   useEffect(() => {
     if (locked) return;
@@ -27,16 +43,24 @@ export default function SessionIdleLock({
     let lastUnlockRefresh = 0;
     let unlockRefreshTimer: number | undefined;
 
-    const lock = () => {
+    const lock = (force = false) => {
+      if (stationDisplay && !force) return;
       setLocked(true);
       setPin("");
-      setMessage("The app locked after 30 minutes without activity. Your unfinished work is still here.");
+      setMessage(force
+        ? "The secure display lease ended. Enter your PIN to reconnect the board."
+        : "The app locked after 30 minutes without activity. Your unfinished work is still here.");
       void fetch("/api/auth/pin", { method: "DELETE" }).catch(() => undefined);
     };
     const refreshUnlock = async () => {
       lastUnlockRefresh = Date.now();
-      const response = await fetch("/api/auth/pin", { method: "PATCH", cache: "no-store" }).catch(() => null);
-      if (response?.status === 423) lock();
+      const response = await fetch("/api/auth/pin", {
+        method: "PATCH",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ display: stationDisplay ? "tv" : "portal" }),
+      }).catch(() => null);
+      if (response?.status === 423) lock(true);
     };
     const scheduleUnlockRefresh = () => {
       if (unlockRefreshTimer !== undefined) return;
@@ -51,7 +75,7 @@ export default function SessionIdleLock({
       scheduleUnlockRefresh();
     };
     const checkInactivity = () => {
-      if (Date.now() - lastActivity >= inactivityLimitMs) lock();
+      if (!stationDisplay && Date.now() - lastActivity >= inactivityLimitMs) lock();
     };
     const checkVisibility = () => {
       if (document.visibilityState === "visible") checkInactivity();
@@ -59,18 +83,21 @@ export default function SessionIdleLock({
 
     const activityEvents: Array<keyof WindowEventMap> = ["pointerdown", "keydown", "touchstart", "scroll"];
     activityEvents.forEach((eventName) => window.addEventListener(eventName, recordActivity, { passive: true }));
-    window.addEventListener("firehouse:session-lock", lock);
+    const forceLock = () => lock(true);
+    window.addEventListener("firehouse:session-lock", forceLock);
     document.addEventListener("visibilitychange", checkVisibility);
     const timer = window.setInterval(checkInactivity, 15_000);
+    const stationDisplayTimer = stationDisplay ? window.setInterval(() => void refreshUnlock(), stationDisplayRefreshMs) : undefined;
     void refreshUnlock();
     return () => {
       activityEvents.forEach((eventName) => window.removeEventListener(eventName, recordActivity));
-      window.removeEventListener("firehouse:session-lock", lock);
+      window.removeEventListener("firehouse:session-lock", forceLock);
       document.removeEventListener("visibilitychange", checkVisibility);
       if (unlockRefreshTimer !== undefined) window.clearTimeout(unlockRefreshTimer);
+      if (stationDisplayTimer !== undefined) window.clearInterval(stationDisplayTimer);
       window.clearInterval(timer);
     };
-  }, [locked]);
+  }, [locked, stationDisplay]);
 
   async function unlock(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

@@ -214,7 +214,7 @@ test("the verified portal opens Inventory without a second sign-in", () => {
   assert.match(payrollApp, /fetch\("\/api\/auth\/pin", \{ method: "PATCH", cache: "no-store" \}\)/);
   assert.match(payrollApp, /if \(response\?\.ok\) \{\s+window\.location\.assign\("\/inventory"\)/);
   assert.match(payrollApp, /response\?\.status === 423[\s\S]*firehouse:session-lock/);
-  assert.match(sessionIdleLock, /addEventListener\("firehouse:session-lock", lock\)/);
+  assert.match(sessionIdleLock, /addEventListener\("firehouse:session-lock", forceLock\)/);
   assert.doesNotMatch(payrollApp, /if \(page === "Inventory"\) \{\s+window\.location\.assign/);
 });
 

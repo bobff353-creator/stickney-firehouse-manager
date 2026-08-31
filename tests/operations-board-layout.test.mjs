@@ -70,10 +70,13 @@ test("training rotations use a bounded two-column TV layout", async () => {
 });
 
 test("24/7 TV mode prevents stalled refreshes and recovers after device interruptions", async () => {
-  const [board, app, styles] = await Promise.all([
+  const [board, app, styles, idleLock, pinRoute, leaseMigration] = await Promise.all([
     readFile(new URL("../app/operations-board.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/session-idle-lock.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/auth/pin/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260831183130_tv_station_display_lease.sql", import.meta.url), "utf8"),
   ]);
 
   assert.match(board, /loadInProgressRef/);
@@ -81,6 +84,8 @@ test("24/7 TV mode prevents stalled refreshes and recovers after device interrup
   assert.match(board, /wakeLock/);
   assert.match(board, /visibilitychange/);
   assert.match(board, /window\.addEventListener\("online", recover\)/);
+  assert.match(board, /stickney-operations-tv-recovery/);
+  assert.match(board, /10 \* 60 \* 1000/);
   assert.match(board, /24\/7 station mode/);
   assert.match(board, /Exit full screen/);
   assert.match(board, /document\.exitFullscreen\(\)/);
@@ -90,5 +95,19 @@ test("24/7 TV mode prevents stalled refreshes and recovers after device interrup
   assert.match(styles, /\.tv-display \.board-exit-tv:hover,\.tv-display \.board-exit-tv:focus-visible\{opacity:1/);
   assert.match(styles, /@media\(hover:none\)\{\.tv-display \.board-exit-tv\{opacity:\.42\}\}/);
   assert.match(app, /stickney-operations-tv-mode/);
+  assert.match(app, /firehouse:tv-mode/);
   assert.match(app, /requestedDisplay === "portal"/);
+  assert.match(idleLock, /stationDisplayRefreshMs = 5 \* 60 \* 1000/);
+  assert.match(idleLock, /!stationDisplay && Date\.now\(\) - lastActivity/);
+  assert.match(idleLock, /JSON\.stringify\(\{ display: stationDisplay \? "tv" : "portal" \}\)/);
+  assert.match(pinRoute, /stationDisplaySeconds = 30 \* 24 \* 60 \* 60/);
+  assert.match(pinRoute, /renew_portal_pin_unlock_for_user/);
+  assert.match(pinRoute, /const systemClient = await getSupabaseSystemClient\(\)/);
+  assert.match(idleLock, /if \(response\?\.status === 423\) lock\(true\)/);
+  assert.match(idleLock, /const forceLock = \(\) => lock\(true\)/);
+  assert.match(leaseMigration, /SECURITY DEFINER/);
+  assert.match(leaseMigration, /p_user_id IS NULL/);
+  assert.match(leaseMigration, /unlock_expires_at > now\(\)/);
+  assert.match(leaseMigration, /REVOKE ALL ON FUNCTION public\.renew_portal_pin_unlock_for_user\(uuid, text, boolean\) FROM PUBLIC, anon, authenticated/);
+  assert.match(leaseMigration, /GRANT EXECUTE ON FUNCTION public\.renew_portal_pin_unlock_for_user\(uuid, text, boolean\) TO service_role/);
 });

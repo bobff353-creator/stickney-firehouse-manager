@@ -287,6 +287,7 @@ export default function PayrollApp({
           params.set("display", "tv");
           window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}${window.location.hash}`);
         }
+        window.dispatchEvent(new CustomEvent("firehouse:tv-mode", { detail: { enabled: true } }));
         return;
       }
       if (params.get("page")?.toLowerCase() === "respond") {
@@ -848,6 +849,7 @@ export default function PayrollApp({
               window.localStorage.removeItem("stickney-operations-tv-mode");
             }
             window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+            window.dispatchEvent(new CustomEvent("firehouse:tv-mode", { detail: { enabled } }));
           }} onNewActiveCall={(call) => {
             if (respondDeviceSettings.mode === "operations-alert" && activeNav === "Operations Board") {
               setRespondAlertSeconds(RESPOND_ALERT_DURATION_SECONDS);

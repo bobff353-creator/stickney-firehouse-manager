@@ -9,6 +9,7 @@ import { getSupabaseSystemClient } from "../../../supabase-system";
 
 const pinCookie = "__Secure-firehouse-pin";
 const unlockSeconds = 30 * 60;
+const stationDisplaySeconds = 30 * 24 * 60 * 60;
 
 type AttemptStatus = { lockedUntil?: string | null };
 
@@ -22,7 +23,7 @@ function safeMatch(expected: string, supplied: string) {
   return expectedBytes.length === suppliedBytes.length && timingSafeEqual(expectedBytes, suppliedBytes);
 }
 
-function withUnlockCookie(payload: object, token: string) {
+function withUnlockCookie(payload: object, token: string, maxAge = unlockSeconds) {
   const response = NextResponse.json(payload, {
     headers: { "Cache-Control": "private, no-store, max-age=0" },
   });
@@ -31,7 +32,7 @@ function withUnlockCookie(payload: object, token: string) {
     secure: true,
     sameSite: "lax",
     path: "/",
-    maxAge: unlockSeconds,
+    maxAge,
   });
   return response;
 }
@@ -170,7 +171,7 @@ export async function DELETE() {
   return response;
 }
 
-export async function PATCH() {
+export async function PATCH(request: Request) {
   const cookieStore = await cookies();
   const token = cookieStore.get(pinCookie)?.value ?? "";
   if (!token) {
@@ -178,16 +179,27 @@ export async function PATCH() {
   }
 
   const client = await getSupabaseServerClient();
-  const { data, error } = await client.rpc("portal_pin_status", { p_unlock_token: token });
-  const status = (Array.isArray(data) ? data[0] : data) as { configured?: boolean; unlocked?: boolean } | null;
+  const payload = await request.json().catch(() => ({})) as { display?: string };
+  const stationDisplay = payload.display === "tv";
+  const { data: userData, error: userError } = await client.auth.getUser();
+  if (userError || !userData.user) {
+    return Response.json({ error: "Your session has expired. Sign in again." }, { status: 401 });
+  }
+  const systemClient = await getSupabaseSystemClient();
+  const { data, error } = await systemClient.rpc("renew_portal_pin_unlock_for_user", {
+    p_user_id: userData.user.id,
+    p_unlock_token: token,
+    p_station_display: stationDisplay,
+  });
   if (error) {
     return Response.json({ error: "Portal PIN security could not be verified." }, { status: 503 });
   }
-  if (!status?.configured) {
-    return Response.json({ ok: true, configured: false, unlocked: true });
-  }
-  if (!status.unlocked) {
+  if (data !== true) {
     return Response.json({ error: "Enter your portal PIN to continue." }, { status: 423 });
   }
-  return withUnlockCookie({ ok: true, configured: true, unlocked: true }, token);
+  return withUnlockCookie(
+    { ok: true, configured: true, unlocked: true, stationDisplay },
+    token,
+    stationDisplay ? stationDisplaySeconds : unlockSeconds,
+  );
 }
