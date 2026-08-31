@@ -20,13 +20,17 @@ test("phone dark mode keeps Daily Log controls readable", async () => {
   assert.match(styles, /\.shift-title h3,[^{]+\{color:#eef4f7\}/);
 });
 
-test("desktop navigation opens from the header and fully clears the workspace when closed", async () => {
+test("desktop navigation stays visible, follows the active section, and remembers an intentional hide", async () => {
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   const shell = await readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8");
-  assert.match(shell, /useState\(true\)/);
+  assert.match(shell, /const \[sidebarCollapsed, setSidebarCollapsed\] = useState\(false\)/);
   assert.match(shell, /className="desktop-sidebar-toggle"/);
-  assert.match(shell, /Open navigation menu/);
+  assert.match(shell, /Show navigation menu/);
+  assert.match(shell, /Hide navigation menu/);
   assert.match(shell, /aria-controls="desktop-navigation"/);
+  assert.match(shell, /stickney-desktop-menu-hidden/);
+  assert.match(shell, /activeGroup = visibleAdminGroups\.find/);
+  assert.doesNotMatch(shell, /navigate\(item\.page\); setSidebarCollapsed\(true\)/);
   assert.match(shell, /setOpenNavGroups\(\(current\) => current\.has\(group\) \? new Set\(\) : new Set\(\[group\]\)\)/);
   assert.doesNotMatch(shell, /sidebar-collapse-toggle/);
   assert.match(styles, /\.app-shell\.sidebar-collapsed \{ grid-template-columns: 0 minmax\(0, 1fr\)/);

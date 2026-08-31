@@ -218,7 +218,7 @@ export default function PayrollApp({
   const [employeeDraft, setEmployeeDraft] = useState<EmployeeForm>(emptyEmployee);
   const [profileOpen, setProfileOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [openNavGroups, setOpenNavGroups] = useState<Set<string>>(() => new Set(["Operations"]));
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
@@ -666,8 +666,20 @@ export default function PayrollApp({
   const visibleAdminGroups = useMemo(() => adminNavGroups.map((group) => ({ ...group, items: group.items.filter((item) => visibleNav.includes(item.page)) })).filter((group) => group.items.length), [visibleNav]);
   const homePage = visibleNav[0] ?? "My Timesheet";
   useEffect(() => {
+    setSidebarCollapsed(window.localStorage.getItem("stickney-desktop-menu-hidden") === "true");
+  }, []);
+  useEffect(() => {
     if ((testMember || (data && !data.viewer.isAdmin && viewerPermissions)) && !visibleNav.includes(activeNav)) setActiveNav(homePage);
   }, [activeNav, data, homePage, testMember, viewerPermissions, visibleNav]);
+  useEffect(() => {
+    if (!isAdminView) return;
+    const activeGroup = visibleAdminGroups.find((group) => group.items.some((item) => item.page === activeNav));
+    if (activeGroup) setOpenNavGroups((current) => current.has(activeGroup.label) ? current : new Set([activeGroup.label]));
+  }, [activeNav, isAdminView, visibleAdminGroups]);
+  function setDesktopMenuHidden(hidden: boolean) {
+    setSidebarCollapsed(hidden);
+    window.localStorage.setItem("stickney-desktop-menu-hidden", String(hidden));
+  }
   async function openInventory() {
     setMobileMenuOpen(false);
     setGlobalSearchOpen(false);
@@ -695,7 +707,7 @@ export default function PayrollApp({
   }
   function toggleNavGroup(group: string) {
     if (sidebarCollapsed) {
-      setSidebarCollapsed(false);
+      setDesktopMenuHidden(false);
       setOpenNavGroups(new Set([group]));
       return;
     }
@@ -721,27 +733,27 @@ export default function PayrollApp({
     <main className={`app-shell${tvMode ? " tv-shell" : ""}${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
       {!tvMode && <PwaInstall />}
       <aside id="desktop-navigation" className="desktop-sidebar" aria-hidden={sidebarCollapsed} inert={sidebarCollapsed}>
-        <button className="sidebar-brand" onClick={() => { navigate(homePage); setSidebarCollapsed(true); }} aria-label="Stickney Fire Department Operations Portal home" title="Dashboard"><img className="brand-patch" src="/stickney-fd-patch.png?v=3" alt="Stickney Fire Department patch" width="64" height="64" /><span><strong>Stickney Fire Department</strong><small>Operations Portal</small></span></button>
+        <button className="sidebar-brand" onClick={() => navigate(homePage)} aria-label="Stickney Fire Department Operations Portal home" title="Dashboard"><img className="brand-patch" src="/stickney-fd-patch.png?v=3" alt="Stickney Fire Department patch" width="64" height="64" /><span><strong>Stickney Fire Department</strong><small>Operations Portal</small></span></button>
         <nav className="sidebar-nav" aria-label="Primary navigation">
-          {visibleNav.includes("Dashboard") && <button title="Dashboard" className={activeNav === "Dashboard" ? "current" : ""} onClick={() => { navigate("Dashboard"); setSidebarCollapsed(true); }}><Icon name="home"/><span>Dashboard</span></button>}
+          {visibleNav.includes("Dashboard") && <button title="Dashboard" className={activeNav === "Dashboard" ? "current" : ""} onClick={() => navigate("Dashboard")}><Icon name="home"/><span>Dashboard</span></button>}
           {isAdminView ? visibleAdminGroups.map((group) => (
             <section key={group.label}>
               <button className="sidebar-group-toggle" title={group.label} aria-expanded={openNavGroups.has(group.label)} onClick={() => toggleNavGroup(group.label)}><Icon name={group.icon}/><span>{group.label}</span><Icon name="chevron" size={14}/></button>
-              {openNavGroups.has(group.label) ? <div className="sidebar-group-items">{group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => { navigate(item.page); setSidebarCollapsed(true); }}><Icon name={navIcons[item.page]}/><span>{item.label}</span></button>)}</div> : null}
+              {openNavGroups.has(group.label) ? <div className="sidebar-group-items">{group.items.map((item) => <button key={item.page} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><Icon name={navIcons[item.page]}/><span>{item.label}</span></button>)}</div> : null}
             </section>
           )) : (
             <>
               <section>
                 <h2>{testMember ? `Testing · ${testMember.rank}` : "My Portal"}</h2>
-                {visibleNav.filter((item) => item !== "Dashboard" && !memberDocumentItems.has(item) && !memberStationDutyItems.has(item)).map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => { navigate(item); setSidebarCollapsed(true); }}><Icon name={navIcons[item]}/><span>{item}</span></button>)}
+                {visibleNav.filter((item) => item !== "Dashboard" && !memberDocumentItems.has(item) && !memberStationDutyItems.has(item)).map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => navigate(item)}><Icon name={navIcons[item]}/><span>{item}</span></button>)}
               </section>
               {visibleNav.some((item) => memberDocumentItems.has(item)) && <section>
                 <h2>Documents</h2>
-                {visibleNav.filter((item) => memberDocumentItems.has(item)).map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => { navigate(item); setSidebarCollapsed(true); }}><Icon name={navIcons[item]}/><span>{item}</span></button>)}
+                {visibleNav.filter((item) => memberDocumentItems.has(item)).map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => navigate(item)}><Icon name={navIcons[item]}/><span>{item}</span></button>)}
               </section>}
               {visibleNav.some((item) => memberStationDutyItems.has(item)) && <section>
                 <h2>Station Duties</h2>
-                {visibleNav.filter((item) => memberStationDutyItems.has(item)).map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => { navigate(item); setSidebarCollapsed(true); }}><Icon name={navIcons[item]}/><span>{item}</span></button>)}
+                {visibleNav.filter((item) => memberStationDutyItems.has(item)).map((item) => <button key={item} className={activeNav === item ? "current" : ""} onClick={() => navigate(item)}><Icon name={navIcons[item]}/><span>{item}</span></button>)}
               </section>}
             </>
           )}
@@ -753,7 +765,7 @@ export default function PayrollApp({
         <div className="sidebar-footer"><span className="system-dot"/>System ready<small>Portal v1.0</small></div>
       </aside>
       <header className="topbar">
-        <button className="desktop-sidebar-toggle" type="button" aria-expanded={!sidebarCollapsed} aria-controls="desktop-navigation" aria-label={sidebarCollapsed ? "Open navigation menu" : "Close navigation menu"} title={sidebarCollapsed ? "Open menu" : "Close menu"} onClick={() => setSidebarCollapsed((current) => !current)}><Icon name={sidebarCollapsed ? "menu" : "close"} size={19}/><span>{sidebarCollapsed ? "Menu" : "Close"}</span></button>
+        <button className="desktop-sidebar-toggle" type="button" aria-expanded={!sidebarCollapsed} aria-controls="desktop-navigation" aria-label={sidebarCollapsed ? "Show navigation menu" : "Hide navigation menu"} title={sidebarCollapsed ? "Show menu" : "Hide menu"} onClick={() => setDesktopMenuHidden(!sidebarCollapsed)}><Icon name="menu" size={19}/><span>{sidebarCollapsed ? "Show menu" : "Hide menu"}</span></button>
         <button className="mobile-brand" onClick={() => navigate(homePage)} aria-label="Stickney Fire Department Operations Portal home"><img src="/stickney-fd-patch.png?v=3" alt="Stickney Fire Department patch" width="44" height="44" /><strong>Stickney FD Operations Portal</strong></button>
         <div className="topbar-context"><span>Stickney Fire Department</span><strong>{activeNav}</strong></div>
         <div className="topbar-utilities"><div className={`sync-indicator ${syncLabel.toLowerCase()}`}><Icon name={syncLabel === "Offline" ? "warning" : "save"} size={16}/><span><strong>{syncLabel}</strong><small>Last synced {syncTime}</small></span></div><button className="global-search-trigger" onClick={() => void openGlobalSearch()}><Icon name="search"/><span>Search</span><kbd>⌘ K</kbd></button><SmartAlerts icon={<Icon name="bell"/>} onNavigate={(page) => navigate(page as NavItem)} /><div className="profile"><span className="avatar">{(testMember?.name ?? data?.viewer.displayName ?? "").split(/[ ,]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span><span className="profile-copy"><strong>{testMember ? displayName(testMember.name) : data ? displayName(data.viewer.displayName) : "Signed in"}</strong><small>{testMember ? `Test view · ${testMember.rank}` : data?.viewer.isAdmin ? "Administrator" : "Employee"}</small></span><Icon name="chevron" size={15}/></div><button className="mobile-menu-toggle" aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen((current) => !current)} aria-label="Open navigation"><Icon name={mobileMenuOpen ? "close" : "menu"}/></button></div>
