@@ -157,6 +157,10 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(page, /PreplanRecordView/);
   assert.match(page, /VIEW PREPLAN/);
   assert.match(page, /Edit Preplan/);
+  assert.match(page, /4\. Operational Intelligence/);
+  assert.match(page, /tab==="operational"&&current&&<div className="preplan-operational-edit"><OperationalPreplanPanel/);
+  const recordView = page.slice(page.indexOf("function PreplanRecordView"), page.indexOf("function FieldMap"));
+  assert.doesNotMatch(recordView, /OperationalPreplanPanel/);
   assert.match(page, /Directions to building/);
   assert.match(page, /Walking directions/);
   assert.match(page, /travelmode=\$\{travelMode\}/);
