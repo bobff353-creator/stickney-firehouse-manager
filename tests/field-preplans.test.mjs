@@ -122,6 +122,12 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(page, /onDoubleClick/);
   assert.match(page, /onWheel/);
   assert.match(page, /Drag to move/);
+  assert.match(page, /Expand map & records/);
+  assert.match(page, /Exit expanded view/);
+  assert.match(page, /event\.key==="Escape"/);
+  assert.match(page, /document\.body\.style\.overflow="hidden"/);
+  assert.match(styles, /\.field-map-workspace\.expanded\{position:fixed;inset:0/);
+  assert.match(styles, /\.field-map-workspace\.expanded \.field-map-layout\{height:100%;min-height:0/);
   assert.match(page, /Math\.min\(21,zoom\+1\)/);
   assert.match(page, /Place corner points/);
   assert.match(page, /Accept Footprint/);
