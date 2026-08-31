@@ -71,7 +71,87 @@ export async function GET(request: Request) {
       )
       .all<Row>();
     const recentCalls = recentRows.results;
-    if (!activeCall)
+    if (!activeCall) {
+      const [preplanRows, hydrantRows, closureRows, apparatusRow] =
+        await Promise.all([
+          db
+            .prepare(
+              "SELECT id,business_name businessName,address,latitude,longitude FROM field_preplans WHERE COALESCE(publication_status,'published')='published' ORDER BY updated_at DESC LIMIT 250",
+            )
+            .all<Row>(),
+          db
+            .prepare(
+              "SELECT id,hydrant_number hydrantNumber,address,latitude,longitude,service_status serviceStatus FROM field_hydrants ORDER BY updated_at DESC LIMIT 500",
+            )
+            .all<Row>(),
+          db
+            .prepare(
+              "SELECT id,road_name roadName,reason,path_json pathJson,expected_clear_at expectedClearAt FROM road_closures WHERE status='active' ORDER BY datetime(started_at) DESC LIMIT 25",
+            )
+            .all<Row>(),
+          apparatus
+            ? db
+                .prepare(
+                  "SELECT unit_number unit,name,status FROM fleet_apparatus WHERE upper(trim(unit_number))=upper(trim(?)) LIMIT 1",
+                )
+                .bind(apparatus)
+                .first<Row>()
+            : Promise.resolve(null),
+        ]);
+      const overview = {
+        apparatus: apparatusRow
+          ? {
+              unit: String(apparatusRow.unit || apparatus),
+              name: String(apparatusRow.name || apparatus),
+              status: String(apparatusRow.status || "status_not_reported"),
+            }
+          : null,
+        preplans: preplanRows.results
+          .map((row) => ({
+            id: String(row.id || ""),
+            businessName: String(row.businessName || ""),
+            address: String(row.address || ""),
+            latitude: Number(row.latitude),
+            longitude: Number(row.longitude),
+          }))
+          .filter(
+            (row) =>
+              row.id &&
+              Number.isFinite(row.latitude) &&
+              Number.isFinite(row.longitude),
+          ),
+        hydrants: hydrantRows.results
+          .map((row) => ({
+            id: String(row.id || ""),
+            hydrantNumber: String(row.hydrantNumber || ""),
+            address: String(row.address || ""),
+            latitude: Number(row.latitude),
+            longitude: Number(row.longitude),
+            serviceStatus: String(row.serviceStatus || "unknown"),
+          }))
+          .filter(
+            (row) =>
+              row.id &&
+              Number.isFinite(row.latitude) &&
+              Number.isFinite(row.longitude),
+          ),
+        roadClosures: closureRows.results.map((row) => ({
+          id: String(row.id || ""),
+          roadName: String(row.roadName || ""),
+          reason: String(row.reason || ""),
+          expectedClearAt: row.expectedClearAt
+            ? String(row.expectedClearAt)
+            : null,
+          path: parseJson<Array<{ lat: number; lng: number }>>(
+            row.pathJson,
+            [],
+          ).filter(
+            (point) =>
+              Number.isFinite(Number(point.lat)) &&
+              Number.isFinite(Number(point.lng)),
+          ),
+        })),
+      };
       return Response.json(
         {
           activeCall: null,
@@ -82,11 +162,13 @@ export async function GET(request: Request) {
           boxCard: null,
           nearestHydrants: [],
           apparatusFilter: apparatus || null,
+          overview,
           departmentId,
           generatedAt: new Date().toISOString(),
         },
         { headers: { "cache-control": "no-store" } },
       );
+    }
 
     const planRows = await db
       .prepare(

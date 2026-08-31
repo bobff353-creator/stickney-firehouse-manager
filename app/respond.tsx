@@ -29,6 +29,10 @@ import {
   type RespondProgressStatus,
   writeRespondProgress,
 } from "./respond-progress";
+import RespondOverviewMap, {
+  respondApparatusStatusLabel,
+  type RespondOverview,
+} from "./respond-overview-map";
 
 type Point = { lat: number; lng: number };
 type Feature = {
@@ -141,6 +145,7 @@ type RespondData = {
   recentCalls: RecentCall[];
   boxCard: BoxCard | null;
   nearestHydrants: NearbyHydrant[];
+  overview?: RespondOverview;
   operational: null | {
     levels: Array<{
       id: string;
@@ -1015,11 +1020,20 @@ export default function Respond({
         </div>
       </section>
     );
-  if (!call)
+  if (!call) {
+    const overview: RespondOverview = data?.overview ?? {
+      apparatus: null,
+      preplans: [],
+      hydrants: [],
+      roadClosures: [],
+    };
+    const apparatusStatus = overview.apparatus
+      ? respondApparatusStatusLabel(overview.apparatus.status)
+      : "Status not reported";
     return (
       <section
         ref={pageRef}
-        className={`respond-page${monitorMode ? " monitor-view" : ""}`}
+        className={`respond-page respond-overview-page${monitorMode ? " monitor-view" : ""}`}
       >
         <header className="respond-title">
           <div>
@@ -1032,64 +1046,60 @@ export default function Respond({
             )}
           </div>
           <div className="respond-title-actions">
-            <small>Checks every 10 seconds</small>
+            <small>Live updates · checks every 10 seconds</small>
             <button onClick={() => void toggleMonitor()}>
-              {monitorMode ? "Exit Monitor" : "Monitor View"}
+              {monitorMode ? "Exit Monitor" : "Set up Monitor"}
             </button>
           </div>
         </header>
-        <div className="respond-idle-actions">
-          <div>
-            <strong>
-              No active call{apparatus ? ` for Unit ${apparatus}` : ""}
-            </strong>
-            <span>
-              {apparatus
-                ? `A call appears when CAD lists Unit ${apparatus}.`
-                : "Start an incident in the Daily Log or search preplans before a response."}
-            </span>
+        <section
+          className="respond-monitor-status"
+          aria-label="Respond device status"
+        >
+          <div className="primary">
+            <span>MONITORED APPARATUS</span>
+            <strong>{apparatus ? `Unit ${apparatus}` : "Department view"}</strong>
           </div>
-          <button onClick={() => onNavigate?.("Daily Log")}>
-            Start incident
-          </button>
-          <button
-            className="secondary"
-            onClick={() => onNavigate?.("Field Preplans")}
-          >
-            Search preplans
-          </button>
-        </div>
-        <section className="respond-recent">
-          <header>
-            <div>
-              <span>RECENT ACTIVITY</span>
-              <h2>Closed calls</h2>
-            </div>
-            <small>{data?.recentCalls?.length ?? 0} shown</small>
-          </header>
-          {data?.recentCalls?.length ? (
-            <div>
-              {data.recentCalls.map((recent) => (
-                <article key={`${recent.reportNumber}-${recent.logDate}`}>
-                  <time>{recent.logDate}</time>
-                  <strong>{recent.callType || "Call type not entered"}</strong>
-                  <span>{recent.address || "Address not entered"}</span>
-                  <small>
-                    {recent.respondingUnits || "Units not entered"} ·{" "}
-                    {formatRespondMilitaryTime(recent.timeOut)}
-                  </small>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <div className="respond-empty compact">
-              <strong>No recent closed calls</strong>
-              <span>Completed Daily Log calls will appear here.</span>
-            </div>
-          )}
+          <div>
+            <span>FLEET STATUS</span>
+            <strong>{apparatusStatus}</strong>
+          </div>
+          <div>
+            <span>RESPONSE</span>
+            <strong>No active call</strong>
+          </div>
+          <div>
+            <span>LOCATION</span>
+            <strong>GPS not connected</strong>
+          </div>
+          <small>Live records · no vehicle location is guessed</small>
         </section>
+        {overview.roadClosures.length ? (
+          <section
+            className="respond-road-closure"
+            aria-label="Active road closures"
+          >
+            <span>ACTIVE ROAD CLOSURE</span>
+            <strong>
+              {overview.roadClosures[0].roadName || "Road name not entered"}
+            </strong>
+            <p>
+              {overview.roadClosures[0].reason ||
+                "Access restriction is active until restored in Road Closures."}
+              {overview.roadClosures.length > 1
+                ? ` · ${overview.roadClosures.length - 1} more active`
+                : ""}
+            </p>
+          </section>
+        ) : null}
+        <RespondOverviewMap
+          overview={overview}
+          recentCalls={data?.recentCalls ?? []}
+          onNavigate={onNavigate}
+        />
       </section>
     );
+  }
   return (
     <section
       ref={pageRef}
