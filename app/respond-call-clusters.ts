@@ -53,7 +53,7 @@ export function clusterRecentCallLocations<T extends ClusterableRecentCall>(
     );
     if (!cluster) {
       clusters.push({
-        id: `${call.reportNumber || "recent-call"}-${clusters.length + 1}`,
+        id: `${call.reportNumber || `${point.latitude.toFixed(6)}-${point.longitude.toFixed(6)}`}-${clusters.length + 1}`,
         latitude: point.latitude,
         longitude: point.longitude,
         calls: [call],

@@ -20,7 +20,7 @@ test("idle Respond uses the real Stickney map data sources", async () => {
   assert.match(route, /Published preplan address/);
   assert.match(respond, /<RespondOverviewMap/);
   assert.match(respond, /GPS not connected/);
-  assert.match(respond, /no vehicle location is guessed/i);
+  assert.match(respond, /Nothing is guessed/i);
   assert.match(overview, /fetch\("\/api\/maps-config"/);
   assert.match(overview, /GoogleFieldMap/);
   assert.match(overview, /Preplans/);
@@ -41,7 +41,9 @@ test("idle Respond map controls are operable and activity is explicit", async ()
     read("../app/respond-overview-map.tsx"),
   ]);
 
-  assert.match(respond, /Set up Monitor/);
+  assert.match(respond, /Open full screen/);
+  assert.match(respond, /Ready — no active incident/);
+  assert.match(respond, /New CAD calls\s+open here automatically/);
   assert.match(respond, /ACTIVE ROAD CLOSURE/);
   assert.match(overview, /aria-pressed=\{layers\.preplans\}/);
   assert.match(overview, /aria-pressed=\{layers\.hydrants\}/);
@@ -49,7 +51,15 @@ test("idle Respond map controls are operable and activity is explicit", async ()
   assert.match(overview, /aria-pressed=\{layers\.calls\}/);
   assert.match(overview, /role="tablist"/);
   assert.match(overview, /No active calls/);
-  assert.match(overview, /Start incident/);
+  assert.match(overview, /Step \{guide\.step\}/);
+  assert.match(overview, /Choose what you need/);
+  assert.match(overview, /Choose a recent call/);
+  assert.match(overview, /Call selected/);
+  assert.match(overview, /Enter a manual call/);
+  assert.match(overview, /Map options/);
+  assert.match(overview, /Map key/);
+  assert.match(overview, /displayedRecentCalls\.map/);
+  assert.match(overview, /Show all recent calls/);
 });
 
 test("Respond overview has desktop, tablet, and phone layouts", async () => {
@@ -61,4 +71,6 @@ test("Respond overview has desktop, tablet, and phone layouts", async () => {
   assert.match(css, /@media\(max-width:620px\)[^{]*\{[^]*\.respond-monitor-status\{grid-template-columns:1fr 1fr/);
   assert.match(css, /\.respond-map-controls button\{[^}]*min-height:40px/);
   assert.match(css, /\.respond-map-marker\{[^}]*width:31px;height:31px/);
+  assert.match(css, /\.respond-task-guide\{[^}]*display:grid/);
+  assert.match(css, /@media\(max-width:520px\)[^{]*\{[^]*\.respond-task-guide\{[^}]*grid-template-columns:1fr/);
 });

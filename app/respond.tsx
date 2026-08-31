@@ -769,13 +769,14 @@ export default function Respond({
   }, [load]);
   useEffect(() => {
     const reportNumber = data?.activeCall?.reportNumber;
-    if (!reportNumber) {
-      setCrewProgress(null);
-      return;
-    }
-    setCrewProgress(
-      readRespondProgress(window.localStorage, reportNumber, apparatus),
-    );
+    const timer = window.setTimeout(() => {
+      setCrewProgress(
+        reportNumber
+          ? readRespondProgress(window.localStorage, reportNumber, apparatus)
+          : null,
+      );
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [apparatus, data?.activeCall?.reportNumber]);
   useEffect(() => {
     const update = () => {
@@ -1041,7 +1042,11 @@ export default function Respond({
         <header className="respond-title">
           <div>
             <span>FIELD · RESPOND</span>
-            <h1>Response Workspace</h1>
+            <h1>Incident map</h1>
+            <p>
+              Open a call or field record from one clear map. New CAD calls
+              open here automatically.
+            </p>
             {apparatus && (
               <b className="respond-apparatus-badge">
                 Apparatus Mode · Unit {apparatus}
@@ -1049,9 +1054,9 @@ export default function Respond({
             )}
           </div>
           <div className="respond-title-actions">
-            <small>Live updates · checks every 10 seconds</small>
+            <small><i /> Live · refreshes every 10 seconds</small>
             <button onClick={() => void toggleMonitor()}>
-              {monitorMode ? "Exit Monitor" : "Set up Monitor"}
+              {monitorMode ? "Exit full screen" : "Open full screen"}
             </button>
           </div>
         </header>
@@ -1060,22 +1065,23 @@ export default function Respond({
           aria-label="Respond device status"
         >
           <div className="primary">
-            <span>MONITORED APPARATUS</span>
-            <strong>{apparatus ? `Unit ${apparatus}` : "Department view"}</strong>
+            <span>CURRENT STATUS</span>
+            <strong>Ready — no active incident</strong>
+            <small>CAD will open a new incident automatically.</small>
           </div>
           <div>
-            <span>FLEET STATUS</span>
-            <strong>{apparatusStatus}</strong>
+            <span>MAP VIEW</span>
+            <strong>{apparatus ? `Unit ${apparatus}` : "Department"}</strong>
           </div>
           <div>
-            <span>RESPONSE</span>
-            <strong>No active call</strong>
+            <span>APPARATUS</span>
+            <strong>{apparatus ? apparatusStatus : "Not selected"}</strong>
           </div>
           <div>
-            <span>LOCATION</span>
+            <span>VEHICLE GPS</span>
             <strong>GPS not connected</strong>
           </div>
-          <small>Live records · no vehicle location is guessed</small>
+          <small>Only verified record locations appear. Nothing is guessed.</small>
         </section>
         {overview.roadClosures.length ? (
           <section

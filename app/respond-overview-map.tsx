@@ -218,24 +218,89 @@ export default function RespondOverviewMap({
   const selectedCallCluster = callClusters.find(
     (cluster) => cluster.id === selectedCallClusterId,
   );
-  const selectedCallReports = useMemo(
-    () =>
-      new Set(
-        selectedCallCluster?.calls.map((call) => call.reportNumber) ?? [],
-      ),
-    [selectedCallCluster],
-  );
   const mappedCallCount = callClusters.reduce(
     (total, cluster) => total + cluster.calls.length,
     0,
   );
+  const displayedRecentCalls = selectedCallCluster?.calls ?? recentCalls;
+  const guide = selectedCallCluster
+    ? {
+        step: 3,
+        title: "Call selected",
+        text: "Confirm the address and call details shown beside the map.",
+      }
+    : rail === "recent"
+      ? {
+          step: 2,
+          title: "Choose a recent call",
+          text: "Tap a red map dot or a call card. A number means several calls share that area.",
+        }
+      : {
+          step: 1,
+          title: "Choose what you need",
+          text: "Review a recent call or enter a manual call. New CAD calls open automatically.",
+        };
 
   function toggleLayer(layer: keyof typeof layers) {
     setLayers((current) => ({ ...current, [layer]: !current[layer] }));
   }
 
+  function selectCallCluster(cluster: (typeof callClusters)[number]) {
+    setSelectedCallClusterId(cluster.id);
+    setRail("recent");
+    setCenter({ lat: cluster.latitude, lng: cluster.longitude });
+    setZoom((current) => Math.max(current, 17));
+  }
+
+  function showAllRecentCalls() {
+    setSelectedCallClusterId("");
+    setCenter(initialView.center);
+    setZoom(initialView.zoom);
+  }
+
   return (
     <section className="respond-map-shell" aria-label="Stickney response map">
+      <section className="respond-task-guide" aria-live="polite">
+        <b>Step {guide.step}</b>
+        <div>
+          <strong>{guide.title}</strong>
+          <span>{guide.text}</span>
+        </div>
+        <div className="respond-task-actions">
+          {guide.step === 1 ? (
+            <>
+              <button
+                type="button"
+                className="primary"
+                onClick={() => setRail("recent")}
+                disabled={!recentCalls.length}
+              >
+                Review recent calls ({recentCalls.length})
+              </button>
+              <button type="button" onClick={() => onNavigate?.("Daily Log")}>
+                Enter a manual call
+              </button>
+            </>
+          ) : guide.step === 2 ? (
+            <button type="button" onClick={() => setRail("active")}>
+              Back to current status
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={showAllRecentCalls}
+            >
+              Show all recent calls
+            </button>
+          )}
+        </div>
+      </section>
+
+      <details className="respond-map-options">
+        <summary>
+          Map options
+          <span>{imagery === "aerial" ? "Aerial" : "Streets"} · choose visible records</span>
+        </summary>
       <nav className="respond-map-controls" aria-label="Response map layers">
         <div className="respond-map-style-switcher">
           <button
@@ -307,6 +372,15 @@ export default function RespondOverviewMap({
           +
         </button>
       </nav>
+      </details>
+
+      <div className="respond-map-key" aria-label="Map symbol key">
+        <strong>Map key</strong>
+        <span><i className="call" /> Red dot: recent call</span>
+        <span><i className="preplan" /> P: preplan</span>
+        <span><i className="hydrant" /> H: hydrant</span>
+        <span><i className="closure" /> Red line: road closure</span>
+      </div>
 
       <div className="respond-map-layout">
         <div className="respond-overview-map">
@@ -405,10 +479,7 @@ export default function RespondOverviewMap({
                       ? `${cluster.calls.length} recent calls at this location`
                       : `${cluster.calls[0].callType || "Recent call"} · ${cluster.calls[0].address || "Saved location"}`
                   }
-                  onClick={() => {
-                    setSelectedCallClusterId(cluster.id);
-                    setRail("recent");
-                  }}
+                  onClick={() => selectCallCluster(cluster)}
                 >
                   {cluster.calls.length > 1 ? cluster.calls.length : "•"}
                 </button>
@@ -423,70 +494,104 @@ export default function RespondOverviewMap({
               role="tab"
               aria-selected={rail === "active"}
               className={rail === "active" ? "active" : ""}
-              onClick={() => setRail("active")}
+              onClick={() => {
+                showAllRecentCalls();
+                setRail("active");
+              }}
             >
-              Active <b>0</b>
+              Current call <b>0</b>
             </button>
             <button
               type="button"
               role="tab"
               aria-selected={rail === "recent"}
               className={rail === "recent" ? "active" : ""}
-              onClick={() => setRail("recent")}
+              onClick={() => {
+                showAllRecentCalls();
+                setRail("recent");
+              }}
             >
-              Recent <b>{recentCalls.length}</b>
+              Recent calls <b>{recentCalls.length}</b>
             </button>
           </div>
           {rail === "active" ? (
             <div className="respond-call-rail-empty" role="tabpanel">
               <strong>No active calls</strong>
               <span>
-                New CAD and dispatched Daily Log calls will appear here
-                automatically.
+                This screen is ready. A new CAD call will open automatically.
               </span>
-              <button type="button" onClick={() => onNavigate?.("Daily Log")}>
-                Start incident
-              </button>
+              <div>
+                <button type="button" onClick={() => setRail("recent")}>
+                  Review recent calls
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => onNavigate?.("Daily Log")}
+                >
+                  Enter manual call in Daily Log
+                </button>
+              </div>
             </div>
           ) : recentCalls.length ? (
             <div className="respond-call-rail-list" role="tabpanel">
               {selectedCallCluster ? (
                 <div className="respond-call-map-selection" aria-live="polite">
                   <strong>
-                    {selectedCallCluster.calls.length} mapped call
-                    {selectedCallCluster.calls.length === 1 ? "" : "s"} selected
+                    {selectedCallCluster.calls.length === 1
+                      ? selectedCallCluster.calls[0].address || "Saved call location"
+                      : `${selectedCallCluster.calls.length} calls at this location`}
                   </strong>
                   <button
                     type="button"
-                    onClick={() => setSelectedCallClusterId("")}
+                    onClick={showAllRecentCalls}
                   >
-                    Show all
+                    Show all calls
                   </button>
                 </div>
               ) : null}
-              {recentCalls.map((recent) => (
-                <article
-                  key={`${recent.reportNumber}-${recent.logDate}`}
-                  className={
-                    selectedCallReports.has(recent.reportNumber)
-                      ? "map-selected"
-                      : ""
-                  }
-                >
-                  <time>{recent.logDate}</time>
-                  <strong>{recent.callType || "Call type not entered"}</strong>
-                  <span>{recent.address || "Address not entered"}</span>
-                  <small>
-                    {recent.respondingUnits || "Units not entered"} ·{" "}
-                    {formatRespondMilitaryTime(recent.timeOut)}
-                  </small>
-                  {recent.latitude != null && recent.longitude != null ? (
-                    <small className="respond-call-location-source">
-                      ● {recent.locationSource || "Saved call location"}
-                    </small>
-                  ) : null}
-                </article>
-              ))}
+              {displayedRecentCalls.map((recent) => {
+                const recentCluster = callClusters.find((cluster) =>
+                  cluster.calls.includes(recent),
+                );
+                return (
+                  <article
+                    key={`${recent.reportNumber}-${recent.logDate}-${recent.timeOut}-${recent.address}`}
+                    className={
+                      selectedCallCluster?.calls.includes(recent)
+                        ? "map-selected"
+                        : ""
+                    }
+                  >
+                    <button
+                      type="button"
+                      className="respond-call-card"
+                      disabled={!recentCluster}
+                      aria-label={
+                        recentCluster
+                          ? `Show ${recent.callType || "recent call"} at ${recent.address || "saved location"} on map`
+                          : undefined
+                      }
+                      onClick={() =>
+                        recentCluster && selectCallCluster(recentCluster)
+                      }
+                    >
+                      <time>{recent.logDate}</time>
+                      <strong>{recent.callType || "Call type not entered"}</strong>
+                      <span>{recent.address || "Address not entered"}</span>
+                      <small>
+                        {recent.respondingUnits || "Units not entered"} ·{" "}
+                        {formatRespondMilitaryTime(recent.timeOut)}
+                      </small>
+                      <small className="respond-call-location-source">
+                        {recentCluster
+                          ? `● ${recent.locationSource || "Saved call location"} · Show on map`
+                          : "Location not mapped"}
+                      </small>
+                    </button>
+                  </article>
+                );
+              })}
             </div>
           ) : (
             <div className="respond-call-rail-empty" role="tabpanel">
