@@ -65,12 +65,46 @@ export async function GET(request: Request) {
           respondingUnitsIncludeUnit(call.respondingUnits, apparatus),
         ) ?? null;
     }
-    const recentRows = await db
-      .prepare(
-        "SELECT report_number reportNumber,call_type callType,address,responding_units respondingUnits,time_out timeOut,time_in timeIn,log_date logDate FROM daily_log_calls WHERE trim(time_in)<>'' ORDER BY log_date DESC,sort_order DESC LIMIT 6",
-      )
-      .all<Row>();
-    const recentCalls = recentRows.results;
+    const [recentRows, recentLocationRows] = await Promise.all([
+      db
+        .prepare(
+          "SELECT report_number reportNumber,call_type callType,address,responding_units respondingUnits,time_out timeOut,time_in timeIn,log_date logDate FROM daily_log_calls WHERE trim(time_in)<>'' ORDER BY log_date DESC,sort_order DESC LIMIT 6",
+        )
+        .all<Row>(),
+      db
+        .prepare(
+          "SELECT incident_id reportNumber,address,latitude,longitude FROM dispatch_incidents WHERE latitude IS NOT NULL AND longitude IS NOT NULL ORDER BY datetime(dispatched_at) DESC LIMIT 250",
+        )
+        .all<Row>(),
+    ]);
+    const recentCalls = recentRows.results.map((call) => {
+      const reportNumber = String(call.reportNumber || "").trim();
+      const address = normalizeResponseAddress(String(call.address || ""));
+      const exactReport = recentLocationRows.results.find(
+        (location) =>
+          reportNumber &&
+          String(location.reportNumber || "").trim() === reportNumber,
+      );
+      const addressMatch = exactReport
+        ? null
+        : recentLocationRows.results.find(
+            (location) =>
+              address &&
+              normalizeResponseAddress(String(location.address || "")) ===
+                address,
+          );
+      const location = exactReport || addressMatch;
+      return {
+        ...call,
+        latitude: location ? Number(location.latitude) : null,
+        longitude: location ? Number(location.longitude) : null,
+        locationSource: exactReport
+          ? "Saved CAD location"
+          : addressMatch
+            ? "Saved CAD address match"
+            : "",
+      };
+    });
     if (!activeCall) {
       const [preplanRows, hydrantRows, closureRows, apparatusRow] =
         await Promise.all([
@@ -152,13 +186,38 @@ export async function GET(request: Request) {
           ),
         })),
       };
+      const recentCallsWithLocations = recentCalls.map((call) => {
+        if (
+          call.latitude != null &&
+          call.longitude != null &&
+          Number.isFinite(Number(call.latitude)) &&
+          Number.isFinite(Number(call.longitude))
+        )
+          return call;
+        const address = normalizeResponseAddress(
+          String((call as Row).address || ""),
+        );
+        const matchingPlan = preplanRows.results.find(
+          (plan) =>
+            address &&
+            normalizeResponseAddress(String(plan.address || "")) === address,
+        );
+        return matchingPlan
+          ? {
+              ...call,
+              latitude: Number(matchingPlan.latitude),
+              longitude: Number(matchingPlan.longitude),
+              locationSource: "Published preplan address",
+            }
+          : call;
+      });
       return Response.json(
         {
           activeCall: null,
           preplan: null,
           match: null,
           cadUpdates: [],
-          recentCalls,
+          recentCalls: recentCallsWithLocations,
           boxCard: null,
           nearestHydrants: [],
           apparatusFilter: apparatus || null,

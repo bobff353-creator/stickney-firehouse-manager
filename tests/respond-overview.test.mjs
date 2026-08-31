@@ -15,6 +15,9 @@ test("idle Respond uses the real Stickney map data sources", async () => {
   assert.match(route, /FROM field_hydrants/);
   assert.match(route, /FROM road_closures WHERE status='active'/);
   assert.match(route, /FROM fleet_apparatus/);
+  assert.match(route, /FROM dispatch_incidents WHERE latitude IS NOT NULL AND longitude IS NOT NULL/);
+  assert.match(route, /Saved CAD location/);
+  assert.match(route, /Published preplan address/);
   assert.match(respond, /<RespondOverviewMap/);
   assert.match(respond, /GPS not connected/);
   assert.match(respond, /no vehicle location is guessed/i);
@@ -23,6 +26,9 @@ test("idle Respond uses the real Stickney map data sources", async () => {
   assert.match(overview, /Preplans/);
   assert.match(overview, /Hydrants/);
   assert.match(overview, /Road closures/);
+  assert.match(overview, /clusterRecentCallLocations/);
+  assert.match(overview, /Show \$\{cluster\.calls\.length\} recent calls at this location/);
+  assert.match(overview, /respond-map-marker call/);
   assert.doesNotMatch(`${route}\n${respond}\n${overview}`, /Fermilab|KUBOTA|Main Ring Road|Kautz Road/i);
 });
 
@@ -37,6 +43,7 @@ test("idle Respond map controls are operable and activity is explicit", async ()
   assert.match(overview, /aria-pressed=\{layers\.preplans\}/);
   assert.match(overview, /aria-pressed=\{layers\.hydrants\}/);
   assert.match(overview, /aria-pressed=\{layers\.closures\}/);
+  assert.match(overview, /aria-pressed=\{layers\.calls\}/);
   assert.match(overview, /role="tablist"/);
   assert.match(overview, /No active calls/);
   assert.match(overview, /Start incident/);

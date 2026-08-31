@@ -110,6 +110,9 @@ type RecentCall = {
   timeOut: string;
   timeIn: string;
   logDate: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  locationSource?: string;
 };
 type BoxCard = {
   id: string;

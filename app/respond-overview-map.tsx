@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import GoogleFieldMap from "./google-field-map";
+import { clusterRecentCallLocations } from "./respond-call-clusters";
 import { formatRespondMilitaryTime } from "./respond-time";
 
 type Point = { lat: number; lng: number };
@@ -39,6 +40,9 @@ type RecentCall = {
   timeOut: string;
   timeIn: string;
   logDate: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  locationSource?: string;
 };
 
 const stickneyCenter: Point = { lat: 41.8189, lng: -87.7734 };
@@ -88,7 +92,9 @@ export default function RespondOverviewMap({
   const [center, setCenter] = useState(stickneyCenter);
   const [zoom, setZoom] = useState(16);
   const [rail, setRail] = useState<"active" | "recent">("active");
+  const [selectedCallClusterId, setSelectedCallClusterId] = useState("");
   const [layers, setLayers] = useState({
+    calls: true,
     preplans: true,
     hydrants: true,
     closures: true,
@@ -167,6 +173,44 @@ export default function RespondOverviewMap({
       })),
     [center, overview.roadClosures, zoom],
   );
+  const callClusters = useMemo(
+    () => clusterRecentCallLocations(recentCalls),
+    [recentCalls],
+  );
+  const callMarkers = useMemo(
+    () =>
+      callClusters
+        .map((cluster) => ({
+          cluster,
+          point: project(
+            { lat: cluster.latitude, lng: cluster.longitude },
+            center,
+            zoom,
+          ),
+        }))
+        .filter(
+          ({ point }) =>
+            point.x >= -50 &&
+            point.x <= canvas.width + 50 &&
+            point.y >= -50 &&
+            point.y <= canvas.height + 50,
+        ),
+    [callClusters, center, zoom],
+  );
+  const selectedCallCluster = callClusters.find(
+    (cluster) => cluster.id === selectedCallClusterId,
+  );
+  const selectedCallReports = useMemo(
+    () =>
+      new Set(
+        selectedCallCluster?.calls.map((call) => call.reportNumber) ?? [],
+      ),
+    [selectedCallCluster],
+  );
+  const mappedCallCount = callClusters.reduce(
+    (total, cluster) => total + cluster.calls.length,
+    0,
+  );
 
   function toggleLayer(layer: keyof typeof layers) {
     setLayers((current) => ({ ...current, [layer]: !current[layer] }));
@@ -193,8 +237,13 @@ export default function RespondOverviewMap({
             Streets
           </button>
         </div>
-        <button type="button" className="active" aria-pressed="true" disabled>
-          <i className="call" /> Calls <b>0</b>
+        <button
+          type="button"
+          className={layers.calls ? "active" : ""}
+          aria-pressed={layers.calls}
+          onClick={() => toggleLayer("calls")}
+        >
+          <i className="call" /> Calls <b>{mappedCallCount}</b>
         </button>
         <button
           type="button"
@@ -318,6 +367,35 @@ export default function RespondOverviewMap({
                 </button>
               ))
             : null}
+          {layers.calls
+            ? callMarkers.map(({ cluster, point }) => (
+                <button
+                  type="button"
+                  key={cluster.id}
+                  className={`respond-map-marker call${cluster.calls.length > 1 ? " cluster" : ""}${selectedCallClusterId === cluster.id ? " selected" : ""}`}
+                  style={{
+                    left: `${(point.x / canvas.width) * 100}%`,
+                    top: `${(point.y / canvas.height) * 100}%`,
+                  }}
+                  aria-label={
+                    cluster.calls.length > 1
+                      ? `Show ${cluster.calls.length} recent calls at this location`
+                      : `Show recent call at ${cluster.calls[0].address || "saved location"}`
+                  }
+                  title={
+                    cluster.calls.length > 1
+                      ? `${cluster.calls.length} recent calls at this location`
+                      : `${cluster.calls[0].callType || "Recent call"} · ${cluster.calls[0].address || "Saved location"}`
+                  }
+                  onClick={() => {
+                    setSelectedCallClusterId(cluster.id);
+                    setRail("recent");
+                  }}
+                >
+                  {cluster.calls.length > 1 ? cluster.calls.length : "•"}
+                </button>
+              ))
+            : null}
         </div>
 
         <aside className="respond-call-rail" aria-label="Response activity">
@@ -354,8 +432,29 @@ export default function RespondOverviewMap({
             </div>
           ) : recentCalls.length ? (
             <div className="respond-call-rail-list" role="tabpanel">
+              {selectedCallCluster ? (
+                <div className="respond-call-map-selection" aria-live="polite">
+                  <strong>
+                    {selectedCallCluster.calls.length} mapped call
+                    {selectedCallCluster.calls.length === 1 ? "" : "s"} selected
+                  </strong>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCallClusterId("")}
+                  >
+                    Show all
+                  </button>
+                </div>
+              ) : null}
               {recentCalls.map((recent) => (
-                <article key={`${recent.reportNumber}-${recent.logDate}`}>
+                <article
+                  key={`${recent.reportNumber}-${recent.logDate}`}
+                  className={
+                    selectedCallReports.has(recent.reportNumber)
+                      ? "map-selected"
+                      : ""
+                  }
+                >
                   <time>{recent.logDate}</time>
                   <strong>{recent.callType || "Call type not entered"}</strong>
                   <span>{recent.address || "Address not entered"}</span>
@@ -363,6 +462,11 @@ export default function RespondOverviewMap({
                     {recent.respondingUnits || "Units not entered"} ·{" "}
                     {formatRespondMilitaryTime(recent.timeOut)}
                   </small>
+                  {recent.latitude != null && recent.longitude != null ? (
+                    <small className="respond-call-location-source">
+                      ● {recent.locationSource || "Saved call location"}
+                    </small>
+                  ) : null}
                 </article>
               ))}
             </div>
