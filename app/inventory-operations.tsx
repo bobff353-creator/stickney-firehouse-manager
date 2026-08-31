@@ -85,6 +85,11 @@ function value(row: Row, key: string) {
   return item === null || item === undefined ? "" : String(item);
 }
 
+function routineCheckNotNeeded(apparatus: Row | undefined, checkType: string) {
+  return value(apparatus || {}, "status").trim().toLowerCase().replace(/[\s-]+/g, "_") === "out_of_service"
+    && ["daily", "weekly"].includes(checkType);
+}
+
 function formatDate(input: Row[string]) {
   if (input === null || input === undefined || input === "") return "Not recorded";
   const numeric = Number(input);
@@ -561,6 +566,12 @@ export default function InventoryOperations({
         || !data.configured
       ) return;
       requestedCheckOpenedRef.current = true;
+      const requestedApparatus = data.apparatus.find((item) => value(item, "id") === selectedApparatusId);
+      if (routineCheckNotNeeded(requestedApparatus, initialCheckType)) {
+        setMessage("Not needed — this apparatus is Out of Service. Daily and weekly checks will resume when Fleet returns it to service.");
+        setInspectionMenuOpen(true);
+        return;
+      }
       const existing = data.checks.find((check) => (
         value(check, "apparatus_id") === selectedApparatusId
         && value(check, "check_type") === initialCheckType
@@ -1176,8 +1187,9 @@ export default function InventoryOperations({
                   const remaining = inProgress ? remainingForCheck(value(inProgress, "id")) : 0;
                   const configuredItems = configuredItemsFor(id);
                   const unavailable = !inProgress && configuredItems === 0;
+                  const notNeeded = routineCheckNotNeeded(selectedApparatus, id);
                   return (
-                    <button key={id} type="button" disabled={Boolean(busy) || unavailable || !canCheck} onClick={() => {
+                    <button key={id} type="button" disabled={Boolean(busy) || unavailable || notNeeded || !canCheck} onClick={() => {
                       if (inProgress) {
                         setSelectedCheckId(value(inProgress, "id"));
                         setInspectionMenuOpen(false);
@@ -1190,9 +1202,11 @@ export default function InventoryOperations({
                         }
                       });
                     }}>
-                      <small className="inspection-choice-action">{inProgress ? "Tap to resume" : "Tap to open"}</small>
+                      <small className="inspection-choice-action">{notNeeded ? "Not required" : inProgress ? "Tap to resume" : "Tap to open"}</small>
                       <strong>{inProgress ? `Resume ${label}` : label}</strong>
-                      <span>{inProgress
+                      <span>{notNeeded
+                        ? "Not needed — apparatus Out of Service"
+                        : inProgress
                         ? `${remaining} items remaining · shared crew progress`
                         : unavailable
                           ? "Not configured for this apparatus"

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { chicagoCalendarDate, chicagoWeekForDate, currentChicagoWeek, dailyFleetCheckUrgency } from "../app/lib/fleet-projections.ts";
+import { apparatusCheckRequired, chicagoCalendarDate, chicagoWeekForDate, currentChicagoWeek, dailyFleetCheckUrgency } from "../app/lib/fleet-projections.ts";
 
 const root = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, root), "utf8");
@@ -20,6 +20,33 @@ test("daily Fleet checks warn during the hour before the 7 AM due time", () => {
   assert.equal(dailyFleetCheckUrgency(6 * 60), "due_soon");
   assert.equal(dailyFleetCheckUrgency(6 * 60 + 59), "due_soon");
   assert.equal(dailyFleetCheckUrgency(7 * 60), "overdue");
+});
+
+test("Out of Service apparatus are exempt from daily and weekly checks only", () => {
+  assert.equal(apparatusCheckRequired("out_of_service", "daily"), false);
+  assert.equal(apparatusCheckRequired("Out Of Service", "weekly"), false);
+  assert.equal(apparatusCheckRequired("out-of-service", "inventory"), true);
+  assert.equal(apparatusCheckRequired("out_of_service", "air_pack"), true);
+  assert.equal(apparatusCheckRequired("in_service", "daily"), true);
+  assert.equal(apparatusCheckRequired("impaired", "weekly"), true);
+});
+
+test("the Out of Service exemption is enforced and explained across Fleet workflows", async () => {
+  const [projections, operationsRoute, inventory, operations, duties] = await Promise.all([
+    read("app/lib/fleet-projections.ts"),
+    read("app/api/operations/route.ts"),
+    read("app/inventory-live.tsx"),
+    read("app/inventory-operations.tsx"),
+    read("app/daily-duties.tsx"),
+  ]);
+  assert.match(projections, /department_apparatus/);
+  assert.match(projections, /apparatusCheckRequired\(fleetStatuses\.get\(vehicle\.id\), checkType\)/);
+  assert.match(operationsRoute, /fleetApparatus\?\.status === "out_of_service"/);
+  assert.match(operationsRoute, /Daily and weekly checks resume when Fleet returns it to service/);
+  assert.match(inventory, /Daily and weekly checks: Not needed/);
+  assert.match(inventory, /will not appear overdue or block officer sign-out/);
+  assert.match(operations, /Not needed — apparatus Out of Service/);
+  assert.match(duties, /Not needed — apparatus out of service/);
 });
 
 test("resolves the scheduled weekly check window for the Daily Log date", () => {

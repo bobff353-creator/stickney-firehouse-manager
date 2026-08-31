@@ -756,9 +756,10 @@ export default function Inventory360({
                           const remaining = items.filter((item) => item.result === "pending").length;
                           const configured = fleetOperations.equipment.filter((item) => item.apparatus_id === unit.id && Array.isArray(item.check_types) && item.check_types.includes(checkType)).length;
                           const unavailable = !active && configured === 0;
-                          return <button key={checkType} type="button" disabled={!canCheck || unavailable} onClick={() => { setSelectedApparatusId(unit.id); setSelectedCheckType(checkType); window.history.replaceState(null, "", `/inventory?apparatus=${encodeURIComponent(unit.id)}&check=${checkType}`); setView("check"); }}>
+                          const notNeeded = normalize(unit.status) === "outofservice" && ["daily", "weekly"].includes(checkType);
+                          return <button key={checkType} type="button" disabled={!canCheck || unavailable || notNeeded} onClick={() => { setSelectedApparatusId(unit.id); setSelectedCheckType(checkType); window.history.replaceState(null, "", `/inventory?apparatus=${encodeURIComponent(unit.id)}&check=${checkType}`); setView("check"); }}>
                             <strong>{checkType === "air_pack" ? "Air Pack" : titleCase(checkType)}</strong>
-                            <small>{active ? `${remaining} left · Resume` : unavailable ? "Not configured" : `${configured} items · Start`}</small>
+                            <small>{notNeeded ? "Not needed · Out of Service" : active ? `${remaining} left · Resume` : unavailable ? "Not configured" : `${configured} items · Start`}</small>
                           </button>;
                         })}
                       </div>
@@ -1474,6 +1475,7 @@ function DigitalTwinBuilder({
               {busy === "fleet-status" ? "Saving..." : "Save Fleet status"}
             </button>
           </form>
+          {normalize(selectedApparatus.status) === "outofservice" ? <div className="fleet-check-exemption" role="status"><strong>Daily and weekly checks: Not needed</strong><span>This apparatus is Out of Service. Its saved schedules and check history are preserved, but it will not appear overdue or block officer sign-out.</span></div> : null}
           <form className="builder-form fleet-status-form" onSubmit={updateWeeklyDueDay}>
             <label>
               Weekly check due day
@@ -1481,6 +1483,7 @@ function DigitalTwinBuilder({
                 key={`${selectedApparatus.id}-${selectedApparatus.weekly_due_day ?? "none"}`}
                 name="weeklyDueDay"
                 defaultValue={selectedApparatus.weekly_due_day ?? ""}
+                disabled={normalize(selectedApparatus.status) === "outofservice"}
               >
                 <option value="">No weekly check scheduled</option>
                 <option value="0">Sunday</option>
@@ -1491,9 +1494,9 @@ function DigitalTwinBuilder({
                 <option value="5">Friday</option>
                 <option value="6">Saturday</option>
               </select>
-              <small>The weekly check appears in Duties and Live Operations on this day.</small>
+              <small>{normalize(selectedApparatus.status) === "outofservice" ? "Not needed while this apparatus is Out of Service." : "The weekly check appears in Duties and Live Operations on this day."}</small>
             </label>
-            <button className="primary" disabled={busy === "weekly-due-day"}>
+            <button className="primary" disabled={busy === "weekly-due-day" || normalize(selectedApparatus.status) === "outofservice"}>
               {busy === "weekly-due-day" ? "Saving..." : "Save weekly due day"}
             </button>
           </form>

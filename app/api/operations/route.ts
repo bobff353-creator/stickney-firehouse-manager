@@ -697,13 +697,19 @@ export async function POST(request: Request) {
       if (!checkTypes.has(checkType)) {
         return privateJson({ error: "Choose Daily, Weekly, Inventory, or Air Pack check." }, 400);
       }
-      const { data: apparatus } = await supabase
-        .from("inventory_apparatus_profiles")
-        .select("id")
-        .eq("department_id", departmentId)
-        .eq("id", apparatusId)
-        .maybeSingle();
-      const [{ data: equipment }, { data: scbaTemplate }] = await Promise.all([
+      const [{ data: apparatus }, { data: fleetApparatus }, { data: equipment }, { data: scbaTemplate }] = await Promise.all([
+        supabase
+          .from("inventory_apparatus_profiles")
+          .select("id")
+          .eq("department_id", departmentId)
+          .eq("id", apparatusId)
+          .maybeSingle(),
+        supabase
+          .from("department_apparatus")
+          .select("id,status")
+          .eq("department_id", departmentId)
+          .eq("id", apparatusId)
+          .maybeSingle(),
         supabase
           .from("inventory_equipment")
           .select("id,check_types")
@@ -719,6 +725,9 @@ export async function POST(request: Request) {
       ]);
       if (!apparatus) {
         return privateJson({ error: "Select a saved department apparatus." }, 400);
+      }
+      if (fleetApparatus?.status === "out_of_service" && ["daily", "weekly"].includes(checkType)) {
+        return privateJson({ error: "Not needed — this apparatus is Out of Service. Daily and weekly checks resume when Fleet returns it to service." }, 409);
       }
       const { data: existingCheck } = await supabase
         .from("inventory_checks")
