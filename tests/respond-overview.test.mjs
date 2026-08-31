@@ -46,7 +46,8 @@ test("Respond overview has desktop, tablet, and phone layouts", async () => {
   const css = await read("../app/globals.css");
 
   assert.match(css, /\.respond-map-layout\{[^}]*grid-template-columns:minmax\(0,1fr\) 300px/);
-  assert.match(css, /@media\(max-width:850px\)[^{]*\{[^]*\.respond-map-layout\{grid-template-columns:1fr/);
+  assert.match(css, /@media\(max-width:950px\)[^{]*\{[^]*\.respond-map-layout\{grid-template-columns:1fr/);
+  assert.match(css, /@media\(max-width:1000px\)[^{]*\{[^]*\.respond-overview-page \.respond-title\{[^}]*flex-direction:column/);
   assert.match(css, /@media\(max-width:620px\)[^{]*\{[^]*\.respond-monitor-status\{grid-template-columns:1fr 1fr/);
   assert.match(css, /\.respond-map-controls button\{[^}]*min-height:40px/);
   assert.match(css, /\.respond-map-marker\{[^}]*width:31px;height:31px/);
