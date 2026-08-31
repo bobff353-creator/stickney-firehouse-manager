@@ -30,7 +30,9 @@ test("desktop navigation stays visible, follows the active section, and remember
   assert.match(shell, /aria-controls="desktop-navigation"/);
   assert.match(shell, /stickney-desktop-menu-hidden/);
   assert.match(shell, /className="sidebar-core-nav"/);
-  assert.match(shell, /Home[\s\S]+Respond[\s\S]+Live Operations[\s\S]+Maps & Preplans[\s\S]+Station Board[\s\S]+Daily Log[\s\S]+Station Schedule[\s\S]+Apparatus Checks/);
+  assert.match(shell, /Home[\s\S]+Respond[\s\S]+Live Operations[\s\S]+Maps & Preplans[\s\S]+Daily Log[\s\S]+Station Schedule[\s\S]+Apparatus Checks/);
+  assert.doesNotMatch(shell.match(/const featuredNavItems[\s\S]+?\];/)?.[0] ?? "", /Command Center|Station Board/);
+  assert.match(shell, /label: "Operations"[\s\S]+label: "Command Center", page: "Command Center"/);
   assert.match(shell, /className="desktop-more-nav"[\s\S]+<span>More tools<\/span>/);
   assert.match(shell, /visibleMoreNavGroups\.some[\s\S]+setMoreToolsOpen\(true\)/);
   assert.doesNotMatch(shell, /navigate\(item\.page\); setSidebarCollapsed\(true\)/);

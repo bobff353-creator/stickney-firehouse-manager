@@ -73,7 +73,6 @@ const featuredNavItems: Array<{ page: NavItem; label: string; tone: string }> = 
   { page: "Respond", label: "Respond", tone: "respond" },
   { page: "Operations Board", label: "Live Operations", tone: "live" },
   { page: "Field Preplans", label: "Maps & Preplans", tone: "maps" },
-  { page: "Command Center", label: "Station Board", tone: "station" },
   { page: "Daily Log", label: "Daily Log", tone: "log" },
   { page: "Scheduling", label: "Station Schedule", tone: "schedule" },
   { page: "Inventory", label: "Apparatus Checks", tone: "apparatus" },
