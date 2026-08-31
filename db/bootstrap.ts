@@ -10,6 +10,7 @@ import { importedBuildingSeeds, importedBuildingSource } from "../app/preplan-im
 import { createPostgresD1Adapter } from "./postgres-adapter";
 import { apparatus1203Compartments, apparatus1203Equipment, apparatus1203VehicleChecks } from "../app/inventory-1203-import";
 import { apparatus1204Compartments, apparatus1204Equipment, apparatus1204VehicleChecks } from "../app/inventory-1204-import";
+import { safetyInspectionItems, safetyInspectionTemplates } from "./safety-inspection-catalog";
 
 const payScales = [
   ["deputy-chief-1", "Chief", 31, 46.5, 46.5, 1],
@@ -67,7 +68,7 @@ const employeeSeed = [
 ] as const;
 
 let ready = false;
-const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-31-monthly-safety-inspections-v1";
+const runtimeBootstrapVersion = "stickney-runtime-bootstrap-2026-08-31-safety-inspection-library-v2";
 const callbackRulesJson = JSON.stringify({ weekend: { fridayStart: "18:00", sundayEnd: "18:00" }, holiday: true, callTypes: ["Auto accident", "Fire alarm", "Mutual aid", "Auto aid"], backToBackMinutes: 5, minimumHours: 2, roundingMinutes: 15, onDutyFlag: true, overlappingWindowFlag: true, deputyChiefOverride: true });
 
 const policySeedVersion = "stickney-policy-library-2026-07-18";
@@ -355,14 +356,16 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
     db.prepare("CREATE INDEX IF NOT EXISTS policies_title_idx ON policies(title)"),
     db.prepare("CREATE TABLE IF NOT EXISTS daily_duties (id TEXT PRIMARY KEY NOT NULL, day_of_week INTEGER NOT NULL, shift_key TEXT NOT NULL, duty TEXT NOT NULL DEFAULT '', updated_by TEXT NOT NULL DEFAULT 'System', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS daily_duties_day_shift_idx ON daily_duties(day_of_week, shift_key)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS safety_inspection_templates (id TEXT PRIMARY KEY NOT NULL, slug TEXT NOT NULL UNIQUE, title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', cadence TEXT NOT NULL DEFAULT 'monthly', category TEXT NOT NULL DEFAULT 'Field safety', active INTEGER NOT NULL DEFAULT 1, created_by TEXT NOT NULL DEFAULT 'System', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL DEFAULT 'System', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS safety_inspection_templates (id TEXT PRIMARY KEY NOT NULL, slug TEXT NOT NULL UNIQUE, title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', cadence TEXT NOT NULL DEFAULT 'monthly', category TEXT NOT NULL DEFAULT 'Field safety', location_options TEXT NOT NULL DEFAULT '[]', active INTEGER NOT NULL DEFAULT 1, created_by TEXT NOT NULL DEFAULT 'System', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL DEFAULT 'System', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE TABLE IF NOT EXISTS safety_inspection_template_items (id TEXT PRIMARY KEY NOT NULL, template_id TEXT NOT NULL REFERENCES safety_inspection_templates(id), section_name TEXT NOT NULL, label TEXT NOT NULL, equipment_type TEXT NOT NULL DEFAULT '', required INTEGER NOT NULL DEFAULT 1, active INTEGER NOT NULL DEFAULT 1, sort_order INTEGER NOT NULL DEFAULT 0, updated_by TEXT NOT NULL DEFAULT 'System', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE INDEX IF NOT EXISTS safety_template_items_order_idx ON safety_inspection_template_items(template_id, active, sort_order)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS safety_inspections (id TEXT PRIMARY KEY NOT NULL, template_id TEXT NOT NULL REFERENCES safety_inspection_templates(id), inspection_date TEXT NOT NULL, inspector_employee_id TEXT REFERENCES employees(id), inspector_name TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','submitted','reopened')), overall_notes TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, submitted_by TEXT, submitted_at TEXT)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS safety_inspections (id TEXT PRIMARY KEY NOT NULL, template_id TEXT NOT NULL REFERENCES safety_inspection_templates(id), inspection_date TEXT NOT NULL, inspection_location TEXT NOT NULL DEFAULT '', inspector_employee_id TEXT REFERENCES employees(id), inspector_name TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','submitted','reopened')), overall_notes TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, submitted_by TEXT, submitted_at TEXT)"),
     db.prepare("CREATE INDEX IF NOT EXISTS safety_inspections_template_date_idx ON safety_inspections(template_id, inspection_date)"),
     db.prepare("CREATE INDEX IF NOT EXISTS safety_inspections_status_date_idx ON safety_inspections(status, inspection_date)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS safety_inspections_inspector_idx ON safety_inspections(inspector_employee_id)"),
     db.prepare("CREATE TABLE IF NOT EXISTS safety_inspection_results (id TEXT PRIMARY KEY NOT NULL, inspection_id TEXT NOT NULL REFERENCES safety_inspections(id), template_item_id TEXT NOT NULL REFERENCES safety_inspection_template_items(id), snapshot_section_name TEXT NOT NULL, snapshot_label TEXT NOT NULL, snapshot_equipment_type TEXT NOT NULL DEFAULT '', snapshot_required INTEGER NOT NULL DEFAULT 1, snapshot_sort_order INTEGER NOT NULL DEFAULT 0, result_status TEXT NOT NULL DEFAULT 'not_checked' CHECK(result_status IN ('not_checked','pass','deficient','not_applicable')), deficiency_note TEXT NOT NULL DEFAULT '', corrected_on_site INTEGER NOT NULL DEFAULT 0, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(inspection_id, template_item_id))"),
     db.prepare("CREATE INDEX IF NOT EXISTS safety_results_inspection_status_idx ON safety_inspection_results(inspection_id, result_status)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS safety_results_template_item_idx ON safety_inspection_results(template_item_id)"),
     db.prepare("CREATE TABLE IF NOT EXISTS safety_inspection_attachments (id TEXT PRIMARY KEY NOT NULL, inspection_id TEXT NOT NULL REFERENCES safety_inspections(id), object_key TEXT NOT NULL UNIQUE, filename TEXT NOT NULL, content_type TEXT NOT NULL DEFAULT 'application/octet-stream', size_bytes INTEGER NOT NULL DEFAULT 0, created_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
     db.prepare("CREATE INDEX IF NOT EXISTS safety_attachments_inspection_idx ON safety_inspection_attachments(inspection_id, created_at)"),
     db.prepare("CREATE TABLE IF NOT EXISTS chief_board_items (id TEXT PRIMARY KEY NOT NULL, item_type TEXT NOT NULL DEFAULT 'note', title TEXT NOT NULL, body TEXT NOT NULL DEFAULT '', event_date TEXT NOT NULL DEFAULT '', starts_at TEXT NOT NULL DEFAULT '', ends_at TEXT NOT NULL DEFAULT '', expires_at TEXT NOT NULL DEFAULT '', invite_status TEXT NOT NULL DEFAULT '', active INTEGER NOT NULL DEFAULT 1, created_by TEXT NOT NULL DEFAULT 'System', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
@@ -421,34 +424,12 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
     db.prepare("CREATE INDEX IF NOT EXISTS station_ot_offer_employee_idx ON station_ot_offers(employee_id, status)"),
     db.prepare("CREATE TABLE IF NOT EXISTS station_distribution_weights (id INTEGER PRIMARY KEY NOT NULL, seniority_weight REAL NOT NULL DEFAULT 1, hours_weight REAL NOT NULL DEFAULT 1, custom_weight REAL NOT NULL DEFAULT 0, custom_label TEXT NOT NULL DEFAULT 'Cross-trained', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
   ]);
-  await db.prepare("INSERT INTO safety_inspection_templates(id,slug,title,description,cadence,category) VALUES('monthly-public-works-extinguishers','public-works-monthly-fire-extinguishers','Public Works Monthly Fire Extinguisher Inspection','Monthly inspection of the extinguishers assigned to the Public Works garage, spare storage, vehicles, and gas pump.','monthly','Monthly safety inspections') ON CONFLICT(id) DO UPDATE SET title=excluded.title,description=excluded.description,cadence=excluded.cadence,category=excluded.category").run();
-  const extinguisherItems = [
-    ["pw-ext-001","Garage","Hall by men's room","10 lb dry chemical",1,10],
-    ["pw-ext-002","Garage","Garage Door #1 — northeast","2.5 lb dry chemical",1,20],
-    ["pw-ext-003","Garage","Garage Door #2 — west","20 lb dry chemical",1,30],
-    ["pw-ext-004","Garage","Garage Door #3 — west","10 lb dry chemical",1,40],
-    ["pw-ext-005","Garage","Garage Door #4 — southeast","10 lb dry chemical",1,50],
-    ["pw-ext-006","Garage","Garage Door #5 — east by bench","5 lb dry chemical",1,60],
-    ["pw-ext-007","Spare extinguishers under stairs","Spare 10 lb dry chemical #1","10 lb dry chemical",0,70],
-    ["pw-ext-008","Spare extinguishers under stairs","Spare 5 lb dry chemical #1","5 lb dry chemical",0,80],
-    ["pw-ext-009","Spare extinguishers under stairs","Spare 10 lb dry chemical #2","10 lb dry chemical",0,90],
-    ["pw-ext-010","Spare extinguishers under stairs","Spare 5 lb dry chemical #2","5 lb dry chemical",0,100],
-    ["pw-ext-011","Spare extinguishers under stairs","Spare cartridge unit","20 lb dry chemical cartridge",0,110],
-    ["pw-ext-012","Vehicles","Bobcat","5 lb dry chemical",1,120],
-    ["pw-ext-013","Vehicles","Truck 8 — black pickup","5 lb dry chemical",0,130],
-    ["pw-ext-014","Vehicles","T-7 — large dump truck","5 lb dry chemical",0,140],
-    ["pw-ext-015","Vehicles","T-13 — white dump truck","5 lb dry chemical",0,150],
-    ["pw-ext-016","Vehicles","Komatsu","2.5 lb dry chemical",1,160],
-    ["pw-ext-017","Vehicles","T-3 — water SUV","5 lb dry chemical",0,170],
-    ["pw-ext-018","Vehicles","T-12 — black dump truck","5 lb dry chemical",0,180],
-    ["pw-ext-019","Vehicles","T-5 — red pickup","Size not entered",0,190],
-    ["pw-ext-020","Vehicles","Truck 1 — garbage truck","5 lb dry chemical",1,200],
-    ["pw-ext-021","Vehicles","Kubota","2.5 lb dry chemical",0,210],
-    ["pw-ext-022","Vehicles","T-4 — Dodge pickup","5 lb dry chemical",0,220],
-    ["pw-ext-023","Vehicles","Sweeper","2.5 lb dry chemical",0,230],
-    ["pw-ext-024","Gas pump","Gas pump extinguisher","10 lb dry chemical",0,240],
-  ] as const;
-  await db.batch(extinguisherItems.map(([id,section,label,type,required,sortOrder]) => db.prepare("INSERT INTO safety_inspection_template_items(id,template_id,section_name,label,equipment_type,required,sort_order) VALUES(?,'monthly-public-works-extinguishers',?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET section_name=excluded.section_name,label=excluded.label,equipment_type=excluded.equipment_type,required=excluded.required,sort_order=excluded.sort_order").bind(id,section,label,type,required,sortOrder)));
+  try { await db.prepare("ALTER TABLE safety_inspection_templates ADD COLUMN location_options TEXT NOT NULL DEFAULT '[]'").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE safety_inspections ADD COLUMN inspection_location TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  await db.batch(safetyInspectionTemplates.map((template) => db.prepare("INSERT INTO safety_inspection_templates(id,slug,title,description,cadence,category,location_options) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET slug=excluded.slug,title=excluded.title,description=excluded.description,cadence=excluded.cadence,category=excluded.category,location_options=excluded.location_options").bind(template.id,template.slug,template.title,template.description,template.cadence,template.category,JSON.stringify(template.locationOptions))));
+  for (let index=0; index<safetyInspectionItems.length; index+=40) {
+    await db.batch(safetyInspectionItems.slice(index,index+40).map((item) => db.prepare("INSERT INTO safety_inspection_template_items(id,template_id,section_name,label,equipment_type,required,sort_order) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET template_id=excluded.template_id,section_name=excluded.section_name,label=excluded.label,equipment_type=excluded.equipment_type,required=excluded.required,sort_order=excluded.sort_order").bind(item.id,item.templateId,item.section,item.label,item.detail,item.required,item.sortOrder)));
+  }
   for (let index=0; index<importedBuildingSeeds.length; index+=40) {
     await db.batch(importedBuildingSeeds.slice(index,index+40).map((item) => db.prepare("INSERT INTO field_preplan_imports(id,business_name,address,source_file,source_row) VALUES(?,?,?,?,?) ON CONFLICT(source_file,source_row) DO UPDATE SET business_name=excluded.business_name,address=excluded.address,updated_at=CURRENT_TIMESTAMP").bind(`coopy-buildings-${String(item.sourceRow).padStart(3,"0")}`,item.businessName.trim(),item.address.trim(),importedBuildingSource,item.sourceRow)));
   }

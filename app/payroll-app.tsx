@@ -80,7 +80,7 @@ const featuredNavItems: Array<{ page: NavItem; label: string; tone: string }> = 
 const featuredNavPages = new Set<NavItem>(featuredNavItems.map((item) => item.page));
 const adminNavGroups: Array<{ label: string; icon: IconName; items: Array<{ label: string; page: NavItem }> }> = [
   { label: "Operations", icon: "log", items: [{ label: "Command Center", page: "Command Center" }, { label: "Live Operations Board", page: "Operations Board" }, { label: "Activity Timeline", page: "Activity Timeline" }, { label: "Daily Log", page: "Daily Log" }, { label: "Box Cards", page: "Box Cards" }] },
-  { label: "Field", icon: "search", items: [{ label: "Respond", page: "Respond" }, { label: "Command Board", page: "Command Board" }, { label: "Preplans", page: "Field Preplans" }, { label: "Road Closures", page: "Road Closures" }, { label: "Monthly Safety Inspections", page: "Safety Inspections" }] },
+  { label: "Field", icon: "search", items: [{ label: "Respond", page: "Respond" }, { label: "Command Board", page: "Command Board" }, { label: "Preplans", page: "Field Preplans" }, { label: "Road Closures", page: "Road Closures" }, { label: "Safety Inspections", page: "Safety Inspections" }] },
   { label: "Scheduling", icon: "clock", items: [{ label: "Station Scheduler", page: "Scheduling" }] },
   { label: "Personnel", icon: "users", items: [{ label: "Employees", page: "Employees" }, { label: "Contacts", page: "Employee Contacts" }] },
   { label: "Payroll", icon: "payroll", items: [{ label: "Payroll", page: "Payroll" }, { label: "Work Detail", page: "Work Details" }, { label: "Timesheets", page: "Timesheets" }, { label: "Callback Reviews", page: "Callback Reviews" }, { label: "Rates", page: "Rates & Rules" }] },

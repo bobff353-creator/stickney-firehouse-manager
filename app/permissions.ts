@@ -16,7 +16,7 @@ export const permissionCatalog = [
   { key: "field_preplans.manage_settings", label: "Manage preplan calculation settings", group: "Field" },
   { key: "incident_command.view", label: "View Incident Command Board", group: "Field" },
   { key: "incident_command.manage", label: "Operate Incident Command Board", group: "Field" },
-  { key: "safety_inspections.view", label: "View monthly safety inspections and reports", group: "Field" },
+  { key: "safety_inspections.view", label: "View safety inspections and reports", group: "Field" },
   { key: "safety_inspections.complete", label: "Complete and submit safety inspections", group: "Field" },
   { key: "safety_inspections.manage", label: "Edit safety inspection checklists and reopen records", group: "Field" },
   { key: "scheduling.view", label: "View scheduling", group: "Scheduling" },

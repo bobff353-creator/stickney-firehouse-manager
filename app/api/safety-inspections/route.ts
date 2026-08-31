@@ -50,15 +50,15 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const selectedId = text(url.searchParams.get("inspectionId"), 80);
     const [templateRows, itemRows, inspectionRows] = await Promise.all([
-      db.prepare("SELECT id,slug,title,description,cadence,category,active,updated_by updatedBy,updated_at updatedAt FROM safety_inspection_templates WHERE active=1 ORDER BY title").all(),
+      db.prepare("SELECT id,slug,title,description,cadence,category,location_options locationOptions,active,updated_by updatedBy,updated_at updatedAt FROM safety_inspection_templates WHERE active=1 ORDER BY cadence,title").all(),
       db.prepare("SELECT id,template_id templateId,section_name sectionName,label,equipment_type equipmentType,required,active,sort_order sortOrder,updated_by updatedBy,updated_at updatedAt FROM safety_inspection_template_items ORDER BY template_id,sort_order,label").all(),
-      db.prepare("SELECT i.id,i.template_id templateId,t.title templateTitle,i.inspection_date inspectionDate,i.inspector_employee_id inspectorEmployeeId,i.inspector_name inspectorName,i.status,i.overall_notes overallNotes,i.created_by createdBy,i.created_at createdAt,i.updated_by updatedBy,i.updated_at updatedAt,i.submitted_by submittedBy,i.submitted_at submittedAt,(SELECT COUNT(*) FROM safety_inspection_results r WHERE r.inspection_id=i.id) totalItems,(SELECT COUNT(*) FROM safety_inspection_results r WHERE r.inspection_id=i.id AND r.result_status='pass') passedItems,(SELECT COUNT(*) FROM safety_inspection_results r WHERE r.inspection_id=i.id AND r.result_status='deficient') deficientItems,(SELECT COUNT(*) FROM safety_inspection_results r WHERE r.inspection_id=i.id AND r.result_status='not_applicable') notApplicableItems FROM safety_inspections i JOIN safety_inspection_templates t ON t.id=i.template_id ORDER BY i.inspection_date DESC,i.updated_at DESC LIMIT 250").all(),
+      db.prepare("SELECT i.id,i.template_id templateId,t.title templateTitle,i.inspection_date inspectionDate,i.inspection_location inspectionLocation,i.inspector_employee_id inspectorEmployeeId,i.inspector_name inspectorName,i.status,i.overall_notes overallNotes,i.created_by createdBy,i.created_at createdAt,i.updated_by updatedBy,i.updated_at updatedAt,i.submitted_by submittedBy,i.submitted_at submittedAt,(SELECT COUNT(*) FROM safety_inspection_results r WHERE r.inspection_id=i.id) totalItems,(SELECT COUNT(*) FROM safety_inspection_results r WHERE r.inspection_id=i.id AND r.result_status='pass') passedItems,(SELECT COUNT(*) FROM safety_inspection_results r WHERE r.inspection_id=i.id AND r.result_status='deficient') deficientItems,(SELECT COUNT(*) FROM safety_inspection_results r WHERE r.inspection_id=i.id AND r.result_status='not_applicable') notApplicableItems FROM safety_inspections i JOIN safety_inspection_templates t ON t.id=i.template_id ORDER BY i.inspection_date DESC,i.updated_at DESC LIMIT 250").all(),
     ]);
     let inspection = null;
     let results: unknown[] = [];
     let attachments: unknown[] = [];
     if (selectedId) {
-      inspection = await db.prepare("SELECT id,template_id templateId,inspection_date inspectionDate,inspector_employee_id inspectorEmployeeId,inspector_name inspectorName,status,overall_notes overallNotes,created_by createdBy,created_at createdAt,updated_by updatedBy,updated_at updatedAt,submitted_by submittedBy,submitted_at submittedAt FROM safety_inspections WHERE id=? LIMIT 1").bind(selectedId).first();
+      inspection = await db.prepare("SELECT id,template_id templateId,inspection_date inspectionDate,inspection_location inspectionLocation,inspector_employee_id inspectorEmployeeId,inspector_name inspectorName,status,overall_notes overallNotes,created_by createdBy,created_at createdAt,updated_by updatedBy,updated_at updatedAt,submitted_by submittedBy,submitted_at submittedAt FROM safety_inspections WHERE id=? LIMIT 1").bind(selectedId).first();
       if (inspection) {
         const [resultRows, attachmentRows] = await Promise.all([
           db.prepare("SELECT r.id,r.inspection_id inspectionId,r.template_item_id templateItemId,r.result_status status,r.deficiency_note deficiencyNote,r.corrected_on_site correctedOnSite,r.snapshot_section_name snapshotSectionName,r.snapshot_label snapshotLabel,r.snapshot_equipment_type snapshotEquipmentType,r.snapshot_required snapshotRequired,r.snapshot_sort_order snapshotSortOrder,r.updated_by updatedBy,r.updated_at updatedAt FROM safety_inspection_results r WHERE r.inspection_id=? ORDER BY r.snapshot_sort_order,r.id").bind(selectedId).all(),
@@ -92,9 +92,11 @@ export async function POST(request: Request) {
       inspectionId?: string;
       templateId?: string;
       inspectionDate?: string;
+      inspectionLocation?: string;
       overallNotes?: string;
       results?: ResultInput[];
       item?: { id?: string; sectionName?: string; label?: string; equipmentType?: string; required?: boolean; active?: boolean; sortOrder?: number };
+      template?: { id?: string; title?: string; description?: string; cadence?: string; category?: string; locationOptions?: string[] };
     };
     const action = text(body.action, 40);
     const actor = viewer.email;
@@ -113,6 +115,33 @@ export async function POST(request: Request) {
       return privateJson({ ok: true, inspectionId }, 201);
     }
 
+    if (action === "updateTemplate") {
+      if (!viewer.canManage) return privateJson({ error: "Officer or administrator approval is required to edit an inspection form." }, 403);
+      const template = body.template || {};
+      const templateId = text(template.id, 80);
+      const title = text(template.title, 180);
+      const description = text(template.description, 1000);
+      const cadence = text(template.cadence, 40).toLowerCase();
+      const category = text(template.category, 120);
+      const locationOptions = Array.isArray(template.locationOptions) ? template.locationOptions.map((value) => text(value, 120)).filter(Boolean).slice(0, 30) : [];
+      if (!templateId || !title || !["weekly", "monthly"].includes(cadence)) return privateJson({ error: "Form name and a weekly or monthly frequency are required." }, 400);
+      await db.prepare("UPDATE safety_inspection_templates SET title=?,description=?,cadence=?,category=?,location_options=?,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
+        .bind(title, description, cadence, category || "Field safety", JSON.stringify(locationOptions), actor, templateId).run();
+      return privateJson({ ok: true });
+    }
+
+    if (action === "createItem") {
+      if (!viewer.canManage) return privateJson({ error: "Officer or administrator approval is required to edit an inspection form." }, 403);
+      const templateId = text(body.templateId, 80);
+      const template = await db.prepare("SELECT id FROM safety_inspection_templates WHERE id=? AND active=1 LIMIT 1").bind(templateId).first();
+      if (!template) return privateJson({ error: "The inspection form was not found." }, 404);
+      const next = await db.prepare("SELECT COALESCE(MAX(sort_order),0)+10 nextOrder FROM safety_inspection_template_items WHERE template_id=?").bind(templateId).first<{ nextOrder: number }>();
+      const itemId = `custom-${crypto.randomUUID()}`;
+      await db.prepare("INSERT INTO safety_inspection_template_items(id,template_id,section_name,label,equipment_type,required,active,sort_order,updated_by) VALUES(?,?,?,?,?,1,1,?,?)")
+        .bind(itemId, templateId, "New section", "New checkpoint", "", Number(next?.nextOrder) || 10, actor).run();
+      return privateJson({ ok: true, itemId }, 201);
+    }
+
     if (action === "updateItem") {
       if (!viewer.canManage) return privateJson({ error: "Officer or administrator approval is required to edit a checklist." }, 403);
       const item = body.item || {};
@@ -120,7 +149,7 @@ export async function POST(request: Request) {
       const sectionName = text(item.sectionName, 120);
       const label = text(item.label, 180);
       const equipmentType = text(item.equipmentType, 120);
-      if (!itemId || !sectionName || !label) return privateJson({ error: "Section and location are required." }, 400);
+      if (!itemId || !sectionName || !label) return privateJson({ error: "Section and checkpoint are required." }, 400);
       await db.prepare("UPDATE safety_inspection_template_items SET section_name=?,label=?,equipment_type=?,required=?,active=?,sort_order=?,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
         .bind(sectionName, label, equipmentType, item.required ? 1 : 0, item.active === false ? 0 : 1, Number(item.sortOrder) || 0, actor, itemId).run();
       return privateJson({ ok: true });
@@ -128,7 +157,7 @@ export async function POST(request: Request) {
 
     const inspectionId = text(body.inspectionId, 80);
     if (!inspectionId) return privateJson({ error: "Choose an inspection record." }, 400);
-    const existing = await db.prepare("SELECT id,status,created_by createdBy FROM safety_inspections WHERE id=? LIMIT 1").bind(inspectionId).first<{ id: string; status: string; createdBy: string }>();
+    const existing = await db.prepare("SELECT i.id,i.status,i.created_by createdBy,t.location_options locationOptions FROM safety_inspections i JOIN safety_inspection_templates t ON t.id=i.template_id WHERE i.id=? LIMIT 1").bind(inspectionId).first<{ id: string; status: string; createdBy: string; locationOptions: string }>();
     if (!existing) return privateJson({ error: "The inspection record was not found." }, 404);
 
     if (action === "reopen") {
@@ -143,6 +172,10 @@ export async function POST(request: Request) {
 
     const inspectionDate = text(body.inspectionDate, 10);
     if (!validDate(inspectionDate)) return privateJson({ error: "Enter a valid inspection date." }, 400);
+    const inspectionLocation = text(body.inspectionLocation, 120);
+    let locationOptions: string[] = [];
+    try { locationOptions = JSON.parse(existing.locationOptions || "[]") as string[]; } catch { locationOptions = []; }
+    if (action === "submit" && locationOptions.length && !locationOptions.includes(inspectionLocation)) return privateJson({ error: "Choose the facility inspected before submitting." }, 400);
     const inputs = Array.isArray(body.results) ? body.results : [];
     const templateItems = await db.prepare("SELECT template_item_id templateItemId,snapshot_required required FROM safety_inspection_results WHERE inspection_id=?").bind(inspectionId).all<{ templateItemId: string; required: number }>();
     const known = new Map(templateItems.results.map((item) => [item.templateItemId, item]));
@@ -160,18 +193,18 @@ export async function POST(request: Request) {
       const byId = new Map(normalized.map((item) => [item.templateItemId, item]));
       const incomplete = templateItems.results.filter((item) => item.required && (!byId.get(item.templateItemId) || byId.get(item.templateItemId)?.status === "not_checked"));
       const undocumentedDeficiencies = normalized.filter((item) => item.status === "deficient" && !item.deficiencyNote);
-      if (incomplete.length) return privateJson({ error: `${incomplete.length} required extinguisher${incomplete.length === 1 ? " is" : "s are"} still not checked.` }, 400);
-      if (undocumentedDeficiencies.length) return privateJson({ error: "Add a deficiency note for every deficient extinguisher." }, 400);
+      if (incomplete.length) return privateJson({ error: `${incomplete.length} required checkpoint${incomplete.length === 1 ? " is" : "s are"} still not checked.` }, 400);
+      if (undocumentedDeficiencies.length) return privateJson({ error: "Add a deficiency note for every deficient checkpoint." }, 400);
     }
     await db.batch(normalized.map((item) => db.prepare("UPDATE safety_inspection_results SET result_status=?,deficiency_note=?,corrected_on_site=?,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE inspection_id=? AND template_item_id=?")
       .bind(item.status, item.deficiencyNote, item.correctedOnSite ? 1 : 0, actor, inspectionId, item.templateItemId)));
     const notes = text(body.overallNotes, 6000);
     if (action === "submit") {
-      await db.prepare("UPDATE safety_inspections SET inspection_date=?,overall_notes=?,status='submitted',submitted_by=?,submitted_at=CURRENT_TIMESTAMP,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
-        .bind(inspectionDate, notes, actor, actor, inspectionId).run();
+      await db.prepare("UPDATE safety_inspections SET inspection_date=?,inspection_location=?,overall_notes=?,status='submitted',submitted_by=?,submitted_at=CURRENT_TIMESTAMP,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
+        .bind(inspectionDate, inspectionLocation, notes, actor, actor, inspectionId).run();
     } else {
-      await db.prepare("UPDATE safety_inspections SET inspection_date=?,overall_notes=?,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
-        .bind(inspectionDate, notes, actor, inspectionId).run();
+      await db.prepare("UPDATE safety_inspections SET inspection_date=?,inspection_location=?,overall_notes=?,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
+        .bind(inspectionDate, inspectionLocation, notes, actor, inspectionId).run();
     }
     return privateJson({ ok: true });
   } catch (error) {

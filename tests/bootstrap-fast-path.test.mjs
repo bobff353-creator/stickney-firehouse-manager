@@ -4,7 +4,7 @@ import test from "node:test";
 
 const source = await readFile(new URL("../db/bootstrap.ts", import.meta.url), "utf8");
 const markerMigration = await readFile(
-  new URL("../supabase/migrations/20260831191500_restore_monthly_safety_inspection_bootstrap_marker.sql", import.meta.url),
+  new URL("../supabase/migrations/20260831213454_add_aladtec_safety_inspection_templates.sql", import.meta.url),
   "utf8",
 );
 
@@ -29,7 +29,7 @@ test("the deployed migration advances the runtime bootstrap marker", () => {
   assert.ok(version, "runtime bootstrap version must be declared");
   assert.match(markerMigration, /safety_inspection_templates/);
   assert.match(markerMigration, /safety_inspection_template_items/);
-  assert.match(markerMigration, /extinguisher_item_count <> 24/);
+  assert.match(markerMigration, /item_count <> 128/);
   assert.ok(
     markerMigration.includes(version),
     `marker migration must install runtime bootstrap version ${version}`,
