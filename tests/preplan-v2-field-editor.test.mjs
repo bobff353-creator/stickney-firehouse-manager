@@ -78,6 +78,21 @@ test("room and stair authoring persists CAD terms and floor-specific map geometr
   assert.match(route, /json\(geometry,\[\]\)/);
 });
 
+test("saved rooms can be selected, edited, moved, reshaped, and safely removed", () => {
+  assert.match(panel, /Tap a room on the map or choose one here/);
+  assert.match(panel, /Edit room/);
+  assert.match(panel, /Move \/ reshape/);
+  assert.match(panel, /Remove room/);
+  assert.match(panel, /spaceId:space\.id,points/);
+  assert.match(panel, /Drag the blue room to move the whole shape/);
+  assert.match(field, /aria-label=\{onOperationalSpaceSelect\?`Select room/);
+  assert.match(field, /operationalDrag\.current=\{kind:"space"/);
+  assert.match(field, /operationalDrag\.current=\{kind:"corner"/);
+  assert.match(route, /\["level","space","annotation","hoseLay"\]/);
+  assert.match(route, /field_preplan_spaces SET archived=1/);
+  assert.match(route, /active alerts and hazardous materials linked to this room/);
+});
+
 test("HazMat zones require a verified linked material and positive circle radius", () => {
   assert.match(panel, /saveHazmatZone/);
   assert.match(panel, /Select verified material/);

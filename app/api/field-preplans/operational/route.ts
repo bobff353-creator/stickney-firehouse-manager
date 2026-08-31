@@ -98,9 +98,18 @@ export async function POST(request: Request) {
 
     if (action === "archiveOperationalRecord") {
       const kind=text(body.kind,20),id=text(body.id,80);
-      if(!id||!["level","annotation","hoseLay"].includes(kind))return Response.json({error:"A valid operational record is required."},{status:400});
+      if(!id||!["level","space","annotation","hoseLay"].includes(kind))return Response.json({error:"A valid operational record is required."},{status:400});
       await requirePermission(request, db, kind==="hoseLay"?"field_preplans.edit":"field_preplans.manage_layers");
-      if(kind==="annotation"){
+      if(kind==="space"){
+        const record=await db.prepare("SELECT id FROM field_preplan_spaces WHERE id=? AND preplan_id=? AND archived=0").bind(id,preplanId).first();
+        if(!record)return Response.json({error:"The active room was not found in this preplan."},{status:404});
+        const [linkedAlert,linkedHazmat]=await Promise.all([
+          db.prepare("SELECT id FROM field_preplan_alerts WHERE preplan_id=? AND space_id=? AND archived=0 LIMIT 1").bind(preplanId,id).first(),
+          db.prepare("SELECT id FROM field_preplan_hazmat WHERE preplan_id=? AND space_id=? AND archived=0 LIMIT 1").bind(preplanId,id).first(),
+        ]);
+        if(linkedAlert||linkedHazmat)return Response.json({error:"Remove or reassign active alerts and hazardous materials linked to this room before removing it."},{status:409});
+        await db.prepare("UPDATE field_preplan_spaces SET archived=1,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND preplan_id=?").bind(user,id,preplanId).run();
+      }else if(kind==="annotation"){
         const record=await db.prepare("SELECT id FROM field_preplan_annotations WHERE id=? AND preplan_id=? AND archived=0").bind(id,preplanId).first();
         if(!record)return Response.json({error:"The active tactical annotation was not found in this preplan."},{status:404});
         await db.prepare("UPDATE field_preplan_annotations SET archived=1,updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND preplan_id=?").bind(user,id,preplanId).run();
