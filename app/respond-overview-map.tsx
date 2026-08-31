@@ -48,6 +48,23 @@ type RecentCall = {
 const stickneyCenter: Point = { lat: 41.8189, lng: -87.7734 };
 const canvas = { width: 1600, height: 900 };
 
+function initialCallMapView(calls: RecentCall[]) {
+  const clusters = clusterRecentCallLocations(calls);
+  if (!clusters.length) return { center: stickneyCenter, zoom: 16 };
+  const latitudes = clusters.map((cluster) => cluster.latitude);
+  const longitudes = clusters.map((cluster) => cluster.longitude);
+  const latitudeSpan = Math.max(...latitudes) - Math.min(...latitudes);
+  const longitudeSpan = Math.max(...longitudes) - Math.min(...longitudes);
+  const span = Math.max(latitudeSpan, longitudeSpan);
+  return {
+    center: {
+      lat: (Math.min(...latitudes) + Math.max(...latitudes)) / 2,
+      lng: (Math.min(...longitudes) + Math.max(...longitudes)) / 2,
+    },
+    zoom: span > 0.055 ? 14 : span > 0.022 ? 15 : 16,
+  };
+}
+
 function world(point: Point, zoom: number) {
   const scale = 256 * 2 ** zoom;
   return {
@@ -86,11 +103,16 @@ export default function RespondOverviewMap({
   recentCalls: RecentCall[];
   onNavigate?: (page: "Daily Log" | "Field Preplans" | "Box Cards") => void;
 }) {
+  const callClusters = useMemo(
+    () => clusterRecentCallLocations(recentCalls),
+    [recentCalls],
+  );
+  const [initialView] = useState(() => initialCallMapView(recentCalls));
   const [apiKey, setApiKey] = useState("");
   const [mapUnavailable, setMapUnavailable] = useState(false);
   const [imagery, setImagery] = useState<"aerial" | "street">("aerial");
-  const [center, setCenter] = useState(stickneyCenter);
-  const [zoom, setZoom] = useState(16);
+  const [center, setCenter] = useState(initialView.center);
+  const [zoom, setZoom] = useState(initialView.zoom);
   const [rail, setRail] = useState<"active" | "recent">("active");
   const [selectedCallClusterId, setSelectedCallClusterId] = useState("");
   const [layers, setLayers] = useState({
@@ -172,10 +194,6 @@ export default function RespondOverviewMap({
           .join(" "),
       })),
     [center, overview.roadClosures, zoom],
-  );
-  const callClusters = useMemo(
-    () => clusterRecentCallLocations(recentCalls),
-    [recentCalls],
   );
   const callMarkers = useMemo(
     () =>
