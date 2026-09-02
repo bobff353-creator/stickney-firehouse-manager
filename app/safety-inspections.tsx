@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { confirmLeavingWork, useUnsavedWork } from "./use-unsaved-work";
+import { preserveEditorDrafts } from "./preserve-editor-drafts";
 
 type Template = { id: string; slug: string; title: string; description: string; cadence: string; category: string; locationOptions: string; active: number };
 type TemplateItem = { id: string; templateId: string; sectionName: string; label: string; equipmentType: string; required: number; active: number; sortOrder: number };
@@ -73,18 +75,19 @@ export default function SafetyInspections({ readOnly = false }: { readOnly?: boo
   const [editorSearch, setEditorSearch] = useState("");
   const [editorSectionFilter, setEditorSectionFilter] = useState("all");
 
-  const load = useCallback(async (inspectionId = "") => {
+  const load = useCallback(async (inspectionId = "", options: { keepDraft?: boolean; keepEditor?: boolean; savedItemId?: string; savedTemplateId?: string } = {}) => {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(`/api/safety-inspections${inspectionId ? `?inspectionId=${encodeURIComponent(inspectionId)}` : ""}`, { cache: "no-store" });
+      const response = await fetch(`/api/safety-inspections${inspectionId ? `?inspectionId=${encodeURIComponent(inspectionId)}` : ""}`, { cache: "no-store", signal: AbortSignal.timeout(15000) });
       const payload = await response.json() as Payload;
       if (!response.ok) throw new Error(payload.error || "Unable to load safety inspections.");
       setData(payload);
       setSelectedId(inspectionId);
-      setDraft(payload.inspection ? { date: payload.inspection.inspectionDate, location: payload.inspection.inspectionLocation || "", notes: payload.inspection.overallNotes, results: payload.results } : null);
-      setItemDrafts(payload.templateItems);
-      setTemplateDrafts(payload.templates.map((item) => ({ ...item, locationOptions: parseLocationOptions(item.locationOptions).join("\n") })));
+      if (!options.keepDraft) setDraft(payload.inspection ? { date: payload.inspection.inspectionDate, location: payload.inspection.inspectionLocation || "", notes: payload.inspection.overallNotes, results: payload.results } : null);
+      setItemDrafts(current => options.keepEditor ? preserveEditorDrafts(current, payload.templateItems, options.savedItemId) : payload.templateItems);
+      const incomingTemplates = payload.templates.map((item) => ({ ...item, locationOptions: parseLocationOptions(item.locationOptions).join("\n") }));
+      setTemplateDrafts(current => options.keepEditor ? preserveEditorDrafts(current, incomingTemplates, options.savedTemplateId) : incomingTemplates);
       setSelectedTemplateId((current) => payload.inspection?.templateId || current || payload.templates[0]?.id || "");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to load safety inspections.");
@@ -112,7 +115,14 @@ export default function SafetyInspections({ readOnly = false }: { readOnly?: boo
   const filtered = useMemo(() => (data?.inspections || []).filter((item) => (statusFilter === "all" || item.status === statusFilter) && (templateFilter === "all" || item.templateId === templateFilter) && (!monthFilter || item.inspectionDate.startsWith(monthFilter))), [data?.inspections, monthFilter, statusFilter, templateFilter]);
   const monthSubmitted = filtered.filter((item) => item.status === "submitted").length;
   const monthDeficiencies = filtered.reduce((sum, item) => sum + Number(item.deficientItems || 0), 0);
-  const currentEditable = Boolean(data?.inspection && draft && data.viewer.canComplete && !readOnly && data.inspection.status !== "submitted");
+  const canCompleteRecord = Boolean(data?.inspection && draft && data.viewer.canComplete && !readOnly && data.inspection.status !== "submitted");
+  const currentEditable = canCompleteRecord && !saving;
+  const recordDirty = Boolean(data?.inspection && draft && JSON.stringify(draft) !== JSON.stringify({ date: data.inspection.inspectionDate, location: data.inspection.inspectionLocation || "", notes: data.inspection.overallNotes, results: data.results }));
+  const editorDirty = Boolean(data && (itemDrafts.some(item => JSON.stringify(item) !== JSON.stringify(data.templateItems.find(saved => saved.id === item.id))) || templateDrafts.some(item => {
+    const saved = data.templates.find(entry => entry.id === item.id);
+    return saved && JSON.stringify(item) !== JSON.stringify({ ...saved, locationOptions: parseLocationOptions(saved.locationOptions).join("\n") });
+  })));
+  useUnsavedWork(recordDirty || editorDirty, saving);
   const templateDraft = templateDrafts.find((item) => item.id === template?.id);
   const currentLocationOptions = parseLocationOptions(template?.locationOptions || "[]");
   const editorItems = useMemo(() => itemDrafts.filter((item) => item.templateId === template?.id).sort((a, b) => a.sortOrder - b.sortOrder), [itemDrafts, template?.id]);
@@ -178,7 +188,7 @@ export default function SafetyInspections({ readOnly = false }: { readOnly?: boo
       const response = await fetch("/api/safety-inspections/attachments", { method: "POST", body: form });
       const payload = await response.json().catch(() => ({})) as { error?: string };
       if (!response.ok) throw new Error(payload.error || "The file could not be attached.");
-      await load(data.inspection.id); setMessage("Supporting file attached.");
+      await load(data.inspection.id, { keepDraft: true, keepEditor: true }); setMessage("Supporting file attached. Any unsaved checkmarks and notes are still here; save the draft to keep them.");
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to attach the file."); }
     finally { setSaving(false); }
   }
@@ -190,7 +200,7 @@ export default function SafetyInspections({ readOnly = false }: { readOnly?: boo
       const response = await fetch(`/api/safety-inspections/attachments/${id}`, { method: "DELETE" });
       const payload = await response.json().catch(() => ({})) as { error?: string };
       if (!response.ok) throw new Error(payload.error || "The file could not be removed.");
-      await load(data.inspection.id); setMessage("Supporting file removed.");
+      await load(data.inspection.id, { keepDraft: true, keepEditor: true }); setMessage("Supporting file removed. Your current checkmarks and notes were kept.");
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to remove the file."); }
     finally { setSaving(false); }
   }
@@ -199,7 +209,7 @@ export default function SafetyInspections({ readOnly = false }: { readOnly?: boo
     setSaving(true); setError(""); setMessage("");
     try {
       await post({ action: "updateItem", item: { ...item, required: Boolean(item.required), active: Boolean(item.active) } });
-      await load(selectedId); setEditingChecklist(true); setMessage(`Checkpoint “${item.label}” updated. Existing submitted records were not changed.`);
+      await load(selectedId, { keepEditor: true, savedItemId: item.id }); setEditingChecklist(true); setMessage(`Checkpoint “${item.label}” updated. Other unsaved edits were kept. Existing submitted records were not changed.`);
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to update the checklist."); }
     finally { setSaving(false); }
   }
@@ -214,7 +224,7 @@ export default function SafetyInspections({ readOnly = false }: { readOnly?: boo
           locationOptions: templateDraft.locationOptions.split("\n").map((value) => value.trim()).filter(Boolean),
         },
       });
-      await load(selectedId); setEditingChecklist(true); setMessage(`Form “${templateDraft.title}” updated. Existing submitted records were not changed.`);
+      await load(selectedId, { keepEditor: true, savedTemplateId: templateDraft.id }); setEditingChecklist(true); setMessage(`Form “${templateDraft.title}” updated. Other unsaved edits were kept. Existing submitted records were not changed.`);
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to update the form."); }
     finally { setSaving(false); }
   }
@@ -224,7 +234,7 @@ export default function SafetyInspections({ readOnly = false }: { readOnly?: boo
     setSaving(true); setError(""); setMessage("");
     try {
       await post({ action: "createItem", templateId: template.id });
-      await load(selectedId); setEditingChecklist(true); setMessage("New checkpoint added. Edit its section and wording below.");
+      await load(selectedId, { keepEditor: true }); setEditingChecklist(true); setMessage("New checkpoint added. Edit its section and wording below. Other unsaved edits were kept.");
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to add a checkpoint."); }
     finally { setSaving(false); }
   }
@@ -242,15 +252,16 @@ export default function SafetyInspections({ readOnly = false }: { readOnly?: boo
       const resultText = result?.status === "pass" ? "PASS" : result?.status === "deficient" ? "DEFICIENT" : result?.status === "not_applicable" ? "N/A" : "NOT CHECKED";
       return `${item.sectionName} — ${item.label} (${item.equipmentType}): ${resultText}${result?.deficiencyNote ? ` — ${result.deficiencyNote}` : ""}`;
     });
-    const body = [template?.title || "Safety Inspection", displayDate(data.inspection.inspectionDate), ...(draft.location ? [`Location: ${draft.location}`] : []), `Inspector: ${data.inspection.inspectorName}`, `Status: ${statusLabel(data.inspection.status)}`, "", ...lines, "", `Notes: ${draft.notes || "None"}`].join("\n");
+    const body = [template?.title || "Safety Inspection", displayDate(draft.date), ...(draft.location ? [`Location: ${draft.location}`] : []), `Inspector: ${data.inspection.inspectorName}`, `Status: ${statusLabel(data.inspection.status)}`, "", ...lines, "", `Notes: ${draft.notes || "None"}`].join("\n");
     window.location.href = `mailto:?subject=${encodeURIComponent(`${template?.title || "Safety Inspection"} — ${data.inspection.inspectionDate}`)}&body=${encodeURIComponent(body)}`;
   }
 
   if (loading && !data) return <div className="safety-loading" aria-busy="true">Loading safety inspections…</div>;
-  if (!data) return <section className="safety-inspections-page"><div className="safety-message error">{error || "Safety inspections are unavailable."}</div></section>;
+  if (!data) return <section className="safety-inspections-page"><div className="safety-message error" role="alert">{error || "Safety inspections are unavailable."}<button className="quiet-button" disabled={loading} onClick={() => void load()}>{loading ? "Retrying…" : "Retry inspections"}</button></div></section>;
 
   if (editingChecklist && data.viewer.canManage) return <section className="safety-inspections-page safety-template-editor">
-    <header className="safety-page-head"><div><p className="eyebrow">Field · Safety inspections</p><h1>Edit inspection forms</h1><p>Choose a form, then update its instructions, locations, and checkpoints. Submitted inspections retain their saved wording and results.</p></div><button className="quiet-button" onClick={() => setEditingChecklist(false)}>Back to inspections</button></header>
+    <header className="safety-page-head"><div><p className="eyebrow">Field · Safety inspections</p><h1>Edit inspection forms</h1><p>Choose a form, then update its instructions, locations, and checkpoints. Submitted inspections retain their saved wording and results.</p></div><button className="quiet-button" disabled={saving} onClick={() => { if (confirmLeavingWork()) { setEditingChecklist(false); void load(); } }}>Back to inspections</button></header>
+    {editorDirty && <div className="unsaved-work-notice" role="status">Unsaved form edits. Save each changed checkpoint or form setting before leaving. Saving one does not discard edits to another.</div>}
     {message && <div className="safety-message success" role="status">{message}</div>}{error && <div className="safety-message error" role="alert">{error}</div>}
     <section className="safety-editor-picker" aria-labelledby="safety-editor-picker-title">
       <div><p className="eyebrow">Form library</p><h2 id="safety-editor-picker-title">Choose the form to edit</h2><p>Changes affect new inspections only. Submitted records stay unchanged.</p></div>
@@ -292,7 +303,8 @@ export default function SafetyInspections({ readOnly = false }: { readOnly?: boo
     const completed = draft.results.length - remaining;
     const percentComplete = draft.results.length ? Math.round((completed / draft.results.length) * 100) : 0;
     return <section className="safety-inspections-page safety-record-page">
-      <header className="safety-page-head"><div><button className="safety-back-link no-print" onClick={() => void load()}>← All inspections</button><p className="eyebrow">Field · Safety inspections</p><h1>{template?.title}</h1><p>{template?.description}</p></div><div className="safety-head-actions no-print"><button className="quiet-button" onClick={() => window.print()}>Print / Save PDF</button><button className="quiet-button" onClick={emailDetail}>Email detailed report</button></div></header>
+      <header className="safety-page-head"><div><button className="safety-back-link no-print" disabled={saving} onClick={() => { if (confirmLeavingWork()) void load(); }}>← All inspections</button><p className="eyebrow">Field · Safety inspections</p><h1>{template?.title}</h1><p>{template?.description}</p></div><div className="safety-head-actions no-print"><button className="quiet-button" disabled={recordDirty || saving} onClick={() => window.print()}>Print / Save PDF</button><button className="quiet-button" disabled={recordDirty || saving} onClick={emailDetail}>Email detailed report</button></div></header>
+      {recordDirty && <div className="unsaved-work-notice no-print" role="status"><strong>Unsaved changes</strong><span>Your checkmarks and notes are only on this device until you save. Save the draft before printing or emailing.</span><button className="quiet-button" disabled={saving} onClick={() => void save(false)}>{saving ? "Saving…" : "Save draft now"}</button></div>}
       {message && <div className="safety-message success" role="status">{message}</div>}{error && <div className="safety-message error" role="alert">{error}</div>}
       <div className="safety-record-identity"><label><span>Inspection date</span><input type="date" value={draft.date} readOnly={!currentEditable} onChange={(event) => setDraft({ ...draft, date: event.target.value })}/></label>{currentLocationOptions.length > 0 && <label><span>Facility inspected</span><select value={draft.location} disabled={!currentEditable} onChange={(event) => setDraft({ ...draft, location: event.target.value })}><option value="">Choose facility</option>{currentLocationOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>}<div><span>Inspector</span><strong>{data.inspection.inspectorName}</strong></div><div><span>Record status</span><strong className={`safety-status ${data.inspection.status}`}>{statusLabel(data.inspection.status)}</strong></div><div><span>Last update</span><strong>{data.inspection.updatedAt || "Not recorded"}</strong></div></div>
       <section className="safety-progress-panel" aria-labelledby="safety-progress-title">
@@ -310,7 +322,7 @@ export default function SafetyInspections({ readOnly = false }: { readOnly?: boo
       </div></section>})}
       <section className="safety-notes"><label><span>Overall notes</span><textarea readOnly={!currentEditable} value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} placeholder="Condition, service needed, replacement information, or follow-up owner…"/></label></section>
       <section className="safety-attachments"><header><div><h2>Supporting files</h2><p>Add deficiency photos, service tags, or a PDF receipt.</p></div>{currentEditable && <label className="safety-upload no-print"><input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf" onChange={(event) => { void upload(event.target.files?.[0] || null); event.currentTarget.value=""; }}/><span>Attach file</span></label>}</header>{data.attachments.length ? <ul>{data.attachments.map((attachment) => <li key={attachment.id}><a href={`/api/safety-inspections/attachments/${attachment.id}`} target="_blank" rel="noreferrer">{attachment.filename}</a><span>{bytesLabel(attachment.sizeBytes)} · {attachment.createdBy}</span>{currentEditable && <button className="no-print" onClick={() => void removeAttachment(attachment.id)}>Remove</button>}</li>)}</ul> : <p className="safety-empty-inline">No files attached.</p>}</section>
-      <footer className="safety-record-actions no-print"><span>{data.inspection.status === "submitted" ? `Submitted ${data.inspection.submittedAt || ""} by ${data.inspection.submittedBy || data.inspection.inspectorName}` : remaining ? `${remaining} checkpoint${remaining === 1 ? "" : "s"} remaining. Save now and finish later on any device.` : "All checkpoints are complete. Review any deficiencies, then submit the inspection."}</span><div>{data.inspection.status === "submitted" && data.viewer.canManage && <button className="quiet-button" disabled={saving} onClick={() => void reopen()}>Reopen for correction</button>}{currentEditable && <><button className="quiet-button" disabled={saving} onClick={() => void save(false)}>{saving ? "Saving…" : "Save draft"}</button><button className="primary-action" disabled={saving} onClick={() => void save(true)}>Submit inspection</button></>}</div></footer>
+      <footer className="safety-record-actions no-print"><span>{data.inspection.status === "submitted" ? `Submitted ${data.inspection.submittedAt || ""} by ${data.inspection.submittedBy || data.inspection.inspectorName}` : remaining ? `${remaining} checkpoint${remaining === 1 ? "" : "s"} remaining. Save now and finish later on any device.` : "All checkpoints are complete. Review any deficiencies, then submit the inspection."}</span><div>{data.inspection.status === "submitted" && data.viewer.canManage && <button className="quiet-button" disabled={saving} onClick={() => void reopen()}>Reopen for correction</button>}{canCompleteRecord && <><button className="quiet-button" disabled={saving} onClick={() => void save(false)}>{saving ? "Saving…" : "Save draft"}</button><button className="primary-action" disabled={saving} onClick={() => void save(true)}>Submit inspection</button></>}</div></footer>
     </section>;
   }
 

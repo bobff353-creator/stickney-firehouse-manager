@@ -81,9 +81,11 @@ export default function RespondOverviewMap({
   overview,
   recentCalls,
   onNavigate,
+  updatesAvailable = true,
 }: {
   overview: RespondOverview;
   recentCalls: RecentCall[];
+  updatesAvailable?: boolean;
   onNavigate?: (page: "Daily Log" | "Field Preplans" | "Box Cards") => void;
 }) {
   const mapElement = useRef<HTMLDivElement>(null);
@@ -532,7 +534,7 @@ export default function RespondOverviewMap({
                 setRail("active");
               }}
             >
-              Current call <b>0</b>
+              Current call <b>{updatesAvailable ? 0 : "—"}</b>
             </button>
             <button
               type="button"
@@ -549,9 +551,9 @@ export default function RespondOverviewMap({
           </div>
           {rail === "active" ? (
             <div className="respond-call-rail-empty" role="tabpanel">
-              <strong>No active calls</strong>
+              <strong>{updatesAvailable ? "No active calls" : "Current call status unavailable"}</strong>
               <span>
-                This screen is ready. A new CAD call will open automatically.
+                {updatesAvailable ? "This screen is ready. A new CAD call will open automatically." : "Updates are interrupted. Previously loaded records remain available below."}
               </span>
               <div>
                 <button type="button" onClick={() => setRail("recent")}>

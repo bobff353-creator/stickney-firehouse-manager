@@ -68,5 +68,7 @@ test("Inventory errors retry Inventory and cannot pollute the payroll error stat
   const opener=source.slice(source.indexOf("async function openInventory()"),source.indexOf("function navigate(page:"));
   assert.doesNotMatch(opener,/setError\(/);assert.match(opener,/setInventoryError/);
   assert.match(source,/inventoryError &&[\s\S]*?onClick=\{\(\) => void openInventory\(\)\}/);
-  assert.match(source,/function navigate\(page: NavItem\) \{\s*setInventoryError\(""\)/);
+  const navigation=source.slice(source.indexOf("function navigate(page:"),source.indexOf("function navigateFromRespond"));
+  assert.match(navigation,/setInventoryError\(""\)/);
+  assert.match(navigation,/if \(!confirmLeavingWork\(\)\) return/);
 });

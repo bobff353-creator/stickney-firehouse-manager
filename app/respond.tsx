@@ -679,6 +679,8 @@ export default function Respond({
     "live",
   );
   const [cachedAt, setCachedAt] = useState("");
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const requestInFlight = useRef(false);
   const [isOnline, setIsOnline] = useState(true);
   const [crewProgress, setCrewProgress] = useState<RespondProgress | null>(null);
   const pageRef = useRef<HTMLElement>(null);
@@ -691,18 +693,22 @@ export default function Respond({
   const quickCloseRef = useRef<HTMLButtonElement>(null);
   const quickTriggerRef = useRef<HTMLElement | null>(null);
   const load = useCallback(async () => {
+    if (requestInFlight.current) return;
+    requestInFlight.current = true;
     try {
       const query = apparatus
         ? `?apparatus=${encodeURIComponent(apparatus)}`
         : "";
       const response = await fetch(`/api/respond${query}`, {
         cache: "no-store",
+        signal: AbortSignal.timeout(15000),
       });
       const body = (await response.json()) as RespondData & { error?: string };
       if (!response.ok)
         throw new Error(body.error || "Unable to load Respond.");
       departmentIdRef.current = body.departmentId;
       setData(body);
+      setLastRefresh(new Date());
       setRespondSource("live");
       setCachedAt("");
       setError("");
@@ -739,6 +745,8 @@ export default function Respond({
       setError(
         value instanceof Error ? value.message : "Unable to load Respond.",
       );
+    } finally {
+      requestInFlight.current = false;
     }
   }, [apparatus]);
   useEffect(() => {
@@ -1025,6 +1033,7 @@ export default function Respond({
       </section>
     );
   if (!call) {
+    const updatesAvailable = !error && isOnline && respondSource === "live";
     const overview: RespondOverview = data?.overview ?? {
       apparatus: null,
       preplans: [],
@@ -1054,20 +1063,21 @@ export default function Respond({
             )}
           </div>
           <div className="respond-title-actions">
-            <small><i /> Live · refreshes every 10 seconds</small>
+            <small><i /> {updatesAvailable ? "Live · refreshes every 10 seconds" : "Updates interrupted"}</small>
             <button onClick={() => void toggleMonitor()}>
               {monitorMode ? "Exit full screen" : "Open full screen"}
             </button>
           </div>
         </header>
+        {!updatesAvailable && <div className="respond-update-warning" role="alert"><div><strong>Current call status cannot be verified</strong><span>Updates are interrupted. The map shows previously loaded records, not a confirmed all-clear.</span><small>{lastRefresh ? `Last received ${lastRefresh.toLocaleTimeString("en-US", { timeZone: "America/Chicago" })}` : "No current update received"}</small></div><button onClick={() => void load()}>Retry updates</button></div>}
         <section
           className="respond-monitor-status"
           aria-label="Respond device status"
         >
           <div className="primary">
             <span>CURRENT STATUS</span>
-            <strong>Ready — no active incident</strong>
-            <small>CAD will open a new incident automatically.</small>
+            <strong>{updatesAvailable ? "Ready — no active incident" : "Current status unavailable"}</strong>
+            <small>{updatesAvailable ? "CAD will open a new incident automatically." : "Reconnect to verify current incidents."}</small>
           </div>
           <div>
             <span>MAP VIEW</span>
@@ -1104,6 +1114,7 @@ export default function Respond({
         <RespondOverviewMap
           overview={overview}
           recentCalls={data?.recentCalls ?? []}
+          updatesAvailable={updatesAvailable}
           onNavigate={onNavigate}
         />
       </section>

@@ -2796,6 +2796,26 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
   .safety-record-actions>div{display:grid;grid-template-columns:1fr 1.15fr;width:100%;gap:7px}
   .safety-record-actions>div button{width:100%;min-width:0;padding-inline:8px}
 }
+/* Readable navigation and explicit operational loading / unsaved states. */
+.sidebar-nav button.nav-featured.current,.sidebar-nav button.nav-featured.current:hover{color:#173f61;background:#eef5f9}
+.topbar-context{min-width:120px}.topbar-context>strong{overflow-wrap:normal}
+.system-dot.offline{background:#eaa244}.system-dot.saving{background:#e3be5a}
+.global-search-notice{margin:0;padding:12px 16px;background:#fff5de;color:#63491c;font-size:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.global-search-notice button{min-height:40px;padding:7px 12px;border:1px solid #bd9d62;border-radius:6px;background:#fff;color:#543c13}
+.chief-quick-access{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:16px 0 20px}
+.chief-quick-access button{min-width:0;min-height:94px;padding:16px;border:1px solid #b1c6d1;border-top:4px solid #267095;border-radius:10px;background:#fff;color:#173f56;text-align:left;display:grid;align-content:start;gap:8px}
+.chief-quick-access button:first-child{border-top-color:#c33140}.chief-quick-access button strong{display:flex;justify-content:space-between;gap:8px;font-size:15px}.chief-quick-access button small{font-size:12px;line-height:1.5;color:#566e7b}
+.chief-quick-access button:hover{background:#edf6fa;border-color:#267095}
+.briefing-unavailable,.portal-offline-notice,.unsaved-work-notice{padding:16px;border:1px solid #d3ad53;border-left:4px solid #a8750d;border-radius:8px;background:#fff6df;color:#65460b;line-height:1.5;display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0}
+.unsaved-work-notice>span,.portal-offline-notice>span{flex:1;min-width:180px}.unsaved-work-notice button{min-height:44px}
+.dashboard-live.stale{color:#8e5912}.dashboard-live.stale i{background:#bc7b18;box-shadow:none}
+.respond-update-warning{padding:14px;border:3px solid #e4ad31;border-radius:8px;background:#fff3d2;color:#5c3808;display:flex;gap:12px;justify-content:space-between;align-items:center;margin:10px 0}
+.respond-update-warning>div{display:grid;gap:5px}.respond-update-warning strong{font-size:16px}.respond-update-warning span{font-size:13px}.respond-update-warning button{min-height:44px;padding:9px 14px;border:1px solid #ad7720;background:#fff;color:#5c3808;border-radius:6px;white-space:nowrap}
+.duty-view-controls{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}.duty-view-controls button{min-height:44px;padding:10px 16px;border:1px solid #a9c0ce;border-radius:7px;background:#fff;color:#173f56;font-weight:800}.duty-view-controls button[aria-pressed=true]{background:#173f56;color:#fff}
+@media(max-width:1100px){.chief-quick-access{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.chief-quick-access{gap:8px}.chief-quick-access button{padding:12px;min-height:105px}.chief-quick-access button strong{font-size:14px}.respond-update-warning{align-items:stretch;flex-direction:column}.topbar-context{min-width:0}}
+@media print{.chief-quick-access,.duty-view-controls,.global-search-notice{display:none!important}}
+
 /* Compact Respond symbols retain generous transparent tap targets. */
 .respond-overview-map .respond-map-marker:is(.preplan,.hydrant,.call){width:36px;height:36px;min-width:36px;min-height:36px;padding:0;border:0;background:transparent;box-shadow:none;border-radius:50%;outline:none;text-decoration:none}
 .respond-overview-map .respond-map-marker.hydrant.grouped{width:48px;min-width:48px}

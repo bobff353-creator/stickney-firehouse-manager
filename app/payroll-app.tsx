@@ -1,7 +1,10 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- direct static assets avoid runtime image-proxy failures for the department patch. */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { portalPageFromSearch, portalPageLabel, portalPageUrl, type PortalPage, type PortalRecord } from "./portal-navigation";
+import { confirmLeavingWork } from "./use-unsaved-work";
+import { portalConnectionState, readPortalJson } from "./portal-status";
 import DailyLog from "./daily-log";
 import CallbackReviews from "./callback-reviews";
 import HolidayPolicy from "./holiday-policy";
@@ -61,10 +64,10 @@ type PayrollData = {
   settings: { overtimeThreshold: number; actingOfficerPremium: number; dpwMultiplier: number };
   viewer: { email: string; isAdmin: boolean; employeeId: string | null; displayName: string };
 };
-type GlobalSearchItem = { id: string; type: "Employee" | "Contact" | "Policy" | "Box Card" | "Important Number" | "Preplan" | "Screen"; title: string; detail: string; page: NavItem };
+type GlobalSearchItem = { id: string; type: "Employee" | "Contact" | "Policy" | "Box Card" | "Important Number" | "Preplan" | "Screen"; title: string; detail: string; page: NavItem; record?: PortalRecord };
 type IconName = "home" | "log" | "box" | "users" | "phone" | "payroll" | "clock" | "rates" | "document" | "holiday" | "settings" | "search" | "bell" | "menu" | "close" | "filter" | "export" | "back" | "next" | "save" | "warning" | "chevron";
 
-type NavItem = "Dashboard" | "Command Center" | "Operations Board" | "Activity Timeline" | "Respond" | "Command Board" | "Field Preplans" | "Road Closures" | "Safety Inspections" | "Scheduling" | "Payroll" | "Work Details" | "Daily Log" | "Timesheets" | "Callback Reviews" | "My Timesheet" | "Employees" | "Employee Contacts" | "Policies" | "Box Cards" | "Holiday Policy" | "EMS" | "Daily Duties" | "Inventory" | "Phone Numbers" | "Rates & Rules" | "Departments" | "System Health" | "Permissions" | "CAD Integration" | "Respond Device Modes" | "Test View";
+type NavItem = PortalPage;
 const adminNavItems: NavItem[] = ["Dashboard", "Command Center", "Operations Board", "Activity Timeline", "Respond", "Command Board", "Field Preplans", "Road Closures", "Safety Inspections", "Scheduling", "Payroll", "Work Details", "Daily Log", "Timesheets", "Callback Reviews", "My Timesheet", "Employees", "Employee Contacts", "Policies", "Box Cards", "Holiday Policy", "EMS", "Daily Duties", "Inventory", "Phone Numbers", "Rates & Rules", "Departments", "System Health", "Permissions", "CAD Integration", "Respond Device Modes", "Test View"];
 const employeeNavItems: NavItem[] = ["Dashboard", "Operations Board", "Respond", "Command Board", "Field Preplans", "Road Closures", "Safety Inspections", "Scheduling", "My Timesheet", "Policies", "Box Cards", "EMS", "Daily Duties", "Inventory"];
 const navIcons: Record<NavItem, IconName> = { Dashboard: "home", "Command Center": "rates", "Operations Board": "log", "Activity Timeline": "clock", Respond: "log", "Command Board": "warning", "Field Preplans": "search", "Road Closures": "warning", "Safety Inspections": "document", Scheduling: "clock", Payroll: "payroll", "Work Details": "document", "Daily Log": "log", Timesheets: "clock", "Callback Reviews": "log", "My Timesheet": "clock", Employees: "users", "Employee Contacts": "phone", Policies: "document", "Box Cards": "box", "Holiday Policy": "holiday", EMS: "document", "Daily Duties": "clock", Inventory: "box", "Phone Numbers": "phone", "Rates & Rules": "rates", Departments: "settings", "System Health": "warning", Permissions: "settings", "CAD Integration": "settings", "Respond Device Modes": "settings", "Test View": "users" };
@@ -234,6 +237,10 @@ export default function PayrollApp({
   const [globalSearch, setGlobalSearch] = useState("");
   const [sharedSearchItems, setSharedSearchItems] = useState<GlobalSearchItem[]>([]);
   const [globalSearchLoading, setGlobalSearchLoading] = useState(false);
+  const [globalSearchError, setGlobalSearchError] = useState("");
+  const searchDialogRef = useRef<HTMLElement>(null);
+  const searchTriggerRef = useRef<HTMLElement | null>(null);
+  const lastPageUrlRef = useRef("");
   const [isOnline, setIsOnline] = useState(true);
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [finalizeConfirmOpen, setFinalizeConfirmOpen] = useState(false);
@@ -300,12 +307,9 @@ export default function PayrollApp({
         window.dispatchEvent(new CustomEvent("firehouse:tv-mode", { detail: { enabled: true } }));
         return;
       }
-      if (params.get("page")?.toLowerCase() === "respond") {
-        setActiveNav("Respond");
-        return;
-      }
-      if (["safety-inspections", "monthly-safety-inspections"].includes(params.get("page")?.toLowerCase() || "")) {
-        setActiveNav("Safety Inspections");
+      const requestedPage = portalPageFromSearch(window.location.search);
+      if (requestedPage) {
+        setActiveNav(requestedPage);
         return;
       }
       if (settings.mode === "apparatus") setActiveNav("Respond");
@@ -335,16 +339,12 @@ export default function PayrollApp({
   }, [toast]);
 
   const openGlobalSearch = useCallback(async () => {
+    searchTriggerRef.current = document.activeElement as HTMLElement;
     setGlobalSearchOpen(true);
-    if (sharedSearchItems.length || globalSearchLoading) return;
+    if (globalSearchLoading) return;
     setGlobalSearchLoading(true);
+    setGlobalSearchError("");
     try {
-      const [policiesResponse, boxCardsResponse, numbersResponse, preplansResponse] = await Promise.all([
-        fetch("/api/resources?type=policy"), fetch("/api/resources?type=boxCard"), fetch("/api/phone-numbers"), fetch("/api/field-preplans"),
-      ]);
-      const [policies, boxCards, numbers, preplans] = await Promise.all([policiesResponse.json(), boxCardsResponse.json(), numbersResponse.json(), preplansResponse.json()]) as [
-        { items?: Array<Record<string, string>> }, { items?: Array<Record<string, string>> }, { numbers?: Array<Record<string, string>> }, { preplans?: Array<Record<string, string>> },
-      ];
       const searchableScreens = testMember
         ? adminNavItems.filter((item) => !navPermission[item] || testMember.effectivePermissions.includes(navPermission[item]!))
         : data?.viewer.isAdmin
@@ -352,16 +352,38 @@ export default function PayrollApp({
           : viewerPermissions
             ? adminNavItems.filter((item) => !navPermission[item] || viewerPermissions.includes(navPermission[item]!))
             : employeeNavItems;
+      const sources = [
+        { url: "/api/resources?type=policy", page: "Policies" }, { url: "/api/resources?type=boxCard", page: "Box Cards" },
+        { url: "/api/phone-numbers", page: "Phone Numbers" }, { url: "/api/field-preplans", page: "Field Preplans" },
+      ];
+      type SearchPayload = { items?: Array<Record<string,string>>; numbers?: Array<Record<string,string>>; preplans?: Array<Record<string,string>> };
+      const results = await Promise.allSettled(sources.map(source => searchableScreens.includes(source.page as NavItem)
+        ? readPortalJson<SearchPayload>(source.url, "Search source unavailable") : Promise.resolve({} as SearchPayload)));
+      const [policies, boxCards, numbers, preplans] = results.map(result => result.status === "fulfilled" ? result.value : {} as SearchPayload);
+      if (results.some(result => result.status === "rejected")) setGlobalSearchError("Some records could not be loaded. Screen shortcuts and available results still work.");
       setSharedSearchItems([
-        ...searchableScreens.map((page) => ({ id: `screen-${page}`, type: "Screen" as const, title: page, detail: `Open ${page}`, page })),
         ...(policies.items ?? []).map((item) => ({ id: `policy-${item.id}`, type: "Policy" as const, title: item.title, detail: [item.policyNumber, item.category, item.body].filter(Boolean).join(" · "), page: "Policies" as const })),
         ...(boxCards.items ?? []).map((item) => ({ id: `box-${item.id}`, type: "Box Card" as const, title: item.title, detail: [item.boxNumber, item.address, item.accessNotes, item.details].filter(Boolean).join(" · "), page: "Box Cards" as const })),
         ...(numbers.numbers ?? []).map((item) => ({ id: `phone-${item.id}`, type: "Important Number" as const, title: item.name, detail: [item.emergencyNumber, item.nonEmergencyNumber, item.notes].filter(Boolean).join(" · "), page: "Phone Numbers" as const })),
-        ...(preplans.preplans ?? []).map((item) => ({ id: `preplan-${item.id}`, type: "Preplan" as const, title: item.businessName || item.address, detail: [item.address, item.status].filter(Boolean).join(" · "), page: "Field Preplans" as const })),
+        ...(preplans.preplans ?? []).map((item) => ({ id: `preplan-${item.id}`, type: "Preplan" as const, title: item.businessName || item.address, detail: [item.address, item.status].filter(Boolean).join(" · "), page: "Field Preplans" as const, record: { preplan: item.id } })),
       ]);
-    } catch { setSharedSearchItems([]); }
+    } catch { setGlobalSearchError("Record search is unavailable. You can still open a screen below."); }
     finally { setGlobalSearchLoading(false); }
-  }, [data, globalSearchLoading, sharedSearchItems.length, testMember, viewerPermissions]);
+  }, [data, globalSearchLoading, testMember, viewerPermissions]);
+
+  useEffect(() => {
+    if (!globalSearchOpen) return;
+    const trapFocus = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const controls = searchDialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input,a[href]');
+      if (!controls?.length) return;
+      const first = controls[0], last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    window.addEventListener("keydown", trapFocus);
+    return () => { window.removeEventListener("keydown", trapFocus); searchTriggerRef.current?.focus(); };
+  }, [globalSearchOpen]);
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
@@ -370,6 +392,7 @@ export default function PayrollApp({
         void openGlobalSearch();
       } else if (event.key === "Escape") {
         setGlobalSearchOpen(false);
+        setMobileMenuOpen(false);
       }
     };
     window.addEventListener("keydown", handleShortcut);
@@ -435,14 +458,16 @@ export default function PayrollApp({
   }), [employeeSummaries, search, statusFilter]);
 
   const globalSearchResults = useMemo(() => {
+    const permittedPages = testMember ? adminNavItems.filter(page => !navPermission[page] || testMember.effectivePermissions.includes(navPermission[page]!)) : data?.viewer.isAdmin ? adminNavItems : viewerPermissions ? adminNavItems.filter(page => !navPermission[page] || viewerPermissions.includes(navPermission[page]!)) : employeeNavItems;
+    const screens: GlobalSearchItem[] = permittedPages.map(page => ({ id: `screen-${page}`, type: "Screen", title: portalPageLabel(page), detail: `Open ${page}`, page }));
     const employeeItems: GlobalSearchItem[] = (data?.employees ?? []).flatMap((employee) => [
       ...(data?.viewer.isAdmin ? [{ id: `employee-${employee.id}`, type: "Employee" as const, title: displayName(employee.name), detail: [employee.rank, employee.employeeNumber, employee.driverStatus].filter(Boolean).join(" · "), page: "Employees" as const }] : []),
       { id: `contact-${employee.id}`, type: "Contact" as const, title: displayName(employee.name), detail: [employee.phone, employee.rank, employee.driverStatus].filter(Boolean).join(" · "), page: "Employee Contacts" as const },
     ]);
     const term = globalSearch.trim().toLowerCase();
-    if (!term) return [];
-    return [...employeeItems, ...sharedSearchItems].filter((item) => `${item.type} ${item.title} ${item.detail}`.toLowerCase().includes(term)).slice(0, 30);
-  }, [data?.employees, data?.viewer, globalSearch, sharedSearchItems]);
+    if (!term) return screens.slice(0, 12);
+    return [...screens, ...employeeItems, ...sharedSearchItems].filter((item) => permittedPages.includes(item.page) && `${item.type} ${item.title} ${item.detail}`.toLowerCase().includes(term)).slice(0, 30);
+  }, [data?.employees, data?.viewer, globalSearch, sharedSearchItems, testMember, viewerPermissions]);
 
   async function post(payload: Record<string, unknown>) {
     const response = await fetch("/api/payroll", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
@@ -475,7 +500,7 @@ export default function PayrollApp({
 
   function openTimesheet(employeeId?: string) {
     if (employeeId) setSelectedEmployeeId(employeeId);
-    setActiveNav("Timesheets");
+    navigate("Timesheets");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -669,8 +694,7 @@ export default function PayrollApp({
   }
 
   const statusLabel = data?.period.status ? data.period.status[0].toUpperCase() + data.period.status.slice(1) : "Draft";
-  const syncLabel = !isOnline ? "Offline" : loading || savingCells.size > 0 ? "Saving" : "Saved";
-  const syncTime = lastSynced?.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) ?? "Not synced";
+  const connection = portalConnectionState(isOnline, loading, error, Boolean(lastSynced), savingCells.size > 0);
   const isAdminView = Boolean(data?.viewer.isAdmin && !testMember);
   const visibleNav = useMemo(() => testMember ? adminNavItems.filter((item) => !navPermission[item] || testMember.effectivePermissions.includes(navPermission[item]!)) : data?.viewer.isAdmin ? adminNavItems : viewerPermissions ? adminNavItems.filter((item) => !navPermission[item] || viewerPermissions.includes(navPermission[item]!)) : employeeNavItems, [data?.viewer.isAdmin, testMember, viewerPermissions]);
   const visibleFeaturedNav = useMemo(() => featuredNavItems.filter((item) => visibleNav.includes(item.page)), [visibleNav]);
@@ -686,6 +710,23 @@ export default function PayrollApp({
     return groups;
   }, [visibleNav]);
   const homePage = visibleFeaturedNav[0]?.page ?? visibleNav[0] ?? "My Timesheet";
+  useEffect(() => {
+    lastPageUrlRef.current = window.location.href;
+    const fromHistory = (event: PopStateEvent) => {
+      if (!confirmLeavingWork()) {
+        event.stopImmediatePropagation();
+        window.history.pushState({}, "", lastPageUrlRef.current);
+        return;
+      }
+      const page = portalPageFromSearch(window.location.search) ?? homePage;
+      setActiveNav(visibleNav.includes(page) ? page : homePage);
+      setTvMode(new URLSearchParams(window.location.search).get("display") === "tv");
+      setMobileMenuOpen(false); setGlobalSearchOpen(false);
+      lastPageUrlRef.current = window.location.href;
+    };
+    window.addEventListener("popstate", fromHistory, { capture: true });
+    return () => window.removeEventListener("popstate", fromHistory, { capture: true });
+  }, [homePage, visibleNav]);
   useEffect(() => {
     setSidebarCollapsed(window.localStorage.getItem("stickney-desktop-menu-hidden") === "true");
   }, []);
@@ -721,17 +762,30 @@ export default function PayrollApp({
     }
     setInventoryError("Apparatus Checks could not verify secure access. Retry, or dismiss this message to keep working here.");
   }
-  function navigate(page: NavItem) {
+  function navigate(page: NavItem, record?: PortalRecord) {
+    if (!confirmLeavingWork()) return;
     setInventoryError("");
     if (page === "Inventory") {
       void openInventory();
       return;
     }
+    if (tvMode) {
+      setTvMode(false);
+      window.localStorage.removeItem("stickney-operations-tv-mode");
+      window.dispatchEvent(new CustomEvent("firehouse:tv-mode", { detail: { enabled: false } }));
+    }
+    const url = portalPageUrl(window.location.pathname, window.location.search, page, record);
+    if (`${window.location.pathname}${window.location.search}` !== url) window.history.pushState({}, "", url);
+    lastPageUrlRef.current = window.location.href;
     setActiveNav(page);
     setMobileMenuOpen(false);
     setGlobalSearchOpen(false);
     setGlobalSearch("");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }
+  function navigateFromRespond(page: "Daily Log" | "Field Preplans" | "Box Cards") {
+    const params = new URLSearchParams(window.location.search);
+    navigate(page, page === "Field Preplans" ? { preplan: params.get("preplan") || undefined, hydrant: params.get("hydrant") || undefined } : undefined);
   }
   function changeTestMember(member: { id: string; name: string; rank: string; effectivePermissions: string[] } | null) {
     setTestMember(member);
@@ -767,13 +821,13 @@ export default function PayrollApp({
             <button type="button" onClick={onSignOut}>Sign out</button>
           </div>
         </nav>
-        <div className="sidebar-footer"><span className="system-dot"/>System ready<small>Portal v1.0</small></div>
+        <div className="sidebar-footer"><span className={`system-dot ${connection.tone}`}/>{connection.label === "Online" ? "Portal online" : connection.label}<small>Portal v1.0</small></div>
       </aside>
       <header className="topbar">
         <button className="desktop-sidebar-toggle" type="button" aria-expanded={!sidebarCollapsed} aria-controls="desktop-navigation" aria-label={sidebarCollapsed ? "Show navigation menu" : "Hide navigation menu"} title={sidebarCollapsed ? "Show menu" : "Hide menu"} onClick={() => setDesktopMenuHidden(!sidebarCollapsed)}><Icon name="menu" size={19}/><span>{sidebarCollapsed ? "Show menu" : "Hide menu"}</span></button>
         <button className="mobile-brand" onClick={() => navigate(homePage)} aria-label="Stickney Fire Department Operations Portal home"><img src="/stickney-fd-patch.png?v=3" alt="Stickney Fire Department patch" width="44" height="44" /><strong>Stickney FD Operations Portal</strong></button>
-        <div className="topbar-context"><span>Stickney Fire Department</span><strong>{activeNav}</strong></div>
-        <div className="topbar-utilities"><div className={`sync-indicator ${syncLabel.toLowerCase()}`}><Icon name={syncLabel === "Offline" ? "warning" : "save"} size={16}/><span><strong>{syncLabel}</strong><small>Last synced {syncTime}</small></span></div><button className="global-search-trigger" onClick={() => void openGlobalSearch()}><Icon name="search"/><span>Search</span><kbd>⌘ K</kbd></button><SmartAlerts icon={<Icon name="bell"/>} onNavigate={(page) => navigate(page as NavItem)} /><div className="profile"><span className="avatar">{(testMember?.name ?? data?.viewer.displayName ?? "").split(/[ ,]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span><span className="profile-copy"><strong>{testMember ? displayName(testMember.name) : data ? displayName(data.viewer.displayName) : "Signed in"}</strong><small>{testMember ? `Test view · ${testMember.rank}` : data?.viewer.isAdmin ? "Administrator" : "Employee"}</small></span><Icon name="chevron" size={15}/></div><button className="mobile-menu-toggle" aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen((current) => !current)} aria-label="Open navigation"><Icon name={mobileMenuOpen ? "close" : "menu"}/></button></div>
+        <div className="topbar-context"><span>Stickney Fire Department</span><strong>{portalPageLabel(activeNav)}</strong></div>
+        <div className="topbar-utilities"><div className={`sync-indicator ${connection.tone}`} role="status" aria-label={`${connection.label}. ${connection.detail}`} title={connection.detail}><Icon name={connection.tone === "offline" ? "warning" : "save"} size={16}/><span><strong>{connection.label}</strong><small>Connection only</small></span></div><button className="global-search-trigger" aria-label="Search the portal" onClick={() => void openGlobalSearch()}><Icon name="search"/><span>Search</span><kbd>Ctrl / ⌘ K</kbd></button><SmartAlerts icon={<Icon name="bell"/>} onNavigate={(page) => navigate(page as NavItem)} /><div className="profile"><span className="avatar">{(testMember?.name ?? data?.viewer.displayName ?? "").split(/[ ,]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span><span className="profile-copy"><strong>{testMember ? displayName(testMember.name) : data ? displayName(data.viewer.displayName) : "Signed in"}</strong><small>{testMember ? `Test view · ${testMember.rank}` : data?.viewer.isAdmin ? "Administrator" : "Employee"}</small></span><Icon name="chevron" size={15}/></div><button className="mobile-menu-toggle" aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen((current) => !current)} aria-label={mobileMenuOpen ? "Close navigation" : "Open navigation"}><Icon name={mobileMenuOpen ? "close" : "menu"}/></button></div>
       </header>
       {mobileMenuOpen && <nav id="mobile-navigation" className="mobile-nav-panel" aria-label="Mobile navigation">
           <section className="mobile-core-nav"><h2>Core navigation</h2>{visibleFeaturedNav.map((item) => <button key={item.page} aria-current={activeNav === item.page ? "page" : undefined} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><span className={`sidebar-feature-icon ${item.tone}`}><Icon name={navIcons[item.page]}/></span>{item.label}</button>)}</section>
@@ -786,20 +840,21 @@ export default function PayrollApp({
 
       <nav className="mobile-bottom-tabs" aria-label="Primary mobile navigation">
         {([
-          ["Dashboard", "Dashboard", "home"],
+          ["Dashboard", "Home", "home"],
           ["Daily Log", "Daily Log", "log"],
           ["Respond", "Respond", "warning"],
         ] as Array<[NavItem, string, IconName]>).filter(([page]) => visibleNav.includes(page)).map(([page,label,icon]) => <button key={page} className={activeNav===page?"current":""} onClick={() => navigate(page)}><Icon name={icon}/><span>{label}</span></button>)}
         <button className={mobileMenuOpen?"current":""} aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen((current) => !current)}><Icon name="menu"/><span>More</span></button>
       </nav>
 
-      {globalSearchOpen && <div className="global-search-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setGlobalSearchOpen(false); }}><section className="global-search-dialog" role="dialog" aria-modal="true" aria-labelledby="global-search-title"><div className="global-search-head"><div><p className="eyebrow">Department-wide search</p><h2 id="global-search-title">Find anything</h2></div><button aria-label="Close search" onClick={() => setGlobalSearchOpen(false)}><Icon name="close"/></button></div><label className="global-search-input"><Icon name="search"/><input autoFocus value={globalSearch} onChange={(event) => setGlobalSearch(event.target.value)} placeholder="Search employees, contacts, policies, Box Cards, or important numbers…" /></label><div className="global-search-results">{globalSearchLoading ? <div className="global-search-empty">Loading shared information…</div> : !globalSearch.trim() ? <div className="global-search-empty">Start typing a name, address, policy, card number, or phone number.</div> : globalSearchResults.length ? globalSearchResults.map((item) => <button key={item.id} onClick={() => navigate(item.page)}><span className={`search-type ${item.type.toLowerCase().replace(" ", "-")}`}>{item.type}</span><strong>{item.title}</strong><small>{item.detail || `Open ${item.page}`}</small><b aria-hidden="true"><Icon name="chevron" size={18}/></b></button>) : <div className="global-search-empty">No results found for “{globalSearch}”.</div>}</div></section></div>}
+      {globalSearchOpen && <div className="global-search-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setGlobalSearchOpen(false); }}><section ref={searchDialogRef} className="global-search-dialog" role="dialog" aria-modal="true" aria-labelledby="global-search-title"><div className="global-search-head"><div><p className="eyebrow">Department-wide search</p><h2 id="global-search-title">Find anything</h2></div><button aria-label="Close search" onClick={() => setGlobalSearchOpen(false)}><Icon name="close"/></button></div><label className="global-search-input"><Icon name="search"/><input autoFocus value={globalSearch} onChange={(event) => setGlobalSearch(event.target.value)} placeholder="Find a screen, person, address, policy, or Box Card…" /></label><div className="global-search-results">{globalSearchError && <div className="global-search-notice" role="status">{globalSearchError}<button onClick={() => void openGlobalSearch()} disabled={globalSearchLoading}>Retry records</button></div>}{globalSearchLoading && <p className="global-search-notice" role="status">Loading record results… Screen shortcuts are available now.</p>}{globalSearchResults.length ? globalSearchResults.map((item) => <button key={item.id} onClick={() => navigate(item.page, item.record)}><span className={`search-type ${item.type.toLowerCase().replace(" ", "-")}`}>{item.type}</span><strong>{item.title}</strong><small>{item.detail || `Open ${item.page}`}</small><b aria-hidden="true"><Icon name="chevron" size={18}/></b></button>) : <div className="global-search-empty">No results found for “{globalSearch}”.</div>}</div></section></div>}
       <ConfirmDialog open={finalizeConfirmOpen} title="Finalize this payroll period?" description={`This will lock payroll for ${data ? periodLabel(data.period.startDate, data.period.endDate) : "the selected period"}. Timesheets will become read only and additional changes will require an administrator workflow.`} confirmLabel="Finalize Payroll" tone="warning" busy={finalizing} onCancel={() => setFinalizeConfirmOpen(false)} onConfirm={() => void finalizePayroll()} />
       <ConfirmDialog open={Boolean(employeeToDelete)} title={`Delete ${employeeToDelete ? displayName(employeeToDelete.name) : "employee"}?`} description="This permanently deletes the employee record. This cannot be undone. Employees with payroll or Daily Log history cannot be deleted." confirmLabel="Confirm Delete" tone="danger" busy={deletingEmployee} onCancel={() => setEmployeeToDelete(null)} onConfirm={() => void deleteEmployee()} />
 
       <section className={`workspace${testMember ? " testing-member-view" : ""}`} onClickCapture={(event) => { if (testMember && (event.target as HTMLElement).closest("button,input,select,textarea") && !(event.target as HTMLElement).closest(".test-view-banner,[data-test-safe],[data-test-interactive]")) { event.preventDefault(); event.stopPropagation(); } }} onSubmitCapture={(event) => { if (testMember && !(event.target as HTMLElement).closest("[data-test-interactive]")) { event.preventDefault(); event.stopPropagation(); } }} onChangeCapture={(event) => { if (testMember && !(event.target as HTMLElement).closest(".test-view-banner,[data-test-safe],[data-test-interactive]")) { event.preventDefault(); event.stopPropagation(); } }}>
         {testMember && <div className="test-view-banner"><div><b>TEST VIEW</b><span>Previewing as {displayName(testMember.name)} · {testMember.rank}</span><small>No identity or approval authority has changed.</small></div><button onClick={() => changeTestMember(null)}>Exit test view</button></div>}
         {error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={() => { setError(""); void loadPayroll(periodStart); }}>Retry</button></div>}
+        {!isOnline && <div className="portal-offline-notice" role="alert"><strong>Connection lost</strong><span>Displayed information may be out of date. Keep unfinished work open; a save is not confirmed until that screen reports success.</span></div>}
         {inventoryError && <div className="error-banner inventory-access-error" role="alert"><span>{inventoryError}</span><button disabled={openingInventory} onClick={() => void openInventory()}>{openingInventory ? "Checking…" : "Retry Apparatus Checks"}</button><button onClick={() => setInventoryError("")}>Dismiss</button></div>}
         {toast && <div className="toast" role="status"><Icon name="save" /> {toast}</div>}
         {loading && !data ? <PortalSkeleton page={activeNav} /> : data && <>
@@ -814,7 +869,7 @@ export default function PayrollApp({
               </div>
             </div>
             {activeNav === "Payroll" && <button className="primary-action" onClick={() => openTimesheet()}><Icon name={data.period.status === "finalized" ? "document" : "clock"}/> {data.period.status === "finalized" ? "View Timesheets" : "Enter Hours"}</button>}
-            {activeNav === "Timesheets" && data.viewer.isAdmin && <button className="primary-action secondary-red" onClick={() => setActiveNav("Payroll")}>Review Payroll</button>}
+            {activeNav === "Timesheets" && data.viewer.isAdmin && <button className="primary-action secondary-red" onClick={() => navigate("Payroll")}>Review Payroll</button>}
           </div>}
 
           {(activeNav === "Payroll" || activeNav === "Timesheets" || activeNav === "My Timesheet") && <RecordCredibility audit={{ recordNumber: `PAY-${data.period.startDate.replaceAll("-", "")}`, status: statusLabel, createdBy: data.period.createdBy, createdAt: data.period.createdAt, updatedBy: data.period.updatedBy, updatedAt: data.period.updatedAt, closedBy: data.period.finalizedBy, closedAt: data.period.finalizedAt, revisions: data.period.revisions }} />}
@@ -847,7 +902,7 @@ export default function PayrollApp({
             </section>
           </div>}
 
-          {activeNav === "Dashboard" && <RoleDashboard data={{ viewer: testMember ? { email: "", isAdmin: false, employeeId: testMember.id, displayName: testMember.name } : data.viewer, employees: testMember ? data.employees.filter((employee) => employee.id === testMember.id) : data.employees, entries: testMember ? data.entries.filter((entry) => entry.employeeId === testMember.id) : data.entries, period: data.period, grossPayroll, reviewCount, employeeGross: selectedSummary?.gross ?? 0 }} onNavigate={(page) => setActiveNav(page)} />}
+          {activeNav === "Dashboard" && <RoleDashboard data={{ viewer: testMember ? { email: "", isAdmin: false, employeeId: testMember.id, displayName: testMember.name } : data.viewer, employees: testMember ? data.employees.filter((employee) => employee.id === testMember.id) : data.employees, entries: testMember ? data.entries.filter((entry) => entry.employeeId === testMember.id) : data.entries, period: data.period, grossPayroll, reviewCount, employeeGross: selectedSummary?.gross ?? 0 }} onNavigate={(page) => navigate(page)} allowedPages={visibleNav} />}
 
           {activeNav === "Command Center" && <CommandCenter />}
           {activeNav === "Work Details" && <WorkDetails onPayrollChanged={(approvedPeriodStart) => { if (approvedPeriodStart === periodStart) void loadPayroll(periodStart); else setPeriodStart(approvedPeriodStart); }} />}
@@ -872,7 +927,7 @@ export default function PayrollApp({
           }} />}
 
           {activeNav === "Activity Timeline" && <ActivityTimeline />}
-          {activeNav === "Respond" && <Respond apparatus={respondDeviceSettings.mode === "apparatus" ? respondDeviceSettings.apparatus : ""} onNavigate={(page) => navigate(page)} />}
+          {activeNav === "Respond" && <Respond apparatus={respondDeviceSettings.mode === "apparatus" ? respondDeviceSettings.apparatus : ""} onNavigate={navigateFromRespond} />}
           {activeNav === "Command Board" && <IncidentCommandBoard />}
           {activeNav === "Field Preplans" && <FieldPreplans />}
           {activeNav === "Road Closures" && <RoadClosures />}
@@ -883,7 +938,7 @@ export default function PayrollApp({
           }} />}
           {respondAlertCallId && activeNav === "Operations Board" && <div className="respond-auto-alert" role="dialog" aria-modal="true" aria-label="New active call Respond view">
             <header><div><strong>NEW ACTIVE CALL · RESPOND</strong><span>Returning to Live Operations in {respondAlertSeconds} seconds</span></div><button type="button" onClick={() => setRespondAlertCallId("")}>Return now</button></header>
-            <Respond onNavigate={(page) => navigate(page)} />
+            <Respond onNavigate={navigateFromRespond} />
           </div>}
 
           {(activeNav === "Timesheets" || activeNav === "My Timesheet") && selectedEmployee && selectedSummary && <div className={data.period.status === "finalized" ? "record-finalized" : "record-editable"}>{data.period.status === "finalized" && <div className="record-state-banner finalized"><span className="state-lock" aria-hidden="true">🔒</span><div><strong>Finalized timesheet · Read only</strong><span>This timesheet belongs to a closed payroll period.</span></div></div>}<section className="content-card timesheet-card">

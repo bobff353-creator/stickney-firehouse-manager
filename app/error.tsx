@@ -10,7 +10,7 @@ export default function ErrorPage({
     <main className="native-error-page">
       <section className="native-error-card" role="alert">
         <p className="native-error-kicker">STICKNEY FIRE DEPARTMENT</p>
-        <h1>Inventory could not finish loading</h1>
+        <h1>This screen could not finish loading</h1>
         <p>
           Your saved records were not removed. Retry the screen, or return to
           the operations portal and choose another task.
