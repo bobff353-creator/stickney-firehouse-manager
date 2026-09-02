@@ -215,6 +215,8 @@ export default function PayrollApp({
   const [data, setData] = useState<PayrollData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [inventoryError, setInventoryError] = useState("");
+  const [openingInventory, setOpeningInventory] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
@@ -698,9 +700,13 @@ export default function PayrollApp({
     window.localStorage.setItem("stickney-desktop-menu-hidden", String(hidden));
   }
   async function openInventory() {
+    if (openingInventory) return;
+    setInventoryError("");
+    setOpeningInventory(true);
     setMobileMenuOpen(false);
     setGlobalSearchOpen(false);
     const response = await fetch("/api/auth/pin", { method: "PATCH", cache: "no-store" }).catch(() => null);
+    setOpeningInventory(false);
     if (response?.ok) {
       window.location.assign("/inventory");
       return;
@@ -709,9 +715,14 @@ export default function PayrollApp({
       window.dispatchEvent(new Event("firehouse:session-lock"));
       return;
     }
-    setError("Inventory secure access could not be verified. Try again.");
+    if (response?.status === 401) {
+      window.location.assign("/inventory");
+      return;
+    }
+    setInventoryError("Apparatus Checks could not verify secure access. Retry, or dismiss this message to keep working here.");
   }
   function navigate(page: NavItem) {
+    setInventoryError("");
     if (page === "Inventory") {
       void openInventory();
       return;
@@ -789,6 +800,7 @@ export default function PayrollApp({
       <section className={`workspace${testMember ? " testing-member-view" : ""}`} onClickCapture={(event) => { if (testMember && (event.target as HTMLElement).closest("button,input,select,textarea") && !(event.target as HTMLElement).closest(".test-view-banner,[data-test-safe],[data-test-interactive]")) { event.preventDefault(); event.stopPropagation(); } }} onSubmitCapture={(event) => { if (testMember && !(event.target as HTMLElement).closest("[data-test-interactive]")) { event.preventDefault(); event.stopPropagation(); } }} onChangeCapture={(event) => { if (testMember && !(event.target as HTMLElement).closest(".test-view-banner,[data-test-safe],[data-test-interactive]")) { event.preventDefault(); event.stopPropagation(); } }}>
         {testMember && <div className="test-view-banner"><div><b>TEST VIEW</b><span>Previewing as {displayName(testMember.name)} · {testMember.rank}</span><small>No identity or approval authority has changed.</small></div><button onClick={() => changeTestMember(null)}>Exit test view</button></div>}
         {error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={() => { setError(""); void loadPayroll(periodStart); }}>Retry</button></div>}
+        {inventoryError && <div className="error-banner inventory-access-error" role="alert"><span>{inventoryError}</span><button disabled={openingInventory} onClick={() => void openInventory()}>{openingInventory ? "Checking…" : "Retry Apparatus Checks"}</button><button onClick={() => setInventoryError("")}>Dismiss</button></div>}
         {toast && <div className="toast" role="status"><Icon name="save" /> {toast}</div>}
         {loading && !data ? <PortalSkeleton page={activeNav} /> : data && <>
           {activeNav !== "Dashboard" && activeNav !== "Command Center" && activeNav !== "Operations Board" && activeNav !== "Activity Timeline" && activeNav !== "Respond" && activeNav !== "Command Board" && activeNav !== "Field Preplans" && activeNav !== "Road Closures" && activeNav !== "Safety Inspections" && activeNav !== "Scheduling" && activeNav !== "Work Details" && activeNav !== "Daily Log" && activeNav !== "Holiday Policy" && activeNav !== "EMS" && activeNav !== "Daily Duties" && activeNav !== "Phone Numbers" && activeNav !== "Employee Contacts" && activeNav !== "Policies" && activeNav !== "Box Cards" && activeNav !== "Departments" && activeNav !== "System Health" && activeNav !== "Permissions" && activeNav !== "CAD Integration" && activeNav !== "Respond Device Modes" && activeNav !== "Test View" && <div className="period-row">

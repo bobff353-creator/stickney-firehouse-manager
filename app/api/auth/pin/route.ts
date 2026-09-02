@@ -185,16 +185,25 @@ export async function PATCH(request: Request) {
   if (userError || !userData.user) {
     return Response.json({ error: "Your session has expired. Sign in again." }, { status: 401 });
   }
-  const systemClient = await getSupabaseSystemClient();
-  const { data, error } = await systemClient.rpc("renew_portal_pin_unlock_for_user", {
-    p_user_id: userData.user.id,
-    p_unlock_token: token,
-    p_station_display: stationDisplay,
-  });
-  if (error) {
+  let renewed = false;
+  try {
+    // The database derives identity from this verified member session. No
+    // caller-supplied user ID or elevated server credential is accepted.
+    const { data, error } = await client.rpc("renew_own_portal_pin_unlock", {
+      p_unlock_token: token,
+      p_station_display: stationDisplay,
+    });
+    if (error) {
+      console.error("[api/auth/pin] renewal failed", { code: error.code || "unknown" });
+      return Response.json({ error: "Portal PIN security could not be verified." }, { status: 503 });
+    }
+    renewed = data === true;
+  } catch {
+    // Do not log the PIN, unlock token, user details, or server credential.
+    console.error("[api/auth/pin] renewal unavailable");
     return Response.json({ error: "Portal PIN security could not be verified." }, { status: 503 });
   }
-  if (data !== true) {
+  if (!renewed) {
     return Response.json({ error: "Enter your portal PIN to continue." }, { status: 423 });
   }
   return withUnlockCookie(

@@ -101,8 +101,8 @@ test("24/7 TV mode prevents stalled refreshes and recovers after device interrup
   assert.match(idleLock, /!stationDisplay && Date\.now\(\) - lastActivity/);
   assert.match(idleLock, /JSON\.stringify\(\{ display: stationDisplay \? "tv" : "portal" \}\)/);
   assert.match(pinRoute, /stationDisplaySeconds = 30 \* 24 \* 60 \* 60/);
-  assert.match(pinRoute, /renew_portal_pin_unlock_for_user/);
-  assert.match(pinRoute, /const systemClient = await getSupabaseSystemClient\(\)/);
+  assert.match(pinRoute, /client\.rpc\("renew_own_portal_pin_unlock"/);
+  assert.match(pinRoute, /await client\.auth\.getUser\(\)/);
   assert.match(idleLock, /if \(response\?\.status === 423\) lock\(true\)/);
   assert.match(idleLock, /const forceLock = \(\) => lock\(true\)/);
   assert.match(leaseMigration, /SECURITY DEFINER/);

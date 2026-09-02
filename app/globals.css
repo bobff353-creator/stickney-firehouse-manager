@@ -387,6 +387,9 @@ td strong { font-size: 16px; }
 
 .error-banner { margin-bottom: 22px; padding: 14px 18px; border: 1px solid #d99c9c; border-radius: 8px; background: #fff1f1; color: #8c2424; display: flex; justify-content: space-between; align-items: center; gap: 20px; }
 .error-banner button { border: 0; border-bottom: 1px solid currentColor; background: transparent; color: inherit; font-weight: 800; }
+.inventory-access-error { flex-wrap: wrap; gap: 12px; }
+.inventory-access-error > span { flex: 1 1 260px; }
+.inventory-access-error button { min-height: 44px; }
 .toast { position: fixed; z-index: 50; right: 24px; bottom: 24px; padding: 14px 18px; border-radius: 9px; background: var(--navy-deep); color: white; display: flex; align-items: center; gap: 9px; box-shadow: 0 10px 30px rgba(16,40,61,.26); font-weight: 700; }
 .global-search-backdrop { position: fixed; z-index: 150; inset: 0; padding: clamp(18px, 6vh, 64px) 18px; background: rgba(7,24,39,.7); display: grid; place-items: start center; overflow-y: auto; }
 .global-search-dialog { width: min(760px, 100%); max-height: min(760px, calc(100vh - 36px)); padding: 24px; border-radius: 13px; background: #f8f7f3; box-shadow: 0 28px 80px rgba(0,0,0,.36); overflow: hidden; display: flex; flex-direction: column; }
