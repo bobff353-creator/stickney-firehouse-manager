@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import GoogleFieldMap from "./google-field-map";
 import { clusterRecentCallLocations } from "./respond-call-clusters";
 import { formatRespondMilitaryTime } from "./respond-time";
+import { clusterHydrantLocations, hasMapLocation, projectMapPoint } from "./respond-map-markers";
 
 type Point = { lat: number; lng: number };
 export type RespondOverview = {
@@ -46,7 +47,6 @@ type RecentCall = {
 };
 
 const stickneyCenter: Point = { lat: 41.8189, lng: -87.7734 };
-const canvas = { width: 1600, height: 900 };
 
 function initialCallMapView(calls: RecentCall[]) {
   const clusters = clusterRecentCallLocations(calls);
@@ -65,25 +65,8 @@ function initialCallMapView(calls: RecentCall[]) {
   };
 }
 
-function world(point: Point, zoom: number) {
-  const scale = 256 * 2 ** zoom;
-  return {
-    x: ((point.lng + 180) / 360) * scale,
-    y:
-      ((1 -
-        Math.asinh(Math.tan((point.lat * Math.PI) / 180)) / Math.PI) /
-        2) *
-      scale,
-  };
-}
-
-function project(point: Point, center: Point, zoom: number) {
-  const projected = world(point, zoom);
-  const projectedCenter = world(center, zoom);
-  return {
-    x: canvas.width / 2 + projected.x - projectedCenter.x,
-    y: canvas.height / 2 + projected.y - projectedCenter.y,
-  };
+function HydrantMapSymbol() {
+  return <svg viewBox="0 0 32 40" aria-hidden="true"><path d="M11 4h10v5h4v5h3v7h-5v14H9V21H4v-7h3V9h4V4Zm1 9v6h8v-6h-8Zm0 10v9h8v-9h-8Z"/></svg>;
 }
 
 function statusLabel(value: string) {
@@ -103,6 +86,9 @@ export default function RespondOverviewMap({
   recentCalls: RecentCall[];
   onNavigate?: (page: "Daily Log" | "Field Preplans" | "Box Cards") => void;
 }) {
+  const mapElement = useRef<HTMLDivElement>(null);
+  const [canvas, setCanvas] = useState({ width: 0, height: 0 });
+  const [selectedHydrantIds, setSelectedHydrantIds] = useState<string[]>([]);
   const callClusters = useMemo(
     () => clusterRecentCallLocations(recentCalls),
     [recentCalls],
@@ -121,6 +107,18 @@ export default function RespondOverviewMap({
     hydrants: true,
     closures: true,
   });
+
+  useEffect(() => {
+    const element = mapElement.current;
+    if (!element) return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      const { width, height } = entry.contentRect;
+      setCanvas(current => current.width === width && current.height === height ? current : { width, height });
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -144,13 +142,14 @@ export default function RespondOverviewMap({
 
   const preplanMarkers = useMemo(
     () =>
-      overview.preplans
+      overview.preplans.filter(hasMapLocation)
         .map((plan) => ({
           plan,
-          point: project(
+          point: projectMapPoint(
             { lat: plan.latitude, lng: plan.longitude },
             center,
             zoom,
+            canvas,
           ),
         }))
         .filter(
@@ -160,17 +159,19 @@ export default function RespondOverviewMap({
             point.y >= -50 &&
             point.y <= canvas.height + 50,
         ),
-    [center, overview.preplans, zoom],
+    [canvas, center, overview.preplans, zoom],
   );
+  const hydrantClusters = useMemo(() => clusterHydrantLocations(overview.hydrants, zoom), [overview.hydrants, zoom]);
   const hydrantMarkers = useMemo(
     () =>
-      overview.hydrants
-        .map((hydrant) => ({
-          hydrant,
-          point: project(
-            { lat: hydrant.latitude, lng: hydrant.longitude },
+      hydrantClusters
+        .map((cluster) => ({
+          cluster,
+          point: projectMapPoint(
+            { lat: cluster.latitude, lng: cluster.longitude },
             center,
             zoom,
+            canvas,
           ),
         }))
         .filter(
@@ -180,7 +181,7 @@ export default function RespondOverviewMap({
             point.y >= -50 &&
             point.y <= canvas.height + 50,
         ),
-    [center, overview.hydrants, zoom],
+    [canvas, center, hydrantClusters, zoom],
   );
   const closureLines = useMemo(
     () =>
@@ -188,22 +189,23 @@ export default function RespondOverviewMap({
         closure,
         points: closure.path
           .map((point) => {
-            const item = project(point, center, zoom);
+            const item = projectMapPoint(point, center, zoom, canvas);
             return `${item.x},${item.y}`;
           })
           .join(" "),
       })),
-    [center, overview.roadClosures, zoom],
+    [canvas, center, overview.roadClosures, zoom],
   );
   const callMarkers = useMemo(
     () =>
       callClusters
         .map((cluster) => ({
           cluster,
-          point: project(
+          point: projectMapPoint(
             { lat: cluster.latitude, lng: cluster.longitude },
             center,
             zoom,
+            canvas,
           ),
         }))
         .filter(
@@ -213,8 +215,9 @@ export default function RespondOverviewMap({
             point.y >= -50 &&
             point.y <= canvas.height + 50,
         ),
-    [callClusters, center, zoom],
+    [canvas, callClusters, center, zoom],
   );
+  const selectedHydrants = overview.hydrants.filter(hydrant => selectedHydrantIds.includes(hydrant.id));
   const selectedCallCluster = callClusters.find(
     (cluster) => cluster.id === selectedCallClusterId,
   );
@@ -243,9 +246,26 @@ export default function RespondOverviewMap({
 
   function toggleLayer(layer: keyof typeof layers) {
     setLayers((current) => ({ ...current, [layer]: !current[layer] }));
+    if (layer === "hydrants") setSelectedHydrantIds([]);
+  }
+
+  function openHydrantRecord(hydrant: RespondOverview["hydrants"][number]) {
+    const url = new URL(window.location.href);
+    url.searchParams.set("hydrant", hydrant.id);
+    url.searchParams.delete("preplan");
+    url.searchParams.delete("edit");
+    window.history.replaceState({}, "", url);
+    onNavigate?.("Field Preplans");
+  }
+
+  function selectHydrantCluster(cluster: (typeof hydrantClusters)[number]) {
+    setSelectedHydrantIds(cluster.hydrants.map(hydrant => hydrant.id));
+    setCenter({ lat: cluster.latitude, lng: cluster.longitude });
+    if (cluster.hydrants.length > 1) setZoom(current => Math.min(21, current + 2));
   }
 
   function selectCallCluster(cluster: (typeof callClusters)[number]) {
+    setSelectedHydrantIds([]);
     setSelectedCallClusterId(cluster.id);
     setRail("recent");
     setCenter({ lat: cluster.latitude, lng: cluster.longitude });
@@ -376,14 +396,16 @@ export default function RespondOverviewMap({
 
       <div className="respond-map-key" aria-label="Map symbol key">
         <strong>Map key</strong>
-        <span><i className="call" /> Red dot: recent call</span>
+        <span><i className="call" /> Recent call</span>
         <span><i className="preplan" /> P: preplan</span>
-        <span><i className="hydrant" /> H: hydrant</span>
+        <span className="respond-hydrant-key"><HydrantMapSymbol /> Hydrant</span>
+        <span className="respond-hydrant-key unavailable"><HydrantMapSymbol /> Out of service</span>
+        <span><b className="respond-group-key">12</b> Group · tap to zoom</span>
         <span><i className="closure" /> Red line: road closure</span>
       </div>
 
       <div className="respond-map-layout">
-        <div className="respond-overview-map">
+        <div className="respond-overview-map" ref={mapElement}>
           {apiKey ? (
             <GoogleFieldMap
               apiKey={apiKey}
@@ -412,7 +434,7 @@ export default function RespondOverviewMap({
           ) : null}
           <svg
             className="respond-map-overlay"
-            viewBox={`0 0 ${canvas.width} ${canvas.height}`}
+            viewBox={`0 0 ${Math.max(1, canvas.width)} ${Math.max(1, canvas.height)}`}
             aria-hidden="true"
           >
             {layers.closures
@@ -423,51 +445,55 @@ export default function RespondOverviewMap({
                 )
               : null}
           </svg>
-          {layers.preplans
+          {layers.preplans && canvas.width > 0
             ? preplanMarkers.map(({ plan, point }) => (
                 <button
                   type="button"
                   key={plan.id}
                   className="respond-map-marker preplan"
                   style={{
-                    left: `${(point.x / canvas.width) * 100}%`,
-                    top: `${(point.y / canvas.height) * 100}%`,
+                    left: `${point.x}px`,
+                    top: `${point.y}px`,
                   }}
                   aria-label={`Open preplan for ${plan.businessName || plan.address}`}
                   title={`${plan.businessName || "Preplan"} · ${plan.address}`}
                   onClick={() => onNavigate?.("Field Preplans")}
                 >
-                  P
+                  <span className="respond-preplan-symbol" aria-hidden="true">P</span>
                 </button>
               ))
             : null}
-          {layers.hydrants
-            ? hydrantMarkers.map(({ hydrant, point }) => (
+          {layers.hydrants && canvas.width > 0
+            ? hydrantMarkers.map(({ cluster, point }) => (
                 <button
                   type="button"
-                  key={hydrant.id}
-                  className={`respond-map-marker hydrant ${hydrant.serviceStatus}`}
+                  key={cluster.id}
+                  className={`respond-map-marker hydrant${cluster.hydrants.length > 1 ? " grouped" : ""}${cluster.outOfService === cluster.hydrants.length ? " out_of_service" : cluster.needsAttention ? " needs-attention" : ""}`}
                   style={{
-                    left: `${(point.x / canvas.width) * 100}%`,
-                    top: `${(point.y / canvas.height) * 100}%`,
+                    left: `${point.x}px`,
+                    top: `${point.y}px`,
                   }}
-                  aria-label={`Open hydrant ${hydrant.hydrantNumber || hydrant.address}`}
-                  title={`${hydrant.hydrantNumber || "Hydrant"} · ${hydrant.address || "Address not entered"}`}
-                  onClick={() => onNavigate?.("Field Preplans")}
+                  aria-label={cluster.hydrants.length > 1
+                    ? `Show ${cluster.hydrants.length} hydrants in this area${cluster.outOfService ? `, ${cluster.outOfService} out of service` : ""}${cluster.needsAttention > cluster.outOfService ? ", status needs review" : ""}`
+                    : `Show hydrant ${cluster.hydrants[0].hydrantNumber || cluster.hydrants[0].address}, ${statusLabel(cluster.hydrants[0].serviceStatus)}`}
+                  title={cluster.hydrants.length > 1
+                    ? `${cluster.hydrants.length} hydrants · tap to zoom${cluster.needsAttention ? " · service status needs attention" : ""}`
+                    : `${cluster.hydrants[0].hydrantNumber || "Hydrant"} · ${statusLabel(cluster.hydrants[0].serviceStatus)} · ${cluster.hydrants[0].address || "Address not entered"}`}
+                  onClick={() => selectHydrantCluster(cluster)}
                 >
-                  H
+                  <span className="respond-hydrant-symbol" aria-hidden="true"><HydrantMapSymbol />{cluster.hydrants.length > 1 ? <b>{cluster.hydrants.length}</b> : null}{cluster.needsAttention ? <i>!</i> : null}</span>
                 </button>
               ))
             : null}
-          {layers.calls
+          {layers.calls && canvas.width > 0
             ? callMarkers.map(({ cluster, point }) => (
                 <button
                   type="button"
                   key={cluster.id}
                   className={`respond-map-marker call${cluster.calls.length > 1 ? " cluster" : ""}${selectedCallClusterId === cluster.id ? " selected" : ""}`}
                   style={{
-                    left: `${(point.x / canvas.width) * 100}%`,
-                    top: `${(point.y / canvas.height) * 100}%`,
+                    left: `${point.x}px`,
+                    top: `${point.y}px`,
                   }}
                   aria-label={
                     cluster.calls.length > 1
@@ -480,11 +506,18 @@ export default function RespondOverviewMap({
                       : `${cluster.calls[0].callType || "Recent call"} · ${cluster.calls[0].address || "Saved location"}`
                   }
                   onClick={() => selectCallCluster(cluster)}
+                  aria-pressed={selectedCallClusterId === cluster.id}
                 >
-                  {cluster.calls.length > 1 ? cluster.calls.length : "•"}
+                  <span className="respond-call-symbol" aria-hidden="true">{cluster.calls.length > 1 ? cluster.calls.length : ""}</span>
                 </button>
               ))
             : null}
+          {layers.hydrants && selectedHydrants.length ? (
+            <section className="respond-hydrant-selection" aria-label="Selected hydrants">
+              <header><strong>{selectedHydrants.length === 1 ? "Selected hydrant" : `${selectedHydrants.length} hydrants in this area`}</strong><button type="button" aria-label="Close hydrant selection" onClick={() => setSelectedHydrantIds([])}>×</button></header>
+              <div>{selectedHydrants.map(hydrant => <button type="button" key={hydrant.id} disabled={!onNavigate} onClick={() => openHydrantRecord(hydrant)}><strong>{hydrant.hydrantNumber || "Hydrant"}<span className={hydrant.serviceStatus}>{statusLabel(hydrant.serviceStatus)}</span></strong><span>{hydrant.address || "Address not entered"}</span><small>Open hydrant record →</small></button>)}</div>
+            </section>
+          ) : null}
         </div>
 
         <aside className="respond-call-rail" aria-label="Response activity">

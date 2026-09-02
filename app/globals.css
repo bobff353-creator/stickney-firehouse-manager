@@ -2796,6 +2796,41 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
   .safety-record-actions>div{display:grid;grid-template-columns:1fr 1.15fr;width:100%;gap:7px}
   .safety-record-actions>div button{width:100%;min-width:0;padding-inline:8px}
 }
+/* Compact Respond symbols retain generous transparent tap targets. */
+.respond-overview-map .respond-map-marker:is(.preplan,.hydrant,.call){width:36px;height:36px;min-width:36px;min-height:36px;padding:0;border:0;background:transparent;box-shadow:none;border-radius:50%;outline:none;text-decoration:none}
+.respond-overview-map .respond-map-marker.hydrant.grouped{width:48px;min-width:48px}
+.respond-preplan-symbol{display:grid;place-items:center;width:20px;height:20px;border:2px solid #fff;border-radius:5px;background:#176991;color:#fff;font-size:11px;font-weight:900;box-shadow:0 1px 4px #0008}
+.respond-hydrant-symbol{position:relative;display:flex;align-items:center;justify-content:center;gap:3px;color:#263e49;filter:drop-shadow(0 1px 2px #0009)}
+.respond-hydrant-symbol>svg,.respond-hydrant-key>svg{width:19px;height:24px;fill:#f2ce3a;stroke:#203c48;stroke-width:1.8;paint-order:stroke;filter:drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff)}
+.respond-map-marker.grouped .respond-hydrant-symbol{min-width:35px;min-height:27px;padding:2px 5px;border:2px solid #fff;border-radius:16px;background:#f9e89c;filter:none;box-shadow:0 1px 4px #0006}
+.respond-map-marker.grouped .respond-hydrant-symbol>svg{width:12px;height:17px;filter:none}
+.respond-hydrant-symbol>b{font-size:12px;line-height:1;font-weight:900}
+.respond-hydrant-symbol>i{position:absolute;right:-4px;top:-5px;width:12px;height:12px;display:grid;place-items:center;background:#a51e2e;border:1px solid #fff;border-radius:50%;color:#fff;font-size:9px;line-height:1;font-style:normal;font-weight:900}
+.respond-map-marker.out_of_service .respond-hydrant-symbol>svg,.respond-hydrant-key.unavailable>svg{fill:#dce2e5;stroke:#702a35}
+.respond-map-marker.out_of_service .respond-hydrant-symbol:after{content:"";position:absolute;left:4px;right:4px;top:50%;height:2px;background:#a51e2e;rotate:-45deg;box-shadow:0 0 0 1px #fff}
+.respond-map-marker.grouped.out_of_service .respond-hydrant-symbol{background:#f3dadd;color:#762333}
+.respond-map-marker.grouped.out_of_service .respond-hydrant-symbol:after{display:none}
+.respond-call-symbol{box-sizing:border-box;display:grid;place-items:center;width:16px;height:16px;border:2px solid #fff;border-radius:50%;background:#c72338;box-shadow:0 1px 4px #0009;color:#fff;font-size:11px;line-height:1;font-weight:900}
+.respond-map-marker.call.cluster .respond-call-symbol{width:26px;height:26px}
+.respond-map-marker.call.selected .respond-call-symbol{outline:3px solid #ffd24d;outline-offset:2px;box-shadow:0 0 0 6px #183c50,0 2px 6px #0007}
+.respond-overview-map .respond-map-marker:hover{z-index:7}
+.respond-overview-map .respond-map-marker:focus-visible{z-index:8;outline:3px solid #174e78;outline-offset:1px;background:#ffffffb3}
+.respond-map-key .respond-hydrant-key>svg{width:13px;height:16px}
+.respond-group-key{display:grid;place-items:center;min-width:23px;height:18px;padding:0 4px;border:1px solid #937522;border-radius:10px;background:#f9e89c;color:#263e49;font-size:10px}
+.respond-hydrant-selection{position:absolute;z-index:9;left:12px;bottom:36px;width:min(340px,calc(100% - 24px));max-height:48%;display:flex;flex-direction:column;border:1px solid #9bb6c6;border-radius:10px;background:#fff;box-shadow:0 4px 18px #102b4850;overflow:hidden;color:#173c53}
+.respond-hydrant-selection>header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 8px 4px 12px;border-bottom:1px solid #d7e1e7;background:#eef5f8;font-size:13px}
+.respond-hydrant-selection>header>button{width:40px;min-height:40px;border:0;background:transparent;color:#173c53;font-size:26px}
+.respond-hydrant-selection>div{min-height:0;overflow:auto;overscroll-behavior:contain}
+.respond-hydrant-selection>div>button{width:100%;display:grid;gap:5px;min-height:76px;padding:12px;border:0;border-bottom:1px solid #dbe5ea;background:#fff;color:#173c53;text-align:left;overflow-wrap:anywhere}
+.respond-hydrant-selection>div>button:hover{background:#edf6fa}
+.respond-hydrant-selection strong{display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:13px}
+.respond-hydrant-selection strong>span{margin-left:auto;padding:3px 6px;border-radius:5px;background:#eef1f4;color:#52616c;font-size:10px}
+.respond-hydrant-selection strong>span.in_service{background:#e5f3eb;color:#236344}
+.respond-hydrant-selection strong>span.out_of_service{background:#f8e5e2;color:#9a3328}
+.respond-hydrant-selection button>span{font-size:12px;line-height:1.4}
+.respond-hydrant-selection button>small{font-size:11px;color:#1e6286}
+@media(pointer:coarse){.respond-overview-map .respond-map-marker:is(.preplan,.hydrant,.call){width:44px;height:44px;min-width:44px;min-height:44px}}
+
 /* Hydrant forms adapt to their panel width, not just the browser width. */
 .hydrant-editor{container:hydrant-editor / inline-size;min-width:0;max-width:100%}
 .hydrant-editor>header{display:grid;grid-template-columns:minmax(0,1fr);align-items:stretch;gap:14px;padding:18px}
