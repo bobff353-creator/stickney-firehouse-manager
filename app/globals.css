@@ -2796,5 +2796,24 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
   .safety-record-actions>div{display:grid;grid-template-columns:1fr 1.15fr;width:100%;gap:7px}
   .safety-record-actions>div button{width:100%;min-width:0;padding-inline:8px}
 }
+/* Full-screen Respond keeps the map and call rail, without normal-view guidance. */
+.respond-overview-page.monitor-view .respond-monitor-status,
+.respond-overview-page.monitor-view .respond-task-guide{display:none}
+.respond-overview-page.monitor-view{display:flex;flex-direction:column;height:100dvh}
+.respond-overview-page.monitor-view>.respond-title,
+.respond-overview-page.monitor-view>.respond-road-closure{flex-shrink:0}
+@media(min-width:951px){
+  .respond-overview-page.monitor-view>.respond-map-shell{display:flex;flex-direction:column;flex:1;min-height:0}
+  .respond-overview-page.monitor-view .respond-map-options,
+  .respond-overview-page.monitor-view .respond-map-key{flex-shrink:0}
+  .respond-overview-page.monitor-view .respond-map-layout{flex:1;min-height:0;grid-template-rows:minmax(0,1fr)}
+  .respond-overview-page.monitor-view .respond-overview-map,
+  .respond-overview-page.monitor-view .respond-call-rail{min-height:0}
+}
+@media(max-width:950px){
+  .respond-overview-page.monitor-view{overflow:auto}
+  .respond-overview-page.monitor-view>.respond-map-shell{flex-shrink:0}
+}
+
 @media(prefers-reduced-motion:reduce){.safety-progress-bar>span{transition:none}}
 @media print{.safety-inspections-page{display:block;color:#111}.safety-inspections-page>*{margin-bottom:10px}.safety-page-head h1{font-size:24px}.safety-template-card,.safety-report-table,.safety-section,.safety-notes,.safety-attachments,.safety-record-identity{break-inside:avoid;border-color:#888;box-shadow:none}.safety-progress-panel{position:static;box-shadow:none}.safety-check-row{break-inside:avoid;padding:7px 9px}.safety-result-buttons button{min-height:26px;padding:0 7px;border-color:#999;color:#333}.safety-result-buttons button:not(.selected){display:none}.safety-deficiency textarea,.safety-notes textarea,.safety-record-identity input{border:0;background:#fff;color:#111}.safety-kpis article{min-height:60px;border-color:#888}.safety-attachments li button{display:none}.safety-report-tools,.safety-workflow-guide,.safety-library-head{display:none!important}}

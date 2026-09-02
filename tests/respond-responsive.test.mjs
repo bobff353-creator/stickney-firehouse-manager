@@ -48,3 +48,15 @@ test("fullscreen apparatus and iPad views respect every safe-area inset", () => 
   }
   assert.match(css, /\.respond-page\.monitor-view\{padding:max\(12px/);
 });
+
+test("only fullscreen overview hides device status and task guidance", () => {
+  assert.match(css, /\.respond-overview-page\.monitor-view \.respond-monitor-status,\s*\.respond-overview-page\.monitor-view \.respond-task-guide\{display:none\}/);
+  assert.doesNotMatch(css, /(?:^|\})\s*\.respond-(?:monitor-status|task-guide)\{display:none/);
+});
+
+test("fullscreen overview reclaims the hidden panels' space without clipping the narrow call rail", () => {
+  assert.match(css, /\.respond-overview-page\.monitor-view\{display:flex;flex-direction:column;height:100dvh\}/);
+  assert.match(css, /@media\(min-width:951px\)\{\s*\.respond-overview-page\.monitor-view>\.respond-map-shell\{display:flex;flex-direction:column;flex:1;min-height:0\}/);
+  assert.match(css, /\.respond-overview-page\.monitor-view \.respond-map-layout\{flex:1;min-height:0;grid-template-rows:minmax\(0,1fr\)\}/);
+  assert.match(css, /@media\(max-width:950px\)\{\s*\.respond-overview-page\.monitor-view\{overflow:auto\}\s*\.respond-overview-page\.monitor-view>\.respond-map-shell\{flex-shrink:0\}/);
+});
