@@ -2796,6 +2796,69 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
   .safety-record-actions>div{display:grid;grid-template-columns:1fr 1.15fr;width:100%;gap:7px}
   .safety-record-actions>div button{width:100%;min-width:0;padding-inline:8px}
 }
+/* Hydrant forms adapt to their panel width, not just the browser width. */
+.hydrant-editor{container:hydrant-editor / inline-size;min-width:0;max-width:100%}
+.hydrant-editor>header{display:grid;grid-template-columns:minmax(0,1fr);align-items:stretch;gap:14px;padding:18px}
+.hydrant-editor>header>div{min-width:0;overflow-wrap:anywhere}
+.hydrant-editor>header h2{font-size:22px;line-height:1.25;font-weight:800}
+.hydrant-editor>header p{font-size:14px;line-height:1.5}
+.hydrant-editor>header nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;overflow:visible}
+.hydrant-editor>header nav button{min-width:0;min-height:46px;padding:10px 8px;font-size:13px;line-height:1.35;white-space:normal;overflow-wrap:anywhere}
+.hydrant-editor>header nav button.active{border-color:#0f6974;box-shadow:inset 0 -3px #064d56}
+.hydrant-editor :is(.hydrant-details,.hydrant-maintenance,.hydrant-flow-workspace,.hydrant-quick){display:grid;grid-template-columns:minmax(0,1fr);gap:16px;padding:16px;align-items:start}
+.hydrant-editor :is(.content-card,.flow-result,.hydrant-profile>*,.flow-form>*,.hydrant-ports>*,label){min-width:0;max-width:100%}
+.hydrant-editor .content-card{padding:18px;box-shadow:none}
+.hydrant-editor :is(.hydrant-profile,.flow-form,.hydrant-ports){grid-template-columns:minmax(0,1fr);gap:16px}
+.hydrant-editor :is(.hydrant-profile>header,.hydrant-profile-wide,.hydrant-profile .field-message,.hydrant-ports,.hydrant-profile-actions,.flow-form .wide){grid-column:1/-1}
+.hydrant-editor .hydrant-profile>header{display:grid;gap:5px;padding-bottom:14px;border-bottom:1px solid #dce5e9}
+.hydrant-editor h3{margin:0;color:#173c53;font-size:18px;font-weight:800;line-height:1.4}
+.hydrant-editor .hydrant-profile>header p{margin:0;color:#536c7c;font-size:13px;line-height:1.5}
+.hydrant-editor label{font-size:13px;line-height:1.45;gap:7px}
+.hydrant-editor label small{font-size:12px;font-weight:500;line-height:1.5;color:#536c7c}
+.hydrant-editor :is(input:not([type=checkbox]),select,textarea){box-sizing:border-box;min-width:0;max-width:100%;width:100%;min-height:46px;font-size:16px;line-height:1.4;color:#173c53}
+.hydrant-editor textarea{min-height:140px;resize:vertical}
+.hydrant-editor .field-message{margin:0;padding:12px;font-size:13px;line-height:1.5;font-weight:600;overflow-wrap:anywhere}
+.hydrant-profile-actions{padding-top:4px}
+.hydrant-editor .primary-action{min-height:48px;width:100%;white-space:normal;font-size:14px}
+.hydrant-editor .hydrant-summary{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 12px;text-align:left;align-items:center;background:#f3f8f9}
+.hydrant-editor .hydrant-summary>svg{grid-row:1/3;width:36px;height:44px}
+.hydrant-editor .hydrant-summary>h3{font-size:15px}
+.hydrant-editor .hydrant-summary>strong{justify-self:start;font-size:11px;line-height:1.3}
+.hydrant-editor .hydrant-summary>strong.out_of_service{background:#f8e5e2;color:#9a3328}
+.hydrant-editor .hydrant-summary dl{grid-column:1/-1;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:8px 0 0}
+.hydrant-editor .hydrant-summary dl div{min-width:0;border-radius:6px;background:#e7f0f3}
+.hydrant-editor .hydrant-summary dt{font-size:10px;font-weight:800;color:#536c7c}
+.hydrant-editor .hydrant-summary dd{font-size:14px;line-height:1.45;overflow-wrap:anywhere}
+.hydrant-editor .hydrant-maintenance>.content-card{display:grid;gap:14px}
+.hydrant-editor .hydrant-quick>article{min-width:0;grid-column:1/-1;overflow-wrap:anywhere}
+.hydrant-editor .flow-guide>.primary-action{margin-top:18px}
+.hydrant-editor .flow-result{overflow-wrap:anywhere}
+.hydrant-editor .flow-history{grid-column:1/-1}
+@container hydrant-editor (min-width:560px){
+  .hydrant-editor :is(.hydrant-profile,.flow-form,.hydrant-quick){grid-template-columns:repeat(2,minmax(0,1fr))}
+  .hydrant-editor .hydrant-ports{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .hydrant-editor .hydrant-quick>.primary-action{grid-column:1/-1}
+}
+@container hydrant-editor (min-width:720px){
+  .hydrant-editor>header nav{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .hydrant-editor .hydrant-summary dl{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+@media(min-width:1151px){
+  .preplan-builder-focused.hydrant-record-focused{grid-template-columns:minmax(0,.9fr) minmax(440px,1.1fr)}
+}
+@media(max-width:1150px){
+  .hydrant-record-focused>.preplan-focus-map-panel>.field-map{min-height:clamp(260px,40dvh,420px)}
+}
+@media(max-width:600px){
+  .hydrant-record-focused>.preplan-focus-header{align-items:stretch;flex-direction:column;gap:12px}
+  .hydrant-record-focused>.preplan-focus-header>button{min-height:44px;white-space:normal}
+  .hydrant-record-focused .record-focus-status{align-self:flex-start;margin-left:0}
+  .hydrant-record-focused>.preplan-focus-map-panel>.field-map{min-height:260px}
+  .hydrant-editor>header{padding:14px}
+  .hydrant-editor :is(.hydrant-details,.hydrant-maintenance,.hydrant-flow-workspace,.hydrant-quick){padding:10px}
+  .hydrant-editor .content-card{padding:14px}
+}
+
 /* Full-screen Respond keeps the map and call rail, without normal-view guidance. */
 .respond-overview-page.monitor-view .respond-monitor-status,
 .respond-overview-page.monitor-view .respond-task-guide{display:none}
