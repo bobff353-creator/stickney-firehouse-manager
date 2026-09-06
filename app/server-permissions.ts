@@ -7,13 +7,12 @@ async function employeePermissions(
   db: Awaited<ReturnType<typeof ensureDatabase>>,
   employee: { id: string; rank: string; isAdmin: number },
 ) {
-  if (employee.isAdmin) return new Set(permissionCatalog.map((item) => item.key));
   const [rankRows, overrides] = await Promise.all([
     db.prepare("SELECT permission_key permissionKey,allowed FROM rank_permissions WHERE rank=?").bind(employee.rank).all<{ permissionKey: string; allowed: number }>(),
     db.prepare("SELECT permission_key permissionKey,effect FROM employee_permission_overrides WHERE employee_id=?").bind(employee.id).all<{ permissionKey: string; effect: "allow" | "deny" }>(),
   ]);
-  const saved = new Map(rankRows.results.map((row) => [row.permissionKey, Boolean(row.allowed)]));
-  const defaults = new Set(defaultPermissionsForRank(employee.rank));
+  const saved = employee.isAdmin ? new Map<string, boolean>() : new Map(rankRows.results.map((row) => [row.permissionKey, Boolean(row.allowed)]));
+  const defaults = new Set(defaultPermissionsForRank(employee.rank, Boolean(employee.isAdmin)));
   const selected = new Set(permissionCatalog
     .filter((item) => saved.has(item.key) ? saved.get(item.key) : defaults.has(item.key))
     .map((item) => item.key));

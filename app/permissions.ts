@@ -22,7 +22,7 @@ export const permissionCatalog = [
   { key: "scheduling.view", label: "View scheduling", group: "Scheduling" },
   { key: "scheduling.manage", label: "Manage schedules and requests", group: "Scheduling" },
   { key: "payroll.view_own", label: "View own timesheet", group: "Payroll", required: true },
-  { key: "payroll.manage", label: "Manage payroll and rates", group: "Payroll" },
+  { key: "payroll.manage", label: "Manage payroll, rates, and all timesheets", group: "Payroll" },
   { key: "employees.view", label: "View employee directory", group: "Personnel" },
   { key: "employees.manage", label: "Manage employee records", group: "Personnel" },
   { key: "contacts.view", label: "View employee contacts", group: "Personnel" },

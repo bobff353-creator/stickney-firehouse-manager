@@ -18,13 +18,12 @@ async function viewerRecord(request: Request, db: Awaited<ReturnType<typeof ensu
 }
 
 async function effectivePermissions(db: Awaited<ReturnType<typeof ensureDatabase>>, employee: { id: string; rank: string; isAdmin: number }) {
-  if (employee.isAdmin) return permissionCatalog.map((permission) => permission.key);
   const [rankRows, overrides] = await Promise.all([
     db.prepare("SELECT permission_key permissionKey,allowed FROM rank_permissions WHERE rank=?").bind(employee.rank).all<{ permissionKey: string; allowed: number }>(),
     db.prepare("SELECT permission_key permissionKey,effect FROM employee_permission_overrides WHERE employee_id=?").bind(employee.id).all<{ permissionKey: string; effect: "allow" | "deny" }>(),
   ]);
-  const saved = new Map(rankRows.results.map((row) => [row.permissionKey, Boolean(row.allowed)]));
-  const defaults = new Set(defaultPermissionsForRank(employee.rank));
+  const saved = employee.isAdmin ? new Map<string, boolean>() : new Map(rankRows.results.map((row) => [row.permissionKey, Boolean(row.allowed)]));
+  const defaults = new Set(defaultPermissionsForRank(employee.rank, Boolean(employee.isAdmin)));
   const selected = new Set(permissionCatalog.filter((permission) => saved.has(permission.key) ? saved.get(permission.key) : defaults.has(permission.key)).map((permission) => permission.key));
   for (const override of overrides.results) {
     if (!validPermission(override.permissionKey)) continue;
@@ -42,8 +41,8 @@ function validPermission(value: string): value is PermissionKey {
 export async function GET(request: Request) {
   const db = await ensureDatabase();
   const canManage = await requirePermissionAdmin(request, db);
+  const viewer = await viewerRecord(request, db);
   if (!canManage) {
-    const viewer = await viewerRecord(request, db);
     if (!viewer) return Response.json({ viewerPermissions: defaultPermissionsForRank("") });
     return Response.json({ viewerPermissions: await effectivePermissions(db, viewer) });
   }
@@ -63,7 +62,7 @@ export async function GET(request: Request) {
   const overrides: Record<string, Record<string, "allow" | "deny">> = {};
   for (const row of overrideRows.results) (overrides[row.employeeId] ??= {})[row.permissionKey] = row.effect;
   const employeeRows = employees.results.map((employee) => {
-    const effective = new Set(employee.isAdmin ? permissionCatalog.map((permission) => permission.key) : rankSettings[employee.rank] ?? defaultPermissionsForRank(employee.rank));
+    const effective = new Set(employee.isAdmin ? defaultPermissionsForRank(employee.rank, true) : rankSettings[employee.rank] ?? defaultPermissionsForRank(employee.rank));
     for (const [key, effect] of Object.entries(overrides[employee.id] ?? {})) {
       if (effect === "allow") effective.add(key as PermissionKey);
       else effective.delete(key as PermissionKey);
@@ -71,7 +70,7 @@ export async function GET(request: Request) {
     effective.add("payroll.view_own");
     return { ...employee, effectivePermissions: [...effective] };
   });
-  return Response.json({ catalog: permissionCatalog, ranks: ranks.results.map((row) => row.rank), rankSettings, overrides, employees: employeeRows, viewerPermissions: permissionCatalog.map((permission) => permission.key) });
+  return Response.json({ catalog: permissionCatalog, ranks: ranks.results.map((row) => row.rank), rankSettings, overrides, employees: employeeRows, viewerPermissions: viewer ? await effectivePermissions(db, viewer) : permissionCatalog.map((permission) => permission.key) });
 }
 
 export async function PUT(request: Request) {

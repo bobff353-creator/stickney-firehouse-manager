@@ -62,7 +62,7 @@ type PayrollData = {
   payScales: PayScale[];
   rateHistory: PayRateHistory[];
   settings: { overtimeThreshold: number; actingOfficerPremium: number; dpwMultiplier: number };
-  viewer: { email: string; isAdmin: boolean; employeeId: string | null; displayName: string };
+  viewer: { email: string; isAdmin: boolean; canManageEmployees: boolean; canManagePayroll: boolean; employeeId: string | null; displayName: string };
 };
 type GlobalSearchItem = { id: string; type: "Employee" | "Contact" | "Policy" | "Box Card" | "Important Number" | "Preplan" | "Screen"; title: string; detail: string; page: NavItem; record?: PortalRecord };
 type IconName = "home" | "log" | "box" | "users" | "phone" | "payroll" | "clock" | "rates" | "document" | "holiday" | "settings" | "search" | "bell" | "menu" | "close" | "filter" | "export" | "back" | "next" | "save" | "warning" | "chevron";
@@ -92,6 +92,12 @@ const adminNavGroups: Array<{ label: string; icon: IconName; items: Array<{ labe
   { label: "Administration", icon: "settings", items: [{ label: "System Health & Backups", page: "System Health" }, { label: "Departments", page: "Departments" }, { label: "Important Phone Numbers", page: "Phone Numbers" }, { label: "Permissions", page: "Permissions" }, { label: "CIS CAD Integration", page: "CAD Integration" }, { label: "Respond Device Modes", page: "Respond Device Modes" }, { label: "Test as Member", page: "Test View" }] },
 ];
 const navPermission: Partial<Record<NavItem, string>> = { Dashboard: "dashboard.view", "Command Center": "command_center.view", "Operations Board": "operations_board.view", "Activity Timeline": "command_center.view", Respond: "field_preplans.view", "Command Board": "incident_command.view", "Field Preplans": "field_preplans.view", "Road Closures": "operations_board.view", "Safety Inspections": "safety_inspections.view", Scheduling: "scheduling.view", Payroll: "payroll.manage", "Work Details": "scheduling.manage", "Daily Log": "daily_log.view", Timesheets: "payroll.manage", "Callback Reviews": "payroll.manage", "My Timesheet": "payroll.view_own", Employees: "employees.manage", "Employee Contacts": "contacts.view", Policies: "documents.view", "Box Cards": "documents.view", "Holiday Policy": "documents.view", EMS: "documents.view", "Daily Duties": "documents.view", Inventory: "inventory.view", "Phone Numbers": "settings.manage", "Rates & Rules": "payroll.manage", Departments: "settings.manage", "System Health": "settings.manage", Permissions: "permissions.manage", "CAD Integration": "permissions.manage", "Respond Device Modes": "settings.manage", "Test View": "permissions.manage" };
+
+function navigationForViewer(viewer: PayrollData["viewer"], permissions: string[] | null) {
+  if (!viewer.isAdmin) return permissions ? adminNavItems.filter((item) => !navPermission[item] || permissions.includes(navPermission[item]!)) : employeeNavItems;
+  if (permissions) return adminNavItems.filter((item) => !navPermission[item] || permissions.includes(navPermission[item]!));
+  return adminNavItems.filter((item) => navPermission[item] !== "payroll.manage" || viewer.canManagePayroll);
+}
 const emptyEmployee: EmployeeForm = {
   lastName: "", firstName: "", payScaleId: "firefighter", employeeNumber: "", startDate: "", endDate: "", dateOfBirth: "",
   phone: "", email: "", addressLine1: "", city: "", state: "IL", postalCode: "", employmentType: "Part-time", isDpw: false, driverStatus: "", actingOfficerEligible: false, scheduleSmsOptIn: false, isAdmin: false,
@@ -271,7 +277,7 @@ export default function PayrollApp({
       setRateEffectiveDate(start);
       setLastSynced(new Date());
       setSelectedEmployeeId((current) => current || payload.employees[0]?.id || "");
-      setActiveNav((current) => (payload.viewer.isAdmin ? adminNavItems : employeeNavItems).includes(current) ? current : "Dashboard");
+      setActiveNav((current) => navigationForViewer(payload.viewer, null).includes(current) ? current : "Dashboard");
       const permissionsResponse = await fetch("/api/permissions");
       if (permissionsResponse.ok) {
         const permissionsPayload = await permissionsResponse.json() as { viewerPermissions?: string[] };
@@ -347,11 +353,9 @@ export default function PayrollApp({
     try {
       const searchableScreens = testMember
         ? adminNavItems.filter((item) => !navPermission[item] || testMember.effectivePermissions.includes(navPermission[item]!))
-        : data?.viewer.isAdmin
-          ? adminNavItems
-          : viewerPermissions
-            ? adminNavItems.filter((item) => !navPermission[item] || viewerPermissions.includes(navPermission[item]!))
-            : employeeNavItems;
+        : data?.viewer
+          ? navigationForViewer(data.viewer, viewerPermissions)
+          : employeeNavItems;
       const sources = [
         { url: "/api/resources?type=policy", page: "Policies" }, { url: "/api/resources?type=boxCard", page: "Box Cards" },
         { url: "/api/phone-numbers", page: "Phone Numbers" }, { url: "/api/field-preplans", page: "Field Preplans" },
@@ -448,7 +452,9 @@ export default function PayrollApp({
   const reviewCount = employeeSummaries.filter((row) => row.status === "Review").length;
   const readyCount = employeeSummaries.filter((row) => row.status === "Ready").length;
   const grossPayroll = employeeSummaries.reduce((sum, row) => sum + row.gross, 0);
-  const selectedEmployee = payrollEmployees.find((employee) => employee.id === selectedEmployeeId) ?? payrollEmployees[0];
+  const ownTimesheetEmployeeId = testMember?.id ?? data?.viewer.employeeId;
+  const activeEmployeeId = activeNav === "My Timesheet" ? ownTimesheetEmployeeId : selectedEmployeeId;
+  const selectedEmployee = payrollEmployees.find((employee) => employee.id === activeEmployeeId) ?? (activeNav === "My Timesheet" ? undefined : payrollEmployees[0]);
   const selectedSummary = selectedEmployee ? summaryFor(selectedEmployee) : null;
 
   const filteredRows = useMemo(() => employeeSummaries.filter((row) => {
@@ -458,7 +464,7 @@ export default function PayrollApp({
   }), [employeeSummaries, search, statusFilter]);
 
   const globalSearchResults = useMemo(() => {
-    const permittedPages = testMember ? adminNavItems.filter(page => !navPermission[page] || testMember.effectivePermissions.includes(navPermission[page]!)) : data?.viewer.isAdmin ? adminNavItems : viewerPermissions ? adminNavItems.filter(page => !navPermission[page] || viewerPermissions.includes(navPermission[page]!)) : employeeNavItems;
+    const permittedPages = testMember ? adminNavItems.filter(page => !navPermission[page] || testMember.effectivePermissions.includes(navPermission[page]!)) : data?.viewer ? navigationForViewer(data.viewer, viewerPermissions) : employeeNavItems;
     const screens: GlobalSearchItem[] = permittedPages.map(page => ({ id: `screen-${page}`, type: "Screen", title: portalPageLabel(page), detail: `Open ${page}`, page }));
     const employeeItems: GlobalSearchItem[] = (data?.employees ?? []).flatMap((employee) => [
       ...(data?.viewer.isAdmin ? [{ id: `employee-${employee.id}`, type: "Employee" as const, title: displayName(employee.name), detail: [employee.rank, employee.employeeNumber, employee.driverStatus].filter(Boolean).join(" · "), page: "Employees" as const }] : []),
@@ -695,8 +701,8 @@ export default function PayrollApp({
 
   const statusLabel = data?.period.status ? data.period.status[0].toUpperCase() + data.period.status.slice(1) : "Draft";
   const connection = portalConnectionState(isOnline, loading, error, Boolean(lastSynced), savingCells.size > 0);
-  const isAdminView = Boolean(data?.viewer.isAdmin && !testMember);
-  const visibleNav = useMemo(() => testMember ? adminNavItems.filter((item) => !navPermission[item] || testMember.effectivePermissions.includes(navPermission[item]!)) : data?.viewer.isAdmin ? adminNavItems : viewerPermissions ? adminNavItems.filter((item) => !navPermission[item] || viewerPermissions.includes(navPermission[item]!)) : employeeNavItems, [data?.viewer.isAdmin, testMember, viewerPermissions]);
+  const isPayrollManagerView = Boolean(data?.viewer.canManagePayroll && !testMember);
+  const visibleNav = useMemo(() => testMember ? adminNavItems.filter((item) => !navPermission[item] || testMember.effectivePermissions.includes(navPermission[item]!)) : data?.viewer ? navigationForViewer(data.viewer, viewerPermissions) : employeeNavItems, [data?.viewer, testMember, viewerPermissions]);
   const visibleFeaturedNav = useMemo(() => featuredNavItems.filter((item) => visibleNav.includes(item.page)), [visibleNav]);
   const visibleMoreNavGroups = useMemo(() => {
     const groupedPages = new Set<NavItem>();
@@ -731,7 +737,7 @@ export default function PayrollApp({
     setSidebarCollapsed(window.localStorage.getItem("stickney-desktop-menu-hidden") === "true");
   }, []);
   useEffect(() => {
-    if ((testMember || (data && !data.viewer.isAdmin && viewerPermissions)) && !visibleNav.includes(activeNav)) setActiveNav(homePage);
+    if ((testMember || (data && viewerPermissions)) && !visibleNav.includes(activeNav)) setActiveNav(homePage);
   }, [activeNav, data, homePage, testMember, viewerPermissions, visibleNav]);
   useEffect(() => {
     if (visibleMoreNavGroups.some((group) => group.items.some((item) => item.page === activeNav))) setMoreToolsOpen(true);
@@ -902,7 +908,7 @@ export default function PayrollApp({
             </section>
           </div>}
 
-          {activeNav === "Dashboard" && <RoleDashboard data={{ viewer: testMember ? { email: "", isAdmin: false, employeeId: testMember.id, displayName: testMember.name } : data.viewer, employees: testMember ? data.employees.filter((employee) => employee.id === testMember.id) : data.employees, entries: testMember ? data.entries.filter((entry) => entry.employeeId === testMember.id) : data.entries, period: data.period, grossPayroll, reviewCount, employeeGross: selectedSummary?.gross ?? 0 }} onNavigate={(page) => navigate(page)} allowedPages={visibleNav} />}
+          {activeNav === "Dashboard" && <RoleDashboard data={{ viewer: testMember ? { isAdmin: false, employeeId: testMember.id, displayName: testMember.name } : { isAdmin: data.viewer.isAdmin, employeeId: data.viewer.employeeId, displayName: data.viewer.displayName }, employees: testMember ? data.employees.filter((employee) => employee.id === testMember.id) : data.employees, entries: testMember ? data.entries.filter((entry) => entry.employeeId === testMember.id) : data.entries, period: data.period, grossPayroll, reviewCount, employeeGross: selectedSummary?.gross ?? 0 }} onNavigate={(page) => navigate(page)} allowedPages={visibleNav} />}
 
           {activeNav === "Command Center" && <CommandCenter />}
           {activeNav === "Work Details" && <WorkDetails onPayrollChanged={(approvedPeriodStart) => { if (approvedPeriodStart === periodStart) void loadPayroll(periodStart); else setPeriodStart(approvedPeriodStart); }} />}
@@ -942,8 +948,8 @@ export default function PayrollApp({
           </div>}
 
           {(activeNav === "Timesheets" || activeNav === "My Timesheet") && selectedEmployee && selectedSummary && <div className={data.period.status === "finalized" ? "record-finalized" : "record-editable"}>{data.period.status === "finalized" && <div className="record-state-banner finalized"><span className="state-lock" aria-hidden="true">🔒</span><div><strong>Finalized timesheet · Read only</strong><span>This timesheet belongs to a closed payroll period.</span></div></div>}<section className="content-card timesheet-card">
-            <div className="section-header"><div>{isAdminView ? <><label htmlFor="employee-select">Employee</label><select id="employee-select" value={selectedEmployee.id} onChange={(event) => setSelectedEmployeeId(event.target.value)}>{payrollEmployees.map((employee) => <option value={employee.id} key={employee.id}>{displayName(employee.name)} — {employee.rank}</option>)}</select></> : <><p className="eyebrow">My timesheet</p><h2>{displayName(selectedEmployee.name)}</h2><p>{selectedEmployee.rank} · Read only</p></>}</div><span className={`status-pill ${selectedSummary.status.toLowerCase().replace(" ", "-")}`}>{selectedSummary.status}</span></div>
-            <div className="mini-summary"><div><span>Paid hours</span><strong>{selectedSummary.hours.toFixed(1)}</strong></div><div><span>Overtime</span><strong>{selectedSummary.overtimeHours.toFixed(1)}</strong></div><div><span>Holiday</span><strong>{selectedSummary.holidayHours.toFixed(1)}</strong></div><div><span>Gross pay</span><strong>{formatMoney(selectedSummary.gross)}</strong></div></div>
+            <div className="section-header"><div>{activeNav === "Timesheets" && isPayrollManagerView ? <><label htmlFor="employee-select">Employee</label><select id="employee-select" value={selectedEmployee.id} onChange={(event) => setSelectedEmployeeId(event.target.value)}>{payrollEmployees.map((employee) => <option value={employee.id} key={employee.id}>{displayName(employee.name)} — {employee.rank}</option>)}</select></> : <><p className="eyebrow">My timesheet</p><h2>{displayName(selectedEmployee.name)}</h2><p>{selectedEmployee.rank} · Read only</p></>}</div><span className={`status-pill ${selectedSummary.status.toLowerCase().replace(" ", "-")}`}>{selectedSummary.status}</span></div>
+            <div className="mini-summary"><div><span>Paid hours</span><strong>{selectedSummary.hours.toFixed(1)}</strong></div><div><span>Hourly rate</span><strong>{formatMoney(selectedEmployee.regularRate)}<small>/hr</small></strong></div><div><span>Overtime</span><strong>{selectedSummary.overtimeHours.toFixed(1)}</strong></div><div><span>Holiday</span><strong>{selectedSummary.holidayHours.toFixed(1)}</strong></div><div><span>Gross pay</span><strong>{formatMoney(selectedSummary.gross)}</strong></div></div>
             {selectedSummary.issues.length > 0 && <div className="validation-box"><strong>Check these entries</strong>{selectedSummary.issues.map((issue) => <span key={issue}>• {issue}</span>)}</div>}
             <div className="entry-grid-wrap"><table className="entry-grid"><thead><tr><th>Date</th>{categoryColumns.map((column) => <th key={column.key} title={column.label}>{column.short}</th>)}<th>Total</th></tr></thead><tbody>
               {listDates(data.period.startDate, data.period.endDate).map((date) => {
@@ -951,12 +957,12 @@ export default function PayrollApp({
                 return <tr key={date}><td>{dayLabel(date)}</td>{categoryColumns.map((column) => {
                   const cell = `${selectedEmployee.id}-${date}-${column.key}`;
                   const value = entryValue(selectedEmployee.id, date, column.key);
-                  const canEditEntry = isAdminView && data.period.status !== "finalized";
+                  const canEditEntry = activeNav === "Timesheets" && isPayrollManagerView && data.period.status !== "finalized";
                   return <td key={column.key}><input aria-label={`${column.label} hours for ${dayLabel(date)}`} type="number" min="0" max="48" step="0.25" value={value || ""} readOnly={!canEditEntry} className={`${savingCells.has(cell) ? "saving" : ""}${canEditEntry ? "" : " timesheet-readonly"}`} onChange={(event) => { if (canEditEntry) changeEntry(selectedEmployee.id, date, column.key, safeNumber(event.target.value)); }} onBlur={(event) => { if (canEditEntry) void saveEntry(selectedEmployee.id, date, column.key, safeNumber(event.target.value)); }} /></td>;
                 })}<td>{rowTotal.toFixed(1)}</td></tr>;
               })}
             </tbody><tfoot><tr><td>Period totals</td>{categoryColumns.map((column) => <td key={column.key}>{data.entries.filter((entry) => entry.employeeId === selectedEmployee.id && entry.category === column.key).reduce((sum, entry) => sum + entry.hours, 0).toFixed(1)}</td>)}<td>{selectedSummary.hours.toFixed(1)}</td></tr></tfoot></table></div>
-            <p className="helper-note">{data.period.status === "finalized" ? "This finalized timesheet is read only. Reopening a closed payroll period requires a separate administrator workflow." : isAdminView ? `Acting Officer pay is a straight $${ACTING_OFFICER_STIPEND_PER_HOUR.toFixed(2)} per AO hour and never receives overtime or holiday multipliers. DPW hours use the configured DPW multiplier. Daily totals over 24 hours are allowed for callbacks and overlapping pay categories. Entries save when you leave a field.` : "This timesheet is read only. Contact an administrator if an entry needs to be corrected."}</p>
+            <p className="helper-note">{data.period.status === "finalized" ? "This finalized timesheet is read only. Reopening a closed payroll period requires a separate administrator workflow." : activeNav === "Timesheets" && isPayrollManagerView ? `Acting Officer pay is a straight $${ACTING_OFFICER_STIPEND_PER_HOUR.toFixed(2)} per AO hour and never receives overtime or holiday multipliers. DPW hours use the configured DPW multiplier. Daily totals over 24 hours are allowed for callbacks and overlapping pay categories. Entries save when you leave a field.` : "This timesheet is read only. Contact an administrator with payroll access if an entry needs to be corrected."}</p>
           </section></div>}
 
           {activeNav === "Daily Log" && <DailyLog employees={data.employees} onPayrollSynced={() => { void loadPayroll(periodStart); }} />}
@@ -997,7 +1003,7 @@ export default function PayrollApp({
                 <label><span>Employment type</span><select value={employeeDraft.employmentType} onChange={(event) => setEmployeeDraft((current) => ({ ...current, employmentType: event.target.value }))}><option>Part-time</option><option>Full-time</option><option>Paid-on-call</option><option>Temporary</option><option>Contract</option></select></label>
                 <label><span>Driver status</span><select value={employeeDraft.driverStatus} onChange={(event) => setEmployeeDraft((current) => ({ ...current, driverStatus: event.target.value }))}><option value="">Not entered</option><option>Cleared</option><option>Ambulance Only</option><option>Not Cleared</option></select></label>
                 <label className="dpw-employee-check"><input type="checkbox" checked={employeeDraft.isDpw} onChange={(event) => setEmployeeDraft((current) => ({ ...current, isDpw: event.target.checked }))} /><span><strong>DPW employee</strong><small>Daily Log hours go to the DPW column. No holiday or overtime increase; Acting Officer pay still applies when selected.</small></span></label>
-                <label className="admin-employee-check"><input type="checkbox" checked={employeeDraft.isAdmin} onChange={(event) => setEmployeeDraft((current) => ({ ...current, isAdmin: event.target.checked }))} /><span><strong>Administrative privileges</strong><small>Can access payroll, every timesheet, employee records, and rates and rules.</small></span></label>
+                <label className="admin-employee-check"><input type="checkbox" checked={employeeDraft.isAdmin} onChange={(event) => setEmployeeDraft((current) => ({ ...current, isAdmin: event.target.checked }))} /><span><strong>Portal administrator</strong><small>Starts with access to every timesheet and payroll editing. Use Permissions → Employee exceptions to remove payroll access from a specific administrator.</small></span></label>
                 <label><span>Pay scale *</span><select value={employeeDraft.payScaleId} onChange={(event) => setEmployeeDraft((current) => ({ ...current, payScaleId: event.target.value }))}>{data.payScales.map((scale) => <option value={scale.id} key={scale.id}>{scale.label}</option>)}</select></label>
                 <label><span>Start date</span><input type="date" value={employeeDraft.startDate} onChange={(event) => setEmployeeDraft((current) => ({ ...current, startDate: event.target.value }))} /></label>
                 <label><span>Last day of work</span><input type="date" value={employeeDraft.endDate} min={employeeDraft.startDate || undefined} onChange={(event) => setEmployeeDraft((current) => ({ ...current, endDate: event.target.value }))} /></label>

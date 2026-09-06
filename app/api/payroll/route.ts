@@ -2,6 +2,7 @@ import { ensureDatabase } from "../../../db/bootstrap";
 import { employeeNameFromParts, formatEmployeeName } from "../../employee-names";
 import { roundPayrollToCent } from "../../payroll-rounding";
 import { ACTING_OFFICER_STIPEND_PER_HOUR } from "../../payroll-calculation";
+import { permissionsForEmail } from "../../server-permissions";
 
 const categories = ["shift", "drill", "workDetail", "callback", "actingOfficer", "holiday", "dpw"] as const;
 const ownerAdminEmails = ["bobff353@gmail.com"];
@@ -9,9 +10,19 @@ async function addRevision(db: Awaited<ReturnType<typeof ensureDatabase>>, id: s
 
 async function getViewer(db: Awaited<ReturnType<typeof ensureDatabase>>, request: Request) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
-  const employee = email ? await db.prepare("SELECT e.id, e.name, COALESCE(ep.is_admin, 0) AS isAdmin FROM employees e JOIN employee_profiles ep ON ep.employee_id = e.id WHERE e.active = 1 AND lower(ep.email) = ? LIMIT 1").bind(email).first<{ id: string; name: string; isAdmin: number }>() : null;
+  const [employee, permissions] = await Promise.all([
+    email ? db.prepare("SELECT e.id, e.name, COALESCE(ep.is_admin, 0) AS isAdmin FROM employees e JOIN employee_profiles ep ON ep.employee_id = e.id WHERE e.active = 1 AND lower(ep.email) = ? LIMIT 1").bind(email).first<{ id: string; name: string; isAdmin: number }>() : null,
+    permissionsForEmail(email, db),
+  ]);
   const isAdmin = ownerAdminEmails.includes(email) || Boolean(employee?.isAdmin);
-  return { email, isAdmin, employeeId: employee?.id ?? null, displayName: employee?.name ?? (email || "Employee") };
+  return {
+    email,
+    isAdmin,
+    canManageEmployees: isAdmin && permissions.has("employees.manage"),
+    canManagePayroll: isAdmin && permissions.has("payroll.manage"),
+    employeeId: employee?.id ?? null,
+    displayName: employee?.name ?? (email || "Employee"),
+  };
 }
 
 function addDays(iso: string, count: number) {
@@ -49,7 +60,7 @@ export async function GET(request: Request) {
     const employeeQuery = viewer.isAdmin ? db.prepare(`${employeeSelect} ORDER BY e.name COLLATE NOCASE`).all() : db.prepare("SELECT e.id, e.name, e.pay_scale_id AS payScaleId, e.active, p.label AS rank, p.regular_rate AS regularRate, p.overtime_rate AS overtimeRate, p.holiday_rate AS holidayRate, ep.start_date AS startDate, ep.end_date AS endDate, COALESCE(ep.employment_type, 'Part-time') AS employmentType, COALESCE(ep.is_dpw, 0) AS isDpw FROM employees e JOIN pay_scales p ON p.id = e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id = e.id WHERE e.active = 1 AND e.id = ?").bind(viewer.employeeId).all();
     const entrySelect = "SELECT MIN(id) AS id, employee_id AS employeeId, work_date AS workDate, CASE WHEN category = 'dailyLogDpw' THEN 'dpw' ELSE category END AS category, SUM(hours) AS hours FROM time_entries";
     const entryGroup = "GROUP BY employee_id, work_date, CASE WHEN category = 'dailyLogDpw' THEN 'dpw' ELSE category END ORDER BY work_date";
-    const entryQuery = viewer.isAdmin ? db.prepare(`${entrySelect} WHERE period_start = ? ${entryGroup}`).bind(start).all() : db.prepare(`${entrySelect} WHERE period_start = ? AND employee_id = ? ${entryGroup}`).bind(start, viewer.employeeId).all();
+    const entryQuery = viewer.canManagePayroll ? db.prepare(`${entrySelect} WHERE period_start = ? ${entryGroup}`).bind(start).all() : db.prepare(`${entrySelect} WHERE period_start = ? AND employee_id = ? ${entryGroup}`).bind(start, viewer.employeeId).all();
     const scaleQuery = viewer.isAdmin ? db.prepare("SELECT id, label, regular_rate AS regularRate, overtime_rate AS overtimeRate, holiday_rate AS holidayRate FROM pay_scales ORDER BY sort_order").all() : db.prepare("SELECT p.id, p.label, p.regular_rate AS regularRate, p.overtime_rate AS overtimeRate, p.holiday_rate AS holidayRate FROM pay_scales p JOIN employees e ON e.pay_scale_id = p.id WHERE e.id = ?").bind(viewer.employeeId).all();
     const [employeeRows, entryRows, scaleRows, settingsRow, periodRow, rateHistoryRows] = await Promise.all([
       employeeQuery,
@@ -62,21 +73,25 @@ export async function GET(request: Request) {
 
     const rateHistory = rateHistoryRows.results as Array<{ payScaleId: string; effectiveDate: string; regularRate: number; overtimeRate: number; holidayRate: number }>;
     const rateFor = (payScaleId: string) => rateHistory.find((rate) => rate.payScaleId === payScaleId && rate.effectiveDate <= start);
-    const employeesForPeriod = (employeeRows.results as Array<Record<string, unknown>>).map((employee) => {
+    const employeesWithPeriodRates = (employeeRows.results as Array<Record<string, unknown>>).map((employee) => {
       const rate = rateFor(String(employee.payScaleId));
       return rate ? { ...employee, regularRate: rate.regularRate, overtimeRate: rate.overtimeRate, holidayRate: rate.holidayRate } : employee;
     });
-    const scalesForPeriod = (scaleRows.results as Array<Record<string, unknown>>).map((scale) => {
+    const employeesForPeriod = viewer.canManagePayroll ? employeesWithPeriodRates : employeesWithPeriodRates.map((employee) => (
+      String(employee.id) === viewer.employeeId ? employee : { ...employee, regularRate: 0, overtimeRate: 0, holidayRate: 0 }
+    ));
+    const scalesWithPeriodRates = (scaleRows.results as Array<Record<string, unknown>>).map((scale) => {
       const rate = rateFor(String(scale.id));
       return rate ? { ...scale, regularRate: rate.regularRate, overtimeRate: rate.overtimeRate, holidayRate: rate.holidayRate } : scale;
     });
+    const scalesForPeriod = viewer.canManagePayroll ? scalesWithPeriodRates : scalesWithPeriodRates.map((scale) => ({ ...scale, regularRate: 0, overtimeRate: 0, holidayRate: 0 }));
     const revisions = await db.prepare("SELECT revision_number AS revisionNumber, action, summary, actor, changed_at AS changedAt FROM record_revisions WHERE record_type = 'payroll' AND record_id = ? ORDER BY revision_number DESC").bind(start).all();
     return Response.json({
       period: { ...(periodRow as object), revisions: revisions.results },
       employees: employeesForPeriod,
       entries: entryRows.results,
       payScales: scalesForPeriod,
-      rateHistory: viewer.isAdmin ? rateHistoryRows.results : [],
+      rateHistory: viewer.canManagePayroll ? rateHistoryRows.results : [],
       settings: settingsRow,
       viewer,
     });
@@ -89,9 +104,12 @@ export async function POST(request: Request) {
   try {
     const db = await ensureDatabase();
     const viewer = await getViewer(db, request);
-    if (!viewer.isAdmin) return Response.json({ error: "Administrator privileges are required to change payroll information." }, { status: 403 });
     const payload = await request.json() as Record<string, unknown>;
     const action = String(payload.action ?? "");
+    const payrollActions = new Set(["saveEntry", "saveRules", "setPeriodStatus"]);
+    const employeeActions = new Set(["saveEmployee", "deleteEmployee"]);
+    if (payrollActions.has(action) && !viewer.canManagePayroll) return Response.json({ error: "Payroll management permission is required to change timesheets or rates." }, { status: 403 });
+    if (employeeActions.has(action) && !viewer.canManageEmployees) return Response.json({ error: "Employee management permission is required to change employee records." }, { status: 403 });
 
     if (action === "saveEntry") {
       const periodStart = cleanStart(String(payload.periodStart ?? ""));

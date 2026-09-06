@@ -53,8 +53,30 @@ test("every employee keeps a read-only own-timesheet view including administrato
   assert.match(route, /effective\.add\("payroll\.view_own"\)/);
   assert.match(app, /const adminNavItems: NavItem\[\] = \[[^\]]*"My Timesheet"/);
   assert.match(app, /"My Timesheet": "payroll\.view_own"/);
-  assert.match(app, /const canEditEntry = isAdminView/);
-  assert.match(app, /isAdminView \? .*employee-select/);
+  assert.match(app, /activeNav === "My Timesheet" \? ownTimesheetEmployeeId/);
+  assert.match(app, /const canEditEntry = activeNav === "Timesheets" && isPayrollManagerView/);
+  assert.match(app, /activeNav === "Timesheets" && isPayrollManagerView \? .*employee-select/);
+  assert.match(app, /Hourly rate/);
+});
+
+test("payroll management can be removed from a specific administrator and is enforced by the API", async () => {
+  const [serverPermissions, route, permissionRoute, page, app] = await Promise.all([
+    readFile(new URL("../app/server-permissions.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/payroll/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/permissions/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/permission-settings.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.doesNotMatch(serverPermissions, /if \(employee\.isAdmin\) return new Set/);
+  assert.doesNotMatch(permissionRoute, /if \(employee\.isAdmin\) return permissionCatalog/);
+  assert.match(route, /canManagePayroll: isAdmin && permissions\.has\("payroll\.manage"\)/);
+  assert.match(route, /viewer\.canManagePayroll \? db\.prepare\(`\$\{entrySelect\}/);
+  assert.match(route, /Payroll management permission is required to change timesheets or rates/);
+  assert.match(route, /rateHistory: viewer\.canManagePayroll \?/);
+  assert.match(page, /Administrators begin with full access/);
+  assert.match(page, /Save employee exceptions/);
+  assert.match(app, /navigationForViewer/);
+  assert.match(app, /viewer\.canManagePayroll/);
 });
 
 test("permission saves are verified and refresh the active permission snapshot", async () => {
