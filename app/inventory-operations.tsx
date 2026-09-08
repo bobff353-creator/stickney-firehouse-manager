@@ -380,6 +380,9 @@ export default function InventoryOperations({
   const [equipmentRigFilter, setEquipmentRigFilter] = useState("all");
   const [equipmentSort, setEquipmentSort] = useState<"rig" | "name" | "compartment" | "status">("rig");
   const [repairEquipment, setRepairEquipment] = useState<Row | null>(null);
+  const [setupSearch, setSetupSearch] = useState("");
+  const [duplicatesOnly, setDuplicatesOnly] = useState(false);
+  const [repairPath, setRepairPath] = useState<"notice" | "work" | null>(null);
   const [maintenanceApparatusId, setMaintenanceApparatusId] = useState("all");
   const [selectedMaintenanceOrder, setSelectedMaintenanceOrder] = useState<Row | null>(null);
   const [selectedReportCheck, setSelectedReportCheck] = useState<Row | null>(null);
@@ -632,7 +635,17 @@ export default function InventoryOperations({
       const result = await response.json().catch(() => ({})) as { error?: string };
       if (!response.ok) throw new Error(result.error || "The change could not be saved.");
       await load();
-      setMessage("Saved to the department Inventory.");
+      const confirmations: Record<string, string> = {
+        create_notice: "Repair notice saved with the selected assignees. Follow it in All repair records.",
+        create_work_order: "Work order opened. Follow progress and add service documents in Maintenance history.",
+        complete_check: "Inspection submitted for administrator review. Find the saved report in Reports.",
+        update_equipment: "Equipment changes saved. Existing inspection history is retained.",
+        create_equipment: "Equipment added to the selected compartment.",
+        close_work_order: "Repair completion saved to maintenance history.",
+        update_work_order_status: "Repair status updated. The saved record is shown below.",
+        request_location_change: "Location change submitted for administrator approval. The official location is unchanged until approved.",
+      };
+      setMessage(confirmations[String(payload.action)] || `${name.replaceAll("_", " ")} saved. The records below have been refreshed.`);
       return true;
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "The change could not be saved.");
@@ -954,9 +967,9 @@ export default function InventoryOperations({
     const complete = item.total ? item.total - item.pending : 0;
     const percent = item.total ? Math.round((complete / item.total) * 100) : 0;
     return <article key={`${item.apparatusId}-${item.checkType}`} className={item.active ? "in-progress" : "pending"}>
-      <div><span>{labelFor(item.checkType)}</span><h3>{item.name}</h3><p>{item.active ? `${item.pending} of ${item.total} items remaining. Crew progress is shared.` : `${item.configured} configured items are ready to check.`}</p></div>
-      <div className="due-progress" aria-label={`${percent}% complete`}><i style={{ width: `${percent}%` }} /></div>
-      <button type="button" disabled={!canCheck || (!item.active && item.configured === 0)} onClick={() => onOpenUnit?.(item.apparatusId, item.checkType)}>{item.active ? "Resume check" : item.configured ? "Start check" : "Not configured"}</button>
+      <div><span>{labelFor(item.checkType)}</span><h3>{item.name}</h3><p>{item.active ? item.total ? `${item.pending} of ${item.total} items remaining. Crew progress is shared.` : "Checklist entries are unavailable. Open the checklist to inspect its setup; completion has not been verified." : `${item.configured} configured items are ready to check.`}</p></div>
+      {item.total > 0 && <div className="due-progress" aria-label={`${percent}% complete`}><i style={{ width: `${percent}%` }} /></div>}
+      <button type="button" disabled={!canCheck || (!item.active && item.configured === 0)} onClick={() => onOpenUnit?.(item.apparatusId, item.checkType)}>{item.active ? item.total ? "Resume check" : "View checklist" : item.configured ? "Start check" : "Not configured"}</button>
     </article>;
   })}</div>;
 
@@ -1363,13 +1376,17 @@ export default function InventoryOperations({
         </section>
         <section className="ops-card">
           <header><div><span>CLICKABLE APPARATUS INVENTORY</span><h2>Edit items, barcodes and photographs</h2></div><b>{selectedEquipment.length} items</b></header>
+          <label className="callback-search">Find equipment or compartment<input type="search" value={setupSearch} onChange={event => setSetupSearch(event.target.value)} placeholder="Name, barcode, or compartment…" /></label>
+          <label><input type="checkbox" checked={duplicatesOnly} onChange={event => setDuplicatesOnly(event.target.checked)} /> Review matching names in the same compartment</label>
+          <p>Matching names may be separate real items. Review quantity, barcode and history before changing anything; nothing is deleted automatically. Open a compartment below to edit its items.</p>
           {selectedCompartments.map((section) => {
-            const items = selectedEquipment.filter((item) => value(item, "compartment_id") === value(section, "id"));
+            const compartmentItems = selectedEquipment.filter((item) => value(item, "compartment_id") === value(section, "id"));
+            const items = compartmentItems.filter(item => `${value(item,"name")} ${value(item,"barcode")} ${value(section,"label")}`.toLowerCase().includes(setupSearch.trim().toLowerCase()) && (!duplicatesOnly || compartmentItems.filter(other => value(other,"name").trim().toLowerCase() === value(item,"name").trim().toLowerCase()).length > 1));
             if (!items.length) return null;
-            return <div className="equipment-section" key={value(section, "id")}><h3>{value(section, "label")}</h3><div className="equipment-grid">{items.map((item) => <button type="button" key={value(item, "id")} onClick={() => setEditingEquipment(item)}>
+            return <details className="equipment-section" key={`${value(section, "id")}-${Boolean(setupSearch)}-${duplicatesOnly}`} open={Boolean(setupSearch) || duplicatesOnly}><summary>{value(section, "label")} · {items.length} items</summary><div className="equipment-grid">{items.map((item) => <button type="button" key={value(item, "id")} onClick={() => setEditingEquipment(item)}>
               {value(item, "photo_url") ? <img src={value(item, "photo_url")} alt="" /> : <span className="equipment-photo-required">Photo Required</span>}
               <strong>{value(item, "name")}</strong><small>Qty {value(item, "quantity_required")} · {value(item, "barcode") || "Barcode not assigned"}</small>
-            </button>)}</div></div>;
+            </button>)}</div></details>;
           })}
         </section>
         </>
@@ -1442,7 +1459,8 @@ export default function InventoryOperations({
 
       {view === "service" ? (
         <>
-          {canManageRepairs ? <section className="ops-card">
+          {canManageRepairs && <section className="ops-card"><h2>Start a repair or service request</h2><p>Report a new deficiency to assign employees and create its repair record. Use a work order for planned service or maintenance. For an issue already reported by an inspection, update its existing record below instead.</p><div className="repair-start-actions"><button type="button" aria-pressed={repairPath === "notice"} onClick={() => setRepairPath(repairPath === "notice" ? null : "notice")}>Report a deficiency</button><button type="button" aria-pressed={repairPath === "work"} onClick={() => setRepairPath(repairPath === "work" ? null : "work")}>Plan service / maintenance</button></div></section>}
+          {canManageRepairs && repairPath === "notice" ? <section className="ops-card">
             <header><div><span>ASSIGN A REPAIR NOTICE</span><h2>Notify selected employees about a fleet deficiency</h2></div></header>
             {!data.apparatus.length ? <div className="ops-empty"><strong>No apparatus added</strong><button onClick={onSetup}>Build Fleet &amp; Inventory</button></div> : <form className="ops-form ops-form-wide" onSubmit={(event) => {
               event.preventDefault();
@@ -1476,7 +1494,7 @@ export default function InventoryOperations({
               <button className="ops-primary" disabled={Boolean(busy)}>Assign repair notice</button>
             </form>}
           </section> : null}
-          {canManageRepairs ? <section className="ops-card maintenance-work-order-create">
+          {canManageRepairs && repairPath === "work" ? <section className="ops-card maintenance-work-order-create">
             <header><div><span>NEW APPARATUS WORK ORDER</span><h2>Record repair or preventive maintenance</h2></div></header>
             <form className="ops-form ops-form-wide" onSubmit={(event) => {
               const form = new FormData(event.currentTarget);

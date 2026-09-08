@@ -70,26 +70,6 @@ function payrollPeriod(date: string) {
   return { start, end: endDate.toISOString().slice(0, 10) };
 }
 
-async function ensureCallbackPayrollIsEditable(db: Database, workDate: string) {
-  const period = payrollPeriod(workDate);
-  const existing = await db.prepare("SELECT status FROM pay_periods WHERE start_date=? LIMIT 1").bind(period.start).first<{ status: string }>();
-  if (existing?.status === "finalized") throw new Error("This payroll period is finalized. Reopen it before approving callback hours.");
-  await db.prepare("INSERT OR IGNORE INTO pay_periods(start_date,end_date,status) VALUES(?,?,'draft')").bind(period.start, period.end).run();
-  return period;
-}
-
-async function rebuildCallbackPayroll(db: Database, employeeId: string, workDate: string, periodStart: string, actor: string) {
-  const baseline = await db.prepare("SELECT manual_baseline_hours AS manualBaselineHours FROM callback_payroll_aggregates WHERE employee_id=? AND work_date=? LIMIT 1").bind(employeeId, workDate).first<{ manualBaselineHours: number }>();
-  const approved = await db.prepare("SELECT COALESCE(SUM(approved_hours),0) AS approvedHours FROM daily_log_callback_submissions WHERE employee_id=? AND log_date=? AND status='approved'").bind(employeeId, workDate).first<{ approvedHours: number }>();
-  const total = Math.round(((Number(baseline?.manualBaselineHours) || 0) + (Number(approved?.approvedHours) || 0)) * 100) / 100;
-  if (total > 0) {
-    await db.prepare("INSERT INTO time_entries(id,employee_id,period_start,work_date,category,hours,updated_at) VALUES(?,?,?,?, 'callback',?,CURRENT_TIMESTAMP) ON CONFLICT(employee_id,work_date,category) DO UPDATE SET hours=excluded.hours,period_start=excluded.period_start,updated_at=CURRENT_TIMESTAMP").bind(crypto.randomUUID(), employeeId, periodStart, workDate, total).run();
-  } else {
-    await db.prepare("DELETE FROM time_entries WHERE employee_id=? AND work_date=? AND category='callback'").bind(employeeId, workDate).run();
-  }
-  await db.prepare("UPDATE pay_periods SET updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE start_date=?").bind(actor, periodStart).run();
-}
-
 function formatSubmission(row: Record<string, unknown>) {
   return {
     ...row,
@@ -175,24 +155,28 @@ export async function POST(request: Request) {
       const status = String(body.status ?? "");
       if (!["approved", "denied"].includes(status)) return Response.json({ error: "Choose Approve or Deny." }, { status: 400 });
       const id = String(body.id ?? "");
-      const submission = await db.prepare("SELECT id,employee_id AS employeeId,reviewer_employee_id AS reviewerEmployeeId,log_date AS logDate,status,suggested_hours AS suggestedHours FROM daily_log_callback_submissions WHERE id=? LIMIT 1").bind(id).first<{ id: string; employeeId: string; reviewerEmployeeId: string; logDate: string; status: string; suggestedHours: number }>();
+      const submission = await db.prepare("SELECT id,employee_id AS employeeId,reviewer_employee_id AS reviewerEmployeeId,log_date AS logDate,status,suggested_hours AS suggestedHours,approved_hours AS approvedHours,reviewed_at AS reviewedAt FROM daily_log_callback_submissions WHERE id=? LIMIT 1").bind(id).first<{ id: string; employeeId: string; reviewerEmployeeId: string; logDate: string; status: string; suggestedHours: number; approvedHours: number; reviewedAt: string | null }>();
       if (!submission) return Response.json({ error: "Callback submission was not found." }, { status: 404 });
       const isAdministrator = await hasPermission(request, db, "permissions.manage");
       if (actorRecord?.id !== submission.reviewerEmployeeId && !isAdministrator) return Response.json({ error: "Only the assigned reviewer or an administrator can review this callback." }, { status: 403 });
       if (submission.status === "denied" || (submission.status === "approved" && status === "denied")) return Response.json({ error: "This callback has already been reviewed." }, { status: 409 });
 
       if (status === "denied") {
-        await db.prepare("UPDATE daily_log_callback_submissions SET status='denied',reviewed_by=?,reviewed_at=datetime('now'),review_note=? WHERE id=? AND status='pending'").bind(actor, String(body.reviewNote ?? "").trim(), id).run();
+        await db.batch([db.prepare("UPDATE daily_log_callback_submissions SET status='denied',reviewed_by=?,reviewed_at=datetime('now'),review_note=? WHERE id=? AND status='pending'").bind(actor, String(body.reviewNote ?? "").trim(), id).expectChanges(1)]);
         return Response.json({ ok: true });
       }
 
       const requestedHours = Number(body.approvedHours ?? submission.suggestedHours);
       const approvedHours = Math.round(requestedHours * 4) / 4;
       if (!Number.isFinite(approvedHours) || approvedHours < 0.25 || approvedHours > 24) return Response.json({ error: "Approved callback hours must be between 0.25 and 24 in quarter-hour increments." }, { status: 400 });
-      const period = await ensureCallbackPayrollIsEditable(db, submission.logDate);
-      await db.prepare("INSERT INTO callback_payroll_aggregates(employee_id,work_date,manual_baseline_hours,updated_at) SELECT ?,?,COALESCE((SELECT hours FROM time_entries WHERE employee_id=? AND work_date=? AND category='callback' LIMIT 1),0),datetime('now') WHERE NOT EXISTS (SELECT 1 FROM callback_payroll_aggregates WHERE employee_id=? AND work_date=?)").bind(submission.employeeId, submission.logDate, submission.employeeId, submission.logDate, submission.employeeId, submission.logDate).run();
-      await db.prepare("UPDATE daily_log_callback_submissions SET status='approved',approved_hours=?,reviewed_by=?,reviewed_at=datetime('now'),review_note=? WHERE id=? AND status IN ('pending','approved')").bind(approvedHours, actor, String(body.reviewNote ?? "").trim(), id).run();
-      await rebuildCallbackPayroll(db, submission.employeeId, submission.logDate, period.start, actor);
+      const period = payrollPeriod(submission.logDate);
+      await db.batch([
+        db.prepare("INSERT OR IGNORE INTO pay_periods(start_date,end_date,status) VALUES(?,?,'draft')").bind(period.start, period.end),
+        db.prepare("UPDATE pay_periods SET updated_by=?,updated_at=CURRENT_TIMESTAMP WHERE start_date=? AND status <> 'finalized'").bind(actor, period.start).expectChanges(1),
+        db.prepare("INSERT INTO callback_payroll_aggregates(employee_id,work_date,manual_baseline_hours,updated_at) SELECT ?,?,COALESCE((SELECT hours FROM time_entries WHERE employee_id=? AND work_date=? AND category='callback' LIMIT 1),0),datetime('now') WHERE NOT EXISTS (SELECT 1 FROM callback_payroll_aggregates WHERE employee_id=? AND work_date=?)").bind(submission.employeeId, submission.logDate, submission.employeeId, submission.logDate, submission.employeeId, submission.logDate),
+        db.prepare("UPDATE daily_log_callback_submissions SET status='approved',approved_hours=?,reviewed_by=?,reviewed_at=datetime('now'),review_note=? WHERE id=? AND status=? AND approved_hours IS NOT DISTINCT FROM ? AND reviewed_at IS NOT DISTINCT FROM ?").bind(approvedHours, actor, String(body.reviewNote ?? "").trim(), id, submission.status, submission.approvedHours, submission.reviewedAt).expectChanges(1),
+        db.prepare("INSERT INTO time_entries(id,employee_id,period_start,work_date,category,hours,updated_at) SELECT ?,?,?,?,'callback',COALESCE((SELECT manual_baseline_hours FROM callback_payroll_aggregates WHERE employee_id=? AND work_date=?),0)+COALESCE((SELECT SUM(approved_hours) FROM daily_log_callback_submissions WHERE employee_id=? AND log_date=? AND status='approved'),0),CURRENT_TIMESTAMP ON CONFLICT(employee_id,work_date,category) DO UPDATE SET hours=excluded.hours,period_start=excluded.period_start,updated_at=CURRENT_TIMESTAMP").bind(crypto.randomUUID(), submission.employeeId, period.start, submission.logDate, submission.employeeId, submission.logDate, submission.employeeId, submission.logDate),
+      ]);
       return Response.json({ ok: true, periodStart: period.start, approvedHours });
     }
 
@@ -216,6 +200,7 @@ export async function POST(request: Request) {
     if (employeeIds.some((id) => !active.has(id))) return Response.json({ error: "One or more selected members are not active employees for this call date." }, { status: 409 });
     const holiday = holidayForDate(logDate);
     const evaluations = [];
+    const writes = [];
     for (const employeeId of employeeIds) {
       const onDuty = staffing.some((row) => row.employeeId === employeeId && employeeWasOnDutyAtCall(row, call.timeOut));
       const evaluation = evaluateCallbackRules({
@@ -226,12 +211,15 @@ export async function POST(request: Request) {
         submitterIsDeputyChief: isDeputyChief(actorRecord),
         employeeCallbackCalls: callbackSnapshots.filter((snapshot) => snapshot.employeeId === employeeId),
       });
-      await db.prepare("INSERT INTO daily_log_callback_submissions(id,log_date,call_id,report_number,employee_id,reviewer_employee_id,status,submitted_by,submitted_at,call_type,call_time_out,call_time_in,rule_version,rule_matches,rule_flags,suggested_hours,actual_minutes,submitted_by_employee_id,submitted_by_rank) VALUES(?,?,?,?,?,?,'pending',?,datetime('now'),?,?,?,?,?,?,?,?,?,?) ON CONFLICT(call_id,employee_id) DO NOTHING").bind(crypto.randomUUID(), logDate, callId, call.reportNumber, employeeId, setting.reviewerEmployeeId, actor, call.callType, call.timeOut, call.timeIn, evaluation.ruleVersion, JSON.stringify(evaluation.matches), JSON.stringify(evaluation.flags), evaluation.suggestedHours, evaluation.actualMinutes, actorRecord?.id ?? null, actorRecord?.rank ?? "").run();
+      writes.push(db.prepare("INSERT INTO daily_log_callback_submissions(id,log_date,call_id,report_number,employee_id,reviewer_employee_id,status,submitted_by,submitted_at,call_type,call_time_out,call_time_in,rule_version,rule_matches,rule_flags,suggested_hours,actual_minutes,submitted_by_employee_id,submitted_by_rank) VALUES(?,?,?,?,?,?,'pending',?,datetime('now'),?,?,?,?,?,?,?,?,?,?) ON CONFLICT(call_id,employee_id) DO NOTHING").bind(crypto.randomUUID(), logDate, callId, call.reportNumber, employeeId, setting.reviewerEmployeeId, actor, call.callType, call.timeOut, call.timeIn, evaluation.ruleVersion, JSON.stringify(evaluation.matches), JSON.stringify(evaluation.flags), evaluation.suggestedHours, evaluation.actualMinutes, actorRecord?.id ?? null, actorRecord?.rank ?? ""));
       evaluations.push({ employeeId, ...evaluation });
     }
-    return Response.json({ ok: true, submitted: employeeIds.length, reviewer: setting, evaluations });
+    const results = await db.batch(writes);
+    const submitted = results.reduce((total, result) => total + Number(result.meta.changes), 0);
+    return Response.json({ ok: true, submitted, alreadySubmitted: employeeIds.length - submitted, reviewer: setting, evaluations });
   } catch (error) {
     console.error("[api/callbacks] save failed", error instanceof Error ? error.message : String(error));
+    if (error instanceof Error && /SAVE_CONFLICT|PAYROLL_FINALIZED/.test(error.message)) return Response.json({ error: "This callback was already reviewed or its payroll period is finalized. Reload before trying again. No part of this review was saved." }, { status: 409 });
     return Response.json({ error: error instanceof Error ? error.message : "Unable to save callback attendance." }, { status: 500 });
   }
 }

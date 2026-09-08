@@ -97,6 +97,7 @@ type LogPayload = {
     createdAt?: string;
     updatedBy?: string;
     updatedAt: string;
+    saveVersion: number;
     lockedBy?: string;
     lockedAt?: string;
     revisions?: Revision[];
@@ -116,6 +117,7 @@ type LogPayload = {
 };
 type Handoff = { shiftKey: string; shiftTitle: string; mode: "in" | "out" };
 type OfflineDraft = {
+  expectedVersion?: number;
   savedAt: string;
   logDate: string;
   staffing: StaffingRow[];
@@ -238,6 +240,9 @@ function CallbackPanel({ call, logDate }: { call: CallRow; logDate: string }) {
   const [open, setOpen] = useState(false);
   const [payload, setPayload] = useState<CallbackPayload | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
+  const [memberSearch, setMemberSearch] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [message, setMessage] = useState("");
   const load = useCallback(async () => {
     setMessage("Loading callback members and rules...");
@@ -258,10 +263,14 @@ function CallbackPanel({ call, logDate }: { call: CallRow; logDate: string }) {
   }, [call.id, logDate]);
   useEffect(() => {
     if (!open) return;
-    const timer = window.setTimeout(() => { void load(); }, 0);
+    const timer = window.setTimeout(() => { void load().catch(() => setMessage("Unable to load members. Close and reopen this panel to retry.")); }, 0);
     return () => window.clearTimeout(timer);
   }, [load, open]);
   async function submit() {
+    if (submittingRef.current || !selected.length) return;
+    submittingRef.current = true;
+    setSubmitting(true);
+    try {
     setMessage("Submitting...");
     const response = await fetch("/api/callbacks", {
       method: "POST",
@@ -276,16 +285,26 @@ function CallbackPanel({ call, logDate }: { call: CallRow; logDate: string }) {
     const result = (await response.json()) as {
       error?: string;
       reviewer?: { reviewerName: string };
+      submitted?: number;
+      alreadySubmitted?: number;
     };
     if (response.ok) {
       setOpen(false);
       setSelected([]);
-      await load();
+      await load().catch(() => undefined);
       setMessage(
-        `Submitted to ${result.reviewer?.reviewerName ? displayName(result.reviewer.reviewerName) : "the callback reviewer"}.`,
+        result.submitted === 0
+          ? "These members were already submitted. No duplicate attendance was added."
+          : `${result.submitted ?? selected.length} submitted to ${result.reviewer?.reviewerName ? displayName(result.reviewer.reviewerName) : "the callback reviewer"} · awaiting approval.${result.alreadySubmitted ? ` ${result.alreadySubmitted} already on file.` : ""}`,
       );
     } else {
       setMessage(result.error ?? "Unable to submit callback attendance.");
+    }
+    } catch {
+      setMessage("Submission could not be confirmed. Your selections are retained. Retry safely; existing call/member submissions will not be duplicated.");
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
   }
   return (
@@ -299,6 +318,7 @@ function CallbackPanel({ call, logDate }: { call: CallRow; logDate: string }) {
         Callback attendance
         {payload?.submissions.length ? ` · ${payload.submissions.length}` : ""}
       </button>
+      {!open && message && <p className="callback-message" role="status">{message}</p>}
       {open && (
         <div className="callback-panel">
           <div>
@@ -323,6 +343,11 @@ function CallbackPanel({ call, logDate }: { call: CallRow; logDate: string }) {
                 No off-duty active members are available for this call.
               </p>
             )}
+          <label className="callback-search">Find a member
+            <input type="search" value={memberSearch} onChange={(event) => setMemberSearch(event.target.value)} placeholder="Search by name…" />
+          </label>
+          <p role="status">{selected.length} selected · Selections stay selected while searching.</p>
+          <div className="callback-selected">{selected.map((id) => <button type="button" key={id} disabled={submitting} onClick={() => setSelected((current) => current.filter((item) => item !== id))}>Remove {displayName(payload?.eligibleEmployees.find((employee) => employee.employeeId === id)?.employeeName || id)} ×</button>)}</div>
           <div className="callback-employee-list">
             {payload?.eligibleEmployees
               .filter(
@@ -330,12 +355,13 @@ function CallbackPanel({ call, logDate }: { call: CallRow; logDate: string }) {
                   !payload.submissions.some(
                     (submission) =>
                       submission.employeeId === employee.employeeId,
-                  ),
+                  ) && displayName(employee.employeeName).toLowerCase().includes(memberSearch.trim().toLowerCase()),
               )
               .map((employee) => (
                 <label key={employee.employeeId}>
                   <input
                     type="checkbox"
+                    disabled={submitting}
                     checked={selected.includes(employee.employeeId)}
                     onChange={(event) =>
                       setSelected((current) =>
@@ -365,14 +391,14 @@ function CallbackPanel({ call, logDate }: { call: CallRow; logDate: string }) {
               {message}
             </p>
           )}
-          <button
+          <div className="callback-submit-bar"><button
             type="button"
             className="primary-action compact"
-            disabled={!selected.length}
+            disabled={submitting || !selected.length}
             onClick={() => void submit()}
           >
-            Submit Callback Attendance
-          </button>
+            {submitting ? "Submitting…" : `Submit Callback Attendance${selected.length ? ` (${selected.length})` : ""}`}
+          </button></div>
         </div>
       )}
     </div>
@@ -426,8 +452,10 @@ export default function DailyLog({
   const saveAgain = useRef(false);
   const autosaveAuthorized = useRef(false);
   const editVersion = useRef(0);
+  const savedVersions = useRef(new Map<string, number | undefined>());
+  const [saveConflict, setSaveConflict] = useState(false);
   const latestSave = useRef({ logDate, staffing, calls, shiftNotes });
-  const readOnly = locked && !adminUnlocked;
+  const readOnly = (locked && !adminUnlocked) || saveConflict;
   const holiday = useMemo(() => holidayForDate(logDate), [logDate]);
   useEffect(() => {
     latestSave.current = { logDate, staffing, calls, shiftNotes };
@@ -447,9 +475,10 @@ export default function DailyLog({
       const serverTime = data.log?.updatedAt
         ? new Date(data.log.updatedAt).getTime()
         : 0;
-      const restore = Boolean(
-        draft && new Date(draft.savedAt).getTime() > serverTime,
-      );
+      const restore = Boolean(draft && new Date(draft.savedAt).getTime() > serverTime);
+      const conflict = Boolean(restore && draft?.expectedVersion !== data.log?.saveVersion);
+      savedVersions.current.set(date, restore ? draft?.expectedVersion : data.log?.saveVersion);
+      setSaveConflict(conflict);
       const rows = (restore ? draft!.staffing : data.staffing).map((row) => ({
         ...row,
         actingOfficer: Boolean(row.actingOfficer),
@@ -475,13 +504,14 @@ export default function DailyLog({
       setFleetVerificationAvailable(Boolean(data.fleetVerificationAvailable));
       const serverLocked = Boolean(data.log?.locked),
         serverUnlocked = Boolean(data.log?.adminUnlocked);
-      autosaveAuthorized.current = !serverLocked || serverUnlocked;
+      autosaveAuthorized.current = (!serverLocked || serverUnlocked) && !conflict;
       setLocked(serverLocked);
       setAdminUnlocked(serverUnlocked);
       setCanUnlock(Boolean(data.canUnlock));
       setDirty(restore);
       setSchedulePrefilled(!restore && Boolean(data.schedulePrefilled));
       if (restore) setMessage("Unsaved work restored from this device");
+      if (conflict) setMessage("Your local draft differs from the saved log. Automatic saving is paused to protect the other changes.");
       setLastSynced(
         data.log?.updatedAt ? new Date(data.log.updatedAt) : new Date(),
       );
@@ -565,6 +595,7 @@ export default function DailyLog({
           const current = latestSave.current;
           const versionAtStart = editVersion.current;
           const payload = {
+            expectedVersion: savedVersions.current.get(current.logDate),
             logDate: current.logDate,
             staffing: current.staffing.filter((row) => row.employeeId),
             calls: current.calls.filter((row) =>
@@ -588,11 +619,20 @@ export default function DailyLog({
             body: JSON.stringify(payload),
           });
           const result = (await response.json()) as {
+            saveVersion?: number;
             error?: string;
             payrollEmployeesUpdated?: number;
           };
+          if (response.status === 409) {
+            if (latestSave.current.logDate !== current.logDate) return;
+            autosaveAuthorized.current = false;
+            setSaveConflict(true);
+            window.localStorage.setItem(draftKey(current.logDate), JSON.stringify({ ...latestSave.current, expectedVersion: payload.expectedVersion, savedAt: new Date().toISOString() }));
+          }
           if (!response.ok)
             throw new Error(result.error || "Unable to save log");
+          savedVersions.current.set(current.logDate, result.saveVersion);
+          if (latestSave.current.logDate !== current.logDate) return;
           setSchedulePrefilled(false);
           if (versionAtStart === editVersion.current) {
             window.localStorage.removeItem(draftKey(current.logDate));
@@ -961,7 +1001,7 @@ export default function DailyLog({
           </div>
         </div>
       )}
-      {readOnly && (
+      {locked && !adminUnlocked && (
         <div className="locked-banner">
           <div>
             <strong>🔒 Daily log locked</strong>
@@ -1009,6 +1049,23 @@ export default function DailyLog({
           {message}
         </div>
       )}
+      {saveConflict && <div className="admin-banner" role="alert">
+        Saving is paused. Keep a copy of your draft before loading the current saved log.
+        <button onClick={() => {
+          const draft = JSON.stringify({ ...latestSave.current, expectedVersion: savedVersions.current.get(logDate), savedAt: new Date().toISOString() });
+          if (draft) {
+            const url = URL.createObjectURL(new Blob([draft], { type: "application/json" }));
+            const link = document.createElement("a"); link.href = url; link.download = `daily-log-draft-${logDate}.json`; link.click(); URL.revokeObjectURL(url);
+          }
+        }}>Download my draft</button>
+        <button onClick={() => {
+          if (!window.confirm("Load the saved log? Your current draft will be kept as a backup on this device, but will not be automatically applied.")) return;
+          const draft = window.localStorage.getItem(draftKey(logDate));
+          if (draft) window.localStorage.setItem(`${draftKey(logDate)}:backup:${Date.now()}`, draft);
+          window.localStorage.removeItem(draftKey(logDate));
+          void loadLog(logDate);
+        }}>Load saved log</button>
+      </div>}
       <ConfirmDialog
         open={unlockConfirmOpen}
         title="Unlock this finalized log?"
@@ -1188,11 +1245,12 @@ export default function DailyLog({
                   shiftFleetChecks.length > 0) ? (
                   <div className="officer-fleet-lock">
                     <strong>Fleet checks required before sign out</strong>
-                    <span>
-                      {fleetVerificationAvailable
-                        ? fleetCheckList(shiftFleetChecks)
-                        : "Fleet checklist status is temporarily unavailable"}
-                    </span>
+                    {fleetVerificationAvailable ? <div className="fleet-check-links">
+                      {shiftFleetChecks.map((check) => <a key={`${check.apparatusId}-${check.checkType}-${check.startTime}`} href={`/inventory?apparatus=${encodeURIComponent(check.apparatusId)}&check=${encodeURIComponent(check.checkType)}`} target="_blank" rel="noreferrer">
+                        {check.unit} · {check.checkType.replaceAll("_", " ")}<small>{check.startTime}–{check.endTime} · Open check ↗</small>
+                      </a>)}
+                      <small>Checks open in a new tab so this log stays open.</small>
+                    </div> : <span>Fleet checklist status is temporarily unavailable</span>}
                   </div>
                 ) : null}
               </article>

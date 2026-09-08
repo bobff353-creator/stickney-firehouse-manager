@@ -33,7 +33,7 @@ test("reports tab prints, prepares email, and exposes check approval queue", () 
   assert.match(operations, /window\.print\(\)/);
   assert.match(operations, /mailto:/);
   assert.match(route, /action === "review_check"/);
-  assert.match(route, /review_status: "pending"/);
+  assert.match(route, /rpc\("inventory_complete_check_atomic"/);
 });
 
 test("migration preserves legacy history and adds bounded lifecycle and review fields", () => {

@@ -83,6 +83,9 @@ export async function GET(request: Request) {
       }
     }
     await db.prepare("UPDATE daily_logs SET locked = 1, locked_by = COALESCE(locked_by, 'System · 7:00 AM Lock'), locked_at = COALESCE(locked_at, CURRENT_TIMESTAMP) WHERE log_date < ?").bind(operational.lockBeforeDate).run();
+    // Read the version BEFORE the related rows. A concurrent change during
+    // loading then makes this snapshot stale, never eligible to overwrite it.
+    const snapshot = await db.prepare("SELECT save_version AS saveVersion FROM daily_logs WHERE log_date = ?").bind(date).first<{ saveVersion: number }>();
     const [log, staffing, calls, addresses, approvals, recentNotes, revisions] = await Promise.all([
       db.prepare("SELECT log_date AS logDate, shift_notes AS shiftNotes, CASE WHEN log_date < ? THEN 1 ELSE locked END AS locked, admin_unlocked AS adminUnlocked, created_by AS createdBy, COALESCE(created_at, updated_at) AS createdAt, updated_by AS updatedBy, updated_at AS updatedAt, locked_by AS lockedBy, locked_at AS lockedAt FROM daily_logs WHERE log_date = ?").bind(operational.lockBeforeDate, date).first(),
       db.prepare("SELECT id, shift_key AS shiftKey, employee_id AS employeeId, time_in AS timeIn, time_out AS timeOut, acting_officer AS actingOfficer, sort_order AS sortOrder FROM daily_log_staffing WHERE log_date = ? ORDER BY shift_key, sort_order").bind(date).all(),
@@ -121,7 +124,7 @@ export async function GET(request: Request) {
       }
     }
     return Response.json({
-      log: { ...(log as object), revisions: revisions.results },
+      log: { ...(log as object), saveVersion: snapshot?.saveVersion, revisions: revisions.results },
       staffing: staffingRows,
       staffingSource: schedulePrefilled ? "department_schedule" : "daily_log",
       schedulePrefilled,
@@ -172,6 +175,9 @@ export async function POST(request: Request) {
       const equipment = JSON.stringify(body.equipment ?? {});
       const note = String(body.note ?? "").trim();
       if (!shifts.includes(shiftKey) || !["in", "out"].includes(mode) || !officerId) return Response.json({ error: "Select the officer completing this approval." }, { status: 400 });
+      const officer = await db.prepare("SELECT e.id,lower(trim(ep.email)) AS email FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1 AND (lower(p.label) IN ('lieutenant','captain','chief','deputy chief','assistant chief') OR lower(p.id) LIKE 'deputy-chief%' OR COALESCE(ep.acting_officer_eligible,0)=1)").bind(officerId).first<{ id: string; email: string }>();
+      if (!officer || (officer.email !== actor && !await hasPermission(request, db, "permissions.manage"))) return Response.json({ error: "Only the selected qualified officer or an administrator may complete this handoff." }, { status: 403 });
+      if (mode === "in" && !body.reviewedNotes) return Response.json({ error: "Review and accept the previous seven days of notes first." }, { status: 400 });
       if (mode === "out") {
         const requirements = await fleetRequirementsForDate(request, db, date);
         if (!requirements.available) {
@@ -189,22 +195,23 @@ export async function POST(request: Request) {
           return Response.json({ error: "Acknowledge that all required Fleet checks and assigned duties are complete before signing out." }, { status: 400 });
         }
       }
-      await db.prepare("INSERT OR IGNORE INTO daily_log_approvals (id, log_date, shift_key) VALUES (?, ?, ?)").bind(crypto.randomUUID(), date, shiftKey).run();
-      if (mode === "in") {
-        if (!body.reviewedNotes) return Response.json({ error: "Review and accept the previous seven days of notes first." }, { status: 400 });
-        await db.prepare("UPDATE daily_log_approvals SET sign_in_officer_id = ?, sign_in_at = CURRENT_TIMESTAMP, sign_in_equipment = ?, sign_in_note = ?, reviewed_notes = 1 WHERE log_date = ? AND shift_key = ?").bind(officerId, equipment, note, date, shiftKey).run();
-      } else {
-        await db.prepare("UPDATE daily_log_approvals SET sign_out_officer_id = ?, sign_out_at = CURRENT_TIMESTAMP, sign_out_equipment = ?, sign_out_note = ?, fleet_duties_acknowledged = 1 WHERE log_date = ? AND shift_key = ?").bind(officerId, equipment, note, date, shiftKey).run();
-      }
-      await db.prepare("UPDATE daily_logs SET updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE log_date = ?").bind(actor, date).run();
-      await addRevision(db, date, mode === "in" ? "Officer signed in" : "Shift approved", `${shiftKey} officer handoff completed`, actor);
+      await db.batch([
+        db.prepare("UPDATE daily_logs SET updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE log_date = ? AND (locked=0 OR admin_unlocked=1)").bind(actor, date).expectChanges(1),
+        db.prepare("INSERT OR IGNORE INTO daily_log_approvals (id, log_date, shift_key) VALUES (?, ?, ?)").bind(crypto.randomUUID(), date, shiftKey),
+        mode === "in"
+          ? db.prepare("UPDATE daily_log_approvals SET sign_in_officer_id = ?, sign_in_at = CURRENT_TIMESTAMP, sign_in_equipment = ?, sign_in_note = ?, reviewed_notes = 1 WHERE log_date = ? AND shift_key = ? AND sign_in_at IS NULL").bind(officerId, equipment, note, date, shiftKey).expectChanges(1)
+          : db.prepare("UPDATE daily_log_approvals SET sign_out_officer_id = ?, sign_out_at = CURRENT_TIMESTAMP, sign_out_equipment = ?, sign_out_note = ?, fleet_duties_acknowledged = 1 WHERE log_date = ? AND shift_key = ? AND sign_in_at IS NOT NULL AND sign_out_at IS NULL").bind(officerId, equipment, note, date, shiftKey).expectChanges(1),
+        db.prepare("INSERT INTO record_revisions (id, record_type, record_id, revision_number, action, summary, actor) SELECT ?, 'dailyLog', ?, COALESCE(MAX(revision_number),0)+1, ?, ?, ? FROM record_revisions WHERE record_type='dailyLog' AND record_id=?").bind(crypto.randomUUID(), date, mode === "in" ? "Officer signed in" : "Shift approved", `${shiftKey} officer handoff completed`, actor, date),
+      ]);
       return Response.json({ ok: true });
     }
 
     const staffing = Array.isArray(body.staffing) ? body.staffing as Array<Record<string, unknown>> : [];
     const calls = Array.isArray(body.calls) ? body.calls as Array<Record<string, unknown>> : [];
+    const expectedVersion = Number(body.expectedVersion);
+    if (body.expectedVersion == null || !Number.isSafeInteger(expectedVersion) || expectedVersion < 0) return Response.json({ error: "Reload the Daily Log before saving. This screen has no saved version to compare." }, { status: 409 });
     const logWrites = [
-      db.prepare("INSERT INTO daily_logs (log_date, shift_notes, created_by, updated_by, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(log_date) DO UPDATE SET shift_notes = excluded.shift_notes, updated_by = excluded.updated_by, updated_at = CURRENT_TIMESTAMP").bind(date, String(body.shiftNotes ?? ""), actor, actor),
+      db.prepare("UPDATE daily_logs SET shift_notes = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP, save_version = save_version + 1 WHERE log_date = ? AND save_version = ? AND (locked = 0 OR admin_unlocked = 1)").bind(String(body.shiftNotes ?? ""), actor, date, expectedVersion).expectChanges(1),
       db.prepare("DELETE FROM daily_log_staffing WHERE log_date = ?").bind(date),
       db.prepare("DELETE FROM daily_log_calls WHERE log_date = ?").bind(date),
     ];
@@ -235,12 +242,18 @@ export async function POST(request: Request) {
       payrollWrites.push(db.prepare("INSERT INTO time_entries (id, employee_id, period_start, work_date, category, hours, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)").bind(crypto.randomUUID(), entry.employeeId, periodStart, date, entry.category, entry.hours));
     }
     payrollWrites.push(db.prepare("INSERT INTO record_revisions (id, record_type, record_id, revision_number, action, summary, actor) SELECT ?, 'dailyLog', ?, COALESCE(MAX(revision_number), 0) + 1, 'Saved', ?, ? FROM record_revisions WHERE record_type = 'dailyLog' AND record_id = ?").bind(crypto.randomUUID(), date, `Staffing, calls, and notes updated; ${totals.size} payroll record(s) synchronized`, actor, date));
-    // D1 executes this as one transaction: the Daily Log and its payroll
-    // projection either both save or neither does.
-    await db.batch([...logWrites, ...payrollWrites]);
-    return Response.json({ ok: true, payrollEmployeesUpdated: totals.size, periodStart, holiday: holiday?.name ?? null });
+    // The period guard and optimistic version check run INSIDE the transaction.
+    // Even an empty staffing list must not bypass finalized-period protection.
+    const saved = await db.batch<{ saveVersion: number }>([
+      payrollWrites[0],
+      db.prepare("UPDATE pay_periods SET updated_by = ? WHERE start_date = ? AND status <> 'finalized'").bind(actor, periodStart).expectChanges(1),
+      ...logWrites, ...payrollWrites.slice(1),
+      db.prepare("SELECT save_version AS saveVersion FROM daily_logs WHERE log_date = ?").bind(date).batchFirst(),
+    ]);
+    return Response.json({ ok: true, saveVersion: saved.at(-1)?.saveVersion, payrollEmployeesUpdated: totals.size, periodStart, holiday: holiday?.name ?? null });
   } catch (error) {
     console.error("Daily Log save failed", error);
+    if (error instanceof Error && /SAVE_CONFLICT|PAYROLL_FINALIZED/.test(error.message)) return Response.json({ error: "This log changed, was locked, or its payroll period was finalized. Your draft is retained on this device. Reload and review the saved record before trying again." }, { status: 409 });
     return Response.json({ error: "The Daily Log and payroll were not saved. No partial changes were applied; please try again." }, { status: 500 });
   }
 }

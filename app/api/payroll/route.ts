@@ -86,10 +86,15 @@ export async function GET(request: Request) {
     });
     const scalesForPeriod = viewer.canManagePayroll ? scalesWithPeriodRates : scalesWithPeriodRates.map((scale) => ({ ...scale, regularRate: 0, overtimeRate: 0, holidayRate: 0 }));
     const revisions = await db.prepare("SELECT revision_number AS revisionNumber, action, summary, actor, changed_at AS changedAt FROM record_revisions WHERE record_type = 'payroll' AND record_id = ? ORDER BY revision_number DESC").bind(start).all();
+    const staffingSelect = "SELECT employee_id AS employeeId,log_date AS logDate,shift_key AS shiftKey,time_in AS timeIn,time_out AS timeOut FROM daily_log_staffing WHERE log_date BETWEEN ? AND ?";
+    const reviewStaffing = viewer.canManagePayroll
+      ? await db.prepare(staffingSelect).bind(start,end).all()
+      : await db.prepare(`${staffingSelect} AND employee_id = ?`).bind(start,end,viewer.employeeId).all();
     return Response.json({
       period: { ...(periodRow as object), revisions: revisions.results },
       employees: employeesForPeriod,
       entries: entryRows.results,
+      reviewStaffing: reviewStaffing.results,
       payScales: scalesForPeriod,
       rateHistory: viewer.canManagePayroll ? rateHistoryRows.results : [],
       settings: settingsRow,
@@ -120,7 +125,7 @@ export async function POST(request: Request) {
       if (!employeeId || !/^\d{4}-\d{2}-\d{2}$/.test(workDate) || !categories.includes(category as typeof categories[number]) || !Number.isFinite(hours) || hours < 0 || hours > 48) {
         return Response.json({ error: "Invalid time entry" }, { status: 400 });
       }
-      await db.prepare("INSERT OR IGNORE INTO pay_periods (start_date, end_date, status) VALUES (?, ?, 'draft')").bind(periodStart, periodEnd(periodStart)).run();
+      if (workDate < periodStart || workDate > periodEnd(periodStart) || new Date(`${workDate}T12:00:00Z`).toISOString().slice(0, 10) !== workDate) return Response.json({ error: "The work date must be inside this payroll period." }, { status: 400 });
       const automaticDpw = category === "dpw"
         ? Number((await db.prepare("SELECT COALESCE(SUM(hours), 0) AS hours FROM time_entries WHERE employee_id = ? AND work_date = ? AND category = 'dailyLogDpw'").bind(employeeId, workDate).first<{ hours: number }>())?.hours ?? 0)
         : 0;
@@ -128,13 +133,20 @@ export async function POST(request: Request) {
         return Response.json({ error: `The Daily Log already supplies ${automaticDpw} DPW hours for this date. Correct the Daily Log to reduce that time.` }, { status: 409 });
       }
       const manualHours = category === "dpw" ? Math.round((hours - automaticDpw) * 100) / 100 : hours;
-      if (manualHours === 0) {
-        await db.prepare("DELETE FROM time_entries WHERE employee_id = ? AND work_date = ? AND category = ?").bind(employeeId, workDate, category).run();
-      } else {
-        await db.prepare("INSERT INTO time_entries (id, employee_id, period_start, work_date, category, hours, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(employee_id, work_date, category) DO UPDATE SET hours = excluded.hours, period_start = excluded.period_start, updated_at = CURRENT_TIMESTAMP").bind(crypto.randomUUID(), employeeId, periodStart, workDate, category, manualHours).run();
-      }
-      await db.prepare("UPDATE pay_periods SET updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE start_date = ?").bind(viewer.displayName, periodStart).run();
-      await addRevision(db, periodStart, "Hours updated", `${workDate} ${category} entry updated to ${hours} total hours`, viewer.displayName);
+      await db.batch([
+        db.prepare("INSERT OR IGNORE INTO pay_periods (start_date, end_date, status) VALUES (?, ?, 'draft')").bind(periodStart, periodEnd(periodStart)),
+        db.prepare("UPDATE pay_periods SET updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE start_date = ? AND status <> 'finalized'").bind(viewer.displayName, periodStart).expectChanges(1),
+        // Reject if the Daily Log projection changed since the DPW calculation.
+        ...(category === "dpw" ? [db.prepare("UPDATE pay_periods SET updated_by = ? WHERE start_date = ? AND (SELECT COALESCE(SUM(hours),0) FROM time_entries WHERE employee_id=? AND work_date=? AND category='dailyLogDpw') = ?").bind(viewer.displayName, periodStart, employeeId, workDate, automaticDpw).expectChanges(1)] : []),
+        ...(category === "callback" ? [
+          db.prepare("UPDATE pay_periods SET updated_by=? WHERE start_date=? AND COALESCE((SELECT SUM(approved_hours) FROM daily_log_callback_submissions WHERE employee_id=? AND log_date=? AND status='approved'),0)<=?").bind(viewer.displayName, periodStart, employeeId, workDate, hours).expectChanges(1),
+          db.prepare("UPDATE callback_payroll_aggregates SET manual_baseline_hours=?-COALESCE((SELECT SUM(approved_hours) FROM daily_log_callback_submissions WHERE employee_id=? AND log_date=? AND status='approved'),0),updated_at=datetime('now') WHERE employee_id=? AND work_date=?").bind(hours, employeeId, workDate, employeeId, workDate),
+        ] : []),
+        manualHours === 0
+          ? db.prepare("DELETE FROM time_entries WHERE employee_id = ? AND work_date = ? AND category = ?").bind(employeeId, workDate, category)
+          : db.prepare("INSERT INTO time_entries (id, employee_id, period_start, work_date, category, hours, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(employee_id, work_date, category) DO UPDATE SET hours = excluded.hours, period_start = excluded.period_start, updated_at = CURRENT_TIMESTAMP").bind(crypto.randomUUID(), employeeId, periodStart, workDate, category, manualHours),
+        db.prepare("INSERT INTO record_revisions (id, record_type, record_id, revision_number, action, summary, actor) SELECT ?, 'payroll', ?, COALESCE(MAX(revision_number),0)+1, 'Hours updated', ?, ? FROM record_revisions WHERE record_type='payroll' AND record_id=?").bind(crypto.randomUUID(), periodStart, `${workDate} ${category} entry updated to ${hours} total hours`, viewer.displayName, periodStart),
+      ]);
       return Response.json({ ok: true });
     }
 
@@ -208,6 +220,7 @@ export async function POST(request: Request) {
 
     return Response.json({ error: "Unsupported action" }, { status: 400 });
   } catch (error) {
+    if (error instanceof Error && /SAVE_CONFLICT|PAYROLL_FINALIZED/.test(error.message)) return Response.json({ error: "This period is finalized or the linked hours changed. Reload and review before retrying; no hours were saved." }, { status: 409 });
     return Response.json({ error: error instanceof Error ? error.message : "Unable to save payroll" }, { status: 500 });
   }
 }

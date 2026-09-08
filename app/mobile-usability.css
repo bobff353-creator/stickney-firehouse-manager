@@ -1,0 +1,46 @@
+/* Targeted workflow improvements; retain the department's existing visual system. */
+.callback-selected, .repair-start-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.callback-selected button, .repair-start-actions button { min-height: 44px; padding: 8px 12px; border: 1px solid #8ca7b7; border-radius: 6px; background: #edf5fa; color: #12354a; }
+.repair-start-actions button[aria-pressed=true] { background: #12354a; color: white; }
+.equipment-section > summary { padding: 12px; min-height: 44px; cursor: pointer; font-size: 16px; font-weight: 700; }
+.payroll-review-reasons { margin: 8px 0; padding-left: 18px; font-size: 13px; white-space: normal; color: #8c2929; }
+.status-pill.entered { color: #24536b; background: #eaf3f8; }
+.correction-requests form { display: grid; gap: 12px; margin-top: 12px; }
+.correction-requests label { display: grid; gap: 6px; }
+.correction-requests input, .correction-requests textarea { font: inherit; padding: 10px; border: 1px solid #8ca7b7; border-radius: 6px; }
+.correction-requests button { min-height: 44px; padding: 10px 14px; }
+.correction-requests article { padding: 14px 0; border-top: 1px solid #c8d4dc; }
+.callback-search { display: grid; gap: 6px; font-weight: 700; }
+.callback-search input { width: 100%; min-height: 44px; padding: 10px; border: 1px solid #8ca7b7; border-radius: 6px; font: inherit; }
+.callback-panel .callback-employee-list { max-height: 48vh; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
+.callback-submit-bar { padding: 8px 0; background: #fff; }
+.call-callback > .callback-message { margin: 0; padding: 10px 14px; background: #edf5fa; color: #12354a; }
+.fleet-check-links { display: grid; gap: 7px; }
+.fleet-check-links a { display: grid; gap: 3px; min-height: 44px; padding: 8px; border: 1px solid #d4aaa5; border-radius: 5px; background: #fff; color: #872b25; text-decoration: underline; font-size: 14px; }
+.fleet-check-links small { font-size: 12px; line-height: 1.4; }
+.callback-search input:focus-visible, .fleet-check-links a:focus-visible { outline: 3px solid #1674aa; outline-offset: 2px; }
+@media (max-width: 640px) {
+  .inventory-app-shell .ops-form { grid-template-columns: minmax(0, 1fr); }
+  .inventory-app-shell .ops-form > * { min-width: 0; grid-column: auto; }
+  .inventory-app-shell .ops-form label { font-size: 14px; line-height: 1.4; }
+  .inventory-app-shell .ops-form input:not([type=checkbox]), .inventory-app-shell .ops-form select, .inventory-app-shell .ops-form textarea { font-size: 16px; min-height: 44px; }
+  .inventory-app-shell .camera-panel { max-height: 90dvh; overflow-y: auto; padding: 14px; }
+  .inventory-app-shell .equipment-editor > header { position: sticky; top: -14px; z-index: 2; background: #102a33; padding: 10px 0; }
+  .inventory-app-shell .equipment-grid { grid-template-columns: 1fr; }
+  .inventory-app-shell .equipment-grid > button { grid-template-columns: 64px minmax(0, 1fr); grid-template-rows: auto auto; min-height: 82px; align-items: center; }
+  .inventory-app-shell .equipment-grid > button > :first-child { grid-row: 1 / 3; height: 64px; }
+  .inventory-app-shell .equipment-grid strong { font-size: 15px; line-height: 1.35; }
+  .inventory-app-shell .equipment-grid small { font-size: 12px; color: #405961; }
+  .inventory-app-shell .check-completion-bar { bottom: env(safe-area-inset-bottom, 0px); flex-direction: column; align-items: stretch; }
+  .inventory-app-shell .check-completion-bar small { font-size: 12px; }
+  .inventory-app-shell .check-completion-bar button, .inventory-app-shell .ops-form button { min-height: 48px; }
+  .logbook-page input:not([type=checkbox]), .logbook-page select, .logbook-page textarea { font-size: 16px; min-height: 44px; }
+  .logbook-page button { min-height: 44px; }
+  .callback-panel { padding: 12px; gap: 10px; }
+  .callback-panel .callback-employee-list { grid-template-columns: 1fr; }
+  .callback-employee-list label { font-size: 15px; line-height: 1.4; }
+  .callback-employee-list small { font-size: 13px; }
+  .callback-submit-bar button { width: 100%; min-height: 48px; }
+  .officer-actions { display: flex; gap: 8px; }
+  .officer-actions button { flex: 1; white-space: normal; }
+}

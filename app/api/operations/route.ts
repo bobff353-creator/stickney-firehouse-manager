@@ -956,90 +956,19 @@ export async function POST(request: Request) {
           .maybeSingle();
         if (!evidence) return privateJson({ error: "The attached photo does not match this item." }, 400);
       }
-      const { data: updatedItem, error } = await supabase
-        .from("inventory_check_items")
-        .update({
-          result,
-          notes,
-          numeric_reading: isNumericReadingItem ? numericReading : null,
-          checked_by: actor,
-          checked_at: new Date().toISOString(),
-        })
-        .eq("department_id", departmentId)
-        .eq("id", checkItemId)
-        .select("id,check_id,equipment_id,result,notes,numeric_reading,checked_by,checked_at")
-        .single();
+      const { data: saved, error } = await supabase.rpc("inventory_record_item_atomic", {
+        p_department_id: departmentId,
+        p_check_item_id: checkItemId,
+        p_result: result,
+        p_notes: notes,
+        p_numeric_reading: isNumericReadingItem ? numericReading : null,
+        p_evidence_photo_id: evidencePhotoId,
+        p_categories: categories,
+        p_assigned_ids: assignedEmployeeIds,
+        p_assigned_names: assignedEmployeeNames,
+      });
       if (error) throw error;
-      if (isFailure) {
-        const { data: existing } = await supabase
-          .from("inventory_readiness_exceptions")
-          .select("id")
-          .eq("department_id", departmentId)
-          .eq("check_item_id", checkItemId)
-          .neq("status", "resolved")
-          .maybeSingle();
-        const exceptionId = existing?.id || crypto.randomUUID();
-        const exceptionRecord = {
-          result,
-          priority: result === "missing" ? "high" : "medium",
-          notes,
-          status: "open",
-          issue_categories: categories.length
-            ? categories
-            : [equipment.equipment_category || (check.check_type === "air_pack" ? "air_pack" : "equipment")],
-          assigned_employee_ids: assignedEmployeeIds,
-          assigned_employee_names: assignedEmployeeNames,
-          evidence_photo_id: evidencePhotoId,
-        };
-        if (!existing) {
-          const { error: exceptionError } = await supabase
-            .from("inventory_readiness_exceptions")
-            .insert({
-              id: exceptionId,
-              department_id: departmentId,
-              apparatus_id: check.apparatus_id,
-              equipment_id: item.equipment_id,
-              check_item_id: checkItemId,
-              ...exceptionRecord,
-              out_of_service: false,
-              opened_by: actor,
-            });
-          if (exceptionError) throw exceptionError;
-        } else {
-          const { error: exceptionError } = await supabase
-            .from("inventory_readiness_exceptions")
-            .update(exceptionRecord)
-            .eq("department_id", departmentId)
-            .eq("id", exceptionId);
-          if (exceptionError) throw exceptionError;
-        }
-        const { data: linkedOrder } = await supabase
-          .from("inventory_work_orders")
-          .select("id")
-          .eq("department_id", departmentId)
-          .eq("linked_exception_id", exceptionId)
-          .neq("status", "closed")
-          .maybeSingle();
-        if (!linkedOrder) {
-          const { error: orderError } = await supabase.from("inventory_work_orders").insert({
-            id: crypto.randomUUID(),
-            department_id: departmentId,
-            apparatus_id: check.apparatus_id,
-            equipment_id: item.equipment_id,
-            linked_exception_id: exceptionId,
-            status: "new",
-            priority: exceptionRecord.priority,
-            summary: `${equipment.name} failed ${String(check.check_type).replace("_", " ")} check`,
-            details: notes,
-            assigned_to: assignedEmployeeNames.join(", ") || null,
-            assigned_employee_ids: assignedEmployeeIds,
-            assigned_employee_names: assignedEmployeeNames,
-            opened_by: actor,
-          });
-          if (orderError) throw orderError;
-        }
-      }
-      return privateJson({ saved: true, checkItems: updatedItem ? [updatedItem] : [] });
+      return privateJson(saved);
     }
 
     if (action === "bulk_record_check_items") {
@@ -1102,35 +1031,9 @@ export async function POST(request: Request) {
 
     if (action === "complete_check") {
       const checkId = clean(body.checkId, 80);
-      const { data: completingCheck } = await supabase
-        .from("inventory_checks")
-        .select("id,check_type")
-        .eq("department_id", departmentId)
-        .eq("id", checkId)
-        .eq("status", "in_progress")
-        .maybeSingle();
-      if (!completingCheck) return privateJson({ error: "This apparatus check is no longer active." }, 409);
-      const pendingTable = completingCheck.check_type === "air_pack" ? "inventory_scba_check_entries" : "inventory_check_items";
-      const { count } = await supabase
-        .from(pendingTable)
-        .select("id", { count: "exact", head: true })
-        .eq("department_id", departmentId)
-        .eq("check_id", checkId)
-        .eq("result", "pending");
-      if (Number(count || 0) > 0) {
-        return privateJson(
-          { error: completingCheck.check_type === "air_pack" ? "Record every SCBA pack, RIT bag, and spare bottle before completing the check." : "Record every equipment item before completing the check." },
-          409,
-        );
-      }
-      const { error } = await supabase
-        .from("inventory_checks")
-        .update({ status: "completed", completed_at: new Date().toISOString(), review_status: "pending", reviewed_by: null, reviewed_at: null, review_notes: null })
-        .eq("department_id", departmentId)
-        .eq("id", checkId)
-        .eq("status", "in_progress");
+      const { data: completed, error } = await supabase.rpc("inventory_complete_check_atomic", { p_department_id: departmentId, p_check_id: checkId });
       if (error) throw error;
-      return privateJson({ completed: true });
+      return privateJson(completed);
     }
 
     if (action === "create_notice") {
@@ -1485,6 +1388,8 @@ export async function POST(request: Request) {
 
     return privateJson({ error: "Unsupported Inventory action." }, 400);
   } catch (error) {
+    const detail = error && typeof error === "object" && "message" in error ? String(error.message) : "";
+    if (/inspection is no longer in progress|Complete a configured checklist|Multiple open repair notices/.test(detail)) return privateJson({ error: detail }, 409);
     const message = error instanceof Error && error.message.includes("duplicate")
       ? "That identifier already exists."
       : "The Inventory change could not be saved.";

@@ -2,6 +2,8 @@
 /* eslint-disable @next/next/no-img-element -- direct static assets avoid runtime image-proxy failures for the department patch. */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { payrollReviewIssues, type ReviewStaffing } from "./payroll-review";
+import PayrollCorrections from "./payroll-corrections";
 import { portalPageFromSearch, portalPageLabel, portalPageUrl, type PortalPage, type PortalRecord } from "./portal-navigation";
 import { confirmLeavingWork } from "./use-unsaved-work";
 import { portalConnectionState, readPortalJson } from "./portal-status";
@@ -59,6 +61,7 @@ type PayrollData = {
   period: { startDate: string; endDate: string; status: "draft" | "reviewed" | "finalized"; createdBy?: string; createdAt?: string; updatedBy?: string; updatedAt?: string; finalizedBy?: string; finalizedAt?: string; revisions?: Revision[] };
   employees: Employee[];
   entries: Entry[];
+  reviewStaffing?: ReviewStaffing[];
   payScales: PayScale[];
   rateHistory: PayRateHistory[];
   settings: { overtimeThreshold: number; actingOfficerPremium: number; dpwMultiplier: number };
@@ -230,6 +233,9 @@ export default function PayrollApp({
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
   const [savingCells, setSavingCells] = useState<Set<string>>(new Set());
+  const savingCellIds = useRef(new Set<string>());
+  const originalCellValues = useRef(new Map<string, number>());
+  const [failedCells, setFailedCells] = useState<Record<string, { hours: number; message: string }>>({});
   const [toast, setToast] = useState("");
   const [rulesDraft, setRulesDraft] = useState<PayrollData["settings"] | null>(null);
   const [scaleDraft, setScaleDraft] = useState<PayScale[]>([]);
@@ -265,12 +271,14 @@ export default function PayrollApp({
   const [respondAlertSeconds, setRespondAlertSeconds] = useState(RESPOND_ALERT_DURATION_SECONDS);
 
   const loadPayroll = useCallback(async (start: string) => {
+    if (savingCellIds.current.size || originalCellValues.current.size) return;
     setLoading(true);
     setError("");
     try {
       const response = await fetch(`/api/payroll?period=${start}`);
       const payload = await response.json() as PayrollData & { error?: string };
       if (!response.ok) throw new Error(payload.error || "Unable to load payroll");
+      if (savingCellIds.current.size || originalCellValues.current.size) return;
       setData(payload);
       setRulesDraft(payload.settings);
       setScaleDraft(payload.payScales);
@@ -431,14 +439,9 @@ export default function PayrollApp({
       holidayRate: employee.holidayRate,
       dpwMultiplier: data.settings.dpwMultiplier,
     });
-    const issues: string[] = [];
-    for (const date of listDates(data.period.startDate, data.period.endDate)) {
-      const dayHours = employeeEntries.filter((entry) => entry.workDate === date && entry.category !== "actingOfficer").reduce((sum, entry) => sum + entry.hours, 0);
-      const dayActing = employeeEntries.filter((entry) => entry.workDate === date && entry.category === "actingOfficer").reduce((sum, entry) => sum + entry.hours, 0);
-      if (dayActing > dayHours && dayActing > 0) issues.push(`${dayLabel(date)} acting-officer hours exceed worked hours`);
-    }
+    const issues = payrollReviewIssues(employeeEntries, (data.reviewStaffing || []).filter(row => row.employeeId === employee.id));
     const hours = baseHours + workDetailHours + holidayHours + dpwHours;
-    const status = employeeEntries.length === 0 ? "Not started" as const : issues.length ? "Review" as const : "Ready" as const;
+    const status = employeeEntries.length === 0 ? "Not started" as const : issues.length ? "Review" as const : "Entered" as const;
     return { hours, regularHours, overtimeHours, workDetailHours, holidayHours, actingHours, dpwHours, gross, status, issues };
   }, [data]);
 
@@ -450,7 +453,7 @@ export default function PayrollApp({
   }), [data]);
   const employeeSummaries = useMemo(() => payrollEmployees.map((employee) => ({ employee, ...summaryFor(employee) })), [payrollEmployees, summaryFor]);
   const reviewCount = employeeSummaries.filter((row) => row.status === "Review").length;
-  const readyCount = employeeSummaries.filter((row) => row.status === "Ready").length;
+  const readyCount = employeeSummaries.filter((row) => row.status === "Entered").length;
   const grossPayroll = employeeSummaries.reduce((sum, row) => sum + row.gross, 0);
   const ownTimesheetEmployeeId = testMember?.id ?? data?.viewer.employeeId;
   const activeEmployeeId = activeNav === "My Timesheet" ? ownTimesheetEmployeeId : selectedEmployeeId;
@@ -483,6 +486,9 @@ export default function PayrollApp({
   }
 
   function changeEntry(employeeId: string, workDate: string, category: Category, hours: number) {
+    const cell = `${employeeId}-${workDate}-${category}`;
+    if (savingCellIds.current.has(cell)) return;
+    if (!originalCellValues.current.has(cell)) originalCellValues.current.set(cell, entryValue(employeeId, workDate, category));
     setData((current) => {
       if (!current) return current;
       const remaining = current.entries.filter((entry) => !(entry.employeeId === employeeId && entry.workDate === workDate && entry.category === category));
@@ -492,14 +498,24 @@ export default function PayrollApp({
 
   async function saveEntry(employeeId: string, workDate: string, category: Category, hours: number) {
     const cell = `${employeeId}-${workDate}-${category}`;
+    if (savingCellIds.current.has(cell)) return;
+    savingCellIds.current.add(cell);
+    const original = originalCellValues.current.get(cell) ?? entryValue(employeeId, workDate, category);
     setSavingCells((current) => new Set(current).add(cell));
     try {
       await post({ action: "saveEntry", periodStart, employeeId, workDate, category, hours });
+      setData((current) => current?.period.startDate === periodStart ? { ...current, entries: [...current.entries.filter((entry) => !(entry.employeeId === employeeId && entry.workDate === workDate && entry.category === category)), { employeeId, workDate, category, hours }] } : current);
+      setFailedCells((current) => { const next = { ...current }; delete next[cell]; return next; });
       setLastSynced(new Date());
       setToast("Hours saved");
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to save hours");
+      const message = caught instanceof Error ? caught.message : "Unable to save hours";
+      setData((current) => current?.period.startDate === periodStart ? { ...current, entries: [...current.entries.filter((entry) => !(entry.employeeId === employeeId && entry.workDate === workDate && entry.category === category)), { employeeId, workDate, category, hours: original }] } : current);
+      setFailedCells((current) => ({ ...current, [cell]: { hours, message } }));
+      setToast("Hours not confirmed. The last loaded value has been restored; review the highlighted cell.");
     } finally {
+      savingCellIds.current.delete(cell);
+      originalCellValues.current.delete(cell);
       setSavingCells((current) => { const next = new Set(current); next.delete(cell); return next; });
     }
   }
@@ -552,6 +568,10 @@ export default function PayrollApp({
   }
 
   async function setPeriodStatus(status: PayrollData["period"]["status"]) {
+    if (savingCellIds.current.size || originalCellValues.current.size || Object.keys(failedCells).length) {
+      setError("Resolve unsaved hours before reviewing or finalizing payroll.");
+      return;
+    }
     await post({ action: "setPeriodStatus", periodStart, status });
     setData((current) => current ? { ...current, period: { ...current.period, status } } : current);
     setLastSynced(new Date());
@@ -860,6 +880,10 @@ export default function PayrollApp({
       <section className={`workspace${testMember ? " testing-member-view" : ""}`} onClickCapture={(event) => { if (testMember && (event.target as HTMLElement).closest("button,input,select,textarea") && !(event.target as HTMLElement).closest(".test-view-banner,[data-test-safe],[data-test-interactive]")) { event.preventDefault(); event.stopPropagation(); } }} onSubmitCapture={(event) => { if (testMember && !(event.target as HTMLElement).closest("[data-test-interactive]")) { event.preventDefault(); event.stopPropagation(); } }} onChangeCapture={(event) => { if (testMember && !(event.target as HTMLElement).closest(".test-view-banner,[data-test-safe],[data-test-interactive]")) { event.preventDefault(); event.stopPropagation(); } }}>
         {testMember && <div className="test-view-banner"><div><b>TEST VIEW</b><span>Previewing as {displayName(testMember.name)} · {testMember.rank}</span><small>No identity or approval authority has changed.</small></div><button onClick={() => changeTestMember(null)}>Exit test view</button></div>}
         {error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={() => { setError(""); void loadPayroll(periodStart); }}>Retry</button></div>}
+        {Object.keys(failedCells).length > 0 && <div className="error-banner" role="alert"><span>{Object.keys(failedCells).length} hour entry save(s) remain unconfirmed. Use the highlighted timesheet cells to retry, or reload the saved hours before continuing.</span><button disabled={savingCells.size > 0} onClick={() => {
+          if (!window.confirm("Discard the failed retry attempts and reload the saved hours?")) return;
+          setFailedCells({}); void loadPayroll(periodStart);
+        }}>Reload saved hours</button></div>}
         {!isOnline && <div className="portal-offline-notice" role="alert"><strong>Connection lost</strong><span>Displayed information may be out of date. Keep unfinished work open; a save is not confirmed until that screen reports success.</span></div>}
         {inventoryError && <div className="error-banner inventory-access-error" role="alert"><span>{inventoryError}</span><button disabled={openingInventory} onClick={() => void openInventory()}>{openingInventory ? "Checking…" : "Retry Apparatus Checks"}</button><button onClick={() => setInventoryError("")}>Dismiss</button></div>}
         {toast && <div className="toast" role="status"><Icon name="save" /> {toast}</div>}
@@ -880,6 +904,7 @@ export default function PayrollApp({
 
           {(activeNav === "Payroll" || activeNav === "Timesheets" || activeNav === "My Timesheet") && <RecordCredibility audit={{ recordNumber: `PAY-${data.period.startDate.replaceAll("-", "")}`, status: statusLabel, createdBy: data.period.createdBy, createdAt: data.period.createdAt, updatedBy: data.period.updatedBy, updatedAt: data.period.updatedAt, closedBy: data.period.finalizedBy, closedAt: data.period.finalizedAt, revisions: data.period.revisions }} />}
 
+          {!testMember && ((activeNav === "Payroll" && data.viewer.canManagePayroll) || activeNav === "My Timesheet") && <PayrollCorrections key={`${data.period.startDate}-${activeNav}`} period={data.period.startDate} end={data.period.endDate} mode={activeNav === "Payroll" ? "manager" : "member"} />}
           {activeNav === "Payroll" && <div className={data.period.status === "finalized" ? "record-finalized" : "record-editable"}>
             {data.period.status === "finalized" && <div className="record-state-banner finalized"><span className="state-lock" aria-hidden="true">✓</span><div><strong>Finalized payroll · Read only</strong><span>This pay period is closed. Hours and payroll totals can no longer be changed.</span></div></div>}
             <section className="kpi-grid" aria-label="Payroll summary">
@@ -892,19 +917,20 @@ export default function PayrollApp({
               <div className="toolbar">
                 <label className="search-box"><Icon name="search" /><span className="sr-only">Search employees</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search employees…" /></label>
                 <div className="toolbar-actions">
-                  <label className="select-button"><Icon name="filter" /><span className="sr-only">Filter status</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">All statuses</option><option value="ready">Ready</option><option value="review">Needs review</option><option value="not-started">Not started</option></select></label>
+                  <label className="select-button"><Icon name="filter" /><span className="sr-only">Filter status</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">All statuses</option><option value="entered">Entered (not approval)</option><option value="review">Needs review</option><option value="not-started">Not started</option></select></label>
                   <button onClick={exportCsv}><Icon name="export" /> Export CSV</button>
                 </div>
               </div>
               <div className="table-wrap payroll-table">
                 <table><thead><tr><th>Employee</th><th>Rank</th><th className="number">Hours</th><th className="number">Gross Pay</th><th>Status</th></tr></thead><tbody>
                   {filteredRows.map((row) => <tr key={row.employee.id} onClick={() => openTimesheet(row.employee.id)}>
-                    <td data-label="Employee"><span className="person-icon"><Icon name="users"/></span><strong>{displayName(row.employee.name)}</strong></td><td data-label="Rank">{row.employee.rank}</td><td data-label="Hours" className="number tabular">{row.hours.toFixed(1)} hrs</td><td data-label="Gross Pay" className="number tabular">{formatMoney(row.gross)}</td><td data-label="Status"><span className={`status-pill ${row.status.toLowerCase().replace(" ", "-")}`}>{row.status === "Ready" ? "✓" : row.status === "Review" ? "◷" : "–"} {row.status}</span></td>
+                    <td data-label="Employee"><span className="person-icon"><Icon name="users"/></span><strong>{displayName(row.employee.name)}</strong></td><td data-label="Rank">{row.employee.rank}</td><td data-label="Hours" className="number tabular">{row.hours.toFixed(1)} hrs</td><td data-label="Gross Pay" className="number tabular">{formatMoney(row.gross)}</td><td data-label="Status"><span className={`status-pill ${row.status.toLowerCase().replace(" ", "-")}`}>{row.status === "Review" ? "◷" : "–"} {row.status}</span>{row.issues.length > 0 && <ul className="payroll-review-reasons">{row.issues.map(issue => <li key={issue}>{issue}</li>)}</ul>}</td>
                   </tr>)}
                 </tbody></table>
               </div>
               {filteredRows.length === 0 && <div className="action-empty-state"><Icon name="search" size={28}/><div><strong>No payroll records match</strong><p>Clear the search or status filter to see employees on this payroll.</p></div><button className="quiet-button" onClick={() => { setSearch(""); setStatusFilter("all"); }}>Clear Filters</button></div>}
-              <div className="review-bar"><span><strong>{readyCount}</strong> ready · <strong>{reviewCount}</strong> need review · <strong>{payrollEmployees.length - readyCount - reviewCount}</strong> not started</span><div>{data.period.status !== "finalized" ? <><button className="quiet-button" onClick={() => void setPeriodStatus("reviewed")}>Mark Reviewed</button><button className="finalize-button" disabled={reviewCount > 0} onClick={() => setFinalizeConfirmOpen(true)}>Finalize Payroll</button></> : <span className="closed-confirmation">✓ Payroll closed</span>}</div></div>
+              <p className="helper-note">Entered means hours are recorded, not approved. Automated warnings do not replace review of attendance and pay rules.</p>
+              <div className="review-bar"><span><strong>{readyCount}</strong> entered · <strong>{reviewCount}</strong> need review · <strong>{payrollEmployees.length - readyCount - reviewCount}</strong> not started</span><div>{data.period.status !== "finalized" ? <><button className="quiet-button" onClick={() => void setPeriodStatus("reviewed")}>Mark Reviewed</button><button className="finalize-button" disabled={reviewCount > 0} onClick={() => setFinalizeConfirmOpen(true)}>Finalize Payroll</button></> : <span className="closed-confirmation">✓ Payroll closed</span>}</div></div>
             </section>
           </div>}
 
@@ -958,7 +984,7 @@ export default function PayrollApp({
                   const cell = `${selectedEmployee.id}-${date}-${column.key}`;
                   const value = entryValue(selectedEmployee.id, date, column.key);
                   const canEditEntry = activeNav === "Timesheets" && isPayrollManagerView && data.period.status !== "finalized";
-                  return <td key={column.key}><input aria-label={`${column.label} hours for ${dayLabel(date)}`} type="number" min="0" max="48" step="0.25" value={value || ""} readOnly={!canEditEntry} className={`${savingCells.has(cell) ? "saving" : ""}${canEditEntry ? "" : " timesheet-readonly"}`} onChange={(event) => { if (canEditEntry) changeEntry(selectedEmployee.id, date, column.key, safeNumber(event.target.value)); }} onBlur={(event) => { if (canEditEntry) void saveEntry(selectedEmployee.id, date, column.key, safeNumber(event.target.value)); }} /></td>;
+                  return <td key={column.key}><input aria-label={`${column.label} hours for ${dayLabel(date)}`} aria-invalid={Boolean(failedCells[cell])} type="number" min="0" max="48" step="0.25" value={value || ""} readOnly={!canEditEntry || savingCells.has(cell)} className={`${savingCells.has(cell) ? "saving" : ""}${canEditEntry ? "" : " timesheet-readonly"}`} onChange={(event) => { if (canEditEntry) changeEntry(selectedEmployee.id, date, column.key, safeNumber(event.target.value)); }} onBlur={(event) => { if (canEditEntry && originalCellValues.current.has(cell)) void saveEntry(selectedEmployee.id, date, column.key, safeNumber(event.target.value)); }} />{failedCells[cell] && <div role="alert"><small>{failedCells[cell].message} Last loaded value shown. Attempted: {failedCells[cell].hours} hours.</small>{canEditEntry && <button disabled={savingCells.has(cell)} onClick={() => void saveEntry(selectedEmployee.id, date, column.key, failedCells[cell].hours)}>Retry {failedCells[cell].hours} hours</button>}</div>}</td>;
                 })}<td>{rowTotal.toFixed(1)}</td></tr>;
               })}
             </tbody><tfoot><tr><td>Period totals</td>{categoryColumns.map((column) => <td key={column.key}>{data.entries.filter((entry) => entry.employeeId === selectedEmployee.id && entry.category === column.key).reduce((sum, entry) => sum + entry.hours, 0).toFixed(1)}</td>)}<td>{selectedSummary.hours.toFixed(1)}</td></tr></tfoot></table></div>

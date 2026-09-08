@@ -116,10 +116,24 @@ export class PostgresD1Statement {
     private readonly clientFactory: SupabaseClientFactory = getSupabaseServerClient,
     private readonly rpc: PortalRpc = "firehouse_sql",
     private readonly databaseSecret: string | null = null,
+    private readonly mode: QueryMode = "run",
+    private readonly requiredChanges: number | null = null,
   ) {}
 
   bind(...values: BoundValue[]) {
-    return new PostgresD1Statement(this.sql, values, this.clientFactory, this.rpc, this.databaseSecret);
+    return new PostgresD1Statement(this.sql, values, this.clientFactory, this.rpc, this.databaseSecret, this.mode, this.requiredChanges);
+  }
+
+  expectChanges(count: number) {
+    return new PostgresD1Statement(this.sql, this.values, this.clientFactory, this.rpc, this.databaseSecret, this.mode, count);
+  }
+
+  batchFirst() {
+    return new PostgresD1Statement(this.sql, this.values, this.clientFactory, this.rpc, this.databaseSecret, "first");
+  }
+
+  batchPayload() {
+    return { sql: translateSql(this.sql, this.values), mode: this.mode, requiredChanges: this.requiredChanges };
   }
 
   async all<T = Record<string, unknown>>() {
@@ -146,10 +160,17 @@ export class PostgresD1Adapter {
     return new PostgresD1Statement(sql, [], this.clientFactory, this.rpc, this.databaseSecret);
   }
 
-  async batch(statements: PostgresD1Statement[]) {
-    const results = [];
-    for (const statement of statements) results.push(await statement.run());
-    return results;
+  async batch<T = { success: boolean; meta: { changes: number } }>(statements: PostgresD1Statement[]): Promise<T[]> {
+    if (!statements.length) return [];
+    // A single RPC is one PostgreSQL transaction. Never fall back to sequential
+    // requests: doing so can leave earlier writes committed after a failure.
+    const supabase = await this.clientFactory();
+    const { data, error } = await supabase.rpc(`${this.rpc}_batch`, {
+      p_statements: statements.map((statement) => statement.batchPayload()),
+      p_secret: this.databaseSecret,
+    });
+    if (error) throw new Error(`Portal transaction failed: ${error.message}`);
+    return data as T[];
   }
 }
 
