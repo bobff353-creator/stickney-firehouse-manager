@@ -491,6 +491,8 @@ export const dailyDuties = sqliteTable("daily_duties", {
 
 export const chiefBoardItems = sqliteTable("chief_board_items", {
   id: text("id").primaryKey(),
+  officerId: text("officer_employee_id").references(() => employees.id),
+  officerName: text("officer_name").notNull().default(""),
   itemType: text("item_type").notNull().default("note"),
   title: text("title").notNull(),
   body: text("body").notNull().default(""),

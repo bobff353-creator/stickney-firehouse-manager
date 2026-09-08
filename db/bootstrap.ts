@@ -454,6 +454,8 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
   try { await db.prepare("ALTER TABLE chief_board_items ADD COLUMN ends_at TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE chief_board_items ADD COLUMN expires_at TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE chief_board_items ADD COLUMN invite_status TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE chief_board_items ADD COLUMN officer_employee_id TEXT REFERENCES employees(id)").run(); } catch { /* Column already exists after migration. */ }
+  try { await db.prepare("ALTER TABLE chief_board_items ADD COLUMN officer_name TEXT NOT NULL DEFAULT ''").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN footprint_square_feet REAL NOT NULL DEFAULT 0").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN floor_count INTEGER NOT NULL DEFAULT 1").run(); } catch { /* Column already exists after migration. */ }
   try { await db.prepare("ALTER TABLE field_preplans ADD COLUMN fire_flow_calculation_area REAL NOT NULL DEFAULT 0").run(); } catch { /* Column already exists after migration. */ }

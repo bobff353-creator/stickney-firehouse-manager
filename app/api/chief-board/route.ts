@@ -1,5 +1,6 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 import { getPortalStorage } from "../../portal-storage";
+import { boardOfficerQuery, selectBoardOfficer, type BoardOfficer } from "../../board-officers";
 
 const ownerAdminEmails = ["bobff353@gmail.com"];
 const allowedTypes = new Set([
@@ -161,8 +162,9 @@ export async function GET(request: Request) {
   try {
     const db = await ensureDatabase();
     const canEdit = await isAdmin(request, db);
+    const officers = canEdit ? (await db.prepare(boardOfficerQuery).all<BoardOfficer>()).results : [];
     const rows = await db.prepare(
-      "SELECT id, item_type AS itemType, title, body, event_date AS eventDate, starts_at AS startsAt, ends_at AS endsAt, expires_at AS expiresAt, invite_status AS inviteStatus, created_by AS createdBy, created_at AS createdAt FROM chief_board_items WHERE active = 1 AND (expires_at = '' OR datetime(expires_at) > datetime('now')) AND (item_type <> 'event' OR ends_at = '' OR datetime(ends_at) > datetime('now')) ORDER BY CASE WHEN item_type = 'event' THEN 0 ELSE 1 END, CASE WHEN starts_at = '' THEN event_date ELSE starts_at END, created_at DESC LIMIT 20"
+      "SELECT id, item_type AS itemType, title, body, officer_employee_id AS officerId, officer_name AS officerName, event_date AS eventDate, starts_at AS startsAt, ends_at AS endsAt, expires_at AS expiresAt, invite_status AS inviteStatus, created_by AS createdBy, created_at AS createdAt FROM chief_board_items WHERE active = 1 AND (expires_at = '' OR datetime(expires_at) > datetime('now')) AND (item_type <> 'event' OR ends_at = '' OR datetime(ends_at) > datetime('now')) ORDER BY CASE WHEN item_type = 'event' THEN 0 ELSE 1 END, CASE WHEN starts_at = '' THEN event_date ELSE starts_at END, created_at DESC LIMIT 20"
     ).all<{ id: string }>();
     const attachments = rows.results.length
       ? await db.prepare(`SELECT id, item_id AS itemId, filename, content_type AS contentType, size_bytes AS sizeBytes FROM chief_board_attachments WHERE item_id IN (${rows.results.map(() => "?").join(",")}) ORDER BY created_at`).bind(...rows.results.map((row) => row.id)).all<{ id: string; itemId: string; filename: string; contentType: string; sizeBytes: number }>()
@@ -175,6 +177,7 @@ export async function GET(request: Request) {
         attachments: (grouped.get(row.id) ?? []).map((attachment) => ({ ...attachment, url: `/api/chief-board/attachments/${attachment.id}` })),
       })),
       canEdit,
+      officers,
     });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Unable to load Chief Notes and Events" }, { status: 500 });
@@ -191,6 +194,7 @@ export async function POST(request: Request) {
     const title = String(form.get("title") ?? "").trim();
     const detail = String(form.get("body") ?? "").trim();
     if (!title || !detail) return Response.json({ error: "A title and message are required." }, { status: 400 });
+    const officer = itemType === "note" ? selectBoardOfficer((await db.prepare(boardOfficerQuery).all<BoardOfficer>()).results, String(form.get("officerId") ?? "")) : null;
 
     const startsAt = itemType === "event" ? requiredDate(form.get("startsAt"), "An event start date and time") : "";
     const endsAt = itemType === "event" ? requiredDate(form.get("endsAt"), "An event end date and time") : "";
@@ -223,7 +227,7 @@ export async function POST(request: Request) {
     }
 
     const statements = [
-      db.prepare("INSERT INTO chief_board_items (id, item_type, title, body, event_date, starts_at, ends_at, expires_at, invite_status, active, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)").bind(id, itemType, title, detail, startsAt ? startsAt.slice(0, 10) : "", startsAt, endsAt, expiresAt, actor),
+      db.prepare("INSERT INTO chief_board_items (id, item_type, title, body, event_date, starts_at, ends_at, expires_at, invite_status, active, created_by, created_at, updated_at, officer_employee_id, officer_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?)").bind(id, itemType, title, detail, startsAt ? startsAt.slice(0, 10) : "", startsAt, endsAt, expiresAt, actor, officer?.id ?? null, officer?.name ?? ""),
       ...attachmentRows.map(({ id: attachmentId, key, file }) =>
         db.prepare("INSERT INTO chief_board_attachments (id, item_id, object_key, filename, content_type, size_bytes, created_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)").bind(attachmentId, id, key, cleanFilename(file.name), file.type, file.size)
       ),
@@ -256,18 +260,22 @@ export async function PATCH(request: Request) {
   try {
     const db = await ensureDatabase();
     if (!await isAdmin(request, db)) return Response.json({ error: "Administrator privileges are required." }, { status: 403 });
-    const payload = await request.json() as { id?: string; title?: string; body?: string; expiresAt?: string };
+    const payload = await request.json() as { id?: string; title?: string; body?: string; expiresAt?: string; officerId?: string };
     const id = String(payload.id ?? "").trim();
     const title = String(payload.title ?? "").trim();
     const detail = String(payload.body ?? "").trim();
     if (!id) return Response.json({ error: "Select a Chief memo to edit." }, { status: 400 });
     if (!title || !detail) return Response.json({ error: "A title and message are required." }, { status: 400 });
     if (title.length > 80 || detail.length > 700) return Response.json({ error: "The memo is longer than the board allows." }, { status: 400 });
-    const existing = await db.prepare("SELECT id FROM chief_board_items WHERE id = ? AND item_type = 'note' AND active = 1 LIMIT 1").bind(id).first<{ id: string }>();
+    const existing = await db.prepare("SELECT id, officer_employee_id AS officerId, officer_name AS officerName FROM chief_board_items WHERE id = ? AND item_type = 'note' AND active = 1 LIMIT 1").bind(id).first<{ id: string; officerId: string | null; officerName: string }>();
     if (!existing) return Response.json({ error: "That Chief memo is no longer available." }, { status: 404 });
+    const officerId = payload.officerId === undefined ? existing.officerId : String(payload.officerId).trim();
+    const officer = (officerId || null) === existing.officerId
+      ? { id: existing.officerId, name: existing.officerName }
+      : selectBoardOfficer((await db.prepare(boardOfficerQuery).all<BoardOfficer>()).results, officerId || "");
     const expiresAt = optionalDate(payload.expiresAt ?? "");
     if (expiresAt && Date.parse(expiresAt) <= Date.now()) return Response.json({ error: "The note end must be in the future." }, { status: 400 });
-    await db.prepare("UPDATE chief_board_items SET title = ?, body = ?, expires_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND item_type = 'note' AND active = 1").bind(title, detail, expiresAt, id).run();
+    await db.prepare("UPDATE chief_board_items SET title = ?, body = ?, expires_at = ?, updated_at = CURRENT_TIMESTAMP, officer_employee_id = ?, officer_name = ? WHERE id = ? AND item_type = 'note' AND active = 1").bind(title, detail, expiresAt, officer.id, officer.name, id).run();
     return Response.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to update the Chief memo";
