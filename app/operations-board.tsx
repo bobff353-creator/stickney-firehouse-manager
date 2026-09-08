@@ -5,6 +5,7 @@ import { formatEmployeeName } from "./employee-names";
 import { formatMilitaryTime } from "./military-time";
 import { nextOperationsShiftChange } from "./operations-shift-time";
 import ChiefBoardPanel from "./chief-board-panel";
+import { ifsiScheduleSource, type UpcomingTrainingCourse } from "./lib/training-parsers";
 import StaffingRotation, { type NewMember, type StaffingPerson } from "./staffing-rotation";
 
 type BoardRoadClosure = { id:string;roadName:string;reason:string;path:Array<{lat:number;lng:number}>;detourLatitude:number;detourLongitude:number;startedAt:string;expectedClearAt:string|null };
@@ -18,8 +19,8 @@ type WeatherDay = { date: string; condition: string; high: number; low: number; 
 type WeatherHour = { time: string; condition: string; temperature: number; precipitationChance: number; windSpeed: number };
 type WeatherData = { location: string; days: WeatherDay[]; hours?: WeatherHour[]; source?: string; detailUrl?: string };
 type FleetApparatus = { id:string; unitNumber:string; name:string; status:string };
-type TrainingCourse = { title: string; dates: string; endDate: string; location?: string; url: string };
-type TrainingProvider = { name: string; shortName: string; sourceUrl: string; checked: string; courses: TrainingCourse[] };
+type TrainingCourse = { title: string; dates: string; startDate?: string; endDate: string; location?: string; url: string };
+type TrainingProvider = { name: string; shortName: string; sourceUrl: string; checked: string; courses: TrainingCourse[]; error?: string };
 type WakeLockHandle = { release: () => Promise<void>; addEventListener: (type: "release", listener: () => void) => void };
 type JsonResponse<T> = { ok: boolean; payload: T | null };
 type Rotation = "equipment" | "duty" | "news" | "fatalities" | "romeoville" | "ifsi" | "nipsta";
@@ -28,7 +29,7 @@ const rotationOrder: Rotation[] = ["equipment", "duty", "news", "fatalities", "r
 const headerRotationOrder: HeaderRotation[] = ["title", "today", "hourly", "tomorrow"];
 function boardDetourUrl(closure:BoardRoadClosure){const destination=closure.path.at(-1);if(!destination)return "https://www.google.com/maps";return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${destination.lat},${destination.lng}`)}&waypoints=${encodeURIComponent(`${closure.detourLatitude},${closure.detourLongitude}`)}&travelmode=driving`;}
 function boardClosureTime(value:string|null){return value?new Date(value).toLocaleString("en-US",{timeZone:"America/Chicago",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"Until reopened";}
-const trainingProviders: Record<"romeoville" | "ifsi" | "nipsta", TrainingProvider> = {
+const initialTrainingProviders: Record<"romeoville" | "ifsi" | "nipsta", TrainingProvider> = {
   romeoville: {
     name: "Romeoville Fire Academy",
     shortName: "Romeoville",
@@ -45,15 +46,9 @@ const trainingProviders: Record<"romeoville" | "ifsi" | "nipsta", TrainingProvid
   ifsi: {
     name: "Illinois Fire Service Institute",
     shortName: "IFSI",
-    sourceUrl: "https://www.fsi.illinois.edu/content/courses/",
-    checked: "July 28, 2026",
-    courses: [
-      { title: "Down and Dirty Hydraulics", dates: "Jul 29", endDate: "2026-07-29", location: "Polo", url: "https://www.fsi.illinois.edu/content/courses/schedule/" },
-      { title: "Elevator Equipment, Function and Rescue Considerations", dates: "Jul 29", endDate: "2026-07-29", location: "Oak Lawn", url: "https://www.fsi.illinois.edu/content/courses/schedule/" },
-      { title: "Fire Origin and Cause Awareness", dates: "Jul 29", endDate: "2026-07-29", location: "Danville", url: "https://www.fsi.illinois.edu/content/courses/schedule/" },
-      { title: "Mobile Water Supply Operations", dates: "Jul 30", endDate: "2026-07-30", location: "Tower Hill", url: "https://www.fsi.illinois.edu/content/courses/schedule/" },
-      { title: "State of Illinois Traffic Incident Management", dates: "Jul 30", endDate: "2026-07-30", location: "Anna", url: "https://www.fsi.illinois.edu/content/courses/schedule/" },
-    ],
+    sourceUrl: ifsiScheduleSource,
+    checked: "",
+    courses: [],
   },
   nipsta: {
     name: "NIPSTA Fire & Technical Rescue",
@@ -93,16 +88,39 @@ async function fetchBoardJson<T>(url: string, signal: AbortSignal): Promise<Json
 }
 
 function TrainingCourses({ provider, today }: { provider: TrainingProvider; today: string }) {
-  const upcoming = provider.courses.filter((course) => course.endDate >= today).slice(0, 5);
+  const upcoming = provider.courses.filter((course) => provider.shortName === "IFSI" ? Boolean(course.startDate && course.startDate > today) : course.endDate >= today).slice(0, 5);
   return <div className="training-board">
-    <div className="training-provider"><span>Upcoming training</span><strong>{provider.name}</strong><small>Official schedule checked {provider.checked}</small></div>
-    <div className="training-course-list">{upcoming.length ? upcoming.map((course) => <a href={course.url} target="_blank" rel="noreferrer" key={`${course.title}-${course.dates}`}><time>{course.dates}<small>2026</small></time><div><strong>{course.title}</strong>{course.location && <span>{course.location}</span>}</div><b aria-hidden="true">↗</b></a>) : <p className="board-empty">No future classes remain in the confirmed schedule.</p>}</div>
+    <div className="training-provider"><span>Upcoming training</span><strong>{provider.name}</strong><small>{provider.error || (provider.checked ? `Official schedule checked ${provider.checked}` : "Loading official schedule…")}</small></div>
+    <div className="training-course-list">{upcoming.length ? upcoming.map((course) => <a href={course.url} target="_blank" rel="noreferrer" key={`${course.title}-${course.dates}-${course.location}`}><time>{course.dates}<small>{(course.startDate || course.endDate).slice(0, 4)}</small></time><div><strong>{course.title}</strong>{course.location && <span>{course.location}</span>}</div><b aria-hidden="true">↗</b></a>) : <p className="board-empty">{provider.checked ? "No future classes remain in the confirmed schedule." : "Use the official schedule link to check upcoming classes."}</p>}</div>
     <a className="training-source" href={provider.sourceUrl} target="_blank" rel="noreferrer">View {provider.shortName} official courses and registration ↗</a>
     <p className="training-disclaimer">Dates and availability can change. Confirm with the training provider before registering.</p>
   </div>;
 }
 
 export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewActiveCall }: { tvMode?: boolean; onTvModeChange?: (enabled: boolean) => void; onNewActiveCall?: (call: BoardData["activeCalls"][number]) => void }) {
+  const [ifsiProvider, setIfsiProvider] = useState<TrainingProvider>(initialTrainingProviders.ifsi);
+  const trainingProviders = { ...initialTrainingProviders, ifsi: ifsiProvider };
+  useEffect(() => {
+    const controller = new AbortController();
+    let running = false;
+    const refreshIfsi = async () => {
+      if (running) return;
+      running = true;
+      try {
+        const response = await fetch("/api/training-sites", { signal: controller.signal });
+        if (!response.ok) throw new Error("Schedule unavailable");
+        const result = await response.json() as { providers: Array<{ id: string; available: boolean; checkedAt: string; upcoming: UpcomingTrainingCourse[] }> };
+        const provider = result.providers.find((p) => p.id === "ifsi");
+        if (!provider?.available) throw new Error("Schedule unavailable");
+        setIfsiProvider({ ...initialTrainingProviders.ifsi, checked: new Date(provider.checkedAt).toLocaleString("en-US", { timeZone: "America/Chicago" }), courses: provider.upcoming.map((course) => ({ ...course, dates: new Date(`${course.startDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }) })) });
+      } catch {
+        if (!controller.signal.aborted) setIfsiProvider((previous) => ({ ...previous, error: "Schedule check unavailable — use the official link. Last confirmed listings retained." }));
+      } finally { running = false; }
+    };
+    void refreshIfsi();
+    const timer = window.setInterval(() => void refreshIfsi(), 300000);
+    return () => { controller.abort(); window.clearInterval(timer); };
+  }, []);
   const [data, setData] = useState<BoardData | null>(null), [currentDuty, setCurrentDuty] = useState<CurrentDuty | null>(null), [dailyFleetChecks, setDailyFleetChecks] = useState<DailyFleetCheck[]>([]), [news, setNews] = useState<CloseCallReport[]>([]), [fatalities, setFatalities] = useState<UsfaData | null>(null), [weather, setWeather] = useState<WeatherData | null>(null), [error, setError] = useState(""), [clock, setClock] = useState(new Date()), [rotation, setRotation] = useState<Rotation>("equipment"), [headerRotation, setHeaderRotation] = useState<HeaderRotation>("title");
   const [alertEnabled, setAlertEnabled] = useState(false), [alertTone, setAlertTone] = useState<AlertTone>("minitor-two-tone"), [alertPanelOpen, setAlertPanelOpen] = useState(false);
   const [rotationPaused,setRotationPaused]=useState(false),[lastRefresh,setLastRefresh]=useState<Date|null>(null);

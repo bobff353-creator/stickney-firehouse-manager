@@ -57,6 +57,18 @@ test("extracts and sorts future IFSI course rows", () => {
   ]);
 });
 
+test("IFSI search-result panels exclude classes starting today or earlier", () => {
+  const html = `<div class="panel panel-primary"><div class="panel-heading caps"><strong><a href="/content/courses/programs/description.cfm?course_id=1">Test course</a></strong></div>
+    <a onclick="showClass('1');" class="list-group-item caps"><strong>9/6/26 PAST <br><small>Host Dept: TEST</small></strong></a>
+    <a onclick="showClass('2');" class="list-group-item caps"><strong>9/7/26 TODAY <br><small>Host Dept: TEST</small></strong></a>
+    <a onclick="showClass('3');" class="list-group-item caps"><strong>9/8/26 FUTURE <br><small>Host Dept: TEST</small></strong></a></div>`;
+  const courses = parseIfsiSchedule(html, 'https://www.fsi.illinois.edu/content/courses/schedule/results.cfm', '2026-09-07');
+  assert.equal(courses.length, 1);
+  assert.equal(courses[0].startDate, '2026-09-08');
+  assert.equal(courses[0].location, 'FUTURE');
+  assert.equal(courses[0].title, 'Test course');
+});
+
 test("collapses NIPSTA calendar days into fire and rescue course sessions", () => {
   const page = `<script>var leagues_data = {
     "1":{"name":"Advanced Technician Firefighter"},

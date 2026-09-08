@@ -64,7 +64,11 @@ test("Respond footprint has a keyboard and screen-reader map alternative", () =>
 test("Respond exposes clear device progress and one-tap tactical navigation", () => {
   assert.match(respond, /aria-label="Field response controls"/);
   assert.match(respond, /aria-label="Crew response progress on this device"/);
-  assert.match(respond, /aria-pressed=\{isCurrent\}/);
+  // Progress controls are forward actions now, not persistent toggle buttons.
+  assert.match(respond, /crewProgressActions\.map/);
+  assert.match(respond, /<small aria-live="polite">/);
+  assert.match(respond, /progressActionsRef\.current/);
+  assert.match(respond, /focus\(\{ preventScroll: true \}\)/);
   assert.match(respond, /does not change CAD status/);
   assert.match(respond, /aria-label="Open response information"/);
   assert.match(respond, /document\.getElementById\(`respond-tab-\$\{nextView\}`\)\?\.focus\(\)/);

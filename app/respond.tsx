@@ -24,7 +24,7 @@ import {
 } from "./preplans/profiles";
 import {
   readRespondProgress,
-  respondProgressSteps,
+  nextRespondActions,
   type RespondProgress,
   type RespondProgressStatus,
   writeRespondProgress,
@@ -323,6 +323,10 @@ const respondProgressLabels: Record<RespondProgressStatus, string> = {
   acknowledged: "Acknowledged",
   en_route: "En route",
   on_scene: "On scene",
+  cleared_scene: "Cleared scene",
+  in_service_on_air: "In service on air",
+  returning_to_quarters: "Returning to quarters",
+  canceled: "Canceled",
 };
 function sidePhoto(preplan: Preplan | null, side: string) {
   return (
@@ -683,6 +687,8 @@ export default function Respond({
   const requestInFlight = useRef(false);
   const [isOnline, setIsOnline] = useState(true);
   const [crewProgress, setCrewProgress] = useState<RespondProgress | null>(null);
+  const [progressError, setProgressError] = useState("");
+  const progressActionsRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLElement>(null);
   const arrivalRef = useRef<HTMLElement>(null);
   const tacticalRef = useRef<HTMLElement>(null);
@@ -837,13 +843,18 @@ export default function Respond({
   function updateCrewProgress(status: RespondProgressStatus) {
     const reportNumber = data?.activeCall?.reportNumber;
     if (!reportNumber) return;
-    const next = writeRespondProgress(
-      window.localStorage,
-      reportNumber,
-      apparatus,
-      status,
-    );
-    setCrewProgress(next);
+    try {
+      const next = writeRespondProgress(window.localStorage, reportNumber, apparatus, status);
+      setCrewProgress(next);
+      setProgressError("");
+      window.requestAnimationFrame(() => {
+        const group = progressActionsRef.current;
+        (group?.querySelector("button") ?? group)?.focus({ preventScroll: true });
+      });
+    } catch {
+      setProgressError("Progress was not saved. Browser storage is unavailable; please try again.");
+      return;
+    }
     if (status === "on_scene") {
       window.requestAnimationFrame(() =>
         arrivalRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
@@ -1010,9 +1021,7 @@ export default function Respond({
           Boolean,
         )
       : [],
-    crewProgressIndex = crewProgress
-      ? respondProgressSteps.indexOf(crewProgress.status)
-      : -1;
+    crewProgressActions = nextRespondActions(crewProgress?.status);
   if (!data && !error)
     return (
       <section className="respond-page">
@@ -1192,31 +1201,29 @@ export default function Respond({
           <div>
             <span>THIS DEVICE{apparatus ? ` · UNIT ${apparatus}` : ""}</span>
             <strong>Response progress</strong>
-            <small>
+            <small aria-live="polite">
               {crewProgress
                 ? `${respondProgressLabels[crewProgress.status]} · ${displayTime(crewProgress.updatedAt)}`
                 : "Select the crew's current step"}
             </small>
           </div>
-          <div className="respond-progress-steps" role="group" aria-label="Crew response progress on this device">
-            {respondProgressSteps.map((status, index) => {
-              const isCurrent = crewProgress?.status === status;
-              const isComplete = index < crewProgressIndex;
+          <div ref={progressActionsRef} tabIndex={-1} className="respond-progress-steps" role="group" aria-label="Crew response progress on this device">
+            {crewProgressActions.map((status) => {
               return (
                 <button
                   key={status}
                   type="button"
-                  className={isCurrent ? "current" : isComplete ? "complete" : ""}
-                  aria-pressed={isCurrent}
+                  className={status === "canceled" ? "cancel-action" : ""}
                   onClick={() => updateCrewProgress(status)}
                   data-test-safe
                 >
-                  <b>{index + 1}</b>
                   <span>{respondProgressLabels[status]}</span>
                 </button>
               );
             })}
+            {!crewProgressActions.length && <span role="status">{crewProgress ? respondProgressLabels[crewProgress.status] : ""} · saved on this device</span>}
           </div>
+          {progressError && <p role="alert">{progressError}</p>}
           <small className="respond-progress-note">
             Saved on this browser only · does not change CAD status
           </small>

@@ -62,3 +62,29 @@ test("invalid or damaged saved progress fails closed", async () => {
   };
   assert.equal(readRespondProgress(invalidStore, "INC-100", "1204"), null);
 });
+
+test("completed response actions disappear and cancellation remains last", async () => {
+  const { nextRespondActions } = await loadProgressModule();
+  assert.deepEqual(nextRespondActions(), ["acknowledged", "en_route", "on_scene"]);
+  assert.deepEqual(nextRespondActions("acknowledged"), ["en_route", "on_scene", "canceled"]);
+  assert.deepEqual(nextRespondActions("en_route"), ["on_scene", "canceled"]);
+  assert.deepEqual(nextRespondActions("on_scene"), ["cleared_scene", "canceled"]);
+  assert.deepEqual(nextRespondActions("cleared_scene"), ["in_service_on_air", "returning_to_quarters", "canceled"]);
+  for (const status of ["in_service_on_air", "returning_to_quarters", "canceled"]) assert.deepEqual(nextRespondActions(status), []);
+});
+
+test("new progress states survive reloading storage without changing other incidents", async () => {
+  const { readRespondProgress, writeRespondProgress } = await loadProgressModule();
+  const values = new Map();
+  const store = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
+  for (const status of ["cleared_scene", "in_service_on_air", "returning_to_quarters", "canceled"]) {
+    writeRespondProgress(store, "TEST", "UNIT", status);
+    assert.equal(readRespondProgress(store, "TEST", "UNIT").status, status);
+    assert.equal(readRespondProgress(store, "OTHER", "UNIT"), null);
+  }
+});
+
+test("failed browser storage is reported instead of pretending progress was saved", async () => {
+  const { writeRespondProgress } = await loadProgressModule();
+  assert.throws(() => writeRespondProgress({ getItem: () => null, setItem: () => { throw new Error("Storage unavailable"); } }, "TEST", "UNIT", "on_scene"), /Storage unavailable/);
+});

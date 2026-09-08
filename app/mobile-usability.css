@@ -1,4 +1,6 @@
 /* Targeted workflow improvements; retain the department's existing visual system. */
+.respond-progress-steps .cancel-action { grid-column: -2 / -1; border-color: #ef9a91; background: #682b2b; color: #fff; }
+.respond-progress-steps > [role=status] { grid-column: 1 / -1; }
 .callback-selected, .repair-start-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .callback-selected button, .repair-start-actions button { min-height: 44px; padding: 8px 12px; border: 1px solid #8ca7b7; border-radius: 6px; background: #edf5fa; color: #12354a; }
 .repair-start-actions button[aria-pressed=true] { background: #12354a; color: white; }

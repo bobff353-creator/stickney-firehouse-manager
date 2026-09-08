@@ -7,6 +7,8 @@ export type UpcomingTrainingCourse = {
   detail: string;
 };
 
+export const ifsiScheduleSource = "https://www.fsi.illinois.edu/content/courses/schedule/results.cfm?action=search&keywords=&start_date=09%2F07%2F2026&end_date=01%2F01%2F2028&cost=&delivery=any&city=&county=&course=&program=";
+
 type NipstaCalendarEvent = {
   title?: unknown;
   start?: unknown;
@@ -108,7 +110,7 @@ export function parseIfsiSchedule(html: string, sourceUrl: string, today: string
       const cells = [...match[1].matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)]
         .map((cell) => decode(cell[1]));
       const startDate = isoDate(cells[1] || "");
-      if (!cells[0] || !startDate || startDate < today) return [];
+      if (!cells[0] || !startDate || startDate <= today) return [];
       const location = [cells[2], cells[3]].filter(Boolean).join(", ");
       return [{
         title: cells[0],
@@ -119,6 +121,21 @@ export function parseIfsiSchedule(html: string, sourceUrl: string, today: string
         detail: [location, cells[4]].filter(Boolean).join(" · "),
       }];
     });
+  // IFSI search results group dated class links under a course heading.
+  for (const panel of html.split(/<div\b[^>]*class=["']panel panel-primary["'][^>]*>/i).slice(1)) {
+    const heading = panel.match(/<a\b[^>]*href=["']([^"']*description\.cfm[^"']*)["'][^>]*>([\s\S]*?)<\/a>/i);
+    if (!heading) continue;
+    const title = decode(heading[2]);
+    for (const anchor of panel.matchAll(/<a\b[^>]*onclick=["']showClass\(['"]\d+['"]\);?["'][^>]*>([\s\S]*?)<\/a>/gi)) {
+      const text = decode(anchor[1]);
+      const date = text.match(/^(\d{1,2}\/\d{1,2}\/\d{2,4})\s+(.+?)(?:Host Dept:|Instate:|$)/i);
+      const startDate = date ? isoDate(date[1]) : "";
+      if (!title || !startDate || startDate <= today) continue;
+      const url = new URL(decode(heading[1]), sourceUrl);
+      if (url.origin !== new URL(sourceUrl).origin) continue;
+      courses.push({ title, url: url.toString(), startDate, endDate: startDate, location: date?.[2].trim() || "", detail: text });
+    }
+  }
   return uniqueCourses(courses);
 }
 

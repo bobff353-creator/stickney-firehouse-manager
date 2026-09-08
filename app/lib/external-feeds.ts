@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import {
   parseIfsiSchedule,
+  ifsiScheduleSource,
   parseNipstaCourseNames,
   parseNipstaEvents,
   parseRomeovilleActivity,
@@ -50,7 +51,7 @@ const trainingSources = [
     id: "ifsi",
     name: "Illinois Fire Service Institute",
     shortName: "IFSI",
-    sourceUrl: "https://www.fsi.illinois.edu/content/courses/schedule/",
+    sourceUrl: ifsiScheduleSource,
   },
   {
     id: "nipsta",
@@ -448,6 +449,6 @@ export const getCloseCallNews = unstable_cache(
 
 export const getTrainingSites = unstable_cache(
   loadTrainingSites,
-  ["stickney-training-sites-v2"],
+  ["stickney-training-sites-v3"],
   { revalidate: 86_400, tags: [dailyFeedTag] },
 );
