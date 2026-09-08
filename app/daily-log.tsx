@@ -275,6 +275,7 @@ function CallbackPanel({ call, logDate }: { call: CallRow; logDate: string }) {
       reviewer?: { reviewerName: string };
     };
     if (response.ok) {
+      setOpen(false);
       setSelected([]);
       await load();
       setMessage(

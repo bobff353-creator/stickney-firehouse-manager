@@ -64,6 +64,7 @@ test("Daily Log and Payroll expose callback submission and review", async () => 
   assert.match(dailyLog, /Callback attendance/);
   assert.match(dailyLog, /Active members who were not already on duty/);
   assert.match(dailyLog, /No off-duty active members are available/);
+  assert.match(dailyLog, /if \(response\.ok\) \{\s+setOpen\(false\);/, "successful callback submission should collapse the attendance panel");
   assert.match(payroll, /Callback Reviews/);
   assert.match(payroll, /<CallbackReviews/);
 });
