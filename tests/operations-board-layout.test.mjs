@@ -6,10 +6,10 @@ test("TV mode reserves complete rows for weather and apparatus status", async ()
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   const board = await readFile(new URL("../app/operations-board.tsx", import.meta.url), "utf8");
 
-  assert.match(styles, /grid-template-rows: minmax\(150px,auto\) 78px minmax\(0,1fr\) 92px/);
+  assert.match(styles, /grid-template-rows: minmax\(128px,auto\) 78px minmax\(0,1fr\) 92px/);
   assert.match(styles, /\.tv-display \.board-display-controls \{ display: none; \}/);
-  assert.match(styles, /\.tv-shell \.operations-board:has\(\.board-road-closures\) \{ grid-template-rows: minmax\(150px,auto\) auto 70px minmax\(0,1fr\) 78px/);
-  assert.match(styles, /\.tv-display \.board-header \{ height: auto; min-height: 150px/);
+  assert.match(styles, /\.tv-shell \.operations-board:has\(\.board-road-closures\) \{ grid-template-rows: minmax\(128px,auto\) auto 70px minmax\(0,1fr\) 78px/);
+  assert.match(styles, /\.tv-display \.board-header \{ height: auto; min-height: 128px/);
   assert.match(styles, /\.tv-display \.board-header-rotation \{ min-width: 0; height: auto;[^}]+overflow: visible/);
   assert.match(styles, /\.tv-display \.board-header h1 \{[^}]+line-height: 1\.12; overflow-wrap: anywhere/);
   assert.match(styles, /\.board-display-controls \{ position: sticky/);
@@ -63,6 +63,15 @@ test("compact TV panels fit without internal staffing scrollbars or oversized he
   assert.match(staffing, /remaining members rotate automatically/);
   assert.match(staffing, /Upcoming crew ·/);
   assert.match(staffing, /No members assigned to this time slot/);
+});
+
+test("TV close-call cards reserve room for headlines and links instead of overflowing summaries", async () => {
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(styles, /\.tv-display \.close-call-list a \{ box-sizing: border-box;[^}]+overflow: hidden/);
+  assert.match(styles, /\.tv-display \.close-call-list strong \{[^}]+-webkit-line-clamp: 2;[^}]+font-size: clamp\(14px,1vw,20px\)/);
+  assert.match(styles, /\.rotating-panel\.news > \.rotation-content \{ grid-template-rows: minmax\(0,1fr\); align-content: stretch/);
+  assert.match(styles, /\.tv-display \.close-call-list p,\.tv-display \.close-call-kicker \{ display: none; \}/);
+  assert.match(styles, /\.close-call-list p \{ display: -webkit-box/);
 });
 
 test("training rotations use a bounded two-column TV layout", async () => {
