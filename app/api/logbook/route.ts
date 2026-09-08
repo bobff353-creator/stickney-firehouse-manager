@@ -7,6 +7,7 @@ import { chicagoOperationalContext } from "../../operational-day";
 import { dailyLogPayrollEntries, dailyLogPayrollTotals } from "../../payroll-hours";
 import { hasPermission } from "../../server-permissions";
 import { completedApparatusChecksForDate, incompleteRequiredFleetChecks, type RequiredFleetCheck } from "../../lib/fleet-projections";
+import { fleetChecksForShift } from "../../fleet-check-shift";
 import { createInventorySupabaseClient } from "../../lib/supabase-server";
 
 const shifts = ["morning", "afternoon", "overnight"];
@@ -176,8 +177,9 @@ export async function POST(request: Request) {
         if (!requirements.available) {
           return Response.json({ error: "Officer sign out is blocked because Fleet checklist status could not be verified. Try again before signing out." }, { status: 503 });
         }
-        if (requirements.incomplete.length) {
-          const list = requirements.incomplete.map((check) => `${check.unit} ${check.checkType}`).join(", ");
+        const shiftChecks = fleetChecksForShift(requirements.incomplete, shiftKey);
+        if (shiftChecks.length) {
+          const list = shiftChecks.map((check) => `${check.unit} ${check.checkType}`).join(", ");
           return Response.json({
             error: `Officer sign out is blocked. Complete the required Fleet checks first: ${list}.`,
             incompleteFleetChecks: requirements.incomplete,

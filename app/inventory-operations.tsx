@@ -1038,7 +1038,7 @@ export default function InventoryOperations({
             {inventoryChecks.length ? renderCheckCards(inventoryChecks, () => "INVENTORY CHECK") : <div className="ops-empty"><strong>No apparatus inventory checks are configured.</strong><p>An administrator can assign equipment to the Inventory check in Admin Configuration.</p></div>}
           </section>
           {canSetup ? <section className="ops-card inspection-scheduler-card">
-            <header><div><span>ADMIN INSPECTION SCHEDULER</span><h2>Set required day and completion window</h2><p>Scheduled checks automatically appear in Daily Duties and Live Operations and can block officer sign-out until completed.</p></div><b>{data.inspectionSchedules.filter((item) => item.active !== false).length} active</b></header>
+            <header><div><span>ADMIN INSPECTION SCHEDULER</span><h2>Set required day and completion window</h2><p>Set Start time and Due by for each check. The due time assigns its Daily Log shift: after 06:00 through 12:00 morning, after 12:00 through 18:00 afternoon, and after 18:00 through 06:00 overnight. Required checks block only that shift’s sign-out.</p></div><b>{data.inspectionSchedules.filter((item) => item.active !== false).length} active</b></header>
             <form className="inspection-schedule-form" onSubmit={(event) => {
               const form = new FormData(event.currentTarget);
               submit(event, "inspection-schedule", { action: "save_inspection_schedule", apparatusId: form.get("apparatusId"), checkType: form.get("checkType"), dayOfWeek: form.get("dayOfWeek"), startTime: form.get("startTime"), endTime: form.get("endTime"), feedsDailyDuties: true, feedsOperationsBoard: true, requireOfficerSignoff: true });

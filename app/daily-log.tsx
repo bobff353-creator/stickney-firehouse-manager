@@ -1,4 +1,5 @@
 "use client";
+import { fleetChecksForShift } from "./fleet-check-shift";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { holidayForDate } from "./holidays";
@@ -761,9 +762,10 @@ export default function DailyLog({
         return setMessage(
           "Officer sign out is blocked because Fleet checklist status could not be verified. Try again.",
         );
-      if (requirements.incomplete.length)
+      const shiftChecks = fleetChecksForShift(requirements.incomplete, shiftKey);
+      if (shiftChecks.length)
         return setMessage(
-          `Officer sign out is blocked. Complete these Fleet checks first: ${fleetCheckList(requirements.incomplete)}.`,
+          `Officer sign out is blocked. Complete these Fleet checks first: ${fleetCheckList(shiftChecks)}.`,
         );
     }
     setMessage("");
@@ -1022,6 +1024,7 @@ export default function DailyLog({
         <div className="shift-card-grid">
           {shiftSections.map((shift) => {
             const rows = staffing.filter((row) => row.shiftKey === shift.key);
+            const shiftFleetChecks = fleetChecksForShift(incompleteFleetChecks, shift.key);
             const approval = approvals.find(
               (item) => item.shiftKey === shift.key,
             );
@@ -1157,7 +1160,7 @@ export default function DailyLog({
                     className={
                       approval?.signOutAt
                         ? "approved"
-                        : incompleteFleetChecks.length ||
+                        : shiftFleetChecks.length ||
                             !fleetVerificationAvailable
                           ? "fleet-blocked"
                           : ""
@@ -1166,8 +1169,8 @@ export default function DailyLog({
                     title={
                       approval?.signInAt &&
                       !approval?.signOutAt &&
-                      incompleteFleetChecks.length
-                        ? `Complete ${fleetCheckList(incompleteFleetChecks)} before signing out.`
+                      shiftFleetChecks.length
+                        ? `Complete ${fleetCheckList(shiftFleetChecks)} before signing out.`
                         : undefined
                     }
                     onClick={() =>
@@ -1182,12 +1185,12 @@ export default function DailyLog({
                 {approval?.signInAt &&
                 !approval?.signOutAt &&
                 (!fleetVerificationAvailable ||
-                  incompleteFleetChecks.length > 0) ? (
+                  shiftFleetChecks.length > 0) ? (
                   <div className="officer-fleet-lock">
                     <strong>Fleet checks required before sign out</strong>
                     <span>
                       {fleetVerificationAvailable
-                        ? fleetCheckList(incompleteFleetChecks)
+                        ? fleetCheckList(shiftFleetChecks)
                         : "Fleet checklist status is temporarily unavailable"}
                     </span>
                   </div>

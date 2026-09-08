@@ -231,9 +231,9 @@ export async function incompleteRequiredFleetChecks(
   const [{ data: schedules, error: scheduleError }, { data: apparatus, error: apparatusError }, { data: fleet, error: fleetError }, { data: checks, error: checksError }] = await Promise.all([
     supabase
       .from("inventory_inspection_schedules")
-      .select("apparatus_id,check_type,start_time,end_time")
+      .select("apparatus_id,check_type,day_of_week,start_time,end_time")
       .eq("department_id", departmentId)
-      .eq("day_of_week", dueDay)
+      .in("day_of_week", [dueDay, (dueDay + 1) % 7])
       .eq("active", true)
       .eq("require_officer_signoff", true),
     supabase
@@ -255,12 +255,16 @@ export async function incompleteRequiredFleetChecks(
   if (scheduleError || apparatusError || fleetError || checksError) throw scheduleError || apparatusError || fleetError || checksError;
   const fleetStatuses = new Map((fleet || []).map((item) => [item.id, item.status]));
   return (schedules || []).flatMap((schedule) => {
+    // The overnight card continues into the next calendar day's early morning.
+    const earlyMorning = String(schedule.end_time).slice(0, 5) <= "06:00";
+    if (Number(schedule.day_of_week) !== (earlyMorning ? (dueDay + 1) % 7 : dueDay)) return [];
+    const completionDate = earlyMorning ? addUtcDays(date, 1) : date;
     const vehicle = (apparatus || []).find((item) => item.id === schedule.apparatus_id);
     if (!vehicle) return [];
     const checkType = String(schedule.check_type) as RequiredFleetCheck["checkType"];
     if (!apparatusCheckRequired(fleetStatuses.get(vehicle.id), checkType)) return [];
     const vehicleChecks = (checks || []).filter((check) => check.apparatus_id === vehicle.id && check.check_type === checkType);
-    if (vehicleChecks.some((check) => scheduledCheckCompleted(check, checkType, date))) return [];
+    if (vehicleChecks.some((check) => scheduledCheckCompleted(check, checkType, completionDate))) return [];
     const inProgress = vehicleChecks.find((check) => check.status === "in_progress");
     return [{
       apparatusId: String(vehicle.id),
