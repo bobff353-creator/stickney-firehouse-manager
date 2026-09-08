@@ -722,6 +722,15 @@ export default function InventoryOperations({
     || apparatusActiveChecks[0];
   const activeItems = activeCheck
     ? data.checkItems.filter((item) => value(item, "check_id") === value(activeCheck, "id"))
+      .sort((left, right) => {
+        const leftEquipment = data.equipment.find((item) => value(item, "id") === value(left, "equipment_id"));
+        const rightEquipment = data.equipment.find((item) => value(item, "id") === value(right, "equipment_id"));
+        const leftCabinet = data.compartments.find((item) => value(item, "id") === value(leftEquipment || {}, "compartment_id"));
+        const rightCabinet = data.compartments.find((item) => value(item, "id") === value(rightEquipment || {}, "compartment_id"));
+        return Number(leftCabinet?.sort_order ?? Number.MAX_SAFE_INTEGER) - Number(rightCabinet?.sort_order ?? Number.MAX_SAFE_INTEGER)
+          || value(leftCabinet || {}, "label").localeCompare(value(rightCabinet || {}, "label"), undefined, { numeric: true })
+          || Number(leftEquipment?.item_order ?? 0) - Number(rightEquipment?.item_order ?? 0);
+      })
     : [];
   const activeScbaEntries = activeCheck && value(activeCheck, "check_type") === "air_pack"
     ? data.scbaEntries.filter((item) => value(item, "check_id") === value(activeCheck, "id"))
@@ -1256,6 +1265,32 @@ export default function InventoryOperations({
                 <label>Show<select value={checkResultFilter} onChange={(event) => setCheckResultFilter(event.target.value as typeof checkResultFilter)}><option value="pending">Pending</option><option value="all">All items</option><option value="completed">Completed</option><option value="failed">Issues</option></select></label>
                 <label>Location<select value={checkCompartmentFilter} onChange={(event) => setCheckCompartmentFilter(event.target.value)}><option value="all">All locations</option>{checkCompartments.map((label) => <option key={label} value={label}>{label}</option>)}</select></label>
               </div>
+              {canSetup ? <details className="ops-card cabinet-order-editor">
+                <summary>Edit cabinet names &amp; order</summary>
+                <p>Set the order to match your walk around the apparatus. Lower numbers are checked first. Save each cabinet after editing. This applies to current and future checks; saved inspection results stay intact.</p>
+                {selectedCompartments.map((cabinet) => <form key={`${value(cabinet, "id")}-${value(cabinet, "label")}-${value(cabinet, "sort_order")}`} className="ops-form" onSubmit={(event) => {
+                  event.preventDefault();
+                  const form = new FormData(event.currentTarget);
+                  void (async () => {
+                    setBusy("cabinet-order"); setError(""); setMessage("");
+                    try {
+                      const response = await fetch("/api/digital-twin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "update_compartment", compartmentId: value(cabinet, "id"), apparatusId: selectedApparatusId, label: form.get("label"), side: value(cabinet, "side"), sortOrder: Number(form.get("sortOrder")) }) });
+                      const result = await response.json() as { error?: string };
+                      if (!response.ok) throw new Error(result.error || "Cabinet could not be saved.");
+                      setCheckCompartmentFilter("all");
+                      await load({ background: true });
+                      setMessage("Cabinet saved. The checklist now follows the saved cabinet order.");
+                    } catch (caught) { setError(caught instanceof Error ? caught.message : "Cabinet could not be saved."); }
+                    finally { setBusy(""); }
+                  })();
+                }}>
+                  <label>Cabinet name<input name="label" defaultValue={value(cabinet, "label")} required maxLength={200} disabled={Boolean(busy)} /></label>
+                  <label>Check order<input name="sortOrder" type="number" min="0" max="100000" step="1" defaultValue={Number(cabinet.sort_order || 0)} required disabled={Boolean(busy)} /></label>
+                  <button className="ops-primary" disabled={Boolean(busy)}>Save cabinet</button>
+                </form>)}
+                {error ? <p role="alert">{error}</p> : null}
+                {message ? <p role="status">{message}</p> : null}
+              </details> : null}
               {groupedActiveItems.length ? groupedActiveItems.map(([label, items]) => {
                 const pendingStandardItems = items.filter((item) => value(item, "result") === "pending" && !isNumericReadingItem(item));
                 return (
