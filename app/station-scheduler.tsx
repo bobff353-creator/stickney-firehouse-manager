@@ -151,7 +151,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
     ["overtime", "Overtime"], ["availability", "Availability"], ["timeoff", "Time Off"], ["reminders", "Reminders"],
   ] as const;
   const employeeTabs = [
-    ["calendar", "Calendar"], ["availability", "My Availability"], ["myrequests", "My Requests"], ["otlist", "Overtime List"], ["trades", "Trades"],
+    ["calendar", "Calendar"], ["availability", "My Availability"], ["myrequests", "My Requests"], ["trades", "Trades"],
   ] as const;
   const tabs = isAdmin ? adminTabs : employeeTabs;
 

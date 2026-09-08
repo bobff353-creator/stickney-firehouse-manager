@@ -9,6 +9,14 @@ const missing = async (path) => {
   catch { return true; }
 };
 
+test("member navigation hides Overtime List while retaining administrator overtime tools", async () => {
+  const component = await read("../app/station-scheduler.tsx");
+  const memberTabs = component.split("const employeeTabs = [")[1].split("] as const;")[0];
+  assert.equal(memberTabs.includes("Overtime List"), false);
+  assert.equal(memberTabs.includes('"otlist"'), false);
+  assert.equal(component.includes('["overtime", "Overtime"]'), true);
+});
+
 async function loadSchedulerLogic() {
   const source = await read("../app/station-scheduler-logic.ts");
   const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
