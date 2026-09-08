@@ -267,7 +267,9 @@ test("employees can submit, revise, and remove day-by-day availability", async (
   assert.equal(migration.includes("enable row level security"), true);
   assert.equal(component.includes('"My Availability"'), true);
   assert.equal(component.includes("Select one or more days"), true);
-  assert.equal(component.includes("Repeat weekly"), true);
+  assert.equal(component.includes("Repeat interval"), true);
+  assert.equal(component.includes("Every week (7 days)"), true);
+  assert.equal(component.includes("expandAvailabilityDates(picked, repeatDays, repeatThrough)"), true);
   assert.equal(component.includes('action: "saveAvailability"'), true);
   assert.equal(component.includes('action: "deleteAvailability"'), true);
   assert.equal(component.includes("calendar-availability-summary"), true);

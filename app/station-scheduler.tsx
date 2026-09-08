@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { normalizeScheduleTime, scheduleTimeBlocks } from "./schedule-time";
 import { recurringShiftOccursOnDate } from "./station-scheduler-logic";
+import { expandAvailabilityDates } from "./availability-repeat";
 
 type TestMember = { id: string; name: string; rank: string; effectivePermissions: string[] };
 
@@ -676,7 +677,9 @@ function AvailabilityScreen({ data, isAdmin, act, busy }: { data: Data; isAdmin:
   const [allDay, setAllDay] = useState(true);
   const [startTime, setStartTime] = useState("06:00");
   const [endTime, setEndTime] = useState("18:00");
-  const [repeatWeeks, setRepeatWeeks] = useState(0);
+  const [repeatDays, setRepeatDays] = useState(0);
+  const [customRepeat, setCustomRepeat] = useState(false);
+  const [repeatThrough, setRepeatThrough] = useState("");
   const [note, setNote] = useState("");
   const monthKey = monthDate.slice(0, 7);
   const firstDay = new Date(`${monthKey}-01T12:00:00`);
@@ -696,21 +699,18 @@ function AvailabilityScreen({ data, isAdmin, act, busy }: { data: Data; isAdmin:
     setStartTime(entry.startTime);
     setEndTime(entry.endTime);
     setNote(entry.note);
-    setRepeatWeeks(0);
+    setRepeatDays(0);
+    setCustomRepeat(false);
+    setRepeatThrough("");
     setMonthDate(`${entry.availabilityDate.slice(0, 7)}-01`);
   };
-  const expandedDates = () => {
-    const dates = new Set(picked);
-    for (const pickedDate of picked) {
-      const base = new Date(`${pickedDate}T12:00:00`);
-      for (let week = 1; week <= repeatWeeks; week += 1) {
-        const next = new Date(base);
-        next.setDate(next.getDate() + week * 7);
-        dates.add(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(next.getDate()).padStart(2, "0")}`);
-      }
-    }
-    return [...dates].sort();
-  };
+  let expandedDates: string[] = [];
+  let repeatError = "";
+  try {
+    if (customRepeat && repeatDays < 8) throw new Error("Enter a custom interval from 8 to 365 days, or choose a shorter interval from the list.");
+    expandedDates = expandAvailabilityDates(picked, repeatDays, repeatThrough);
+  }
+  catch (error) { repeatError = error instanceof Error ? error.message : "Check the repeat settings."; }
 
   return <div className="availability-workspace">
     <section className="availability-intro">
@@ -758,15 +758,21 @@ function AvailabilityScreen({ data, isAdmin, act, busy }: { data: Data; isAdmin:
           <label><span>From</span><input type="time" step="900" value={startTime} onChange={(event) => setStartTime(event.target.value)} /></label>
           <label><span>To</span><input type="time" step="900" value={endTime} onChange={(event) => setEndTime(event.target.value)} /></label>
         </div>}
-        <label><span>Repeat weekly</span><select value={repeatWeeks} onChange={(event) => setRepeatWeeks(Number(event.target.value))}>
+        <label><span>Repeat interval</span><select value={customRepeat ? "custom" : repeatDays} onChange={(event) => { setCustomRepeat(event.target.value === "custom"); setRepeatDays(event.target.value === "custom" ? 8 : Number(event.target.value)); }}>
           <option value={0}>Do not repeat</option>
-          <option value={1}>Repeat for 2 weeks</option><option value={3}>Repeat for 4 weeks</option><option value={7}>Repeat for 8 weeks</option><option value={11}>Repeat for 12 weeks</option>
+          <option value={1}>Every day</option>
+          {[2, 3, 4, 5, 6].map((days) => <option key={days} value={days}>Every {days} days</option>)}
+          <option value={7}>Every week (7 days)</option><option value="custom">Custom interval</option>
         </select></label>
+        {customRepeat && <label><span>Repeat every (days)</span><input type="number" min={8} max={365} value={repeatDays || ""} onChange={(event) => setRepeatDays(Number(event.target.value))} /></label>}
+        {repeatDays > 0 && <label><span>Repeat through (inclusive)</span><input type="date" min={picked.slice().sort().at(-1) || data.today} value={repeatThrough} onChange={(event) => setRepeatThrough(event.target.value)} /></label>}
+        {repeatError && <p role="alert" className="error">{repeatError}</p>}
+        {!!expandedDates.length && <details><summary>{expandedDates.length} dates will be saved — preview</summary><p className="muted">{expandedDates.map(friendlyDate).join(" · ")}</p></details>}
         <label><span>Note (optional)</span><textarea rows={3} maxLength={240} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Example: Available after training" /></label>
-        <button disabled={busy || !memberId || !picked.length} onClick={async () => {
-          const result = await act({ action: "saveAvailability", memberId, dates: expandedDates(), status, allDay, startTime, endTime, note });
-          if (result) { setPicked([]); setRepeatWeeks(0); setNote(""); }
-        }}>{busy ? "Saving…" : `Save ${picked.length || ""} selected day${picked.length === 1 ? "" : "s"}`}</button>
+        <button disabled={busy || !memberId || !expandedDates.length || !!repeatError} onClick={async () => {
+          const result = await act({ action: "saveAvailability", memberId, dates: expandedDates, status, allDay, startTime, endTime, note });
+          if (result) { setPicked([]); setRepeatDays(0); setCustomRepeat(false); setRepeatThrough(""); setNote(""); }
+        }}>{busy ? "Saving…" : `Save ${expandedDates.length} day${expandedDates.length === 1 ? "" : "s"}`}</button>
         <p className="muted availability-safety-note">Existing assignments stay in place. If you mark an already scheduled day unavailable, the scheduler will flag the conflict for review.</p>
       </section>
     </div>
