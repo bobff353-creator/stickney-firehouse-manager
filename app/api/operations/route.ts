@@ -562,6 +562,30 @@ export async function POST(request: Request) {
       return privateJson({ equipment: record }, 201);
     }
 
+    if (action === "delete_equipment") {
+      const equipmentId = clean(body.equipmentId, 80);
+      if (!equipmentId || body.confirmed !== true) {
+        return privateJson({ error: "Confirm the inventory item to delete." }, 400);
+      }
+      const { data: children, error: childrenError } = await supabase
+        .from("inventory_equipment").select("id")
+        .eq("department_id", departmentId).eq("parent_equipment_id", equipmentId)
+        .is("retired_at", null).limit(1);
+      if (childrenError) throw childrenError;
+      if (children?.length) {
+        return privateJson({ error: "Move or delete the items inside this kit or container before deleting it." }, 409);
+      }
+      const now = new Date().toISOString();
+      const { data: deleted, error: deleteError } = await supabase
+        .from("inventory_equipment")
+        .update({ retired_at: now, retired_by: actor, retirement_reason: "Deleted from active inventory", service_status: "retired", updated_at: now })
+        .eq("department_id", departmentId).eq("id", equipmentId)
+        .is("retired_at", null).select("id").maybeSingle();
+      if (deleteError) throw deleteError;
+      if (!deleted) return privateJson({ error: "This active inventory item was not found." }, 404);
+      return privateJson({ deleted: deleted.id });
+    }
+
     if (action === "update_equipment") {
       const equipmentId = clean(body.equipmentId, 80);
       const compartmentId = clean(body.compartmentId, 80);

@@ -1705,6 +1705,13 @@ export default function InventoryOperations({
               <label className="ops-span-2">Take or attach item photo<input name="photo" type="file" accept="image/*" capture="environment" /></label>
               <button className="ops-scan-button" type="button" onClick={() => { setScannerTarget("edit"); setScannerOpen(true); }}>Scan barcode</button>
               <button className="ops-primary" disabled={Boolean(busy)}>Save item</button>
+              {canSetup ? <button type="button" disabled={Boolean(busy)} style={{ color: "#b42318", borderColor: "#b42318", background: "#fff" }} onClick={() => {
+                if (!window.confirm(`Delete "${value(editingEquipment, "name")}" from active inventory? Inspection and service history will be retained.`)) return;
+                void action("delete-equipment", { action: "delete_equipment", equipmentId: value(editingEquipment, "id"), confirmed: true }).then((saved) => {
+                  if (saved) { setEditingEquipment(null); setSelectedDirectoryEquipment(null); setMessage("Item deleted from active inventory. History retained."); }
+                });
+              }}>{busy === "delete-equipment" ? "Deleting…" : "Delete item"}</button> : null}
+              {error ? <p className="ops-span-2" role="alert">{error}</p> : null}
             </div>
           </form>
         </div>
