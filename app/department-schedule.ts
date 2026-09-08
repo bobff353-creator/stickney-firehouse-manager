@@ -16,6 +16,42 @@ export type DepartmentScheduleWindowItem = DepartmentScheduleAssignment & {
   endDate: string;
 };
 
+export type DepartmentScheduleShift = {
+  workDate: string;
+  startTime: string;
+  endDate: string;
+  endTime: string;
+  items: DepartmentScheduleWindowItem[];
+};
+
+// Use calendar minutes so the department's 06:00/12:00/18:00 boundaries
+// remain stable across Chicago daylight-saving transitions.
+export function nextThreeDepartmentShifts(assignments: DepartmentScheduleAssignment[], calendarDate: string, currentMinutes: number): DepartmentScheduleShift[] {
+  const now = dayNumber(calendarDate) * 1440 + currentMinutes;
+  const shifts: DepartmentScheduleShift[] = [];
+  for (let day = 0; day <= 1; day++) {
+    for (const [startMinute, duration] of [[360, 360], [720, 360], [1080, 720]]) {
+      const start = (dayNumber(calendarDate) + day) * 1440 + startMinute;
+      if (start <= now || shifts.length === 3) continue;
+      const end = start + duration;
+      const from = absoluteDateTime(start);
+      const to = absoluteDateTime(end);
+      const unique = new Map<string, DepartmentScheduleWindowItem>();
+      for (const assignment of assignments) {
+        const interval = assignmentInterval(assignment);
+        if (!interval || assignment.status !== "assigned" || !assignment.employeeId || interval.start >= end || interval.end <= start) continue;
+        const begins = absoluteDateTime(Math.max(start, interval.start));
+        const ends = absoluteDateTime(Math.min(end, interval.end));
+        const key = `${assignment.employeeId}:${begins.date}:${begins.time}:${ends.date}:${ends.time}:${assignment.role}`;
+        if (!unique.has(key)) unique.set(key, { ...assignment, workDate: begins.date, startTime: begins.time, endDate: ends.date, endTime: ends.time });
+      }
+      const items = [...unique.values()].sort((a, b) => a.workDate.localeCompare(b.workDate) || a.startTime.localeCompare(b.startTime) || (a.employeeName ?? "").localeCompare(b.employeeName ?? ""));
+      shifts.push({ workDate: from.date, startTime: from.time, endDate: to.date, endTime: to.time, items });
+    }
+  }
+  return shifts;
+}
+
 export type ScheduledStaffingRow = {
   id: string;
   shiftKey: "morning" | "afternoon" | "overnight";

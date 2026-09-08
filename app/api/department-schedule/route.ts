@@ -1,6 +1,7 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 import {
   next24DepartmentSchedule,
+  nextThreeDepartmentShifts,
   scheduleQueryDates,
   type DepartmentScheduleAssignment,
 } from "../../department-schedule";
@@ -20,6 +21,7 @@ export async function GET() {
       asOf: new Date().toISOString(),
       windowHours: 24,
       items,
+      upcomingShifts: nextThreeDepartmentShifts(assignments.results, now.calendarDate, now.minutes),
     });
   } catch {
     return Response.json({ error: "The department schedule is temporarily unavailable.", items: [] }, { status: 500 });

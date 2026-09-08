@@ -911,21 +911,21 @@ td strong { font-size: 16px; }
 .tv-shell { display: block; min-height: 100vh; background: #0b1822; overflow: hidden; }
 .tv-shell > .desktop-sidebar, .tv-shell > .topbar, .tv-shell > .portal-footer { display: none !important; }
 .tv-shell > .workspace { width: 100%; height: 100vh; min-height: 0; margin: 0; padding: 0; overflow: hidden; }
-.tv-shell .operations-board { position: relative; box-sizing: border-box; width: 100%; height: 100vh; min-height: 0; margin: 0; padding: 6px clamp(16px,1.8vw,32px); display: grid; grid-template-rows: 36px 112px 78px minmax(0,1fr) 92px; gap: 6px; overflow: hidden; }
-.tv-display .board-display-controls{position:relative;min-height:0;margin:0 0 0 auto;padding:1px 4px}
+.tv-shell .operations-board { position: relative; box-sizing: border-box; width: 100%; height: 100vh; min-height: 0; margin: 0; padding: 6px clamp(16px,1.8vw,32px); display: grid; grid-template-rows: minmax(150px,auto) 78px minmax(0,1fr) 92px; gap: 6px; overflow: hidden; }
+.tv-display .board-display-controls { display: none; }
 .tv-display .board-exit-tv{position:fixed;z-index:4000;top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));min-height:44px;padding:0 14px;border:1px solid #c9d7de80;border-radius:8px;background:#071923d9;color:#fff;display:flex;align-items:center;gap:7px;font-size:11px;font-weight:950;letter-spacing:.04em;text-transform:uppercase;opacity:.2;box-shadow:0 5px 18px #0006;transition:opacity .18s ease,background-color .18s ease,transform .18s ease;touch-action:manipulation}.tv-display .board-exit-tv span{font-size:20px;line-height:1}.tv-display .board-exit-tv:hover,.tv-display .board-exit-tv:focus-visible{opacity:1;background:#a73527;outline:3px solid #fff;outline-offset:2px;transform:translateY(1px)}.tv-display .board-exit-tv:active{opacity:1;transform:translateY(2px)}@media(hover:none){.tv-display .board-exit-tv{opacity:.42}}@media(prefers-reduced-motion:reduce){.tv-display .board-exit-tv{transition:none}}
 .tv-display .chief-add-button { display: none; }
-.tv-display .board-header h1 { font-size: clamp(30px,3vw,44px); line-height: .98; }
+.tv-display .board-header h1 { margin: 3px 0; font-size: clamp(26px,2.5vw,38px); line-height: 1.12; overflow-wrap: anywhere; }
 .tv-display .board-clock strong { font-size: clamp(30px,3vw,42px); }
 .tv-display .board-clock > span { font-size: 10px; }
 .tv-display .board-clock small { margin-top: 4px; font-size: 9px; }
 .tv-display .board-summary article > strong { margin-top: 4px; font-size: clamp(21px,2vw,30px); }
 .tv-display .board-panel h2 { font-size: clamp(14px,1.25vw,18px); }
-.tv-display .board-header { height: 112px; min-height: 0; padding-bottom: 4px; align-items: stretch; gap: 16px; overflow: hidden; }
+.tv-display .board-header { height: auto; min-height: 150px; padding: 8px 0; align-items: center; gap: 16px; overflow: visible; }
 .tv-display .board-header p { margin-bottom: 2px; font-size: 9px; }
-.tv-display .board-header-rotation { min-width: 0; height: 104px; min-height: 0; flex: 1 1 auto; overflow: hidden; }
+.tv-display .board-header-rotation { min-width: 0; height: auto; min-height: 0; flex: 1 1 auto; overflow: visible; }
 .tv-display .board-clock { width: clamp(250px,23vw,350px); flex: 0 0 clamp(250px,23vw,350px); align-self: center; }
-.tv-display .board-weather-slide .weather-day,.tv-display .board-hourly-slide .weather-day { font-size: 9px; }
+.tv-display .board-weather-slide .weather-day,.tv-display .board-hourly-slide .weather-day { display: block; font-size: 11px; line-height: 1.4; }
 .tv-display .board-weather-slide > div strong { font-size: 26px; }
 .tv-display .board-weather-slide > div b { font-size: 22px; }
 .tv-display .board-weather-slide > div span,
@@ -1174,7 +1174,7 @@ td strong { font-size: 16px; }
 .active-road-list article { padding: 18px 22px; border: 1px solid #c7d5dd; border-top: 0; display: flex; justify-content: space-between; gap: 20px; }.active-road-list article span { color: #b32228; font-size: 10px; font-weight: 900; letter-spacing: .12em; }.active-road-list article h3 { margin: 4px 0; font-size: 24px; }.active-road-list article p { margin: 0 0 7px; }.active-road-list article small { color: #607583; }.active-road-list article>div:last-child { display: flex; align-items: center; gap: 8px; }.active-road-list a,.active-road-list button { padding: 11px 13px; border: 1px solid #214c62; background: #214c62; color: white; text-decoration: none; font-weight: 900; white-space: nowrap; }.active-road-list button { border-color: #9c2a2f; background: white; color: #9c2a2f; }
 .road-closure-empty { margin: 0; padding: 28px; border: 1px solid #c7d5dd; border-top: 0; color: #607583; }.road-history-toggle { margin-top: 14px; border: 0; background: transparent; color: #214c62; font-weight: 800; }.road-closure-history article { padding: 12px; border-bottom: 1px solid #ccd7dd; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
 .board-road-closures { margin: 12px 0 0; border: 2px solid #ff676d; border-radius: 8px; background: #42191c; overflow: hidden; }.board-road-closures>header { padding: 7px 12px; background: #c62e36; display: flex; justify-content: space-between; font-size: 11px; font-weight: 900; letter-spacing: .1em; }.board-road-closures>div { display: grid; grid-template-columns: repeat(auto-fit,minmax(260px,1fr)); }.board-road-closures article { padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }.board-road-closures h2 { margin: 0; font-size: 19px; }.board-road-closures p,.board-road-closures small { margin: 2px 0 0; display: block; color: #ffd8d9; }.board-road-closures a { padding: 9px; border: 1px solid #ff9a9e; color: white; text-decoration: none; font-size: 10px; font-weight: 900; white-space: nowrap; }
-.tv-shell .operations-board:has(.board-road-closures) { grid-template-rows: 36px 100px auto 70px minmax(0,1fr) 78px; }.tv-display .board-road-closures { margin: 0; max-height: 86px; }.tv-display .board-road-closures>header { padding: 4px 9px; }.tv-display .board-road-closures article { padding: 5px 9px; }.tv-display .board-road-closures h2 { font-size: 15px; }.tv-display .board-road-closures p,.tv-display .board-road-closures small { font-size: 8px; }.tv-display .board-road-closures a { padding: 6px; font-size: 8px; }
+.tv-shell .operations-board:has(.board-road-closures) { grid-template-rows: minmax(150px,auto) auto 70px minmax(0,1fr) 78px; }.tv-display .board-road-closures { margin: 0; max-height: 86px; }.tv-display .board-road-closures>header { padding: 4px 9px; }.tv-display .board-road-closures article { padding: 5px 9px; }.tv-display .board-road-closures h2 { font-size: 15px; }.tv-display .board-road-closures p,.tv-display .board-road-closures small { font-size: 8px; }.tv-display .board-road-closures a { padding: 6px; font-size: 8px; }
 @media (max-width: 850px) { .road-closure-layout { grid-template-columns: 1fr; }.road-closure-map { min-height: 420px; }.road-map-toolbar { flex-wrap: wrap; }.road-map-toolbar span { display: none; }.active-road-list article { flex-direction: column; }.active-road-list article>div:last-child { flex-wrap: wrap; }.road-closure-history article { grid-template-columns: 1fr; } }
 
 /* Road Closures guided workflow */
