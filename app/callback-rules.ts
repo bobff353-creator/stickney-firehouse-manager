@@ -1,4 +1,19 @@
-export const CALLBACK_RULE_VERSION = "stickney-callback-rules-2026-08-10-v1";
+export const CALLBACK_RULE_VERSION = "stickney-callback-rules-2026-09-08-v2";
+
+// Department-confirmed response types. Exact normalized matches prevent an
+// unrelated dispatch label from qualifying merely because it contains "fire".
+export const CALLBACK_QUALIFYING_CALL_TYPES = [
+  "FIRE ALARM", "Mutual Aid", "ACCIDENT WITH INJURIES", "Auto Aid", "MVA",
+  "Fire", "STRUCTURE FIRE-ALL", "VEHICLE FIRES", "GAS LEAK INSIDE",
+  "SMELL OF SMOKE OUTDOORS", "GAS ODOR OUTSIDE", "MANPOWER CALLBACK ALERT",
+  "ACC W/INJ- STRUCT-FD",
+];
+
+function normalizeCallType(value: string) {
+  return String(value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+const confirmedCallTypes = new Map(CALLBACK_QUALIFYING_CALL_TYPES.map((type) => [normalizeCallType(type), type]));
 
 export type CallbackRuleCall = {
   id: string;
@@ -51,15 +66,12 @@ export function callbackSuggestedHours(timeOut: string, timeIn: string) {
 }
 
 export function callbackTypeMatch(callType: string) {
-  const normalized = String(callType ?? "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
+  const normalized = normalizeCallType(callType);
   if (/\b(mva|mvc|auto accident|automobile accident|motor vehicle accident|vehicle accident)\b/.test(normalized)) return "Auto accident";
   if (/\bfire alarm\b/.test(normalized)) return "Fire alarm";
   if (/\bmutual aid\b/.test(normalized)) return "Mutual aid";
   if (/\bauto aid\b/.test(normalized)) return "Auto aid";
-  return null;
+  return confirmedCallTypes.get(normalized) ?? null;
 }
 
 export function callbackIsWeekendWindow(logDate: string, timeOut: string) {

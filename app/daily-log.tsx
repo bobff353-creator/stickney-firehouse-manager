@@ -1,5 +1,6 @@
 "use client";
 import { fleetChecksForShift } from "./fleet-check-shift";
+import { CALLBACK_QUALIFYING_CALL_TYPES } from "./callback-rules";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { holidayForDate } from "./holidays";
@@ -169,7 +170,7 @@ const equipmentItems = [
     detail: "Units 1203 and 1204",
   },
 ];
-const callTypes = [
+const callTypes = [...new Set([
   "Fire",
   "EMS",
   "MVA",
@@ -179,7 +180,8 @@ const callTypes = [
   "Mutual Aid",
   "Hazardous Condition",
   "Special",
-];
+  ...CALLBACK_QUALIFYING_CALL_TYPES,
+])];
 const timeOptions = Array.from({ length: 96 }, (_, index) => {
   const hours = Math.floor(index / 4),
     minutes = (index % 4) * 15;

@@ -243,7 +243,7 @@ export default function PayrollApp({
   const [employeeDraft, setEmployeeDraft] = useState<EmployeeForm>(emptyEmployee);
   const [profileOpen, setProfileOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [moreToolsOpen, setMoreToolsOpen] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
@@ -754,8 +754,27 @@ export default function PayrollApp({
     return () => window.removeEventListener("popstate", fromHistory, { capture: true });
   }, [homePage, visibleNav]);
   useEffect(() => {
-    setSidebarCollapsed(window.localStorage.getItem("stickney-desktop-menu-hidden") === "true");
-  }, []);
+    if (sidebarCollapsed) return;
+    const outsideMenu = (event: Event) => {
+      if (event.target instanceof Element && !event.target.closest("#desktop-navigation, .desktop-sidebar-toggle")) {
+        setSidebarCollapsed(true);
+      }
+    };
+    const escapeMenu = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setSidebarCollapsed(true);
+      document.querySelector<HTMLButtonElement>(".desktop-sidebar-toggle")?.focus();
+    };
+    document.addEventListener("click", outsideMenu);
+    document.addEventListener("focusin", outsideMenu);
+    document.addEventListener("keydown", escapeMenu);
+    return () => {
+      document.removeEventListener("click", outsideMenu);
+      document.removeEventListener("focusin", outsideMenu);
+      document.removeEventListener("keydown", escapeMenu);
+    };
+  }, [sidebarCollapsed]);
+  useEffect(() => { setSidebarCollapsed(true); }, [activeNav]);
   useEffect(() => {
     if ((testMember || (data && viewerPermissions)) && !visibleNav.includes(activeNav)) setActiveNav(homePage);
   }, [activeNav, data, homePage, testMember, viewerPermissions, visibleNav]);
@@ -764,7 +783,9 @@ export default function PayrollApp({
   }, [activeNav, visibleMoreNavGroups]);
   function setDesktopMenuHidden(hidden: boolean) {
     setSidebarCollapsed(hidden);
-    window.localStorage.setItem("stickney-desktop-menu-hidden", String(hidden));
+    if (hidden && document.activeElement?.closest("#desktop-navigation")) {
+      document.querySelector<HTMLButtonElement>(".desktop-sidebar-toggle")?.focus();
+    }
   }
   async function openInventory() {
     if (openingInventory) return;
@@ -790,6 +811,7 @@ export default function PayrollApp({
   }
   function navigate(page: NavItem, record?: PortalRecord) {
     if (!confirmLeavingWork()) return;
+    setDesktopMenuHidden(true);
     setInventoryError("");
     if (page === "Inventory") {
       void openInventory();

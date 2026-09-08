@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { formatEmployeeName } from "./employee-names";
 import { formatMilitaryTime } from "./military-time";
+import { CALLBACK_QUALIFYING_CALL_TYPES } from "./callback-rules";
 
 type Submission = {
   id: string;
@@ -38,7 +39,7 @@ const callbackRules = [
   ["Deputy Chief", "May submit callback attendance for any call; the assigned reviewer still approves it."],
   ["Weekend", "Calls from Friday 18:00 through Sunday 17:59 automatically qualify."],
   ["Holiday", "Any call on an approved department holiday automatically qualifies."],
-  ["Call type", "Auto accident, fire alarm, mutual aid, and auto aid automatically qualify."],
+  ["Call type", `${CALLBACK_QUALIFYING_CALL_TYPES.join(", ")} automatically qualify by call type. Existing auto-accident aliases also qualify. Reviewer approval is still required before payroll is posted.`],
   ["Back-to-back", "Calls dispatched within 5 minutes automatically qualify."],
   ["Hours", "2-hour minimum. Calls longer than 2 hours round up to the next quarter hour."],
   ["On shift", "A member already on duty is flagged for review; the submission is never automatically denied."],

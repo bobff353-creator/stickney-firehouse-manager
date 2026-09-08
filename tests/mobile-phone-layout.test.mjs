@@ -20,15 +20,21 @@ test("phone dark mode keeps Daily Log controls readable", async () => {
   assert.match(styles, /\.shift-title h3,[^{]+\{color:#eef4f7\}/);
 });
 
-test("desktop navigation stays visible, follows the active section, and remembers an intentional hide", async () => {
+test("desktop navigation starts hidden and closes when no longer in use", async () => {
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   const shell = await readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8");
-  assert.match(shell, /const \[sidebarCollapsed, setSidebarCollapsed\] = useState\(false\)/);
+  assert.match(shell, /const \[sidebarCollapsed, setSidebarCollapsed\] = useState\(true\)/);
   assert.match(shell, /className="desktop-sidebar-toggle"/);
   assert.match(shell, /Show navigation menu/);
   assert.match(shell, /Hide navigation menu/);
   assert.match(shell, /aria-controls="desktop-navigation"/);
-  assert.match(shell, /stickney-desktop-menu-hidden/);
+  assert.doesNotMatch(shell, /stickney-desktop-menu-hidden/);
+  assert.match(shell, /document\.addEventListener\("click", outsideMenu\)/);
+  assert.match(shell, /document\.addEventListener\("focusin", outsideMenu\)/);
+  assert.match(shell, /document\.removeEventListener\("click", outsideMenu\)/);
+  assert.match(shell, /event\.key !== "Escape"/);
+  assert.match(shell, /if \(!confirmLeavingWork\(\)\) return;\s+setDesktopMenuHidden\(true\)/);
+  assert.match(shell, /if \(hidden && document\.activeElement\?\.closest\("#desktop-navigation"\)\)/);
   assert.match(shell, /className="sidebar-core-nav"/);
   assert.match(shell, /Home[\s\S]+Respond[\s\S]+Live Operations[\s\S]+Maps & Preplans[\s\S]+Daily Log[\s\S]+Station Schedule[\s\S]+Apparatus Checks/);
   assert.doesNotMatch(shell.match(/const featuredNavItems[\s\S]+?\];/)?.[0] ?? "", /Command Center|Station Board/);
