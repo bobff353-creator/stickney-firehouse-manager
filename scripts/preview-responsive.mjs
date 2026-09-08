@@ -1,0 +1,14 @@
+// Read-only layout fixture: no application API, authentication, or department records.
+import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
+const styles = ['/app/globals.css', '/app/inventory/inventory.css', '/app/mobile-usability.css'];
+const select = (label, text) => `<select aria-label="${label}"><option>${text}</option></select>`;
+const row = `<div class="staff-row">${select('Time in', '12:00 PM')}${select('Employee name', 'Sample firefighter — preview only')}<label class="ao-check"><input type="checkbox" disabled>AO</label>${select('Time out', '6:00 PM')}<button class="remove-row" aria-label="Remove staffing row">×</button></div>`;
+const card = `<article class="content-card shift-card"><div class="shift-title"><div><span>Staffing · Preview only</span><h3>Noon – 6:00 PM</h3></div><button aria-label="Add staffing row">+</button></div><div class="staff-labels"><span>In</span><span>Employee</span><span>AO</span><span>Out</span></div><div class="staff-rows">${row.repeat(2)}</div><div class="officer-actions"><button>Officer Sign In</button><button>Officer Sign Out</button></div></article>`;
+const field = (name) => `<label>${name}<input placeholder="Preview only"></label>`;
+const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">${styles.map(s=>`<link rel="stylesheet" href="${s}">`).join('')}<title>Responsive layout — preview fixtures only</title></head><body><header style="padding:16px;background:#fff;color:#12354a">LAYOUT TEST ONLY · No live records or working save buttons</header><main style="padding:16px;max-width:1400px;margin:auto"><section class="logbook-page"><div class="shift-card-grid">${card.repeat(3)}</div><section class="content-card"><h2>Callback attendance</h2><div class="callback-panel"><label class="callback-search">Search members<input placeholder="Search by name"></label><div class="callback-selected"><button>Sample firefighter · selected</button></div><div class="callback-submit-bar"><button>Submit callback attendance</button></div></div></section></section><section class="inventory-app-shell inventory-portal-refresh"><h2>Inventory form · preview only</h2><form class="ops-form" onsubmit="return false">${['Apparatus and compartment','Item name','Grouping type','Contained in kit or bag','Required quantity','Manufacturer','Model','Serial number'].map(field).join('')}<button type="button">Save item (preview)</button></form></section></main></body></html>`;
+createServer(async (req,res)=>{
+  if (styles.includes(req.url)) { res.setHeader('Content-Type','text/css'); res.end(await readFile(new URL('..'+req.url, import.meta.url))); return; }
+  if (req.url !== '/') { res.writeHead(404); res.end(); return; }
+  res.setHeader('Content-Type','text/html; charset=utf-8'); res.end(html);
+}).listen(4177, '127.0.0.1', ()=>console.log('Read-only responsive fixture: http://127.0.0.1:4177'));

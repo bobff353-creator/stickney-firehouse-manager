@@ -175,7 +175,7 @@ export async function GET(request: Request) {
       db.prepare("SELECT en.id,en.entry_date entryDate,en.shift_type_id shiftTypeId FROM station_schedule_entries en JOIN station_shift_types t ON t.id=en.shift_type_id WHERE date(entry_date)>=date(?, '-45 day') AND t.active=1 ORDER BY en.entry_date").bind(today).all(),
       db.prepare("SELECT s.id,s.entry_id entryId,s.role,s.employee_id employeeId,e.name employeeName,s.status,s.sort_order sortOrder,COALESCE(NULLIF(s.start_time,''),t.start_time) startTime,COALESCE(NULLIF(s.end_time,''),t.end_time) endTime,CASE WHEN COALESCE(s.start_time,'')<>'' OR COALESCE(s.end_time,'')<>'' THEN 1 ELSE 0 END hasTimeOverride,s.is_extra isExtra,en.entry_date entryDate,en.shift_type_id shiftTypeId FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id AND t.active=1 LEFT JOIN employees e ON e.id=s.employee_id WHERE date(en.entry_date)>=date(?, '-45 day') ORDER BY en.entry_date,s.sort_order").bind(today).all(),
       db.prepare("SELECT sa.id,sa.employee_id employeeId,e.name employeeName,sa.shift_type_id shiftTypeId,sa.role,sa.active FROM station_standing_assignments sa JOIN employees e ON e.id=sa.employee_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE sa.active=1 AND e.active=1 AND COALESCE(TRIM(ep.end_date),'')='' ORDER BY e.name COLLATE NOCASE").all(),
-      db.prepare("SELECT t.id,t.slot_id slotId,t.role,t.from_employee_id fromEmployeeId,fe.name fromEmployeeName,t.target_employee_id targetEmployeeId,te.name targetEmployeeName,t.accepted_by_employee_id acceptedByEmployeeId,t.note,t.status,t.created_at createdAt,en.entry_date entryDate FROM station_trade_requests t JOIN station_shift_slots s ON s.id=t.slot_id JOIN station_schedule_entries en ON en.id=s.entry_id JOIN employees fe ON fe.id=t.from_employee_id LEFT JOIN employees te ON te.id=t.target_employee_id ORDER BY CASE t.status WHEN 'pending' THEN 0 WHEN 'awaiting_acceptance' THEN 0 ELSE 1 END,t.created_at DESC LIMIT 200").all(),
+      db.prepare("SELECT t.id,t.slot_id slotId,t.return_slot_id returnSlotId,t.role,t.from_employee_id fromEmployeeId,fe.name fromEmployeeName,t.target_employee_id targetEmployeeId,te.name targetEmployeeName,t.accepted_by_employee_id acceptedByEmployeeId,t.note,t.status,t.created_at createdAt,en.entry_date entryDate FROM station_trade_requests t JOIN station_shift_slots s ON s.id=t.slot_id JOIN station_schedule_entries en ON en.id=s.entry_id JOIN employees fe ON fe.id=t.from_employee_id LEFT JOIN employees te ON te.id=t.target_employee_id ORDER BY CASE t.status WHEN 'pending' THEN 0 WHEN 'awaiting_acceptance' THEN 0 ELSE 1 END,t.created_at DESC LIMIT 200").all(),
       db.prepare("SELECT c.id,c.slot_id slotId,c.role,c.employee_id employeeId,e.name employeeName,c.note,c.status,c.created_at createdAt,en.entry_date entryDate FROM station_shift_claims c JOIN station_shift_slots s ON s.id=c.slot_id JOIN station_schedule_entries en ON en.id=s.entry_id JOIN employees e ON e.id=c.employee_id ORDER BY CASE c.status WHEN 'pending' THEN 0 ELSE 1 END,c.created_at DESC LIMIT 200").all(),
       db.prepare("SELECT r.id,r.employee_id employeeId,e.name employeeName,r.type,r.approver_employee_id approverEmployeeId,ap.name approverName,r.note,r.status,r.created_at createdAt FROM station_time_off_requests r JOIN employees e ON e.id=r.employee_id LEFT JOIN employees ap ON ap.id=r.approver_employee_id ORDER BY CASE r.status WHEN 'pending' THEN 0 ELSE 1 END,r.created_at DESC LIMIT 200").all(),
       db.prepare("SELECT request_id requestId,off_date offDate FROM station_time_off_dates").all(),
@@ -675,15 +675,26 @@ async function reviewTrade(db: Db, current: Viewer, payload: Record<string, unkn
   const id = String(payload.id ?? "");
   const decision = String(payload.decision ?? "");
   if (!["approved", "denied"].includes(decision)) return bad("Choose approve or deny.");
-  const trade = await db.prepare("SELECT slot_id slotId,from_employee_id fromEmployeeId,accepted_by_employee_id acceptedByEmployeeId,status FROM station_trade_requests WHERE id=?").bind(id).first<{ slotId: string; fromEmployeeId: string; acceptedByEmployeeId: string | null; status: string }>();
+  const trade = await db.prepare("SELECT slot_id slotId,return_slot_id returnSlotId,from_employee_id fromEmployeeId,accepted_by_employee_id acceptedByEmployeeId,status FROM station_trade_requests WHERE id=?").bind(id).first<{ slotId: string; returnSlotId: string | null; fromEmployeeId: string; acceptedByEmployeeId: string | null; status: string }>();
   if (!trade || !["pending", "awaiting_acceptance"].includes(trade.status)) return bad("This trade is no longer open.", 409);
   if (decision === "approved") {
     if (!trade.acceptedByEmployeeId) return bad("A member must accept the trade before approval.", 409);
     if (!await isSchedulableEmployee(db, trade.acceptedByEmployeeId)) return bad("That employee has a Last Day and is no longer available for scheduling.", 409);
-    await db.prepare("UPDATE station_shift_slots SET employee_id=?,status='filled' WHERE id=?").bind(trade.acceptedByEmployeeId, trade.slotId).run();
+    const problem = await validateTradePair(db, trade.slotId, trade.fromEmployeeId, trade.acceptedByEmployeeId, trade.returnSlotId);
+    if (problem) return bad(problem, 409);
   }
-  await db.prepare("UPDATE station_trade_requests SET status=?,reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP WHERE id=?").bind(decision, current.name, id).run();
-  return ok();
+  const statements = [db.prepare("UPDATE station_trade_requests SET status=?,reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP WHERE id=? AND status=? AND COALESCE(accepted_by_employee_id,'')=?")
+    .bind(decision, current.name, id, trade.status, trade.acceptedByEmployeeId ?? "").expectChanges(1)];
+  if (decision === "approved") {
+    const changes = [{ slotId: trade.slotId, from: trade.fromEmployeeId, to: trade.acceptedByEmployeeId! }];
+    if (trade.returnSlotId) changes.push({ slotId: trade.returnSlotId, from: trade.acceptedByEmployeeId!, to: trade.fromEmployeeId });
+    for (const change of changes.sort((a, b) => a.slotId.localeCompare(b.slotId))) {
+      statements.push(db.prepare("UPDATE station_shift_slots SET employee_id=? WHERE id=? AND employee_id=? AND status='filled'")
+        .bind(change.to, change.slotId, change.from).expectChanges(1));
+    }
+  }
+  await db.batch(statements);
+  return ok({ note: decision === "approved" ? "Trade approved — calendar updated." : "Trade denied — calendar unchanged." });
 }
 
 async function reviewTimeOff(db: Db, current: Viewer, payload: Record<string, unknown>) {
@@ -916,39 +927,73 @@ async function submitClaim(db: Db, current: Viewer, payload: Record<string, unkn
   return ok();
 }
 
+type TradeSlot = { id: string; role: string; employeeId: string; entryDate: string; startTime: string; endTime: string };
+async function tradeSlot(db: Db, id: string) {
+  return db.prepare("SELECT s.id,s.role,s.employee_id employeeId,en.entry_date entryDate,COALESCE(NULLIF(s.start_time,''),st.start_time) startTime,COALESCE(NULLIF(s.end_time,''),st.end_time) endTime FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types st ON st.id=en.shift_type_id WHERE s.id=? AND s.status='filled'").bind(id).first<TradeSlot>();
+}
+async function validateTradePair(db: Db, slotId: string, from: string, to: string, returnSlotId: string | null) {
+  const slot = await tradeSlot(db, slotId);
+  if (!slot || slot.employeeId !== from || slot.entryDate < chicagoToday()) return "The offered shift changed or is in the past. Refresh and choose a current shift.";
+  const back = returnSlotId ? await tradeSlot(db, returnSlotId) : null;
+  if (returnSlotId && (!back || back.employeeId !== to || back.id === slot.id || back.entryDate < chicagoToday())) return "The return shift changed. Choose a current shift belonging to the receiving member.";
+  const employees = await loadEmployees(db);
+  for (const [shift, receiver] of [[slot, to], ...(back ? [[back, from] as const] : [])] as const) {
+    const employee = employees.find((e) => e.id === receiver);
+    if (!employee || (!isGeneralOneDayPosition(shift.role) && !eligibleForRole(shift.role, { roles: parseRoles(employee.roles), rank: employee.rank, actingOfficerEligible: Boolean(employee.actingOfficerEligible) }))) return "A member is no longer eligible for the shift they would receive.";
+    if (await isExplicitlyUnavailable(db, receiver, shift.entryDate, shift.startTime, shift.endTime)) return "A receiving member is unavailable for that shift.";
+    const conflict = await db.prepare("SELECT s.id FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id WHERE s.employee_id=? AND s.status='filled' AND en.entry_date=? AND s.id<>? AND s.id<>? LIMIT 1")
+      .bind(receiver, shift.entryDate, slotId, returnSlotId ?? "").first();
+    if (conflict) return "A receiving member is already scheduled that day.";
+  }
+  return null;
+}
+
 async function submitTrade(db: Db, current: Viewer, payload: Record<string, unknown>) {
-  const employeeId = actingId(current, payload);
+  const employeeId = current.employeeId;
   const slotId = String(payload.slotId ?? "");
   const targetEmployeeId = String(payload.targetEmployeeId ?? ""); // "" = broadcast
+  const returnSlotId = String(payload.returnSlotId ?? "") || null;
+  if (payload.tradeKind === "swap" && !returnSlotId) return bad("Choose the shift you will work in return.");
+  if (returnSlotId && !targetEmployeeId) return bad("Choose a specific member for a two-way swap.");
   if (!employeeId || !slotId) return bad("Choose one of your shifts.");
   const slot = await db.prepare("SELECT id,role,employee_id employeeId FROM station_shift_slots WHERE id=? AND status='filled'").bind(slotId).first<{ id: string; role: string; employeeId: string }>();
   if (!slot || slot.employeeId !== employeeId) return bad("Choose a shift you are currently assigned.", 403);
   if (targetEmployeeId) {
     if (targetEmployeeId === employeeId) return bad("Choose a different member.");
     const target = await db.prepare("SELECT p.label rank,COALESCE(ep.station_roles,'[]') roles,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1 AND COALESCE(TRIM(ep.end_date),'')=''").bind(targetEmployeeId).first<{ rank: string; roles: string; actingOfficerEligible: number }>();
-    if (!target || !eligibleForRole(slot.role, { roles: parseRoles(target.roles), rank: target.rank, actingOfficerEligible: Boolean(target.actingOfficerEligible) })) return bad("That member is not eligible for this role.", 403);
+    if (!target || (!isGeneralOneDayPosition(slot.role) && !eligibleForRole(slot.role, { roles: parseRoles(target.roles), rank: target.rank, actingOfficerEligible: Boolean(target.actingOfficerEligible) }))) return bad("That member is not eligible for this role.", 403);
   }
-  await db.prepare("INSERT INTO station_trade_requests(id,slot_id,role,from_employee_id,target_employee_id,note,status) VALUES(?,?,?,?,NULLIF(?,''),?,?)")
-    .bind(crypto.randomUUID(), slotId, slot.role, employeeId, targetEmployeeId, String(payload.note ?? "").trim(), targetEmployeeId ? "awaiting_acceptance" : "pending").run();
-  return ok();
+  const datedSlot = await tradeSlot(db, slotId);
+  if (!datedSlot || datedSlot.entryDate < chicagoToday()) return bad("Choose an upcoming shift.");
+  if (targetEmployeeId) {
+    const problem = await validateTradePair(db, slotId, employeeId, targetEmployeeId, returnSlotId);
+    if (problem) return bad(problem, 409);
+  }
+  await db.prepare("INSERT INTO station_trade_requests(id,slot_id,return_slot_id,role,from_employee_id,target_employee_id,note,status) VALUES(?,?,?,?,?,NULLIF(?,''),?,?)")
+    .bind(crypto.randomUUID(), slotId, returnSlotId, slot.role, employeeId, targetEmployeeId, String(payload.note ?? "").trim(), targetEmployeeId ? "awaiting_acceptance" : "pending").run();
+  return ok({ note: "Trade posted — waiting for member acceptance. Calendar unchanged until administrator approval." });
 }
 
 async function respondTrade(db: Db, current: Viewer, payload: Record<string, unknown>) {
-  const employeeId = actingId(current, payload);
+  // Acceptance is personal consent; an administrator cannot impersonate the recipient.
+  const employeeId = current.employeeId;
   const id = String(payload.id ?? "");
   const decision = String(payload.decision ?? "");
   if (!employeeId || !["accept", "decline"].includes(decision)) return bad("Choose accept or decline.");
-  const trade = await db.prepare("SELECT t.id,t.slot_id slotId,t.role,t.target_employee_id targetEmployeeId,t.from_employee_id fromEmployeeId,t.status FROM station_trade_requests t WHERE t.id=?").bind(id).first<{ id: string; slotId: string; role: string; targetEmployeeId: string | null; fromEmployeeId: string; status: string }>();
+  const trade = await db.prepare("SELECT t.id,t.slot_id slotId,t.return_slot_id returnSlotId,t.accepted_by_employee_id acceptedByEmployeeId,t.role,t.target_employee_id targetEmployeeId,t.from_employee_id fromEmployeeId,t.status FROM station_trade_requests t WHERE t.id=?").bind(id).first<{ id: string; slotId: string; returnSlotId: string | null; acceptedByEmployeeId: string | null; role: string; targetEmployeeId: string | null; fromEmployeeId: string; status: string }>();
   if (!trade || !["pending", "awaiting_acceptance"].includes(trade.status)) return bad("This trade is no longer open.", 409);
   if (trade.targetEmployeeId && trade.targetEmployeeId !== employeeId) return bad("This trade is directed to another member.", 403);
   if (trade.fromEmployeeId === employeeId) return bad("You cannot accept your own trade.");
+  if (trade.acceptedByEmployeeId) return bad("This trade already has an acceptance and is awaiting administrator review.", 409);
   if (decision === "decline") {
-    if (trade.targetEmployeeId === employeeId) await db.prepare("UPDATE station_trade_requests SET status='denied' WHERE id=?").bind(id).run();
+    if (trade.targetEmployeeId === employeeId) await db.batch([db.prepare("UPDATE station_trade_requests SET status='denied' WHERE id=? AND accepted_by_employee_id IS NULL AND status IN ('pending','awaiting_acceptance')").bind(id).expectChanges(1)]);
     return ok();
   }
   const emp = await db.prepare("SELECT p.label rank,COALESCE(ep.station_roles,'[]') roles,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1 AND COALESCE(TRIM(ep.end_date),'')=''").bind(employeeId).first<{ rank: string; roles: string; actingOfficerEligible: number }>();
-  if (!emp || !eligibleForRole(trade.role, { roles: parseRoles(emp.roles), rank: emp.rank, actingOfficerEligible: Boolean(emp.actingOfficerEligible) })) return bad("You are not eligible for this role.", 403);
-  await db.prepare("UPDATE station_trade_requests SET accepted_by_employee_id=?,status='awaiting_acceptance' WHERE id=?").bind(employeeId, id).run();
+  if (!emp || (!isGeneralOneDayPosition(trade.role) && !eligibleForRole(trade.role, { roles: parseRoles(emp.roles), rank: emp.rank, actingOfficerEligible: Boolean(emp.actingOfficerEligible) }))) return bad("You are not eligible for this role.", 403);
+  const problem = await validateTradePair(db, trade.slotId, trade.fromEmployeeId, employeeId, trade.returnSlotId);
+  if (problem) return bad(problem, 409);
+  await db.batch([db.prepare("UPDATE station_trade_requests SET accepted_by_employee_id=?,status='awaiting_acceptance' WHERE id=? AND accepted_by_employee_id IS NULL AND status IN ('pending','awaiting_acceptance')").bind(employeeId, id).expectChanges(1)]);
   return ok({ note: "Accepted — pending administrator approval." });
 }
 

@@ -16,7 +16,7 @@ type ShiftTypeRole = { id: string; shiftTypeId: string; role: string; count: num
 type Entry = { id: string; entryDate: string; shiftTypeId: string };
 type Slot = { id: string; entryId: string; role: string; employeeId: string | null; employeeName?: string; status: string; sortOrder: number; startTime: string; endTime: string; hasTimeOverride: number; isExtra: number; entryDate: string; shiftTypeId: string };
 type Standing = { id: string; employeeId: string; employeeName: string; shiftTypeId: string; role: string; active: number };
-type Trade = { id: string; slotId: string; role: string; fromEmployeeId: string; fromEmployeeName: string; targetEmployeeId: string | null; targetEmployeeName?: string; acceptedByEmployeeId: string | null; note: string; status: string; createdAt: string; entryDate: string };
+type Trade = { id: string; slotId: string; returnSlotId: string | null; role: string; fromEmployeeId: string; fromEmployeeName: string; targetEmployeeId: string | null; targetEmployeeName?: string; acceptedByEmployeeId: string | null; note: string; status: string; createdAt: string; entryDate: string };
 type Claim = { id: string; slotId: string; role: string; employeeId: string; employeeName: string; note: string; status: string; createdAt: string; entryDate: string };
 type TimeOff = { id: string; employeeId: string; employeeName: string; type: string; approverEmployeeId: string; approverName?: string; note: string; status: string; createdAt: string };
 type TimeOffDate = { requestId: string; offDate: string };
@@ -104,6 +104,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [selectedDate, setSelectedDate] = useState(todayIso());
+  const [tradeSlotId, setTradeSlotId] = useState("");
 
   const load = useCallback(async () => {
     setError("");
@@ -150,7 +151,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
     ["overtime", "Overtime"], ["availability", "Availability"], ["timeoff", "Time Off"], ["reminders", "Reminders"],
   ] as const;
   const employeeTabs = [
-    ["calendar", "Calendar"], ["availability", "My Availability"], ["myrequests", "My Requests"], ["otlist", "Overtime List"], ["timeoff", "Time Off"],
+    ["calendar", "Calendar"], ["availability", "My Availability"], ["myrequests", "My Requests"], ["otlist", "Overtime List"], ["trades", "Trades"],
   ] as const;
   const tabs = isAdmin ? adminTabs : employeeTabs;
 
@@ -169,7 +170,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
         <button type="button" className={!isAdmin ? "current" : ""} aria-pressed={!isAdmin} onClick={() => { setSchedulerView("employee"); setTab("calendar"); }}>My Schedule</button>
         <strong>{data.viewer.name || "Department member"}</strong>
       </div>
-      <NoticeStrip notice={data.notice} isAdmin={isAdmin} upcoming={data.slots.filter((s) => s.employeeId === data.viewer.employeeId && s.entryDate >= data.today).length} />
+      <NoticeStrip notice={{ ...data.notice, pendingTrades: isAdmin ? data.notice.pendingTrades : incomingTradesFor(data).length }} isAdmin={isAdmin} onTrades={() => setTab("trades")} upcoming={data.slots.filter((s) => s.employeeId === data.viewer.employeeId && s.entryDate >= data.today).length} />
       {error && <p className="error">{error}</p>}
       {notice && <p className="success">{notice}</p>}
       <nav className="scheduler-tabs">
@@ -178,12 +179,13 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
         ))}
       </nav>
 
-      {tab === "calendar" && <CalendarScreen data={data} isAdmin={isAdmin} selectedDate={selectedDate} setSelectedDate={setSelectedDate} act={act} busy={busy} employeeName={employeeName} shiftTypeName={shiftTypeName} />}
+      {tab === "calendar" && <CalendarScreen data={data} isAdmin={isAdmin} selectedDate={selectedDate} setSelectedDate={setSelectedDate} act={act} busy={busy} employeeName={employeeName} shiftTypeName={shiftTypeName} onTrade={(id) => { setTradeSlotId(id); setTab("trades"); }} />}
       {tab === "shiftTypes" && isAdmin && <ShiftBuilder data={data} act={act} busy={busy} />}
       {tab === "roster" && isAdmin && <RosterScreen data={data} act={act} busy={busy} shiftTypeName={shiftTypeName} />}
       {tab === "requests" && isAdmin && <RequestsScreen data={data} act={act} busy={busy} employeeName={employeeName} mode="claims" />}
       {tab === "trades" && isAdmin && <RequestsScreen data={data} act={act} busy={busy} employeeName={employeeName} mode="trades" />}
-      {tab === "timeoff" && <TimeOffScreen data={data} isAdmin={isAdmin} act={act} busy={busy} />}
+      {tab === "trades" && !isAdmin && <><TradeRequestScreen initialSlotId={tradeSlotId} data={data} act={act} busy={busy} /><MyRequestsScreen data={data} act={act} busy={busy} /></>}
+      {tab === "timeoff" && isAdmin && <TimeOffScreen data={data} isAdmin={isAdmin} act={act} busy={busy} />}
       {tab === "availability" && <AvailabilityScreen data={data} isAdmin={isAdmin} act={act} busy={busy} />}
       {tab === "overtime" && isAdmin && <OvertimeScreen data={data} act={act} busy={busy} employeeName={employeeName} />}
       {tab === "distribution" && isAdmin && <DistributionScreen data={data} act={act} busy={busy} />}
@@ -194,7 +196,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
   );
 }
 
-function NoticeStrip({ notice, isAdmin, upcoming }: { notice: Notice; isAdmin: boolean; upcoming: number }) {
+function NoticeStrip({ notice, isAdmin, upcoming, onTrades }: { notice: Notice; isAdmin: boolean; upcoming: number; onTrades: () => void }) {
   const chips = isAdmin ? [
     ["open", "Open shifts", notice.openShifts],
     ["trades", "Trades awaiting review", notice.pendingTrades],
@@ -205,14 +207,15 @@ function NoticeStrip({ notice, isAdmin, upcoming }: { notice: Notice; isAdmin: b
     ["upcoming", "My upcoming shifts", upcoming],
   ];
   return <div className={`scheduler-notice${notice.overdueShifts ? " urgent" : ""}`}>
-    {chips.map(([tone, label, count]) => <span key={String(tone)} className={`notice-chip ${tone}`}>{label}<b>{count}</b></span>)}
+    {chips.map(([tone, label, count]) => tone === "trades" ? <button type="button" key={String(tone)} className="notice-chip trades" onClick={onTrades}>{label}<b>{count}</b></button> : <span key={String(tone)} className={`notice-chip ${tone}`}>{label}<b>{count}</b></span>)}
     {notice.overdueShifts > 0 && <span className="notice-overdue">{notice.overdueShifts} past deadline</span>}
   </div>;
 }
 
-function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, busy, employeeName, shiftTypeName }: {
+function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, busy, employeeName, shiftTypeName, onTrade }: {
   data: Data; isAdmin: boolean; selectedDate: string; setSelectedDate: (d: string) => void;
   act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean; employeeName: (id: string | null | undefined) => string; shiftTypeName: (id: string) => string;
+  onTrade: (slotId: string) => void;
 }) {
   const [newShiftType, setNewShiftType] = useState("");
   const [rotationIndex, setRotationIndex] = useState(0);
@@ -421,7 +424,7 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
                             </select></label>}
                             {isAdmin && Boolean(slot.isExtra) && <ExtraDaySlotEditor key={`${slot.id}-${slot.role}-${slot.startTime}-${slot.endTime}-${slot.employeeId ?? ""}`} slot={slot} roles={data.dayPositionRoles ?? data.roles} employees={data.employees} act={act} busy={busy} />}
                             {canClaim && <button className="link" disabled={busy} onClick={() => act({ action: "submitClaim", slotId: slot.id })}>Request</button>}
-                            {canTrade && <button className="link" disabled={busy} onClick={() => act({ action: "submitTrade", slotId: slot.id, targetEmployeeId: "" })}>Offer trade</button>}
+                            {canTrade && <button className="link" disabled={busy} onClick={() => onTrade(slot.id)}>Offer trade</button>}
                           </li>
                         );
                       })}
@@ -652,6 +655,7 @@ function RequestsScreen({ data, act, busy, employeeName, mode }: { data: Data; a
           <div key={t.id} className="entry-card">
             <div className="entry-head"><strong>{t.fromEmployeeName}</strong> <span>{t.role} · {friendlyDate(t.entryDate || slotDate(t.slotId))}</span></div>
             <p className="muted">{t.targetEmployeeId ? `Directed to ${t.targetEmployeeName}` : "Open to all eligible"} · {t.acceptedByEmployeeId ? `Accepted by ${employeeName(t.acceptedByEmployeeId)}` : "Awaiting acceptance"}</p>
+            <TradeTerms trade={t} data={data} />
             <div className="row-actions">
               <button disabled={busy || !t.acceptedByEmployeeId} onClick={() => act({ action: "reviewTrade", id: t.id, decision: "approved" })}>Approve</button>
               <button className="danger" disabled={busy} onClick={() => act({ action: "reviewTrade", id: t.id, decision: "denied" })}>Deny</button>
@@ -1013,11 +1017,54 @@ function ReminderRuleEditor({ rule, act, busy }: { rule: ReminderRule; act: (b: 
   );
 }
 
+function canReceiveTrade(data: Data, employee: Employee, slot: Slot, excludedSlotId = "") {
+  return employeeEligibleForRole(employee, slot.role)
+    && !data.availability.some((a) => a.employeeId === employee.id && a.availabilityDate === slot.entryDate && availabilityOverlaps(a, slot.startTime, slot.endTime))
+    && !data.slots.some((s) => s.employeeId === employee.id && s.status === "filled" && s.entryDate === slot.entryDate && s.id !== excludedSlotId && s.id !== slot.id);
+}
+function incomingTradesFor(data: Data) {
+  const member = data.employees.find((e) => e.id === data.viewer.employeeId);
+  return data.trades.filter((t) => {
+    const slot = data.slots.find((s) => s.id === t.slotId);
+    return member && slot && slot.entryDate >= data.today && !t.acceptedByEmployeeId && t.fromEmployeeId !== member.id
+      && (!t.targetEmployeeId || t.targetEmployeeId === member.id)
+      && ["pending", "awaiting_acceptance"].includes(t.status) && canReceiveTrade(data, member, slot, t.returnSlotId ?? "");
+  });
+}
+function TradeTerms({ trade, data }: { trade: Trade; data: Data }) {
+  const back = data.slots.find((s) => s.id === trade.returnSlotId);
+  return <p className="muted">{trade.returnSlotId ? `Two-way swap: ${trade.fromEmployeeName} will work ${back ? `${friendlyDate(back.entryDate)} · ${back.startTime}–${back.endTime} · ${back.role}` : "the agreed return shift (outside the loaded calendar)"} in return.` : "Shift giveaway — no return shift owed."}{trade.note && ` Note: ${trade.note}`}</p>;
+}
+function TradeRequestScreen({ data, act, busy, initialSlotId }: { data: Data; act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean; initialSlotId: string }) {
+  const [slotId, setSlotId] = useState(initialSlotId);
+  const [targetEmployeeId, setTarget] = useState("");
+  const [tradeKind, setKind] = useState("giveaway");
+  const [returnSlotId, setReturn] = useState("");
+  const [note, setNote] = useState("");
+  const me = data.employees.find((e) => e.id === data.viewer.employeeId);
+  const mine = data.slots.filter((s) => s.employeeId === data.viewer.employeeId && s.status === "filled" && s.entryDate >= data.today && !data.trades.some((t) => t.slotId === s.id && ["pending", "awaiting_acceptance"].includes(t.status)));
+  const slot = mine.find((s) => s.id === slotId);
+  const targets = slot ? data.employees.filter((e) => e.id !== data.viewer.employeeId && employeeEligibleForRole(e, slot.role)) : [];
+  const returns = data.slots.filter((s) => s.employeeId === targetEmployeeId && s.status === "filled" && s.entryDate >= data.today && s.id !== slotId && me && canReceiveTrade(data, me, s, slotId));
+  const label = (s: Slot) => `${friendlyDate(s.entryDate)} · ${s.startTime}–${s.endTime} · ${s.role}`;
+  return <div className="scheduler-grid"><section className="wide">
+    <h3>Request a trade or give away a shift</h3>
+    <p className="muted">Choose your shift → member accepts → administrator approves → calendar updates. Posting does not change your assignment.</p>
+    {!mine.length && <p>No upcoming assigned shifts available to offer.</p>}
+    <label className="wide">Your scheduled shift<select value={slotId} onChange={(e) => { setSlotId(e.target.value); setTarget(""); setReturn(""); setKind("giveaway"); }}><option value="">Choose a shift</option>{mine.map((s) => <option key={s.id} value={s.id}>{label(s)}</option>)}</select></label>
+    <label className="wide">Offer to<select disabled={!slot} value={targetEmployeeId} onChange={(e) => { setTarget(e.target.value); setReturn(""); setKind("giveaway"); }}><option value="">All eligible members (in-app open trade)</option>{targets.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}</select></label>
+    {targetEmployeeId && <label className="wide">Trade arrangement<select value={tradeKind} onChange={(e) => { setKind(e.target.value); setReturn(""); }}><option value="giveaway">Give my shift away — no return shift</option><option value="swap">Swap — I will work one of their shifts</option></select></label>}
+    {targetEmployeeId && tradeKind === "swap" && <label className="wide">Shift you will work in return<select value={returnSlotId} onChange={(e) => setReturn(e.target.value)}><option value="">Choose their shift</option>{returns.map((s) => <option key={s.id} value={s.id}>{label(s)}</option>)}</select></label>}
+    <label className="wide">Note (optional)<textarea value={note} onChange={(e) => setNote(e.target.value)} /></label>
+    <button disabled={busy || !slot || (tradeKind === "swap" && !returnSlotId)} onClick={async () => { const result = await act({ action: "submitTrade", slotId, targetEmployeeId, tradeKind, returnSlotId: tradeKind === "swap" ? returnSlotId : null, note }); if (result) { setSlotId(""); setTarget(""); setReturn(""); setNote(""); setKind("giveaway"); } }}>{busy ? "Posting…" : "Post trade request"}</button>
+  </section></div>;
+}
+
 function MyRequestsScreen({ data, act, busy }: { data: Data; act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean }) {
   const myId = data.viewer.employeeId;
   const myClaims = data.claims.filter((c) => c.employeeId === myId);
   const myTrades = data.trades.filter((t) => t.fromEmployeeId === myId);
-  const incomingTrades = data.trades.filter((t) => (t.targetEmployeeId === myId || (t.targetEmployeeId === null && t.fromEmployeeId !== myId)) && ["pending", "awaiting_acceptance"].includes(t.status));
+  const incomingTrades = incomingTradesFor(data);
   return (
     <div className="scheduler-grid">
       <section className="wide">
@@ -1026,8 +1073,9 @@ function MyRequestsScreen({ data, act, busy }: { data: Data; act: (b: Record<str
         {incomingTrades.map((t) => (
           <div key={t.id} className="entry-card">
             <div className="entry-head"><strong>{t.fromEmployeeName}</strong> <span>{t.role} · {friendlyDate(t.entryDate)}</span></div>
+            <TradeTerms trade={t} data={data} />
             <div className="row-actions">
-              <button disabled={busy} onClick={() => act({ action: "respondTrade", id: t.id, decision: "accept" })}>Accept</button>
+              <button disabled={busy} onClick={() => act({ action: "respondTrade", id: t.id, decision: "accept" })}>Accept {t.returnSlotId ? "swap" : "shift"} — send for admin approval</button>
               <button className="danger" disabled={busy} onClick={() => act({ action: "respondTrade", id: t.id, decision: "decline" })}>Decline</button>
             </div>
           </div>
@@ -1041,7 +1089,7 @@ function MyRequestsScreen({ data, act, busy }: { data: Data; act: (b: Record<str
       <section className="wide">
         <h3>My trades</h3>
         {!myTrades.length && <p className="muted">No trades.</p>}
-        {myTrades.map((t) => <div key={t.id} className="entry-card"><strong>{t.role}</strong> · {friendlyDate(t.entryDate)} · <span className={`badge ${t.status}`}>{t.status}</span></div>)}
+        {myTrades.map((t) => <div key={t.id} className="entry-card"><strong>{t.role}</strong> · {friendlyDate(t.entryDate)} · <span className={`badge ${t.status}`}>{t.acceptedByEmployeeId && ["pending", "awaiting_acceptance"].includes(t.status) ? "Accepted — awaiting admin approval" : t.status}</span><TradeTerms trade={t} data={data} /></div>)}
       </section>
     </div>
   );

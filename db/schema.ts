@@ -645,6 +645,7 @@ export const stationStandingAssignments = sqliteTable("station_standing_assignme
 export const stationTradeRequests = sqliteTable("station_trade_requests", {
   id: text("id").primaryKey(),
   slotId: text("slot_id").notNull().references(() => stationShiftSlots.id),
+  returnSlotId: text("return_slot_id").references(() => stationShiftSlots.id),
   role: text("role").notNull(),
   fromEmployeeId: text("from_employee_id").notNull().references(() => employees.id),
   targetEmployeeId: text("target_employee_id").references(() => employees.id), // null = broadcast to all eligible
