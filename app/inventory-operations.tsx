@@ -1723,7 +1723,20 @@ export default function InventoryOperations({
               <label>Item name<input name="name" defaultValue={value(editingEquipment, "name")} required /></label>
               <label>Type<select name="equipmentCategory" defaultValue={value(editingEquipment, "equipment_category")}><option value="vehicle">Vehicle</option><option value="air_pack">Air pack</option><option value="equipment">Equipment</option></select></label>
               <label>Item / grouping type<select name="itemType" defaultValue={value(editingEquipment, "item_type") || "individual"}><option value="individual">Individual item</option><option value="kit">Kit</option><option value="bag">Bag</option><option value="toolbox">Tool box</option><option value="container">Container</option><option value="consumable">Consumable</option></select></label>
-              <label className="ops-span-2">Contained in kit, bag, or tool box<select name="parentEquipmentId" defaultValue={value(editingEquipment, "parent_equipment_id")}><option value="">Not grouped inside another item</option>{data.equipment.filter((item) => value(item, "id") !== value(editingEquipment, "id") && ["kit", "bag", "toolbox", "container"].includes(value(item, "item_type"))).map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(data.apparatus.find((apparatus) => value(apparatus, "id") === value(item, "apparatus_id")) || {}, "name")} · {value(item, "name")}</option>)}</select></label>
+              <EquipmentContainerPicker key={value(editingEquipment, "id")} item={editingEquipment} equipment={data.equipment} apparatus={data.apparatus} busy={Boolean(busy)} onCreate={async (name, itemType) => {
+                const form = equipmentEditorRef.current;
+                if (!form) throw new Error("Reopen the item editor and try again.");
+                const fields = new FormData(form);
+                setBusy("create-container");
+                try {
+                  const response = await fetch("/api/operations", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "create_equipment", name, itemType, compartmentId: fields.get("compartmentId"), equipmentCategory: "equipment", quantityRequired: 1, checkTypes: fields.getAll("checkTypes") }) });
+                  const result = await response.json() as { equipment?: Row; error?: string };
+                  if (!response.ok || !result.equipment) throw new Error(result.error || "The container could not be created.");
+                  const container = result.equipment;
+                  setData((current) => ({ ...current, equipment: [...current.equipment, container] }));
+                  return value(container, "id");
+                } finally { setBusy(""); }
+              }} />
               <label>Required quantity<input name="quantityRequired" type="number" min="1" defaultValue={value(editingEquipment, "quantity_required")} /></label>
               <label>Manufacturer<input name="manufacturer" defaultValue={value(editingEquipment, "manufacturer")} /></label>
               <label>Model<input name="model" defaultValue={value(editingEquipment, "model")} /></label>
@@ -1768,6 +1781,43 @@ export default function InventoryOperations({
       ) : null}
     </div>
   );
+}
+
+function EquipmentContainerPicker({ item, equipment, apparatus, busy, onCreate }: {
+  item: Row;
+  equipment: Row[];
+  apparatus: Row[];
+  busy: boolean;
+  onCreate: (name: string, itemType: string) => Promise<string>;
+}) {
+  const [selected, setSelected] = useState(value(item, "parent_equipment_id"));
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState("");
+  const [kind, setKind] = useState("bag");
+  const [notice, setNotice] = useState("");
+  const [failed, setFailed] = useState(false);
+  return <div className="ops-span-2">
+    <label>Contained in kit, bag, or tool box<select name="parentEquipmentId" value={selected} disabled={busy} onChange={(event) => {
+      if (event.target.value === "__create__") { setCreating(true); setNotice(""); return; }
+      setSelected(event.target.value);
+    }}>
+      <option value="">Not grouped inside another item</option>
+      {equipment.filter((entry) => value(entry, "id") !== value(item, "id") && ["kit", "bag", "toolbox", "container"].includes(value(entry, "item_type"))).map((entry) => <option key={value(entry, "id")} value={value(entry, "id")}>{value(apparatus.find((rig) => value(rig, "id") === value(entry, "apparatus_id")) || {}, "name")} · {value(entry, "name")}</option>)}
+      <option value="__create__">+ Create new kit, bag, or tool box…</option>
+    </select></label>
+    {!creating ? <button type="button" disabled={busy} onClick={() => { setCreating(true); setNotice(""); }}>Create new kit, bag, or tool box</button> : <fieldset>
+      <legend>Create container</legend>
+      <p>The container will be saved in the apparatus and compartment selected above.</p>
+      <label>Container name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Tool box, Hydrant bag, High-rise bag…" maxLength={120} disabled={busy} onKeyDown={(event) => { if (event.key === "Enter") event.preventDefault(); }} /></label>
+      <label>Container type<select value={kind} onChange={(event) => setKind(event.target.value)} disabled={busy}><option value="bag">Bag</option><option value="kit">Kit</option><option value="toolbox">Tool box</option><option value="container">Container</option></select></label>
+      <button type="button" className="ops-primary" disabled={busy || !name.trim()} onClick={() => {
+        setNotice(""); setFailed(false);
+        void onCreate(name.trim(), kind).then((id) => { setSelected(id); setCreating(false); setName(""); setNotice("Container created and selected. Click Save item to put this tool inside it."); }).catch((error: unknown) => { setFailed(true); setNotice(error instanceof Error ? error.message : "Container could not be created."); });
+      }}>{busy ? "Creating…" : "Create and select"}</button>
+      <button type="button" disabled={busy} onClick={() => setCreating(false)}>Cancel container</button>
+    </fieldset>}
+    {notice ? <p role={failed ? "alert" : "status"}>{notice}</p> : null}
+  </div>;
 }
 
 function RepairStatusControl({
