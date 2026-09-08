@@ -1370,6 +1370,7 @@ td strong { font-size: 16px; }
 .schedule-prefill-banner button { min-height: 42px; padding: 0 15px; border: 1px solid #2e6f9f; border-radius: 7px; background: #fff; color: #21597f; font-weight: 850; white-space: nowrap; }
 .logbook-fields { min-width: 0; margin: 0; padding: 0; border: 0; display: grid; gap: 22px; }
 .logbook-fields:disabled { opacity: .76; }
+.logbook-fields[hidden] { display: none; }
 .logbook-page.is-locked .logbook-fields { padding: 18px; border: 2px dashed #9a8670; border-radius: 11px; background: #f1eee8; filter: saturate(.55); }
 .logbook-page.is-locked .autosave-state { border-color: #9a8670; background: #e9e4dc; color: #665847; }
 .log-message { padding: 12px 15px; border: 1px solid #d99c9c; border-radius: 8px; background: #fff1f1; color: #8c2424; font-weight: 750; }

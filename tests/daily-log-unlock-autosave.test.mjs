@@ -7,7 +7,7 @@ test("administrator unlock immediately enables Daily Log autosave", async () => 
   const route = await readFile(new URL("../app/api/logbook/route.ts", import.meta.url), "utf8");
 
   assert.match(component, /autosaveAuthorized = useRef\(false\)/);
-  assert.match(component, /autosaveAuthorized\.current = !serverLocked \|\| serverUnlocked/);
+  assert.match(component, /autosaveAuthorized\.current = \(!serverLocked \|\| serverUnlocked\) && !conflict/);
   assert.match(component, /response\.ok && result\.adminUnlocked === true/);
   assert.match(component, /autosaveAuthorized\.current = true/);
   assert.match(component, /changes save automatically/);

@@ -24,10 +24,11 @@ test("refreshes Firefighter Close Calls from the official RSS feed", async () =>
 });
 
 test("checks each official training provider daily", async () => {
-  const [feeds, bridge, layout] = await Promise.all([
+  const [feeds, bridge, layout, parsers] = await Promise.all([
     read("app/lib/external-feeds.ts"),
     read("public/training-route.js"),
     read("app/layout.tsx"),
+    read("app/lib/training-parsers.ts"),
   ]);
 
   for (const source of [
@@ -35,7 +36,7 @@ test("checks each official training provider daily", async () => {
     "www.fsi.illinois.edu/content/courses/schedule/",
     "nipsta.org/175/Fire-Technical-Rescue-Training",
   ]) {
-    assert.match(feeds, new RegExp(source.replaceAll(".", "\\.")));
+    assert.match(feeds + parsers, new RegExp(source.replaceAll(".", "\\.")));
   }
   assert.match(bridge, /fetch\("\/api\/training-sites"/);
   assert.match(bridge, /MutationObserver/);
@@ -45,7 +46,8 @@ test("checks each official training provider daily", async () => {
   assert.match(feeds, /parseRomeovilleActivity/);
   assert.match(feeds, /parseIfsiSchedule/);
   assert.match(feeds, /parseNipstaEvents/);
-  assert.match(feeds, /stickney-training-sites-v2/);
+  assert.match(feeds, /stickney-training-sites-v3/);
+  assert.match(feeds, /sourceUrl: ifsiScheduleSource/);
   assert.match(layout, /training-route\.js/);
 });
 

@@ -98,12 +98,12 @@ test("24/7 TV mode prevents stalled refreshes and recovers after device interrup
   assert.match(app, /firehouse:tv-mode/);
   assert.match(app, /requestedDisplay === "portal"/);
   assert.match(idleLock, /stationDisplayRefreshMs = 5 \* 60 \* 1000/);
-  assert.match(idleLock, /!stationDisplay && Date\.now\(\) - lastActivity/);
+  assert.match(idleLock, /!stationDisplay && sessionIsIdle\(readActivity\(\), Date\.now\(\), inactivityLimitMs\)/);
   assert.match(idleLock, /JSON\.stringify\(\{ display: stationDisplay \? "tv" : "portal" \}\)/);
   assert.match(pinRoute, /stationDisplaySeconds = 30 \* 24 \* 60 \* 60/);
   assert.match(pinRoute, /client\.rpc\("renew_own_portal_pin_unlock"/);
   assert.match(pinRoute, /await client\.auth\.getUser\(\)/);
-  assert.match(idleLock, /if \(response\?\.status === 423\) lock\(true\)/);
+  assert.match(idleLock, /if \(!disposed && \(response\?\.status === 423 \|\| response\?\.status === 401\)\) lock\(true\)/);
   assert.match(idleLock, /const forceLock = \(\) => lock\(true\)/);
   assert.match(leaseMigration, /SECURITY DEFINER/);
   assert.match(leaseMigration, /p_user_id IS NULL/);

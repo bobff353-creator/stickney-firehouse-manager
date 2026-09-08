@@ -431,6 +431,9 @@ export default function DailyLog({
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [canUnlock, setCanUnlock] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [loadedDate, setLoadedDate] = useState<string | null>(null);
+  const loadRequest = useRef(0);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState("");
@@ -455,20 +458,25 @@ export default function DailyLog({
   const savedVersions = useRef(new Map<string, number | undefined>());
   const [saveConflict, setSaveConflict] = useState(false);
   const latestSave = useRef({ logDate, staffing, calls, shiftNotes });
-  const readOnly = (locked && !adminUnlocked) || saveConflict;
+  const readOnly = loading || loadError || loadedDate !== logDate || (locked && !adminUnlocked) || saveConflict;
   const holiday = useMemo(() => holidayForDate(logDate), [logDate]);
   useEffect(() => {
     latestSave.current = { logDate, staffing, calls, shiftNotes };
   }, [calls, logDate, shiftNotes, staffing]);
 
   const loadLog = useCallback(async (date: string) => {
+    const request = ++loadRequest.current;
     setLoading(true);
+    setLoadError(false);
+    setLoadedDate(null);
+    setLastSynced(null);
     setMessage("");
     loaded.current = false;
     autosaveAuthorized.current = false;
     try {
       const response = await fetch(`/api/logbook?date=${date}`);
       const data = (await response.json()) as LogPayload;
+      if (request !== loadRequest.current) return;
       if (!response.ok) throw new Error(data.error || "Unable to load log");
       const stored = window.localStorage.getItem(draftKey(date));
       const draft = stored ? (JSON.parse(stored) as OfflineDraft) : null;
@@ -515,38 +523,18 @@ export default function DailyLog({
       setLastSynced(
         data.log?.updatedAt ? new Date(data.log.updatedAt) : new Date(),
       );
+      setLoadedDate(date);
       window.setTimeout(() => {
-        loaded.current = true;
+        if (request === loadRequest.current) loaded.current = true;
       }, 0);
     } catch (error) {
+      if (request !== loadRequest.current) return;
+      setLoadError(true);
       setSchedulePrefilled(false);
-      const stored = window.localStorage.getItem(draftKey(date));
-      if (stored) {
-        const draft = JSON.parse(stored) as OfflineDraft;
-        const rows = [...draft.staffing];
-        for (const shift of shiftSections)
-          for (
-            let i = rows.filter((row) => row.shiftKey === shift.key).length;
-            i < 4;
-            i += 1
-          )
-            rows.push(blankStaff(shift.key, shift.defaultIn, shift.defaultOut));
-        const callRows = [...draft.calls];
-        while (callRows.length < 2) callRows.push(blankCall());
-        setStaffing(rows);
-        setCalls(callRows);
-        setShiftNotes(draft.shiftNotes);
-        setDirty(true);
-        setMessage("Offline draft restored · changes will sync when connected");
-        window.setTimeout(() => {
-          loaded.current = true;
-        }, 0);
-      } else
-        setMessage(
-          error instanceof Error ? error.message : "Unable to load log",
-        );
+      // Keep any device draft untouched until server access and version are verified.
+      setMessage(error instanceof Error ? error.message : "Unable to load log");
     } finally {
-      setLoading(false);
+      if (request === loadRequest.current) setLoading(false);
     }
   }, []);
 
@@ -554,7 +542,12 @@ export default function DailyLog({
     const timer = window.setTimeout(() => {
       void loadLog(logDate);
     }, 0);
-    return () => window.clearTimeout(timer);
+    return () => { window.clearTimeout(timer); loadRequest.current += 1; };
+  }, [loadLog, logDate]);
+  useEffect(() => {
+    const retryAfterUnlock = () => { if (!loaded.current) void loadLog(logDate); };
+    window.addEventListener("firehouse:session-unlocked", retryAfterUnlock);
+    return () => window.removeEventListener("firehouse:session-unlocked", retryAfterUnlock);
   }, [loadLog, logDate]);
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -872,7 +865,9 @@ export default function DailyLog({
     setMessage(successMessage);
   }
   async function adminUnlock() {
+    if (unlocking) return;
     setUnlocking(true);
+    try {
     const response = await fetch("/api/logbook", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -890,7 +885,11 @@ export default function DailyLog({
     } else {
       setMessage(result.error || "Unable to unlock this log.");
     }
-    setUnlocking(false);
+    } catch {
+      setMessage("Unlock could not be confirmed. Check your connection and retry.");
+    } finally {
+      setUnlocking(false);
+    }
   }
 
   if (loading)
@@ -940,14 +939,20 @@ export default function DailyLog({
             <input
               type="date"
               value={logDate}
-              onChange={(event) => setLogDate(event.target.value)}
+              onChange={(event) => {
+                if (!event.target.value) return;
+                loadRequest.current += 1;
+                loaded.current = false;
+                autosaveAuthorized.current = false;
+                setLogDate(event.target.value);
+              }}
             />
           </label>
           <div
-            className={`autosave-state ${!isOnline ? "offline" : saving ? "saving" : dirty ? "pending" : "saved"}`}
+            className={`autosave-state ${loadError ? "pending" : loading || loadedDate !== logDate ? "saving" : !isOnline ? "offline" : saving ? "saving" : dirty ? "pending" : "saved"}`}
           >
             <strong>
-              {!isOnline
+              {loadError ? "Not loaded" : loading || loadedDate !== logDate ? "Loading…" : !isOnline
                 ? "Offline"
                 : saving
                   ? "Saving…"
@@ -967,7 +972,7 @@ export default function DailyLog({
           </div>
         </div>
       </div>
-      {logAudit && (
+      {loadedDate === logDate && logAudit && (
         <RecordCredibility
           audit={{
             recordNumber: `LOG-${logDate.replaceAll("-", "")}`,
@@ -1001,7 +1006,7 @@ export default function DailyLog({
           </div>
         </div>
       )}
-      {locked && !adminUnlocked && (
+      {loadedDate === logDate && locked && !adminUnlocked && (
         <div className="locked-banner">
           <div>
             <strong>🔒 Daily log locked</strong>
@@ -1017,7 +1022,7 @@ export default function DailyLog({
           )}
         </div>
       )}
-      {adminUnlocked && locked && (
+      {loadedDate === logDate && adminUnlocked && locked && (
         <div className="admin-banner">
           Administrator editing is enabled for this locked log.
         </div>
@@ -1049,7 +1054,11 @@ export default function DailyLog({
           {message}
         </div>
       )}
-      {saveConflict && <div className="admin-banner" role="alert">
+      {loadError && <div className="admin-banner" role="alert">
+        This date could not be loaded. Editing is disabled; any device draft is kept unchanged. Unlock the portal if requested, then retry.
+        <button type="button" onClick={() => void loadLog(logDate)}>Retry loading log</button>
+      </div>}
+      {loadedDate === logDate && saveConflict && <div className="admin-banner" role="alert">
         Saving is paused. Keep a copy of your draft before loading the current saved log.
         <button onClick={() => {
           const draft = JSON.stringify({ ...latestSave.current, expectedVersion: savedVersions.current.get(logDate), savedAt: new Date().toISOString() });
@@ -1077,7 +1086,7 @@ export default function DailyLog({
         onConfirm={() => void adminUnlock()}
       />
 
-      <fieldset className="logbook-fields" disabled={readOnly}>
+      <fieldset className="logbook-fields" disabled={readOnly} hidden={loadedDate !== logDate}>
         <div className="shift-card-grid">
           {shiftSections.map((shift) => {
             const rows = staffing.filter((row) => row.shiftKey === shift.key);
