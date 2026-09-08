@@ -57,12 +57,20 @@ test("compact TV panels fit without internal staffing scrollbars or oversized he
   assert.match(styles, /\.operations-board \.board-panel > header \{ min-height: 44px/);
   assert.match(styles, /\.operations-board\.tv-display \.board-panel > header \{ min-height: 32px/);
   assert.match(styles, /\.tv-display \.schedule-24-list \{[^}]*overflow: hidden/);
-  assert.match(styles, /\.tv-display \.new-member-photo \{ width: 68px; height: 82px/);
+  assert.match(styles, /\.tv-display \.staffing-rotation-panel \.new-member-photo \{ width: 100%; height: 100%; min-height: 100px/);
   assert.match(styles, /\.tv-display \.board-alert \{ display: none; \}/);
   assert.match(staffing, /current\.shift\.items\.slice\(\(current\.page \?\? 0\) \* 6/);
   assert.match(staffing, /remaining members rotate automatically/);
   assert.match(staffing, /Upcoming crew ·/);
   assert.match(staffing, /No members assigned to this time slot/);
+});
+
+test("staffing uses content height while the river card fills reclaimed space", async () => {
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(styles, /\.board-grid\.redesigned \{ grid-template-rows: minmax\(230px,1fr\) auto/);
+  assert.match(styles, /\.staffing-rotation-panel \{ position: relative; min-height: 0/);
+  assert.match(styles, /\.chief-board-panel > \.chief-board-content \{ flex: 1; align-content: stretch/);
+  assert.match(styles, /\.staffing-rotation-panel \.new-member-photo img \{ position: absolute; inset: 0; object-position: center top/);
 });
 
 test("TV close-call cards reserve room for headlines and links instead of overflowing summaries", async () => {
