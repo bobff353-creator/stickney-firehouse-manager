@@ -14,7 +14,14 @@
 .correction-requests article { padding: 14px 0; border-top: 1px solid #c8d4dc; }
 .callback-search { display: grid; gap: 6px; font-weight: 700; }
 .callback-search input { width: 100%; min-height: 44px; padding: 10px; border: 1px solid #8ca7b7; border-radius: 6px; font: inherit; }
-.callback-panel .callback-employee-list { max-height: 48vh; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
+.callback-panel .callback-employee-list { max-height: 48vh; overflow-y: auto; overscroll-behavior: contain; padding: 2px; grid-auto-rows: max-content; align-content: start; }
+/* Scroll the roster, never compress the member details into short grid rows. */
+.callback-panel .callback-employee-list > label { height: auto; min-width: 0; align-items: flex-start; font-size: 14px; line-height: 1.4; }
+.callback-panel .callback-employee-list > label > input { margin-top: 3px; }
+.callback-panel .callback-employee-list > label > span { display: flex; flex-direction: column; min-width: 0; gap: 4px; overflow-wrap: anywhere; }
+.callback-panel .callback-employee-list small { font-size: 13px; line-height: 1.4; }
+.callback-panel .callback-employee-list > label:has(input:checked) { background: #edf5fa; border-color: #1674aa; }
+.callback-panel .callback-employee-list > label:focus-within { outline: 2px solid #1674aa; outline-offset: -2px; }
 .callback-submit-bar { padding: 8px 0; background: #fff; }
 .call-callback > .callback-message { margin: 0; padding: 10px 14px; background: #edf5fa; color: #12354a; }
 .fleet-check-links { display: grid; gap: 7px; }
