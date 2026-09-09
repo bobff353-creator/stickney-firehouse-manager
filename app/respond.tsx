@@ -685,6 +685,7 @@ export default function Respond({
   const [cachedAt, setCachedAt] = useState("");
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const requestInFlight = useRef(false);
+  const lastPacketRevision = useRef({ apparatus: "", revision: "" });
   const [isOnline, setIsOnline] = useState(true);
   const [crewProgress, setCrewProgress] = useState<RespondProgress | null>(null);
   const [progressError, setProgressError] = useState("");
@@ -707,11 +708,22 @@ export default function Respond({
         : "";
       const response = await fetch(`/api/respond${query}`, {
         cache: "no-store",
+        headers: lastPacketRevision.current.apparatus === apparatus && lastPacketRevision.current.revision
+          ? { "x-respond-revision": lastPacketRevision.current.revision }
+          : {},
         signal: AbortSignal.timeout(15000),
       });
+      if (response.status === 204) {
+        setLastRefresh(new Date());
+        setRespondSource("live");
+        setCachedAt("");
+        setError("");
+        return;
+      }
       const body = (await response.json()) as RespondData & { error?: string };
       if (!response.ok)
         throw new Error(body.error || "Unable to load Respond.");
+      lastPacketRevision.current = { apparatus, revision: response.headers.get("x-respond-revision") || "" };
       departmentIdRef.current = body.departmentId;
       setData(body);
       setLastRefresh(new Date());
@@ -733,6 +745,7 @@ export default function Respond({
         );
       }
     } catch (value) {
+      lastPacketRevision.current = { apparatus: "", revision: "" };
       const departmentId = departmentIdRef.current;
       if (departmentId) {
         const cached = await getCachedRespondPacket<RespondData>(

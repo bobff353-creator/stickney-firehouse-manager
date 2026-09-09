@@ -1,4 +1,5 @@
 import { ensureDatabase } from "../../../db/bootstrap";
+import { createHash } from "node:crypto";
 import { chicagoOperationalContext } from "../../operational-day";
 import {
   distanceFeet,
@@ -64,6 +65,15 @@ export async function GET(request: Request) {
         dailyLogCalls.results.find((call) =>
           respondingUnitsIncludeUnit(call.respondingUnits, apparatus),
         ) ?? null;
+    }
+    // Recheck authority and live calls on every poll. Only skip reference-data
+    // loading for this client's unchanged packet, for at most 30 seconds.
+    const revision = createHash("sha256").update(JSON.stringify([
+      departmentId, apparatus, activeCall, Math.floor(Date.now() / 30_000),
+    ])).digest("hex");
+    const responseHeaders = { "cache-control": "private, no-store", "x-respond-revision": revision };
+    if (request.headers.get("x-respond-revision") === revision) {
+      return new Response(null, { status: 204, headers: responseHeaders });
     }
     const [recentRows, recentLocationRows] = await Promise.all([
       db
@@ -225,7 +235,7 @@ export async function GET(request: Request) {
           departmentId,
           generatedAt: new Date().toISOString(),
         },
-        { headers: { "cache-control": "no-store" } },
+        { headers: responseHeaders },
       );
     }
 
@@ -530,7 +540,7 @@ export async function GET(request: Request) {
         departmentId,
         generatedAt: new Date().toISOString(),
       },
-      { headers: { "cache-control": "no-store" } },
+      { headers: responseHeaders },
     );
   } catch (error) {
     return Response.json(
