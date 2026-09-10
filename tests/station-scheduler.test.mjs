@@ -173,7 +173,7 @@ test("calendar day view manages one-day openings and assignments without changin
   ]);
 
   assert.equal(component.includes('setDayViewOpen(true)'), true, "clicking a day opens its focused view");
-  assert.equal(component.includes('role="dialog"'), true);
+  assert.equal(component.includes('role={adminDayMode ? "region" : "dialog"}'), true);
   assert.equal(component.includes("+ Add one-day position"), true);
   assert.equal(component.includes("Start (24-hour)"), true);
   assert.equal(component.includes("Post as open position"), true);
@@ -182,7 +182,8 @@ test("calendar day view manages one-day openings and assignments without changin
   assert.equal(route.includes("dayPositionRoles: ONE_DAY_POSITION_ROLES"), true, "the API publishes the two one-day-only position choices");
   assert.equal(route.includes("isOneDayPositionRole(role)"), true, "the API accepts the expanded list for one-day additions and edits");
   assert.equal(route.includes("if (isGeneralOneDayPosition(role)) return isSchedulableEmployee"), true, "active employees can be manually assigned to general one-day positions");
-  assert.equal(component.includes('value={slot.employeeId ?? ""}'), true, "admin can replace or clear a daily assignment");
+  assert.equal(component.includes('value={selected}'), true, "admin stages a daily assignment before saving");
+  assert.equal(component.includes('Save assignment'), true);
   assert.equal(styles.includes(".scheduler-day-dialog"), true);
   assert.equal(styles.includes("max-height: 100dvh"), true, "day view remains usable on phones");
 
