@@ -1,4 +1,6 @@
 /* Task-first member screens; preserve the full administrator calendar. */
+.scheduler-navigation-anchor { scroll-margin-top: 90px; }
+.scheduler .scheduler-mobile-picker { display: none; }
 .scheduler .scheduler-member-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
 .scheduler nav.scheduler-member-tabs button { min-height: 48px; padding: 10px 16px; border: 1px solid var(--sched-line); border-radius: 8px; background: #172634; color: #dce8ef; }
 .scheduler nav.scheduler-member-tabs button.current { background: #233e53; border-color: #77bfe4; color: #fff; }
@@ -17,7 +19,10 @@
 .scheduler-request-confirm { max-width: 360px; }
 .scheduler button:focus-visible { outline: 3px solid #8fd6ff; outline-offset: 3px; }
 @media (max-width: 700px) {
-  .scheduler .scheduler-member-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .scheduler .scheduler-member-tabs { display: none; }
+  .scheduler .scheduler-mobile-picker { display: flex; align-items: center; gap: 10px; margin: 8px 0 12px; }
+  .scheduler .scheduler-mobile-picker > span { flex: 0 0 auto; font-size: 12px; font-weight: 700; }
+  .scheduler .scheduler-mobile-picker select { min-width: 0; width: 100%; min-height: 44px; padding: 8px 10px; font-size: 16px; }
   .scheduler .scheduler-member-tabs button { white-space: normal; font-size: 14px; }
   .scheduler-member-shift { align-items: stretch; flex-direction: column; gap: 12px; }
   .scheduler-member-list { padding: 14px; }

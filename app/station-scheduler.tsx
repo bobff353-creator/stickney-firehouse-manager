@@ -2,7 +2,7 @@
 
 import "./scheduler-member.css";
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { normalizeScheduleTime, scheduleTimeBlocks } from "./schedule-time";
 import { recurringShiftOccursOnDate } from "./station-scheduler-logic";
 import { expandAvailabilityDates } from "./availability-repeat";
@@ -102,7 +102,20 @@ const employeeEligibleForRole = (employee: Employee, role: string) => {
 export default function StationScheduler({ testMember = null }: { testMember?: TestMember | null }) {
   void testMember;
   const [data, setData] = useState<Data | null>(null);
-  const [tab, setTab] = useState("myshifts");
+  const [tab, setTabState] = useState("myshifts");
+  const navigationRef = useRef<HTMLDivElement>(null);
+  const navigationRequested = useRef(false);
+  const setTab = useCallback((next: string) => {
+    navigationRequested.current = true;
+    setTabState(next);
+  }, []);
+  useEffect(() => {
+    if (!navigationRequested.current) return;
+    navigationRequested.current = false;
+    if (window.matchMedia("(max-width: 700px)").matches) {
+      navigationRef.current?.scrollIntoView({ block: "start", behavior: "instant" });
+    }
+  }, [tab]);
   const [schedulerView, setSchedulerView] = useState<"admin" | "employee">("employee");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -186,11 +199,16 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
       {isAdmin && <NoticeStrip notice={data.notice} isAdmin={isAdmin} onTrades={() => setTab("trades")} upcoming={0} />}
       {error && <p className="error" role="alert">{error}</p>}
       {notice && <p className="success" role="status">{notice}</p>}
+      <div ref={navigationRef} className="scheduler-navigation-anchor">
+      {!isAdmin && <label className="scheduler-mobile-picker"><span>Scheduling</span><select aria-label="Choose scheduling screen" value={tab} onChange={(event) => setTab(event.target.value)}>
+        {employeeTabs.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+      </select></label>}
       <nav className={`scheduler-tabs${!isAdmin ? " scheduler-member-tabs" : ""}`} aria-label="Scheduling tasks">
         {tabs.map(([id, label]) => (
           <button key={id} aria-current={tab === id ? "page" : undefined} className={tab === id ? "current" : ""} onClick={() => setTab(id)}>{label}</button>
         ))}
       </nav>
+      </div>
 
       {!isAdmin && !data.viewer.employeeId && <p role="status">Your login is not linked to a member record. Ask an administrator to link it before making personal requests. Administrator tools remain available above.</p>}
       {tab === "myshifts" && !isAdmin && <MemberShifts data={data} onOpen={() => setTab("open")} onTrade={(id) => { setTradeSlotId(id); setTab("trades"); }} />}

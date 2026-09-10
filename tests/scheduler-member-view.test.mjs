@@ -5,6 +5,19 @@ import ts from 'typescript';
 const source = await readFile(new URL('../app/scheduler-member-view.ts', import.meta.url), 'utf8');
 const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText;
 const { memberShiftList, shiftTimeLabel, canRequestRole, shiftHasNotStarted } = await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
+test('mobile navigation uses one labeled picker and scrolls only after a requested screen change', async () => {
+  const component = await readFile(new URL('../app/station-scheduler.tsx', import.meta.url), 'utf8');
+  const styles = await readFile(new URL('../app/scheduler-member.css', import.meta.url), 'utf8');
+  assert.ok(component.includes('aria-label="Choose scheduling screen"'));
+  assert.ok(component.includes('employeeTabs.map(([id, label]) => <option'));
+  assert.ok(component.includes('if (!navigationRequested.current) return;'));
+  assert.ok(component.includes('window.matchMedia("(max-width: 700px)").matches'));
+  assert.ok(component.includes('scrollIntoView({ block: "start", behavior: "instant" })'));
+  assert.ok(styles.includes('.scheduler .scheduler-mobile-picker { display: none; }'));
+  const mobile = styles.split('@media (max-width: 700px)')[1];
+  assert.ok(mobile.includes('.scheduler .scheduler-member-tabs { display: none; }'));
+  assert.ok(mobile.includes('min-height: 44px'));
+});
 test('open requests exclude started shifts using Central time in summer and winter', () => {
   assert.equal(shiftHasNotStarted('2026-09-09', '0600', new Date('2026-09-09T12:00:00Z')), false);
   assert.equal(shiftHasNotStarted('2026-09-09', '18:00', new Date('2026-09-09T12:00:00Z')), true);
