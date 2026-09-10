@@ -1,7 +1,10 @@
+import { staffingRoles } from "./staffing-eligibility";
+
 export type ScheduleQualification = {
   rank: string;
   actingOfficerEligible: number | boolean;
   driverStatus?: string | null;
+  singleRole?: number | boolean;
 };
 
 const normalized = (value: string | null | undefined) => (value ?? "").trim().toLowerCase();
@@ -12,12 +15,10 @@ export const isSingleRoleFirefighter = (rank: string) => /\b(single[-\s]*role|te
 
 export function qualifiedForScheduleRole(employee: ScheduleQualification, role: string) {
   const position = normalized(role);
-  const driverStatus = normalized(employee.driverStatus);
-  const officerEligible = isOfficerRank(employee.rank) || Boolean(employee.actingOfficerEligible);
-
-  if (isOfficerPosition(role)) return officerEligible;
-  if (/\b(driver\/engineer|engine driver|engineer|apparatus driver)\b/i.test(position)) return driverStatus === "cleared";
-  if (/\bambulance driver\b/i.test(position)) return driverStatus === "cleared" || driverStatus === "ambulance only";
-  if (/\bambulance attendant\b/i.test(position)) return !isSingleRoleFirefighter(employee.rank);
+  const roles = staffingRoles(employee);
+  if (isOfficerPosition(role)) return roles.includes("Officer/AO");
+  if (/\b(driver\/engineer|engine driver|engineer|apparatus driver)\b/i.test(position)) return roles.includes("Engine Driver");
+  if (/\bambulance driver\b/i.test(position)) return roles.includes("Ambulance Driver");
+  if (/\b(ambulance attendant|ff\/attendant)\b/i.test(position)) return roles.includes("FF/Attendant");
   return true;
 }

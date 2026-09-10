@@ -9,12 +9,12 @@ const missing = async (path) => {
   catch { return true; }
 };
 
-test("member navigation hides Overtime List while retaining administrator overtime tools", async () => {
+test("member and admin navigation omit overtime without deleting historical tools", async () => {
   const component = await read("../app/station-scheduler.tsx");
   const memberTabs = component.split("const employeeTabs = [")[1].split("] as const;")[0];
   assert.equal(memberTabs.includes("Overtime List"), false);
   assert.equal(memberTabs.includes('"otlist"'), false);
-  assert.equal(component.includes('["overtime", "Overtime"]'), true);
+  assert.equal(component.includes('["overtime", "Overtime"]'), false);
 });
 
 async function loadSchedulerLogic() {
@@ -59,7 +59,7 @@ test("scheduler uses the scoped Stickney mobile workspace instead of prototype b
 
   assert.equal(component.includes("Stickney Scheduler"), true);
   assert.equal(component.includes("Station 14"), false);
-  for (const label of ["Calendar", "Shift Builder", "Roster & Assignments", "Trades", "Requests", "Auto-Distribution", "Overtime", "Availability", "Reminders"]) {
+  for (const label of ["Calendar", "Shift Builder", "Roster & Assignments", "Trades", "Requests", "Auto-Distribution", "Availability", "Reminders"]) {
     assert.equal(component.includes(`\"${label}\"`), true, `${label} remains available`);
   }
   assert.equal(component.includes("scheduler-month"), true);
@@ -178,7 +178,7 @@ test("calendar day view manages one-day openings and assignments without changin
   assert.equal(component.includes("Start (24-hour)"), true);
   assert.equal(component.includes("Post as open position"), true);
   assert.equal(component.includes("data.dayPositionRoles ?? data.roles"), true, "the one-day form uses its expanded position list");
-  assert.match(route, /const ONE_DAY_POSITION_ROLES = \[\.\.\.STATION_ROLES, "Firefighter", "Training\/Orientation"\]/);
+  assert.match(route, /const ONE_DAY_POSITION_ROLES = \[\.\.\.STATION_ROLES, "Extra member", "Firefighter", "Training\/Orientation"\]/);
   assert.equal(route.includes("dayPositionRoles: ONE_DAY_POSITION_ROLES"), true, "the API publishes the two one-day-only position choices");
   assert.equal(route.includes("isOneDayPositionRole(role)"), true, "the API accepts the expanded list for one-day additions and edits");
   assert.equal(route.includes("if (isGeneralOneDayPosition(role)) return isSchedulableEmployee"), true, "active employees can be manually assigned to general one-day positions");
@@ -204,14 +204,14 @@ test("calendar day view manages one-day openings and assignments without changin
   assert.equal(route.includes("SET start_time=?,end_time=? WHERE id=? AND is_extra=0"), true, "the override updates only the selected built position");
 });
 
-test("Roster & Assignments Officer/AO clearance controls firefighter eligibility", async () => {
+test("Employees qualifications control scheduler eligibility", async () => {
   const [component, route] = await Promise.all([
     read("../app/station-scheduler.tsx"),
     read("../app/api/station-scheduler/route.ts"),
   ]);
-  assert.equal(component.includes('if (role === "Officer/AO") return /\\b(chief|captain|lieutenant)\\b/i.test(employee.rank) || parseRoles(employee.roles).includes(role);'), true, "the dropdown accepts commissioned officers or firefighters checked Officer/AO in Roster & Assignments");
-  assert.equal(route.includes('if (role === "Officer/AO") return officerRank(emp.rank) || emp.roles.includes(role);'), true, "the protected assignment API uses the same roster clearance");
-  assert.equal(route.includes('if (officerRank(employee?.rank ?? "") && !roles.includes("Officer/AO")) roles.push("Officer/AO");'), true, "commissioned officers remain automatically eligible by rank");
+  assert.equal(component.includes('Qualifications are managed on Employees.'), true);
+  assert.equal(route.includes('staffingRoles(emp).includes(role)'), true);
+  assert.equal(route.includes('JSON.stringify(staffingRoles(employee))'), true);
 });
 
 test("OT logic exposes ranking, exemptions, award windows, and distribution", async () => {

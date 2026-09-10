@@ -21,14 +21,14 @@ type ShiftPattern = {
 type StaffingOverride = {
   id: string; patternId: string; name: string; conditionType: string; role: string; minimumStaff: number; active: number;
 };
-type EligibleEmployee = { id:string; rank:string; actingOfficerEligible:number; driverStatus:string };
-const qualifiedForRole = (role: string, employee: Pick<EligibleEmployee,"rank"|"actingOfficerEligible"|"driverStatus">) =>
+type EligibleEmployee = { id:string; rank:string; actingOfficerEligible:number; driverStatus:string;singleRole:number };
+const qualifiedForRole = (role: string, employee: Pick<EligibleEmployee,"rank"|"actingOfficerEligible"|"driverStatus"|"singleRole">) =>
   qualifiedForScheduleRole(employee, role);
 
 async function viewer(db: Db, request: Request) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
   const employee = email
-    ? await db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.email,'') profileEmail,COALESCE(ep.phone,'') phone,COALESCE(ep.schedule_sms_opt_in,0) smsOptIn,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus,COALESCE(ep.is_admin,0) isAdmin FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(ep.email)=? LIMIT 1").bind(email).first<{id:string;name:string;rank:string;profileEmail:string;phone:string;smsOptIn:number;actingOfficerEligible:number;driverStatus:string;isAdmin:number}>()
+    ? await db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.email,'') profileEmail,COALESCE(ep.phone,'') phone,COALESCE(ep.schedule_sms_opt_in,0) smsOptIn,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus,COALESCE(ep.single_role,0) singleRole,COALESCE(ep.is_admin,0) isAdmin FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(ep.email)=? LIMIT 1").bind(email).first<{id:string;name:string;rank:string;profileEmail:string;phone:string;smsOptIn:number;actingOfficerEligible:number;driverStatus:string;singleRole:number;isAdmin:number}>()
     : null;
   return {
     email,
@@ -40,6 +40,7 @@ async function viewer(db: Db, request: Request) {
     smsOptIn: Boolean(employee?.smsOptIn),
     actingOfficerEligible: Boolean(employee?.actingOfficerEligible),
     driverStatus: employee?.driverStatus ?? "",
+    singleRole: employee?.singleRole ?? 0,
     isAdmin: ownerAdminEmails.includes(email) || Boolean(employee?.isAdmin),
   };
 }
@@ -68,7 +69,7 @@ const employeeEligibleForAssignment = (employee: EligibleEmployee, assignment: A
 
 async function eligibleTradeCandidates(db: Db, assignment: Assignment, ownerId: string) {
   const [employees, busyAssignments] = await Promise.all([
-    db.prepare("SELECT e.id,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1").all<EligibleEmployee>(),
+    db.prepare("SELECT e.id,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus,COALESCE(ep.single_role,0) singleRole FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1").all<EligibleEmployee>(),
     db.prepare("SELECT id,employee_id employeeId,work_date workDate,start_time startTime,end_time endTime,role,source,status,emergency,required_rank requiredRank,claim_deadline claimDeadline,notes FROM schedule_assignments WHERE status='assigned' AND date(work_date) BETWEEN date(?,'-1 day') AND date(?,'+1 day')").bind(assignment.workDate, assignment.workDate).all<Assignment>(),
   ]);
   return employees.results.filter((employee) => employeeEligibleForAssignment(employee, assignment, ownerId, busyAssignments.results));
@@ -209,7 +210,7 @@ export async function GET(request: Request) {
     const requestedTestEmployeeId = current.isAdmin ? new URL(request.url).searchParams.get("testEmployeeId") ?? "" : "";
     const employeeId = requestedTestEmployeeId || current.employeeId || "";
     const [employees, assignments, rotations, requests, notifications, rules, patterns, overrides, notificationRules, tradeBusyAssignments, visibilitySetting, payScales, distributionSetting] = await Promise.all([
-      db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.email,'') email,COALESCE(ep.phone,'') phone,COALESCE(ep.schedule_sms_opt_in,0) scheduleSmsOptIn,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus,COALESCE(e.sort_order,999) sortOrder FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 ORDER BY e.sort_order,e.name COLLATE NOCASE").all(),
+      db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.email,'') email,COALESCE(ep.phone,'') phone,COALESCE(ep.schedule_sms_opt_in,0) scheduleSmsOptIn,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus,COALESCE(ep.single_role,0) singleRole,COALESCE(e.sort_order,999) sortOrder FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 ORDER BY e.sort_order,e.name COLLATE NOCASE").all(),
       current.isAdmin
         ? db.prepare("SELECT a.id,a.employee_id employeeId,e.name employeeName,a.work_date workDate,a.start_time startTime,a.end_time endTime,a.role,a.source,a.status,a.emergency,a.required_rank requiredRank,a.claim_deadline claimDeadline,a.notes FROM schedule_assignments a LEFT JOIN employees e ON e.id=a.employee_id WHERE date(a.work_date)>=date('now','-45 day') AND a.status<>'cancelled' ORDER BY a.work_date,a.start_time").all<Assignment>()
         : db.prepare("SELECT a.id,a.employee_id employeeId,e.name employeeName,a.work_date workDate,a.start_time startTime,a.end_time endTime,a.role,a.source,a.status,a.emergency,a.required_rank requiredRank,a.claim_deadline claimDeadline,a.notes FROM schedule_assignments a LEFT JOIN employees e ON e.id=a.employee_id WHERE date(a.work_date)>=date('now','-45 day') AND a.status<>'cancelled' AND (a.employee_id=? OR a.status='open') ORDER BY a.work_date,a.start_time").bind(employeeId).all<Assignment>(),
@@ -361,7 +362,7 @@ export async function POST(request: Request) {
       }
       const requiredPosition = await db.prepare("SELECT id,plan_id planId,name,start_time startTime,end_time endTime,role FROM schedule_coverage_rules WHERE active=1 AND lower(role)=lower(?) AND ((plan_id<>'' AND plan_id=?) OR id=?) LIMIT 1").bind(role, coveragePlanId, coveragePlanId).first<{id:string;planId:string;name:string;startTime:string;endTime:string;role:string}>();
       if (!requiredPosition) return Response.json({ error: "Choose a position from the selected active minimum staffing plan." }, { status: 400 });
-      const employee = await db.prepare("SELECT e.id,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1").bind(employeeIds[0]).first<EligibleEmployee>();
+      const employee = await db.prepare("SELECT e.id,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus,COALESCE(ep.single_role,0) singleRole FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1").bind(employeeIds[0]).first<EligibleEmployee>();
       if (!employee) return Response.json({ error: "Choose an active employee." }, { status: 400 });
       if (!qualifiedForRole(requiredPosition.role, employee)) return Response.json({ error: "This employee is not cleared to work the selected position." }, { status: 403 });
       const rotationId = crypto.randomUUID();
@@ -517,7 +518,7 @@ export async function POST(request: Request) {
       }
 
       const [employeeRows, assignmentRows, requestRows, ruleRows, patternRows, overrideRows, distributionSetting] = await Promise.all([
-        db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus,COALESCE(e.sort_order,999) sortOrder FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 ORDER BY e.sort_order,e.name COLLATE NOCASE").all<GeneratorEmployee>(),
+        db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus,COALESCE(ep.single_role,0) singleRole,COALESCE(e.sort_order,999) sortOrder FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 ORDER BY e.sort_order,e.name COLLATE NOCASE").all<GeneratorEmployee>(),
         db.prepare("SELECT id,employee_id employeeId,work_date workDate,start_time startTime,end_time endTime,role,source,status FROM schedule_assignments WHERE status IN ('assigned','open') AND date(work_date) BETWEEN date(?,'-45 day') AND date(?,'+1 day')").bind(startDate, endDate).all<GeneratorAssignment>(),
         db.prepare("SELECT id,request_type requestType,employee_id employeeId,start_date startDate,end_date endDate,start_time startTime,end_time endTime,role,repeat_mode repeatMode,repeat_interval repeatInterval,status,created_at createdAt FROM schedule_requests WHERE request_type IN ('availability','time_off') AND status IN ('pending','approved') AND date(start_date)<=date(?) AND date(end_date)>=date(?)").bind(endDate, startDate).all<GeneratorRequest>(),
         db.prepare("SELECT id,plan_id planId,name,role,minimum_staff minimumStaff,start_time startTime,end_time endTime,days_of_week daysOfWeek,active FROM schedule_coverage_rules WHERE active=1").all<GeneratorCoverageRule>(),
@@ -600,7 +601,7 @@ export async function POST(request: Request) {
         return Response.json({ error: "Enter a date, times, position, and a valid response deadline." }, { status: 400 });
       }
       if (employeeId) {
-        const employee = await db.prepare("SELECT e.id,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1").bind(employeeId).first<EligibleEmployee>();
+        const employee = await db.prepare("SELECT e.id,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus,COALESCE(ep.single_role,0) singleRole FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1").bind(employeeId).first<EligibleEmployee>();
         if (!employee) return Response.json({ error: "Choose an active employee." }, { status: 400 });
         if (!qualifiedForRole(role, employee)) return Response.json({ error: "This employee is not cleared to work this position." }, { status: 403 });
       }
@@ -609,7 +610,7 @@ export async function POST(request: Request) {
       const recipients = employeeId ? [employeeId] : await (async () => {
         const opening: Assignment = { id: "new-open-shift", employeeId: null, workDate, startTime, endTime, role, source: "manual", status: "open", emergency: emergency ? 1 : 0, requiredRank, claimDeadline, notes };
         const [candidates, busyAssignments] = await Promise.all([
-          db.prepare("SELECT e.id,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1").all<EligibleEmployee>(),
+          db.prepare("SELECT e.id,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus,COALESCE(ep.single_role,0) singleRole FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1").all<EligibleEmployee>(),
           db.prepare("SELECT id,employee_id employeeId,work_date workDate,start_time startTime,end_time endTime,role,source,status,emergency,required_rank requiredRank,claim_deadline claimDeadline,notes FROM schedule_assignments WHERE status='assigned' AND date(work_date) BETWEEN date(?,'-1 day') AND date(?,'+1 day')").bind(workDate, workDate).all<Assignment>(),
         ]);
         return candidates.results.filter((candidate) => employeeEligibleForAssignment(candidate, opening, "", busyAssignments.results)).map((candidate) => candidate.id);
@@ -646,7 +647,7 @@ export async function POST(request: Request) {
       if (requestType === "shift_claim") {
         const [openShift, employee, busyAssignments] = await Promise.all([
           resolveOpenAssignment(db, assignmentId, actingName),
-          db.prepare("SELECT e.id,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1").bind(employeeId).first<EligibleEmployee>(),
+          db.prepare("SELECT e.id,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus,COALESCE(ep.single_role,0) singleRole FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1").bind(employeeId).first<EligibleEmployee>(),
           db.prepare("SELECT id,employee_id employeeId,work_date workDate,start_time startTime,end_time endTime,role,source,status,emergency,required_rank requiredRank,claim_deadline claimDeadline,notes FROM schedule_assignments WHERE status='assigned' AND employee_id=? AND date(work_date)>=date('now','-1 day')").bind(employeeId).all<Assignment>(),
         ]);
         if (!openShift || openShift.status !== "open") return Response.json({ error: "That shift is no longer open." }, { status: 409 });
@@ -699,7 +700,7 @@ export async function POST(request: Request) {
       if (decision === "approved" && item.assignmentId && item.requestType === "shift_claim") {
         const [assignment, qualification, busyAssignments] = await Promise.all([
           db.prepare("SELECT id,employee_id employeeId,work_date workDate,start_time startTime,end_time endTime,role,source,status,emergency,required_rank requiredRank,claim_deadline claimDeadline,notes FROM schedule_assignments WHERE id=?").bind(item.assignmentId).first<Assignment>(),
-          db.prepare("SELECT e.id,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1").bind(item.employeeId).first<EligibleEmployee>(),
+          db.prepare("SELECT e.id,p.label rank,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible,COALESCE(ep.driver_status,'') driverStatus,COALESCE(ep.single_role,0) singleRole FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1").bind(item.employeeId).first<EligibleEmployee>(),
           db.prepare("SELECT id,employee_id employeeId,work_date workDate,start_time startTime,end_time endTime,role,source,status,emergency,required_rank requiredRank,claim_deadline claimDeadline,notes FROM schedule_assignments WHERE status='assigned' AND employee_id=? AND date(work_date)>=date('now','-1 day')").bind(item.employeeId).all<Assignment>(),
         ]);
         if (!assignment || !qualification || !employeeEligibleForAssignment(qualification, assignment, "", busyAssignments.results)) return Response.json({ error: "The employee is no longer cleared and available for this open position." }, { status: 403 });

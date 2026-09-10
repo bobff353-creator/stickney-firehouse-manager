@@ -18,7 +18,7 @@ type Employee = {
 type ShiftType = { id: string; name: string; startTime: string; endTime: string; anchorDate: string; repeatEveryDays: number; color: string; active: number; sortOrder: number };
 type ShiftTypeRole = { id: string; shiftTypeId: string; role: string; count: number };
 type Entry = { id: string; entryDate: string; shiftTypeId: string };
-type Slot = { id: string; entryId: string; role: string; employeeId: string | null; employeeName?: string; status: string; sortOrder: number; startTime: string; endTime: string; hasTimeOverride: number; isExtra: number; entryDate: string; shiftTypeId: string };
+type Slot = { id: string; entryId: string; role: string; employeeId: string | null; employeeName?: string; status: string; sortOrder: number; startTime: string; endTime: string; hasTimeOverride: number; isExtra: number; staffingReason?: string; entryDate: string; shiftTypeId: string };
 type Standing = { id: string; employeeId: string; employeeName: string; shiftTypeId: string; role: string; active: number };
 type Trade = { id: string; slotId: string; returnSlotId: string | null; role: string; fromEmployeeId: string; fromEmployeeName: string; targetEmployeeId: string | null; targetEmployeeName?: string; acceptedByEmployeeId: string | null; note: string; status: string; createdAt: string; entryDate: string };
 type Claim = { id: string; slotId: string; role: string; employeeId: string; employeeName: string; note: string; status: string; createdAt: string; entryDate: string };
@@ -94,8 +94,7 @@ const availabilityOverlaps = (row: Availability, startTime: string, endTime: str
   return rowStart < shiftEnd && shiftStart < rowEnd;
 };
 const employeeEligibleForRole = (employee: Employee, role: string) => {
-  if (role === "Firefighter" || role === "Training/Orientation") return true;
-  if (role === "Officer/AO") return /\b(chief|captain|lieutenant)\b/i.test(employee.rank) || parseRoles(employee.roles).includes(role);
+  if (role === "Extra member" || role === "Firefighter" || role === "Training/Orientation") return true;
   return parseRoles(employee.roles).includes(role);
 };
 
@@ -172,7 +171,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
     ["overview", "Admin home"], ["openAdmin", "Open positions"],
     ["calendar", "Calendar"], ["shiftTypes", "Shift Builder"], ["roster", "Roster & Assignments"],
     ["trades", "Trades"], ["requests", "Requests"], ["distribution", "Auto-Distribution"],
-    ["overtime", "Overtime"], ["availability", "Availability"], ["reminders", "Reminders"],
+    ["availability", "Availability"], ["reminders", "Reminders"],
   ] as const;
   const employeeTabs = [
     ["myshifts", "My shifts"], ["open", "Open shifts"], ["trades", "Offer a trade"], ["accepttrades", "Accept a trade"],
@@ -235,7 +234,6 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
       {tab === "trades" && !isAdmin && <TradeRequestScreen initialSlotId={tradeSlotId} data={data} act={act} busy={busy} />}
       {tab === "timeoff" && isAdmin && <TimeOffScreen data={data} isAdmin={isAdmin} act={act} busy={busy} />}
       {tab === "availability" && <AvailabilityScreen data={data} isAdmin={isAdmin} act={act} busy={busy} />}
-      {tab === "overtime" && isAdmin && <OvertimeScreen data={data} act={act} busy={busy} employeeName={employeeName} />}
       {tab === "distribution" && isAdmin && <DistributionScreen data={data} act={act} busy={busy} />}
       {tab === "reminders" && isAdmin && <RemindersScreen data={data} act={act} busy={busy} />}
       {tab === "myrequests" && !isAdmin && <MyRequestsScreen data={data} act={act} busy={busy} />}
@@ -493,6 +491,7 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
                 <button disabled={busy || !newShiftType} onClick={async () => { await act({ action: "createEntry", date: selectedDate, shiftTypeId: newShiftType }); setNewShiftType(""); }}>Add shift</button>
               </div>}
               {!daySlots.length && <p className="scheduler-day-empty">{isAdmin ? "No shifts scheduled for this day. Add a built shift above to begin." : showAllSchedule ? "No shifts scheduled for this day." : "You are not scheduled for this day."}</p>}
+              {isAdmin && !dayEntries.length && data.shiftTypes.some((shift) => shift.active) && <DayPositionForm key={selectedDate} entryId="" date={selectedDate} shiftTypeId={data.shiftTypes.find((shift) => shift.active)?.id} defaultStart="0600" defaultEnd="1800" roles={data.dayPositionRoles ?? data.roles} employees={data.employees} act={act} busy={busy} />}
               {dayEntries.map((entry) => {
                 const slots = daySlots.filter((s) => s.entryId === entry.id);
                 const shift = data.shiftTypes.find((item) => item.id === entry.shiftTypeId);
@@ -516,6 +515,7 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
                         return (
                           <li key={slot.id} className={slot.status === "open" ? `open${award?.window === "overdue" ? " urgent" : ""}` : ""}>
                             <div className="scheduler-position-summary">
+                              {slot.staffingReason && <small>{slot.staffingReason}</small>}
                               <span className="slot-role">{slot.role}{slot.isExtra ? <b className="one-day-badge">One-day position</b> : null}</span>
                               {isAdmin && !slot.isExtra ? <DaySlotTimeEditor key={`${slot.id}-${slot.startTime}-${slot.endTime}-${slot.hasTimeOverride}`} slot={slot} scheduledStart={shift?.startTime ?? "0600"} scheduledEnd={shift?.endTime ?? "0600"} act={act} busy={busy} /> : <span className="slot-time">{slot.startTime}–{slot.endTime}</span>}
                               {!isAdmin && <span className="slot-holder">{slot.status === "filled" ? employeeName(slot.employeeId) : (award ? windowLabel[award.window] : "Open")}</span>}
@@ -577,23 +577,25 @@ function DaySlotTimeEditor({ slot, scheduledStart, scheduledEnd, act, busy }: {
   </div>;
 }
 
-function DayPositionForm({ entryId, defaultStart, defaultEnd, roles, employees, act, busy }: {
-  entryId: string; defaultStart: string; defaultEnd: string; roles: string[]; employees: Employee[];
+function DayPositionForm({ entryId, date, shiftTypeId, defaultStart, defaultEnd, roles, employees, act, busy }: {
+  entryId: string; date?: string; shiftTypeId?: string; defaultStart: string; defaultEnd: string; roles: string[]; employees: Employee[];
   act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const [role, setRole] = useState(roles[0] ?? "FF/Attendant");
+  const [role, setRole] = useState(roles.includes("Extra member") ? "Extra member" : roles[0] ?? "FF/Attendant");
+  const [staffingReason, setStaffingReason] = useState("");
   const [startTime, setStartTime] = useState(fourDigitTime(defaultStart));
   const [endTime, setEndTime] = useState(fourDigitTime(defaultEnd));
   const [employeeId, setEmployeeId] = useState("");
   const eligibleEmployees = employees.filter((employee) => employeeEligibleForRole(employee, role));
   const save = async () => {
-    const result = await act({ action: "addDaySlot", entryId, role, startTime, endTime, employeeId });
+    const result = await act({ action: "addDaySlot", entryId, date, shiftTypeId, role, startTime, endTime, employeeId, staffingReason });
     if (result) { setOpen(false); setEmployeeId(""); }
   };
   if (!open) return <button type="button" className="add-one-day-position" onClick={() => setOpen(true)}>+ Add one-day position</button>;
   return <div className="day-position-form">
     <h4>Add position for this day only</h4>
+    <label><span>Reason (storm, holiday, special event, or anything else)</span><input maxLength={300} value={staffingReason} onChange={(event) => setStaffingReason(event.target.value)} placeholder="Why is extra staffing needed?" /></label>
     <div className="day-position-fields">
       <label><span>Position required</span><select value={role} onChange={(e) => { setRole(e.target.value); setEmployeeId(""); }}>{roles.map((item) => <option key={item}>{item}</option>)}</select></label>
       <label><span>Start (24-hour)</span><input value={startTime} inputMode="numeric" maxLength={4} placeholder="0600" onChange={(e) => setStartTime(e.target.value.replace(/\D/g, "").slice(0, 4))} /></label>
@@ -697,45 +699,47 @@ function ShiftBuilder({ data, act, busy }: { data: Data; act: (b: Record<string,
 }
 
 function RosterScreen({ data, act, busy, shiftTypeName }: { data: Data; act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean; shiftTypeName: (id: string) => string }) {
+  const [search, setSearch] = useState("");
   const [standEmp, setStandEmp] = useState("");
   const [standType, setStandType] = useState("");
   const [standRole, setStandRole] = useState("");
 
   return (
-    <div className="scheduler-grid">
+    <div className="scheduler-grid scheduler-roster">
       <section className="wide">
         <h3>Members</h3>
-        <table className="scheduler-table">
-          <thead><tr><th>Name</th><th>Rank</th><th>Roles</th><th>Email</th><th>Text</th></tr></thead>
-          <tbody>
-            {data.employees.map((emp) => {
+        <p className="muted">Qualifications are managed on Employees. Notification switches save immediately; they do not confirm message delivery.</p>
+        <label><span>Find a member</span><input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Name or rank" /></label>
+        <div className="scheduler-roster-members">
+            {data.employees.filter((emp) => `${emp.name} ${emp.rank}`.toLowerCase().includes(search.trim().toLowerCase())).map((emp) => {
               const roles = parseRoles(emp.roles);
               return (
-                <tr key={emp.id}>
-                  <td>{emp.name}</td>
-                  <td>{emp.rank}</td>
-                  <td>
+                <article className="scheduler-roster-member" key={emp.id}>
+                  <h4>{emp.name}</h4>
+                  <p><strong>Rank:</strong> {emp.rank}</p>
+                  <div>
+                    <strong>Eligible positions</strong>
                     <div className="role-checks">
-                      {data.roles.map((role) => (
-                        <label key={role} className="chip"><input type="checkbox" checked={roles.includes(role)} disabled={busy}
-                          onChange={(e) => { const next = e.target.checked ? [...roles, role] : roles.filter((r) => r !== role); act({ action: "saveEmployeeScheduler", employeeId: emp.id, roles: next }); }} />{role}</label>
-                      ))}
+                      {roles.length ? roles.map((role) => <span key={role} className="chip">{role}</span>) : <span>Extra member only</span>}
                     </div>
-                  </td>
-                  <td><input type="checkbox" checked={emp.notifyEmail !== 0} disabled={busy} onChange={(e) => act({ action: "saveEmployeeScheduler", employeeId: emp.id, roles, notifyEmail: e.target.checked, notifyText: emp.notifyText === 1 })} /></td>
-                  <td><input type="checkbox" checked={emp.notifyText === 1} disabled={busy} onChange={(e) => act({ action: "saveEmployeeScheduler", employeeId: emp.id, roles, notifyEmail: emp.notifyEmail !== 0, notifyText: e.target.checked })} /></td>
-                </tr>
+                  </div>
+                  <div className="scheduler-roster-notifications">
+                    <label><input type="checkbox" aria-label={`Email notifications for ${emp.name}`} checked={emp.notifyEmail !== 0} disabled={busy} onChange={(e) => act({ action: "saveEmployeeScheduler", employeeId: emp.id, notifyEmail: e.target.checked, notifyText: emp.notifyText === 1 })} /><span>Email notifications</span></label>
+                    <label><input type="checkbox" aria-label={`Text notifications for ${emp.name}`} checked={emp.notifyText === 1} disabled={busy} onChange={(e) => act({ action: "saveEmployeeScheduler", employeeId: emp.id, notifyEmail: emp.notifyEmail !== 0, notifyText: e.target.checked })} /><span>Text notifications</span></label>
+                  </div>
+                </article>
               );
             })}
-          </tbody>
-        </table>
+        </div>
+        {!data.employees.some((emp) => `${emp.name} ${emp.rank}`.toLowerCase().includes(search.trim().toLowerCase())) && <p>No matching members.</p>}
       </section>
       <section>
         <h3>Standing assignments</h3>
         <p className="muted">Auto-fills the minimum seats and adds a staffed extra seat when more members are assigned than the minimum.</p>
-        <label className="wide"><span>Member</span><select value={standEmp} onChange={(e) => setStandEmp(e.target.value)}><option value="">Select…</option>{data.employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}</select></label>
+        <label className="wide"><span>Member</span><select value={standEmp} onChange={(e) => { setStandEmp(e.target.value); setStandRole(""); }}><option value="">Select…</option>{data.employees.filter((e) => parseRoles(e.roles).length).map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}</select></label>
         <label className="wide"><span>Shift type</span><select value={standType} onChange={(e) => setStandType(e.target.value)}><option value="">Select…</option>{data.shiftTypes.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
-        <label className="wide"><span>Role</span><select value={standRole} onChange={(e) => setStandRole(e.target.value)}><option value="">Select…</option>{data.roles.map((r) => <option key={r} value={r}>{r}</option>)}</select></label>
+        <label className="wide"><span>Eligible position</span><select disabled={!standEmp} value={standRole} onChange={(e) => setStandRole(e.target.value)}><option value="">{standEmp ? "Select position…" : "Choose a member first"}</option>{data.roles.filter((r) => data.employees.some((e) => e.id === standEmp && employeeEligibleForRole(e,r))).map((r) => <option key={r} value={r}>{r}</option>)}</select></label>
+        <p className="muted">For storms, holidays, events, or extra-only members, open Calendar and add a one-day position.</p>
         <button disabled={busy || !standEmp || !standType || !standRole} onClick={async () => { const r = await act({ action: "saveStandingAssignment", employeeId: standEmp, shiftTypeId: standType, role: standRole }); if (r) { setStandEmp(""); setStandType(""); setStandRole(""); } }}>Add standing assignment</button>
         <ul className="plain-list">
           {data.standingAssignments.map((s) => (
@@ -1092,6 +1096,8 @@ function OvertimeScreen({ data, act, busy, employeeName }: { data: Data; act: (b
 function DistributionScreen({ data, act, busy }: { data: Data; act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean }) {
   const [w, setW] = useState<Weights>(data.distributionWeights);
   const [fromDate, setFromDate] = useState(data.today);
+  const [endDate, setEndDate] = useState(data.today);
+  const validRange = Boolean(fromDate && endDate && endDate >= fromDate);
   useEffect(() => { setW(data.distributionWeights); }, [data.distributionWeights]);
   return (
     <div className="scheduler-grid">
@@ -1105,9 +1111,11 @@ function DistributionScreen({ data, act, busy }: { data: Data; act: (b: Record<s
       </section>
       <section>
         <h3>Run auto-distribution</h3>
-        <p className="muted">Fills every open slot from this date forward with the highest-scoring eligible member who is free that day.</p>
+        <p className="muted">Fills existing open positions between these dates, including both dates. Uses eligible, available members and leaves filled positions unchanged. Build repeating shifts in Shift Builder first.</p>
         <label className="row"><span>From date</span><input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} /></label>
-        <button disabled={busy} onClick={async () => { const r = await act({ action: "runAutoDistribution", fromDate }) as { assigned?: number } | null; if (r) alert(`Assigned ${r.assigned ?? 0} open slot(s).`); }}>Run now</button>
+        <label className="row"><span>End date</span><input type="date" min={fromDate || undefined} value={endDate} onChange={(e) => setEndDate(e.target.value)} /></label>
+        {!validRange && <p role="alert">Choose both dates. End date must be on or after From date.</p>}
+        <button disabled={busy || !validRange} onClick={async () => { const r = await act({ action: "runAutoDistribution", fromDate, endDate }) as { assigned?: number } | null; if (r) alert(`Assigned ${r.assigned ?? 0} open slot(s) from ${fromDate} through ${endDate}.`); }}>Build assignments</button>
       </section>
     </div>
   );

@@ -10,7 +10,7 @@ const shift = { id: "fixture-shift", name: "Evening crew", startTime: "18:00", e
 const slot = { id: "fixture-own", employeeId: member.id, employeeName: member.name, status: "filled", entryDate: today, startTime: "18:00", endTime: "06:00", entryId: "fixture-entry", role: "FF/Attendant", sortOrder: 0, hasTimeOverride: 0, isExtra: 0, shiftTypeId: shift.id };
 const data = {
   today, viewer: { employeeId: member.id, name: member.name, rank: member.rank, roles: ["FF/Attendant"], isAdmin: true, actingOfficerEligible: false },
-  employees: [member, other], roles: ["FF/Attendant"], shiftTypes: [shift], shiftTypeRoles: [], entries: [{ id: slot.entryId, entryDate: today, shiftTypeId: shift.id }],
+  employees: [member, other, {...member,id:"fixture-extra",name:"Preview Extra Only",roles:"[]"}], roles: ["FF/Attendant"], dayPositionRoles: ["FF/Attendant", "Extra member"], shiftTypes: [shift], shiftTypeRoles: [], entries: [{ id: slot.entryId, entryDate: today, shiftTypeId: shift.id }],
   slots: [slot, { ...slot, id: "fixture-other-filled", employeeId: other.id, employeeName: other.name, startTime: "12:00", endTime: "18:00" }, { ...slot, id: "fixture-open", employeeId: null, employeeName: "", status: "open", startTime: "06:00", endTime: "12:00" }],
   standingAssignments: [], trades: [
     { id: "fixture-trade-ready", slotId: slot.id, returnSlotId: null, role: slot.role, fromEmployeeId: member.id, fromEmployeeName: member.name, targetEmployeeId: null, acceptedByEmployeeId: other.id, note: "Fictional accepted giveaway", status: "pending", createdAt: today, entryDate: today },

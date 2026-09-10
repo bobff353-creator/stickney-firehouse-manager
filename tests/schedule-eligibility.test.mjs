@@ -4,8 +4,9 @@ import test from "node:test";
 
 test("driver and ambulance openings follow department clearance rules", async () => {
   const source = await readFile(new URL("../app/schedule-eligibility.ts", import.meta.url), "utf8");
-  assert.match(source, /driverStatus === "cleared"/);
-  assert.match(source, /driverStatus === "cleared" \|\| driverStatus === "ambulance only"/);
+  assert.match(source, /staffingRoles\(employee\)/);
+  assert.match(source, /roles.includes\("Engine Driver"\)/);
+  assert.match(source, /roles.includes\("Ambulance Driver"\)/);
   assert.match(source, /ambulance attendant/);
   assert.match(source, /isSingleRoleFirefighter/);
   assert.match(source, /chief\|captain\|lieutenant/);

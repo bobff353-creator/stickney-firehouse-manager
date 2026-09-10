@@ -18,14 +18,14 @@ async function fixture() {
   await pg.exec(`CREATE SCHEMA firehouse; SET search_path=firehouse;
     CREATE TABLE employees(id text PRIMARY KEY,active int,pay_scale_id text);
     CREATE TABLE pay_scales(id text PRIMARY KEY,label text);
-    CREATE TABLE employee_profiles(employee_id text,end_date text,station_roles text,acting_officer_eligible int);
+    CREATE TABLE employee_profiles(employee_id text,end_date text,station_roles text,acting_officer_eligible int,driver_status text,single_role int);
     CREATE TABLE station_shift_types(id text PRIMARY KEY,start_time text,end_time text);
     CREATE TABLE station_schedule_entries(id text PRIMARY KEY,entry_date text,shift_type_id text);
     CREATE TABLE station_shift_slots(id text PRIMARY KEY,entry_id text,employee_id text,role text,status text,start_time text,end_time text);
     CREATE TABLE station_trade_requests(id text PRIMARY KEY,slot_id text,role text,from_employee_id text,target_employee_id text,accepted_by_employee_id text,note text,status text,reviewed_by text,reviewed_at text);
     INSERT INTO pay_scales VALUES('ff','Firefighter');
     INSERT INTO employees VALUES('a',1,'ff'),('b',1,'ff'),('c',1,'ff');
-    INSERT INTO employee_profiles SELECT id,'','["FF/Attendant"]',0 FROM employees;
+    INSERT INTO employee_profiles SELECT id,'','["FF/Attendant"]',0,'',0 FROM employees;
     INSERT INTO station_shift_types VALUES('day','06:00','18:00');
     INSERT INTO station_schedule_entries VALUES('d1','2099-01-02','day'),('d2','2099-01-03','day');
     INSERT INTO station_shift_slots VALUES('s1','d1','a','FF/Attendant','filled','',''),('s2','d2','b','FF/Attendant','filled','','');`);
@@ -38,7 +38,7 @@ async function fixture() {
         async execute(){
           if(db.failSlot && sql.startsWith('UPDATE station_shift_slots') && values.includes(db.failSlot)) throw new Error('simulated write failure');
           let i=0;
-          const query=sql.replaceAll('?',()=>`$${++i}`).replace(/\b(slotId|returnSlotId|employeeId|entryDate|startTime|endTime|fromEmployeeId|targetEmployeeId|acceptedByEmployeeId|actingOfficerEligible)\b/g,'"$1"');
+          const query=sql.replaceAll('?',()=>`$${++i}`).replace(/\b(slotId|returnSlotId|employeeId|entryDate|startTime|endTime|fromEmployeeId|targetEmployeeId|acceptedByEmployeeId|actingOfficerEligible|driverStatus|singleRole)\b/g,'"$1"');
           const result=await pg.query(query,values);
           if(expected!==undefined && result.affectedRows!==expected) throw new Error('SAVE_CONFLICT');
           return result;

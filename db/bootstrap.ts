@@ -620,6 +620,8 @@ async function initializeDatabase(db: Awaited<ReturnType<typeof getDatabaseBindi
   await seedBoxCards(db);
   // Station Scheduler: employee scheduler attributes + singleton defaults.
   for (const sql of [
+    "ALTER TABLE employee_profiles ADD COLUMN single_role INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE station_shift_slots ADD COLUMN staffing_reason TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE employee_profiles ADD COLUMN station_roles TEXT NOT NULL DEFAULT '[]'",
     "ALTER TABLE employee_profiles ADD COLUMN station_hours_this_period REAL NOT NULL DEFAULT 0",
     "ALTER TABLE employee_profiles ADD COLUMN station_ot_hours REAL NOT NULL DEFAULT 0",

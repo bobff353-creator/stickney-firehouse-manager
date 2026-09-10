@@ -1,4 +1,16 @@
 /* Task-first member screens; preserve the full administrator calendar. */
+.scheduler .scheduler-roster { min-width: 0; }
+.scheduler .scheduler-roster-members { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; margin-top: 16px; }
+.scheduler .scheduler-roster-member { min-width: 0; padding: 16px; border: 1px solid var(--sched-line); border-radius: 8px; background: var(--sched-panel-2); overflow-wrap: anywhere; }
+.scheduler .scheduler-roster-member h4 { margin: 0 0 8px; color: #fff; font-size: 17px; }
+.scheduler .scheduler-roster-member p { margin: 0 0 12px; color: #dce8ef; font-size: 14px; }
+.scheduler .scheduler-roster-member .role-checks { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+.scheduler .scheduler-roster-member .chip { white-space: normal; font-size: 13px; }
+.scheduler .scheduler-roster-notifications { display: grid; gap: 4px; }
+.scheduler .scheduler-roster-notifications label:not(.chip) { display: flex; align-items: center; gap: 10px; min-height: 44px; margin: 0; color: #e8edf2; }
+.scheduler .scheduler-roster-notifications input[type="checkbox"] { flex: 0 0 20px; width: 20px; height: 20px; margin: 0; }
+.scheduler .scheduler-roster label, .scheduler .scheduler-roster select, .scheduler .scheduler-roster input { min-width: 0; max-width: 100%; }
+.scheduler .scheduler-roster select, .scheduler .scheduler-roster input[type="search"] { width: 100%; min-height: 44px; font-size: 16px; }
 .scheduler-navigation-anchor { scroll-margin-top: 90px; }
 .scheduler .scheduler-calendar-scope { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .scheduler .scheduler-calendar-scope select { min-width: 0; min-height: 44px; font-size: 16px; flex: 1 1 160px; max-width: 280px; }

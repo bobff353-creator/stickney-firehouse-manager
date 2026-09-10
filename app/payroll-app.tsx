@@ -47,13 +47,13 @@ type Employee = PayScale & {
   id: string; name: string; payScaleId: string; rank: string; active: number;
   employeeNumber?: string | null; startDate?: string | null; endDate?: string | null; dateOfBirth?: string | null;
   phone?: string | null; email?: string | null; addressLine1?: string | null; city?: string | null;
-  state?: string | null; postalCode?: string | null; employmentType?: string | null; isDpw?: number | boolean; driverStatus?: string | null; actingOfficerEligible?: number | boolean; scheduleSmsOptIn?: number | boolean; isAdmin?: number | boolean;
+  state?: string | null; postalCode?: string | null; employmentType?: string | null; isDpw?: number | boolean; driverStatus?: string | null; singleRole?: number | boolean; actingOfficerEligible?: number | boolean; scheduleSmsOptIn?: number | boolean; isAdmin?: number | boolean;
   emergencyName?: string | null; emergencyRelationship?: string | null; emergencyPhone?: string | null; photoUpdatedAt?: string | null; notes?: string | null;
 };
 type EmployeeForm = {
   id?: string; lastName: string; firstName: string; payScaleId: string; employeeNumber: string; startDate: string; endDate: string;
   dateOfBirth: string; phone: string; email: string; addressLine1: string; city: string; state: string;
-  postalCode: string; employmentType: string; isDpw: boolean; driverStatus: string; actingOfficerEligible: boolean; scheduleSmsOptIn: boolean; isAdmin: boolean; emergencyName: string; emergencyRelationship: string;
+  postalCode: string; employmentType: string; isDpw: boolean; driverStatus: string; singleRole: boolean; actingOfficerEligible: boolean; scheduleSmsOptIn: boolean; isAdmin: boolean; emergencyName: string; emergencyRelationship: string;
   emergencyPhone: string; notes: string;
 };
 type Entry = { id?: string; employeeId: string; workDate: string; category: Category; hours: number };
@@ -103,7 +103,7 @@ function navigationForViewer(viewer: PayrollData["viewer"], permissions: string[
 }
 const emptyEmployee: EmployeeForm = {
   lastName: "", firstName: "", payScaleId: "firefighter", employeeNumber: "", startDate: "", endDate: "", dateOfBirth: "",
-  phone: "", email: "", addressLine1: "", city: "", state: "IL", postalCode: "", employmentType: "Part-time", isDpw: false, driverStatus: "", actingOfficerEligible: false, scheduleSmsOptIn: false, isAdmin: false,
+  phone: "", email: "", addressLine1: "", city: "", state: "IL", postalCode: "", employmentType: "Part-time", isDpw: false, driverStatus: "", singleRole: false, actingOfficerEligible: false, scheduleSmsOptIn: false, isAdmin: false,
   emergencyName: "", emergencyRelationship: "", emergencyPhone: "", notes: "",
 };
 const categoryColumns: Array<{ key: Category; short: string; label: string }> = [
@@ -620,7 +620,7 @@ export default function PayrollApp({
         startDate: employee.startDate ?? "", endDate: employee.endDate ?? "", dateOfBirth: employee.dateOfBirth ?? "",
         phone: employee.phone ?? "", email: employee.email ?? "", addressLine1: employee.addressLine1 ?? "",
         city: employee.city ?? "", state: employee.state ?? "IL", postalCode: employee.postalCode ?? "",
-        employmentType: employee.employmentType ?? "Part-time", isDpw: Boolean(employee.isDpw), driverStatus: employee.driverStatus ?? "", actingOfficerEligible: Boolean(employee.actingOfficerEligible), scheduleSmsOptIn: Boolean(employee.scheduleSmsOptIn), isAdmin: Boolean(employee.isAdmin), emergencyName: employee.emergencyName ?? "",
+        employmentType: employee.employmentType ?? "Part-time", isDpw: Boolean(employee.isDpw), driverStatus: employee.driverStatus ?? "", singleRole: Boolean(employee.singleRole), actingOfficerEligible: Boolean(employee.actingOfficerEligible), scheduleSmsOptIn: Boolean(employee.scheduleSmsOptIn), isAdmin: Boolean(employee.isAdmin), emergencyName: employee.emergencyName ?? "",
         emergencyRelationship: employee.emergencyRelationship ?? "", emergencyPhone: employee.emergencyPhone ?? "", notes: employee.notes ?? "",
       });
       setEmployeePhotoPreview(employee.photoUpdatedAt ? `/api/employee-photo/${employee.id}?v=${encodeURIComponent(employee.photoUpdatedAt)}` : "");
@@ -1049,7 +1049,8 @@ export default function PayrollApp({
                 <label><span>First name *</span><input required autoComplete="given-name" value={employeeDraft.firstName} onChange={(event) => setEmployeeDraft((current) => ({ ...current, firstName: event.target.value }))} /></label>
                 <label><span>Employee number</span><input placeholder="Example: 1203-17" value={employeeDraft.employeeNumber} onChange={(event) => setEmployeeDraft((current) => ({ ...current, employeeNumber: event.target.value }))} /></label>
                 <label><span>Employment type</span><select value={employeeDraft.employmentType} onChange={(event) => setEmployeeDraft((current) => ({ ...current, employmentType: event.target.value }))}><option>Part-time</option><option>Full-time</option><option>Paid-on-call</option><option>Temporary</option><option>Contract</option></select></label>
-                <label><span>Driver status</span><select value={employeeDraft.driverStatus} onChange={(event) => setEmployeeDraft((current) => ({ ...current, driverStatus: event.target.value }))}><option value="">Not entered</option><option>Cleared</option><option>Ambulance Only</option><option>Not Cleared</option></select></label>
+                <label><span>Driver status</span><select value={employeeDraft.driverStatus} onChange={(event) => setEmployeeDraft((current) => ({ ...current, driverStatus: event.target.value }))}><option value="">Not entered</option><option>Cleared</option><option>Ambulance Only</option><option>Not Cleared</option></select><small>Cleared: engine, ambulance and attendant. Ambulance Only: ambulance and attendant.</small></label>
+                <label><span>Single-role / extra member only</span><input type="checkbox" checked={employeeDraft.singleRole} onChange={(event) => setEmployeeDraft((current) => ({ ...current, singleRole: event.target.checked }))} /><small>Only additional staffing. Cannot fill Officer/AO, Engine Driver, Ambulance Driver or FF/Attendant, even if other clearances are checked.</small></label>
                 <label className="dpw-employee-check"><input type="checkbox" checked={employeeDraft.isDpw} onChange={(event) => setEmployeeDraft((current) => ({ ...current, isDpw: event.target.checked }))} /><span><strong>DPW employee</strong><small>Daily Log hours go to the DPW column. No holiday or overtime increase; Acting Officer pay still applies when selected.</small></span></label>
                 <label className="admin-employee-check"><input type="checkbox" checked={employeeDraft.isAdmin} onChange={(event) => setEmployeeDraft((current) => ({ ...current, isAdmin: event.target.checked }))} /><span><strong>Portal administrator</strong><small>Starts with access to every timesheet and payroll editing. Use Permissions → Employee exceptions to remove payroll access from a specific administrator.</small></span></label>
                 <label><span>Pay scale *</span><select value={employeeDraft.payScaleId} onChange={(event) => setEmployeeDraft((current) => ({ ...current, payScaleId: event.target.value }))}>{data.payScales.map((scale) => <option value={scale.id} key={scale.id}>{scale.label}</option>)}</select></label>

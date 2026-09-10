@@ -46,6 +46,7 @@ export const employeeProfiles = sqliteTable("employee_profiles", {
   city: text("city"),
   state: text("state"),
   postalCode: text("postal_code"),
+  singleRole: integer("single_role").notNull().default(0),
   employmentType: text("employment_type").notNull().default("Part-time"),
   isDpw: integer("is_dpw", { mode: "boolean" }).notNull().default(false),
   driverStatus: text("driver_status").notNull().default(""),
@@ -629,6 +630,7 @@ export const stationShiftSlots = sqliteTable("station_shift_slots", {
   startTime: text("start_time").notNull().default(""),
   endTime: text("end_time").notNull().default(""),
   isExtra: integer("is_extra").notNull().default(0),
+  staffingReason: text("staffing_reason").notNull().default(""),
 }, (table) => [
   index("station_shift_slot_entry_idx").on(table.entryId, table.sortOrder),
   index("station_shift_slot_employee_idx").on(table.employeeId),
