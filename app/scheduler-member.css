@@ -1,0 +1,28 @@
+/* Task-first member screens; preserve the full administrator calendar. */
+.scheduler .scheduler-member-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.scheduler nav.scheduler-member-tabs button { min-height: 48px; padding: 10px 16px; border: 1px solid var(--sched-line); border-radius: 8px; background: #172634; color: #dce8ef; }
+.scheduler nav.scheduler-member-tabs button.current { background: #233e53; border-color: #77bfe4; color: #fff; }
+.scheduler-member-list { min-width: 0; padding: 18px; background: var(--sched-panel); border: 1px solid var(--sched-line); border-radius: 12px; }
+.scheduler-member-shift { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 18px 0; border-top: 1px solid var(--sched-line); }
+.scheduler-member-shift > div:first-child { display: grid; gap: 6px; min-width: 0; }
+.scheduler-member-shift strong { font-size: 20px; }
+.scheduler-member-shift button, .scheduler-member-filters button { min-height: 44px; }
+.scheduler-member-list > .entry-head { flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+.scheduler-member-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 14px; margin: 18px 0; }
+.scheduler-member-filters label { display: grid; flex: 1 1 180px; gap: 6px; min-width: 0; }
+.scheduler-task-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.scheduler .scheduler-task-choices button { display: grid; gap: 12px; align-content: start; text-align: left; padding: 22px; background: var(--sched-panel); color: var(--sched-text); border: 1px solid var(--sched-line); border-radius: 12px; }
+.scheduler-task-choices strong { font-size: 19px; }
+.scheduler-task-choices span { font-size: 14px; line-height: 1.6; font-weight: 400; }
+.scheduler-request-confirm { max-width: 360px; }
+.scheduler button:focus-visible { outline: 3px solid #8fd6ff; outline-offset: 3px; }
+@media (max-width: 700px) {
+  .scheduler .scheduler-member-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .scheduler .scheduler-member-tabs button { white-space: normal; font-size: 14px; }
+  .scheduler-member-shift { align-items: stretch; flex-direction: column; gap: 12px; }
+  .scheduler-member-list { padding: 14px; }
+  .scheduler-task-choices { grid-template-columns: minmax(0, 1fr); }
+  .scheduler-member-shift strong { font-size: 18px; overflow-wrap: anywhere; }
+  .scheduler-request-confirm { max-width: none; }
+  .scheduler-member-filters input, .scheduler-member-filters select { min-width: 0; width: 100%; }
+}

@@ -1,9 +1,12 @@
 "use client";
 
+import "./scheduler-member.css";
+
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { normalizeScheduleTime, scheduleTimeBlocks } from "./schedule-time";
 import { recurringShiftOccursOnDate } from "./station-scheduler-logic";
 import { expandAvailabilityDates } from "./availability-repeat";
+import { canRequestRole, memberShiftList, shiftTimeLabel, shiftHasNotStarted } from "./scheduler-member-view";
 
 type TestMember = { id: string; name: string; rank: string; effectivePermissions: string[] };
 
@@ -99,23 +102,29 @@ const employeeEligibleForRole = (employee: Employee, role: string) => {
 export default function StationScheduler({ testMember = null }: { testMember?: TestMember | null }) {
   void testMember;
   const [data, setData] = useState<Data | null>(null);
-  const [tab, setTab] = useState("calendar");
-  const [schedulerView, setSchedulerView] = useState<"admin" | "employee">("admin");
+  const [tab, setTab] = useState("myshifts");
+  const [schedulerView, setSchedulerView] = useState<"admin" | "employee">("employee");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [selectedDate, setSelectedDate] = useState(todayIso());
   const [tradeSlotId, setTradeSlotId] = useState("");
+  const [loadedAt, setLoadedAt] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
+    setRefreshing(true);
     setError("");
     try {
       const response = await fetch("/api/station-scheduler", { cache: "no-store" });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? "Unable to load the scheduler.");
       setData(payload);
+      setLoadedAt(new Date().toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit" }));
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Unable to load the scheduler.");
+    } finally {
+      setRefreshing(false);
     }
   }, []);
 
@@ -127,7 +136,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
       const response = await fetch("/api/station-scheduler", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? "Unable to save.");
-      if (payload.note) setNotice(String(payload.note));
+      setNotice(payload.note ? String(payload.note) : "Saved. Check My Requests for request status; requests are not assignments until approved.");
       await load();
       return payload;
     } catch (actError) {
@@ -149,10 +158,12 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
   const adminTabs = [
     ["calendar", "Calendar"], ["shiftTypes", "Shift Builder"], ["roster", "Roster & Assignments"],
     ["trades", "Trades"], ["requests", "Requests"], ["distribution", "Auto-Distribution"],
-    ["overtime", "Overtime"], ["availability", "Availability"], ["timeoff", "Time Off"], ["reminders", "Reminders"],
+    ["overtime", "Overtime"], ["availability", "Availability"], ["reminders", "Reminders"],
   ] as const;
   const employeeTabs = [
-    ["calendar", "Calendar"], ["availability", "My Availability"], ["myrequests", "My Requests"], ["trades", "Trades"],
+    ["myshifts", "My shifts"], ["open", "Open shifts"], ["trades", "Offer a trade"], ["accepttrades", "Accept a trade"],
+    ["availability", "My Availability"],
+    ["myrequests", "My Requests"], ["calendar", "Calendar"],
   ] as const;
   const tabs = isAdmin ? adminTabs : employeeTabs;
 
@@ -164,28 +175,34 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
           <strong>Stickney Scheduler</strong>
           <span>Fire · EMS · Department staffing</span>
         </div>
-        <span className="scheduler-live-dot" title="Connected to department records" aria-label="Connected to department records" />
+        <button type="button" className="link" disabled={refreshing || busy} onClick={() => void load()}>{refreshing ? "Refreshing…" : "Refresh schedule"}</button>
       </header>
       <div className="scheduler-view-bar" aria-label="Choose scheduler view">
         {accountIsAdmin && <button type="button" className={isAdmin ? "current" : ""} aria-pressed={isAdmin} title="Open administrator scheduling tools" onClick={() => { setSchedulerView("admin"); setTab("calendar"); }}>Admin</button>}
-        <button type="button" className={!isAdmin ? "current" : ""} aria-pressed={!isAdmin} onClick={() => { setSchedulerView("employee"); setTab("calendar"); }}>My Schedule</button>
+        <button type="button" className={!isAdmin ? "current" : ""} aria-pressed={!isAdmin} onClick={() => { setSchedulerView("employee"); setTab("myshifts"); }}>My Schedule</button>
         <strong>{data.viewer.name || "Department member"}</strong>
       </div>
-      <NoticeStrip notice={{ ...data.notice, pendingTrades: isAdmin ? data.notice.pendingTrades : incomingTradesFor(data).length }} isAdmin={isAdmin} onTrades={() => setTab("trades")} upcoming={data.slots.filter((s) => s.employeeId === data.viewer.employeeId && s.entryDate >= data.today).length} />
-      {error && <p className="error">{error}</p>}
-      {notice && <p className="success">{notice}</p>}
-      <nav className="scheduler-tabs">
+      <p className="muted">{error ? "Schedule could not be confirmed. Refresh before relying on these assignments." : `Last loaded ${loadedAt} Central time. Refresh to check for changes.`}</p>
+      {isAdmin && <NoticeStrip notice={data.notice} isAdmin={isAdmin} onTrades={() => setTab("trades")} upcoming={0} />}
+      {error && <p className="error" role="alert">{error}</p>}
+      {notice && <p className="success" role="status">{notice}</p>}
+      <nav className={`scheduler-tabs${!isAdmin ? " scheduler-member-tabs" : ""}`} aria-label="Scheduling tasks">
         {tabs.map(([id, label]) => (
-          <button key={id} className={tab === id ? "current" : ""} onClick={() => setTab(id)}>{label}</button>
+          <button key={id} aria-current={tab === id ? "page" : undefined} className={tab === id ? "current" : ""} onClick={() => setTab(id)}>{label}</button>
         ))}
       </nav>
+
+      {!isAdmin && !data.viewer.employeeId && <p role="status">Your login is not linked to a member record. Ask an administrator to link it before making personal requests. Administrator tools remain available above.</p>}
+      {tab === "myshifts" && !isAdmin && <MemberShifts data={data} onOpen={() => setTab("open")} onTrade={(id) => { setTradeSlotId(id); setTab("trades"); }} />}
+      {tab === "open" && !isAdmin && <MemberOpenShifts data={data} act={act} busy={busy || refreshing || Boolean(error)} />}
+      {tab === "accepttrades" && !isAdmin && <MyRequestsScreen data={data} act={act} busy={busy} incomingOnly />}
 
       {tab === "calendar" && <CalendarScreen data={data} isAdmin={isAdmin} selectedDate={selectedDate} setSelectedDate={setSelectedDate} act={act} busy={busy} employeeName={employeeName} shiftTypeName={shiftTypeName} onTrade={(id) => { setTradeSlotId(id); setTab("trades"); }} />}
       {tab === "shiftTypes" && isAdmin && <ShiftBuilder data={data} act={act} busy={busy} />}
       {tab === "roster" && isAdmin && <RosterScreen data={data} act={act} busy={busy} shiftTypeName={shiftTypeName} />}
       {tab === "requests" && isAdmin && <RequestsScreen data={data} act={act} busy={busy} employeeName={employeeName} mode="claims" />}
       {tab === "trades" && isAdmin && <RequestsScreen data={data} act={act} busy={busy} employeeName={employeeName} mode="trades" />}
-      {tab === "trades" && !isAdmin && <><TradeRequestScreen initialSlotId={tradeSlotId} data={data} act={act} busy={busy} /><MyRequestsScreen data={data} act={act} busy={busy} /></>}
+      {tab === "trades" && !isAdmin && <TradeRequestScreen initialSlotId={tradeSlotId} data={data} act={act} busy={busy} />}
       {tab === "timeoff" && isAdmin && <TimeOffScreen data={data} isAdmin={isAdmin} act={act} busy={busy} />}
       {tab === "availability" && <AvailabilityScreen data={data} isAdmin={isAdmin} act={act} busy={busy} />}
       {tab === "overtime" && isAdmin && <OvertimeScreen data={data} act={act} busy={busy} employeeName={employeeName} />}
@@ -197,11 +214,62 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
   );
 }
 
+function MemberShifts({ data, onOpen, onTrade }: { data: Data; onOpen: () => void; onTrade: (id: string) => void }) {
+  const mine = memberShiftList(data.slots, data.viewer.employeeId, data.today);
+  return <section className="scheduler-member-list" aria-labelledby="my-shifts-heading">
+    <div className="entry-head"><div><h3 id="my-shifts-heading">When am I working?</h3><p className="muted">Your saved assignments from {friendlyDate(data.today)} onward. Times are Central, using the 24-hour clock.</p></div><button onClick={onOpen}>Find an open shift</button></div>
+    {!mine.length && <p>No assignments from today onward in the loaded schedule. You can still check open shifts or submit your availability.</p>}
+    {mine.map((slot) => {
+      const pending = data.trades.some((trade) => trade.slotId === slot.id && ["pending", "awaiting_acceptance"].includes(trade.status));
+      return <article className="scheduler-member-shift" key={slot.id}>
+        <div><span className="section-kicker">{friendlyDate(slot.entryDate)}</span><strong>{shiftTimeLabel(slot.startTime, slot.endTime)}</strong><span>{slot.role} · {data.shiftTypes.find((shift) => shift.id === slot.shiftTypeId)?.name || "Department shift"}</span></div>
+        {pending ? <p className="muted">Change requested — you are still assigned until approved.</p> : <button onClick={() => onTrade(slot.id)} aria-label={`Request a change for ${friendlyDate(slot.entryDate)} ${slot.startTime} ${slot.role}`}>Trade / give away</button>}
+      </article>;
+    })}
+  </section>;
+}
+
+function MemberOpenShifts({ data, act, busy }: { data: Data; act: (body: Record<string, unknown>) => Promise<unknown>; busy: boolean }) {
+  const [date, setDate] = useState("");
+  const [role, setRole] = useState("");
+  const [reviewId, setReviewId] = useState("");
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const open = data.slots.filter((slot) => slot.status === "open" && shiftHasNotStarted(slot.entryDate, slot.startTime, now) && canRequestRole(slot.role, data.viewer))
+    .sort((a, b) => a.entryDate.localeCompare(b.entryDate) || a.startTime.localeCompare(b.startTime));
+  const visible = open.filter((slot) => (!date || slot.entryDate === date) && (!role || slot.role === role));
+  return <section className="scheduler-member-list" aria-labelledby="open-shifts-heading">
+    <h3 id="open-shifts-heading">What shifts can I request?</h3>
+    <p className="muted">Open positions matching your recorded qualifications. A request goes to review; it does not put you on the schedule. Times are Central.</p>
+    <div className="scheduler-member-filters">
+      <label>Date<input type="date" min={data.today} value={date} onChange={(event) => { setDate(event.target.value); setReviewId(""); }} /></label>
+      <label>Position<select value={role} onChange={(event) => { setRole(event.target.value); setReviewId(""); }}><option value="">All my positions</option>{[...new Set(open.map((slot) => slot.role))].sort().map((position) => <option key={position}>{position}</option>)}</select></label>
+      <button className="link" onClick={() => { setDate(""); setRole(""); setReviewId(""); }}>Clear filters</button>
+    </div>
+    {!visible.length && <p>{open.length ? "No open shifts match these filters. Try clearing the date or position." : "No open shifts match your recorded qualifications in the loaded schedule. If your qualifications are missing, ask an administrator to check your roster roles."}</p>}
+    {visible.map((slot) => {
+      const pending = data.claims.some((claim) => claim.slotId === slot.id && claim.employeeId === data.viewer.employeeId && claim.status === "pending");
+      const unavailable = data.availability.some((row) => row.employeeId === data.viewer.employeeId && row.availabilityDate === slot.entryDate && availabilityOverlaps(row, slot.startTime, slot.endTime));
+      return <article className="scheduler-member-shift" key={slot.id}>
+        <div><span className="section-kicker">{friendlyDate(slot.entryDate)}</span><strong>{shiftTimeLabel(slot.startTime, slot.endTime)}</strong><span>{slot.role}</span></div>
+        {pending ? <p role="status">Requested — awaiting review</p> : unavailable ? <p className="muted">Your availability says you cannot work this time. Update it under My Availability if needed.</p> : reviewId === slot.id ? <div className="scheduler-request-confirm">
+          <p>Send this shift request for review? You are not assigned until approved.</p>
+          <button disabled={busy} onClick={async () => { if (!shiftHasNotStarted(slot.entryDate, slot.startTime, new Date())) { setNow(new Date()); setReviewId(""); return; } if (await act({ action: "submitClaim", slotId: slot.id })) setReviewId(""); }}>{busy ? "Sending…" : "Send shift request"}</button>
+          <button className="link" disabled={busy} onClick={() => setReviewId("")}>Cancel</button>
+        </div> : <button disabled={busy} onClick={() => setReviewId(slot.id)}>Review & request</button>}
+      </article>;
+    })}
+  </section>;
+}
+
 function NoticeStrip({ notice, isAdmin, upcoming, onTrades }: { notice: Notice; isAdmin: boolean; upcoming: number; onTrades: () => void }) {
   const chips = isAdmin ? [
     ["open", "Open shifts", notice.openShifts],
     ["trades", "Trades awaiting review", notice.pendingTrades],
-    ["requests", "Pending requests", notice.pendingClaims + notice.pendingTimeOff],
+    ["requests", "Pending requests", notice.pendingClaims],
   ] : [
     ["open", "Open shifts", notice.openShifts],
     ["trades", "Open trades", notice.pendingTrades],
@@ -717,7 +785,7 @@ function AvailabilityScreen({ data, isAdmin, act, busy }: { data: Data; isAdmin:
       <div>
         <span className="section-kicker">Employee scheduling</span>
         <h3>{isAdmin ? "Department availability" : "My availability"}</h3>
-        <p className="muted">Mark the days and times you can or cannot work. This does not request an open shift or replace a time-off request.</p>
+        <p className="muted">Mark the days and times you can or cannot work. This does not request an open shift or remove an assignment. To change a shift you already work, offer a trade.</p>
       </div>
       {isAdmin && <label><span>Employee</span><select value={memberId} onChange={(event) => { setMemberId(event.target.value); setPicked([]); }}>
         {data.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name} — {employee.rank}</option>)}
@@ -811,6 +879,7 @@ function TimeOffScreen({ data, isAdmin, act, busy }: { data: Data; isAdmin: bool
       {!isAdmin && (
         <section>
           <h3>Request time off</h3>
+          <p className="muted">Select your scheduled days, choose an officer, then submit. Your assignment stays in place until the request is approved.</p>
           <label className="wide"><span>Type</span><select value={type} onChange={(e) => setType(e.target.value)}>{timeOffTypes.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}</select></label>
           <fieldset><legend>Your scheduled days</legend>
             {!myScheduledDays.length && <p className="muted">You have no upcoming scheduled shifts to request off.</p>}
@@ -824,8 +893,8 @@ function TimeOffScreen({ data, isAdmin, act, busy }: { data: Data; isAdmin: bool
       )}
       <section className="wide">
         <h3>{isAdmin ? "All time-off requests" : "My requests"}</h3>
-        {!data.timeOff.length && <p className="muted">No requests.</p>}
-        {data.timeOff.map((r) => {
+        {!data.timeOff.filter((r) => isAdmin || r.employeeId === myId || r.approverEmployeeId === myId).length && <p className="muted">No requests.</p>}
+        {data.timeOff.filter((r) => isAdmin || r.employeeId === myId || r.approverEmployeeId === myId).map((r) => {
           const canReview = r.status === "pending" && (isAdmin || r.approverEmployeeId === myId);
           return (
             <div key={r.id} className="entry-card">
@@ -1066,15 +1135,16 @@ function TradeRequestScreen({ data, act, busy, initialSlotId }: { data: Data; ac
   </section></div>;
 }
 
-function MyRequestsScreen({ data, act, busy }: { data: Data; act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean }) {
+function MyRequestsScreen({ data, act, busy, incomingOnly = false }: { data: Data; act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean; incomingOnly?: boolean }) {
   const myId = data.viewer.employeeId;
   const myClaims = data.claims.filter((c) => c.employeeId === myId);
-  const myTrades = data.trades.filter((t) => t.fromEmployeeId === myId);
+  const myTrades = data.trades.filter((t) => myId && (t.fromEmployeeId === myId || t.acceptedByEmployeeId === myId));
   const incomingTrades = incomingTradesFor(data);
   return (
     <div className="scheduler-grid">
       <section className="wide">
         <h3>Trades needing my response</h3>
+        <p className="muted">These offers match your recorded roles and availability. Accepting sends the trade for administrator approval; it does not immediately change the schedule.</p>
         {!incomingTrades.length && <p className="muted">Nothing waiting on you.</p>}
         {incomingTrades.map((t) => (
           <div key={t.id} className="entry-card">
@@ -1087,16 +1157,16 @@ function MyRequestsScreen({ data, act, busy }: { data: Data; act: (b: Record<str
           </div>
         ))}
       </section>
-      <section className="wide">
+      {!incomingOnly && <section className="wide">
         <h3>My open-shift requests</h3>
         {!myClaims.length && <p className="muted">No requests.</p>}
         {myClaims.map((c) => <div key={c.id} className="entry-card"><strong>{c.role}</strong> · {friendlyDate(c.entryDate)} · <span className={`badge ${c.status}`}>{c.status}</span></div>)}
-      </section>
-      <section className="wide">
+      </section>}
+      {!incomingOnly && <section className="wide">
         <h3>My trades</h3>
         {!myTrades.length && <p className="muted">No trades.</p>}
         {myTrades.map((t) => <div key={t.id} className="entry-card"><strong>{t.role}</strong> · {friendlyDate(t.entryDate)} · <span className={`badge ${t.status}`}>{t.acceptedByEmployeeId && ["pending", "awaiting_acceptance"].includes(t.status) ? "Accepted — awaiting admin approval" : t.status}</span><TradeTerms trade={t} data={data} /></div>)}
-      </section>
+      </section>}
     </div>
   );
 }

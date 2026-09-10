@@ -59,7 +59,7 @@ test("scheduler uses the scoped Stickney mobile workspace instead of prototype b
 
   assert.equal(component.includes("Stickney Scheduler"), true);
   assert.equal(component.includes("Station 14"), false);
-  for (const label of ["Calendar", "Shift Builder", "Roster & Assignments", "Trades", "Requests", "Auto-Distribution", "Overtime", "Availability", "Time Off", "Reminders"]) {
+  for (const label of ["Calendar", "Shift Builder", "Roster & Assignments", "Trades", "Requests", "Auto-Distribution", "Overtime", "Availability", "Reminders"]) {
     assert.equal(component.includes(`\"${label}\"`), true, `${label} remains available`);
   }
   assert.equal(component.includes("scheduler-month"), true);
