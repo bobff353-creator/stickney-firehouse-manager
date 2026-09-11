@@ -1,0 +1,53 @@
+import assert from 'node:assert/strict';
+import {execFileSync} from 'node:child_process';
+import {mkdirSync,writeFileSync} from 'node:fs';
+import {resolve} from 'node:path';
+const cli=process.env.INVENTORY_AUDIT_BROWSER;
+if(!cli)throw Error('Set INVENTORY_AUDIT_BROWSER.');
+const output=resolve('outputs/inventory-flows');mkdirSync(output,{recursive:true});
+const run=(...args)=>execFileSync(process.execPath,[cli,'--session','inventory-flows',...args],{encoding:'utf8',timeout:30000}).trim();
+const ev=js=>run('eval',js);
+const click=text=>ev(`(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.getClientRects().length&&b.textContent.trim()===${JSON.stringify(text)});if(!b)throw Error('Missing '+${JSON.stringify(text)});b.click();return true})()`);
+const checks=[];
+function proof(name,width){
+ const state=JSON.parse(ev(`JSON.stringify({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,writes:document.querySelector('#audit-writes').textContent,errors:document.querySelector('#audit-errors').textContent})`));
+ const parsed=typeof state==='string'?JSON.parse(state):state;
+ assert.equal(parsed.scrollWidth,parsed.width,`${name} horizontal overflow`);assert.equal(parsed.errors,'');
+ checks.push({name,...parsed});run('screenshot',resolve(output,`${width}-${name}.png`));
+ writeFileSync(resolve(output,'results.json'),JSON.stringify(checks,null,2));console.log(`Passed ${width}: ${name}`);
+}
+for(const width of [390,768]){
+ run('set','viewport',String(width),width===390?'844':'1024');
+ run('open','http://127.0.0.1:4179/inventory-audit-app.html?role=admin');run('wait','.inventory-find-unit');
+ run('select','.inventory-mobile-destination select','setup');run('fill','.callback-search input','radio');
+ ev(`document.querySelector('.equipment-grid button').scrollIntoView({block:'center',behavior:'instant'})`);run('click','.equipment-grid button');
+ run('fill','.equipment-editor [name=name]','');click('2 · Check requirements');click('Save & preview');
+ assert.match(ev(`document.activeElement.name`),/name/);assert.match(ev(`document.querySelector('#audit-writes').textContent`),/Test writes: 0/);
+ run('fill','.equipment-editor [name=name]','Updated audit radio');click('2 · Check requirements');click('1 · Item & location');
+ assert.match(ev(`document.querySelector('.equipment-editor [name=name]').value`),/Updated audit radio/);
+ ev(`document.querySelector('#fail-save').checked=true`);click('Save & preview');run('wait','.equipment-editor [role=alert]');
+ assert.match(ev(`document.querySelector('.equipment-editor [role=alert]').textContent`),/Simulated save failure/);
+ assert.match(ev(`document.querySelector('.equipment-editor [name=name]').value`),/Updated audit radio/);proof('failed-save-retains-edits',width);
+ click('Save & preview');run('wait','.inventory-member-preview');
+ assert.match(ev(`document.querySelector('.inventory-member-preview').textContent`),/Updated audit radio/);
+ assert.equal(ev(`document.querySelectorAll('.inventory-member-preview .check-actions button:not(:disabled)').length`),'0');
+ assert.match(ev(`document.querySelector('#audit-writes').textContent`),/Test writes: 2/);proof('save-and-readonly-preview',width);
+ click('Back to editing');run('fill','.callback-search input','radio');ev(`document.querySelector('.equipment-grid button').scrollIntoView({block:'center',behavior:'instant'})`);run('click','.equipment-grid button');
+ run('fill','.equipment-editor [name=name]','Refresh recovery radio');
+ ev(`window.auditOriginalFetch=window.fetch;window.auditFailReads=true;window.fetch=(input,init)=>window.auditFailReads&&String(input).startsWith('/api/operations')&&(!init?.method||init.method==='GET')?Promise.resolve(Response.json({error:'Simulated refresh failure'},{status:503})):window.auditOriginalFetch(input,init)`);
+ click('Save & preview');run('wait','.ops-error');
+ assert.equal(ev(`document.querySelectorAll('.inventory-member-preview').length`),'0');assert.match(ev(`document.body.textContent`),/Your change was saved, but/);proof('saved-but-refresh-failed',width);
+ ev(`window.auditFailReads=false`);click('Retry refresh');run('wait','.inventory-member-preview');assert.match(ev(`document.querySelector('.inventory-member-preview').textContent`),/Refresh recovery radio/);proof('refresh-recovered',width);
+ run('open','http://127.0.0.1:4179/inventory-audit-app.html?role=member');run('wait','.inventory-find-unit');
+ assert.equal(ev(`document.querySelectorAll('option[value=setup]').length`),'0');
+ run('select','.inventory-mobile-destination select','fleet');run('click','.fleet-card:first-child .card-action');run('click','.inspection-choice-grid button:first-child');run('wait','.check-worklist-tools');
+ ev(`document.querySelector('.check-worklist-tools').scrollIntoView({block:'start',behavior:'instant'})`);proof('active-member-check',width);
+ run('fill','.numeric-reading-entry input','12345');click('Save reading');click('Pass');
+ assert.match(ev(`document.querySelector('#audit-writes').textContent`),/Test writes: 2/);
+ const submit=ev(`JSON.stringify([...document.querySelectorAll('button')].filter(b=>b.textContent.startsWith('Submit ')).map(b=>({text:b.textContent,disabled:b.disabled})))`);
+ assert.match(submit,/false/);
+ ev(`[...document.querySelectorAll('button')].find(b=>b.textContent.startsWith('Submit ')).click()`);
+ run('select','.inventory-mobile-destination select','reports');run('wait','.inventory-report-list');click('View');
+ ev(`document.querySelector('.inventory-report-detail').scrollIntoView({block:'start',behavior:'instant'})`);proof('completed-report',width);
+}
+console.log(`Verified ${checks.length} flow states.`);

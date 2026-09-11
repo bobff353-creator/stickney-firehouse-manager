@@ -1,4 +1,5 @@
 import "./inventory.css";
+import "./usability.css";
 import "../suite-theme.css";
 
 export const metadata = {

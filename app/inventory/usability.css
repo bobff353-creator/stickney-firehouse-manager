@@ -1,0 +1,145 @@
+/* Task-focused inventory layouts, scoped away from payroll and scheduling. */
+.inventory-app-shell .inventory-mobile-destination { display:none; }
+.inventory-app-shell .setup-intro-topline,.inventory-app-shell .setup-intro-summary { display:none; }
+.inventory-app-shell .setup-intro { padding-top:16px; }
+.inventory-app-shell .setup-workspace-tabs b,.inventory-app-shell .builder-section-nav b { font-size:14px; }
+.inventory-app-shell .setup-workspace-tabs small,.inventory-app-shell .builder-section-nav small { font-size:12px; line-height:1.4; }
+.inventory-app-shell .builder-section-nav { position:static; scroll-margin-top:80px; }
+.inventory-app-shell .builder-section :is(label,legend,p) { font-size:14px; line-height:1.5; }
+.inventory-app-shell .builder-section :is(input,select,textarea) { box-sizing:border-box; min-width:0; max-width:100%; font-size:16px; min-height:44px; }
+.inventory-app-shell .builder-section button { font-size:14px; min-height:44px; white-space:normal; }
+.inventory-app-shell .required-photo-grid :is(b,span,small) { font-size:12px; line-height:1.5; }
+.inventory-app-shell.inventory-portal-refresh .check-item-copy>small { color:#4b6370; font-size:12px; line-height:1.5; }
+.inventory-app-shell.inventory-portal-refresh .report-metadata span { font-size:14px; line-height:1.5; }
+.inventory-app-shell.inventory-portal-refresh .report-metadata b { font-size:12px; }
+.inventory-app-shell.inventory-portal-refresh .inventory-report-detail footer { font-size:12px; }
+.inventory-app-shell.inventory-portal-refresh .inventory-report-detail { scroll-margin-top:80px; }
+@media screen and (max-width:980px) {
+ .inventory-app-shell.inventory-portal-refresh .inventory-report-detail table { display:block; min-width:0; width:100%; }
+ .inventory-app-shell.inventory-portal-refresh .inventory-report-detail thead { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+ .inventory-app-shell.inventory-portal-refresh .inventory-report-detail tbody { display:grid; gap:12px; }
+ .inventory-app-shell.inventory-portal-refresh .inventory-report-detail tr { display:block; border:1px solid #aabcc6; border-radius:8px; padding:8px; }
+ .inventory-app-shell.inventory-portal-refresh .inventory-report-detail td { display:grid; grid-template-columns:100px minmax(0,1fr); gap:10px; padding:8px 0; white-space:normal; overflow-wrap:anywhere; font-size:14px; line-height:1.4; border:0; }
+ .inventory-app-shell.inventory-portal-refresh .inventory-report-detail td::before { content:attr(data-label); font-weight:700; font-size:12px; }
+}
+.inventory-app-shell.inventory-portal-refresh .inventory-ops :is(input,select,textarea,fieldset) { box-sizing:border-box; min-width:0; max-width:100%; }
+.inventory-app-shell.inventory-portal-refresh .inventory-ops :is(.ops-form,.inspection-schedule-form,.inspection-schedule-list,.scba-template-editor) :is(label,legend) { font-size:14px; line-height:1.4; }
+.inventory-app-shell.inventory-portal-refresh .inventory-ops :is(.ops-form,.inspection-schedule-form,.inspection-schedule-list,.scba-template-editor) :is(input:not([type=checkbox]),select,textarea) { font-size:16px; min-height:44px; }
+.inventory-app-shell.inventory-portal-refresh .inventory-ops .ops-card button { font-size:14px; line-height:1.4; min-height:44px; white-space:normal; }
+.inventory-app-shell.inventory-portal-refresh .inventory-ops .ops-card :is(p,.scba-template-note) { font-size:14px; line-height:1.5; }
+.inventory-app-shell.inventory-portal-refresh .inventory-ops .ops-card>header span { font-size:11px; }
+.inventory-app-shell.inventory-portal-refresh .inventory-ops .unit-picker { min-width:0; }
+.inventory-app-shell.inventory-portal-refresh .inventory-ops .unit-picker select { width:100%; }
+.inventory-app-shell.inventory-portal-refresh .inventory-ops .schedule-toggle { display:flex; align-items:center; justify-content:flex-start; gap:8px; }
+.inventory-app-shell.inventory-portal-refresh .inventory-ops .schedule-toggle input { width:20px; min-height:20px; flex:0 0 20px; }
+@media(max-width:1180px) {
+ .inventory-app-shell.inventory-portal-refresh .inspection-schedule-list>form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+ .inventory-app-shell.inventory-portal-refresh .inspection-schedule-list>form>div:first-child { grid-column:1/-1; }
+}
+.inventory-ops [hidden], .inventory-ops .ops-card[hidden], .inventory-editor-group[hidden] { display:none!important; }
+.inventory-ops:has(.inventory-builder-toolbar) { display:flex; flex-direction:column; }
+.inventory-ops .inventory-builder-toolbar { order:-2; scroll-margin-top:84px; border-top:4px solid #197b85; }
+.inventory-ops>.ops-message { order:-3; }
+.inventory-builder-context { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.inventory-task-nav { display:flex; flex-wrap:wrap; gap:8px; margin:18px 0 12px; }
+.inventory-ops .inventory-task-nav button { min-height:44px; padding:10px 14px; background:#f0f5f7; color:#163d51; border:1px solid #bdcdd6; border-radius:8px; font-size:14px; font-weight:700; white-space:normal; }
+.inventory-ops .inventory-task-nav button[aria-pressed=true] { background:#123a50; border-color:#123a50; color:white; }
+.inventory-ops .inventory-context-note { padding:12px; border-radius:8px; background:#e7f4f3; color:#165252; font-size:14px; font-weight:700; }
+.inventory-ops :is(.inventory-builder-context,.inventory-find-unit) label { display:grid; gap:7px; color:#264858; font-size:14px; font-weight:700; }
+.inventory-ops :is(.inventory-builder-context,.inventory-find-unit) :is(input,select) { width:100%; min-width:0; min-height:46px; padding:10px; border:1px solid #adbfca; border-radius:8px; background:white; color:#173b50; font-size:16px; }
+.inventory-find-unit { display:flex; flex-wrap:wrap; align-items:end; gap:12px; padding:16px; border:1px solid #ccdce4; border-radius:12px; background:#f0f6f8; margin-bottom:16px; }
+.inventory-find-unit label { flex:1 1 230px; }
+.inventory-find-unit p { flex:1 1 230px; color:#345465; font-size:14px; margin:0 0 8px; }
+.inventory-member-preview { border:2px solid #197b85!important; }
+.inventory-member-preview .check-location-items { display:grid; gap:12px; }
+.inventory-preview-fieldset { border:0; padding:0; margin:0; min-width:0; }
+.inventory-member-preview button:disabled { opacity:.75; cursor:default; }
+.inventory-editor-help { font-size:14px; line-height:1.5; color:#425c6a; }
+.inventory-ops .equipment-editor { width:min(900px,calc(100vw - 32px)); max-height:calc(100dvh - 40px); padding:22px; border-radius:16px; background:#fff; color:#16374b; }
+.inventory-ops .equipment-editor header { position:sticky; top:-22px; z-index:2; background:#fff; padding:14px 0; }
+.inventory-ops .equipment-editor header button { background:#eef4f7; color:#173b50; border:1px solid #acbdc6; border-radius:8px; min-height:44px; padding:10px 14px; font-size:14px; }
+.inventory-ops .equipment-editor header h3 { font-size:18px; line-height:1.4; }
+.inventory-ops .equipment-editor .inventory-editor-group { margin:16px 0; }
+.inventory-ops .equipment-editor :is(label,legend) { font-size:14px; color:#27495a; line-height:1.4; }
+.inventory-ops .equipment-editor :is(input:not([type=checkbox]),select,textarea) { font-size:16px; min-width:0; max-width:100%; color:#173b50; background:#fff; border:1px solid #acbdc6; border-radius:7px; min-height:44px; }
+.inventory-ops .equipment-editor .ops-check-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.inventory-ops .equipment-editor .ops-check-grid label { background:#eef4f7; color:#193b4c; min-height:48px; padding:10px; border:1px solid #c4d2da; border-radius:8px; }
+.inventory-editor-footer { display:flex; flex-wrap:wrap; gap:10px; position:sticky; bottom:-22px; padding:14px 0; background:#fff; border-top:1px solid #ccd8df; z-index:2; }
+.inventory-editor-footer button { min-height:46px; font-size:14px; }
+.inventory-editor-footer [role=alert] { flex-basis:100%; color:#9e251f; }
+.inventory-ops .equipment-record-summary { scroll-margin-top:86px; border:2px solid #2c8090; }
+.inventory-ops :is(.equipment-search-tools,.check-worklist-tools) label { font-size:14px; }
+.inventory-ops :is(.equipment-search-tools,.check-worklist-tools) :is(input,select) { font-size:16px; min-height:44px; min-width:0; }
+.inventory-ops .equipment-record-button strong { font-size:17px; }
+.inventory-ops .equipment-record-button small { font-size:14px; line-height:1.5; }
+.inventory-ops :is(.due-check-grid,.equipment-directory,.equipment-grid)>* { min-width:0; overflow-wrap:anywhere; }
+.inventory-ops .due-check-grid h3 { font-size:26px; }
+.inventory-ops .due-check-grid p { font-size:14px; line-height:1.5; }
+.inventory-ops .due-check-grid button { min-height:48px; font-size:15px; }
+.inventory-ops button:focus-visible,.inventory-app-shell select:focus-visible { outline:3px solid #007f94; outline-offset:3px; }
+@media(max-width:980px) {
+ .inventory-app-shell.inventory-portal-refresh .check-completion-bar { bottom:calc(70px + env(safe-area-inset-bottom)); }
+ .inventory-app-shell .mobile-nav { grid-template-columns:repeat(4,1fr); min-height:60px; height:60px; }
+ .inventory-app-shell .mobile-nav button:nth-child(n+5) { display:none; }
+ .inventory-app-shell .mobile-nav button { min-height:56px; font-size:11px; }
+ .inventory-app-shell .inventory-section-nav { display:none; }
+ .inventory-app-shell .inventory-mobile-destination { display:grid; gap:8px; margin-top:18px; font-size:14px; font-weight:700; color:#23475a; }
+ .inventory-mobile-destination select { width:100%; min-height:48px; font-size:16px; padding:10px; border:1px solid #afc3ce; border-radius:8px; color:#183d52; background:#fff; }
+ .inventory-ops .inventory-task-nav { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .inventory-ops .inventory-task-nav button { width:100%; }
+ .inventory-ops .inspection-schedule-form,.inventory-ops .inspection-schedule-list>form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+ .inventory-ops .inspection-schedule-list>form>div:first-child { grid-column:1/-1; }
+ .inventory-ops .inspection-schedule-list input { min-width:0; width:100%; }
+ .inventory-app-shell .inventory-command-header { scroll-margin-top:70px; }
+}
+/* Keep the refreshed surfaces coherent when the device requests dark colors. */
+@media(prefers-color-scheme:dark) {
+ .inventory-app-shell.inventory-portal-refresh .check-item-copy>small { color:#c5d5dc; }
+ .inventory-app-shell.inventory-portal-refresh .inventory-report-detail :is(.report-metadata b,footer) { color:#c5d5dc; }
+ .inventory-app-shell.inventory-portal-refresh .inventory-ops :is(.ops-card,.equipment-record-summary,.equipment-record-button) { background:#10272d; color:#edf5f6; border-color:#526b72; }
+ .inventory-app-shell.inventory-portal-refresh .inventory-ops :is(.check-row,.check-location-group) { background:#0c2026; color:#edf5f6; }
+ .inventory-app-shell.inventory-portal-refresh .inventory-ops :is(.check-row:hover,.check-location-group>header,.check-worklist-tools) { background:#17343d; color:#edf5f6; }
+ .inventory-app-shell.inventory-portal-refresh .inventory-ops .ops-card :is(h2,h3) { color:#edf5f6; }
+ .inventory-app-shell.inventory-portal-refresh .inventory-ops .ops-card>header span,
+ .inventory-app-shell.inventory-portal-refresh .inventory-ops :is(.check-worklist-tools,.inspection-schedule-form,.inspection-schedule-list,.scba-template-editor) :is(label,legend),
+ .inventory-app-shell.inventory-portal-refresh .equipment-record-summary dt { color:#c5d5dc; }
+ .inventory-app-shell.inventory-portal-refresh .inventory-ops .inventory-builder-context label { color:#c5d5dc; }
+ .inventory-app-shell.inventory-portal-refresh .inventory-member-preview>header button { color:#c5d5dc; }
+ .inventory-app-shell.inventory-portal-refresh .equipment-editor { color-scheme:light; }
+}
+@media(max-width:600px) {
+ .inventory-app-shell .inventory-command-header { padding-top:12px; }
+ .inventory-app-shell .inventory-command-back { display:none; }
+ .inventory-app-shell .inventory-command-hero { min-height:0; padding:16px; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; }
+ .inventory-app-shell .inventory-command-hero h1 { font-size:25px; line-height:1.15; }
+ .inventory-app-shell .inventory-command-hero>div>span { display:none; }
+ .inventory-app-shell .inventory-command-hero>button { min-width:64px; min-height:44px; padding:10px; align-self:center; }
+ .inventory-app-shell .inventory-command-hero small { font-size:10px; line-height:1.4; }
+ .inventory-app-shell .inventory-status-strip { grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; margin-top:12px; }
+ .inventory-app-shell .inventory-status-strip button { padding:10px 7px; min-height:74px; gap:4px; }
+ .inventory-app-shell .inventory-status-strip strong { font-size:22px; }
+ .inventory-app-shell .inventory-status-strip span { font-size:11px; line-height:1.3; }
+ .inventory-app-shell .mobile-nav { grid-template-columns:repeat(4,1fr); min-height:60px; height:60px; }
+ .inventory-app-shell .mobile-nav button:nth-child(n+5) { display:none; }
+ .inventory-app-shell .mobile-nav button { min-height:56px; font-size:11px; }
+ .inventory-app-shell .setup-intro-topline,.inventory-app-shell .setup-intro-summary { display:none; }
+ .inventory-app-shell .setup-intro { padding-top:12px; }
+ .inventory-app-shell .setup-workspace-tabs button { padding:10px; min-height:48px; }
+ .inventory-app-shell .setup-workspace-tabs button small { display:none; }
+ .inventory-app-shell .capture-workspace { padding:16px 10px 24px; }
+ .inventory-app-shell .setup-page { margin-top:16px; }
+ .inventory-builder-context { grid-template-columns:1fr; gap:12px; }
+ .inventory-ops .equipment-editor { width:calc(100vw - 16px); padding:16px; max-height:calc(100dvh - 24px); }
+ .inventory-ops .equipment-editor .ops-form-wide { grid-template-columns:minmax(0,1fr); }
+ .inventory-ops .equipment-editor :is(.ops-span-2,.ops-check-grid) { grid-column:auto; }
+ .inventory-ops .equipment-editor .ops-check-grid { grid-template-columns:1fr; }
+ .inventory-editor-footer { bottom:-16px; }
+ .inventory-editor-footer button { flex:1 1 130px; }
+ .inventory-ops .ops-card { padding:16px; }
+ .inventory-ops .ops-card>header { flex-wrap:wrap; gap:12px; }
+ .inventory-ops .ops-card>header h2 { font-size:21px; }
+ .inventory-ops .check-row { grid-template-columns:minmax(0,1fr); gap:12px; }
+ .inventory-ops .check-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .inventory-ops .check-actions button { min-height:48px; font-size:14px; }
+ .inventory-app-shell.inventory-portal-refresh .inventory-ops .inspection-schedule-form,.inventory-app-shell.inventory-portal-refresh .inventory-ops .inspection-schedule-list>form { grid-template-columns:minmax(0,1fr); }
+}

@@ -20,7 +20,8 @@ test("crew location requests default to the equipment apparatus and its configur
 
 test("wrong-location controls are limited to inventory checks", () => {
   assert.match(operations, /const activeAllowsRelocation = activeCheckType === "inventory"/);
-  assert.match(operations, /activeAllowsRelocation \? <button className="relocate"/);
+  assert.match(operations, /const allowsRelocation = preview \? templateType === "inventory" : activeAllowsRelocation/);
+  assert.match(operations, /allowsRelocation \? <button className="relocate"/);
   assert.match(operations, /relocationItem && activeCheck && activeAllowsRelocation/);
   assert.match(route, /\.eq\("check_type", "inventory"\)/);
 });

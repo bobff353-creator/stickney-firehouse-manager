@@ -352,7 +352,13 @@ export default function Inventory360({
   const [fleetOperations, setFleetOperations] = useState<FleetOperationsSummary>(emptyFleetOperations);
   const [toast, setToast] = useState("");
   const [scanRequest, setScanRequest] = useState(0);
-  const [setupWorkspace, setSetupWorkspace] = useState<"apparatus" | "checks">("apparatus");
+  const [setupWorkspace, setSetupWorkspace] = useState<"apparatus" | "checks">("checks");
+  const workspaceHeadingRef = useRef<HTMLElement>(null);
+  const previousView = useRef(view);
+  useEffect(() => {
+    if (previousView.current !== view && window.matchMedia("(max-width: 980px)").matches) workspaceHeadingRef.current?.scrollIntoView({block:"start"});
+    previousView.current = view;
+  }, [view]);
   const canCheck = permissions.includes("inventory.check");
   const canManageRepairs = permissions.includes("inventory.repairs.manage");
   const canSetup = permissions.includes("inventory.setup.manage");
@@ -561,7 +567,7 @@ export default function Inventory360({
         </div>
       </header>
 
-      <section className="inventory-command-header" aria-labelledby="inventory-workspace-title">
+      <section ref={workspaceHeadingRef} className="inventory-command-header" aria-labelledby="inventory-workspace-title">
         <button className="inventory-command-back" type="button" onClick={() => setView("due")}>← Inventory home</button>
         <div className="inventory-command-hero">
           <div>
@@ -580,6 +586,7 @@ export default function Inventory360({
             <button type="button" onClick={() => setView("fleet")}><strong>{checksInProgress}</strong><span>Checks in progress</span></button>
           </div>
         ) : null}
+        <label className="inventory-mobile-destination">What do you need to do?<select aria-label="Inventory workspace" value={view === "check" ? "fleet" : view} onChange={event => setView(event.target.value as View)}>{inventorySections.map(([id,label]) => <option key={id} value={id}>{label}</option>)}{view === "readiness" && <option value="readiness">Items needing attention</option>}{canSetup && <option value="setup">Admin: checks &amp; equipment</option>}</select></label>
         <nav className="inventory-section-nav" aria-label="Inventory sections">
           {[
             ...inventorySections,
