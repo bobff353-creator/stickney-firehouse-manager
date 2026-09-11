@@ -1,10 +1,12 @@
+import { hasAnyPermission } from "../../server-permissions";
+import { hasPermission } from "../../server-permissions";
 import { ensureDatabase } from "../../../db/bootstrap";
 import { holidayForDate } from "../../holidays";
 import { qualifiedForScheduleRole } from "../../schedule-eligibility";
 import { generateScheduleDraft, scheduleItemsOverlap, type GeneratorAssignment, type GeneratorCoverageRule, type GeneratorEmployee, type GeneratorRequest, type GeneratorShiftPattern, type GeneratorStaffingOverride } from "../../schedule-generator";
 import { normalizeScheduleTime } from "../../schedule-time";
 
-const ownerAdminEmails = ["bobff353@gmail.com"];
+
 const iso = /^\d{4}-\d{2}-\d{2}$/;
 type Db = Awaited<ReturnType<typeof ensureDatabase>>;
 type Assignment = {
@@ -41,7 +43,7 @@ async function viewer(db: Db, request: Request) {
     actingOfficerEligible: Boolean(employee?.actingOfficerEligible),
     driverStatus: employee?.driverStatus ?? "",
     singleRole: employee?.singleRole ?? 0,
-    isAdmin: ownerAdminEmails.includes(email) || Boolean(employee?.isAdmin),
+    isAdmin: await hasPermission(request, db, "scheduling.manage"),
   };
 }
 
@@ -205,6 +207,7 @@ async function resolveOpenAssignment(db: Db, assignmentId: string, createdBy: st
 export async function GET(request: Request) {
   try {
     const db = await ensureDatabase();
+    if (!await hasAnyPermission(request, db, ["scheduling.view","scheduling.manage"])) return Response.json({ error: "This account does not have access to this tool." }, { status: 403 });
     const current = await viewer(db, request);
     if (!current.isAdmin && !current.employeeId) return Response.json({ error: "Your login is not connected to an employee record." }, { status: 403 });
     const requestedTestEmployeeId = current.isAdmin ? new URL(request.url).searchParams.get("testEmployeeId") ?? "" : "";
@@ -289,6 +292,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const db = await ensureDatabase();
+    if (!await hasAnyPermission(request, db, ["scheduling.view","scheduling.manage"])) return Response.json({ error: "This account does not have access to this tool." }, { status: 403 });
     const current = await viewer(db, request);
     const payload = await request.json() as Record<string,unknown>;
     const action = String(payload.action ?? "");

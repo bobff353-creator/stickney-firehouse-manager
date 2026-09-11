@@ -1,16 +1,13 @@
+import { hasAnyPermission } from "../../server-permissions";
+import { hasPermission } from "../../server-permissions";
 import { ensureDatabase } from "../../../db/bootstrap";
 import { pendingDailyFleetChecks, weeklyDutyCheckMap, type FleetDailyCheck, type FleetDutyCheck } from "../../lib/fleet-projections";
 import { createInventorySupabaseClient } from "../../lib/supabase-server";
 
-const ownerAdminEmails = ["bobff353@gmail.com"];
 const shifts = ["morning", "afternoon", "night"] as const;
 
 async function isAdmin(request: Request, db: Awaited<ReturnType<typeof ensureDatabase>>) {
-  const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
-  if (ownerAdminEmails.includes(email)) return true;
-  if (!email) return false;
-  const row = await db.prepare("SELECT is_admin AS isAdmin FROM employee_profiles WHERE lower(email) = ? LIMIT 1").bind(email).first<{ isAdmin: number }>();
-  return Boolean(row?.isAdmin);
+  return hasPermission(request, db, "policies.manage");
 }
 
 function chicagoNow() {
@@ -26,6 +23,7 @@ function chicagoNow() {
 export async function GET(request: Request) {
   try {
     const db = await ensureDatabase();
+    if (!await hasAnyPermission(request, db, ["documents.view","policies.manage","daily_log.view","operations_board.view"])) return Response.json({ error: "This account does not have access to this tool." }, { status: 403 });
     const canEdit = await isAdmin(request, db);
     const rows = await db.prepare("SELECT id, day_of_week AS dayOfWeek, shift_key AS shiftKey, duty, updated_by AS updatedBy, updated_at AS updatedAt FROM daily_duties ORDER BY CASE day_of_week WHEN 1 THEN 1 WHEN 2 THEN 2 WHEN 3 THEN 3 WHEN 4 THEN 4 WHEN 5 THEN 5 WHEN 6 THEN 6 ELSE 7 END, CASE shift_key WHEN 'morning' THEN 1 WHEN 'afternoon' THEN 2 ELSE 3 END").all();
     const dutyRows = rows.results as Array<{ id: string; dayOfWeek: number; shiftKey: string; duty: string; updatedBy: string; updatedAt: string }>;

@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ apparatus?: string; check?: string }>;
+  searchParams: Promise<{ apparatus?: string; check?: string; adminTask?: string }>;
 }) {
   const session = await verifyInventoryServerSession();
   if (!session.ok) {
@@ -34,6 +34,7 @@ export default async function Home({
         departmentName={session.context.department.name}
         initialApparatusId={initialApparatusId}
         initialCheckType={initialCheckType}
+        initialAdminTask={typeof query.adminTask === "string" ? query.adminTask : ""}
         permissions={session.context.grants}
       />
     </SessionIdleLock>

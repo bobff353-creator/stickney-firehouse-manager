@@ -1,11 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { getPublicSupabaseConfig } from "./supabase-config";
+import { portalServerHeaders } from "./portal-server-headers";
 
 export async function getSupabaseServerClient() {
   const cookieStore = await cookies();
   const { url, key } = getPublicSupabaseConfig();
   return createServerClient(url, key, {
+    global: { headers: portalServerHeaders() },
     cookies: {
       getAll() {
         return cookieStore.getAll();

@@ -1,6 +1,7 @@
 "use client";
 
 import "./scheduler-member.css";
+import { schedulerAdminTask } from "./admin-tasks";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { normalizeScheduleTime, scheduleTimeBlocks } from "./schedule-time";
@@ -116,6 +117,16 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
     }
   }, [tab]);
   const [schedulerView, setSchedulerView] = useState<"admin" | "employee">("employee");
+  const adminDestinationApplied = useRef(false);
+  useEffect(() => {
+    if (!data || adminDestinationApplied.current) return;
+    adminDestinationApplied.current = true;
+    const requested = new URLSearchParams(window.location.search).get("adminTask") || "";
+    if (!testMember && data.viewer.isAdmin && schedulerAdminTask(requested)) {
+      setSchedulerView("admin");
+      setTab(requested);
+    }
+  }, [data, testMember, setTab]);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);

@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import InventoryOperations from "./inventory-operations";
 import InventoryVinProfile from "./inventory-vin-profile";
+import { usePermissions, refreshPermissions } from "./use-permissions";
 import {
   FormEvent,
   useCallback,
@@ -325,14 +326,19 @@ export default function Inventory360({
   departmentName,
   initialApparatusId = "",
   initialCheckType = "",
-  permissions,
+  initialAdminTask = "",
+  permissions: initialPermissions,
 }: {
   departmentId: string;
   departmentName: string;
   initialApparatusId?: string;
   initialCheckType?: "daily" | "weekly" | "inventory" | "air_pack" | "";
+  initialAdminTask?: string;
   permissions: string[];
 }) {
+  void initialPermissions; // Server gate controls initial access; live grants are reverified below.
+  const access = usePermissions();
+  const permissions = access.verified ? access.permissions : [];
   const [view, setView] = useState<View>(() => initialApparatusId && initialCheckType ? "check" : "due");
   const [selectedApparatusId, setSelectedApparatusId] = useState(initialApparatusId);
   const [selectedCheckType, setSelectedCheckType] = useState(initialCheckType);
@@ -362,6 +368,16 @@ export default function Inventory360({
   const canCheck = permissions.includes("inventory.check");
   const canManageRepairs = permissions.includes("inventory.repairs.manage");
   const canSetup = permissions.includes("inventory.setup.manage");
+  const adminDestinationApplied = useRef(false);
+  useEffect(() => {
+    if (!access.verified || adminDestinationApplied.current) return;
+    adminDestinationApplied.current = true;
+    if (canSetup && (initialAdminTask === "checks" || initialAdminTask === "apparatus")) {
+      setSetupWorkspace(initialAdminTask);
+      setView("setup");
+    } else if (canSetup && initialAdminTask === "equipment") setView("equipment");
+    else if (canManageRepairs && initialAdminTask === "service") setView("service");
+  }, [access.verified, canSetup, canManageRepairs, initialAdminTask]);
 
   const loadTwin = useCallback(async (
     apparatusId?: string,
@@ -529,6 +545,8 @@ export default function Inventory360({
     void loadFleetOperations();
     showToast("Inventory refreshed");
   }
+
+  if (!access.verified || !permissions.includes("inventory.view")) return <main className="inventory-app-shell"><section className="content-card"><h1>Inventory access</h1><p role="status">{access.error || (access.verified ? "Inventory access is not enabled for your account." : "Checking your current permissions…")}</p><button onClick={() => void refreshPermissions()}>Retry access check</button><Link href="/">Back to portal</Link></section></main>;
 
   return (
     <main className="inventory-app-shell inventory-portal-refresh">

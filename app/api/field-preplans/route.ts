@@ -1,34 +1,21 @@
+import { permissionsForEmail } from "../../server-permissions";
 import { ensureDatabase } from "../../../db/bootstrap";
-import { defaultPermissionsForRank } from "../../permissions";
 import { getPortalStorage } from "../../portal-storage";
 import { canReadPreplanLifecycle, preplanReadAccess } from "../../server-permissions";
 import { polygonAreaSquareFeet, suggestedFireFlow, type ConstructionGroup, type OccupancyFlowCategory, type SprinklerStandard } from "../../preplan-fire-flow";
 
 type Point = { lat:number; lng:number };
 type Db = Awaited<ReturnType<typeof ensureDatabase>>;
-const ownerAdminEmails = ["bobff353@gmail.com"];
 const featureTypes = new Set(["alarm","knox","riser","fdc","sprinkler","gas","water","electric","propane","elevator","elevator_room","standpipe","access","hazard"]);
 const constructionTypes = new Set<ConstructionGroup>(["I","II","III","IV","V","V_LIGHTWEIGHT","IA_IB","IIA_IIIA","IV_VA","IIB_IIIB","VB"]);
 const occupancyFlowCategories = new Set<OccupancyFlowCategory>(["other","dwelling"]);
 const sprinklerStandards = new Set<SprinklerStandard>(["none","nfpa13","nfpa13r","residential"]);
 type Bucket = { delete(key:string):Promise<void> };
 
-async function access(request:Request, db:Db) {
+async function access(request: Request, db: Db) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
-  const row = email ? await db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.is_admin,0) isAdmin FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(ep.email)=? LIMIT 1").bind(email).first<{id:string;name:string;rank:string;isAdmin:number}>() : null;
-  const admin = ownerAdminEmails.includes(email) || Boolean(row?.isAdmin);
-  if (!row && !admin) return { allowed:false, canEdit:false, canDelete:false, actor:"" };
-  if (admin) return { allowed:true, canEdit:true, canDelete:true, actor:row?.name || email };
-  const [rankRows, overrides] = await Promise.all([
-    db.prepare("SELECT permission_key permissionKey,allowed FROM rank_permissions WHERE rank=?").bind(row!.rank).all<{permissionKey:string;allowed:number}>(),
-    db.prepare("SELECT permission_key permissionKey,effect FROM employee_permission_overrides WHERE employee_id=?").bind(row!.id).all<{permissionKey:string;effect:"allow"|"deny"}>(),
-  ]);
-  const permissions = new Set(rankRows.results.length ? rankRows.results.filter((item) => item.allowed).map((item) => item.permissionKey) : defaultPermissionsForRank(row!.rank));
-  for (const item of overrides.results) {
-    if (item.effect === "allow") permissions.add(item.permissionKey);
-    else permissions.delete(item.permissionKey);
-  }
-  return { allowed:permissions.has("field_preplans.view"), canEdit:permissions.has("field_preplans.edit"), canDelete:false, actor:row!.name };
+  const permissions = await permissionsForEmail(email, db);
+  return { allowed: permissions.has("field_preplans.view"), canEdit: permissions.has("field_preplans.edit"), canDelete: permissions.has("field_preplans.delete"), actor: email };
 }
 
 function text(value:unknown, limit=2000) { return String(value ?? "").trim().slice(0, limit); }
@@ -91,7 +78,7 @@ export async function POST(request:Request) {
       return Response.json({ ok:true, id, photoCleanupPending:cleanup.some((result) => result.status === "rejected") });
     }
     if (action === "deletePreplan") {
-      if (!auth.canDelete) return Response.json({ error:"Administrator privileges are required to delete a preplan." }, { status:403 });
+      if (!auth.canDelete) return Response.json({ error:"Delete preplans permission is required." }, { status:403 });
       const id = text(body.id, 80), confirmation = text(body.confirmation, 20);
       if (!id || confirmation !== "DELETE") return Response.json({ error:"Confirm Delete is required before a preplan can be removed." }, { status:400 });
       const photos = await db.prepare("SELECT object_key objectKey FROM field_preplan_photos WHERE preplan_id=?").bind(id).all<{objectKey:string}>();

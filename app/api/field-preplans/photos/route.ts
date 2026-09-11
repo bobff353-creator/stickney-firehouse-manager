@@ -1,20 +1,16 @@
+import { hasPermission } from "../../../server-permissions";
 import { ensureDatabase } from "../../../../db/bootstrap";
 import { getPortalStorage } from "../../../portal-storage";
 
 type Bucket = { put(key:string,value:ReadableStream,options:{httpMetadata:{contentType:string}}):Promise<unknown>; delete(key:string):Promise<void> };
-const ownerAdminEmails = ["bobff353@gmail.com"];
 const sides = new Set(["A","B","C","D","FEATURE","OVERVIEW"]);
 
 async function runtime() {
   return { BUCKET: getPortalStorage() as Bucket };
 }
 
-async function editor(request:Request, db:Awaited<ReturnType<typeof ensureDatabase>>) {
-  const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
-  if (ownerAdminEmails.includes(email)) return email;
-  const row = email ? await db.prepare("SELECT e.name,p.label rank,COALESCE(ep.is_admin,0) isAdmin FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(ep.email)=? LIMIT 1").bind(email).first<{name:string;rank:string;isAdmin:number}>() : null;
-  if (!row) return "";
-  return row.isAdmin || /\b(chief|captain|lieutenant|firefighter|ff)\b/i.test(row.rank) ? row.name : "";
+async function editor(request: Request, db: Awaited<ReturnType<typeof ensureDatabase>>) {
+  return await hasPermission(request, db, "field_preplans.manage_attachments") ? (request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "") : "";
 }
 
 export async function POST(request:Request) {

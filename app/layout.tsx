@@ -4,6 +4,7 @@ import Script from "next/script";
 import "./globals.css";
 import "./mobile-usability.css";
 import "./portal-usability.css";
+import "./admin-usability.css";
 
 export const viewport: Viewport = {
   width: "device-width",

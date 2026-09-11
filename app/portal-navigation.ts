@@ -1,6 +1,6 @@
 export const portalPages = ["Dashboard", "Command Center", "Operations Board", "Activity Timeline", "Respond", "Command Board", "Field Preplans", "Road Closures", "Safety Inspections", "Scheduling", "Payroll", "Work Details", "Daily Log", "Timesheets", "Callback Reviews", "My Timesheet", "Employees", "Employee Contacts", "Policies", "Box Cards", "Holiday Policy", "EMS", "Daily Duties", "Inventory", "Phone Numbers", "Rates & Rules", "Departments", "System Health", "Permissions", "CAD Integration", "Respond Device Modes", "Test View"] as const;
 export type PortalPage = typeof portalPages[number];
-export type PortalRecord = { preplan?: string; hydrant?: string; policy?: string; boxCard?: string; query?: string };
+export type PortalRecord = { preplan?: string; hydrant?: string; policy?: string; boxCard?: string; query?: string; adminTask?: string };
 export function pageSlug(page: PortalPage) { return page.toLowerCase().replaceAll(" & ", "-").replaceAll(" ", "-"); }
 export function portalPageFromSearch(search: string): PortalPage | null {
   const params = new URLSearchParams(search);
@@ -14,7 +14,8 @@ export function portalPageUrl(pathname: string, search: string, page: PortalPage
   const params = new URLSearchParams(search);
   params.set("page", pageSlug(page));
   params.set("display", "portal");
-  for (const key of ["preplan", "hydrant", "edit", "policy", "boxCard", "query"]) params.delete(key);
+  for (const key of ["preplan", "hydrant", "edit", "policy", "boxCard", "query", "adminTask"]) params.delete(key);
+  if (record?.adminTask) params.set("adminTask", record.adminTask);
   if (page === "Field Preplans") {
     if (record?.preplan) params.set("preplan", record.preplan);
     else if (record?.hydrant) params.set("hydrant", record.hydrant);

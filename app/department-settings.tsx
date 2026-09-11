@@ -98,7 +98,7 @@ export default function DepartmentSettings() {
 
   return <section className="department-settings-page">
     <header className="standard-page-header">
-      <div><span className="page-icon">FD</span><div><p className="eyebrow">Platform administration</p><h1>Departments</h1><p>Create and manage separate department workspaces without mixing records.</p></div></div>
+      <div><span className="page-icon">FD</span><div><p className="eyebrow">Platform administration</p><h1>Departments</h1><p>Review your workspaces or create a separate department. This screen does not edit the current department.</p></div></div>
       <button className="primary-action" type="button" onClick={() => setShowForm((current) => !current)}>{showForm ? "Cancel" : "Add Department"}</button>
     </header>
 
@@ -106,7 +106,7 @@ export default function DepartmentSettings() {
       <div className="section-header"><div><h2>Add a department</h2><p>This creates a clean department account. Employees, payroll, policies, preplans, hydrants, box cards, apparatus, and duties remain separate.</p></div></div>
       <div className="department-form-grid">
         <label><span>Department name *</span><input required value={draft.name} onChange={(event) => updateName(event.target.value)} placeholder="Fermilab FD" /></label>
-        <label><span>Free web address *</span><div className="department-slug-input"><input required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" value={draft.slug} onChange={(event) => setDraft({ ...draft, slug: event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })} placeholder="fermilab-fd" /><b>.vercel.app</b></div></label>
+        <label><span>Workspace identifier *</span><div className="department-slug-input"><input required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" value={draft.slug} onChange={(event) => setDraft({ ...draft, slug: event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })} placeholder="fermilab-fd" /><small>Not a published website address</small></div></label>
         <label><span>City</span><input value={draft.city} onChange={(event) => setDraft({ ...draft, city: event.target.value })} /></label>
         <label><span>State</span><input maxLength={2} value={draft.state} onChange={(event) => setDraft({ ...draft, state: event.target.value.toUpperCase() })} /></label>
         <label><span>County</span><input value={draft.county} onChange={(event) => setDraft({ ...draft, county: event.target.value })} /></label>
@@ -118,11 +118,10 @@ export default function DepartmentSettings() {
       const department = departmentFrom(row);
       if (!department) return null;
       const stats = counts[department.id] ?? { properties: 0, hydrants: 0 };
-      const isFermilab = department.slug === "fermilab-fd";
       return <article className="content-card department-card" key={department.id}>
         <div className="department-card-head"><span>{department.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 3)}</span><div><h2>{department.name}</h2><p>{[department.city, department.state].filter(Boolean).join(", ") || "Location not entered"}</p></div><b>{row.role}</b></div>
         <div className="department-stats"><div><strong>{stats.properties}</strong><span>Properties</span></div><div><strong>{stats.hydrants}</strong><span>Hydrants</span></div><div><strong>{department.trial_status === "active" ? "Active" : department.account_status}</strong><span>Account</span></div></div>
-        <footer><span>{department.slug}.vercel.app</span>{isFermilab ? <small>Fermilab source records imported · portal publishing next</small> : <small>Department workspace active</small>}</footer>
+        <footer><span>Workspace: {department.slug}</span><small>Website publishing is managed separately.</small></footer>
       </article>;
     })}</div>
     {message && <div className="toast">{message}</div>}

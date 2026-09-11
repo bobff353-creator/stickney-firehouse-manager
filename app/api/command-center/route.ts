@@ -1,7 +1,9 @@
+import { hasPermission } from "../../server-permissions";
 import { ensureDatabase } from "../../../db/bootstrap";
 import { buildPayrollDetails, buildStaffingDetails } from "../../command-center-analytics";
-const ownerAdminEmails = ["bobff353@gmail.com"];
-async function isAdmin(request: Request, db: Awaited<ReturnType<typeof ensureDatabase>>) { const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? ""; if (ownerAdminEmails.includes(email)) return true; const row = email ? await db.prepare("SELECT is_admin AS isAdmin FROM employee_profiles WHERE lower(email) = ? LIMIT 1").bind(email).first<{ isAdmin: number }>() : null; return Boolean(row?.isAdmin); }
+async function isAdmin(request: Request, db: Awaited<ReturnType<typeof ensureDatabase>>) {
+  return hasPermission(request, db, "command_center.view");
+}
 function equipmentCount(raw: unknown) { try { return Object.values(JSON.parse(String(raw || "{}")) as Record<string, { status?: string }>).filter((item) => item.status && item.status !== "Present").length; } catch { return 0; } }
 type Metric = { date: string; staffingGaps: number; overtimeHours: number; aoHours: number; calls: number; equipmentIssues: number; payrollCost: number };
 function fiscalYear() {

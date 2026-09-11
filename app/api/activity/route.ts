@@ -1,7 +1,9 @@
+import { hasPermission } from "../../server-permissions";
 import { ensureDatabase } from "../../../db/bootstrap";
 
-const ownerAdminEmails = ["bobff353@gmail.com"];
-async function isAdmin(request: Request, db: Awaited<ReturnType<typeof ensureDatabase>>) { const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? ""; if (ownerAdminEmails.includes(email)) return true; if (!email) return false; const row = await db.prepare("SELECT is_admin AS isAdmin FROM employee_profiles WHERE lower(email) = ? LIMIT 1").bind(email).first<{ isAdmin: number }>(); return Boolean(row?.isAdmin); }
+async function isAdmin(request: Request, db: Awaited<ReturnType<typeof ensureDatabase>>) {
+  return hasPermission(request, db, "command_center.view");
+}
 const addDay = (iso: string) => { const date = new Date(`${iso}T12:00:00Z`); date.setUTCDate(date.getUTCDate() + 1); return date.toISOString().slice(0, 10); };
 const stamp = (date: string, time?: unknown, nextDay = false) => `${nextDay ? addDay(date) : date}T${String(time || "00:00").slice(0, 5)}:00`;
 function equipment(raw: unknown) { try { return Object.entries(JSON.parse(String(raw || "{}")) as Record<string, { status?: string; detail?: string }>).filter(([, value]) => value.status && value.status !== "Present"); } catch { return []; } }

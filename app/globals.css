@@ -1614,6 +1614,10 @@ td strong { font-size: 16px; }
   .mini-summary { grid-template-columns: repeat(2, 1fr); }
   .settings-grid { grid-template-columns: 1fr; }
   .permission-groups, .permission-override-list { grid-template-columns: 1fr; }
+  .permission-override-list label { flex-direction: column; align-items: stretch; gap: 8px; }
+  .permission-override-list select { width: 100%; min-width: 0; }
+  .permission-override-list b { font-size: 14px; }
+  .permission-override-list small { font-size: 11px; }
   .permission-section > header, .test-view-banner, .test-view-banner > div { align-items: stretch; flex-direction: column; }
   .employee-fields.three-col { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .shift-card-grid { grid-template-columns: 1fr; }

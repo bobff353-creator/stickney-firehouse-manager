@@ -1,12 +1,14 @@
+import { hasAnyPermission } from "../../server-permissions";
+import { hasPermission } from "../../server-permissions";
 import { ensureDatabase } from "../../../db/bootstrap";
 
-const ownerAdminEmails = ["bobff353@gmail.com"];
+
 const isOfficer = (rank: string) => /(chief|captain|lieutenant)/i.test(rank);
 
 async function viewer(db: Awaited<ReturnType<typeof ensureDatabase>>, request: Request) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
   const employee = email ? await db.prepare("SELECT e.id, e.name, p.label AS rank, COALESCE(ep.is_admin, 0) AS isAdmin FROM employees e JOIN pay_scales p ON p.id = e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id = e.id WHERE e.active = 1 AND lower(ep.email) = ? LIMIT 1").bind(email).first<{ id: string; name: string; rank: string; isAdmin: number }>() : null;
-  return { email, employeeId: employee?.id ?? null, name: employee?.name ?? (email || "Employee"), isAdmin: ownerAdminEmails.includes(email) || Boolean(employee?.isAdmin), rank: employee?.rank ?? "" };
+  return { email, employeeId: employee?.id ?? null, name: employee?.name ?? (email || "Employee"), isAdmin: await hasPermission(request, db, "scheduling.manage"), rank: employee?.rank ?? "" };
 }
 
 function addDays(iso: string, count: number) {
@@ -38,6 +40,7 @@ async function requestRows(db: Awaited<ReturnType<typeof ensureDatabase>>) {
 export async function GET(request: Request) {
   try {
     const db = await ensureDatabase();
+    if (!await hasAnyPermission(request, db, ["scheduling.manage"])) return Response.json({ error: "This account does not have access to this tool." }, { status: 403 });
     const current = await viewer(db, request);
     if (!current.isAdmin && !current.employeeId) return Response.json({ error: "Your login is not connected to an employee record." }, { status: 403 });
     const employees = await db.prepare("SELECT e.id, e.name, p.label AS rank, COALESCE(ep.is_admin, 0) AS isAdmin FROM employees e JOIN pay_scales p ON p.id = e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id = e.id WHERE e.active = 1 ORDER BY e.name COLLATE NOCASE").all<{ id: string; name: string; rank: string; isAdmin: number }>();
@@ -50,6 +53,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const db = await ensureDatabase();
+    if (!await hasAnyPermission(request, db, ["scheduling.manage"])) return Response.json({ error: "This account does not have access to this tool." }, { status: 403 });
     const current = await viewer(db, request);
     if (!current.isAdmin && !current.employeeId) return Response.json({ error: "Your login is not connected to an employee record." }, { status: 403 });
     const payload = await request.json() as Record<string, unknown>;

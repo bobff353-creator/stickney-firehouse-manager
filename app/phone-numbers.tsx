@@ -13,7 +13,7 @@ const callHref = (number: string) => `tel:${number.replace(/[^\d+]/g, "")}`;
 export default function PhoneNumbers() {
   const [numbers, setNumbers] = useState<PhoneEntry[]>([]);
   const [search, setSearch] = useState("");
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(true);
   const [draft, setDraft] = useState<PhoneEntry | null>(null);
   const [draftBaseline, setDraftBaseline] = useState("");
   const [message, setMessage] = useState("");
@@ -28,6 +28,7 @@ export default function PhoneNumbers() {
   function editContact(entry: PhoneEntry) {
     if (!confirmLeavingWork()) return;
     setDraft({ ...entry }); setDraftBaseline(JSON.stringify(entry));
+    window.setTimeout(() => { const form = document.querySelector<HTMLElement>(".phone-form"); form?.scrollIntoView({ block: "start", behavior: "instant" }); form?.querySelector<HTMLInputElement>("input[required]")?.focus({ preventScroll: true }); }, 0);
   }
 
   async function load() {
@@ -73,13 +74,14 @@ export default function PhoneNumbers() {
     <ConfirmDialog open={Boolean(pendingRemove)} title="Remove this contact?" description={`${pendingRemove?.name ?? "This contact"} will be removed from the shared Important Phone Numbers directory.`} confirmLabel="Remove Contact" tone="danger" busy={removing} onCancel={() => setPendingRemove(null)} onConfirm={() => { if (pendingRemove) void remove(pendingRemove); }} />
     <div className="phone-hero standard-page-header">
       <div><span className="page-icon" aria-hidden="true">☏</span><div><p className="eyebrow">Quick reference directory</p><h1>Important Phone Numbers</h1><p>Tap any listed number to call.</p></div></div>
-      {canEdit && <button className={editing ? "quiet-button" : "primary-action"} disabled={saving || removing} onClick={() => { if (confirmLeavingWork()) { setEditing((value) => !value); setDraft(null); } }}>{editing ? "Done Editing" : "Admin Edit"}</button>}
+      {canEdit && <button className={editing ? "quiet-button" : "primary-action"} disabled={saving || removing} onClick={() => { if (confirmLeavingWork()) { setEditing((value) => !value); setDraft(null); } }}>{editing ? "Preview directory" : "Back to editing"}</button>}
     </div>
+    {canEdit && !editing && <p className="admin-preview-banner">Directory preview · Editing controls are hidden. This does not change your account or access.</p>}
     <label className="phone-search"><span aria-hidden="true">⌕</span><span className="sr-only">Search phone numbers</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search departments, hospitals, or numbers…" /></label>
     {loading && <p role="status">Loading directory…</p>}
     {error && <div className="error-banner" role="alert"><span>{error}</span><button type="button" disabled={loading || saving || removing} onClick={() => void load()}>Retry directory</button></div>}
     {message && <div className="phone-message" role="status">{message}</div>}
-    {editing && <div className="admin-edit-banner"><div><strong>Administrator editing enabled</strong><span>Select Edit beside a contact or add a new one. Changes are saved for everyone.</span></div><button className="primary-action compact" disabled={saving} onClick={() => editContact(empty)}>+ Add Contact</button></div>}
+    {canEdit && editing && <div className="admin-edit-banner"><div><strong>Edit the shared directory</strong><span>Choose Edit beside a contact, or add a new one. Changes apply only after Save Contact.</span></div><button className="primary-action compact" disabled={saving} onClick={() => editContact(empty)}>+ Add Contact</button></div>}
     {draft && <form className="content-card phone-form" onSubmit={(event) => void save(event)}>
       <fieldset className="portal-save-fields" disabled={saving}>
       <div className="section-header"><div><h2>{draft.id ? "Edit contact" : "Add contact"}</h2><p>Use the notes field for extensions, hours, or special instructions.</p></div><button type="button" className="quiet-button" disabled={saving} onClick={() => { if (confirmLeavingWork()) setDraft(null); }}>Cancel</button></div>
@@ -90,16 +92,16 @@ export default function PhoneNumbers() {
         <label><span>Non-emergency / main number</span><input type="tel" value={draft.nonEmergencyNumber} onChange={(event) => setDraft({ ...draft, nonEmergencyNumber: event.target.value })} /></label>
         <label><span>Display order</span><input type="number" min="0" value={draft.sortOrder} onChange={(event) => setDraft({ ...draft, sortOrder: Number(event.target.value) })} /></label>
         <label className="phone-notes"><span>Notes</span><input value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} /></label>
-      </div><button className="primary-action compact" disabled={saving} type="submit">{saving ? "Saving…" : "Save Contact"}</button>
+      </div><div className="admin-save-bar"><span>{JSON.stringify(draft) !== draftBaseline ? "Unsaved changes" : "Editing contact"}</span><div><button type="button" className="quiet-button" disabled={saving} onClick={() => { if (confirmLeavingWork()) setDraft(null); }}>Cancel editing</button><button className="primary-action compact" disabled={saving} type="submit">{saving ? "Saving…" : "Save Contact"}</button></div></div>
       </fieldset>
     </form>}
     {(["fire", "hospital", "misc"] as const).map((category) => <section className="phone-section content-card" key={category}>
       <div className="phone-section-title"><span className="phone-section-icon" aria-hidden="true">{category === "fire" ? "◆" : category === "hospital" ? "+" : "☎"}</span><div><h2>{sectionNames[category]}</h2><p>{filtered.filter((entry) => entry.category === category).length} contacts</p></div></div>
       <div className="phone-grid">{filtered.filter((entry) => entry.category === category).map((entry) => <article className="phone-entry" key={entry.id}>
-        <div className="phone-entry-heading"><h3>{entry.name}</h3>{editing && <div><button disabled={saving} onClick={() => editContact(entry)}>Edit</button><button className="danger-link" disabled={saving || removing} onClick={() => { if (confirmLeavingWork()) { setDraft(null); setPendingRemove(entry); } }}>Remove</button></div>}</div>
+        <div className="phone-entry-heading"><h3>{entry.name}</h3>{canEdit && editing && <div><button disabled={saving} onClick={() => editContact(entry)}>Edit</button><button className="danger-link" disabled={saving || removing} onClick={() => { if (confirmLeavingWork()) { setDraft(null); setPendingRemove(entry); } }}>Remove</button></div>}</div>
         <div className="phone-actions">{entry.emergencyNumber && <a className="emergency-call" href={callHref(entry.emergencyNumber)}><span>Emergency</span><strong>{entry.emergencyNumber}</strong></a>}{entry.nonEmergencyNumber && <a href={callHref(entry.nonEmergencyNumber)}><span>{category === "fire" ? "Non-emergency" : "Main number"}</span><strong>{entry.nonEmergencyNumber}</strong></a>}</div>
         {entry.notes && <p className="phone-note">{entry.notes}</p>}
-      </article>)}{!loading && !error && filtered.filter((entry) => entry.category === category).length === 0 && <div className="action-empty-state phone-empty"><span aria-hidden="true">⌕</span><div><strong>No contacts found</strong><p>{search ? "Try a different search or clear the search box." : `No contacts have been added to ${sectionNames[category]}.`}</p></div>{search ? <button className="quiet-button" onClick={() => setSearch("")}>Clear Search</button> : editing ? <button className="quiet-button" onClick={() => editContact({ ...empty, category })}>Add Contact</button> : null}</div>}</div>
+      </article>)}{!loading && !error && filtered.filter((entry) => entry.category === category).length === 0 && <div className="action-empty-state phone-empty"><span aria-hidden="true">⌕</span><div><strong>No contacts found</strong><p>{search ? "Try a different search or clear the search box." : `No contacts have been added to ${sectionNames[category]}.`}</p></div>{search ? <button className="quiet-button" onClick={() => setSearch("")}>Clear Search</button> : canEdit && editing ? <button className="quiet-button" onClick={() => editContact({ ...empty, category })}>Add Contact</button> : null}</div>}</div>
     </section>)}
     <p className="phone-disclaimer">Phone numbers can change. Administrators should review this directory regularly and correct any outdated listing.</p>
   </section>;

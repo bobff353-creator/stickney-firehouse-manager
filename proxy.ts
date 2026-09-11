@@ -50,6 +50,10 @@ export async function proxy(request: NextRequest) {
   }
 
   const { url, key, departmentId } = configuration();
+  if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
+    const origin = request.headers.get("origin");
+    if (!origin || origin !== request.nextUrl.origin) return jsonError("Open this action from the department portal.", 403);
+  }
   if (!url || !key || !departmentId) {
     return jsonError("Verified department sign-in is not configured.", 503);
   }
@@ -123,6 +127,9 @@ export async function proxy(request: NextRequest) {
   const pinStatus = (Array.isArray(pinRows) ? pinRows[0] : pinRows) as { configured?: boolean; unlocked?: boolean } | null;
   const pinConfigured = Boolean(pinStatus?.configured);
   const pinUnlocked = !pinConfigured || Boolean(pinStatus?.unlocked);
+  if (!pinConfigured && !pinSetupPaths.has(pathname)) {
+    return jsonError("Create your portal PIN before opening department records.", 423);
+  }
   if (!pinUnlocked && !pinSetupPaths.has(pathname)) {
     return jsonError("Enter your portal PIN to unlock department records.", 423);
   }
@@ -132,7 +139,11 @@ export async function proxy(request: NextRequest) {
   requestHeaders.set("x-department-role", isOwner ? "owner" : membership?.role || "member");
   requestHeaders.set("x-portal-pin-configured", String(pinConfigured));
   requestHeaders.set("x-portal-pin-unlocked", String(pinUnlocked));
+  // Keep refreshed auth cookies on both the forwarded request and final response.
+  requestHeaders.set("cookie", request.cookies.toString());
+  const refreshedCookies = response.cookies.getAll();
   response = NextResponse.next({ request: { headers: requestHeaders } });
+  for (const cookie of refreshedCookies) response.cookies.set(cookie);
   response.headers.set("Cache-Control", "private, no-store, max-age=0");
   return response;
 }

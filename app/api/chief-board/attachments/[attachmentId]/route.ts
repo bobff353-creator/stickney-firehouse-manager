@@ -1,3 +1,4 @@
+import { hasAnyPermission } from "../../../../server-permissions";
 import { ensureDatabase } from "../../../../../db/bootstrap";
 import { getPortalStorage } from "../../../../portal-storage";
 
@@ -9,10 +10,11 @@ async function bucket() {
   return getPortalStorage() as BoardBucket;
 }
 
-export async function GET(_request: Request, context: { params: Promise<{ attachmentId: string }> }) {
+export async function GET(request: Request, context: { params: Promise<{ attachmentId: string }> }) {
   try {
     const { attachmentId } = await context.params;
     const db = await ensureDatabase();
+    if (!await hasAnyPermission(request, db, ["operations_board.view", "settings.manage"])) return Response.json({ error: "Board access is required." }, { status: 403 });
     const attachment = await db.prepare(
       "SELECT a.object_key AS objectKey, a.filename, a.content_type AS contentType FROM chief_board_attachments a JOIN chief_board_items i ON i.id = a.item_id WHERE a.id = ? LIMIT 1"
     ).bind(attachmentId).first<{ objectKey: string; filename: string; contentType: string }>();
@@ -23,7 +25,7 @@ export async function GET(_request: Request, context: { params: Promise<{ attach
     const headers = new Headers({
       "content-type": object.httpMetadata?.contentType || attachment.contentType,
       "content-disposition": `${inline ? "inline" : "attachment"}; filename="${attachment.filename.replace(/"/g, "")}"`,
-      "cache-control": "private, max-age=3600",
+      "cache-control": "private, no-store",
       "x-content-type-options": "nosniff",
     });
     if (object.httpEtag) headers.set("etag", object.httpEtag);

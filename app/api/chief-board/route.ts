@@ -1,8 +1,9 @@
+import { hasAnyPermission } from "../../server-permissions";
+import { hasPermission } from "../../server-permissions";
 import { ensureDatabase } from "../../../db/bootstrap";
 import { getPortalStorage } from "../../portal-storage";
 import { boardOfficerQuery, selectBoardOfficer, type BoardOfficer } from "../../board-officers";
 
-const ownerAdminEmails = ["bobff353@gmail.com"];
 const allowedTypes = new Set([
   "image/jpeg", "image/png", "image/webp", "image/gif",
   "application/pdf", "text/plain",
@@ -35,11 +36,7 @@ async function runtime() {
 }
 
 async function isAdmin(request: Request, db: Awaited<ReturnType<typeof ensureDatabase>>) {
-  const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
-  if (ownerAdminEmails.includes(email)) return true;
-  if (!email) return false;
-  const row = await db.prepare("SELECT is_admin AS isAdmin FROM employee_profiles WHERE lower(email) = ? LIMIT 1").bind(email).first<{ isAdmin: number }>();
-  return Boolean(row?.isAdmin);
+  return hasPermission(request, db, "settings.manage");
 }
 
 function cleanFilename(value: string) {
@@ -161,6 +158,7 @@ async function sendInvites(
 export async function GET(request: Request) {
   try {
     const db = await ensureDatabase();
+    if (!await hasAnyPermission(request, db, ["operations_board.view","settings.manage"])) return Response.json({ error: "This account does not have access to this tool." }, { status: 403 });
     const canEdit = await isAdmin(request, db);
     const officers = canEdit ? (await db.prepare(boardOfficerQuery).all<BoardOfficer>()).results : [];
     const rows = await db.prepare(

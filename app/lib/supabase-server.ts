@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { portalServerHeaders } from "../portal-server-headers";
 
 const supabaseUrl = "https://ukpdacqjmhvlhmrwxtcx.supabase.co";
 const supabasePublishableKey = "sb_publishable_HY1UlYHvPnvDIuq_N_X_Sg_xu7bxTzs";
@@ -7,6 +8,7 @@ const supabasePublishableKey = "sb_publishable_HY1UlYHvPnvDIuq_N_X_Sg_xu7bxTzs";
 export async function createInventorySupabaseClient() {
   const cookieStore = await cookies();
   return createServerClient(supabaseUrl, supabasePublishableKey, {
+    global: { headers: portalServerHeaders() },
     cookies: {
       getAll() {
         return cookieStore.getAll();

@@ -40,12 +40,12 @@ function BoxCardSheet({ card }: { card: BoxCard }) {
   const layout = readLayout(card.layoutData);
   const hasGrid = layout.rows.some((row) => row.cells.some((cell) => cell.trim())) || layout.signature.trim();
   if (!hasGrid && card.documentUrl) return <div className="box-card-image-wrap official-card-image"><Image unoptimized width={1980} height={1530} className="box-card-image" src={boxCardPageImage(card)} alt={`${card.department} Box Card ${card.boxNumber}: ${card.title}`} /></div>;
-  return <div className="mabas-sheet">
+  return <><p className="box-sheet-help no-print">Wide response card · Scroll across the card if needed to see every column, or use Print / Save PDF.</p><div className="box-sheet-scroll" role="region" aria-label={`${card.title} response assignments`} tabIndex={0}><div className="mabas-sheet">
     <div className="mabas-header"><div><span>MABAS Division</span><strong>{layout.division || "11"}</strong></div><div><span>Department</span><strong>{card.department}</strong><span>Box Alarm #</span><strong>{card.boxNumber}</strong></div><div><span>Box Alarm Type</span><strong>{card.title}</strong><span>Location or Area</span><strong>{card.address}</strong></div><div><span>Effective Date</span><strong>{card.effectiveDate || "—"}</strong><span>Review Date</span><strong>{card.reviewDate || "—"}</strong><span>Authorized Signature</span><strong>{layout.signature || "—"}</strong></div></div>
     <div className="mabas-grid"><div className="mabas-grid-head"><strong>Alarm</strong>{responseColumns.map((column) => <strong key={column}>{column}</strong>)}</div>{layout.rows.map((row) => <div className="mabas-grid-row" key={row.alarm}><strong>{row.alarm}</strong>{row.cells.map((cell, index) => <div key={`${row.alarm}-${responseColumns[index]}`}>{cell || "—"}</div>)}</div>)}</div>
     <div className="mabas-interdivisional"><strong>Interdivisional Request</strong>{layout.interdivisional.map((choice, index) => <div key={index}><span>{index + 1}{index === 0 ? "st" : index === 1 ? "nd" : "rd"} Choice</span><b>{choice || "—"}</b></div>)}</div>
     {card.accessNotes && <div className="mabas-information"><strong>Information:</strong><span>{card.accessNotes}</span></div>}
-  </div>;
+  </div></div></>;
 }
 
 function PolicyRecord({ policy, canEdit, onEdit }: { policy: Policy; canEdit: boolean; onEdit: () => void }) {
@@ -119,7 +119,8 @@ function SharedPage({ type }: { type: "policy" | "boxCard" }) {
         else { setSelectedDepartment((record as BoxCard).department || "Stickney"); setSelectedBoxCardId(record.id); }
       } else setError("That record is unavailable or no longer in this library. Choose another record below.");
     }
-    } catch (caught) { setError(`${caught instanceof Error ? caught.message : "Records unavailable"}. Retry to load the library; displayed records may be out of date.`); }
+    return data.items ?? [];
+    } catch (caught) { setError(`${caught instanceof Error ? caught.message : "Records unavailable"}. Retry to load the library; displayed records may be out of date.`); return null; }
     finally { setLoading(false); }
   }, [type]);
 
@@ -143,11 +144,24 @@ function SharedPage({ type }: { type: "policy" | "boxCard" }) {
     setSaving(true); setError(""); setMessage("");
     try {
     const response = await fetch(`/api/resources?type=${type}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(draft) });
-    const result = await response.json() as { error?: string };
+    const result = await response.json() as { error?: string; id?: string };
     if (!response.ok) throw new Error(result.error || "Unable to save record");
     setDraft(null);
     setMessage(isPolicy ? "Policy saved." : "Box Card saved.");
-    await load();
+    const refreshed = await load();
+    const savedRecord = refreshed?.find(item => item.id === (result.id || draft.id));
+    if (savedRecord) {
+      setSearch("");
+      if (!isPolicy) setSelectedDepartment((savedRecord as BoxCard).department || "Stickney");
+      const url = new URL(window.location.href);
+      url.searchParams.set(isPolicy ? "policy" : "boxCard", savedRecord.id);
+      window.history.replaceState(null, "", url);
+      openReader(savedRecord.id);
+      setMessage(`${isPolicy ? "Policy" : "Box Card"} saved. Showing the reloaded member-facing record.`);
+    } else {
+      setReaderOpen(false);
+      setMessage("Saved, but the saved record could not be reloaded for preview. Retry the library before checking the result.");
+    }
     } catch (caught) { setError(`${caught instanceof Error ? caught.message : "Record was not saved"}. Your edits remain here. Retry the save.`); }
     finally { setSaving(false); }
   }
@@ -172,7 +186,7 @@ function SharedPage({ type }: { type: "policy" | "boxCard" }) {
     window.setTimeout(() => document.querySelector<HTMLElement>(".policy-toc")?.scrollIntoView({ block: "start", behavior: "instant" }), 0);
   }
 
-  return <section className={`resource-page${readerOpen ? " resource-reader-open" : ""}`}>
+  return <section data-editing={Boolean(draft)} className={`resource-page${readerOpen ? " resource-reader-open" : ""}`}>
     <div className="resource-heading standard-page-header">
       <div><span className="page-icon" aria-hidden="true">{isPolicy ? "POL" : "BOX"}</span><div><p className="eyebrow">Stickney Fire Department</p><h1>{isPolicy ? "Policies" : "Box Cards"}</h1><p>{isPolicy ? "Choose a policy from the table of contents to read it." : "Search building access, box, and response card information."}</p></div></div>
       {canEdit ? <button className="primary-action" disabled={saving} onClick={() => editRecord(isPolicy ? emptyPolicy : emptyBoxCard)}>+ Add {isPolicy ? "Policy" : "Box Card"}</button> : <span className="read-only-badge">View only</span>}
@@ -205,7 +219,7 @@ function SharedPage({ type }: { type: "policy" | "boxCard" }) {
         <div className="resource-body interdivisional-editor"><strong>Interdivisional request</strong>{layout.interdivisional.map((choice, index) => <label key={index}><span>{index + 1}{index === 0 ? "st" : index === 1 ? "nd" : "rd"} choice</span><input value={choice} onChange={(event) => updateLayout({ ...layout, interdivisional: layout.interdivisional.map((item, choiceIndex) => choiceIndex === index ? event.target.value : item) })} /></label>)}</div>
         <label className="resource-body"><span>Information / special instructions</span><textarea rows={5} value={value.accessNotes} onChange={(event) => setDraft({ ...value, accessNotes: event.target.value })} placeholder="Station location, callback, rehab, staging, or other information…" /></label>
       </div>; })()}
-      <button className="primary-action compact" disabled={saving} type="submit">{saving ? "Saving…" : `Save ${isPolicy ? "Policy" : "Box Card"}`}</button>
+      <div className="admin-save-bar"><span>{JSON.stringify(draft) !== draftBaseline ? "Unsaved changes" : "Editing saved record"}</span><div><button type="button" className="quiet-button" disabled={saving} onClick={() => { if (confirmLeavingWork()) setDraft(null); }}>Cancel editing</button><button className="primary-action compact" disabled={saving} type="submit">{saving ? "Saving…" : "Save & view"}</button></div></div>
       </fieldset>
     </form>}
 

@@ -65,7 +65,7 @@ test("TV lease retains existing duration only after successful renewal",async()=
 });
 test("Inventory errors retry Inventory and cannot pollute the payroll error state",()=>{
   const source=readFileSync(new URL("../app/payroll-app.tsx",import.meta.url),"utf8");
-  const opener=source.slice(source.indexOf("async function openInventory()"),source.indexOf("function navigate(page:"));
+  const opener=source.slice(source.indexOf("async function openInventory("),source.indexOf("function navigate(page:"));
   assert.doesNotMatch(opener,/setError\(/);assert.match(opener,/setInventoryError/);
   assert.match(source,/inventoryError &&[\s\S]*?onClick=\{\(\) => void openInventory\(\)\}/);
   const navigation=source.slice(source.indexOf("function navigate(page:"),source.indexOf("function navigateFromRespond"));

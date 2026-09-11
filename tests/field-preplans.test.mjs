@@ -149,9 +149,10 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(page, /DeleteRecordControl/);
   assert.match(page, /canDeletePreplan&&draft\.id&&<DeleteRecordControl kind="preplan"/);
   assert.match(api, /canDelete:auth\.canDelete/);
-  assert.match(api, /if \(admin\) return \{ allowed:true, canEdit:true, canDelete:true/);
-  assert.match(api, /canDelete:false, actor:row!\.name/);
-  assert.match(api, /Administrator privileges are required to delete a preplan/);
+  assert.match(api, /permissionsForEmail/);
+  assert.doesNotMatch(api, /if \(admin\) return \{ allowed:true, canEdit:true, canDelete:true/);
+  assert.match(api, /canDelete: permissions\.has\("field_preplans.delete"\)/);
+  assert.match(api, /Delete preplans permission is required/);
   assert.match(page, /preplan-builder-focused/);
   assert.match(page, /Back to Preplan list/);
   assert.match(page, /PreplanRecordView/);

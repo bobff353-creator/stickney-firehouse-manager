@@ -1,3 +1,5 @@
+import { hasAnyPermission } from "../../server-permissions";
+import { hasPermission } from "../../server-permissions";
 import { staffingRoles } from "../../staffing-eligibility";
 import { ensureDatabase } from "../../../db/bootstrap";
 import { normalizeScheduleTime } from "../../schedule-time";
@@ -19,7 +21,7 @@ import {
   type OtSettings,
 } from "../../station-scheduler-logic";
 
-const ownerAdminEmails = ["bobff353@gmail.com"];
+
 const iso = /^\d{4}-\d{2}-\d{2}$/;
 type Db = Awaited<ReturnType<typeof ensureDatabase>>;
 type ScheduleBoundValue = string | number | null;
@@ -66,7 +68,7 @@ async function viewer(db: Db, request: Request) {
     rank: employee?.rank ?? "",
     roles,
     actingOfficerEligible,
-    isAdmin: ownerAdminEmails.includes(email) || Boolean(employee?.isAdmin),
+    isAdmin: await hasPermission(request, db, "scheduling.manage"),
   };
 }
 
@@ -180,6 +182,7 @@ async function busyEmployeesByDate(db: Db, dates: string[]): Promise<Record<stri
 export async function GET(request: Request) {
   try {
     const db = await ensureDatabase();
+    if (!await hasAnyPermission(request, db, ["scheduling.view","scheduling.manage"])) return Response.json({ error: "This account does not have access to this tool." }, { status: 403 });
     const current = await viewer(db, request);
     if (!current.isAdmin && !current.employeeId) return Response.json({ error: "Your login is not connected to an employee record." }, { status: 403 });
     const today = chicagoToday();
@@ -276,6 +279,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const db = await ensureDatabase();
+    if (!await hasAnyPermission(request, db, ["scheduling.view","scheduling.manage"])) return Response.json({ error: "This account does not have access to this tool." }, { status: 403 });
     const current = await viewer(db, request);
     const payload = await request.json() as Record<string, unknown>;
     const action = String(payload.action ?? "");

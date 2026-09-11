@@ -1,7 +1,7 @@
 import type { ensureDatabase } from "../db/bootstrap";
-import { defaultPermissionsForRank, permissionCatalog, type PermissionKey } from "./permissions";
+import { resolveEmployeePermissions, permissionCatalog, type PermissionKey } from "./permissions";
 
-const ownerAdminEmails = ["bobff353@gmail.com"];
+export const ownerAdminEmails = ["bobff353@gmail.com"];
 
 async function employeePermissions(
   db: Awaited<ReturnType<typeof ensureDatabase>>,
@@ -11,17 +11,7 @@ async function employeePermissions(
     db.prepare("SELECT permission_key permissionKey,allowed FROM rank_permissions WHERE rank=?").bind(employee.rank).all<{ permissionKey: string; allowed: number }>(),
     db.prepare("SELECT permission_key permissionKey,effect FROM employee_permission_overrides WHERE employee_id=?").bind(employee.id).all<{ permissionKey: string; effect: "allow" | "deny" }>(),
   ]);
-  const saved = employee.isAdmin ? new Map<string, boolean>() : new Map(rankRows.results.map((row) => [row.permissionKey, Boolean(row.allowed)]));
-  const defaults = new Set(defaultPermissionsForRank(employee.rank, Boolean(employee.isAdmin)));
-  const selected = new Set(permissionCatalog
-    .filter((item) => saved.has(item.key) ? saved.get(item.key) : defaults.has(item.key))
-    .map((item) => item.key));
-  for (const override of overrides.results) {
-    if (override.effect === "allow") selected.add(override.permissionKey as PermissionKey);
-    else selected.delete(override.permissionKey as PermissionKey);
-  }
-  selected.add("payroll.view_own");
-  return selected;
+  return new Set(resolveEmployeePermissions(employee, rankRows.results, overrides.results));
 }
 
 export async function permissionsForEmail(
@@ -33,13 +23,21 @@ export async function permissionsForEmail(
     return new Set(permissionCatalog.map((item) => item.key));
   }
   if (!normalizedEmail) return new Set<PermissionKey>();
-  const employee = await db.prepare("SELECT e.id,p.label rank,COALESCE(ep.is_admin,0) isAdmin FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(ep.email)=? LIMIT 1").bind(normalizedEmail).first<{ id: string; rank: string; isAdmin: number }>();
+  const matches = await db.prepare("SELECT e.id,p.label rank,COALESCE(ep.is_admin,0) isAdmin,ep.end_date endDate FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(trim(ep.email))=? LIMIT 2").bind(normalizedEmail).all<{ id: string; rank: string; isAdmin: number; endDate: string | null }>();
+  const employee = matches.results.length === 1 ? matches.results[0] : null;
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  if (employee?.endDate && employee.endDate < today) return new Set<PermissionKey>();
   return employee ? employeePermissions(db, employee) : new Set<PermissionKey>();
 }
 
 export async function hasPermission(request: Request, db: Awaited<ReturnType<typeof ensureDatabase>>, permission: PermissionKey) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
   return (await permissionsForEmail(email, db)).has(permission);
+}
+
+export async function hasAnyPermission(request: Request, db: Awaited<ReturnType<typeof ensureDatabase>>, permissions: PermissionKey[]) {
+  const effective = await permissionsForEmail(request.headers.get("oai-authenticated-user-email") ?? "", db);
+  return permissions.some(permission => effective.has(permission));
 }
 
 export type PreplanReadAccess = {

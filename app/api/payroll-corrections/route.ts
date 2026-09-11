@@ -6,7 +6,7 @@ async function context(request: Request) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() || "";
   const permissions = await permissionsForEmail(email, db);
   const employee = await db.prepare("SELECT e.id,e.name,COALESCE(ep.is_admin,0) AS isAdmin FROM employees e JOIN employee_profiles ep ON ep.employee_id=e.id WHERE lower(ep.email)=? AND e.active=1 LIMIT 1").bind(email).first<{id:string;name:string;isAdmin:number}>();
-  return {db,email,employee,canManage: permissions.has("payroll.manage") && (email === "bobff353@gmail.com" || Boolean(employee?.isAdmin)),canRequest: permissions.has("payroll.view_own") && Boolean(employee)};
+  return {db,email,employee,canManage: permissions.has("payroll.manage"),canRequest: permissions.has("payroll.view_own") && Boolean(employee)};
 }
 export async function GET(request: Request) {
   try {

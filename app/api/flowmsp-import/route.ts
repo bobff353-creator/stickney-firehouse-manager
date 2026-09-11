@@ -1,3 +1,4 @@
+import { hasPermission } from "../../server-permissions";
 import { ensureDatabase } from "../../../db/bootstrap";
 
 type Db = Awaited<ReturnType<typeof ensureDatabase>>;
@@ -10,7 +11,6 @@ type PreplanImport = {
   doNotShare?:unknown; matchCategory?:unknown; portalRecordId?:unknown; [key:string]:unknown;
 };
 
-const owners = new Set(["bobff353@gmail.com"]);
 const sourceFile = "Stickney Fire Department Preplan Report 09_01_2026.csv";
 const text = (value:unknown, limit=2000) => String(value ?? "").trim().slice(0, limit);
 const number = (value:unknown) => { if(value===null||value===undefined||text(value)==="")return Number.NaN;const result=Number(value); return Number.isFinite(result)?result:Number.NaN; };
@@ -18,11 +18,8 @@ const uuid = (value:unknown) => { const result=text(value,80).toLowerCase(); ret
 const truthy = (value:unknown) => value===true || text(value,20).toUpperCase()==="TRUE";
 const validCoordinate = (lat:number,lng:number) => lat>=-90&&lat<=90&&lng>=-180&&lng<=180;
 
-async function isAdmin(request:Request,db:Db) {
-  const email=request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase()??"";
-  if(owners.has(email)) return email;
-  const row=email?await db.prepare("SELECT e.name,COALESCE(ep.is_admin,0) isAdmin FROM employees e LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(ep.email)=? LIMIT 1").bind(email).first<{name:string;isAdmin:number}>():null;
-  return row?.isAdmin?row.name:"";
+async function isAdmin(request: Request, db: Awaited<ReturnType<typeof ensureDatabase>>) {
+  return await hasPermission(request, db, "field_preplans.edit") ? (request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "") : "";
 }
 
 function hydrantNote(item:HydrantImport,flowId:string) {

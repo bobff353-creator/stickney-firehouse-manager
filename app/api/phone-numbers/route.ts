@@ -1,18 +1,13 @@
 import { ensureDatabase } from "../../../db/bootstrap";
+import { hasPermission } from "../../server-permissions";
 
 const categories = ["fire", "hospital", "misc"];
-const ADMIN_EMAILS = ["bobff353@gmail.com"];
-
-function isAdmin(request: Request) {
-  const email = request.headers.get("oai-authenticated-user-email")?.toLowerCase() ?? "";
-  return ADMIN_EMAILS.includes(email);
-}
 
 export async function GET(request: Request) {
   try {
     const db = await ensureDatabase();
     const rows = await db.prepare("SELECT id, category, name, emergency_number AS emergencyNumber, non_emergency_number AS nonEmergencyNumber, notes, sort_order AS sortOrder FROM important_phone_numbers ORDER BY CASE category WHEN 'fire' THEN 1 WHEN 'hospital' THEN 2 ELSE 3 END, sort_order, name").all();
-    return Response.json({ numbers: rows.results, canEdit: isAdmin(request) });
+    return Response.json({ numbers: rows.results, canEdit: await hasPermission(request, db, "settings.manage") });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Unable to load phone numbers" }, { status: 500 });
   }
@@ -20,8 +15,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    if (!isAdmin(request)) return Response.json({ error: "Administrator access is required to edit this directory." }, { status: 403 });
     const db = await ensureDatabase();
+    if (!await hasPermission(request, db, "settings.manage")) return Response.json({ error: "Department settings permission is required." }, { status: 403 });
+    if (!await hasPermission(request, db, "settings.manage")) return Response.json({ error: "Department settings permission is required to edit this directory." }, { status: 403 });
     const body = await request.json() as Record<string, unknown>;
     const action = String(body.action ?? "save");
     if (action === "delete") {

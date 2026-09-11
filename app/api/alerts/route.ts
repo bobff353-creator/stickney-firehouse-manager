@@ -1,10 +1,12 @@
+import { hasPermission } from "../../server-permissions";
 import { ensureDatabase } from "../../../db/bootstrap";
 import { evaluatePreplanExpirations } from "../../preplans/expiration-evaluator";
-const ownerAdminEmails = ["bobff353@gmail.com"];
 function chicago() { const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date()); const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "00"; return { date: `${get("year")}-${get("month")}-${get("day")}`, minutes: Number(get("hour")) * 60 + Number(get("minute")) }; }
 const shiftFor = (minutes: number) => minutes < 360 ? "overnight" : minutes < 720 ? "morning" : minutes < 1080 ? "afternoon" : "overnight";
 const priorShift = (shift: string) => shift === "morning" ? "overnight" : shift === "afternoon" ? "morning" : "afternoon";
-async function admin(request: Request, db: Awaited<ReturnType<typeof ensureDatabase>>) { const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? ""; if (ownerAdminEmails.includes(email)) return true; const row = email ? await db.prepare("SELECT is_admin AS isAdmin FROM employee_profiles WHERE lower(email) = ? LIMIT 1").bind(email).first<{ isAdmin: number }>() : null; return Boolean(row?.isAdmin); }
+async function admin(request: Request, db: Awaited<ReturnType<typeof ensureDatabase>>) {
+  return hasPermission(request, db, "employees.manage");
+}
 function issues(raw: unknown) { try { return Object.entries(JSON.parse(String(raw || "{}")) as Record<string, { status?: string; detail?: string }>).filter(([, value]) => value.status && value.status !== "Present"); } catch { return []; } }
 const minutes = (value: unknown) => { const [h, m] = String(value || "").split(":").map(Number); return h * 60 + m; };
 

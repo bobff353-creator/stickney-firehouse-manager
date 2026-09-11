@@ -1,3 +1,4 @@
+import { hasPermission } from "../../../server-permissions";
 import { ensureDatabase } from "../../../../db/bootstrap";
 import { parseCisCadPayload } from "../../../cis-cad";
 import { projectDispatchIntoDailyLog } from "../../../dispatch-daily-log";
@@ -7,7 +8,6 @@ type RuntimeEnv = {
   CIS_CAD_WEBHOOK_SECRET?: string;
 };
 
-const ownerAdminEmails = ["bobff353@gmail.com"];
 
 function safeEqual(left: Uint8Array, right: Uint8Array) {
   if (left.length !== right.length) return false;
@@ -16,23 +16,8 @@ function safeEqual(left: Uint8Array, right: Uint8Array) {
     mismatch |= left[index] ^ right[index];
   return mismatch === 0;
 }
-async function isAdmin(
-  request: Request,
-  db: Awaited<ReturnType<typeof ensureDatabase>>,
-) {
-  const email =
-    request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ??
-    "";
-  if (ownerAdminEmails.includes(email)) return true;
-  const profile = email
-    ? await db
-        .prepare(
-          "SELECT is_admin AS isAdmin FROM employee_profiles WHERE lower(email) = ? LIMIT 1",
-        )
-        .bind(email)
-        .first<{ isAdmin: number }>()
-    : null;
-  return Boolean(profile?.isAdmin);
+async function isAdmin(request: Request, db: Awaited<ReturnType<typeof ensureDatabase>>) {
+  return hasPermission(request, db, "settings.manage");
 }
 
 async function runtime() {

@@ -22,7 +22,9 @@ function fixture() {
     return context.exports;
   }
   const officers=compile('../app/board-officers.ts',()=>{throw Error('Unexpected import');});
-  const route=compile('../app/api/chief-board/route.ts',(name)=>name.includes('bootstrap')?{ensureDatabase:async()=>db}:name.includes('board-officers')?officers:{getPortalStorage:()=>null});
+  const permissions=compile('../app/permissions.ts',()=>{throw Error('Unexpected import');});
+  const serverPermissions=compile('../app/server-permissions.ts',()=>permissions);
+  const route=compile('../app/api/chief-board/route.ts',(name)=>name.includes('bootstrap')?{ensureDatabase:async()=>db}:name.includes('server-permissions')?serverPermissions:name.includes('board-officers')?officers:{getPortalStorage:()=>null});
   const request=(method,body,admin=true)=>new Request('https://example.test/api/chief-board',{method,headers:{...(admin?{'oai-authenticated-user-email':'bobff353@gmail.com'}:{}),...(body instanceof FormData?{}:{'content-type':'application/json'})},...(body?{body:body instanceof FormData?body:JSON.stringify(body)}:{})});
   const note=(officerId='officer')=>{const form=new FormData();for(const [key,value] of Object.entries({itemType:'note',title:'Preview note',body:'Preview only',officerId})) form.set(key,value);return form;};
   return {sqlite,route,request,note};

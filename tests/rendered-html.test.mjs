@@ -17,7 +17,10 @@ test("runs the full portal natively on Vercel without a Sites proxy", async () =
   await assert.rejects(access(new URL("app/lib/upstream-portal.ts", root)));
   assert.match(page, /AuthGateway/);
   assert.match(confirm, /supabase/);
-  assert.match(payroll, /window\.location\.assign\("\/inventory"\)/);
+  assert.match(payroll, /window\.location\.assign\(inventoryAdminDestination\(adminTask\)\)/);
+  const destinations = await read("app/admin-tasks.ts");
+  assert.match(destinations, /return "\/inventory"/);
+  assert.doesNotMatch(destinations, /https?:\/\//);
   assert.match(layout, /training-route\.js/);
   assert.match(layout, /fleet-notices\.js/);
   assert.doesNotMatch(layout, /preplan-route\.js/);

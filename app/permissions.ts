@@ -51,3 +51,21 @@ export function defaultPermissionsForRank(rank: string, isAdmin = false): Permis
   if (value.includes("firefighter") || value === "ff") return [...firefighterPermissions];
   return [...memberPermissions];
 }
+
+export function resolveEmployeePermissions(
+  employee: { rank: string; isAdmin: number | boolean },
+  rankRows: Array<{ permissionKey: string; allowed: number | boolean }>,
+  overrides: Array<{ permissionKey: string; effect: string }>,
+): PermissionKey[] {
+  const defaults = new Set(defaultPermissionsForRank(employee.rank, Boolean(employee.isAdmin)));
+  const saved = new Map(rankRows.map(row => [row.permissionKey, Boolean(row.allowed)]));
+  const selected = new Set(permissionCatalog.filter(item => employee.isAdmin || !saved.has(item.key)
+    ? defaults.has(item.key) : saved.get(item.key)).map(item => item.key));
+  for (const override of overrides) {
+    if (!permissionCatalog.some(item => item.key === override.permissionKey)) continue;
+    if (override.effect === "allow") selected.add(override.permissionKey as PermissionKey);
+    if (override.effect === "deny") selected.delete(override.permissionKey as PermissionKey);
+  }
+  selected.add("payroll.view_own");
+  return [...selected];
+}

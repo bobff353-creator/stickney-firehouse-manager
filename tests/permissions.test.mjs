@@ -10,7 +10,7 @@ test("rank permissions and employee overrides are durable and admin managed", as
   ]);
   assert.match(bootstrap, /CREATE TABLE IF NOT EXISTS rank_permissions/);
   assert.match(bootstrap, /CREATE TABLE IF NOT EXISTS employee_permission_overrides/);
-  assert.match(route, /Administrator permission required/);
+  assert.match(route, /hasPermission\(request, db, "permissions\.manage"\)/);
   assert.match(route, /effect === "allow"/);
   assert.match(route, /GROUP BY label ORDER BY sortOrder,label/);
   assert.doesNotMatch(route, /SELECT DISTINCT label rank/);
@@ -50,7 +50,7 @@ test("every employee keeps a read-only own-timesheet view including administrato
     readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(permissions, /payroll\.view_own.*required: true/);
-  assert.match(route, /effective\.add\("payroll\.view_own"\)/);
+  assert.match(permissions, /selected\.add\("payroll\.view_own"\)/);
   assert.match(app, /const adminNavItems: NavItem\[\] = \[[^\]]*"My Timesheet"/);
   assert.match(app, /"My Timesheet": "payroll\.view_own"/);
   assert.match(app, /activeNav === "My Timesheet" \? ownTimesheetEmployeeId/);
@@ -69,7 +69,8 @@ test("payroll management can be removed from a specific administrator and is enf
   ]);
   assert.doesNotMatch(serverPermissions, /if \(employee\.isAdmin\) return new Set/);
   assert.doesNotMatch(permissionRoute, /if \(employee\.isAdmin\) return permissionCatalog/);
-  assert.match(route, /canManagePayroll: isAdmin && permissions\.has\("payroll\.manage"\)/);
+  assert.match(route, /canManagePayroll: permissions\.has\("payroll\.manage"\)/);
+  assert.doesNotMatch(route, /canManagePayroll: isAdmin &&/);
   assert.match(route, /viewer\.canManagePayroll \? db\.prepare\(`\$\{entrySelect\}/);
   assert.match(route, /Payroll management permission is required to change timesheets or rates/);
   assert.match(route, /rateHistory: viewer\.canManagePayroll \?/);

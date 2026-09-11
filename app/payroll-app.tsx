@@ -7,13 +7,16 @@ import PayrollCorrections from "./payroll-corrections";
 import { portalPageFromSearch, portalPageLabel, portalPageUrl, type PortalPage, type PortalRecord } from "./portal-navigation";
 import { confirmLeavingWork, useUnsavedWork } from "./use-unsaved-work";
 import { WorkspaceGuide } from "./portal-wayfinding";
+import AdminTools from "./admin-tools";
+import { inventoryAdminDestination } from "./admin-tasks";
 import { portalWorkflows } from "./portal-workflows";
 import { portalConnectionState, readPortalJson } from "./portal-status";
 import DailyLog from "./daily-log";
 import CallbackReviews from "./callback-reviews";
 import HolidayPolicy from "./holiday-policy";
 import PhoneNumbers from "./phone-numbers";
-import EmployeeContacts from "./employee-contacts";
+import EmployeeDirectory from "./employee-directory";
+import { usePermissions, refreshPermissions, permissionsChanged } from "./use-permissions";
 import { BoxCardsPage, PoliciesPage } from "./resource-pages";
 import RoleDashboard from "./role-dashboard";
 import ConfirmDialog from "./confirm-dialog";
@@ -96,12 +99,13 @@ const adminNavGroups: Array<{ label: string; icon: IconName; items: Array<{ labe
   { label: "Station Duties", icon: "clock", items: [{ label: "Daily Duties", page: "Daily Duties" }, { label: "Inventory & Apparatus Checks", page: "Inventory" }] },
   { label: "Administration", icon: "settings", items: [{ label: "System Health & Backups", page: "System Health" }, { label: "Departments", page: "Departments" }, { label: "Important Phone Numbers", page: "Phone Numbers" }, { label: "Permissions", page: "Permissions" }, { label: "CIS CAD Integration", page: "CAD Integration" }, { label: "Respond Device Modes", page: "Respond Device Modes" }, { label: "Test as Member", page: "Test View" }] },
 ];
-const navPermission: Partial<Record<NavItem, string>> = { Dashboard: "dashboard.view", "Command Center": "command_center.view", "Operations Board": "operations_board.view", "Activity Timeline": "command_center.view", Respond: "field_preplans.view", "Command Board": "incident_command.view", "Field Preplans": "field_preplans.view", "Road Closures": "operations_board.view", "Safety Inspections": "safety_inspections.view", Scheduling: "scheduling.view", Payroll: "payroll.manage", "Work Details": "scheduling.manage", "Daily Log": "daily_log.view", Timesheets: "payroll.manage", "Callback Reviews": "payroll.manage", "My Timesheet": "payroll.view_own", Employees: "employees.manage", "Employee Contacts": "contacts.view", Policies: "documents.view", "Box Cards": "documents.view", "Holiday Policy": "documents.view", EMS: "documents.view", "Daily Duties": "documents.view", Inventory: "inventory.view", "Phone Numbers": "settings.manage", "Rates & Rules": "payroll.manage", Departments: "settings.manage", "System Health": "settings.manage", Permissions: "permissions.manage", "CAD Integration": "permissions.manage", "Respond Device Modes": "settings.manage", "Test View": "permissions.manage" };
+const navPermission: Partial<Record<NavItem, string>> = { Dashboard: "dashboard.view", "Command Center": "command_center.view", "Operations Board": "operations_board.view", "Activity Timeline": "command_center.view", Respond: "field_preplans.view", "Command Board": "incident_command.view", "Field Preplans": "field_preplans.view", "Road Closures": "operations_board.view", "Safety Inspections": "safety_inspections.view", Scheduling: "scheduling.view", Payroll: "payroll.manage", "Work Details": "scheduling.manage", "Daily Log": "daily_log.view", Timesheets: "payroll.manage", "Callback Reviews": "payroll.manage", "My Timesheet": "payroll.view_own", Employees: "employees.manage", "Employee Contacts": "contacts.view", Policies: "documents.view", "Box Cards": "documents.view", "Holiday Policy": "documents.view", EMS: "documents.view", "Daily Duties": "documents.view", Inventory: "inventory.view", "Phone Numbers": "settings.manage", "Rates & Rules": "payroll.manage", Departments: "settings.manage", "System Health": "settings.manage", Permissions: "permissions.manage", "CAD Integration": "settings.manage", "Respond Device Modes": "settings.manage", "Test View": "permissions.manage" };
 
-function navigationForViewer(viewer: PayrollData["viewer"], permissions: string[] | null) {
-  if (!viewer.isAdmin) return permissions ? adminNavItems.filter((item) => !navPermission[item] || permissions.includes(navPermission[item]!)) : employeeNavItems;
-  if (permissions) return adminNavItems.filter((item) => !navPermission[item] || permissions.includes(navPermission[item]!));
-  return adminNavItems.filter((item) => navPermission[item] !== "payroll.manage" || viewer.canManagePayroll);
+function navigationForViewer(_viewer: PayrollData["viewer"], permissions: string[] | null) {
+  if (!permissions) return [];
+  return adminNavItems.filter(item => item === "Employees"
+    ? permissions.includes("employees.view") || permissions.includes("employees.manage")
+    : Boolean(navPermission[item] && permissions.includes(navPermission[item]!)));
 }
 const emptyEmployee: EmployeeForm = {
   lastName: "", firstName: "", payScaleId: "firefighter", employeeNumber: "", startDate: "", endDate: "", dateOfBirth: "",
@@ -253,6 +257,8 @@ export default function PayrollApp({
   const [reviewSaving, setReviewSaving] = useState(false);
   const [workspaceTrail, setWorkspaceTrail] = useState<Array<{ page: NavItem; record: PortalRecord }>>([]);
   const [navigationNotice, setNavigationNotice] = useState("");
+  const [adminSaveNotice, setAdminSaveNotice] = useState("");
+  const [permissionSelection, setPermissionSelection] = useState<{ editor: "rank" | "member"; rank: string; employeeId: string; search: string; group: string }>({ editor: "rank", rank: "", employeeId: "", search: "", group: "" });
   const [navigationVersion, setNavigationVersion] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
@@ -277,7 +283,8 @@ export default function PayrollApp({
   const [employeePhotoPreview, setEmployeePhotoPreview] = useState("");
   const [removeEmployeePhoto, setRemoveEmployeePhoto] = useState(false);
   const [testMember, setTestMember] = useState<{ id: string; name: string; rank: string; effectivePermissions: string[] } | null>(null);
-  const [viewerPermissions, setViewerPermissions] = useState<string[] | null>(null);
+  const access = usePermissions();
+  const viewerPermissions = access.verified ? access.permissions : [];
   const [respondDeviceSettings, setRespondDeviceSettings] = useState<RespondDeviceSettings>(defaultRespondDeviceSettings);
   const [respondAlertCallId, setRespondAlertCallId] = useState("");
   const [respondAlertSeconds, setRespondAlertSeconds] = useState(RESPOND_ALERT_DURATION_SECONDS);
@@ -299,12 +306,8 @@ export default function PayrollApp({
       setRateEffectiveDate(start);
       setLastSynced(new Date());
       setSelectedEmployeeId((current) => current || payload.employees[0]?.id || "");
-      setActiveNav((current) => navigationForViewer(payload.viewer, null).includes(current) ? current : "Dashboard");
-      const permissionsResponse = await fetch("/api/permissions");
-      if (permissionsResponse.ok) {
-        const permissionsPayload = await permissionsResponse.json() as { viewerPermissions?: string[] };
-        setViewerPermissions(permissionsPayload.viewerPermissions ?? null);
-      }
+
+
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to load payroll");
     } finally {
@@ -682,7 +685,7 @@ export default function PayrollApp({
       await loadPayroll(periodStart);
       setToast(employeeDraft.id ? "Employee information updated" : "Employee added");
     } catch (caught) { setEmployeeSaveError(`${recordSaved ? "Employee details saved, but the photo change was not completed. " : "Employee not saved. "}${caught instanceof Error ? caught.message : "Unable to save employee"} Your edits remain here; retry when ready.`); }
-    finally { setEmployeeSaving(false); }
+    finally { setEmployeeSaving(false); if (recordSaved) void permissionsChanged(); }
   }
 
   function closeEmployeeEditor() {
@@ -832,7 +835,7 @@ export default function PayrollApp({
       document.querySelector<HTMLButtonElement>(".desktop-sidebar-toggle")?.focus();
     }
   }
-  async function openInventory() {
+  async function openInventory(adminTask?: string) {
     if (testMember) {
       setInventoryError("This portal preview cannot open the separate apparatus workspace as a member. Exit test view, open Apparatus Checks, then use Build & templates → Member preview.");
       return;
@@ -845,7 +848,7 @@ export default function PayrollApp({
     const response = await fetch("/api/auth/pin", { method: "PATCH", cache: "no-store" }).catch(() => null);
     setOpeningInventory(false);
     if (response?.ok) {
-      window.location.assign("/inventory");
+      window.location.assign(inventoryAdminDestination(adminTask));
       return;
     }
     if (response?.status === 423) {
@@ -853,7 +856,7 @@ export default function PayrollApp({
       return;
     }
     if (response?.status === 401) {
-      window.location.assign("/inventory");
+      window.location.assign(inventoryAdminDestination(adminTask));
       return;
     }
     setInventoryError("Apparatus Checks could not verify secure access. Retry, or dismiss this message to keep working here.");
@@ -863,10 +866,12 @@ export default function PayrollApp({
     if (!confirmLeavingWork()) return;
     setDesktopMenuHidden(true);
     setNavigationNotice("");
+    setAdminSaveNotice("");
+    if (record?.adminTask === "rank-access" || record?.adminTask === "member-access") setPermissionSelection(current => ({ ...current, editor: record.adminTask === "member-access" ? "member" : "rank", search: "", group: "" }));
     setProfileOpen(false);
     setInventoryError("");
     if (page === "Inventory") {
-      void openInventory();
+      void openInventory(record?.adminTask);
       return;
     }
     if (tvMode) {
@@ -878,7 +883,7 @@ export default function PayrollApp({
     if (`${window.location.pathname}${window.location.search}` !== url) {
       if (!fromBack) {
         const current = new URLSearchParams(window.location.search);
-        const priorRecord = Object.fromEntries(["preplan", "hydrant", "policy", "boxCard", "query"].flatMap(key => current.get(key) ? [[key, current.get(key)!]] : []));
+        const priorRecord = Object.fromEntries(["preplan", "hydrant", "policy", "boxCard", "query", "adminTask"].flatMap(key => current.get(key) ? [[key, current.get(key)!]] : []));
         setWorkspaceTrail(trail => [...trail.slice(-19), { page: activeNav, record: priorRecord }]);
       } else setWorkspaceTrail(trail => trail.slice(0, -1));
       window.history.pushState({}, "", url);
@@ -904,13 +909,32 @@ export default function PayrollApp({
       setActiveNav(firstPermitted ?? "My Timesheet");
     } else setActiveNav("Test View");
   }
+  const lastPermissionRevision = useRef<string | null>(null);
+  useEffect(() => {
+    if (!access.verified) return;
+    const changed = lastPermissionRevision.current !== null && lastPermissionRevision.current !== access.revision;
+    lastPermissionRevision.current = access.revision;
+    setData(current => current ? { ...current, viewer: { ...current.viewer,
+      canManageEmployees: access.permissions.includes("employees.manage"),
+      canManagePayroll: access.permissions.includes("payroll.manage"),
+    } } : current);
+    if (changed) {
+      setTestMember(null);
+      setProfileOpen(false);
+      setNavigationVersion(current => current + 1);
+      void loadPayroll(periodStart);
+    }
+  }, [access, loadPayroll, periodStart]);
+
   function permissionsSaved(payload: { viewerPermissions?: string[]; employees: Array<{ id: string; name: string; rank: string; effectivePermissions: string[] }> }) {
-    if (payload.viewerPermissions) setViewerPermissions(payload.viewerPermissions);
+    setAdminSaveNotice("Last permission save verified. Any new edits still need to be saved.");
     if (testMember) {
       const refreshed = payload.employees.find((employee) => employee.id === testMember.id);
       if (refreshed) setTestMember(refreshed);
     }
   }
+
+  if (!access.verified) return <main className="app-shell sidebar-collapsed"><section className="workspace"><article className="content-card"><h1>Verify your access</h1><p role="status">{access.error || "Checking your current department permissions…"}</p><button type="button" onClick={() => void refreshPermissions()}>Retry access check</button><a href="/">Back to sign in</a></article></section></main>;
 
   return (
     <main className={`app-shell${tvMode ? " tv-shell" : ""}${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
@@ -961,9 +985,11 @@ export default function PayrollApp({
       <ConfirmDialog open={Boolean(employeeToDelete)} title={`Delete ${employeeToDelete ? displayName(employeeToDelete.name) : "employee"}?`} description="This permanently deletes the employee record. This cannot be undone. Employees with payroll or Daily Log history cannot be deleted." confirmLabel="Confirm Delete" tone="danger" busy={deletingEmployee} onCancel={() => setEmployeeToDelete(null)} onConfirm={() => void deleteEmployee()} />
 
       <a className="portal-skip-link" href="#portal-workspace">Skip to workspace</a>
-      <section id="portal-workspace" tabIndex={-1} className={`workspace${testMember ? " testing-member-view" : ""}`} onClickCapture={(event) => { if (testMember && (event.target as HTMLElement).closest("button,input,select,textarea") && !(event.target as HTMLElement).closest(".test-view-banner,[data-test-safe],[data-test-interactive]")) { event.preventDefault(); event.stopPropagation(); } }} onSubmitCapture={(event) => { if (testMember && !(event.target as HTMLElement).closest("[data-test-interactive]")) { event.preventDefault(); event.stopPropagation(); } }} onChangeCapture={(event) => { if (testMember && !(event.target as HTMLElement).closest(".test-view-banner,[data-test-safe],[data-test-interactive]")) { event.preventDefault(); event.stopPropagation(); } }}>
+      <section key={`${access.identity}:${access.revision}:${access.permissions.join(",")}`} id="portal-workspace" tabIndex={-1} className={`workspace${testMember ? " testing-member-view" : ""}`} onClickCapture={(event) => { if (testMember && (event.target as HTMLElement).closest("button,input,select,textarea") && !(event.target as HTMLElement).closest(".test-view-banner,[data-test-safe],[data-test-interactive]")) { event.preventDefault(); event.stopPropagation(); } }} onSubmitCapture={(event) => { if (testMember && !(event.target as HTMLElement).closest("[data-test-interactive]")) { event.preventDefault(); event.stopPropagation(); } }} onChangeCapture={(event) => { if (testMember && !(event.target as HTMLElement).closest(".test-view-banner,[data-test-safe],[data-test-interactive]")) { event.preventDefault(); event.stopPropagation(); } }}>
         {!tvMode && <WorkspaceGuide page={activeNav} home={homePage} backLabel={workspaceTrail.length ? portalPageLabel(workspaceTrail[workspaceTrail.length - 1].page) : undefined} onBack={() => { const prior = workspaceTrail[workspaceTrail.length - 1]; if (prior) navigate(prior.page, prior.record, true); }} onNavigate={navigate} />}
+        {!tvMode && !testMember && activeNav !== "Respond" && activeNav !== "Command Board" && <AdminTools page={activeNav} permissions={viewerPermissions} allowedPages={visibleNav} onNavigate={navigate} />}
         {navigationNotice && <div className="error-banner" role="alert">{navigationNotice}</div>}
+        {adminSaveNotice && <div className="phone-message" role="status">{adminSaveNotice}<button type="button" className="quiet-button" onClick={() => setAdminSaveNotice("")}>Dismiss</button></div>}
         {testMember && <div className="test-view-banner"><div><b>TEST VIEW</b><span>Previewing as {displayName(testMember.name)} · {testMember.rank}</span><small>No identity or approval authority has changed.</small></div><button onClick={() => changeTestMember(null)}>Exit test view</button></div>}
         {error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={() => { setError(""); void loadPayroll(periodStart); }}>Retry</button></div>}
         {Object.keys(failedCells).length > 0 && <div className="error-banner" role="alert"><span>{Object.keys(failedCells).length} hour entry save(s) remain unconfirmed. Use the highlighted timesheet cells to retry, or reload the saved hours before continuing.</span><button disabled={savingCells.size > 0} onClick={() => {
@@ -985,7 +1011,7 @@ export default function PayrollApp({
               </div>
             </div>
             {activeNav === "Payroll" && <button className="primary-action" onClick={() => openTimesheet()}><Icon name={data.period.status === "finalized" ? "document" : "clock"}/> {data.period.status === "finalized" ? "View Timesheets" : "Enter Hours"}</button>}
-            {activeNav === "Timesheets" && data.viewer.isAdmin && <button className="primary-action secondary-red" onClick={() => navigate("Payroll")}>Review Payroll</button>}
+            {activeNav === "Timesheets" && data.viewer.canManagePayroll && <button className="primary-action secondary-red" onClick={() => navigate("Payroll")}>Review Payroll</button>}
           </div>}
 
           {(activeNav === "Payroll" || activeNav === "Timesheets" || activeNav === "My Timesheet") && <RecordCredibility audit={{ recordNumber: `PAY-${data.period.startDate.replaceAll("-", "")}`, status: statusLabel, createdBy: data.period.createdBy, createdAt: data.period.createdAt, updatedBy: data.period.updatedBy, updatedAt: data.period.updatedAt, closedBy: data.period.finalizedBy, closedAt: data.period.finalizedAt, revisions: data.period.revisions }} />}
@@ -1025,7 +1051,7 @@ export default function PayrollApp({
           {activeNav === "Inventory" && <section className="content-card action-empty-state"><div><h1>Apparatus Checks &amp; Inventory</h1><p>Open the dedicated workspace to choose an apparatus, complete checks, and find equipment.</p></div><button type="button" className="primary-action" disabled={openingInventory} onClick={() => void openInventory()}>{openingInventory ? "Checking access…" : "Open Apparatus Checks"}</button></section>}
           {activeNav === "Command Center" && <CommandCenter />}
           {activeNav === "Work Details" && <WorkDetails onPayrollChanged={(approvedPeriodStart) => { if (approvedPeriodStart === periodStart) void loadPayroll(periodStart); else setPeriodStart(approvedPeriodStart); }} />}
-          {activeNav === "Scheduling" && <StationScheduler testMember={testMember} />}
+          {activeNav === "Scheduling" && <StationScheduler key={navigationVersion} testMember={testMember} />}
           {activeNav === "Operations Board" && <OperationsBoard tvMode={tvMode} onTvModeChange={(enabled) => {
             setTvMode(enabled);
             const url = new URL(window.location.href);
@@ -1051,7 +1077,7 @@ export default function PayrollApp({
           {activeNav === "Field Preplans" && <FieldPreplans />}
           {activeNav === "Road Closures" && <RoadClosures />}
           {activeNav === "Safety Inspections" && <SafetyInspections readOnly={Boolean(testMember)} />}
-          {activeNav === "Respond Device Modes" && data.viewer.isAdmin && <RespondDeviceSettingsPage onSaved={(settings) => {
+          {activeNav === "Respond Device Modes" && viewerPermissions.includes("settings.manage") && <RespondDeviceSettingsPage onSaved={(settings) => {
             setRespondDeviceSettings(settings);
             if (settings.mode === "apparatus") navigate("Respond");
           }} />}
@@ -1094,59 +1120,61 @@ export default function PayrollApp({
           </section>}
           {activeNav === "Daily Duties" && <DailyDuties />}
           {activeNav === "Phone Numbers" && <PhoneNumbers key={navigationVersion} />}
-          {activeNav === "CAD Integration" && data.viewer.isAdmin && <CadIntegrationSettings />}
-          {activeNav === "Departments" && data.viewer.isAdmin && <DepartmentSettings />}
-          {activeNav === "System Health" && data.viewer.isAdmin && <SystemHealth />}
+          {activeNav === "CAD Integration" && viewerPermissions.includes("settings.manage") && <CadIntegrationSettings />}
+          {activeNav === "Departments" && viewerPermissions.includes("settings.manage") && <DepartmentSettings />}
+          {activeNav === "System Health" && viewerPermissions.includes("settings.manage") && <SystemHealth />}
 
-          {activeNav === "Employee Contacts" && <EmployeeContacts key={navigationVersion} employees={data.employees} initialSearch={employeeSearch} />}
+          {activeNav === "Employee Contacts" && <EmployeeDirectory key={navigationVersion} contacts initialSearch={employeeSearch} />}
 
           {activeNav === "Policies" && <PoliciesPage key={navigationVersion} />}
 
           {activeNav === "Box Cards" && <BoxCardsPage key={navigationVersion} />}
 
-          {(activeNav === "Permissions" || activeNav === "Test View") && data.viewer.isAdmin && <PermissionSettings initialTab={activeNav === "Test View" ? "test" : "permissions"} testEmployeeId={testMember?.id ?? ""} onTestEmployee={changeTestMember} onPermissionsSaved={permissionsSaved} />}
+          {(activeNav === "Permissions" || activeNav === "Test View") && viewerPermissions.includes("permissions.manage") && <PermissionSettings key={navigationVersion} initialSelection={permissionSelection} onSelectionChange={setPermissionSelection} initialTab={activeNav === "Test View" ? "test" : "permissions"} testEmployeeId={testMember?.id ?? ""} onTestEmployee={changeTestMember} onPermissionsSaved={permissionsSaved} />}
 
-          {activeNav === "Employees" && <section className="employee-page">
-            <div className="standard-page-header"><div><span className="page-icon"><Icon name="users" size={25}/></span><div><p className="eyebrow">Personnel administration</p><h1>Employees</h1><p>Manage employment, contact, access, driver status, and emergency information.</p></div></div><button type="button" className="primary-action" onClick={() => editEmployee()}>Add Employee</button></div>
+          {activeNav === "Employees" && !data.viewer.canManageEmployees && <EmployeeDirectory key={navigationVersion} initialSearch={employeeSearch} />}
+          {activeNav === "Employees" && data.viewer.canManageEmployees && <section className="employee-page">
+            <div className="standard-page-header"><div><span className="page-icon"><Icon name="users" size={25}/></span><div><p className="eyebrow">Personnel administration</p><h1>Employees</h1><p>Manage employment, contact, access, driver status, and emergency information.</p></div></div><button type="button" className="primary-action" disabled={!access.permissions.includes("permissions.manage")} title="Creating an account requires Manage permissions access." onClick={() => editEmployee()}>Add Employee</button></div>
             {inviteMessage && <div className="employee-invite-message" role="status">{inviteMessage}<button type="button" aria-label="Dismiss invitation message" onClick={() => setInviteMessage("")}>×</button></div>}
             {profileOpen && <form className="content-card employee-profile-form" onSubmit={(event) => void saveEmployeeProfile(event)}>
-              <div className="section-header"><div><h2>{employeeDraft.id ? `Edit ${employeeNameFromParts(employeeDraft.lastName, employeeDraft.firstName)}` : "Add employee"}</h2><p>Personnel, payroll eligibility, and emergency contact information.</p></div><div className="employee-form-actions">{employeeDraft.id && <button type="button" className="quiet-button" onClick={() => editEmployee()}>New Employee</button>}<button type="button" className="quiet-button" disabled={employeeSaving} onClick={closeEmployeeEditor}>Cancel · Back to roster</button><button className="primary-action compact" disabled={employeeSaving} type="submit">{employeeSaving ? "Saving…" : employeeDraft.id ? "Save Changes" : "Add Employee"}</button></div></div>
+              <div className="section-header"><div><h2>{employeeDraft.id ? `Edit ${employeeNameFromParts(employeeDraft.lastName, employeeDraft.firstName)}` : "Add employee"}</h2><p>Personnel, payroll eligibility, and emergency contact information.</p></div><div className="employee-form-actions">{employeeDraft.id && access.permissions.includes("permissions.manage") && <button type="button" className="quiet-button" onClick={() => editEmployee()}>New Employee</button>}<button type="button" className="quiet-button" disabled={employeeSaving} onClick={closeEmployeeEditor}>Cancel · Back to roster</button><button className="primary-action compact" disabled={employeeSaving} type="submit">{employeeSaving ? "Saving…" : employeeDraft.id ? "Save Changes" : "Add Employee"}</button></div></div>
+              <nav className="admin-form-sections" aria-label="Employee form sections">{[["employment", "Employment"], ["eligibility", "Role eligibility"], ["contact", "Contact"], ["emergency", "Emergency"], ["notes", "Notes"]].map(([id, label]) => <button type="button" key={id} onClick={() => { const section = document.getElementById(`employee-${id}`); section?.scrollIntoView({ block: "start", behavior: "instant" }); section?.focus({ preventScroll: true }); }}>{label}</button>)}</nav>
               {employeeSaveError && <div className="error-banner" role="alert">{employeeSaveError}</div>}
               <fieldset disabled={employeeSaving} className="employee-save-fields">
-              <fieldset><legend>Employment</legend><div className="employee-photo-editor"><div className="employee-photo-preview">{employeePhotoPreview ? <img src={employeePhotoPreview} alt="Employee photo preview" /> : <span>{employeeNameFromParts(employeeDraft.lastName, employeeDraft.firstName).split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span>}</div><div><strong>Employee photo</strong><p>Used for new-member announcements and personnel displays.</p><div><label className="employee-photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => chooseEmployeePhoto(event.target.files?.[0] ?? null)} /><span>{employeePhotoPreview ? "Choose a different photo" : "Choose photo"}</span></label>{employeePhotoPreview && <button type="button" className="quiet-button" onClick={() => { setEmployeePhotoFile(null); setEmployeePhotoPreview(""); setRemoveEmployeePhoto(Boolean(employeeDraft.id)); }}>Remove photo</button>}</div><small>JPG, PNG, or WebP · maximum 3 MB</small></div></div><div className="employee-fields three-col">
+              <fieldset id="employee-employment" tabIndex={-1}><legend>Employment</legend><div className="employee-photo-editor"><div className="employee-photo-preview">{employeePhotoPreview ? <img src={employeePhotoPreview} alt="Employee photo preview" /> : <span>{employeeNameFromParts(employeeDraft.lastName, employeeDraft.firstName).split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span>}</div><div><strong>Employee photo</strong><p>Used for new-member announcements and personnel displays.</p><div><label className="employee-photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => chooseEmployeePhoto(event.target.files?.[0] ?? null)} /><span>{employeePhotoPreview ? "Choose a different photo" : "Choose photo"}</span></label>{employeePhotoPreview && <button type="button" className="quiet-button" onClick={() => { setEmployeePhotoFile(null); setEmployeePhotoPreview(""); setRemoveEmployeePhoto(Boolean(employeeDraft.id)); }}>Remove photo</button>}</div><small>JPG, PNG, or WebP · maximum 3 MB</small></div></div><div className="employee-fields three-col">
                 <label><span>Last name *</span><input required autoComplete="family-name" value={employeeDraft.lastName} onChange={(event) => setEmployeeDraft((current) => ({ ...current, lastName: event.target.value }))} /></label>
                 <label><span>First name *</span><input required autoComplete="given-name" value={employeeDraft.firstName} onChange={(event) => setEmployeeDraft((current) => ({ ...current, firstName: event.target.value }))} /></label>
-                <label><span>Employee number</span><input placeholder="Example: 1203-17" value={employeeDraft.employeeNumber} onChange={(event) => setEmployeeDraft((current) => ({ ...current, employeeNumber: event.target.value }))} /></label>
+                <label><span>Employee number</span><input disabled={!access.permissions.includes("permissions.manage")} placeholder="Example: 1203-17" value={employeeDraft.employeeNumber} onChange={(event) => setEmployeeDraft((current) => ({ ...current, employeeNumber: event.target.value }))} /></label>
                 <label><span>Employment type</span><select value={employeeDraft.employmentType} onChange={(event) => setEmployeeDraft((current) => ({ ...current, employmentType: event.target.value }))}><option>Part-time</option><option>Full-time</option><option>Paid-on-call</option><option>Temporary</option><option>Contract</option></select></label>
                 <label><span>Driver status</span><select value={employeeDraft.driverStatus} onChange={(event) => setEmployeeDraft((current) => ({ ...current, driverStatus: event.target.value }))}><option value="">Not entered</option><option>Cleared</option><option>Ambulance Only</option><option>Not Cleared</option></select><small>Cleared: engine, ambulance and attendant. Ambulance Only: ambulance and attendant.</small></label>
                 <label><span>Single-role / extra member only</span><input type="checkbox" checked={employeeDraft.singleRole} onChange={(event) => setEmployeeDraft((current) => ({ ...current, singleRole: event.target.checked }))} /><small>Only additional staffing. Cannot fill Officer/AO, Engine Driver, Ambulance Driver or FF/Attendant, even if other clearances are checked.</small></label>
                 <label className="dpw-employee-check"><input type="checkbox" checked={employeeDraft.isDpw} onChange={(event) => setEmployeeDraft((current) => ({ ...current, isDpw: event.target.checked }))} /><span><strong>DPW employee</strong><small>Daily Log hours go to the DPW column. No holiday or overtime increase; Acting Officer pay still applies when selected.</small></span></label>
-                <label className="admin-employee-check"><input type="checkbox" checked={employeeDraft.isAdmin} onChange={(event) => setEmployeeDraft((current) => ({ ...current, isAdmin: event.target.checked }))} /><span><strong>Portal administrator</strong><small>Starts with access to every timesheet and payroll editing. Use Permissions → Employee exceptions to remove payroll access from a specific administrator.</small></span></label>
-                <label><span>Pay scale *</span><select value={employeeDraft.payScaleId} onChange={(event) => setEmployeeDraft((current) => ({ ...current, payScaleId: event.target.value }))}>{data.payScales.map((scale) => <option value={scale.id} key={scale.id}>{scale.label}</option>)}</select></label>
+                <label className="admin-employee-check"><input disabled={!access.permissions.includes("permissions.manage")} type="checkbox" checked={employeeDraft.isAdmin} onChange={(event) => setEmployeeDraft((current) => ({ ...current, isAdmin: event.target.checked }))} /><span><strong>Portal administrator</strong><small>Starts with access to every timesheet and payroll editing. Use Permissions → Employee exceptions to remove payroll access from a specific administrator.</small></span></label>
+                <label><span>Pay scale *</span><select disabled={!access.permissions.includes("permissions.manage")} value={employeeDraft.payScaleId} onChange={(event) => setEmployeeDraft((current) => ({ ...current, payScaleId: event.target.value }))}>{data.payScales.map((scale) => <option value={scale.id} key={scale.id}>{scale.label}</option>)}</select></label>
                 <label><span>Start date</span><input type="date" value={employeeDraft.startDate} onChange={(event) => setEmployeeDraft((current) => ({ ...current, startDate: event.target.value }))} /></label>
                 <label><span>Last day of work</span><input type="date" value={employeeDraft.endDate} min={employeeDraft.startDate || undefined} onChange={(event) => setEmployeeDraft((current) => ({ ...current, endDate: event.target.value }))} /></label>
               </div><p className="field-help">The employee appears on payroll beginning with their start date. After their last day, they are automatically removed from future payrolls while all history stays saved.</p></fieldset>
-              <fieldset className="acting-officer-profile"><legend>Acting Officer</legend><label className="acting-officer-eligible-check"><input type="checkbox" checked={employeeDraft.actingOfficerEligible} onChange={(event) => setEmployeeDraft((current) => ({ ...current, actingOfficerEligible: event.target.checked }))} /><span><strong>Eligible to work Acting Officer shifts</strong><small>Scheduling will allow this employee to be assigned to, notified about, trade into, or request an Officer/AO shift. Commissioned officer ranks remain eligible by rank.</small></span></label><p className="field-help">This controls scheduling eligibility only. Acting Officer payroll remains a separate manual selection in the Daily Log for the employee and hours actually worked.</p></fieldset>
-              <fieldset><legend>Contact & personal information</legend><div className="employee-fields three-col">
+              <fieldset id="employee-eligibility" tabIndex={-1} className="acting-officer-profile"><legend>Acting Officer</legend><label className="acting-officer-eligible-check"><input type="checkbox" checked={employeeDraft.actingOfficerEligible} onChange={(event) => setEmployeeDraft((current) => ({ ...current, actingOfficerEligible: event.target.checked }))} /><span><strong>Eligible to work Acting Officer shifts</strong><small>Scheduling will allow this employee to be assigned to, notified about, trade into, or request an Officer/AO shift. Commissioned officer ranks remain eligible by rank.</small></span></label><p className="field-help">This controls scheduling eligibility only. Acting Officer payroll remains a separate manual selection in the Daily Log for the employee and hours actually worked.</p></fieldset>
+              <fieldset id="employee-contact" tabIndex={-1}><legend>Contact & personal information</legend><div className="employee-fields three-col">
                 <label><span>Date of birth</span><input type="date" value={employeeDraft.dateOfBirth} onChange={(event) => setEmployeeDraft((current) => ({ ...current, dateOfBirth: event.target.value }))} /></label>
                 <label><span>Phone number</span><input type="tel" placeholder="(708) 555-0123" value={employeeDraft.phone} onChange={(event) => setEmployeeDraft((current) => ({ ...current, phone: event.target.value }))} /></label>
-                <label><span>Login email</span><input type="email" placeholder="name@example.com" value={employeeDraft.email} onChange={(event) => setEmployeeDraft((current) => ({ ...current, email: event.target.value }))} /><small className="input-help">Must match the employee’s ChatGPT login email to show their timesheet.</small></label>
+                <label><span>Login email</span><input disabled={!access.permissions.includes("permissions.manage")} type="email" placeholder="name@example.com" value={employeeDraft.email} onChange={(event) => setEmployeeDraft((current) => ({ ...current, email: event.target.value }))} /><small className="input-help">Must match this member’s department portal login. Changing login identity requires Manage permissions access.</small></label>
                 <label className="admin-employee-check"><input type="checkbox" checked={employeeDraft.scheduleSmsOptIn} onChange={(event) => setEmployeeDraft((current) => ({ ...current, scheduleSmsOptIn: event.target.checked }))} /><span><strong>Employee elected to receive scheduling texts</strong><small>Text alerts are queued only when this is checked and a phone number is saved.</small></span></label>
                 <label className="span-two"><span>Home address</span><input placeholder="Street address" value={employeeDraft.addressLine1} onChange={(event) => setEmployeeDraft((current) => ({ ...current, addressLine1: event.target.value }))} /></label>
                 <label><span>City</span><input value={employeeDraft.city} onChange={(event) => setEmployeeDraft((current) => ({ ...current, city: event.target.value }))} /></label>
                 <label><span>State</span><input maxLength={2} value={employeeDraft.state} onChange={(event) => setEmployeeDraft((current) => ({ ...current, state: event.target.value.toUpperCase() }))} /></label>
                 <label><span>ZIP code</span><input inputMode="numeric" value={employeeDraft.postalCode} onChange={(event) => setEmployeeDraft((current) => ({ ...current, postalCode: event.target.value }))} /></label>
               </div></fieldset>
-              <fieldset><legend>Emergency contact</legend><div className="employee-fields three-col">
+              <fieldset id="employee-emergency" tabIndex={-1}><legend>Emergency contact</legend><div className="employee-fields three-col">
                 <label><span>Contact name</span><input value={employeeDraft.emergencyName} onChange={(event) => setEmployeeDraft((current) => ({ ...current, emergencyName: event.target.value }))} /></label>
                 <label><span>Relationship</span><input placeholder="Spouse, parent, friend…" value={employeeDraft.emergencyRelationship} onChange={(event) => setEmployeeDraft((current) => ({ ...current, emergencyRelationship: event.target.value }))} /></label>
                 <label><span>Emergency phone</span><input type="tel" value={employeeDraft.emergencyPhone} onChange={(event) => setEmployeeDraft((current) => ({ ...current, emergencyPhone: event.target.value }))} /></label>
               </div></fieldset>
-              <fieldset><legend>Administrative notes</legend><label className="notes-field"><span>Internal notes</span><textarea rows={3} placeholder="Restrictions, payroll notes, rehire eligibility, or other important information" value={employeeDraft.notes} onChange={(event) => setEmployeeDraft((current) => ({ ...current, notes: event.target.value }))} /></label></fieldset>
+              <fieldset id="employee-notes" tabIndex={-1}><legend>Administrative notes</legend><label className="notes-field"><span>Internal notes</span><textarea rows={3} placeholder="Restrictions, payroll notes, rehire eligibility, or other important information" value={employeeDraft.notes} onChange={(event) => setEmployeeDraft((current) => ({ ...current, notes: event.target.value }))} /></label></fieldset>
               </fieldset><div className="employee-form-footer"><button type="button" className="quiet-button" disabled={employeeSaving} onClick={closeEmployeeEditor}>Cancel · Back to roster</button><button type="submit" className="primary-action" disabled={employeeSaving}>{employeeSaving ? "Saving…" : "Save employee"}</button></div>
             </form>}
-            <section className="content-card employee-roster-card"><div className="section-header"><div><h2>Employee roster</h2><p>Ended employees remain here for payroll history and can be updated or rehired.</p></div><div className="employee-form-actions"><span className="count-badge">{data.employees.length} records</span><button type="button" className="primary-action compact" onClick={() => editEmployee()}>Add Employee</button></div></div>
-              {data.employees.length === 0 && <div className="action-empty-state"><Icon name="users" size={28}/><div><strong>No employees yet</strong><p>Add the first employee to begin staffing, timesheets, and payroll.</p></div><button className="quiet-button" onClick={() => editEmployee()}>Add Employee</button></div>}
+            <section className="content-card employee-roster-card"><div className="section-header"><div><h2>Employee roster</h2><p>Ended employees remain here for payroll history and can be updated or rehired.</p></div><div className="employee-form-actions"><span className="count-badge">{data.employees.length} records</span><button type="button" className="primary-action compact" disabled={!access.permissions.includes("permissions.manage")} title="Creating an account requires Manage permissions access." onClick={() => editEmployee()}>Add Employee</button></div></div>
+              {data.employees.length === 0 && <div className="action-empty-state"><Icon name="users" size={28}/><div><strong>No employees yet</strong><p>Add the first employee to begin staffing, timesheets, and payroll.</p></div><button className="quiet-button" disabled={!access.permissions.includes("permissions.manage")} title="Creating an account requires Manage permissions access." onClick={() => editEmployee()}>Add Employee</button></div>}
               <label className="portal-roster-search"><span>Find an employee</span><input type="search" value={employeeSearch} onChange={event => setEmployeeSearch(event.target.value)} placeholder="Name, employee number, rank, or phone…" /></label>
               {employeeSearch && <p className="portal-inline-status"><button type="button" className="quiet-button" onClick={() => setEmployeeSearch("")}>Clear employee search</button></p>}
               <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Employee #</th><th>Pay Scale</th><th>Driver</th><th>Acting Officer</th><th>Phone</th><th>Start</th><th>Last Day</th><th>Status</th><th></th></tr></thead><tbody>{data.employees.filter(employee => `${employee.name} ${employee.employeeNumber ?? ""} ${employee.rank} ${employee.phone ?? ""}`.toLowerCase().includes(employeeSearch.trim().toLowerCase())).sort((a, b) => compareEmployeeNames(a.name, b.name)).map((employee) => {

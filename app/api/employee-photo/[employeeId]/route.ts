@@ -1,7 +1,7 @@
+import { hasPermission } from "../../../server-permissions";
 import { ensureDatabase } from "../../../../db/bootstrap";
 import { getPortalStorage } from "../../../portal-storage";
 
-const ownerAdminEmails = ["bobff353@gmail.com"];
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const maxPhotoBytes = 3 * 1024 * 1024;
 
@@ -16,12 +16,7 @@ async function bucket() {
 }
 
 async function isAdmin(request: Request) {
-  const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
-  if (ownerAdminEmails.includes(email)) return true;
-  if (!email) return false;
-  const db = await ensureDatabase();
-  const profile = await db.prepare("SELECT is_admin AS isAdmin FROM employee_profiles WHERE lower(email) = ? LIMIT 1").bind(email).first<{ isAdmin: number }>();
-  return Boolean(profile?.isAdmin);
+  return hasPermission(request, await ensureDatabase(), "employees.manage");
 }
 
 function employeePhotoKey(employeeId: string) {

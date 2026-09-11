@@ -1,3 +1,4 @@
+import { hasAnyPermission } from "../../server-permissions";
 import { ensureDatabase } from "../../../db/bootstrap";
 import {
   next24DepartmentSchedule,
@@ -7,9 +8,10 @@ import {
 } from "../../department-schedule";
 import { chicagoOperationalContext } from "../../operational-day";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const db = await ensureDatabase();
+    if (!await hasAnyPermission(request, db, ["scheduling.view","scheduling.manage","operations_board.view","daily_log.view","dashboard.view"])) return Response.json({ error: "This account does not have access to this tool." }, { status: 403 });
     const now = chicagoOperationalContext();
     const range = scheduleQueryDates(now.calendarDate);
     const assignments = await db.prepare(

@@ -1,3 +1,4 @@
+import { hasAnyPermission } from "../../server-permissions";
 import { ensureDatabase } from "../../../db/bootstrap";
 import { projectDispatchIntoDailyLog } from "../../dispatch-daily-log";
 import { scheduleQueryDates, scheduledStaffingForLog, type DepartmentScheduleAssignment } from "../../department-schedule";
@@ -30,6 +31,7 @@ type DashboardScheduleAssignment = DepartmentScheduleAssignment & { rank: string
 export async function GET(request: Request) {
   try {
     const db = await ensureDatabase();
+    if (!await hasAnyPermission(request, db, ["dashboard.view","operations_board.view"])) return Response.json({ error: "This account does not have access to this tool." }, { status: 403 });
     try { await syncRecentResendDispatches(db); } catch (error) { console.error("Direct Resend dispatch sync failed", error); }
     const unloggedDispatches = await db.prepare("SELECT incident_id AS reportNumber, dispatched_at AS dispatchedAt, time_out AS timeOut, responding_units AS respondingUnits, address, call_type AS callType FROM dispatch_incidents WHERE active = 1 AND cleared_at IS NULL AND NOT EXISTS (SELECT 1 FROM daily_log_calls WHERE trim(daily_log_calls.report_number) = trim(dispatch_incidents.incident_id)) ORDER BY datetime(dispatched_at)").all<{
       reportNumber: string; dispatchedAt: string; timeOut: string; respondingUnits: string; address: string; callType: string;

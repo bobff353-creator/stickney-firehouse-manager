@@ -18,8 +18,10 @@ async function getViewer(db: Awaited<ReturnType<typeof ensureDatabase>>, request
   return {
     email,
     isAdmin,
-    canManageEmployees: isAdmin && permissions.has("employees.manage"),
-    canManagePayroll: isAdmin && permissions.has("payroll.manage"),
+    canManageEmployees: permissions.has("employees.manage"),
+    canManagePayroll: permissions.has("payroll.manage"),
+    canManagePermissions: permissions.has("permissions.manage"),
+    canViewOwn: permissions.has("payroll.view_own"),
     employeeId: employee?.id ?? null,
     displayName: employee?.name ?? (email || "Employee"),
   };
@@ -50,18 +52,21 @@ export async function GET(request: Request) {
   try {
     const db = await ensureDatabase();
     const viewer = await getViewer(db, request);
-    if (!viewer.isAdmin && !viewer.employeeId) return Response.json({ error: "Your login email is not connected to an employee record. Ask an administrator to add the same email to Employee Information." }, { status: 403 });
+    if (!viewer.canViewOwn) return Response.json({ error: "Your login must be linked to exactly one current employee record. Ask an administrator to check Employee Information." }, { status: 403 });
     const url = new URL(request.url);
     const start = cleanStart(url.searchParams.get("period"));
     const end = periodEnd(start);
     await db.prepare("INSERT OR IGNORE INTO pay_periods (start_date, end_date, status) VALUES (?, ?, 'draft')").bind(start, end).run();
 
     const employeeSelect = "SELECT e.id, e.name, e.pay_scale_id AS payScaleId, e.active, p.label AS rank, p.regular_rate AS regularRate, p.overtime_rate AS overtimeRate, p.holiday_rate AS holidayRate, ep.employee_number AS employeeNumber, ep.start_date AS startDate, ep.end_date AS endDate, ep.date_of_birth AS dateOfBirth, ep.phone, ep.email, COALESCE(ep.schedule_sms_opt_in, 0) AS scheduleSmsOptIn, ep.address_line_1 AS addressLine1, ep.city, ep.state, ep.postal_code AS postalCode, COALESCE(ep.employment_type, 'Part-time') AS employmentType, COALESCE(ep.is_dpw, 0) AS isDpw, COALESCE(ep.driver_status, '') AS driverStatus, COALESCE(ep.acting_officer_eligible, 0) AS actingOfficerEligible, COALESCE(ep.single_role, 0) AS singleRole, COALESCE(ep.is_admin, 0) AS isAdmin, ep.emergency_name AS emergencyName, ep.emergency_relationship AS emergencyRelationship, ep.emergency_phone AS emergencyPhone, ep.photo_updated_at AS photoUpdatedAt, ep.notes FROM employees e JOIN pay_scales p ON p.id = e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id = e.id WHERE e.active = 1";
-    const employeeQuery = viewer.isAdmin ? db.prepare(`${employeeSelect} ORDER BY e.name COLLATE NOCASE`).all() : db.prepare("SELECT e.id, e.name, e.pay_scale_id AS payScaleId, e.active, p.label AS rank, p.regular_rate AS regularRate, p.overtime_rate AS overtimeRate, p.holiday_rate AS holidayRate, ep.start_date AS startDate, ep.end_date AS endDate, COALESCE(ep.employment_type, 'Part-time') AS employmentType, COALESCE(ep.is_dpw, 0) AS isDpw FROM employees e JOIN pay_scales p ON p.id = e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id = e.id WHERE e.active = 1 AND e.id = ?").bind(viewer.employeeId).all();
+    const payrollEmployeeSelect = "SELECT e.id,e.name,e.pay_scale_id AS payScaleId,e.active,p.label AS rank,p.regular_rate AS regularRate,p.overtime_rate AS overtimeRate,p.holiday_rate AS holidayRate,ep.employee_number AS employeeNumber,ep.start_date AS startDate,ep.end_date AS endDate,COALESCE(ep.is_dpw,0) AS isDpw FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1";
+    const employeeQuery = viewer.canManageEmployees ? db.prepare(`${employeeSelect} ORDER BY e.name`).all()
+      : viewer.canManagePayroll ? db.prepare(`${payrollEmployeeSelect} ORDER BY e.name`).all()
+      : db.prepare(`${payrollEmployeeSelect} AND e.id=?`).bind(viewer.employeeId).all();
     const entrySelect = "SELECT MIN(id) AS id, employee_id AS employeeId, work_date AS workDate, CASE WHEN category = 'dailyLogDpw' THEN 'dpw' ELSE category END AS category, SUM(hours) AS hours FROM time_entries";
     const entryGroup = "GROUP BY employee_id, work_date, CASE WHEN category = 'dailyLogDpw' THEN 'dpw' ELSE category END ORDER BY work_date";
     const entryQuery = viewer.canManagePayroll ? db.prepare(`${entrySelect} WHERE period_start = ? ${entryGroup}`).bind(start).all() : db.prepare(`${entrySelect} WHERE period_start = ? AND employee_id = ? ${entryGroup}`).bind(start, viewer.employeeId).all();
-    const scaleQuery = viewer.isAdmin ? db.prepare("SELECT id, label, regular_rate AS regularRate, overtime_rate AS overtimeRate, holiday_rate AS holidayRate FROM pay_scales ORDER BY sort_order").all() : db.prepare("SELECT p.id, p.label, p.regular_rate AS regularRate, p.overtime_rate AS overtimeRate, p.holiday_rate AS holidayRate FROM pay_scales p JOIN employees e ON e.pay_scale_id = p.id WHERE e.id = ?").bind(viewer.employeeId).all();
+    const scaleQuery = viewer.canManagePayroll || viewer.canManageEmployees ? db.prepare("SELECT id, label, regular_rate AS regularRate, overtime_rate AS overtimeRate, holiday_rate AS holidayRate FROM pay_scales ORDER BY sort_order").all() : db.prepare("SELECT p.id, p.label, p.regular_rate AS regularRate, p.overtime_rate AS overtimeRate, p.holiday_rate AS holidayRate FROM pay_scales p JOIN employees e ON e.pay_scale_id = p.id WHERE e.id = ?").bind(viewer.employeeId).all();
     const [employeeRows, entryRows, scaleRows, settingsRow, periodRow, rateHistoryRows] = await Promise.all([
       employeeQuery,
       entryQuery,
@@ -179,6 +184,12 @@ export async function POST(request: Request) {
       if (!lastName || !firstName || !payScaleId) return Response.json({ error: "Last name, first name, and pay scale are required" }, { status: 400 });
       const employeeNumber = String(payload.employeeNumber ?? "").trim();
       const email = String(payload.email ?? "").trim().toLowerCase();
+      if (!viewer.canManagePermissions) {
+        const previous = await db.prepare("SELECT e.pay_scale_id AS payScaleId,e.active,COALESCE(ep.email,'') email,COALESCE(ep.employee_number,'') employeeNumber,COALESCE(ep.is_admin,0) isAdmin FROM employees e LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=?").bind(id).first<{payScaleId:string;active:number;email:string;employeeNumber:string;isAdmin:number}>();
+        if (!previous || !previous.active || previous.payScaleId !== payScaleId || previous.email.trim().toLowerCase() !== email || previous.employeeNumber.trim() !== employeeNumber || Boolean(previous.isAdmin) !== Boolean(payload.isAdmin)) {
+          return Response.json({ error: "Manage permissions access is required to create accounts or change rank, login email, employee login number, or administrator access." }, { status: 403 });
+        }
+      }
       const seniorityRank = Number(payload.sortOrder);
       if (email) {
         const existingEmail = await db.prepare("SELECT employee_id employeeId FROM employee_profiles WHERE lower(trim(email))=? AND employee_id<>? LIMIT 1").bind(email, id).first<{employeeId:string}>();
@@ -188,9 +199,10 @@ export async function POST(request: Request) {
         const existingNumber = await db.prepare("SELECT employee_id employeeId FROM employee_profiles WHERE trim(employee_number)=? AND employee_id<>? LIMIT 1").bind(employeeNumber, id).first<{employeeId:string}>();
         if (existingNumber) return Response.json({ error: "That employee number is already assigned to another employee." }, { status: 409 });
       }
-      if (Number.isInteger(seniorityRank) && seniorityRank > 0) await db.prepare("INSERT INTO employees (id, name, pay_scale_id, active, sort_order) VALUES (?, ?, ?, 1, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, pay_scale_id = excluded.pay_scale_id, active = 1, sort_order = excluded.sort_order").bind(id, name, payScaleId, seniorityRank).run();
-      else await db.prepare("INSERT INTO employees (id, name, pay_scale_id, active, sort_order) VALUES (?, ?, ?, 1, 999) ON CONFLICT(id) DO UPDATE SET name = excluded.name, pay_scale_id = excluded.pay_scale_id, active = 1").bind(id, name, payScaleId).run();
-      await db.prepare("INSERT INTO employee_profiles (employee_id, employee_number, start_date, end_date, date_of_birth, phone, email, schedule_sms_opt_in, address_line_1, city, state, postal_code, employment_type, is_dpw, driver_status, acting_officer_eligible, single_role, is_admin, emergency_name, emergency_relationship, emergency_phone, notes, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(employee_id) DO UPDATE SET employee_number = excluded.employee_number, start_date = excluded.start_date, end_date = excluded.end_date, date_of_birth = excluded.date_of_birth, phone = excluded.phone, email = excluded.email, schedule_sms_opt_in = excluded.schedule_sms_opt_in, address_line_1 = excluded.address_line_1, city = excluded.city, state = excluded.state, postal_code = excluded.postal_code, employment_type = excluded.employment_type, is_dpw = excluded.is_dpw, driver_status = excluded.driver_status, acting_officer_eligible = excluded.acting_officer_eligible, single_role = excluded.single_role, is_admin = excluded.is_admin, emergency_name = excluded.emergency_name, emergency_relationship = excluded.emergency_relationship, emergency_phone = excluded.emergency_phone, notes = excluded.notes, updated_at = CURRENT_TIMESTAMP").bind(id, employeeNumber || null, String(payload.startDate ?? "") || null, String(payload.endDate ?? "") || null, String(payload.dateOfBirth ?? "") || null, String(payload.phone ?? "").trim() || null, email || null, payload.scheduleSmsOptIn ? 1 : 0, String(payload.addressLine1 ?? "").trim() || null, String(payload.city ?? "").trim() || null, String(payload.state ?? "").trim() || null, String(payload.postalCode ?? "").trim() || null, String(payload.employmentType ?? "Part-time"), payload.isDpw ? 1 : 0, String(payload.driverStatus ?? ""), payload.actingOfficerEligible ? 1 : 0, payload.singleRole ? 1 : 0, payload.isAdmin ? 1 : 0, String(payload.emergencyName ?? "").trim() || null, String(payload.emergencyRelationship ?? "").trim() || null, String(payload.emergencyPhone ?? "").trim() || null, String(payload.notes ?? "").trim() || null).run();
+      const employeeWrite = Number.isInteger(seniorityRank) && seniorityRank > 0 ? db.prepare("INSERT INTO employees (id, name, pay_scale_id, active, sort_order) VALUES (?, ?, ?, 1, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, pay_scale_id = excluded.pay_scale_id, active = 1, sort_order = excluded.sort_order").bind(id, name, payScaleId, seniorityRank)
+      : db.prepare("INSERT INTO employees (id, name, pay_scale_id, active, sort_order) VALUES (?, ?, ?, 1, 999) ON CONFLICT(id) DO UPDATE SET name = excluded.name, pay_scale_id = excluded.pay_scale_id, active = 1").bind(id, name, payScaleId);
+      const profileWrite = db.prepare("INSERT INTO employee_profiles (employee_id, employee_number, start_date, end_date, date_of_birth, phone, email, schedule_sms_opt_in, address_line_1, city, state, postal_code, employment_type, is_dpw, driver_status, acting_officer_eligible, single_role, is_admin, emergency_name, emergency_relationship, emergency_phone, notes, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(employee_id) DO UPDATE SET employee_number = excluded.employee_number, start_date = excluded.start_date, end_date = excluded.end_date, date_of_birth = excluded.date_of_birth, phone = excluded.phone, email = excluded.email, schedule_sms_opt_in = excluded.schedule_sms_opt_in, address_line_1 = excluded.address_line_1, city = excluded.city, state = excluded.state, postal_code = excluded.postal_code, employment_type = excluded.employment_type, is_dpw = excluded.is_dpw, driver_status = excluded.driver_status, acting_officer_eligible = excluded.acting_officer_eligible, single_role = excluded.single_role, is_admin = excluded.is_admin, emergency_name = excluded.emergency_name, emergency_relationship = excluded.emergency_relationship, emergency_phone = excluded.emergency_phone, notes = excluded.notes, updated_at = CURRENT_TIMESTAMP").bind(id, employeeNumber || null, String(payload.startDate ?? "") || null, String(payload.endDate ?? "") || null, String(payload.dateOfBirth ?? "") || null, String(payload.phone ?? "").trim() || null, email || null, payload.scheduleSmsOptIn ? 1 : 0, String(payload.addressLine1 ?? "").trim() || null, String(payload.city ?? "").trim() || null, String(payload.state ?? "").trim() || null, String(payload.postalCode ?? "").trim() || null, String(payload.employmentType ?? "Part-time"), payload.isDpw ? 1 : 0, String(payload.driverStatus ?? ""), payload.actingOfficerEligible ? 1 : 0, payload.singleRole ? 1 : 0, payload.isAdmin ? 1 : 0, String(payload.emergencyName ?? "").trim() || null, String(payload.emergencyRelationship ?? "").trim() || null, String(payload.emergencyPhone ?? "").trim() || null, String(payload.notes ?? "").trim() || null);
+      await db.batch([employeeWrite, profileWrite]);
       return Response.json({ ok: true, id });
     }
 
@@ -203,9 +215,11 @@ export async function POST(request: Request) {
       if (Number(history?.count ?? 0) > 0) {
         return Response.json({ error: "This employee has payroll or Daily Log history and cannot be permanently deleted. Add a Last day of work instead to keep department records intact." }, { status: 409 });
       }
-      await db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind(`employee_deleted:${employeeId}`, viewer.displayName).run();
-      await db.prepare("DELETE FROM employee_profiles WHERE employee_id = ?").bind(employeeId).run();
-      await db.prepare("DELETE FROM employees WHERE id = ?").bind(employeeId).run();
+      await db.batch([
+        db.prepare("INSERT INTO system_meta (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP").bind(`employee_deleted:${employeeId}`, viewer.displayName),
+        db.prepare("DELETE FROM employee_profiles WHERE employee_id = ?").bind(employeeId),
+        db.prepare("DELETE FROM employees WHERE id = ?").bind(employeeId),
+      ]);
       return Response.json({ ok: true, name: employee.name });
     }
 
