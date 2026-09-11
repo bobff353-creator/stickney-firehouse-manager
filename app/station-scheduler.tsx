@@ -162,7 +162,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
   const employeeName = useCallback((id: string | null | undefined) => data?.employees.find((e) => e.id === id)?.name ?? "", [data]);
   const shiftTypeName = useCallback((id: string) => data?.shiftTypes.find((s) => s.id === id)?.name ?? "", [data]);
 
-  if (error && !data) return <div className="scheduler"><p className="error">{error}</p></div>;
+  if (error && !data) return <div className="scheduler"><p className="error" role="alert">{error}</p><button type="button" disabled={refreshing} onClick={() => void load()}>{refreshing ? "Retrying…" : "Retry schedule"}</button></div>;
   if (!data) return <div className="scheduler"><p>Loading the scheduler…</p></div>;
 
   const accountIsAdmin = data.viewer.isAdmin;
@@ -212,7 +212,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
       {isAdmin && tab === "overview" && <section className="scheduler-admin-home">
         <h3>What do you need to do?</h3>
         <div className="scheduler-task-choices">
-          <button onClick={() => { setSelectedDate(data.today); setTab("calendar"); }}><strong>Staff today</strong><span>See the crew, fill a position, or adjust one day's schedule.</span></button>
+          <button onClick={() => { setSelectedDate(data.today); setTab("calendar"); }}><strong>Staff today</strong><span>See the crew, fill a position, or adjust one day’s schedule.</span></button>
           <button onClick={() => setTab("openAdmin")}><strong>Find open positions</strong><span>Review upcoming openings by date.{data.notice.overdueShifts > 0 ? ` ${data.notice.overdueShifts} past the award deadline.` : ""}</span></button>
           <button onClick={() => setTab("requests")}><strong>Review shift requests · {data.claims.filter((claim) => claim.status === "pending").length}</strong><span>Approve or deny members asking to work an open position.</span></button>
           <button onClick={() => setTab("trades")}><strong>Review trades · {data.trades.filter((trade) => ["pending", "awaiting_acceptance"].includes(trade.status) && trade.acceptedByEmployeeId).length}</strong><span>Review accepted trades. Offers still waiting on a member stay separate.</span></button>

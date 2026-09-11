@@ -5,7 +5,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { payrollReviewIssues, type ReviewStaffing } from "./payroll-review";
 import PayrollCorrections from "./payroll-corrections";
 import { portalPageFromSearch, portalPageLabel, portalPageUrl, type PortalPage, type PortalRecord } from "./portal-navigation";
-import { confirmLeavingWork } from "./use-unsaved-work";
+import { confirmLeavingWork, useUnsavedWork } from "./use-unsaved-work";
+import { WorkspaceGuide } from "./portal-wayfinding";
+import { portalWorkflows } from "./portal-workflows";
 import { portalConnectionState, readPortalJson } from "./portal-status";
 import DailyLog from "./daily-log";
 import CallbackReviews from "./callback-reviews";
@@ -232,6 +234,8 @@ export default function PayrollApp({
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
+  const [timesheetDay, setTimesheetDay] = useState("");
+  const [allTimesheetDays, setAllTimesheetDays] = useState(false);
   const [savingCells, setSavingCells] = useState<Set<string>>(new Set());
   const savingCellIds = useRef(new Set<string>());
   const originalCellValues = useRef(new Map<string, number>());
@@ -242,6 +246,14 @@ export default function PayrollApp({
   const [rateEffectiveDate, setRateEffectiveDate] = useState(currentPeriodStart);
   const [employeeDraft, setEmployeeDraft] = useState<EmployeeForm>(emptyEmployee);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [employeeSaving, setEmployeeSaving] = useState(false);
+  const [employeeSaveError, setEmployeeSaveError] = useState("");
+  const [employeeBaseline, setEmployeeBaseline] = useState("");
+  const [reviewSaving, setReviewSaving] = useState(false);
+  const [workspaceTrail, setWorkspaceTrail] = useState<Array<{ page: NavItem; record: PortalRecord }>>([]);
+  const [navigationNotice, setNavigationNotice] = useState("");
+  const [navigationVersion, setNavigationVersion] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [moreToolsOpen, setMoreToolsOpen] = useState(false);
@@ -269,6 +281,8 @@ export default function PayrollApp({
   const [respondDeviceSettings, setRespondDeviceSettings] = useState<RespondDeviceSettings>(defaultRespondDeviceSettings);
   const [respondAlertCallId, setRespondAlertCallId] = useState("");
   const [respondAlertSeconds, setRespondAlertSeconds] = useState(RESPOND_ALERT_DURATION_SECONDS);
+  const employeeDirty = profileOpen && (JSON.stringify(employeeDraft) !== employeeBaseline || Boolean(employeePhotoFile) || removeEmployeePhoto);
+  useUnsavedWork(employeeDirty, employeeSaving);
 
   const loadPayroll = useCallback(async (start: string) => {
     if (savingCellIds.current.size || originalCellValues.current.size) return;
@@ -324,6 +338,7 @@ export default function PayrollApp({
       const requestedPage = portalPageFromSearch(window.location.search);
       if (requestedPage) {
         setActiveNav(requestedPage);
+        setEmployeeSearch(params.get("query") || "");
         return;
       }
       if (settings.mode === "apparatus") setActiveNav("Respond");
@@ -374,9 +389,9 @@ export default function PayrollApp({
       const [policies, boxCards, numbers, preplans] = results.map(result => result.status === "fulfilled" ? result.value : {} as SearchPayload);
       if (results.some(result => result.status === "rejected")) setGlobalSearchError("Some records could not be loaded. Screen shortcuts and available results still work.");
       setSharedSearchItems([
-        ...(policies.items ?? []).map((item) => ({ id: `policy-${item.id}`, type: "Policy" as const, title: item.title, detail: [item.policyNumber, item.category, item.body].filter(Boolean).join(" · "), page: "Policies" as const })),
-        ...(boxCards.items ?? []).map((item) => ({ id: `box-${item.id}`, type: "Box Card" as const, title: item.title, detail: [item.boxNumber, item.address, item.accessNotes, item.details].filter(Boolean).join(" · "), page: "Box Cards" as const })),
-        ...(numbers.numbers ?? []).map((item) => ({ id: `phone-${item.id}`, type: "Important Number" as const, title: item.name, detail: [item.emergencyNumber, item.nonEmergencyNumber, item.notes].filter(Boolean).join(" · "), page: "Phone Numbers" as const })),
+        ...(policies.items ?? []).map((item) => ({ id: `policy-${item.id}`, type: "Policy" as const, title: item.title, detail: [item.policyNumber, item.category, item.body].filter(Boolean).join(" · "), page: "Policies" as const, record: { policy: item.id } })),
+        ...(boxCards.items ?? []).map((item) => ({ id: `box-${item.id}`, type: "Box Card" as const, title: item.title, detail: [item.boxNumber, item.address, item.accessNotes, item.details].filter(Boolean).join(" · "), page: "Box Cards" as const, record: { boxCard: item.id } })),
+        ...(numbers.numbers ?? []).map((item) => ({ id: `phone-${item.id}`, type: "Important Number" as const, title: item.name, detail: [item.emergencyNumber, item.nonEmergencyNumber, item.notes].filter(Boolean).join(" · "), page: "Phone Numbers" as const, record: { query: item.name } })),
         ...(preplans.preplans ?? []).map((item) => ({ id: `preplan-${item.id}`, type: "Preplan" as const, title: item.businessName || item.address, detail: [item.address, item.status].filter(Boolean).join(" · "), page: "Field Preplans" as const, record: { preplan: item.id } })),
       ]);
     } catch { setGlobalSearchError("Record search is unavailable. You can still open a screen below."); }
@@ -468,10 +483,10 @@ export default function PayrollApp({
 
   const globalSearchResults = useMemo(() => {
     const permittedPages = testMember ? adminNavItems.filter(page => !navPermission[page] || testMember.effectivePermissions.includes(navPermission[page]!)) : data?.viewer ? navigationForViewer(data.viewer, viewerPermissions) : employeeNavItems;
-    const screens: GlobalSearchItem[] = permittedPages.map(page => ({ id: `screen-${page}`, type: "Screen", title: portalPageLabel(page), detail: `Open ${page}`, page }));
+    const screens: GlobalSearchItem[] = permittedPages.map(page => ({ id: `screen-${page}`, type: "Screen", title: portalPageLabel(page), detail: portalWorkflows[page].purpose, page }));
     const employeeItems: GlobalSearchItem[] = (data?.employees ?? []).flatMap((employee) => [
-      ...(data?.viewer.isAdmin ? [{ id: `employee-${employee.id}`, type: "Employee" as const, title: displayName(employee.name), detail: [employee.rank, employee.employeeNumber, employee.driverStatus].filter(Boolean).join(" · "), page: "Employees" as const }] : []),
-      { id: `contact-${employee.id}`, type: "Contact" as const, title: displayName(employee.name), detail: [employee.phone, employee.rank, employee.driverStatus].filter(Boolean).join(" · "), page: "Employee Contacts" as const },
+      ...(data?.viewer.isAdmin ? [{ id: `employee-${employee.id}`, type: "Employee" as const, title: displayName(employee.name), detail: [employee.rank, employee.employeeNumber, employee.driverStatus].filter(Boolean).join(" · "), page: "Employees" as const, record: { query: employee.name } }] : []),
+      { id: `contact-${employee.id}`, type: "Contact" as const, title: displayName(employee.name), detail: [employee.phone, employee.rank, employee.driverStatus].filter(Boolean).join(" · "), page: "Employee Contacts" as const, record: { query: employee.name } },
     ]);
     const term = globalSearch.trim().toLowerCase();
     if (!term) return screens.slice(0, 12);
@@ -609,20 +624,25 @@ export default function PayrollApp({
   }
 
   function editEmployee(employee?: Employee) {
+    if (!confirmLeavingWork()) return;
+    setEmployeeSaveError("");
     setEmployeePhotoFile(null);
     setRemoveEmployeePhoto(false);
     if (!employee) {
       setEmployeeDraft(emptyEmployee);
+      setEmployeeBaseline(JSON.stringify(emptyEmployee));
       setEmployeePhotoPreview("");
     } else {
-      setEmployeeDraft({
+      const nextDraft: EmployeeForm = {
         id: employee.id, ...splitEmployeeName(employee.name), payScaleId: employee.payScaleId, employeeNumber: employee.employeeNumber ?? "",
         startDate: employee.startDate ?? "", endDate: employee.endDate ?? "", dateOfBirth: employee.dateOfBirth ?? "",
         phone: employee.phone ?? "", email: employee.email ?? "", addressLine1: employee.addressLine1 ?? "",
         city: employee.city ?? "", state: employee.state ?? "IL", postalCode: employee.postalCode ?? "",
         employmentType: employee.employmentType ?? "Part-time", isDpw: Boolean(employee.isDpw), driverStatus: employee.driverStatus ?? "", singleRole: Boolean(employee.singleRole), actingOfficerEligible: Boolean(employee.actingOfficerEligible), scheduleSmsOptIn: Boolean(employee.scheduleSmsOptIn), isAdmin: Boolean(employee.isAdmin), emergencyName: employee.emergencyName ?? "",
         emergencyRelationship: employee.emergencyRelationship ?? "", emergencyPhone: employee.emergencyPhone ?? "", notes: employee.notes ?? "",
-      });
+      };
+      setEmployeeDraft(nextDraft);
+      setEmployeeBaseline(JSON.stringify(nextDraft));
       setEmployeePhotoPreview(employee.photoUpdatedAt ? `/api/employee-photo/${employee.id}?v=${encodeURIComponent(employee.photoUpdatedAt)}` : "");
     }
     setProfileOpen(true);
@@ -631,10 +651,17 @@ export default function PayrollApp({
 
   async function saveEmployeeProfile(event: React.FormEvent) {
     event.preventDefault();
+    if (employeeSaving) return;
+    setEmployeeSaving(true);
+    setEmployeeSaveError("");
+    let recordSaved = false;
     try {
       const result = await post({ action: "saveEmployee", ...employeeDraft, name: employeeNameFromParts(employeeDraft.lastName, employeeDraft.firstName) });
       const employeeId = result.id || employeeDraft.id;
       if (!employeeId) throw new Error("The employee record was saved without an ID.");
+      recordSaved = true;
+      // Keep the saved ID if a subsequent photo request fails; retry must not add another employee.
+      setEmployeeDraft(current => ({ ...current, id: employeeId }));
       if (removeEmployeePhoto && employeeDraft.id) {
         const response = await fetch(`/api/employee-photo/${employeeDraft.id}`, { method: "DELETE" });
         const payload = await response.json() as { error?: string };
@@ -654,7 +681,22 @@ export default function PayrollApp({
       setProfileOpen(false);
       await loadPayroll(periodStart);
       setToast(employeeDraft.id ? "Employee information updated" : "Employee added");
-    } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to save employee"); }
+    } catch (caught) { setEmployeeSaveError(`${recordSaved ? "Employee details saved, but the photo change was not completed. " : "Employee not saved. "}${caught instanceof Error ? caught.message : "Unable to save employee"} Your edits remain here; retry when ready.`); }
+    finally { setEmployeeSaving(false); }
+  }
+
+  function closeEmployeeEditor() {
+    if (!confirmLeavingWork()) return;
+    setProfileOpen(false);
+    setEmployeeSaveError("");
+  }
+
+  async function markPayrollReviewed() {
+    if (reviewSaving) return;
+    setReviewSaving(true);
+    try { await setPeriodStatus("reviewed"); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : "Review status was not saved. Retry when ready."); }
+    finally { setReviewSaving(false); }
   }
 
   async function sendEmployeeInvite(employee: Employee) {
@@ -745,6 +787,9 @@ export default function PayrollApp({
         return;
       }
       const page = portalPageFromSearch(window.location.search) ?? homePage;
+      setWorkspaceTrail([]);
+      setNavigationVersion(value => value + 1);
+      setEmployeeSearch(new URLSearchParams(window.location.search).get("query") || "");
       setActiveNav(visibleNav.includes(page) ? page : homePage);
       setTvMode(new URLSearchParams(window.location.search).get("display") === "tv");
       setMobileMenuOpen(false); setGlobalSearchOpen(false);
@@ -788,6 +833,10 @@ export default function PayrollApp({
     }
   }
   async function openInventory() {
+    if (testMember) {
+      setInventoryError("This portal preview cannot open the separate apparatus workspace as a member. Exit test view, open Apparatus Checks, then use Build & templates → Member preview.");
+      return;
+    }
     if (openingInventory) return;
     setInventoryError("");
     setOpeningInventory(true);
@@ -809,9 +858,12 @@ export default function PayrollApp({
     }
     setInventoryError("Apparatus Checks could not verify secure access. Retry, or dismiss this message to keep working here.");
   }
-  function navigate(page: NavItem, record?: PortalRecord) {
+  function navigate(page: NavItem, record?: PortalRecord, fromBack = false) {
+    if (!visibleNav.includes(page)) { setNavigationNotice("This account does not have access to that tool. Choose a tool from Home or contact your administrator."); return; }
     if (!confirmLeavingWork()) return;
     setDesktopMenuHidden(true);
+    setNavigationNotice("");
+    setProfileOpen(false);
     setInventoryError("");
     if (page === "Inventory") {
       void openInventory();
@@ -823,7 +875,16 @@ export default function PayrollApp({
       window.dispatchEvent(new CustomEvent("firehouse:tv-mode", { detail: { enabled: false } }));
     }
     const url = portalPageUrl(window.location.pathname, window.location.search, page, record);
-    if (`${window.location.pathname}${window.location.search}` !== url) window.history.pushState({}, "", url);
+    if (`${window.location.pathname}${window.location.search}` !== url) {
+      if (!fromBack) {
+        const current = new URLSearchParams(window.location.search);
+        const priorRecord = Object.fromEntries(["preplan", "hydrant", "policy", "boxCard", "query"].flatMap(key => current.get(key) ? [[key, current.get(key)!]] : []));
+        setWorkspaceTrail(trail => [...trail.slice(-19), { page: activeNav, record: priorRecord }]);
+      } else setWorkspaceTrail(trail => trail.slice(0, -1));
+      window.history.pushState({}, "", url);
+    }
+    setEmployeeSearch(record?.query ?? "");
+    setNavigationVersion(value => value + 1);
     lastPageUrlRef.current = window.location.href;
     setActiveNav(page);
     setMobileMenuOpen(false);
@@ -875,7 +936,7 @@ export default function PayrollApp({
         <button className="desktop-sidebar-toggle" type="button" aria-expanded={!sidebarCollapsed} aria-controls="desktop-navigation" aria-label={sidebarCollapsed ? "Show navigation menu" : "Hide navigation menu"} title={sidebarCollapsed ? "Show menu" : "Hide menu"} onClick={() => setDesktopMenuHidden(!sidebarCollapsed)}><Icon name="menu" size={19}/><span>{sidebarCollapsed ? "Show menu" : "Hide menu"}</span></button>
         <button className="mobile-brand" onClick={() => navigate(homePage)} aria-label="Stickney Fire Department Operations Portal home"><img src="/stickney-fd-patch.png?v=3" alt="Stickney Fire Department patch" width="44" height="44" /><strong>Stickney FD Operations Portal</strong></button>
         <div className="topbar-context"><span>Stickney Fire Department</span><strong>{portalPageLabel(activeNav)}</strong></div>
-        <div className="topbar-utilities"><div className={`sync-indicator ${connection.tone}`} role="status" aria-label={`${connection.label}. ${connection.detail}`} title={connection.detail}><Icon name={connection.tone === "offline" ? "warning" : "save"} size={16}/><span><strong>{connection.label}</strong><small>Connection only</small></span></div><button className="global-search-trigger" aria-label="Search the portal" onClick={() => void openGlobalSearch()}><Icon name="search"/><span>Search</span><kbd>Ctrl / ⌘ K</kbd></button><SmartAlerts icon={<Icon name="bell"/>} onNavigate={(page) => navigate(page as NavItem)} /><div className="profile"><span className="avatar">{(testMember?.name ?? data?.viewer.displayName ?? "").split(/[ ,]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span><span className="profile-copy"><strong>{testMember ? displayName(testMember.name) : data ? displayName(data.viewer.displayName) : "Signed in"}</strong><small>{testMember ? `Test view · ${testMember.rank}` : data?.viewer.isAdmin ? "Administrator" : "Employee"}</small></span><Icon name="chevron" size={15}/></div><button className="mobile-menu-toggle" aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen((current) => !current)} aria-label={mobileMenuOpen ? "Close navigation" : "Open navigation"}><Icon name={mobileMenuOpen ? "close" : "menu"}/></button></div>
+        <div className="topbar-utilities"><div className={`sync-indicator ${connection.tone}`} role="status" aria-label={`${connection.label}. ${connection.detail}`} title={connection.detail}><Icon name={connection.tone === "offline" ? "warning" : "save"} size={16}/><span><strong>{connection.label}</strong><small>Connection only</small></span></div><button className="global-search-trigger" aria-label="Search the portal" onClick={() => void openGlobalSearch()}><Icon name="search"/><span>Search</span><kbd>Ctrl / ⌘ K</kbd></button><SmartAlerts icon={<Icon name="bell"/>} onNavigate={(page) => navigate(page as NavItem)} /><div className="profile"><span className="avatar">{(testMember?.name ?? data?.viewer.displayName ?? "").split(/[ ,]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span><span className="profile-copy"><strong>{testMember ? displayName(testMember.name) : data ? displayName(data.viewer.displayName) : "Signed in"}</strong><small>{testMember ? `Test view · ${testMember.rank}` : data?.viewer.isAdmin ? "Administrator" : "Employee"}</small></span></div><button className="mobile-menu-toggle" aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen((current) => !current)} aria-label={mobileMenuOpen ? "Close navigation" : "Open navigation"}><Icon name={mobileMenuOpen ? "close" : "menu"}/></button></div>
       </header>
       {mobileMenuOpen && <nav id="mobile-navigation" className="mobile-nav-panel" aria-label="Mobile navigation">
           <section className="mobile-core-nav"><h2>Core navigation</h2>{visibleFeaturedNav.map((item) => <button key={item.page} aria-current={activeNav === item.page ? "page" : undefined} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><span className={`sidebar-feature-icon ${item.tone}`}><Icon name={navIcons[item.page]}/></span>{item.label}</button>)}</section>
@@ -899,7 +960,10 @@ export default function PayrollApp({
       <ConfirmDialog open={finalizeConfirmOpen} title="Finalize this payroll period?" description={`This will lock payroll for ${data ? periodLabel(data.period.startDate, data.period.endDate) : "the selected period"}. Timesheets will become read only and additional changes will require an administrator workflow.`} confirmLabel="Finalize Payroll" tone="warning" busy={finalizing} onCancel={() => setFinalizeConfirmOpen(false)} onConfirm={() => void finalizePayroll()} />
       <ConfirmDialog open={Boolean(employeeToDelete)} title={`Delete ${employeeToDelete ? displayName(employeeToDelete.name) : "employee"}?`} description="This permanently deletes the employee record. This cannot be undone. Employees with payroll or Daily Log history cannot be deleted." confirmLabel="Confirm Delete" tone="danger" busy={deletingEmployee} onCancel={() => setEmployeeToDelete(null)} onConfirm={() => void deleteEmployee()} />
 
-      <section className={`workspace${testMember ? " testing-member-view" : ""}`} onClickCapture={(event) => { if (testMember && (event.target as HTMLElement).closest("button,input,select,textarea") && !(event.target as HTMLElement).closest(".test-view-banner,[data-test-safe],[data-test-interactive]")) { event.preventDefault(); event.stopPropagation(); } }} onSubmitCapture={(event) => { if (testMember && !(event.target as HTMLElement).closest("[data-test-interactive]")) { event.preventDefault(); event.stopPropagation(); } }} onChangeCapture={(event) => { if (testMember && !(event.target as HTMLElement).closest(".test-view-banner,[data-test-safe],[data-test-interactive]")) { event.preventDefault(); event.stopPropagation(); } }}>
+      <a className="portal-skip-link" href="#portal-workspace">Skip to workspace</a>
+      <section id="portal-workspace" tabIndex={-1} className={`workspace${testMember ? " testing-member-view" : ""}`} onClickCapture={(event) => { if (testMember && (event.target as HTMLElement).closest("button,input,select,textarea") && !(event.target as HTMLElement).closest(".test-view-banner,[data-test-safe],[data-test-interactive]")) { event.preventDefault(); event.stopPropagation(); } }} onSubmitCapture={(event) => { if (testMember && !(event.target as HTMLElement).closest("[data-test-interactive]")) { event.preventDefault(); event.stopPropagation(); } }} onChangeCapture={(event) => { if (testMember && !(event.target as HTMLElement).closest(".test-view-banner,[data-test-safe],[data-test-interactive]")) { event.preventDefault(); event.stopPropagation(); } }}>
+        {!tvMode && <WorkspaceGuide page={activeNav} home={homePage} backLabel={workspaceTrail.length ? portalPageLabel(workspaceTrail[workspaceTrail.length - 1].page) : undefined} onBack={() => { const prior = workspaceTrail[workspaceTrail.length - 1]; if (prior) navigate(prior.page, prior.record, true); }} onNavigate={navigate} />}
+        {navigationNotice && <div className="error-banner" role="alert">{navigationNotice}</div>}
         {testMember && <div className="test-view-banner"><div><b>TEST VIEW</b><span>Previewing as {displayName(testMember.name)} · {testMember.rank}</span><small>No identity or approval authority has changed.</small></div><button onClick={() => changeTestMember(null)}>Exit test view</button></div>}
         {error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={() => { setError(""); void loadPayroll(periodStart); }}>Retry</button></div>}
         {Object.keys(failedCells).length > 0 && <div className="error-banner" role="alert"><span>{Object.keys(failedCells).length} hour entry save(s) remain unconfirmed. Use the highlighted timesheet cells to retry, or reload the saved hours before continuing.</span><button disabled={savingCells.size > 0} onClick={() => {
@@ -907,10 +971,10 @@ export default function PayrollApp({
           setFailedCells({}); void loadPayroll(periodStart);
         }}>Reload saved hours</button></div>}
         {!isOnline && <div className="portal-offline-notice" role="alert"><strong>Connection lost</strong><span>Displayed information may be out of date. Keep unfinished work open; a save is not confirmed until that screen reports success.</span></div>}
-        {inventoryError && <div className="error-banner inventory-access-error" role="alert"><span>{inventoryError}</span><button disabled={openingInventory} onClick={() => void openInventory()}>{openingInventory ? "Checking…" : "Retry Apparatus Checks"}</button><button onClick={() => setInventoryError("")}>Dismiss</button></div>}
+        {inventoryError && <div className="error-banner inventory-access-error" role="alert" data-test-safe><span>{inventoryError}</span>{testMember ? <button onClick={() => { setInventoryError(""); changeTestMember(null); }}>Exit test view</button> : <button disabled={openingInventory} onClick={() => void openInventory()}>{openingInventory ? "Checking…" : "Retry Apparatus Checks"}</button>}<button onClick={() => setInventoryError("")}>Dismiss</button></div>}
         {toast && <div className="toast" role="status"><Icon name="save" /> {toast}</div>}
         {loading && !data ? <PortalSkeleton page={activeNav} /> : data && <>
-          {activeNav !== "Dashboard" && activeNav !== "Command Center" && activeNav !== "Operations Board" && activeNav !== "Activity Timeline" && activeNav !== "Respond" && activeNav !== "Command Board" && activeNav !== "Field Preplans" && activeNav !== "Road Closures" && activeNav !== "Safety Inspections" && activeNav !== "Scheduling" && activeNav !== "Work Details" && activeNav !== "Daily Log" && activeNav !== "Holiday Policy" && activeNav !== "EMS" && activeNav !== "Daily Duties" && activeNav !== "Phone Numbers" && activeNav !== "Employee Contacts" && activeNav !== "Policies" && activeNav !== "Box Cards" && activeNav !== "Departments" && activeNav !== "System Health" && activeNav !== "Permissions" && activeNav !== "CAD Integration" && activeNav !== "Respond Device Modes" && activeNav !== "Test View" && <div className="period-row">
+          {["Payroll", "Timesheets", "My Timesheet"].includes(activeNav) && <div className="period-row">
             <div>
               <p className="eyebrow">{activeNav === "Payroll" ? "Current pay period" : activeNav}</p>
               <div className="title-line">
@@ -946,18 +1010,19 @@ export default function PayrollApp({
               <div className="table-wrap payroll-table">
                 <table><thead><tr><th>Employee</th><th>Rank</th><th className="number">Hours</th><th className="number">Gross Pay</th><th>Status</th></tr></thead><tbody>
                   {filteredRows.map((row) => <tr key={row.employee.id} onClick={() => openTimesheet(row.employee.id)}>
-                    <td data-label="Employee"><span className="person-icon"><Icon name="users"/></span><strong>{displayName(row.employee.name)}</strong></td><td data-label="Rank">{row.employee.rank}</td><td data-label="Hours" className="number tabular">{row.hours.toFixed(1)} hrs</td><td data-label="Gross Pay" className="number tabular">{formatMoney(row.gross)}</td><td data-label="Status"><span className={`status-pill ${row.status.toLowerCase().replace(" ", "-")}`}>{row.status === "Review" ? "◷" : "–"} {row.status}</span>{row.issues.length > 0 && <ul className="payroll-review-reasons">{row.issues.map(issue => <li key={issue}>{issue}</li>)}</ul>}</td>
+                    <td data-label="Employee"><span className="person-icon"><Icon name="users"/></span><button type="button" className="payroll-open-timesheet" onClick={(event) => { event.stopPropagation(); openTimesheet(row.employee.id); }}><strong>{displayName(row.employee.name)}</strong><span className="sr-only"> — Open timesheet</span></button></td><td data-label="Rank">{row.employee.rank}</td><td data-label="Hours" className="number tabular">{row.hours.toFixed(1)} hrs</td><td data-label="Gross Pay" className="number tabular">{formatMoney(row.gross)}</td><td data-label="Status"><span className={`status-pill ${row.status.toLowerCase().replace(" ", "-")}`}>{row.status === "Review" ? "◷" : "–"} {row.status}</span>{row.issues.length > 0 && <ul className="payroll-review-reasons">{row.issues.map(issue => <li key={issue}>{issue}</li>)}</ul>}</td>
                   </tr>)}
                 </tbody></table>
               </div>
               {filteredRows.length === 0 && <div className="action-empty-state"><Icon name="search" size={28}/><div><strong>No payroll records match</strong><p>Clear the search or status filter to see employees on this payroll.</p></div><button className="quiet-button" onClick={() => { setSearch(""); setStatusFilter("all"); }}>Clear Filters</button></div>}
               <p className="helper-note">Entered means hours are recorded, not approved. Automated warnings do not replace review of attendance and pay rules.</p>
-              <div className="review-bar"><span><strong>{readyCount}</strong> entered · <strong>{reviewCount}</strong> need review · <strong>{payrollEmployees.length - readyCount - reviewCount}</strong> not started</span><div>{data.period.status !== "finalized" ? <><button className="quiet-button" onClick={() => void setPeriodStatus("reviewed")}>Mark Reviewed</button><button className="finalize-button" disabled={reviewCount > 0} onClick={() => setFinalizeConfirmOpen(true)}>Finalize Payroll</button></> : <span className="closed-confirmation">✓ Payroll closed</span>}</div></div>
+              <div className="review-bar"><span><strong>{readyCount}</strong> entered · <strong>{reviewCount}</strong> need review · <strong>{payrollEmployees.length - readyCount - reviewCount}</strong> not started</span><div>{data.period.status !== "finalized" ? <><button className="quiet-button" disabled={reviewSaving} onClick={() => void markPayrollReviewed()}>{reviewSaving ? "Saving review…" : "Mark Reviewed"}</button><button className="finalize-button" disabled={reviewCount > 0} onClick={() => setFinalizeConfirmOpen(true)}>Finalize Payroll</button></> : <span className="closed-confirmation">✓ Payroll closed</span>}</div></div>
             </section>
           </div>}
 
           {activeNav === "Dashboard" && <RoleDashboard data={{ viewer: testMember ? { isAdmin: false, employeeId: testMember.id, displayName: testMember.name } : { isAdmin: data.viewer.isAdmin, employeeId: data.viewer.employeeId, displayName: data.viewer.displayName }, employees: testMember ? data.employees.filter((employee) => employee.id === testMember.id) : data.employees, entries: testMember ? data.entries.filter((entry) => entry.employeeId === testMember.id) : data.entries, period: data.period, grossPayroll, reviewCount, employeeGross: selectedSummary?.gross ?? 0 }} onNavigate={(page) => navigate(page)} allowedPages={visibleNav} />}
 
+          {activeNav === "Inventory" && <section className="content-card action-empty-state"><div><h1>Apparatus Checks &amp; Inventory</h1><p>Open the dedicated workspace to choose an apparatus, complete checks, and find equipment.</p></div><button type="button" className="primary-action" disabled={openingInventory} onClick={() => void openInventory()}>{openingInventory ? "Checking access…" : "Open Apparatus Checks"}</button></section>}
           {activeNav === "Command Center" && <CommandCenter />}
           {activeNav === "Work Details" && <WorkDetails onPayrollChanged={(approvedPeriodStart) => { if (approvedPeriodStart === periodStart) void loadPayroll(periodStart); else setPeriodStart(approvedPeriodStart); }} />}
           {activeNav === "Scheduling" && <StationScheduler testMember={testMember} />}
@@ -999,20 +1064,22 @@ export default function PayrollApp({
             <div className="section-header"><div>{activeNav === "Timesheets" && isPayrollManagerView ? <><label htmlFor="employee-select">Employee</label><select id="employee-select" value={selectedEmployee.id} onChange={(event) => setSelectedEmployeeId(event.target.value)}>{payrollEmployees.map((employee) => <option value={employee.id} key={employee.id}>{displayName(employee.name)} — {employee.rank}</option>)}</select></> : <><p className="eyebrow">My timesheet</p><h2>{displayName(selectedEmployee.name)}</h2><p>{selectedEmployee.rank} · Read only</p></>}</div><span className={`status-pill ${selectedSummary.status.toLowerCase().replace(" ", "-")}`}>{selectedSummary.status}</span></div>
             <div className="mini-summary"><div><span>Paid hours</span><strong>{selectedSummary.hours.toFixed(1)}</strong></div><div><span>Hourly rate</span><strong>{formatMoney(selectedEmployee.regularRate)}<small>/hr</small></strong></div><div><span>Overtime</span><strong>{selectedSummary.overtimeHours.toFixed(1)}</strong></div><div><span>Holiday</span><strong>{selectedSummary.holidayHours.toFixed(1)}</strong></div><div><span>Gross pay</span><strong>{formatMoney(selectedSummary.gross)}</strong></div></div>
             {selectedSummary.issues.length > 0 && <div className="validation-box"><strong>Check these entries</strong>{selectedSummary.issues.map((issue) => <span key={issue}>• {issue}</span>)}</div>}
+            <div className="timesheet-phone-day"><label><span>Day to review</span><input type="date" min={data.period.startDate} max={data.period.endDate} value={timesheetDay >= data.period.startDate && timesheetDay <= data.period.endDate ? timesheetDay : data.period.startDate} onChange={event => { setTimesheetDay(event.target.value); setAllTimesheetDays(false); }} /></label><button type="button" className="quiet-button" aria-pressed={allTimesheetDays} onClick={() => setAllTimesheetDays(value => !value)}>{allTimesheetDays ? "Show selected day" : "Show whole period"}</button></div>
             <div className="entry-grid-wrap"><table className="entry-grid"><thead><tr><th>Date</th>{categoryColumns.map((column) => <th key={column.key} title={column.label}>{column.short}</th>)}<th>Total</th></tr></thead><tbody>
               {listDates(data.period.startDate, data.period.endDate).map((date) => {
                 const rowTotal = categoryColumns.filter((column) => column.key !== "actingOfficer").reduce((sum, column) => sum + entryValue(selectedEmployee.id, date, column.key), 0);
-                return <tr key={date}><td>{dayLabel(date)}</td>{categoryColumns.map((column) => {
+                return <tr key={date} data-day-visible={allTimesheetDays || date === (timesheetDay >= data.period.startDate && timesheetDay <= data.period.endDate ? timesheetDay : data.period.startDate)}><td>{dayLabel(date)}</td>{categoryColumns.map((column) => {
                   const cell = `${selectedEmployee.id}-${date}-${column.key}`;
                   const value = entryValue(selectedEmployee.id, date, column.key);
                   const canEditEntry = activeNav === "Timesheets" && isPayrollManagerView && data.period.status !== "finalized";
-                  return <td key={column.key}><input aria-label={`${column.label} hours for ${dayLabel(date)}`} aria-invalid={Boolean(failedCells[cell])} type="number" min="0" max="48" step="0.25" value={value || ""} readOnly={!canEditEntry || savingCells.has(cell)} className={`${savingCells.has(cell) ? "saving" : ""}${canEditEntry ? "" : " timesheet-readonly"}`} onChange={(event) => { if (canEditEntry) changeEntry(selectedEmployee.id, date, column.key, safeNumber(event.target.value)); }} onBlur={(event) => { if (canEditEntry && originalCellValues.current.has(cell)) void saveEntry(selectedEmployee.id, date, column.key, safeNumber(event.target.value)); }} />{failedCells[cell] && <div role="alert"><small>{failedCells[cell].message} Last loaded value shown. Attempted: {failedCells[cell].hours} hours.</small>{canEditEntry && <button disabled={savingCells.has(cell)} onClick={() => void saveEntry(selectedEmployee.id, date, column.key, failedCells[cell].hours)}>Retry {failedCells[cell].hours} hours</button>}</div>}</td>;
-                })}<td>{rowTotal.toFixed(1)}</td></tr>;
+                  return <td key={column.key} data-label={column.label}><input aria-label={`${column.label} hours for ${dayLabel(date)}`} aria-invalid={Boolean(failedCells[cell])} type="number" min="0" max="48" step="0.25" value={value || ""} readOnly={!canEditEntry || savingCells.has(cell)} className={`${savingCells.has(cell) ? "saving" : ""}${canEditEntry ? "" : " timesheet-readonly"}`} onChange={(event) => { if (canEditEntry) changeEntry(selectedEmployee.id, date, column.key, safeNumber(event.target.value)); }} onBlur={(event) => { if (canEditEntry && originalCellValues.current.has(cell)) void saveEntry(selectedEmployee.id, date, column.key, safeNumber(event.target.value)); }} />{failedCells[cell] && <div role="alert"><small>{failedCells[cell].message} Last loaded value shown. Attempted: {failedCells[cell].hours} hours.</small>{canEditEntry && <button disabled={savingCells.has(cell)} onClick={() => void saveEntry(selectedEmployee.id, date, column.key, failedCells[cell].hours)}>Retry {failedCells[cell].hours} hours</button>}</div>}</td>;
+                })}<td data-label="Daily total">{rowTotal.toFixed(1)}</td></tr>;
               })}
-            </tbody><tfoot><tr><td>Period totals</td>{categoryColumns.map((column) => <td key={column.key}>{data.entries.filter((entry) => entry.employeeId === selectedEmployee.id && entry.category === column.key).reduce((sum, entry) => sum + entry.hours, 0).toFixed(1)}</td>)}<td>{selectedSummary.hours.toFixed(1)}</td></tr></tfoot></table></div>
+            </tbody><tfoot><tr><td>Period totals</td>{categoryColumns.map((column) => <td key={column.key} data-label={column.label}>{data.entries.filter((entry) => entry.employeeId === selectedEmployee.id && entry.category === column.key).reduce((sum, entry) => sum + entry.hours, 0).toFixed(1)}</td>)}<td data-label="Paid hours">{selectedSummary.hours.toFixed(1)}</td></tr></tfoot></table></div>
             <p className="helper-note">{data.period.status === "finalized" ? "This finalized timesheet is read only. Reopening a closed payroll period requires a separate administrator workflow." : activeNav === "Timesheets" && isPayrollManagerView ? `Acting Officer pay is a straight $${ACTING_OFFICER_STIPEND_PER_HOUR.toFixed(2)} per AO hour and never receives overtime or holiday multipliers. DPW hours use the configured DPW multiplier. Daily totals over 24 hours are allowed for callbacks and overlapping pay categories. Entries save when you leave a field.` : "This timesheet is read only. Contact an administrator with payroll access if an entry needs to be corrected."}</p>
           </section></div>}
 
+          {activeNav === "My Timesheet" && !selectedEmployee && <div className="content-card action-empty-state"><div><h2>No timesheet available for this period</h2><p>Your account may not be linked to an employee on this payroll. Try another pay period or ask a payroll administrator to check the account link.</p></div></div>}
           {activeNav === "Daily Log" && <DailyLog employees={data.employees} onPayrollSynced={() => { void loadPayroll(periodStart); }} />}
           {activeNav === "Callback Reviews" && <CallbackReviews />}
 
@@ -1026,16 +1093,16 @@ export default function PayrollApp({
             </article>
           </section>}
           {activeNav === "Daily Duties" && <DailyDuties />}
-          {activeNav === "Phone Numbers" && <PhoneNumbers />}
+          {activeNav === "Phone Numbers" && <PhoneNumbers key={navigationVersion} />}
           {activeNav === "CAD Integration" && data.viewer.isAdmin && <CadIntegrationSettings />}
           {activeNav === "Departments" && data.viewer.isAdmin && <DepartmentSettings />}
           {activeNav === "System Health" && data.viewer.isAdmin && <SystemHealth />}
 
-          {activeNav === "Employee Contacts" && <EmployeeContacts employees={data.employees} />}
+          {activeNav === "Employee Contacts" && <EmployeeContacts key={navigationVersion} employees={data.employees} initialSearch={employeeSearch} />}
 
-          {activeNav === "Policies" && <PoliciesPage />}
+          {activeNav === "Policies" && <PoliciesPage key={navigationVersion} />}
 
-          {activeNav === "Box Cards" && <BoxCardsPage />}
+          {activeNav === "Box Cards" && <BoxCardsPage key={navigationVersion} />}
 
           {(activeNav === "Permissions" || activeNav === "Test View") && data.viewer.isAdmin && <PermissionSettings initialTab={activeNav === "Test View" ? "test" : "permissions"} testEmployeeId={testMember?.id ?? ""} onTestEmployee={changeTestMember} onPermissionsSaved={permissionsSaved} />}
 
@@ -1043,7 +1110,9 @@ export default function PayrollApp({
             <div className="standard-page-header"><div><span className="page-icon"><Icon name="users" size={25}/></span><div><p className="eyebrow">Personnel administration</p><h1>Employees</h1><p>Manage employment, contact, access, driver status, and emergency information.</p></div></div><button type="button" className="primary-action" onClick={() => editEmployee()}>Add Employee</button></div>
             {inviteMessage && <div className="employee-invite-message" role="status">{inviteMessage}<button type="button" aria-label="Dismiss invitation message" onClick={() => setInviteMessage("")}>×</button></div>}
             {profileOpen && <form className="content-card employee-profile-form" onSubmit={(event) => void saveEmployeeProfile(event)}>
-              <div className="section-header"><div><h2>{employeeDraft.id ? `Edit ${employeeNameFromParts(employeeDraft.lastName, employeeDraft.firstName)}` : "Add employee"}</h2><p>Personnel, payroll eligibility, and emergency contact information.</p></div><div className="employee-form-actions">{employeeDraft.id && <button type="button" className="quiet-button" onClick={() => editEmployee()}>New Employee</button>}<button className="primary-action compact" type="submit">{employeeDraft.id ? "Save Changes" : "Add Employee"}</button></div></div>
+              <div className="section-header"><div><h2>{employeeDraft.id ? `Edit ${employeeNameFromParts(employeeDraft.lastName, employeeDraft.firstName)}` : "Add employee"}</h2><p>Personnel, payroll eligibility, and emergency contact information.</p></div><div className="employee-form-actions">{employeeDraft.id && <button type="button" className="quiet-button" onClick={() => editEmployee()}>New Employee</button>}<button type="button" className="quiet-button" disabled={employeeSaving} onClick={closeEmployeeEditor}>Cancel · Back to roster</button><button className="primary-action compact" disabled={employeeSaving} type="submit">{employeeSaving ? "Saving…" : employeeDraft.id ? "Save Changes" : "Add Employee"}</button></div></div>
+              {employeeSaveError && <div className="error-banner" role="alert">{employeeSaveError}</div>}
+              <fieldset disabled={employeeSaving} className="employee-save-fields">
               <fieldset><legend>Employment</legend><div className="employee-photo-editor"><div className="employee-photo-preview">{employeePhotoPreview ? <img src={employeePhotoPreview} alt="Employee photo preview" /> : <span>{employeeNameFromParts(employeeDraft.lastName, employeeDraft.firstName).split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span>}</div><div><strong>Employee photo</strong><p>Used for new-member announcements and personnel displays.</p><div><label className="employee-photo-upload"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => chooseEmployeePhoto(event.target.files?.[0] ?? null)} /><span>{employeePhotoPreview ? "Choose a different photo" : "Choose photo"}</span></label>{employeePhotoPreview && <button type="button" className="quiet-button" onClick={() => { setEmployeePhotoFile(null); setEmployeePhotoPreview(""); setRemoveEmployeePhoto(Boolean(employeeDraft.id)); }}>Remove photo</button>}</div><small>JPG, PNG, or WebP · maximum 3 MB</small></div></div><div className="employee-fields three-col">
                 <label><span>Last name *</span><input required autoComplete="family-name" value={employeeDraft.lastName} onChange={(event) => setEmployeeDraft((current) => ({ ...current, lastName: event.target.value }))} /></label>
                 <label><span>First name *</span><input required autoComplete="given-name" value={employeeDraft.firstName} onChange={(event) => setEmployeeDraft((current) => ({ ...current, firstName: event.target.value }))} /></label>
@@ -1074,23 +1143,26 @@ export default function PayrollApp({
                 <label><span>Emergency phone</span><input type="tel" value={employeeDraft.emergencyPhone} onChange={(event) => setEmployeeDraft((current) => ({ ...current, emergencyPhone: event.target.value }))} /></label>
               </div></fieldset>
               <fieldset><legend>Administrative notes</legend><label className="notes-field"><span>Internal notes</span><textarea rows={3} placeholder="Restrictions, payroll notes, rehire eligibility, or other important information" value={employeeDraft.notes} onChange={(event) => setEmployeeDraft((current) => ({ ...current, notes: event.target.value }))} /></label></fieldset>
+              </fieldset><div className="employee-form-footer"><button type="button" className="quiet-button" disabled={employeeSaving} onClick={closeEmployeeEditor}>Cancel · Back to roster</button><button type="submit" className="primary-action" disabled={employeeSaving}>{employeeSaving ? "Saving…" : "Save employee"}</button></div>
             </form>}
             <section className="content-card employee-roster-card"><div className="section-header"><div><h2>Employee roster</h2><p>Ended employees remain here for payroll history and can be updated or rehired.</p></div><div className="employee-form-actions"><span className="count-badge">{data.employees.length} records</span><button type="button" className="primary-action compact" onClick={() => editEmployee()}>Add Employee</button></div></div>
               {data.employees.length === 0 && <div className="action-empty-state"><Icon name="users" size={28}/><div><strong>No employees yet</strong><p>Add the first employee to begin staffing, timesheets, and payroll.</p></div><button className="quiet-button" onClick={() => editEmployee()}>Add Employee</button></div>}
-              <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Employee #</th><th>Pay Scale</th><th>Driver</th><th>Acting Officer</th><th>Phone</th><th>Start</th><th>Last Day</th><th>Status</th><th></th></tr></thead><tbody>{[...data.employees].sort((a, b) => compareEmployeeNames(a.name, b.name)).map((employee) => {
+              <label className="portal-roster-search"><span>Find an employee</span><input type="search" value={employeeSearch} onChange={event => setEmployeeSearch(event.target.value)} placeholder="Name, employee number, rank, or phone…" /></label>
+              {employeeSearch && <p className="portal-inline-status"><button type="button" className="quiet-button" onClick={() => setEmployeeSearch("")}>Clear employee search</button></p>}
+              <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Employee #</th><th>Pay Scale</th><th>Driver</th><th>Acting Officer</th><th>Phone</th><th>Start</th><th>Last Day</th><th>Status</th><th></th></tr></thead><tbody>{data.employees.filter(employee => `${employee.name} ${employee.employeeNumber ?? ""} ${employee.rank} ${employee.phone ?? ""}`.toLowerCase().includes(employeeSearch.trim().toLowerCase())).sort((a, b) => compareEmployeeNames(a.name, b.name)).map((employee) => {
                 const payrollStatus = employee.startDate && employee.startDate > data.period.endDate ? "Scheduled" : employee.endDate && employee.endDate < data.period.startDate ? "Ended" : "Active";
-                return <tr key={employee.id}><td data-label="Employee"><span className="person-icon employee-list-photo">{employee.photoUpdatedAt ? <img src={`/api/employee-photo/${employee.id}?v=${encodeURIComponent(employee.photoUpdatedAt)}`} alt="" /> : <Icon name="users"/>}</span><strong>{displayName(employee.name)}</strong></td><td data-label="Employee #">{employee.employeeNumber || "—"}</td><td data-label="Pay Scale">{employee.rank}</td><td data-label="Driver">{employee.driverStatus || "—"}</td><td data-label="Acting Officer"><span className={`ao-eligibility ${employee.actingOfficerEligible ? "eligible" : ""}`}>{employee.actingOfficerEligible ? "Eligible" : "Not eligible"}</span></td><td data-label="Phone">{employee.phone || "—"}</td><td data-label="Start">{employee.startDate || "—"}</td><td data-label="Last Day">{employee.endDate || "—"}</td><td data-label="Status"><span className={`employment-status ${payrollStatus.toLowerCase()}`}>{payrollStatus}</span></td><td data-label="Actions"><div className="employee-row-actions"><button className="invite-employee" disabled={!employee.email || Boolean(invitingEmail)} onClick={() => void sendEmployeeInvite(employee)}>{invitingEmail === employee.email?.trim().toLowerCase() ? "Sending..." : "Invite"}</button><button className="edit-employee" onClick={() => editEmployee(employee)}>Edit</button><button className="delete-employee" onClick={() => setEmployeeToDelete(employee)}>Delete</button></div></td></tr>;
+                return <tr key={employee.id}><td data-label="Employee"><span className="person-icon employee-list-photo">{employee.photoUpdatedAt ? <img src={`/api/employee-photo/${employee.id}?v=${encodeURIComponent(employee.photoUpdatedAt)}`} alt="" /> : <Icon name="users"/>}</span><strong>{displayName(employee.name)}</strong></td><td data-label="Employee #">{employee.employeeNumber || "—"}</td><td data-label="Pay Scale">{employee.rank}</td><td data-label="Driver">{employee.driverStatus || "—"}</td><td data-label="Acting Officer"><span className={`ao-eligibility ${employee.actingOfficerEligible ? "eligible" : ""}`}>{employee.actingOfficerEligible ? "Eligible" : "Not eligible"}</span></td><td data-label="Phone">{employee.phone || "—"}</td><td data-label="Start">{employee.startDate || "—"}</td><td data-label="Last Day">{employee.endDate || "—"}</td><td data-label="Status"><span className={`employment-status ${payrollStatus.toLowerCase()}`}>{payrollStatus}</span></td><td data-label="Actions"><div className="employee-row-actions"><button className="invite-employee" title={!employee.email ? "Edit this employee and add a login email before sending an invitation." : "Send a login invitation"} disabled={!employee.email || Boolean(invitingEmail)} onClick={() => void sendEmployeeInvite(employee)}>{invitingEmail === employee.email?.trim().toLowerCase() ? "Sending..." : "Invite"}</button><button className="edit-employee" onClick={() => editEmployee(employee)}>Edit</button><button className="delete-employee" onClick={() => setEmployeeToDelete(employee)}>Delete</button></div></td></tr>;
               })}</tbody></table></div>
             </section>
           </section>}
 
           {activeNav === "Rates & Rules" && rulesDraft && <section className="settings-layout">
-              <article className="content-card rules-card"><div className="section-header"><div><h2>Payroll rules</h2><p>These replace the formulas that caused broken references.</p></div></div><div className="settings-grid"><label><span>Overtime threshold</span><div className="input-unit"><input type="number" min="0" step="1" value={rulesDraft.overtimeThreshold} onChange={(event) => setRulesDraft({ ...rulesDraft, overtimeThreshold: safeNumber(event.target.value) })} /><b>hours</b></div></label><label><span>Acting Officer stipend</span><div className="input-unit"><b>$</b><input type="number" value={ACTING_OFFICER_STIPEND_PER_HOUR.toFixed(2)} readOnly aria-readonly="true" /><b>/ AO hr</b></div><small>Straight stipend only—never multiplied for overtime or holidays.</small></label><label><span>DPW multiplier</span><div className="input-unit"><input type="number" min="1" step="0.05" value={rulesDraft.dpwMultiplier} onChange={(event) => setRulesDraft({ ...rulesDraft, dpwMultiplier: safeNumber(event.target.value) })} /><b>× rate</b></div></label></div></article>
+              <article className="content-card rules-card"><div className="section-header"><div><h2>Payroll rules</h2><p>Set the rules used to calculate payroll. Review the effective date before saving.</p></div></div><div className="settings-grid"><label><span>Overtime threshold</span><div className="input-unit"><input type="number" min="0" step="1" value={rulesDraft.overtimeThreshold} onChange={(event) => setRulesDraft({ ...rulesDraft, overtimeThreshold: safeNumber(event.target.value) })} /><b>hours</b></div></label><label><span>Acting Officer stipend</span><div className="input-unit"><b>$</b><input type="number" value={ACTING_OFFICER_STIPEND_PER_HOUR.toFixed(2)} readOnly aria-readonly="true" /><b>/ AO hr</b></div><small>Straight stipend only—never multiplied for overtime or holidays.</small></label><label><span>DPW multiplier</span><div className="input-unit"><input type="number" min="1" step="0.05" value={rulesDraft.dpwMultiplier} onChange={(event) => setRulesDraft({ ...rulesDraft, dpwMultiplier: safeNumber(event.target.value) })} /><b>× rate</b></div></label></div></article>
             <article className="content-card"><div className="section-header"><div><h2>Pay rates</h2><p>Rates are saved by effective date, so closed and earlier payroll periods never change.</p></div></div><div className="rate-effective-control"><label><span>Effective pay-period date *</span><input type="date" required value={rateEffectiveDate} onChange={(event) => changeRateEffectiveDate(event.target.value)} /></label><small>Select the first day of a payroll period: the 11th or 26th. Existing history before this date remains unchanged.</small></div><div className="rate-list"><div className="rate-head"><span>Pay scale</span><span>Straight Time / Normal</span><span>Overtime · 1.5×</span><span>Holiday · 1.5×</span></div>{scaleDraft.map((scale, index) => <div className="rate-row" key={scale.id}><strong>{scale.label}</strong><label><span className="mobile-rate-label">Straight Time / Normal</span><b>$</b><input aria-label={`${scale.label} Straight Time / Normal Rate`} type="number" min="0" step="0.01" value={scale.regularRate} onChange={(event) => changeBaseRate(index, safeNumber(event.target.value))} /></label><label className="calculated-rate"><span className="mobile-rate-label">Overtime · 1.5×</span><b>$</b><input aria-label={`${scale.label} Overtime Rate`} readOnly value={scale.overtimeRate.toFixed(2)} /><em>Auto</em></label><label className="calculated-rate"><span className="mobile-rate-label">Holiday · 1.5×</span><b>$</b><input aria-label={`${scale.label} Holiday Rate`} readOnly value={scale.holidayRate.toFixed(2)} /><em>Auto</em></label></div>)}</div><button className="primary-action save-rules" onClick={() => void saveRules()}>Save Rates Effective {rateEffectiveDate}</button><div className="rate-history"><h3>Rate history</h3>{data.rateHistory.filter((rate, index, rows) => rows.findIndex((item) => item.effectiveDate === rate.effectiveDate) === index).slice(0, 8).map((rate) => <div key={rate.effectiveDate}><strong>{rate.effectiveDate}</strong><span>{data.rateHistory.filter((item) => item.effectiveDate === rate.effectiveDate).length} pay scales</span></div>)}</div></article>
           </section>}
         </>}
       </section>
-      <footer className="portal-footer"><div className="footer-identity"><img src="/stickney-fd-patch.png?v=3" alt="Official Stickney Fire Department patch" width="56" height="56" /><div><strong>Stickney Fire Department Operations Portal</strong><span>Stickney, Illinois</span><a href="tel:+17089747721">Cicero Consolidated Dispatch · (708) 974-7721</a></div></div><div className="footer-links"><button onClick={() => navigate("Phone Numbers")}>Department Directory</button><button onClick={() => navigate("Phone Numbers")}>Portal Support</button><button className="portal-version" title="Open support and department contact information" onClick={() => navigate("Phone Numbers")}>Version 1.1 · Support</button></div><p>© {new Date().getFullYear()} Stickney Fire Department · Official department system · Authorized use only</p></footer>
+      <footer className="portal-footer"><div className="footer-identity"><img src="/stickney-fd-patch.png?v=3" alt="Official Stickney Fire Department patch" width="56" height="56" /><div><strong>Stickney Fire Department Operations Portal</strong><span>Stickney, Illinois</span><a href="tel:+17089747721">Cicero Consolidated Dispatch · (708) 974-7721</a></div></div><div className="footer-links"><button onClick={() => navigate(homePage)}>Back to {portalPageLabel(homePage)}</button>{visibleNav.includes("Employee Contacts") && <button onClick={() => navigate("Employee Contacts")}>Employee contacts</button>}{visibleNav.includes("Phone Numbers") && <button onClick={() => navigate("Phone Numbers")}>Important phone numbers</button>}<span>For portal help, contact your department administrator.</span></div><p>© {new Date().getFullYear()} Stickney Fire Department · Official department system · Authorized use only</p></footer>
     </main>
   );
 }

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { RecordCredibility, type Revision } from "./record-credibility";
+import { confirmLeavingWork, useUnsavedWork } from "./use-unsaved-work";
+import { readPortalJson } from "./portal-status";
 
 type AuditFields = {
   status?: string;
@@ -92,14 +94,33 @@ function SharedPage({ type }: { type: "policy" | "boxCard" }) {
   const [selectedDepartment, setSelectedDepartment] = useState("");
   const [selectedBoxCardId, setSelectedBoxCardId] = useState("");
   const [draft, setDraft] = useState<Policy | BoxCard | null>(null);
+  const [draftBaseline, setDraftBaseline] = useState("");
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [readerOpen, setReaderOpen] = useState(false);
+  useUnsavedWork(Boolean(draft) && JSON.stringify(draft) !== draftBaseline, saving);
 
   const load = useCallback(async () => {
-    const response = await fetch(`/api/resources?type=${type}`);
-    const data = await response.json() as { items?: Array<Policy | BoxCard>; canEdit?: boolean; error?: string };
-    if (!response.ok) return setMessage(data.error || "Unable to load records");
+    setLoading(true);
+    try {
+    const data = await readPortalJson<{ items?: Array<Policy | BoxCard>; canEdit?: boolean }>(`/api/resources?type=${type}`, "Unable to load records");
     setItems(data.items ?? []);
     setCanEdit(Boolean(data.canEdit));
+    setError("");
+    const params = new URLSearchParams(window.location.search);
+    const requested = params.get(type === "policy" ? "policy" : "boxCard");
+    if (requested) {
+      const record = data.items?.find(item => item.id === requested);
+      if (record) {
+        setReaderOpen(true);
+        if (type === "policy") setSelectedPolicyId(record.id);
+        else { setSelectedDepartment((record as BoxCard).department || "Stickney"); setSelectedBoxCardId(record.id); }
+      } else setError("That record is unavailable or no longer in this library. Choose another record below.");
+    }
+    } catch (caught) { setError(`${caught instanceof Error ? caught.message : "Records unavailable"}. Retry to load the library; displayed records may be out of date.`); }
+    finally { setLoading(false); }
   }, [type]);
 
   useEffect(() => { const timer = window.setTimeout(() => { void load(); }, 0); return () => window.clearTimeout(timer); }, [load]);
@@ -118,25 +139,53 @@ function SharedPage({ type }: { type: "policy" | "boxCard" }) {
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
-    if (!draft) return;
+    if (!draft || saving) return;
+    setSaving(true); setError(""); setMessage("");
+    try {
     const response = await fetch(`/api/resources?type=${type}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(draft) });
     const result = await response.json() as { error?: string };
-    if (!response.ok) return setMessage(result.error || "Unable to save record");
+    if (!response.ok) throw new Error(result.error || "Unable to save record");
     setDraft(null);
     setMessage(isPolicy ? "Policy saved." : "Box Card saved.");
     await load();
+    } catch (caught) { setError(`${caught instanceof Error ? caught.message : "Record was not saved"}. Your edits remain here. Retry the save.`); }
+    finally { setSaving(false); }
   }
 
-  return <section className="resource-page">
+  function editRecord(record: Policy | BoxCard) {
+    if (!confirmLeavingWork()) return;
+    setDraft({ ...record });
+    setDraftBaseline(JSON.stringify(record));
+    window.setTimeout(() => document.querySelector<HTMLElement>(".resource-form")?.scrollIntoView({ block: "start", behavior: "instant" }), 0);
+  }
+
+  function openReader(id: string) {
+    setReaderOpen(true);
+    if (isPolicy) setSelectedPolicyId(id); else setSelectedBoxCardId(id);
+    window.setTimeout(() => document.querySelector<HTMLElement>(".resource-record")?.scrollIntoView({ block: "start", behavior: "instant" }), 0);
+  }
+
+  function backToList() {
+    setReaderOpen(false);
+    const url = new URL(window.location.href); url.searchParams.delete("policy"); url.searchParams.delete("boxCard");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+    window.setTimeout(() => document.querySelector<HTMLElement>(".policy-toc")?.scrollIntoView({ block: "start", behavior: "instant" }), 0);
+  }
+
+  return <section className={`resource-page${readerOpen ? " resource-reader-open" : ""}`}>
     <div className="resource-heading standard-page-header">
       <div><span className="page-icon" aria-hidden="true">{isPolicy ? "POL" : "BOX"}</span><div><p className="eyebrow">Stickney Fire Department</p><h1>{isPolicy ? "Policies" : "Box Cards"}</h1><p>{isPolicy ? "Choose a policy from the table of contents to read it." : "Search building access, box, and response card information."}</p></div></div>
-      {canEdit ? <button className="primary-action" onClick={() => setDraft(isPolicy ? { ...emptyPolicy } : { ...emptyBoxCard })}>+ Add {isPolicy ? "Policy" : "Box Card"}</button> : <span className="read-only-badge">View only</span>}
+      {canEdit ? <button className="primary-action" disabled={saving} onClick={() => editRecord(isPolicy ? emptyPolicy : emptyBoxCard)}>+ Add {isPolicy ? "Policy" : "Box Card"}</button> : <span className="read-only-badge">View only</span>}
     </div>
     {(isPolicy || selectedDepartment) && <label className="resource-search" data-test-safe><span aria-hidden="true">⌕</span><span className="sr-only">Search {isPolicy ? "policies" : "box cards"}</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Search ${isPolicy ? "by number, title, category, or policy text" : `${selectedDepartment} by box number, type, or area`}…`} /></label>}
+    {loading && <p role="status">Loading library…</p>}
+    {error && <div className="error-banner" role="alert"><span>{error}</span><button type="button" disabled={loading || saving} onClick={() => void load()}>Retry library</button></div>}
+    {readerOpen && !draft && <button type="button" className="quiet-button resource-reader-back" onClick={backToList}>← Back to {isPolicy ? "policies" : "cards"}</button>}
     {message && <div className="phone-message" role="status">{message}</div>}
 
     {draft && <form className="content-card resource-form" onSubmit={(event) => void save(event)}>
-      <div className="section-header"><div><h2>{draft.id ? "Edit" : "Add"} {isPolicy ? "Policy" : "Box Card"}</h2><p>Changes become available to everyone immediately after saving.</p></div><button type="button" className="quiet-button" onClick={() => setDraft(null)}>Cancel</button></div>
+      <fieldset className="portal-save-fields" disabled={saving}>
+      <div className="section-header"><div><h2>{draft.id ? "Edit" : "Add"} {isPolicy ? "Policy" : "Box Card"}</h2><p>Changes become available to everyone immediately after saving.</p></div><button type="button" className="quiet-button" disabled={saving} onClick={() => { if (confirmLeavingWork()) setDraft(null); }}>Cancel</button></div>
       {isPolicy ? (() => { const value = draft as Policy; return <div className="resource-form-grid">
         <label className="resource-title"><span>Policy title *</span><input required value={value.title} onChange={(event) => setDraft({ ...value, title: event.target.value })} /></label>
         <label><span>Policy number</span><input value={value.policyNumber} onChange={(event) => setDraft({ ...value, policyNumber: event.target.value })} /></label>
@@ -156,10 +205,11 @@ function SharedPage({ type }: { type: "policy" | "boxCard" }) {
         <div className="resource-body interdivisional-editor"><strong>Interdivisional request</strong>{layout.interdivisional.map((choice, index) => <label key={index}><span>{index + 1}{index === 0 ? "st" : index === 1 ? "nd" : "rd"} choice</span><input value={choice} onChange={(event) => updateLayout({ ...layout, interdivisional: layout.interdivisional.map((item, choiceIndex) => choiceIndex === index ? event.target.value : item) })} /></label>)}</div>
         <label className="resource-body"><span>Information / special instructions</span><textarea rows={5} value={value.accessNotes} onChange={(event) => setDraft({ ...value, accessNotes: event.target.value })} placeholder="Station location, callback, rehab, staging, or other information…" /></label>
       </div>; })()}
-      <button className="primary-action compact" type="submit">Save {isPolicy ? "Policy" : "Box Card"}</button>
+      <button className="primary-action compact" disabled={saving} type="submit">{saving ? "Saving…" : `Save ${isPolicy ? "Policy" : "Box Card"}`}</button>
+      </fieldset>
     </form>}
 
-    {isPolicy && filteredPolicies.length > 0 && <PolicyLibrary policies={filteredPolicies} selectedId={selectedPolicyId} onSelect={setSelectedPolicyId} canEdit={canEdit} onEdit={setDraft} />}
+    {isPolicy && filteredPolicies.length > 0 && <PolicyLibrary policies={filteredPolicies} selectedId={selectedPolicyId} onSelect={openReader} canEdit={canEdit} onEdit={editRecord} />}
 
     {!isPolicy && !selectedDepartment && <div className="box-department-grid">{departments.map((department) => {
       const count = boxCards.filter((card) => (card.department || "Stickney") === department).length;
@@ -169,12 +219,12 @@ function SharedPage({ type }: { type: "policy" | "boxCard" }) {
     {!isPolicy && selectedDepartment && <div className="box-card-browser">
       <div className="box-browser-bar"><button data-test-safe className="quiet-button" type="button" onClick={() => { setSelectedDepartment(""); setSelectedBoxCardId(""); setSearch(""); }}>← All departments</button><div><span className="eyebrow">Department</span><strong>{selectedDepartment}</strong></div><span>{departmentCards.length} cards</span></div>
       <div className="policy-library box-card-library">
-        <nav className="content-card policy-toc" aria-label={`${selectedDepartment} box cards`}><div className="policy-toc-head"><div><p className="eyebrow">Select a card</p><h2>{selectedDepartment} Box Cards</h2></div><strong>{departmentCards.length}</strong></div><div className="policy-toc-list">{departmentCards.map((item) => <button data-test-safe className={selectedBoxCard?.id === item.id ? "current" : ""} key={item.id} type="button" onClick={() => setSelectedBoxCardId(item.id)}><span>{item.boxNumber || "—"}</span><strong>{item.title}</strong><small>{item.address || "Response card"}</small></button>)}</div></nav>
-        {selectedBoxCard ? <article className="content-card resource-record official-record box-card-viewer"><div className="resource-record-head"><div><span>{selectedDepartment} · Box Card {selectedBoxCard.boxNumber}</span><h2>{selectedBoxCard.title}</h2>{selectedBoxCard.address && <p>{selectedBoxCard.address}</p>}</div><div className="box-card-actions">{canEdit && <button className="primary-action compact" onClick={() => setDraft({ ...selectedBoxCard })}>Edit Box Card</button>}</div></div><BoxCardSheet card={selectedBoxCard} />{selectedBoxCard.documentUrl && <details className="box-card-source"><summary>Approved source and full-size copy</summary><div className="box-source-actions"><a className="primary-action compact" href={boxCardPageImage(selectedBoxCard)} target="_blank" rel="noreferrer">Open full size</a><a className="quiet-button" href={`${selectedBoxCard.documentUrl}#page=${selectedBoxCard.documentPage || 1}`} target="_blank" rel="noreferrer">Original PDF</a></div></details>}<RecordCredibility audit={{ recordNumber: `BOX-${selectedBoxCard.boxNumber || selectedBoxCard.id.slice(0, 8).toUpperCase()}`, status: selectedBoxCard.status || "Active", createdBy: selectedBoxCard.createdBy, createdAt: selectedBoxCard.createdAt, updatedBy: selectedBoxCard.updatedBy, updatedAt: selectedBoxCard.updatedAt, revisions: selectedBoxCard.revisions }} /></article> : <div className="content-card box-select-prompt"><span aria-hidden="true">BOX</span><div><strong>Select a box card</strong><p>Choose a card from the list to open the editable MABAS layout.</p></div></div>}
+        <nav className="content-card policy-toc" aria-label={`${selectedDepartment} box cards`}><div className="policy-toc-head"><div><p className="eyebrow">Select a card</p><h2>{selectedDepartment} Box Cards</h2></div><strong>{departmentCards.length}</strong></div><div className="policy-toc-list">{departmentCards.map((item) => <button data-test-safe className={selectedBoxCard?.id === item.id ? "current" : ""} key={item.id} type="button" onClick={() => openReader(item.id)}><span>{item.boxNumber || "—"}</span><strong>{item.title}</strong><small>{item.address || "Response card"}</small></button>)}</div></nav>
+        {selectedBoxCard ? <article className="content-card resource-record official-record box-card-viewer"><div className="resource-record-head"><div><span>{selectedDepartment} · Box Card {selectedBoxCard.boxNumber}</span><h2>{selectedBoxCard.title}</h2>{selectedBoxCard.address && <p>{selectedBoxCard.address}</p>}</div><div className="box-card-actions">{canEdit && <button className="primary-action compact" disabled={saving} onClick={() => editRecord(selectedBoxCard)}>Edit Box Card</button>}</div></div><BoxCardSheet card={selectedBoxCard} />{selectedBoxCard.documentUrl && <details className="box-card-source"><summary>Approved source and full-size copy</summary><div className="box-source-actions"><a className="primary-action compact" href={boxCardPageImage(selectedBoxCard)} target="_blank" rel="noreferrer">Open full size</a><a className="quiet-button" href={`${selectedBoxCard.documentUrl}#page=${selectedBoxCard.documentPage || 1}`} target="_blank" rel="noreferrer">Original PDF</a></div></details>}<RecordCredibility audit={{ recordNumber: `BOX-${selectedBoxCard.boxNumber || selectedBoxCard.id.slice(0, 8).toUpperCase()}`, status: selectedBoxCard.status || "Active", createdBy: selectedBoxCard.createdBy, createdAt: selectedBoxCard.createdAt, updatedBy: selectedBoxCard.updatedBy, updatedAt: selectedBoxCard.updatedAt, revisions: selectedBoxCard.revisions }} /></article> : <div className="content-card box-select-prompt"><span aria-hidden="true">BOX</span><div><strong>Select a box card</strong><p>Choose a card from the list to read its response assignments.</p></div></div>}
       </div>
     </div>}
 
-    {(isPolicy ? filtered.length === 0 : selectedDepartment ? departmentCards.length === 0 : departments.length === 0) && <div className="content-card action-empty-state resource-action-empty"><span aria-hidden="true">⌕</span><div><strong>No matching {isPolicy ? "policies" : "Box Cards"}</strong><p>{search ? "Try another search or clear the current search." : canEdit ? `Add the first ${isPolicy ? "policy" : "Box Card"} to make it available to the department.` : "An administrator has not added any records yet."}</p></div>{search ? <button className="quiet-button" onClick={() => setSearch("")}>Clear Search</button> : canEdit ? <button className="quiet-button" onClick={() => setDraft(isPolicy ? { ...emptyPolicy } : { ...emptyBoxCard })}>Add {isPolicy ? "Policy" : "Box Card"}</button> : null}</div>}
+    {!loading && !error && (isPolicy ? filtered.length === 0 : selectedDepartment ? departmentCards.length === 0 : departments.length === 0) && <div className="content-card action-empty-state resource-action-empty"><span aria-hidden="true">⌕</span><div><strong>No matching {isPolicy ? "policies" : "Box Cards"}</strong><p>{search ? "Try another search or clear the current search." : canEdit ? `Add the first ${isPolicy ? "policy" : "Box Card"} to make it available to the department.` : "An administrator has not added any records yet."}</p></div>{search ? <button className="quiet-button" onClick={() => setSearch("")}>Clear Search</button> : canEdit ? <button className="quiet-button" disabled={saving} onClick={() => editRecord(isPolicy ? emptyPolicy : emptyBoxCard)}>Add {isPolicy ? "Policy" : "Box Card"}</button> : null}</div>}
   </section>;
 }
 

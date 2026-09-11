@@ -1,8 +1,12 @@
 import React from 'react';
 import {createRoot} from 'react-dom/client';
 import Inventory from '../../app/inventory-live';
+import '../../app/globals.css';
+import '../../app/mobile-usability.css';
+import '../../app/portal-usability.css';
 import '../../app/inventory/inventory.css';
 import '../../app/inventory/usability.css';
+import '../../app/suite-theme.css';
 
 const rig={id:'fixture-engine',name:'Preview Engine',asset_type:'engine',status:'in_service'};
 const location={id:'fixture-cabinet',apparatus_id:rig.id,label:'Driver side · rear equipment cabinet',side:'driver',sort_order:1};

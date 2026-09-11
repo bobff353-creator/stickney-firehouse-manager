@@ -1,0 +1,113 @@
+/* Shared orientation, without changing the live board / Respond display canvas. */
+.workspace-wayfinding { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 18px; margin-bottom: 18px; color: #27485d; }
+.workspace-wayfinding nav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.workspace-wayfinding button, .workspace-guide summary, .portal-task-directory button { font: inherit; cursor: pointer; }
+.workspace-wayfinding button { min-height: 44px; border: 1px solid #aec2d0; background: #fff; color: #173e59; border-radius: 7px; padding: 8px 12px; font-weight: 650; }
+.workspace-wayfinding [aria-current] { font-size: 14px; }
+.workspace-guide { margin-left: auto; max-width: 620px; }
+.workspace-guide summary { min-height: 44px; padding: 11px 12px; color: #173e59; text-decoration: underline; border-radius: 7px; }
+.workspace-guide[open] { flex: 1 1 100%; max-width: none; width: 100%; border: 1px solid #bed0dc; border-radius: 8px; background: #f4f8fb; }
+.workspace-guide > div { padding: 0 16px 10px; font-size: 15px; line-height: 1.55; }
+.workspace-guide li + li { margin-top: 8px; }
+.workspace-guide p { margin: 10px 0 0; color: #476073; font-size: 14px; }
+.portal-task-directory { background: #fff; border: 1px solid #ccd9e2; border-radius: 12px; padding: 20px; margin: 18px 0; color: #12354a; }
+.portal-task-directory header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 16px; }
+.portal-task-directory h2 { font-size: 22px; margin: 0 0 5px; }
+.portal-task-directory p { margin: 4px 0 10px; line-height: 1.45; }
+.portal-task-directory label { display: grid; gap: 5px; font-weight: 650; font-size: 14px; min-width: min(100%, 270px); }
+.portal-task-directory input, .portal-roster-search input { width: 100%; min-height: 44px; font: inherit; font-size: 16px; border: 1px solid #97afbf; border-radius: 6px; padding: 10px; color: #12354a; background: #fff; }
+.portal-task-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 10px; align-items: start; }
+.portal-task-groups details { border: 1px solid #ccd9e2; border-radius: 8px; overflow: hidden; }
+.portal-task-groups summary { cursor: pointer; padding: 14px; min-height: 48px; font-weight: 700; background: #f1f6fa; }
+.portal-task-groups summary span { float: right; font-size: 13px; font-weight: 400; }
+.portal-task-groups details > div { display: grid; padding: 6px; gap: 4px; }
+.portal-task-groups button { text-align: left; display: grid; gap: 5px; padding: 12px; color: #12354a; background: #fff; border: 0; border-radius: 6px; }
+.portal-task-groups button:hover { background: #edf5fa; }
+.portal-task-groups button strong { display: flex; justify-content: space-between; gap: 8px; }
+.portal-task-groups small { font-size: 14px; line-height: 1.45; color: #4a6172; }
+.workspace-wayfinding :focus-visible, .portal-task-directory :focus-visible { outline: 3px solid #177ca8; outline-offset: 2px; }
+.portal-roster-search { display: grid; gap: 6px; padding: 16px; font-weight: 650; }
+.employee-profile-form .employee-form-footer { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; padding: 16px; }
+.portal-inline-status { margin: 8px 16px; padding: 12px; border: 1px solid #cbd9e2; border-radius: 6px; }
+.payroll-open-timesheet { color: #164867; background: none; border: 0; padding: 8px 0; min-height: 44px; font: inherit; text-align: left; text-decoration: underline; }
+.resource-reader-back { margin-bottom: 12px; }
+.resource-reader-focus { scroll-margin-top: 100px; }
+.resource-page .resource-record, .resource-page .resource-form, .resource-page .policy-toc { scroll-margin-top: 110px; }
+.timesheet-phone-day { display: none; }
+.employee-page, .field-preplans-page, .respond-overview-page { min-width: 0; max-width: 100%; grid-template-columns: minmax(0, 1fr); }
+.employee-page > *, .field-preplans-page > *, .respond-overview-page > * { min-width: 0; }
+.employee-save-fields { margin: 0 !important; padding: 0 !important; border: 0 !important; min-width: 0; }
+.portal-save-fields { margin: 0; padding: 0; border: 0; min-width: 0; width: 100%; }
+.record-details-toggle { display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 44px; padding: 10px 16px; font: inherit; font-weight: 650; font-size: 14px; text-align: left; border: 0; background: #fff; color: #234a64; cursor: pointer; }
+.record-details-toggle:focus-visible { outline: 3px solid #177ca8; outline-offset: -3px; }
+.timesheet-card .mini-summary div { color: #173c54; background: #f5f9fc; }
+.timesheet-card .mini-summary span, .timesheet-card .mini-summary strong small { color: #466173; }
+.timesheet-card .mini-summary strong { color: #173c54; }
+/* A staged unit must stay inside its panel, including the narrow desktop column. */
+.icb-stage-strip { flex-wrap: wrap; white-space: normal; max-height: 170px; }
+.icb-stage-strip > span { flex: 1 0 100%; }
+.icb-stage-strip button { min-height: 44px; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.icb-onscene:not(.collapsed) { height: auto; min-height: 145px; }
+.icb-fullscreen { height: auto; min-height: 38px; padding: 7px; font-size: 12px; line-height: 1.2; }
+.portal-skip-link { position: fixed; top: 8px; left: 8px; z-index: 9999; transform: translateY(-180%); background: #fff; color: #12354a; padding: 12px; border: 2px solid #177ca8; }
+.portal-skip-link:focus { transform: none; }
+@media (max-width: 980px) {
+  .period-row { gap: 12px; margin-bottom: 16px; }
+  .period-row > div { min-width: 0; width: 100%; }
+  .period-row .title-line { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 8px; align-items: center; }
+  .period-row .title-line h1 { min-width: 0; width: auto; margin: 0; font-size: clamp(21px, 4vw, 30px); line-height: 1.25; text-align: center; }
+  .period-row .period-arrow { width: 44px; height: 44px; }
+  .period-row .period-badge { grid-column: 1 / -1; justify-self: start; }
+  .workspace-wayfinding { margin-bottom: 12px; gap: 4px; }
+  .workspace-wayfinding nav { flex: 1 1 100%; }
+  .workspace-guide { margin-left: 0; }
+  .portal-task-directory { padding: 14px; }
+  .portal-task-directory header, .portal-task-directory label { width: 100%; }
+  .employee-profile-form .employee-form-actions { flex-wrap: wrap; }
+  .resource-page .resource-form input, .resource-page .resource-form select, .phone-form input, .phone-form select { font-size: 16px; min-height: 44px; }
+  .resource-page .resource-form textarea { font-size: 16px; }
+  .employee-page .employee-row-actions { flex-wrap: wrap; }
+  .department-settings-page .standard-page-header, .departments-page .standard-page-header { flex-wrap: wrap; gap: 12px; }
+  .standard-page-header > div { min-width: 0; }
+  .command-center-header { flex-wrap: wrap; gap: 12px; }
+  .command-center-header .trend-toggle { flex: 0 0 auto; }
+  .respond-map-controls { flex-wrap: wrap; gap: 8px; }
+  .logbook-heading, .logbook-heading .log-date-actions { flex-wrap: wrap; gap: 12px; }
+  .logbook-heading .log-date-actions { flex: 0 1 auto; }
+  .resource-reader-open .policy-toc { display: none; }
+  .resource-page:not(.resource-reader-open) .policy-reader { display: none; }
+  .payroll-panel .toolbar, .payroll-panel .toolbar-actions { flex-wrap: wrap; min-width: 0; }
+  .payroll-panel .toolbar-actions { width: 100%; justify-content: space-between; }
+  .payroll-panel .search-box { min-width: 0; width: 100%; }
+  .field-map-workspace .field-map-toolbar { flex-wrap: wrap; height: auto; min-width: 0; gap: 6px; }
+  .field-map-workspace .field-map-toolbar > small, .field-map-workspace .field-map-toolbar > span { display: none; }
+  .field-map-workspace .field-map-toolbar > button { min-height: 44px; max-width: 100%; }
+  .timesheet-phone-day { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; padding: 14px; background: #edf4f8; color: #12354a; }
+  .timesheet-phone-day label { display: grid; gap: 5px; flex: 1; min-width: 180px; font-size: 14px; font-weight: 700; }
+  .timesheet-phone-day input { width: 100%; min-height: 44px; padding: 8px; font-size: 16px; border: 1px solid #96b0c0; border-radius: 6px; background: #fff; color: #12354a; }
+  .timesheet-card .entry-grid-wrap { overflow: visible; }
+  .timesheet-card .entry-grid { min-width: 0; width: 100%; display: block; }
+  .timesheet-card .entry-grid thead { display: none; }
+  .timesheet-card .entry-grid tbody, .timesheet-card .entry-grid tfoot { display: block; }
+  .timesheet-card .entry-grid tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid #a9becd; padding: 10px; gap: 8px; }
+  .timesheet-card .entry-grid tbody tr[data-day-visible=false] { display: none; }
+  .timesheet-card .entry-grid td { display: grid; position: static; width: auto; min-width: 0; padding: 8px; background: #fff; color: #12354a; white-space: normal; text-align: left; }
+  .timesheet-card .entry-grid td:first-child { grid-column: 1 / -1; font-weight: 700; }
+  .timesheet-card .entry-grid td[data-label]::before { content: attr(data-label); font-size: 13px; font-weight: 650; padding-bottom: 5px; }
+  .timesheet-card .entry-grid td input { width: 100%; min-height: 44px; font-size: 16px; text-align: left; border: 1px solid #93adbe; border-radius: 4px; color: #12354a; background: #f6f9fb; }
+}
+@media print { .workspace-wayfinding, .portal-task-directory, .portal-skip-link, .portal-roster-search, .resource-reader-back { display: none !important; } }
+@media print {
+  .record-details-toggle { display: none !important; }
+  .record-details-body[hidden] { display: block !important; }
+  .timesheet-phone-day { display: none !important; }
+  .timesheet-card .entry-grid { display: table; }
+  .timesheet-card .entry-grid thead { display: table-header-group; }
+  .timesheet-card .entry-grid tbody { display: table-row-group; }
+  .timesheet-card .entry-grid tfoot { display: table-footer-group; }
+  .timesheet-card .entry-grid tr, .timesheet-card .entry-grid tbody tr[data-day-visible=false] { display: table-row !important; }
+  .timesheet-card .entry-grid td { display: table-cell; }
+  .timesheet-card .entry-grid td[data-label]::before { content: none; }
+  .resource-page .policy-toc { display: none; }
+  .resource-page .policy-reader { display: block !important; }
+}

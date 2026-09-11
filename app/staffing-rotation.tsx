@@ -52,7 +52,7 @@ export default function StaffingRotation({
   const [viewIndex, setViewIndex] = useState(0);
   const views = useMemo<View[]>(() => {
     const staffingViews: View[] = mode === "board"
-      ? schedule?.upcomingShifts?.flatMap((shift, slot) => Array.from({ length: Math.max(1, Math.ceil(shift.items.length / 6)) }, (_, page) => ({ type: "schedule" as const, shift, slot, page }))) ?? [{ type: "schedule" }]
+      ? schedule?.upcomingShifts?.length ? schedule.upcomingShifts.flatMap((shift, slot) => Array.from({ length: Math.max(1, Math.ceil(shift.items.length / 6)) }, (_, page) => ({ type: "schedule" as const, shift, slot, page }))) : [{ type: "schedule" }]
       : [{ type: "current" }, { type: "schedule" }];
     return [...staffingViews, ...newMembers.map((member) => ({ type: "new-member" as const, member }))];
   }, [mode, schedule, newMembers]);

@@ -38,12 +38,17 @@ export default function AcceptInvitePage() {
       }
       setStep("pin");
       setMessage("");
-    })();
+    })().catch(() => {
+      if (!active) return;
+      setStep("error");
+      setMessage("The connection was interrupted while checking this invitation. Reopen your invitation when connected, or return to secure sign-in.");
+    });
     return () => { active = false; };
   }, []);
 
   async function savePin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saving) return;
     if (!/^\d{4,6}$/.test(pin)) {
       setMessage("Choose a PIN containing 4 to 6 digits.");
       return;
@@ -58,6 +63,7 @@ export default function AcceptInvitePage() {
     }
     setSaving(true);
     setMessage("Saving your secure device PIN...");
+    try {
     const response = await fetch("/api/auth/pin", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -70,6 +76,8 @@ export default function AcceptInvitePage() {
       return;
     }
     window.location.assign("/");
+    } catch { setMessage("The connection was interrupted. Activation has not been confirmed. Check the connection and try again."); }
+    finally { setSaving(false); }
   }
 
   return (

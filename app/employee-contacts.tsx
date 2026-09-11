@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { compareEmployeeNames, formatEmployeeName } from "./employee-names";
 
 type ContactEmployee = {
@@ -16,8 +17,9 @@ function phoneHref(value: string) {
   return `tel:${value.replace(/[^\d+]/g, "")}`;
 }
 
-export default function EmployeeContacts({ employees }: { employees: ContactEmployee[] }) {
-  const alphabetical = [...employees].sort((a, b) => compareEmployeeNames(a.name, b.name));
+export default function EmployeeContacts({ employees, initialSearch = "" }: { employees: ContactEmployee[]; initialSearch?: string }) {
+  const [search, setSearch] = useState(initialSearch);
+  const alphabetical = employees.filter(employee => `${employee.name} ${employee.rank} ${employee.phone ?? ""}`.toLowerCase().includes(search.trim().toLowerCase())).sort((a, b) => compareEmployeeNames(a.name, b.name));
 
   return <section className="employee-contact-page">
     <div className="contact-page-heading standard-page-header">
@@ -25,8 +27,10 @@ export default function EmployeeContacts({ employees }: { employees: ContactEmpl
       <span className="read-only-badge">Read only</span>
     </div>
     <section className="content-card contact-list-card">
+      <label className="portal-roster-search"><span>Find a member</span><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Name, rank, or phone number…" /></label>
+      {search && <p className="portal-inline-status" role="status">{alphabetical.length} matching contacts <button type="button" className="quiet-button" onClick={() => setSearch("")}>Clear search</button></p>}
       <div className="contact-list-band">Firefighters &amp; Officers</div>
-      {alphabetical.length === 0 && <div className="action-empty-state"><span aria-hidden="true">☎</span><div><strong>No employee contacts yet</strong><p>Contacts appear automatically after an administrator adds employees and their phone numbers.</p></div><button className="quiet-button" onClick={() => window.location.reload()}>Refresh List</button></div>}
+      {!search && alphabetical.length === 0 && <div className="action-empty-state"><span aria-hidden="true">☎</span><div><strong>No employee contacts yet</strong><p>Contacts appear automatically after an administrator adds employees and their phone numbers.</p></div></div>}
       <div className="table-wrap contact-table-wrap"><table className="contact-table">
         <thead><tr><th>Rank</th><th>Name</th><th>Employment</th><th>Driver Status</th><th>Cell Number</th></tr></thead>
         <tbody>{alphabetical.map((employee) => <tr key={employee.id}>
@@ -34,7 +38,7 @@ export default function EmployeeContacts({ employees }: { employees: ContactEmpl
           <td data-label="Name">{formatEmployeeName(employee.name)}</td>
           <td data-label="Employment">{employee.isDpw ? "DPW" : employee.employmentType || ""}</td>
           <td data-label="Driver Status">{employee.driverStatus || ""}</td>
-          <td data-label="Cell Number">{employee.phone ? <a className="employee-call-link" href={phoneHref(employee.phone)}>{employee.phone}</a> : ""}</td>
+          <td data-label="Cell Number">{employee.phone ? <a className="employee-call-link" href={phoneHref(employee.phone)}>{employee.phone}</a> : "Not provided"}</td>
         </tr>)}</tbody>
       </table></div>
       <div className="driver-key"><strong>Driver Status Key</strong><span><b>C</b> Cleared</span><span><b>A</b> Ambulance Only</span><span><b>NC</b> Not Cleared</span></div>

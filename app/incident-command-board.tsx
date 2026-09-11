@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from "react";
 import ConfirmDialog from "./confirm-dialog";
 import { formatEmployeeName } from "./employee-names";
 import styles from "./incident-command-board.module.css";
@@ -112,8 +112,10 @@ export default function IncidentCommandBoard() {
     readiness: "not_reported" as IncidentCommandState["rit"]["readiness"],
   });
   const [rehabDraft, setRehabDraft] = useState({ unitIds: [] as string[], chiefEmployeeId: "", assignmentNote: "" });
-  savingRef.current = saving;
-  closedRef.current = Boolean(data?.state?.closeout.endedAt);
+  useLayoutEffect(() => {
+    savingRef.current = saving;
+    closedRef.current = Boolean(data?.state?.closeout.endedAt);
+  }, [saving, data?.state?.closeout.endedAt]);
 
   const load = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
@@ -534,7 +536,7 @@ export default function IncidentCommandBoard() {
             const draggable = !commandDisabled;
             return <button key={unitId} draggable={draggable} title={draggable ? "Drag this on-scene unit to a tactical floor" : undefined} style={{ "--unit-color": ["#d9932f", "#32a975", "#28a9d1"][index % 3] } as CSSProperties} className={selectedUnit === unitId ? "selected" : ""} onDragStart={(event) => { if (!draggable) return event.preventDefault(); event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", unitId); setSelectedUnit(unitId); }} onClick={() => setSelectedUnit(unitId)}><strong>{unitId}</strong><span>{unit?.status || "Responding"}</span><i /></button>;
           })}</div>
-          <div className="icb-stage-strip"><span>DRAG A UNIT, OR TAP IT THEN TAP A FLOOR / SIDE</span>{stagedUnits.map((unitId) => <button key={unitId} draggable={!commandDisabled} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", unitId); setSelectedUnit(unitId); }}>{unitId}</button>)}{stagedUnits.length === 0 && <small>Select a unit card above</small>}</div>
+          <div className="icb-stage-strip"><span>DRAG A UNIT, OR TAP IT THEN TAP A FLOOR / SIDE</span>{stagedUnits.map((unitId) => <button type="button" key={unitId} disabled={commandDisabled} aria-pressed={selectedUnit === unitId} onClick={() => setSelectedUnit(unitId)} draggable={!commandDisabled} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", unitId); setSelectedUnit(unitId); }}>{unitId}</button>)}{stagedUnits.length === 0 && <small>Select a unit card above</small>}</div>
           </>}
         </section>
 

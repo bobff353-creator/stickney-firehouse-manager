@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { readPortalJson } from "./portal-status";
 
 type Daily = { date: string; staffingGaps: number; overtimeHours: number; aoHours: number; calls: number; equipmentIssues: number; payrollCost: number };
 type StaffingDetail = { date: string; shiftKey: string; shiftLabel: string; timeRange: string; filled: number; required: number; gaps: number; holidayName: string | null };
@@ -94,10 +95,9 @@ export default function CommandCenter() {
   const [detailOpen, setDetailOpen] = useState<"staffing" | "payroll" | null>(null);
   const load = useCallback(async () => {
     setLoading(true);
-    const response = await fetch("/api/command-center");
-    const result = await response.json() as Data;
-    if (response.ok) { setData(result); setError(""); } else setError(result.error || "Unable to load trends");
-    setLoading(false);
+    try { const result = await readPortalJson<Data>("/api/command-center", "Unable to load trends"); setData(result); setError(""); }
+    catch (caught) { setError(`${caught instanceof Error ? caught.message : "Trends unavailable"}. Displayed trends may be out of date. Retry to check again.`); }
+    finally { setLoading(false); }
   }, []);
   useEffect(() => { const timer = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(timer); }, [load]);
   const buckets = useMemo(() => {
@@ -179,7 +179,7 @@ export default function CommandCenter() {
   return <section className="command-center-page">
     <header className="standard-page-header command-center-header"><div><span className="page-icon">⌁</span><div><p className="eyebrow">Administrator analytics</p><h1>Department Command Center</h1><p>Operational readiness, activity, and payroll trends from official department records.</p></div></div><div className="trend-toggle"><button className={mode === "weekly" ? "active" : ""} onClick={() => setMode("weekly")}>Weekly</button><button className={mode === "monthly" ? "active" : ""} onClick={() => setMode("monthly")}>Monthly</button></div></header>
     {error && <div className="error-banner"><span>{error}</span><button onClick={() => void load()}>Retry</button></div>}
-    {loading ? <div className="command-center-loading">{metricInfo.map((item) => <i key={item.key}/>)}</div> : <>
+    {loading ? <div className="command-center-loading">{metricInfo.map((item) => <i key={item.key}/>)}</div> : data ? <>
       <section className="fiscal-pay-card"><div><span>Fiscal year pay to date</span><strong>{money(data?.fiscalYear.payToDate || 0)}</strong><small>Calculated department gross pay recorded from {data?.fiscalYear ? shortDate(data.fiscalYear.startDate) : "May 1"} through today</small></div><b>FY {data?.fiscalYear ? `${data.fiscalYear.startDate.slice(0, 4)}–${data.fiscalYear.endDate.slice(2, 4)}` : "—"}</b></section>
       <div className="trend-card-grid">{metricInfo.map((item) => {
         const values = buckets.map((bucket) => bucket[item.key]), total = values.reduce((sum, value) => sum + value, 0), previous = values.at(-2) || 0, current = values.at(-1) || 0, change = previous ? ((current - previous) / previous) * 100 : current ? 100 : 0;
@@ -191,7 +191,7 @@ export default function CommandCenter() {
         return <button type="button" className="trend-card trend-card-button" key={item.key} onClick={openDetail} aria-haspopup="dialog">{contents}<span className="open-breakdown">Open {item.key === "calls" ? "call" : item.key === "staffingGaps" ? "staffing" : "payroll"} breakdown →</span></button>;
       })}</div>
       <div className="command-center-lower"><section className="content-card response-type-panel"><div className="section-header"><div><h2>Response types</h2><p>{mode === "weekly" ? "Last 12 weeks" : "Last 12 months"}</p></div><span className="count-badge">{responseTypes.reduce((sum, [, count]) => sum + count, 0)} calls</span></div><div className="response-bars">{responseTypes.length ? responseTypes.map(([type, count]) => { const max = Math.max(...responseTypes.map(([, value]) => value)); return <div key={type}><span>{type}</span><i><b style={{ width: `${(count / max) * 100}%` }}/></i><strong>{count}</strong></div>; }) : <p>No calls recorded in this range.</p>}</div></section><section className="content-card command-insight"><h2>Command summary</h2>{metricInfo.map((item) => <div key={item.key}><span>{item.label}</span><strong>{format(item.key, buckets.at(-1)?.[item.key] || 0)}</strong><small>Current {mode === "weekly" ? "week" : "month"}</small></div>)}<p>Updated {data?.generatedAt ? new Date(data.generatedAt).toLocaleString() : "—"}</p></section></div>
-    </>}
+    </> : <p role="status">Trends are unavailable until department records can be loaded. Use Retry above to check again.</p>}
     {callBreakdownOpen && <div className="call-breakdown-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setCallBreakdownOpen(false); }}><section className="call-breakdown-dialog" role="dialog" aria-modal="true" aria-labelledby="call-breakdown-title"><header><div><p className="eyebrow">Call volume detail</p><h2 id="call-breakdown-title">When calls happen most</h2><p>{mode === "weekly" ? "Last 12 weeks" : "Last 12 months"} · {callBreakdown.total} calls</p></div><button type="button" autoFocus aria-label="Close call breakdown" onClick={() => setCallBreakdownOpen(false)}>×</button></header><div className="call-breakdown-grid"><section><h3>Day of week</h3><div className="breakdown-bars">{callBreakdown.weekdays.map(([label, count]) => { const max = Math.max(1, ...callBreakdown.weekdays.map(([, value]) => value)); return <div key={label}><span>{label}</span><i><b style={{ width: `${(count / max) * 100}%` }}/></i><strong>{count}</strong></div>; })}</div></section><section><h3>Time of day</h3><div className="breakdown-bars time-blocks">{callBreakdown.times.map((block) => { const max = Math.max(1, ...callBreakdown.times.map((item) => item.count)); return <div key={block.label}><span>{block.label}<small>{block.detail}</small></span><i><b style={{ width: `${(block.count / max) * 100}%` }}/></i><strong>{block.count}</strong></div>; })}</div>{callBreakdown.missingTime > 0 && <p className="missing-time-note">{callBreakdown.missingTime} call{callBreakdown.missingTime === 1 ? "" : "s"} without a recorded time are excluded from the time-of-day bars.</p>}</section></div></section></div>}
     {detailOpen === "staffing" && <StaffingDialog breakdown={staffingBreakdown} mode={mode} onClose={() => setDetailOpen(null)}/>}
     {detailOpen === "payroll" && <PayrollDialog breakdown={payrollBreakdown} mode={mode} onClose={() => setDetailOpen(null)}/>}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { formatEmployeeName } from "./employee-names";
 import { formatMilitaryTime } from "./military-time";
 import { CALLBACK_QUALIFYING_CALL_TYPES } from "./callback-rules";
+import { readPortalJson } from "./portal-status";
 
 type Submission = {
   id: string;
@@ -52,33 +53,48 @@ export default function CallbackReviews() {
   const [message, setMessage] = useState("");
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [hours, setHours] = useState<Record<string, number>>({});
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const load = useCallback(async () => {
-    const response = await fetch("/api/callbacks?scope=review", { cache: "no-store" });
-    const next = await response.json() as Partial<Payload>;
+    setLoading(true);
+    try {
+    const next = await readPortalJson<Partial<Payload>>("/api/callbacks?scope=review", "Unable to load callbacks");
     const submissions = next.submissions ?? [];
     setPayload({ submissions, reviewers: next.reviewers ?? [], setting: next.setting, error: next.error });
     setReviewerId(next.setting?.reviewerEmployeeId ?? "");
     setHours((current) => Object.fromEntries(submissions.map((item) => [item.id, current[item.id] ?? item.suggestedHours])));
+    setError("");
+    } catch (caught) { setError(`${caught instanceof Error ? caught.message : "Callbacks unavailable"}. Displayed submissions may be out of date. Retry before reviewing.`); }
+    finally { setLoading(false); }
   }, []);
   useEffect(() => {
     const timer = window.setTimeout(() => { void load(); }, 0);
     return () => window.clearTimeout(timer);
   }, [load]);
   async function send(body: Record<string, unknown>) {
+    if (saving) return;
+    setSaving(true); setError("");
     setMessage("Saving...");
+    try {
     const response = await fetch("/api/callbacks", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     const result = await response.json() as { error?: string };
-    setMessage(response.ok ? "Saved" : result.error ?? "Unable to save");
-    if (response.ok) await load();
+    if (!response.ok) throw new Error(result.error ?? "Unable to save");
+    setMessage("Saved");
+    await load();
+    } catch (caught) { setMessage(""); setError(`${caught instanceof Error ? caught.message : "Change not confirmed"}. Your review entries remain available. Refresh submissions before retrying if the connection was interrupted.`); }
+    finally { setSaving(false); }
   }
   return <section className="callback-review-page">
     <div className="standard-page-header"><div><div><p className="eyebrow">Payroll review</p><h1>Callback Reviews</h1><p>Review callback attendance, rule flags, and payroll hours submitted from Daily Log calls.</p></div></div></div>
     {payload.error && <div className="board-alert">{payload.error}</div>}
+    {loading && <p role="status">Loading callback submissions…</p>}
+    {error && <div className="error-banner" role="alert"><span>{error}</span><button disabled={saving || loading} onClick={() => void load()}>Retry submissions</button></div>}
     {message && <p className="callback-save-message" role="status">{message}</p>}
 
     <article className="content-card callback-reviewer-settings">
       <div className="section-header"><div><h2>Submission reviewer</h2><p>The selected officer receives new callback attendance submissions.</p></div></div>
-      <div className="callback-reviewer-row"><label><span>Reviewer</span><select value={reviewerId} onChange={(event) => setReviewerId(event.target.value)}><option value="">Select reviewer…</option>{payload.reviewers.map((reviewer) => <option key={reviewer.id} value={reviewer.id}>{formatEmployeeName(reviewer.name)} · {reviewer.rank}</option>)}</select></label><button className="primary-action compact" disabled={!reviewerId} onClick={() => void send({ action: "setReviewer", reviewerEmployeeId: reviewerId })}>Save Reviewer</button></div>
+      <div className="callback-reviewer-row"><label><span>Reviewer</span><select value={reviewerId} onChange={(event) => setReviewerId(event.target.value)}><option value="">Select reviewer…</option>{payload.reviewers.map((reviewer) => <option key={reviewer.id} value={reviewer.id}>{formatEmployeeName(reviewer.name)} · {reviewer.rank}</option>)}</select></label><button className="primary-action compact" disabled={!reviewerId || saving || loading || Boolean(error)} onClick={() => void send({ action: "setReviewer", reviewerEmployeeId: reviewerId })}>Save Reviewer</button></div>
     </article>
 
     <article className="content-card callback-rules-card">
@@ -88,7 +104,7 @@ export default function CallbackReviews() {
 
     <article className="content-card">
       <div className="section-header"><div><h2>Submissions</h2><p>Pending and flagged submissions are shown first.</p></div><span className="count-badge">{payload.submissions.filter((item) => item.status === "pending").length} pending</span></div>
-      {!payload.submissions.length && <div className="action-empty-state"><div><strong>No callback submissions yet</strong><p>Submitted attendance will appear here with its rule evaluation.</p></div></div>}
+      {!loading && !error && !payload.submissions.length && <div className="action-empty-state"><div><strong>No callback submissions yet</strong><p>Submitted attendance will appear here with its rule evaluation.</p></div></div>}
       <div className="callback-review-list">{payload.submissions.map((item) => {
         const approvedHours = hours[item.id] ?? item.suggestedHours;
         return <section className={`callback-review-item ${item.status} ${item.flags.length ? "flagged" : ""}`} key={item.id}>
@@ -102,7 +118,7 @@ export default function CallbackReviews() {
           {item.status === "pending" ? <div className="callback-review-form">
             <label><span>Approved hours</span><input type="number" min="0.25" max="24" step="0.25" value={approvedHours} onChange={(event) => setHours((current) => ({ ...current, [item.id]: Number(event.target.value) }))} /></label>
             <label className="callback-review-note"><span>Review note</span><input aria-label={`Review note for ${formatEmployeeName(item.employeeName)}`} placeholder="Optional review note" value={notes[item.id] ?? ""} onChange={(event) => setNotes((current) => ({ ...current, [item.id]: event.target.value }))} /></label>
-            <div className="callback-review-actions"><button onClick={() => void send({ action: "review", id: item.id, status: "denied", reviewNote: notes[item.id] ?? "" })}>Deny</button><button className="primary-action compact" onClick={() => void send({ action: "review", id: item.id, status: "approved", approvedHours, reviewNote: notes[item.id] ?? "" })}>Approve &amp; Post Payroll</button></div>
+            <div className="callback-review-actions"><button disabled={saving || loading || Boolean(error)} onClick={() => void send({ action: "review", id: item.id, status: "denied", reviewNote: notes[item.id] ?? "" })}>Deny</button><button className="primary-action compact" disabled={saving || loading || Boolean(error)} onClick={() => void send({ action: "review", id: item.id, status: "approved", approvedHours, reviewNote: notes[item.id] ?? "" })}>Approve &amp; Post Payroll</button></div>
           </div> : <div className="callback-reviewed-summary"><strong>{item.status === "approved" ? `${item.approvedHours.toFixed(2)} callback hours posted to payroll` : "Callback denied by reviewer"}</strong>{item.reviewNote && <span>{item.reviewNote}</span>}<small>Reviewer: {formatEmployeeName(item.reviewerName)}</small></div>}
         </section>;
       })}</div>

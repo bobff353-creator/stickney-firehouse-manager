@@ -27,6 +27,19 @@ export default function AuthGateway({
   const [message, setMessage] = useState("");
   const accessCheckRef = useRef<Promise<void> | null>(null);
   const pinLoginRef = useRef(false);
+  const actionPendingRef = useRef(false);
+  const [actionPending, setActionPending] = useState(false);
+
+  async function runAuthAction(action: () => Promise<void>, returnMode: Mode) {
+    if (actionPendingRef.current) return;
+    actionPendingRef.current = true;
+    setActionPending(true);
+    try { await action(); }
+    catch {
+      setMode(returnMode);
+      setMessage("The connection was interrupted. No sign-in or account change has been confirmed. Check your connection and try again.");
+    } finally { actionPendingRef.current = false; setActionPending(false); }
+  }
 
   useEffect(() => {
     const client = getSupabaseBrowserClient();
@@ -36,6 +49,9 @@ export default function AuthGateway({
         clearAccessCache();
         setMode("sign-in");
       }
+    }).catch(() => {
+      setMode("sign-in");
+      setMessage("Secure sign-in could not load. Check your connection and try signing in again.");
     });
     const { data } = client.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT" || !session?.user) {
@@ -327,11 +343,11 @@ export default function AuthGateway({
           <h1>Create your portal PIN</h1>
           <p>Your approved account existed before PIN login was added. Create 4 to 6 digits now; no department records or unfinished work will be removed.</p>
           <dl className="invite-account-summary"><div><dt>Verified account</dt><dd>{user?.email}</dd></div><div><dt>Department</dt><dd>Stickney Fire Department</dd></div></dl>
-          <form onSubmit={createPin}>
+          <form onSubmit={event => { event.preventDefault(); void runAuthAction(() => createPin(event), "set-pin"); }}>
             <label>New PIN<input autoFocus type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
             <label>Confirm PIN<input type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pinConfirmation} onChange={(event) => setPinConfirmation(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
             {message ? <p className="login-message" role="status">{message}</p> : null}
-            <button className="login-primary" type="submit">Save PIN and open the app</button>
+            <button className="login-primary" type="submit" disabled={actionPending}>Save PIN and open the app</button>
           </form>
           <button type="button" className="login-link-button" onClick={signOut}>Use a different account</button>
         </section>
@@ -347,10 +363,10 @@ export default function AuthGateway({
           <p className="login-eyebrow">VERIFIED ACCOUNT</p>
           <h1>Enter your portal PIN</h1>
           <p>Your email session is verified. Enter the 4 to 6 digit PIN you created when joining the department app.</p>
-          <form onSubmit={unlockWithPin}>
+          <form onSubmit={event => { event.preventDefault(); void runAuthAction(() => unlockWithPin(event), "pin"); }}>
             <label>Portal PIN<input autoFocus type="password" inputMode="numeric" autoComplete="current-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
             {message ? <p className="login-message" role="status">{message}</p> : null}
-            <button className="login-primary" type="submit">Unlock app</button>
+            <button className="login-primary" type="submit" disabled={actionPending}>Unlock app</button>
           </form>
           <button type="button" className="login-link-button" onClick={() => { setEmployeeNumber(""); setPin(""); setPinConfirmation(""); setMessage(""); setMode("reset-pin"); }}>Forgot PIN? Reset with employee number</button>
           <button type="button" className="login-link-button" onClick={signOut}>Use a different account</button>
@@ -368,12 +384,12 @@ export default function AuthGateway({
           <h1>Reset your portal PIN</h1>
           <p>Confirm the employee number saved on your active record, then choose the private PIN you will use from now on.</p>
           <dl className="invite-account-summary"><div><dt>Verified account</dt><dd>{user?.email}</dd></div><div><dt>Department</dt><dd>Stickney Fire Department</dd></div></dl>
-          <form onSubmit={resetPin}>
+          <form onSubmit={event => { event.preventDefault(); void runAuthAction(() => resetPin(event), "reset-pin"); }}>
             <label>Employee number<input autoFocus type="password" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={employeeNumber} onChange={(event) => setEmployeeNumber(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
             <label>New private PIN<input type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
             <label>Enter private PIN again<input type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pinConfirmation} onChange={(event) => setPinConfirmation(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
             {message ? <p className="login-message" role="status">{message}</p> : null}
-            <button className="login-primary" type="submit">Reset PIN and open app</button>
+            <button className="login-primary" type="submit" disabled={actionPending}>Reset PIN and open app</button>
           </form>
           <small className="pin-security-note">Five incorrect employee-number attempts temporarily lock PIN reset.</small>
           <button type="button" className="login-link-button" onClick={() => { setEmployeeNumber(""); setPin(""); setPinConfirmation(""); setMessage(""); setMode("pin"); }}>Back to PIN unlock</button>
@@ -391,13 +407,13 @@ export default function AuthGateway({
           <p className="login-eyebrow">NEW EMPLOYEE</p>
           <h1>Create your login</h1>
           <p>Use the Stickney email and employee number already saved on your employee record. Then choose the private PIN you will use from now on.</p>
-          <form onSubmit={activateNewUser}>
+          <form onSubmit={event => { event.preventDefault(); void runAuthAction(() => activateNewUser(event), "new-user"); }}>
             <label>Stickney email<input autoFocus type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
             <label>Employee number<input type="password" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={employeeNumber} onChange={(event) => setEmployeeNumber(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
             <label>New private PIN<input type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
             <label>Enter private PIN again<input type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pinConfirmation} onChange={(event) => setPinConfirmation(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
             {message ? <p className="login-message" role="status">{message}</p> : null}
-            <button className="login-primary" type="submit">Create login and open app</button>
+            <button className="login-primary" type="submit" disabled={actionPending}>Create login and open app</button>
           </form>
           <small className="pin-security-note">Your employee number is checked once and is never saved as your private PIN.</small>
           <button type="button" className="login-secondary login-back-button" onClick={() => { setMessage(""); setPin(""); setPinConfirmation(""); setEmployeeNumber(""); setMode("sign-in"); }}>Back to Sign In</button>
@@ -437,11 +453,11 @@ export default function AuthGateway({
         <p className="login-eyebrow">WELCOME BACK</p>
         <h2>Sign in with email and PIN</h2>
         <p>Use the email already connected to your account and your private PIN.</p>
-        <form onSubmit={signIn}>
+        <form onSubmit={event => { event.preventDefault(); void runAuthAction(() => signIn(event), "sign-in"); }}>
           <label>Email address<input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
           <label>Private PIN<input type="password" inputMode="numeric" autoComplete="current-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
           {message ? <p className="login-message" role="status">{message}</p> : null}
-          <button className="login-primary" type="submit">Sign in</button>
+          <button className="login-primary" type="submit" disabled={actionPending}>Sign in</button>
         </form>
         <div className="login-divider"><span>NEW EMPLOYEE?</span></div>
         <button type="button" className="login-secondary login-new-user-button" onClick={() => { setMessage(""); setPin(""); setMode("new-user"); }}>New User — Create Login</button>

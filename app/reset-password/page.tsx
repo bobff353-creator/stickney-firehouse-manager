@@ -12,6 +12,7 @@ export default function ResetPasswordPage() {
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saving) return;
     if (password.length < 8) {
       setMessage("Use at least 8 characters.");
       return;
@@ -21,13 +22,15 @@ export default function ResetPasswordPage() {
       return;
     }
     setSaving(true);
+    try {
     const { error } = await getSupabaseBrowserClient().auth.updateUser({ password });
-    setSaving(false);
     if (error) {
       setMessage(error.message);
       return;
     }
     window.location.assign("/");
+    } catch { setMessage("The connection was interrupted. Your password change has not been confirmed. Check the connection and try again."); }
+    finally { setSaving(false); }
   }
 
   return (

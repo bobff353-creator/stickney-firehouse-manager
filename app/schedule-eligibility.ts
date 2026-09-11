@@ -1,4 +1,4 @@
-import { staffingRoles } from "./staffing-eligibility";
+import { staffingRoles } from "./staffing-eligibility.ts";
 
 export type ScheduleQualification = {
   rank: string;
