@@ -6,12 +6,14 @@ const shell = await readFile(new URL("../app/inventory-live.tsx", import.meta.ur
 const operations = await readFile(new URL("../app/inventory-operations.tsx", import.meta.url), "utf8");
 const layout = await readFile(new URL("../app/inventory/layout.tsx", import.meta.url), "utf8");
 const portal = await readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8");
+const menu = await readFile(new URL("../app/portal-menu-items.ts", import.meta.url), "utf8");
 const styles = await readFile(new URL("../app/inventory/inventory.css", import.meta.url), "utf8");
 
 test("inventory is named Inventory & Apparatus Checks throughout the application shell", () => {
   assert.match(layout, /Inventory & Apparatus Checks/);
   assert.match(shell, /Inventory &amp; Apparatus Checks/);
-  assert.match(portal, /label: "Inventory & Apparatus Checks", page: "Inventory"/);
+  assert.match(portal, /import \{ featuredNavItems, featuredNavPages, adminNavGroups,/);
+  assert.match(menu, /label: "Inventory & Apparatus Checks", page: "Inventory"/);
   assert.match(shell, /Admin Configuration/);
 });
 

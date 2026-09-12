@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import PortalModuleMenu from "./components/PortalModuleMenu";
 import InventoryOperations from "./inventory-operations";
 import { RequiredConfirmation } from './required-confirmation';
 import InventoryVinProfile from "./inventory-vin-profile";
@@ -575,10 +576,7 @@ export default function Inventory360({
   return (
     <main className="inventory-app-shell inventory-portal-refresh">
       <header className="topbar">
-        <Link className="portal-back" href="/" aria-label="Back to Firehouse Manager">
-          <span aria-hidden="true">←</span>
-          <b>Station Duties</b>
-        </Link>
+        <PortalModuleMenu permissions={permissions} currentPage="Inventory" departmentName={activeDepartmentName}/>
         <button className="brand" onClick={() => setView("due")} aria-label="Inventory and Apparatus Checks home">
           <span>
             <small>{activeDepartmentName}</small>

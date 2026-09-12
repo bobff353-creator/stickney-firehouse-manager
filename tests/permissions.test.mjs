@@ -52,7 +52,9 @@ test("every employee keeps a read-only own-timesheet view including administrato
   assert.match(permissions, /payroll\.view_own.*required: true/);
   assert.match(permissions, /selected\.add\("payroll\.view_own"\)/);
   assert.match(app, /const adminNavItems: NavItem\[\] = \[[^\]]*"My Timesheet"/);
-  assert.match(app, /"My Timesheet": "payroll\.view_own"/);
+  const menu = await readFile(new URL("../app/portal-menu-items.ts", import.meta.url), "utf8");
+  assert.match(app, /portalNavigationForPermissions\(permissions\)/);
+  assert.match(menu, /"My Timesheet": "payroll\.view_own"/);
   assert.match(app, /activeNav === "My Timesheet" \? ownTimesheetEmployeeId/);
   assert.match(app, /const canEditEntry = activeNav === "Timesheets" && isPayrollManagerView/);
   assert.match(app, /activeNav === "Timesheets" && isPayrollManagerView \? .*employee-select/);

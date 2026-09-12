@@ -4,8 +4,11 @@ import Inventory from '../../app/inventory-live';
 import '../../app/globals.css';
 import '../../app/mobile-usability.css';
 import '../../app/portal-usability.css';
+import '../../app/admin-usability.css';
 import '../../app/inventory/inventory.css';
 import '../../app/inventory/usability.css';
+import '../../app/inventory/air-systems.css';
+import '../../app/inventory/service-schedule.css';
 import '../../app/suite-theme.css';
 
 const rig={id:'fixture-engine',name:'Preview Engine',asset_type:'engine',status:'in_service'};
@@ -15,10 +18,11 @@ const equipment=[item,{...item,id:'fixture-mileage',name:'Current mileage / odom
 const checks=[{id:'fixture-check',apparatus_id:rig.id,apparatus_name:rig.name,check_type:'daily',status:'in_progress',started_at:new Date().toISOString(),started_by:'Preview crew'}];
 const data={configured:true,apparatus:[rig,{...rig,id:'fixture-ambulance',name:'Preview Ambulance',asset_type:'ambulance'}],compartments:[location],equipment,retiredEquipment:[],checks,checkItems:equipment.map(e=>({...e,id:`result-${e.id}`,equipment_id:e.id,equipment_name:e.name,check_id:checks[0].id,result:'pending'})),exceptions:[],workOrders:[],workOrderDocuments:[],inspectionSchedules:[{id:'fixture-schedule',apparatus_id:rig.id,apparatus_name:rig.name,check_type:'inventory',day_of_week:1,start_time:'06:00',end_time:'12:00',active:true}],stock:[],restockRequests:[],locationChanges:[],scbaTemplates:[{id:'fixture-scba',apparatus_id:rig.id,active:true,pack_positions:['Officer seat','Rear seat'],include_rit:true,spare_bottle_count:1}],scbaEntries:[]};
 let writes=0;
-const audit={data,permissionMode:'ok',permissionRequests:0,emptySave:false};
+const audit={data,permissionMode:'ok',permissionRequests:0,emptySave:false,requests:[] as string[],errors:[] as string[],permissions:null as string[]|null};
 Object.assign(window,{inventoryAudit:audit});
 window.fetch=async(input,init)=>{
  const url=String(input); if(!url.startsWith('/api/'))throw Error('Fixture blocks external fetch');
+ audit.requests.push(url);
  if(init?.method==='POST'){
   const body=JSON.parse(String(init.body)); writes++;document.getElementById('audit-writes')!.textContent=`Test writes: ${writes} · ${body.action}`;
   if((document.getElementById('fail-save') as HTMLInputElement).checked){(document.getElementById('fail-save') as HTMLInputElement).checked=false;return Response.json({error:'Simulated save failure. Your edits were not saved.'},{status:503});}
@@ -35,12 +39,12 @@ window.fetch=async(input,init)=>{
   audit.permissionRequests++;
   if(audit.permissionMode==='timeout')throw new DOMException('signal timed out','TimeoutError');
   if(audit.permissionMode==='denied')return Response.json({error:'Inventory access was removed.'},{status:403});
-  return Response.json({viewerPermissions:['inventory.view','inventory.check',...(admin?['inventory.repairs.manage','inventory.setup.manage']:[])],identity:'fixture:member',employees:[{id:'fixture-member',name:'Preview member'}]});
+  return Response.json({viewerPermissions:audit.permissions??['dashboard.view','documents.view','field_preplans.view','scheduling.view','payroll.view_own','inventory.view','inventory.check',...(admin?['operations_board.view','employees.manage','settings.manage','inventory.repairs.manage','inventory.setup.manage']:[])],identity:'fixture:member',confirmation:{required:false,version:null,exempt:false},employees:[{id:'fixture-member',name:'Preview member'}]});
  }
  return Response.json({error:'Unknown fixture request'},{status:404});
 };
-window.addEventListener('error',e=>{document.getElementById('audit-errors')!.textContent+=e.message;});
-window.addEventListener('unhandledrejection',e=>{document.getElementById('audit-errors')!.textContent+=String(e.reason);});
+window.addEventListener('error',e=>{audit.errors.push(e.message);const target=document.getElementById('audit-errors');if(target)target.textContent+=e.message;});
+window.addEventListener('unhandledrejection',e=>{audit.errors.push(String(e.reason));const target=document.getElementById('audit-errors');if(target)target.textContent+=String(e.reason);});
 const admin=new URLSearchParams(window.location.search).get('role')!=='member';
 const startInCheck=new URLSearchParams(window.location.search).has('check');
 createRoot(document.getElementById('root')!).render(<><aside style={{padding:8,background:'#fff4be',font:'12px Arial'}}>Fictional audit only · <span id="audit-writes">Test writes: 0</span><label><input id="fail-save" type="checkbox"/>Fail next save</label><span id="audit-errors"/></aside><Inventory departmentId="fixture" departmentName="Preview department" initialApparatusId={startInCheck?rig.id:''} initialCheckType={startInCheck?'daily':''} permissions={admin?['inventory.check','inventory.repairs.manage','inventory.setup.manage']:['inventory.check']}/></>);

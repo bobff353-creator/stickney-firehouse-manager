@@ -23,6 +23,7 @@ test("phone dark mode keeps Daily Log controls readable", async () => {
 test("desktop navigation starts hidden and closes when no longer in use", async () => {
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   const shell = await readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8");
+  const menu = await readFile(new URL("../app/portal-menu-items.ts", import.meta.url), "utf8");
   assert.match(shell, /const \[sidebarCollapsed, setSidebarCollapsed\] = useState\(true\)/);
   assert.match(shell, /className="desktop-sidebar-toggle"/);
   assert.match(shell, /Show navigation menu/);
@@ -36,9 +37,11 @@ test("desktop navigation starts hidden and closes when no longer in use", async 
   assert.match(shell, /if \(!confirmLeavingWork\(\)\) return;\s+setDesktopMenuHidden\(true\)/);
   assert.match(shell, /if \(hidden && document\.activeElement\?\.closest\("#desktop-navigation"\)\)/);
   assert.match(shell, /className="sidebar-core-nav"/);
-  assert.match(shell, /Home[\s\S]+Respond[\s\S]+Live Operations[\s\S]+Maps & Preplans[\s\S]+Daily Log[\s\S]+Station Schedule[\s\S]+Apparatus Checks/);
-  assert.doesNotMatch(shell.match(/const featuredNavItems[\s\S]+?\];/)?.[0] ?? "", /Command Center|Station Board/);
-  assert.match(shell, /label: "Operations"[\s\S]+label: "Command Center", page: "Command Center"/);
+  assert.match(shell, /import.*featuredNavItems.*from "\.\/portal-menu-items"/);
+  assert.match(menu, /Home[\s\S]+Respond[\s\S]+Live Operations[\s\S]+Maps & Preplans[\s\S]+Daily Log[\s\S]+Station Schedule[\s\S]+Apparatus Checks/);
+  assert.ok(menu.match(/const featuredNavItems[\s\S]+?\];/));
+  assert.doesNotMatch(menu.match(/const featuredNavItems[\s\S]+?\];/)?.[0], /Command Center|Station Board/);
+  assert.match(menu, /label: "Operations"[\s\S]+label: "Command Center", page: "Command Center"/);
   assert.match(shell, /className="desktop-more-nav"[\s\S]+<span>More tools<\/span>/);
   assert.match(shell, /visibleMoreNavGroups\.some[\s\S]+setMoreToolsOpen\(true\)/);
   assert.doesNotMatch(shell, /navigate\(item\.page\); setSidebarCollapsed\(true\)/);
