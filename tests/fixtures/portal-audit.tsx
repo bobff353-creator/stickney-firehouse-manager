@@ -13,6 +13,16 @@ import "../../app/admin-usability.css";
 
 // Actual client UI, fictional responses only. No credentials or production writes.
 const params = new URLSearchParams(location.search);
+if(params.has('preplan-location-audit')) {
+  const gps=params.get('gps');
+  Object.defineProperty(navigator,'geolocation',{configurable:true,value:gps==='missing'?undefined:{
+    getCurrentPosition(success:PositionCallback,failure?:PositionErrorCallback) {
+      if(gps==='success')success({coords:{latitude:41.825,longitude:-87.78}} as GeolocationPosition);
+      else if(gps==='pending')Object.assign(window,{finishFixtureLocation:()=>success({coords:{latitude:41.825,longitude:-87.78}} as GeolocationPosition)});
+      else failure?.({code:gps==='timeout'?3:1,message:'Fictional location unavailable'} as GeolocationPositionError);
+    },
+  }});
+}
 // Do not register the production offline worker in a fictional test browser.
 delete Object.getPrototypeOf(navigator).serviceWorker;
 const isAdmin = params.get("role") !== "member";
@@ -84,6 +94,7 @@ if (params.has("preplan-capture")) {
   payloads["/api/permissions"] = { ...(payloads["/api/permissions"] as object), viewerPermissions: defaultPermissionsForRank("Firefighter", isAdmin), identity: "fixture:preview@example.invalid", revision: "fixture-1" };
   payloads["/api/field-preplans"] = { preplans: [], canEdit: true, imports: [{ id: "fixture-import", businessName: "Fictional footprint test — not a department record", address: "Preview address, Stickney, Illinois 60402", sourceFile: "Preview only", sourceRow: 1, status: "pending", latitude: null, longitude: null, geocodeNote: "Manual placement fixture", linkedPreplanId: null }] };
   payloads["/api/field-hydrants"] = { canEdit: true, hydrants: [{ id: "fixture-hydrant", hydrantNumber: "PREVIEW ONLY", address: "Fictional water supply", latitude: 41.8189, longitude: -87.7734, serviceStatus: "in_service", manufacturer: "", model: "", portCount: 2, portSizes: [], notes: "Not operational", flushes: [], flowTests: [] }] };
+  if(params.has('preplan-location-audit'))(payloads['/api/field-preplans'] as {imports:object[]}).imports.push({id:'fixture-located',businessName:'Fictional located building',address:'Preview located address, Stickney, Illinois 60402',sourceFile:'Preview only',sourceRow:2,status:'geocoded',latitude:41.825,longitude:-87.78,geocodeNote:'Fictional coordinates',linkedPreplanId:null});
 }
 if (params.has("active-command")) {
   const state = emptyIncidentCommandState();

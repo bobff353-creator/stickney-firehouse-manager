@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { availableHydrantFlow, hydrantOutletFlow, nfpa291FlowClass } from "./hydrant-flow";
 import GoogleFieldMap from "./google-field-map";
+import { preplanLocationView, stickneyMapOverview } from "./preplan-map-location";
 import { createPreplanContact, createPreplanPhone, parsePreplanContacts, serializePreplanContacts, type PreplanContact } from "./preplan-contacts";
 import { constructionOptions, detailedPreplanMapView, footprintCentroid, polygonAreaSquareFeet, suggestedFireFlow, type ConstructionGroup, type OccupancyFlowCategory, type SprinklerStandard } from "./preplan-fire-flow";
 import OperationalPreplanPanel, { type OperationalMapDraft, type OperationalMapOverlay, type OperationalMapPoint } from "./preplans/operational-panel";
@@ -24,7 +25,6 @@ type ImportedBuilding = { id:string;businessName:string;address:string;sourceFil
 type Form = Omit<Preplan,"features"|"photos"|"updatedBy"|"updatedAt"> & { street:string; city:string; state:string; zipCode:string; contacts:PreplanContact[] };
 type LocationState = "locating"|"current"|"fallback"|"record";
 
-const stickney:Point = { lat:41.8189, lng:-87.7734 };
 const defaultAddress = { street:"",city:"Stickney",state:"Illinois",zipCode:"60402" };
 function addressParts(address:string){
   let remaining=address.trim();const zipCode=remaining.match(/\b\d{5}(?:-\d{4})?\s*$/)?.[0]??"60402";
@@ -248,7 +248,7 @@ export default function FieldPreplans() {
   const [imports,setImports]=useState<ImportedBuilding[]>([]),[selectedImport,setSelectedImport]=useState("");
   const [importSort,setImportSort]=useState<"street"|"completion">("street"),[geocodeProgress,setGeocodeProgress]=useState("");
   const [hydrants,setHydrants]=useState<Hydrant[]>([]),[hydrantDraft,setHydrantDraft]=useState<Hydrant|null>(null),[hydrantTab,setHydrantTab]=useState<"quick"|"details"|"flush"|"flow">("quick");
-  const [center,setCenter]=useState<Point>(stickney),[zoom,setZoom]=useState(19),[imagery,setImagery]=useState<"aerial"|"street">("aerial"),[mode,setMode]=useState(""),[tab,setTab]=useState<"quick"|"details"|"photos"|"operational">("quick");
+  const [center,setCenter]=useState<Point>(stickneyMapOverview.center),[zoom,setZoom]=useState(stickneyMapOverview.zoom),[imagery,setImagery]=useState<"aerial"|"street">("aerial"),[mode,setMode]=useState(""),[tab,setTab]=useState<"quick"|"details"|"photos"|"operational">("quick");
   const [locationState,setLocationState]=useState<LocationState>("locating");
   const [mapExpanded,setMapExpanded]=useState(false);
   const [footprintAccepted,setFootprintAccepted]=useState(false);
@@ -270,6 +270,7 @@ export default function FieldPreplans() {
   const load=useCallback(async()=>{const response=await fetch("/api/field-preplans",{cache:"no-store"});const body=await response.json() as {preplans?:Preplan[];imports?:ImportedBuilding[];canEdit?:boolean;canDelete?:boolean;error?:string};if(!response.ok)throw new Error(body.error||"Unable to load preplans");setPlans(body.preplans??[]);setImports(body.imports??[]);setCanEdit(Boolean(body.canEdit));setCanDeletePreplan(Boolean(body.canDelete));},[]);
   const loadHydrants=useCallback(async()=>{const response=await fetch("/api/field-hydrants",{cache:"no-store"});const body=await response.json() as {hydrants?:Hydrant[];canEdit?:boolean;error?:string};if(!response.ok)throw new Error(body.error||"Unable to load hydrants");setHydrants(body.hydrants??[]);setCanEdit((current)=>current||Boolean(body.canEdit));},[]);
   useEffect(()=>{
+    let cancelled=false;
     const initialize=async()=>{
       try{await Promise.all([load(),loadHydrants()]);}catch(error){setMessage(error instanceof Error?error.message:"Unable to load field records");}
       try{const response=await fetch("/api/maps-config",{cache:"no-store"});const body=await response.json() as {configured?:boolean;apiKey?:string};if(response.ok&&body.configured&&body.apiKey)setMapsApiKey(body.apiKey);else setMapProvider("fallback");}catch{setMapProvider("fallback");}
@@ -279,7 +280,17 @@ export default function FieldPreplans() {
     const hasFocusedRecord=url.searchParams.has("preplan")||url.searchParams.has("hydrant");
     if(hasFocusedRecord)setLocationState("record");
     else if(!navigator.geolocation)setLocationState("fallback");
-    else navigator.geolocation.getCurrentPosition((position)=>{setCenter({lat:position.coords.latitude,lng:position.coords.longitude});setZoom(17);setLocationState("current");},()=>setLocationState("fallback"),{enableHighAccuracy:true,timeout:12000,maximumAge:60000});
+    else {
+      const applyLocation=(point?:Point)=>{
+        const currentUrl=new URL(window.location.href);
+        // A late device response must not move a record or new footprint opened meanwhile.
+        if(cancelled||currentUrl.searchParams.has("preplan")||currentUrl.searchParams.has("hydrant"))return;
+        const view=preplanLocationView(point,17);
+        setCenter(view.center);setZoom(view.zoom);setLocationState(view.located?"current":"fallback");
+      };
+      navigator.geolocation.getCurrentPosition((position)=>applyLocation({lat:position.coords.latitude,lng:position.coords.longitude}),()=>applyLocation(),{enableHighAccuracy:true,timeout:12000,maximumAge:60000});
+    }
+    return()=>{cancelled=true;};
   },[load,loadHydrants]);
   useEffect(()=>{
     const syncFocusedPreplan=(fromHistory=false)=>{
@@ -333,9 +344,9 @@ export default function FieldPreplans() {
   function focusPlan(plan:Preplan,nextMode:"view"|"edit") {const view=detailedPreplanMapView(plan.footprint,{lat:plan.latitude,lng:plan.longitude});setMapExpanded(false);setSelectedImport("");setSelected(plan.id);setDraft(formFromPlan(plan));setFootprintAccepted(true);setCenter(view.center);setZoom(view.zoom);setTab("quick");setQuickStep(1);setDetailsStep("overview");setHydrantDraft(null);setMode("");setOperationalOverlay(null);setOperationalMapDraft(null);setSelectedOperationalSpaceId("");setRecordMode(nextMode);setFocusedPreplan(true);openPreplanUrl(plan.id,false,nextMode==="edit");window.scrollTo({top:0,behavior:"smooth"});}
   function view(plan:Preplan){focusPlan(plan,"view");}
   function edit(plan:Preplan){focusPlan(plan,"edit");}
-  function beginNewPreplan(){const next=empty(center);setSelectedImport("");setDraft(next);setFootprintAccepted(false);setHydrantDraft(null);setSelected("");setTab("quick");setQuickStep(1);setDetailsStep("overview");setMode("footprint");setRecordMode("edit");setFocusedPreplan(true);openPreplanUrl("new",false,true);window.scrollTo({top:0,behavior:"smooth"});}
+  function beginNewPreplan(){const view=preplanLocationView(locationState==="current"?center:null,zoom),next=empty(view.center);setCenter(view.center);setZoom(view.zoom);setLocationState(view.located?"current":"fallback");setSelectedImport("");setDraft(next);setFootprintAccepted(false);setHydrantDraft(null);setSelected("");setTab("quick");setQuickStep(1);setDetailsStep("overview");setMode("footprint");setRecordMode("edit");setFocusedPreplan(true);openPreplanUrl("new",false,true);window.scrollTo({top:0,behavior:"smooth"});}
   function closePreplan(){const url=new URL(window.location.href);url.searchParams.delete("preplan");url.searchParams.delete("edit");window.history.pushState({},"",`${url.pathname}${url.search}${url.hash}`);setFocusedPreplan(false);setSelected("");setSelectedImport("");setDraft(null);setMode("");setOperationalOverlay(null);setOperationalMapDraft(null);setSelectedOperationalSpaceId("");setRecordMode("view");window.scrollTo({top:0,behavior:"smooth"});}
-  function startImportedBuilding(item:ImportedBuilding){if(item.linkedPreplanId){const plan=plans.find((record)=>record.id===item.linkedPreplanId);if(plan)edit(plan);return;}const resolved=item.latitude!=null&&item.longitude!=null?{lat:item.latitude,lng:item.longitude}:center;const next=empty(resolved);setCenter(resolved);setSelectedImport(item.id);setSelected("");setHydrantDraft(null);setDraft({...next,...addressParts(item.address),businessName:item.businessName,address:item.address,status:item.latitude!=null?"Imported · Footprint Required":"Imported · Location Required"});setFootprintAccepted(false);setTab("quick");setQuickStep(1);setDetailsStep("overview");setMode("footprint");setRecordMode("edit");setFocusedPreplan(true);openPreplanUrl("new",false,true);setMessage(item.latitude!=null?"Address located. Verify the map position, place the building corners, and accept the footprint.":"Address needs manual placement. Move the map to the building, place its corners, and accept the footprint.");window.scrollTo({top:0,behavior:"smooth"});}
+  function startImportedBuilding(item:ImportedBuilding){if(item.linkedPreplanId){const plan=plans.find((record)=>record.id===item.linkedPreplanId);if(plan)edit(plan);return;}const view=preplanLocationView({lat:item.latitude,lng:item.longitude});const next=empty(view.center);setCenter(view.center);setZoom(view.zoom);setLocationState(view.located?"record":"fallback");setSelectedImport(item.id);setSelected("");setHydrantDraft(null);setDraft({...next,...addressParts(item.address),businessName:item.businessName,address:item.address,status:view.located?"Imported · Footprint Required":"Imported · Location Required"});setFootprintAccepted(false);setTab("quick");setQuickStep(1);setDetailsStep("overview");setMode("footprint");setRecordMode("edit");setFocusedPreplan(true);openPreplanUrl("new",false,true);setMessage(view.located?"Address located. Verify the map position, place the building corners, and accept the footprint.":"Location not found. Showing a wider view of Stickney, Illinois. Zoom in to the building, place its corners, and accept the footprint.");window.scrollTo({top:0,behavior:"smooth"});}
   async function batchGeocode(){
     setBusy(true);setGeocodeProgress("Starting address lookup…");setMessage("");
     try{
@@ -353,7 +364,16 @@ export default function FieldPreplans() {
     }catch(error){setMessage(error instanceof Error?error.message:"Unable to locate imported addresses.");}
     finally{setBusy(false);}
   }
-  function locate(){if(!navigator.geolocation){setLocationState("fallback");setMessage("This device does not provide location access. Showing Stickney instead.");return;}setLocationState("locating");navigator.geolocation.getCurrentPosition((position)=>{const point={lat:position.coords.latitude,lng:position.coords.longitude};setCenter(point);setZoom(17);setLocationState("current");setMessage("Map centered on this device's current location.");if(draft)setDraft({...draft,latitude:point.lat,longitude:point.lng});},()=>{setCenter(stickney);setZoom(17);setLocationState("fallback");setMessage("Location permission is unavailable. Showing Stickney instead.");},{enableHighAccuracy:true,timeout:12000,maximumAge:60000});}
+  function locate(){
+    const fallback=()=>{const view=preplanLocationView();setCenter(view.center);setZoom(view.zoom);setLocationState("fallback");setMessage("Location unavailable. Showing a wider view of Stickney, Illinois. Your preplan details and drawn footprint have not changed.");};
+    if(!navigator.geolocation){fallback();return;}
+    setLocationState("locating");
+    navigator.geolocation.getCurrentPosition((position)=>{
+      const view=preplanLocationView({lat:position.coords.latitude,lng:position.coords.longitude},17);
+      if(!view.located){fallback();return;}
+      setCenter(view.center);setZoom(view.zoom);setLocationState("current");setMessage("Map centered on this device's current location.");if(draft)setDraft({...draft,latitude:view.center.lat,longitude:view.center.lng});
+    },fallback,{enableHighAccuracy:true,timeout:12000,maximumAge:60000});
+  }
   const locationLabel=locationState==="locating"?"Locating…":locationState==="current"?"At current location":locationState==="fallback"?"Use current location":"Current location";
   function clickMap(point:Point){
     if(!draft)return;
