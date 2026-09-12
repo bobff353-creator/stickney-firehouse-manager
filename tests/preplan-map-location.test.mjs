@@ -29,6 +29,14 @@ test('saved footprint fitting is unchanged', () => {
   assert.ok(Math.abs(view.center.lat-41.81908)<1e-7);
 });
 
+test('overview map and record list have bounded, independently scrolling viewports', async () => {
+  const styles = await readFile(new URL('../app/portal-usability.css',import.meta.url),'utf8');
+  assert.match(styles,/\.field-map-workspace:not\(\.expanded\) \.field-map-layout\s*\{[^}]*height: var\(--overview-map-height\);[^}]*min-height: 0;[^}]*grid-template-rows: minmax\(0, 1fr\)/);
+  assert.match(styles,/\.field-map-workspace \.field-map-layout > aside\s*\{[^}]*max-height: 100%;[^}]*overflow: auto;/);
+  assert.match(styles,/grid-template-rows: var\(--overview-map-height\) 280px;/);
+  assert.match(styles,/@media \(max-height: 500px\) and \(min-width: 600px\)\s*\{\s*\.field-map-workspace\.expanded \.field-map-layout\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(220px, 35%\);/);
+});
+
 test('new and imported preplans and device failures use the shared fallback without saving', async () => {
   const source=await readFile(new URL('../app/field-preplans.tsx',import.meta.url),'utf8');
   assert.match(source,/useState\(stickneyMapOverview.zoom\)/);

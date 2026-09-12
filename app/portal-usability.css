@@ -42,6 +42,46 @@
 .preplan-focus-map-panel { grid-column: 1; scroll-margin-top: 80px; }
 .preplan-focus-map-panel > .field-map-toolbar small { white-space: normal; }
 .preplan-focus-map-panel > .field-map-toolbar button { min-height: 44px; }
+
+/* Keep the geographic center in a bounded viewport. The record list must not
+   size the grid row: a full department can otherwise make the map miles tall. */
+.field-map-workspace:not(.expanded) .field-map-layout {
+  --overview-map-height: clamp(360px, 65dvh, 680px);
+  height: var(--overview-map-height);
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+}
+.field-map-workspace .field-map-layout > .field-map,
+.field-map-workspace .field-map-layout > aside {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+.field-map-workspace .field-map-layout > aside {
+  max-height: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scroll-padding-top: 64px;
+}
+@media (max-width: 1050px) {
+  .field-map-workspace:not(.expanded) .field-map-layout {
+    height: auto;
+    grid-template-rows: var(--overview-map-height) 280px;
+  }
+}
+@media (max-width: 700px) {
+  .field-map-workspace:not(.expanded) .field-map-layout {
+    --overview-map-height: clamp(320px, 52dvh, 480px);
+  }
+}
+/* In a short landscape viewport, stacking the map and list hides the lower
+   pane. Keep them side by side while retaining the expanded close control. */
+@media (max-height: 500px) and (min-width: 600px) {
+  .field-map-workspace.expanded .field-map-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 35%);
+    grid-template-rows: minmax(0, 1fr);
+  }
+}
 .preplan-map-zoom { display: flex; flex-shrink: 0; align-items: center; gap: 6px; margin-left: auto; white-space: nowrap; }
 /* Keep section navigation in the form flow instead of floating over its fields. */
 .preplan-builder-focused > .preplan-editor > header { position: static; z-index: auto; }

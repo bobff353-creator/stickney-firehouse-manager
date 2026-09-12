@@ -96,6 +96,18 @@ if (params.has("preplan-capture")) {
   payloads["/api/field-hydrants"] = { canEdit: true, hydrants: [{ id: "fixture-hydrant", hydrantNumber: "PREVIEW ONLY", address: "Fictional water supply", latitude: 41.8189, longitude: -87.7734, serviceStatus: "in_service", manufacturer: "", model: "", portCount: 2, portSizes: [], notes: "Not operational", flushes: [], flowTests: [] }] };
   if(params.has('preplan-location-audit'))(payloads['/api/field-preplans'] as {imports:object[]}).imports.push({id:'fixture-located',businessName:'Fictional located building',address:'Preview located address, Stickney, Illinois 60402',sourceFile:'Preview only',sourceRow:2,status:'geocoded',latitude:41.825,longitude:-87.78,geocodeNote:'Fictional coordinates',linkedPreplanId:null});
 }
+if (params.has("preplan-large-directory")) {
+  // Reproduce the full department's layout load without copying any real data.
+  const count = Math.max(0, Math.min(500, Number(params.get("records") ?? 218)));
+  payloads["/api/field-hydrants"] = { canEdit: true, hydrants: Array.from({length:count}, (_,index) => ({
+    id: `fixture-water-${index + 1}`, hydrantNumber: `PREVIEW ${String(index + 1).padStart(3, "0")}`,
+    address: `Fictional water supply ${index + 1} — not an operational location`,
+    latitude: 41.8189 + (index % 10 - 4.5) * .0002,
+    longitude: -87.7734 + (Math.floor(index / 10) - 10.5) * .0002,
+    serviceStatus: "in_service", manufacturer: "", model: "", portCount: 2,
+    portSizes: [], notes: "Preview only", flushes: [], flowTests: [],
+  })) };
+}
 if (params.has("active-command")) {
   const state = emptyIncidentCommandState();
   state.units["PREVIEW ENGINE"] = { assignment: "Staging", status: "Staged", floor: "Level unknown", side: "", crewStrength: 4 };
