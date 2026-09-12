@@ -113,9 +113,37 @@ if (params.has("active-command")) {
   state.units["PREVIEW ENGINE"] = { assignment: "Staging", status: "Staged", floor: "Level unknown", side: "", crewStrength: 4 };
   payloads["/api/incident-command"] = { ...(payloads["/api/incident-command"] as object), state, cadUnits: ["PREVIEW ENGINE"], incident: { incidentId: "fictional-incident", reportNumber: "PREVIEW ONLY", callType: "Fictional training fixture", address: "Not a real incident", city: "Preview", dispatchedAt: now, receivedAt: now, source: "Fictional audit" } };
 }
+// Fictional, browser-local preplan for save/reload/failure and responsive audits.
+const previewPhoto='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="650"><rect width="1000" height="650" fill="#c9e4ef"/><rect y="460" width="1000" height="190" fill="#6d8a69"/><rect x="160" y="180" width="680" height="320" fill="#c0a28a"/><path d="M120 180L500 55L880 180Z" fill="#586575"/><rect x="460" y="320" width="100" height="180" fill="#30465b"/><rect x="240" y="260" width="120" height="100" fill="#9dc8dc"/><rect x="640" y="260" width="120" height="100" fill="#9dc8dc"/><text x="500" y="610" text-anchor="middle" fill="#fff" font-size="30">FICTIONAL PREVIEW - NOT OPERATIONAL</text></svg>');
+const previewPlan={id:'fixture-preplan',businessName:'Fictional Training Building',address:'Preview address, Stickney, Illinois 60402',latitude:41.8189,longitude:-87.7734,aSideLatitude:null,aSideLongitude:null,footprint:[{lat:41.8188,lng:-87.7735},{lat:41.819,lng:-87.7735},{lat:41.819,lng:-87.7732},{lat:41.8188,lng:-87.7732}],contactInfo:'',construction:'Fictional construction notes',accessInfo:'Fictional access notes',alarmSystem:'Monitored alarm',knoxBox:'Exterior Knox Box',riser:'Wet',fdc:'Siamese / two-way',sprinklerSystem:'Wet',floorCount:1,footprintSquareFeet:9000,fireFlowCalculationArea:9000,constructionType:'III',occupancyFlowCategory:'other',sprinklerStandard:'nfpa13',suggestedFireFlowGpm:1500,suggestedFireFlowDuration:2,status:'Quick Preplan',updatedAt:now,updatedBy:'Preview only',features:[],photos:['A','B','C','D'].map(side=>({id:`fixture-photo-${side}`,side,filename:'fictional.svg',caption:`Fictional ${side} side`,url:previewPhoto,illustrations:[],illustrationVersion:0}))};
+let preplanFixture=previewPlan;
+if(params.has('preplan-workflow')){
+  try{preplanFixture=JSON.parse(sessionStorage.getItem('preplan-workflow-fixture')||'null')||previewPlan;}catch{/* Fresh fixture. */}
+  payloads['/api/field-preplans']={preplans:[preplanFixture],imports:[],canEdit:isAdmin,canManageAttachments:isAdmin&&!params.has('no-photo-edit'),canDelete:isAdmin};
+  payloads['/api/field-preplans/operational']={plan:{id:preplanFixture.id,publicationStatus:'published',businessName:preplanFixture.businessName,constructionProfile:{},occupancyProfile:{}},levels:[],spaces:[],alerts:[],hazmat:[],zones:[],annotations:[],assets:[],hoseLays:[],hydrants:[],apparatus:[],risks:[],reviews:[],revisions:[],permissions:Object.fromEntries(defaultPermissionsForRank('Chief',isAdmin).map(key=>[key,true]))};
+}
+const savePreplanFixture=()=>{sessionStorage.setItem('preplan-workflow-fixture',JSON.stringify(preplanFixture));(payloads['/api/field-preplans'] as {preplans:typeof previewPlan[]}).preplans=[preplanFixture];};
+Object.assign(window,{preplanAudit:{reset(){sessionStorage.removeItem('preplan-workflow-fixture');},conflict(){preplanFixture.photos[0].illustrationVersion++;savePreplanFixture();},plan:()=>preplanFixture}});
 window.fetch = async (input, init) => {
   const url = new URL(String(input), location.origin);
   const method = init?.method ?? "GET";
+  if(params.has('preplan-workflow')&&method==='GET'&&url.pathname.endsWith('/illustrations')){
+    const photo=preplanFixture.photos.find(photo=>url.pathname.includes(`/${photo.id}/`));
+    return photo?Response.json({id:photo.id,caption:photo.caption,illustrations:photo.illustrations,illustrationVersion:photo.illustrationVersion}):Response.json({error:'Not found'},{status:404});
+  }
+  if(params.has('preplan-workflow')&&method==='PATCH'&&url.pathname.endsWith('/illustrations')){
+    writes++;if(failWrite){failWrite=false;return Response.json({error:'Simulated failed save. Your edits remain here.'},{status:503});}
+    const body=JSON.parse(String(init?.body)),photo=preplanFixture.photos.find(photo=>url.pathname.includes(`/${photo.id}/`));
+    if(!photo)return Response.json({error:'Photo not found'},{status:404});
+    if(photo.illustrationVersion!==body.version)return Response.json({error:'This photo was changed on another screen. Close and reopen it.'},{status:409});
+    Object.assign(photo,{illustrations:body.illustrations,caption:body.caption,illustrationVersion:photo.illustrationVersion+1});savePreplanFixture();
+    return Response.json({ok:true,version:photo.illustrationVersion,illustrations:photo.illustrations,caption:photo.caption});
+  }
+  if(params.has('preplan-workflow')&&method==='POST'&&url.pathname==='/api/field-preplans'){
+    writes++;if(failWrite){failWrite=false;return Response.json({error:'Simulated failed building save. Your edits remain.'},{status:503});}
+    const body=JSON.parse(String(init?.body));if(body.action==='savePreplan'){preplanFixture={...preplanFixture,...body,id:body.id||'fixture-created',latitude:body.location.lat,longitude:body.location.lng,updatedAt:new Date().toISOString()};savePreplanFixture();return Response.json({id:preplanFixture.id});}
+    return Response.json({error:'Unsupported fixture action'},{status:409});
+  }
   if(url.pathname==='/api/required-confirmation') {
     if(method==='GET')return Response.json(confirmationMessage);
     writes++;if(failWrite){failWrite=false;return Response.json({error:'Simulated failed save. Confirmation was not saved.'},{status:503});}

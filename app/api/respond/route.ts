@@ -1,4 +1,5 @@
 import { ensureDatabase } from "../../../db/bootstrap";
+import { readIllustrations } from "../../preplans/photo-illustrations";
 import { createHash } from "node:crypto";
 import { chicagoOperationalContext } from "../../operational-day";
 import {
@@ -282,7 +283,7 @@ export async function GET(request: Request) {
           .all<Row>(),
         db
           .prepare(
-            "SELECT id,feature_id featureId,side,filename,caption,created_at createdAt FROM field_preplan_photos WHERE preplan_id=? ORDER BY created_at DESC",
+            "SELECT id,feature_id featureId,side,filename,caption,illustrations,illustration_version illustrationVersion,created_at createdAt FROM field_preplan_photos WHERE preplan_id=? ORDER BY created_at DESC",
           )
           .bind(String(matched.plan.id))
           .all<Row>(),
@@ -296,6 +297,7 @@ export async function GET(request: Request) {
         features: features.results,
         photos: photos.results.map((photo) => ({
           ...photo,
+          illustrations:readIllustrations(photo.illustrations),
           url: `/api/field-preplans/photos/${photo.id}`,
         })),
       };

@@ -134,7 +134,7 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(page, /footprintAccepted/);
   assert.match(page, /polygonAreaSquareFeet/);
   assert.match(page, /Suggested fire flow/);
-  assert.match(page, /private A-side \/ fallback GPS point/);
+  assert.match(page, /Mark A-side entry for directions/);
   assert.match(page, /zoom\s*>=\s*17/);
   assert.match(page, /const selectedPlan=selected\?plans\.find/);
   assert.match(page, /const visibleFeatures=zoom>=18\?\(selectedPlan\?\.features\?\?\[\]\):\[\]/);
@@ -158,7 +158,7 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(page, /PreplanRecordView/);
   assert.match(page, /VIEW PREPLAN/);
   assert.match(page, /Edit Preplan/);
-  assert.match(page, /4\. Operational Intelligence/);
+  assert.match(page, /Advanced details & review/);
   assert.match(page, /tab==="operational"&&current&&<div className="preplan-operational-edit"><OperationalPreplanPanel/);
   const recordView = page.slice(page.indexOf("function PreplanRecordView"), page.indexOf("function FieldMap"));
   assert.doesNotMatch(recordView, /OperationalPreplanPanel/);
@@ -171,7 +171,7 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(page, /url\.searchParams\.set\("edit","1"\)/);
   assert.match(page, /View preplan/);
   assert.match(page, /url\.searchParams\.set\("preplan",id\)/);
-  assert.match(page, /setTab\("details"\)/);
+  assert.match(page, /switchSection\(continueTo\)/);
   assert.match(page, /window\.addEventListener\("popstate"/);
   assert.match(styles, /\.preplan-builder-focused/);
   assert.match(styles, /\.preplan-builder-focused>\*\{min-width:0\}/);
@@ -181,8 +181,8 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(styles, /\.preplan-focus-map-panel>\.field-map-toolbar\{flex-wrap:wrap\}/);
   assert.match(styles, /\.preplan-record-view/);
   assert.match(styles, /\.preplan-record-feature-actions/);
-  assert.match(page, /Map & Search/);
-  assert.match(page, /Build Queue/);
+  assert.match(page, /Find & open a record/);
+  assert.match(page, /Finish imported addresses/);
   assert.match(page, /preplan-step-tabs/);
   assert.doesNotMatch(layout, /preplan-route\.js/);
   assert.doesNotMatch(page, /preplan-step-selector/);

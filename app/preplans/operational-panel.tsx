@@ -61,13 +61,14 @@ function previewPathPoints(value:unknown):{x:number;y:number}[]{
   return points.filter((point):point is {x:number;y:number}=>"x" in point);
 }
 
-export default function OperationalPreplanPanel({preplanId,canEdit=false,mapDraft,selectedSpaceId="",onMapOverlayChange,onMapDrawingStart,onMapDrawingChange,onMapFocus,onSpaceSelect}:{preplanId:string;canEdit?:boolean;mapDraft?:OperationalMapDraft;selectedSpaceId?:string;onMapOverlayChange?:(overlay:OperationalMapOverlay)=>void;onMapDrawingStart?:(kind:"space"|"hoseLay",levelId:string)=>void;onMapDrawingChange?:(draft:OperationalMapDraft)=>void;onMapFocus?:()=>void;onSpaceSelect?:(id:string)=>void}){
+export default function OperationalPreplanPanel({preplanId,canEdit=false,mapDraft,selectedSpaceId="",onMapOverlayChange,onMapDrawingStart,onMapDrawingChange,onMapFocus,onSpaceSelect,onDirtyChange}:{preplanId:string;canEdit?:boolean;mapDraft?:OperationalMapDraft;selectedSpaceId?:string;onMapOverlayChange?:(overlay:OperationalMapOverlay)=>void;onMapDrawingStart?:(kind:"space"|"hoseLay",levelId:string)=>void;onMapDrawingChange?:(draft:OperationalMapDraft)=>void;onMapFocus?:()=>void;onSpaceSelect?:(id:string)=>void;onDirtyChange?:(dirty:boolean)=>void}){
   const [data,setData]=useState<OperationalPayload>(empty);
   const [source,setSource]=useState<"loading"|"live"|"offline"|"unavailable">("loading");
   const [cachedAt,setCachedAt]=useState("");
   const [selectedLevel,setSelectedLevel]=useState("");
   const [reloadKey,setReloadKey]=useState(0),[editor,setEditor]=useState<""|EditorKey>(""),[saving,setSaving]=useState(false),[saveError,setSaveError]=useState("");
   const [workflowStep,setWorkflowStep]=useState<WorkflowStep>("building");
+  useEffect(()=>{onDirtyChange?.(Boolean(editor));return()=>onDirtyChange?.(false);},[editor,onDirtyChange]);
   const workflowInitialized=useRef(false);
   const guidedStepRef=useRef<HTMLElement>(null);
   const editorWorkspaceRef=useRef<HTMLFormElement>(null);

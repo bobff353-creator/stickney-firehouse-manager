@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import { createHash } from 'node:crypto';
+import { readIllustrations } from '../app/preplans/photo-illustrations.ts';
 
 test('unchanged Respond polls skip catalogs while rechecking access and live calls', async () => {
   let now = 60_000, allowed = true, checks = 0;
@@ -25,6 +26,7 @@ test('unchanged Respond polls skip catalogs while rechecking access and live cal
     '../../respond-device': {normalizeApparatusUnit:value=>value||'',respondingUnitsIncludeUnit:()=>true},
     '../../respond-match': {normalizeResponseAddress:value=>value,rankPreplanMatch:()=>null,distanceFeet:()=>0,suggestedStickneyBoxCard:()=>null},
     '../../preplans/domain': {}, '../../preplans/profiles': {},
+    '../../preplans/photo-illustrations': {readIllustrations},
   };
   class Clock extends Date { static now(){return now;} }
   vm.runInNewContext(compiled, {exports:compiledModule.exports,module:compiledModule,require:name=>{assert.ok(name in mocks,name);return mocks[name];},Response,URL,Date:Clock,console,Error});

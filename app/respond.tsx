@@ -10,6 +10,8 @@ import {
   useState,
 } from "react";
 import { formatRespondMilitaryTime, formatRespondTime } from "./respond-time";
+import { IllustratedPhotoView } from "./preplans/photo-illustration-editor";
+import type { PhotoIllustration } from "./preplans/photo-illustrations";
 import {
   cacheRespondPacket,
   clearCachedRespondPackets,
@@ -54,6 +56,7 @@ type Feature = {
 };
 type Photo = {
   id: string;
+  illustrations?: PhotoIllustration[];
   side: string;
   featureId?: string;
   caption: string;
@@ -2016,8 +2019,8 @@ export default function Respond({
           </header>
           <div className="respond-primary-media">
             {alpha ? (
-              <img
-                src={alpha.url}
+              <IllustratedPhotoView
+                photo={alpha}
                 alt={
                   alpha.caption ||
                   `Alpha side of ${plan?.businessName || call.address}`
@@ -2131,8 +2134,8 @@ export default function Respond({
             {(view === "B" || view === "C" || view === "D") &&
               (selectedSide ? (
                 <div className="respond-side-photo">
-                  <img
-                    src={selectedSide.url}
+                  <IllustratedPhotoView
+                    photo={selectedSide}
                     alt={selectedSide.caption || `${view} side`}
                   />
                   <strong>{selectedSide.caption || `${view} Side`}</strong>

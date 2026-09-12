@@ -2,6 +2,7 @@ import { permissionsForEmail } from "../../server-permissions";
 import { ensureDatabase } from "../../../db/bootstrap";
 import { getPortalStorage } from "../../portal-storage";
 import { canReadPreplanLifecycle, preplanReadAccess } from "../../server-permissions";
+import { readIllustrations } from "../../preplans/photo-illustrations";
 import { polygonAreaSquareFeet, suggestedFireFlow, type ConstructionGroup, type OccupancyFlowCategory, type SprinklerStandard } from "../../preplan-fire-flow";
 
 type Point = { lat:number; lng:number };
@@ -15,7 +16,7 @@ type Bucket = { delete(key:string):Promise<void> };
 async function access(request: Request, db: Db) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
   const permissions = await permissionsForEmail(email, db);
-  return { allowed: permissions.has("field_preplans.view"), canEdit: permissions.has("field_preplans.edit"), canDelete: permissions.has("field_preplans.delete"), actor: email };
+  return { allowed: permissions.has("field_preplans.view"), canEdit: permissions.has("field_preplans.edit"), canManageAttachments:permissions.has("field_preplans.manage_attachments"), canDelete: permissions.has("field_preplans.delete"), actor: email };
 }
 
 function text(value:unknown, limit=2000) { return String(value ?? "").trim().slice(0, limit); }
@@ -46,7 +47,7 @@ export async function GET(request:Request) {
     const [plans, features, photos, imports] = await Promise.all([
       db.prepare("SELECT id,business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,COALESCE(footprint_square_feet,0) footprintSquareFeet,COALESCE(floor_count,1) floorCount,COALESCE(fire_flow_calculation_area,0) fireFlowCalculationArea,COALESCE(construction_type,'VB') constructionType,COALESCE(occupancy_flow_category,'other') occupancyFlowCategory,COALESCE(sprinkler_standard,'none') sprinklerStandard,COALESCE(suggested_fire_flow_gpm,0) suggestedFireFlowGpm,COALESCE(suggested_fire_flow_duration,0) suggestedFireFlowDuration,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,status,COALESCE(publication_status,'published') publicationStatus,created_by createdBy,updated_by updatedBy,updated_at updatedAt FROM field_preplans ORDER BY updated_at DESC").all(),
       db.prepare("SELECT id,preplan_id preplanId,feature_type featureType,label,latitude,longitude,system_type systemType,service_status serviceStatus,details FROM field_preplan_features ORDER BY created_at").all(),
-      db.prepare("SELECT id,preplan_id preplanId,feature_id featureId,side,filename,caption,created_at createdAt FROM field_preplan_photos ORDER BY created_at DESC").all(),
+      db.prepare("SELECT id,preplan_id preplanId,feature_id featureId,side,filename,caption,illustrations,illustration_version illustrationVersion,created_at createdAt FROM field_preplan_photos ORDER BY created_at DESC").all(),
       db.prepare("SELECT id,business_name businessName,address,source_file sourceFile,source_row sourceRow,source_external_id sourceExternalId,source_payload sourcePayload,status,latitude,longitude,geocode_note geocodeNote,linked_preplan_id linkedPreplanId FROM field_preplan_imports ORDER BY business_name COLLATE NOCASE,address COLLATE NOCASE").all(),
     ]);
     const visiblePlans = plans.results.filter((plan) => canReadPreplanLifecycle(plan, readAccess));
@@ -54,7 +55,8 @@ export async function GET(request:Request) {
     return Response.json({
       canEdit:auth.canEdit,
       canDelete:auth.canDelete,
-      preplans:visiblePlans.map((plan) => ({ ...plan, footprint:JSON.parse(String((plan as {footprint?:string}).footprint || "[]")), features:features.results.filter((item) => visiblePlanIds.has(String((item as {preplanId:string}).preplanId)) && (item as {preplanId:string}).preplanId === (plan as {id:string}).id), photos:photos.results.filter((item) => visiblePlanIds.has(String((item as {preplanId:string}).preplanId)) && (item as {preplanId:string}).preplanId === (plan as {id:string}).id).map((photo) => ({ ...photo, url:`/api/field-preplans/photos/${(photo as {id:string}).id}` })) })),
+      canManageAttachments:auth.canManageAttachments,
+      preplans:visiblePlans.map((plan) => ({ ...plan, footprint:JSON.parse(String((plan as {footprint?:string}).footprint || "[]")), features:features.results.filter((item) => visiblePlanIds.has(String((item as {preplanId:string}).preplanId)) && (item as {preplanId:string}).preplanId === (plan as {id:string}).id), photos:photos.results.filter((item) => visiblePlanIds.has(String((item as {preplanId:string}).preplanId)) && (item as {preplanId:string}).preplanId === (plan as {id:string}).id).map((photo) => ({ ...photo, illustrations:readIllustrations((photo as {illustrations?:unknown}).illustrations), url:`/api/field-preplans/photos/${(photo as {id:string}).id}` })) })),
       imports:imports.results.map((item) => ({ ...item, sourcePayload:JSON.parse(String((item as {sourcePayload?:string}).sourcePayload || "{}")) })),
     });
   } catch (error) { return Response.json({ error:error instanceof Error ? error.message : "Unable to load preplans." }, { status:500 }); }
@@ -149,6 +151,7 @@ export async function POST(request:Request) {
       if (!preplanId || !featureTypes.has(featureType) || !location) return Response.json({ error:"Choose a valid preplan feature and map location." }, { status:400 });
       const plan = await db.prepare("SELECT id FROM field_preplans WHERE id=?").bind(preplanId).first();
       if (!plan) return Response.json({ error:"Preplan not found." }, { status:404 });
+      if(body.id&&!await db.prepare("SELECT id FROM field_preplan_features WHERE id=? AND preplan_id=?").bind(id,preplanId).first())return Response.json({error:'The equipment record does not belong to this preplan.'},{status:404});
       await db.prepare("INSERT INTO field_preplan_features(id,preplan_id,feature_type,label,latitude,longitude,system_type,service_status,details,created_by) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET feature_type=excluded.feature_type,label=excluded.label,latitude=excluded.latitude,longitude=excluded.longitude,system_type=excluded.system_type,service_status=excluded.service_status,details=excluded.details,updated_at=CURRENT_TIMESTAMP")
         .bind(id,preplanId,featureType,text(body.label,120),location.lat,location.lng,text(body.systemType,80),text(body.serviceStatus,40) || "in_service",text(body.details),auth.actor).run();
       return Response.json({ ok:true, id });
