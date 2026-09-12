@@ -67,3 +67,13 @@
   .scheduler .scheduler-inline-day .add-day-shift select { flex: 1 1 100%; }
   .scheduler .scheduler-task-choices button { padding: 16px; gap: 6px; }
 }
+.scheduler .scheduler-reminders { min-width: 0; }
+.scheduler .scheduler-reminder-rule { margin: 1rem 0; min-width: 0; padding: 1rem; }
+.scheduler .scheduler-reminder-rule legend { font-weight: 750; padding: 0 .4rem; font-size: 1.05rem; }
+.scheduler .scheduler-reminder-rule p { font-size: .95rem; line-height: 1.5; }
+.scheduler .scheduler-reminder-rule .chip { white-space: normal; min-height: 44px; font-size: .9rem; }
+.scheduler .scheduler-reminder-rule .chip button { min-width: 44px; min-height: 44px; }
+.scheduler .scheduler-reminder-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,220px),1fr)); gap: 1rem; }
+.scheduler .scheduler-reminder-fields label { display: grid; gap: .4rem; min-width: 0; }
+.scheduler .scheduler-reminder-fields input,.scheduler .scheduler-reminder-fields select { min-width: 0; width: 100%; box-sizing: border-box; font-size: 1rem; }
+@media(max-width:600px) { .scheduler .scheduler-reminder-rule .inline-form { display: grid; grid-template-columns: 1fr; } .scheduler .scheduler-reminder-rule .entry-head { align-items: stretch; flex-direction: column; } }

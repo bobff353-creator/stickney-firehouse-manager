@@ -14,7 +14,7 @@ export function memberShiftList<T extends { employeeId: string | null; status: s
 
 export function canRequestRole(role: string, viewer: { roles: string[]; rank: string; employeeId: string | null }) {
   // Mirrors submitClaim, including Officer/AO rank clearance. Do not infer new qualifications.
-  return Boolean(viewer.employeeId) && viewer.roles.includes(role);
+  return Boolean(viewer.employeeId) && (['Extra member','Firefighter','Training/Orientation'].includes(role) || viewer.roles.includes(role));
 }
 
 export function shiftHasNotStarted(date: string, start: string, now: Date) {

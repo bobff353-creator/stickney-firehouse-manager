@@ -1,6 +1,10 @@
 import { hasAnyPermission } from "../../server-permissions";
 import { hasPermission } from "../../server-permissions";
 import { staffingRoles } from "../../staffing-eligibility";
+import { validReminderTiming, reminderAudience } from "../../scheduler-reminders";
+import { scheduleSchedulerPushDelivery } from "../../scheduler-push-worker";
+import { webPushPublicConfig } from "../../cad-push";
+import { shiftHasNotStarted } from "../../scheduler-member-view";
 import { ensureDatabase } from "../../../db/bootstrap";
 import { normalizeScheduleTime } from "../../schedule-time";
 import {
@@ -199,7 +203,7 @@ export async function GET(request: Request) {
       db.prepare("SELECT r.id,r.employee_id employeeId,e.name employeeName,r.type,r.approver_employee_id approverEmployeeId,ap.name approverName,r.note,r.status,r.created_at createdAt FROM station_time_off_requests r JOIN employees e ON e.id=r.employee_id LEFT JOIN employees ap ON ap.id=r.approver_employee_id ORDER BY CASE r.status WHEN 'pending' THEN 0 ELSE 1 END,r.created_at DESC LIMIT 200").all(),
       db.prepare("SELECT request_id requestId,off_date offDate FROM station_time_off_dates").all(),
       db.prepare("SELECT a.id,a.employee_id employeeId,e.name employeeName,a.availability_date availabilityDate,a.status,a.all_day allDay,a.start_time startTime,a.end_time endTime,a.note,a.updated_at updatedAt FROM station_availability a JOIN employees e ON e.id=a.employee_id WHERE date(a.availability_date)>=date(?, '-45 day') ORDER BY a.availability_date,e.name COLLATE NOCASE").bind(today).all(),
-      db.prepare("SELECT id,type,label,offsets,email_enabled emailEnabled,text_enabled textEnabled,target,enabled FROM station_reminder_rules ORDER BY label").all(),
+      db.prepare("SELECT id,type,label,offsets,email_enabled emailEnabled,text_enabled textEnabled,push_enabled pushEnabled,target,enabled FROM station_reminder_rules ORDER BY label").all(),
       db.prepare("SELECT award_days_out awardDaysOut,complete_by_days_out completeByDaysOut FROM station_ot_timing WHERE id=1").first<{ awardDaysOut: number; completeByDaysOut: number }>(),
       db.prepare("SELECT seniority_weight seniorityWeight,hours_weight hoursWeight,custom_weight customWeight,custom_label customLabel FROM station_distribution_weights WHERE id=1").first(),
       db.prepare("SELECT id,slot_id slotId,employee_id employeeId,response,responded_at respondedAt FROM station_ot_interest").all(),
@@ -236,6 +240,8 @@ export async function GET(request: Request) {
     }
 
     return Response.json({
+      pushConfigured: current.isAdmin ? webPushPublicConfig().configured : undefined,
+      requestDeadlines: (await db.prepare("SELECT s.id,s.request_deadline deadline FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id WHERE s.request_deadline<>'' AND en.entry_date>=? AND t.active=1").bind(today).all()).results,
       viewer: current,
       today,
       roles: STATION_ROLES,
@@ -310,6 +316,7 @@ export async function POST(request: Request) {
       case "buildOtCallList": return await buildOtCallList(db, payload, requireAdmin);
       case "awardOtOffer": return await awardOtOffer(db, payload, requireAdmin);
       case "saveReminderRule": return await saveReminderRule(db, payload, requireAdmin);
+      case "saveRequestDeadline": return await saveRequestDeadline(db, payload, requireAdmin);
       // Employee (or admin acting for a member) actions:
       case "submitClaim": return await submitClaim(db, current, payload);
       case "submitTrade": return await submitTrade(db, current, payload);
@@ -324,13 +331,17 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     if (error instanceof AdminError) return Response.json({ error: "Administrator access is required." }, { status: 403 });
+    if (error instanceof Error && /SHIFT_REQUEST_(CLOSED|DUPLICATE)/.test(error.message)) return bad('This request is closed, changed, or already submitted. Refresh the schedule.',409);
     return Response.json({ error: error instanceof Error ? error.message : "Unable to save." }, { status: 500 });
   }
 }
 
 class AdminError extends Error {}
 type Viewer = Awaited<ReturnType<typeof viewer>>;
-const ok = (extra: Record<string, unknown> = {}) => Response.json({ ok: true, ...extra });
+const ok = (extra: Record<string, unknown> = {}) => {
+  scheduleSchedulerPushDelivery();
+  return Response.json({ ok: true, ...extra });
+};
 const bad = (message: string, status = 400) => Response.json({ error: message }, { status });
 
 async function saveShiftType(db: Db, current: Viewer, payload: Record<string, unknown>, requireAdmin: () => void) {
@@ -928,9 +939,25 @@ async function saveReminderRule(db: Db, payload: Record<string, unknown>, requir
   const id = String(payload.id ?? "");
   if (!id) return bad("Choose a reminder rule.");
   const offsets = [...new Set(Array.isArray(payload.offsets) ? payload.offsets.map(String).map((s) => s.trim()).filter(Boolean) : [])];
-  await db.prepare("UPDATE station_reminder_rules SET offsets=?,email_enabled=?,text_enabled=?,target=?,enabled=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
-    .bind(JSON.stringify(offsets), payload.emailEnabled ? 1 : 0, payload.textEnabled ? 1 : 0, String(payload.target ?? "").trim(), payload.enabled ? 1 : 0, id).run();
+  if (offsets.length > 12 || offsets.some(value => !validReminderTiming(value))) return bad("Use immediate, 1–168 hours before, or 1–60 days before. Choose up to 12 timings.");
+  if (payload.pushEnabled && payload.enabled && !offsets.length) return bad("Add at least one timing before enabling push reminders.");
+  const rule = await db.prepare("SELECT type FROM station_reminder_rules WHERE id=?").bind(id).first<{ type: string }>();
+  if (!rule) return bad("That reminder rule no longer exists.", 404);
+  await db.prepare("UPDATE station_reminder_rules SET offsets=?,push_enabled=?,target=?,enabled=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
+    .bind(JSON.stringify(offsets), payload.pushEnabled ? 1 : 0, reminderAudience(rule.type), payload.enabled ? 1 : 0, id).run();
   return ok();
+}
+
+async function saveRequestDeadline(db: Db, payload: Record<string, unknown>, requireAdmin: () => void) {
+  requireAdmin();
+  const id = String(payload.slotId ?? "");
+  const deadline = String(payload.deadline ?? "");
+  if (deadline && (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(deadline) || !Number.isFinite(Date.parse(deadline + "Z")) || new Date(deadline + "Z").toISOString().slice(0,16) !== deadline)) return bad("Enter a valid deadline in Central time.");
+  const slot = await db.prepare("SELECT en.entry_date entryDate,COALESCE(NULLIF(s.start_time,''),t.start_time) startTime FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id WHERE s.id=? AND s.status='open'").bind(id).first<{ entryDate: string; startTime: string }>();
+  if (!slot) return bad("Choose a position that is still open.", 409);
+  if (deadline && (!shiftHasNotStarted(deadline.slice(0,10), deadline.slice(11), new Date()) || deadline > `${slot.entryDate}T${slot.startTime}`)) return bad("The deadline must be in the future and no later than the shift start.");
+  await db.batch([db.prepare("UPDATE station_shift_slots SET request_deadline=? WHERE id=? AND status='open'").bind(deadline,id).expectChanges(1)]);
+  return ok({ note: deadline ? "Request deadline saved in Central time." : "Request deadline removed. Deadline reminders are off for this position." });
 }
 
 // --- Employee-facing actions ------------------------------------------------
@@ -982,11 +1009,13 @@ async function submitClaim(db: Db, current: Viewer, payload: Record<string, unkn
   if (!employeeId || !slotId) return bad("Choose an open shift.");
   const slot = await db.prepare("SELECT s.id,s.role,s.status,en.entry_date entryDate,COALESCE(NULLIF(s.start_time,''),t.start_time) startTime,COALESCE(NULLIF(s.end_time,''),t.end_time) endTime FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id WHERE s.id=?").bind(slotId).first<{ id: string; role: string; status: string; entryDate: string; startTime: string; endTime: string }>();
   if (!slot || slot.status !== "open") return bad("That shift is no longer open.", 409);
+  const deadline = await db.prepare("SELECT request_deadline deadline FROM station_shift_slots WHERE id=?").bind(slotId).first<{ deadline: string }>();
+  if (!shiftHasNotStarted(slot.entryDate,slot.startTime,new Date()) || (deadline?.deadline && !shiftHasNotStarted(deadline.deadline.slice(0,10),deadline.deadline.slice(11),new Date()))) return bad("The request deadline has passed or this shift has already started.",409);
   const conflict = await assignmentConflict(db, employeeId, slotId);
   if (conflict) return bad(conflict, 409);
   if (await isExplicitlyUnavailable(db, employeeId, slot.entryDate, slot.startTime, slot.endTime)) return bad("Your saved availability marks you unavailable for this shift.", 409);
   const emp = await db.prepare("SELECT p.label rank,COALESCE(ep.station_roles,'[]') roles,COALESCE(ep.driver_status,'') driverStatus,COALESCE(ep.single_role,0) singleRole,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1 AND COALESCE(TRIM(ep.end_date),'')=''").bind(employeeId).first<{ rank: string; roles: string; driverStatus: string; singleRole: number; actingOfficerEligible: number }>();
-  if (!emp || !eligibleForRole(slot.role, emp)) return bad("You are not eligible for this role.", 403);
+  if (!emp || (!isGeneralOneDayPosition(slot.role) && !eligibleForRole(slot.role, emp))) return bad("You are not eligible for this role.", 403);
   const existing = await db.prepare("SELECT id FROM station_shift_claims WHERE slot_id=? AND employee_id=? AND status='pending'").bind(slotId, employeeId).first();
   if (existing) return bad("You already requested this shift.", 409);
   await db.prepare("INSERT INTO station_shift_claims(id,slot_id,role,employee_id,note) VALUES(?,?,?,?,?)").bind(crypto.randomUUID(), slotId, slot.role, employeeId, String(payload.note ?? "").trim()).run();

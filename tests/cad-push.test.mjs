@@ -21,7 +21,7 @@ test("service worker displays pushes and opens Respond when tapped", async () =>
 
 test("push subscriptions require a verified same-origin member session", async () => {
   const source = await readFile(new URL("../app/api/push/subscriptions/route.ts", import.meta.url), "utf8");
-  assert.match(source, /verifyInventoryRequest/);
+  assert.match(source, /verifyPushRequest/);
   assert.match(source, /sameOriginInventoryRequest/);
   assert.match(source, /session\.context\.user\.id/);
   assert.match(source, /session\.context\.department\.id/);

@@ -9,11 +9,20 @@ function workerFixture(shared=new Map(), storageFails=false) {
  const caches={async open(name){if(storageFails)throw Error('Fixture storage blocked'); if(!shared.has(name))shared.set(name,new Map());const rows=shared.get(name);return{
    match:async key=>rows.get(key),put:async(key,value)=>{rows.set(key,value);},keys:async()=>Array.from(rows.keys()),delete:async key=>rows.delete(key),
  };},keys:async()=>Array.from(shared.keys()),delete:async key=>shared.delete(key)};
- let failDisplay=false;
- const context={caches,Response,URL,console,self:{location:{origin:'https://fixture.invalid'},registration:{async showNotification(title,options){if(failDisplay)throw Error('Fixture display failed');shown.push({title,options});}},addEventListener:(name,fn)=>handlers.set(name,fn),skipWaiting(){},clients:{claim:async()=>{}}}};
+ let failDisplay=false,routineWait=null;
+ const context={caches,Response,URL,console,self:{location:{origin:'https://fixture.invalid'},registration:{async showNotification(title,options){if(failDisplay)throw Error('Fixture display failed');if(options.data.kind==='scheduler'&&routineWait)await routineWait;shown.push({title,options});}},addEventListener:(name,fn)=>handlers.set(name,fn),skipWaiting(){},clients:{claim:async()=>{}}}};
  vm.runInNewContext(readFileSync(new URL('../public/sw.js',import.meta.url),'utf8'),context);
- return{shared,shown,setFail:value=>{failDisplay=value;},async push(eventId){let work;handlers.get('push')({data:{json:()=>({eventId,title:'LOCAL TEST',tag:'fixture-'+eventId})},waitUntil:p=>{work=p;}});return work;},async activate(){let work;handlers.get('activate')({waitUntil:p=>{work=p;}});return work;}};
+ return{shared,shown,setRoutineWait:value=>{routineWait=value;},setFail:value=>{failDisplay=value;},async push(eventId,kind='cad'){let work;handlers.get('push')({data:{json:()=>({eventId,kind,title:'LOCAL TEST',tag:'fixture-'+eventId})},waitUntil:p=>{work=p;}});return work;},async activate(){let work;handlers.get('activate')({waitUntil:p=>{work=p;}});return work;}};
 }
+
+test('a stalled scheduling notification cannot delay CAD; receipts and duplicate queues are separate',async()=>{
+ const f=workerFixture(),id='00000000-0000-4000-8000-000000000001';let release;
+ f.setRoutineWait(new Promise(resolve=>{release=resolve;}));const routine=f.push(id,'scheduler');
+ await f.push(id);assert.equal(f.shown.length,1);assert.equal(f.shown[0].options.data.kind,'cad');
+ release();await routine;await f.push(id,'scheduler');assert.equal(f.shown.length,2);
+ assert.equal(f.shared.get('stickney-cad-receipts-v1').size,1);assert.equal(f.shared.get('stickney-scheduler-receipts-v1').size,1);
+ await f.activate();assert.equal(f.shared.get('stickney-scheduler-receipts-v1').size,1);
+});
 test('device receipt suppresses overlapping and restarted-worker duplicate delivery',async()=>{
  const f=workerFixture(),id='00000000-0000-4000-8000-000000000001';
  await Promise.all([f.push(id),f.push(id),f.push(id)]);assert.equal(f.shown.length,1);assert.equal(f.shown[0].options.renotify,false);

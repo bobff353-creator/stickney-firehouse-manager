@@ -1,0 +1,17 @@
+.required-confirmation-card,.required-confirmation-admin {box-sizing:border-box;width:100%;max-width:780px;margin:1rem auto;padding:clamp(1rem,3vw,2rem);border:1px solid #a9bdcb;border-radius:12px;background:#f6fafc;color:#12354b;overflow-wrap:anywhere;}
+.required-confirmation-card h1 {font-size:clamp(1.5rem,5vw,2rem);line-height:1.2;}
+.required-confirmation-card p,.required-confirmation-admin p {font-size:1rem;line-height:1.5;}
+.required-confirmation-message {white-space:pre-wrap;font-size:1.05rem;line-height:1.6;margin:1.25rem 0;}
+.required-confirmation-card button,.required-confirmation-admin button {min-height:44px;max-width:100%;white-space:normal;font-size:1rem;}
+.required-confirmation-admin fieldset {border:0;padding:0;min-width:0;display:grid;gap:1rem;}
+.required-confirmation-admin label {display:grid;gap:.5rem;font-size:1rem;}
+.required-confirmation-admin input:not([type=checkbox]),.required-confirmation-admin textarea {width:100%;min-width:0;box-sizing:border-box;font-size:1rem;padding:.75rem;background:#fff;color:#12354b;}
+.required-confirmation-admin .required-confirmation-toggle {display:flex;align-items:flex-start;gap:.7rem;}
+.required-confirmation-toggle input {width:20px;height:20px;flex-shrink:0;}
+.required-confirmation-actions {display:flex;gap:1rem;flex-wrap:wrap;justify-content:center;margin:1rem;}
+.scheduler .required-confirmation-admin {--sched-text:#12354b;--sched-muted:#435e72;}
+.scheduler .required-confirmation-admin label:not(.chip) {color:#12354b;font-size:1rem;}
+.scheduler .required-confirmation-admin input:not([type=checkbox]):not([type=radio]),.scheduler .required-confirmation-admin textarea {background:#fff;color:#12354b;font-size:1rem;}
+.scheduler .required-confirmation-admin button.link {color:#12354b;min-height:44px;font-size:1rem;}
+.scheduler .required-confirmation-admin .required-confirmation-toggle {display:flex;}
+.scheduler .required-confirmation-admin button {font-size:1rem;min-height:44px;}

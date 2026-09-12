@@ -40,10 +40,10 @@ function fixture({admin=0,overrides={},linked=true,duplicate=false}={}) {
     return statements.map(()=>({success:true,meta:{changes:1}}));
   }};
   const bootstrap={ensureDatabase:async()=>db};
-  const deps={'../../../db/bootstrap':bootstrap,'../../permissions':catalog,'../../server-permissions':shared};
+  const deps={'../../../db/bootstrap':bootstrap,'../../permissions':catalog,'../../server-permissions':shared,'../../required-confirmation-policy':load('app/required-confirmation-policy.ts')};
   const api=load('app/api/permissions/route.ts',deps);
   const payroll=load('app/api/payroll/route.ts',{...deps,'../../employee-names':load('app/employee-names.ts'),'../../payroll-rounding':{},'../../payroll-calculation':{}},'\nexport {getViewer as testViewer};');
-  const scheduler=load('app/api/station-scheduler/route.ts',{...deps,'../../staffing-eligibility':{staffingRoles:()=>[]},'../../schedule-time':{},'../../station-scheduler-logic':{}},'\nexport {viewer as testViewer};');
+  const scheduler=load('app/api/station-scheduler/route.ts',{...deps,'../../staffing-eligibility':{staffingRoles:()=>[]},'../../schedule-time':{},'../../station-scheduler-logic':{},'../../scheduler-reminders':{},'../../scheduler-push-worker':{},'../../cad-push':{},'../../scheduler-member-view':{}},'\nexport {viewer as testViewer};');
   const hydrants=load('app/api/field-hydrants/route.ts',{...deps,'../../hydrant-flow':{}},'\nexport {access as testAccess};');
   const command=load('app/api/command-center/route.ts',{...deps,'../../command-center-analytics':{buildPayrollDetails:()=>[],buildStaffingDetails:()=>[]}});
   const request=(method='GET',body)=>new Request('https://portal.test/api/permissions',{method,headers:{'oai-authenticated-user-email':employee.email,'content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});

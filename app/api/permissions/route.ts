@@ -1,4 +1,5 @@
 import { ensureDatabase } from "../../../db/bootstrap";
+import { parseConfirmationStatus } from '../../required-confirmation-policy';
 import { isIndividualOnlyPermission, permissionCatalog, resolveEmployeePermissions } from "../../permissions";
 import { hasPermission, isPermissionKey, ownerAdminEmails, permissionsForEmail } from "../../server-permissions";
 
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
     const viewer = { canManagePayroll: viewerPermissions.includes("payroll.manage"), canManageEmployees: viewerPermissions.includes("employees.manage"), canManagePermissions: canManage, isOwner };
     if (!canManage || new URL(request.url).searchParams.get("scope") === "viewer") {
       if (before !== await revision(db)) return json({ error: "Permissions changed during loading. Retry access verification." }, 409);
-      return json({ viewerPermissions, viewer, revision: before, isOwner, identity: `${request.headers.get("x-department-id") ?? ""}:${email}` });
+      return json({ viewerPermissions, viewer, revision: before, isOwner, confirmation:parseConfirmationStatus(request.headers.get('x-portal-confirmation')), identity: `${request.headers.get("x-department-id") ?? ""}:${email}` });
     }
     const [employees, ranks, rankRows, overrideRows] = await Promise.all([
       db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.is_admin,0) isAdmin,COALESCE(ep.email,'') email,ep.end_date endDate FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 ORDER BY e.name COLLATE NOCASE").all<Employee>(),

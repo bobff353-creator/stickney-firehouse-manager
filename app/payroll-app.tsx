@@ -33,6 +33,7 @@ import { ACTING_OFFICER_STIPEND_PER_HOUR, calculateGrossPay, workDetailRateForRa
 import { payrollExportRows } from "./payroll-export";
 import WorkDetails from "./work-details";
 import StationScheduler from "./station-scheduler";
+import { RequiredConfirmation } from './required-confirmation';
 import PermissionSettings from "./permission-settings";
 import FieldPreplans from "./field-preplans";
 import CadIntegrationSettings from "./cad-integration-settings";
@@ -101,7 +102,7 @@ const adminNavGroups: Array<{ label: string; icon: IconName; items: Array<{ labe
 ];
 const navPermission: Partial<Record<NavItem, string>> = { Dashboard: "dashboard.view", "Command Center": "command_center.view", "Operations Board": "operations_board.view", "Activity Timeline": "command_center.view", Respond: "field_preplans.view", "Command Board": "incident_command.view", "Field Preplans": "field_preplans.view", "Road Closures": "road_closures.view", "Safety Inspections": "safety_inspections.view", Scheduling: "scheduling.view", Payroll: "payroll.manage", "Work Details": "scheduling.manage", "Daily Log": "daily_log.view", Timesheets: "payroll.manage", "Callback Reviews": "payroll.manage", "My Timesheet": "payroll.view_own", Employees: "employees.manage", "Employee Contacts": "contacts.view", Policies: "documents.view", "Box Cards": "documents.view", "Holiday Policy": "documents.view", EMS: "documents.view", "Daily Duties": "documents.view", Inventory: "inventory.view", "Phone Numbers": "settings.manage", "Rates & Rules": "payroll.manage", Departments: "settings.manage", "System Health": "settings.manage", Permissions: "permissions.manage", "CAD Integration": "settings.manage", "Respond Device Modes": "settings.manage", "Test View": "permissions.manage" };
 
-function navigationForViewer(_viewer: PayrollData["viewer"], permissions: string[] | null) {
+function navigationForViewer(_viewer: PayrollData["viewer"] | undefined, permissions: string[] | null) {
   if (!permissions) return [];
   return adminNavItems.filter(item => item === "Employees"
     ? permissions.includes("employees.view") || permissions.includes("employees.manage")
@@ -284,7 +285,8 @@ export default function PayrollApp({
   const [removeEmployeePhoto, setRemoveEmployeePhoto] = useState(false);
   const [testMember, setTestMember] = useState<{ id: string; name: string; rank: string; effectivePermissions: string[] } | null>(null);
   const access = usePermissions();
-  const viewerPermissions = access.verified ? access.permissions : [];
+  const viewerPermissions = useMemo(() => access.verified ? access.permissions : [], [access.verified,access.permissions]);
+  const confirmationCleared = access.confirmation?.required === false;
   const [respondDeviceSettings, setRespondDeviceSettings] = useState<RespondDeviceSettings>(defaultRespondDeviceSettings);
   const [respondAlertCallId, setRespondAlertCallId] = useState("");
   const [respondAlertSeconds, setRespondAlertSeconds] = useState(RESPOND_ALERT_DURATION_SECONDS);
@@ -361,9 +363,10 @@ export default function PayrollApp({
   }, [respondAlertCallId]);
 
   useEffect(() => {
+    if (!access.verified || !confirmationCleared || ['Respond','Operations Board'].includes(activeNav)) return;
     const timer = window.setTimeout(() => { void loadPayroll(periodStart); }, 0);
     return () => window.clearTimeout(timer);
-  }, [loadPayroll, periodStart]);
+  }, [loadPayroll, periodStart,access.verified,confirmationCleared,activeNav]);
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(""), 2600);
@@ -767,7 +770,7 @@ export default function PayrollApp({
   const statusLabel = data?.period.status ? data.period.status[0].toUpperCase() + data.period.status.slice(1) : "Draft";
   const connection = portalConnectionState(isOnline, loading, error, Boolean(lastSynced), savingCells.size > 0);
   const isPayrollManagerView = Boolean(data?.viewer.canManagePayroll && !testMember);
-  const visibleNav = useMemo(() => testMember ? adminNavItems.filter((item) => !navPermission[item] || testMember.effectivePermissions.includes(navPermission[item]!)) : data?.viewer ? navigationForViewer(data.viewer, viewerPermissions) : employeeNavItems, [data?.viewer, testMember, viewerPermissions]);
+  const visibleNav = useMemo(() => testMember ? adminNavItems.filter((item) => !navPermission[item] || testMember.effectivePermissions.includes(navPermission[item]!)) : navigationForViewer(data?.viewer, viewerPermissions), [data?.viewer, testMember, viewerPermissions]);
   const visibleFeaturedNav = useMemo(() => featuredNavItems.filter((item) => visibleNav.includes(item.page)), [visibleNav]);
   const visibleMoreNavGroups = useMemo(() => {
     const groupedPages = new Set<NavItem>();
@@ -931,9 +934,9 @@ export default function PayrollApp({
       setTestMember(null);
       setProfileOpen(false);
       setNavigationVersion(current => current + 1);
-      void loadPayroll(periodStart);
+      if (confirmationCleared && !['Respond','Operations Board'].includes(activeNav)) void loadPayroll(periodStart);
     }
-  }, [access, loadPayroll, periodStart]);
+  }, [access, loadPayroll, periodStart,activeNav,confirmationCleared]);
 
   function permissionsSaved(payload: { viewerPermissions?: string[]; employees: Array<{ id: string; name: string; rank: string; effectivePermissions: string[] }> }) {
     setAdminSaveNotice("Last permission save verified. Any new edits still need to be saved.");
@@ -943,8 +946,9 @@ export default function PayrollApp({
     }
   }
 
-  if (!access.verified) return <main className="app-shell sidebar-collapsed"><section className="workspace"><article className="content-card"><h1>Verify your access</h1><p role="status">{access.error || "Checking your current department permissions…"}</p><button type="button" onClick={() => void refreshPermissions()}>Retry access check</button><a href="/">Back to sign in</a></article></section></main>;
+  if (!access.verified) return <main className="app-shell sidebar-collapsed"><section className="workspace"><article className="content-card"><h1>Verify your access</h1><p role="status">{access.error || "Checking your current department permissions…"}</p><button type="button" onClick={() => void refreshPermissions()}>Retry access check</button><button type="button" onClick={onSignOut}>Sign out</button></article></section></main>;
 
+  if (!['Respond','Operations Board'].includes(activeNav) && (!access.confirmation || access.confirmation.required)) return <main className="app-shell sidebar-collapsed"><section className="workspace"><RequiredConfirmation status={access.confirmation} /><div className="required-confirmation-actions">{visibleNav.includes('Respond')&&<button onClick={()=>navigate('Respond')}>Open Respond</button>}{visibleNav.includes('Operations Board')&&<button onClick={()=>navigate('Operations Board')}>Open Live Operations</button>}<button onClick={onSignOut}>Sign out</button></div></section></main>;
   return (
     <main className={`app-shell${tvMode ? " tv-shell" : ""}${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
       {!tvMode && <PwaInstall />}
@@ -1008,7 +1012,21 @@ export default function PayrollApp({
         {!isOnline && <div className="portal-offline-notice" role="alert"><strong>Connection lost</strong><span>Displayed information may be out of date. Keep unfinished work open; a save is not confirmed until that screen reports success.</span></div>}
         {inventoryError && <div className="error-banner inventory-access-error" role="alert" data-test-safe><span>{inventoryError}</span>{testMember ? <button onClick={() => { setInventoryError(""); changeTestMember(null); }}>Exit test view</button> : <button disabled={openingInventory} onClick={() => void openInventory()}>{openingInventory ? "Checking…" : "Retry Apparatus Checks"}</button>}<button onClick={() => setInventoryError("")}>Dismiss</button></div>}
         {toast && <div className="toast" role="status"><Icon name="save" /> {toast}</div>}
-        {loading && !data ? <PortalSkeleton page={activeNav} /> : data && <>
+        {activeNav === "Operations Board" && visibleNav.includes("Operations Board") && <OperationsBoard tvMode={tvMode} onTvModeChange={(enabled) => {
+          setTvMode(enabled);
+          const url = new URL(window.location.href);
+          if (enabled) { url.searchParams.set("display", "tv"); window.localStorage.setItem("stickney-operations-tv-mode", "true"); }
+          else { url.searchParams.set("display", "portal"); window.localStorage.removeItem("stickney-operations-tv-mode"); }
+          window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+          window.dispatchEvent(new CustomEvent("firehouse:tv-mode", { detail: { enabled } }));
+        }} onNewActiveCall={(call) => {
+          if (respondDeviceSettings.mode === "operations-alert" && activeNav === "Operations Board") { setRespondAlertSeconds(RESPOND_ALERT_DURATION_SECONDS); setRespondAlertCallId(call.reportNumber); }
+        }} />}
+        {activeNav === "Respond" && visibleNav.includes("Respond") && <Respond apparatus={respondDeviceSettings.mode === "apparatus" ? respondDeviceSettings.apparatus : ""} onNavigate={navigateFromRespond} />}
+        {respondAlertCallId && activeNav === "Operations Board" && visibleNav.includes("Operations Board") && visibleNav.includes("Respond") && <div className="respond-auto-alert" role="dialog" aria-modal="true" aria-label="New active call Respond view">
+          <header><div><strong>NEW ACTIVE CALL · RESPOND</strong><span>Returning to Live Operations in {respondAlertSeconds} seconds</span></div><button type="button" onClick={() => setRespondAlertCallId("")}>Return now</button></header><Respond onNavigate={navigateFromRespond} />
+        </div>}
+        {!['Respond','Operations Board'].includes(activeNav) && (loading && !data ? <PortalSkeleton page={activeNav} /> : data && <>
           {["Payroll", "Timesheets", "My Timesheet"].includes(activeNav) && <div className="period-row">
             <div>
               <p className="eyebrow">{activeNav === "Payroll" ? "Current pay period" : activeNav}</p>
@@ -1061,27 +1079,8 @@ export default function PayrollApp({
           {activeNav === "Command Center" && <CommandCenter />}
           {activeNav === "Work Details" && <WorkDetails onPayrollChanged={(approvedPeriodStart) => { if (approvedPeriodStart === periodStart) void loadPayroll(periodStart); else setPeriodStart(approvedPeriodStart); }} />}
           {activeNav === "Scheduling" && <StationScheduler key={navigationVersion} testMember={testMember} />}
-          {activeNav === "Operations Board" && visibleNav.includes("Operations Board") && <OperationsBoard tvMode={tvMode} onTvModeChange={(enabled) => {
-            setTvMode(enabled);
-            const url = new URL(window.location.href);
-            if (enabled) {
-              url.searchParams.set("display", "tv");
-              window.localStorage.setItem("stickney-operations-tv-mode", "true");
-            } else {
-              url.searchParams.set("display", "portal");
-              window.localStorage.removeItem("stickney-operations-tv-mode");
-            }
-            window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
-            window.dispatchEvent(new CustomEvent("firehouse:tv-mode", { detail: { enabled } }));
-          }} onNewActiveCall={(call) => {
-            if (respondDeviceSettings.mode === "operations-alert" && activeNav === "Operations Board") {
-              setRespondAlertSeconds(RESPOND_ALERT_DURATION_SECONDS);
-              setRespondAlertCallId(call.reportNumber);
-            }
-          }} />}
 
           {activeNav === "Activity Timeline" && <ActivityTimeline />}
-          {activeNav === "Respond" && <Respond apparatus={respondDeviceSettings.mode === "apparatus" ? respondDeviceSettings.apparatus : ""} onNavigate={navigateFromRespond} />}
           {activeNav === "Command Board" && <IncidentCommandBoard />}
           {activeNav === "Field Preplans" && <FieldPreplans />}
           {activeNav === "Road Closures" && <RoadClosures />}
@@ -1090,10 +1089,6 @@ export default function PayrollApp({
             setRespondDeviceSettings(settings);
             if (settings.mode === "apparatus") navigate("Respond");
           }} />}
-          {respondAlertCallId && activeNav === "Operations Board" && visibleNav.includes("Operations Board") && visibleNav.includes("Respond") && <div className="respond-auto-alert" role="dialog" aria-modal="true" aria-label="New active call Respond view">
-            <header><div><strong>NEW ACTIVE CALL · RESPOND</strong><span>Returning to Live Operations in {respondAlertSeconds} seconds</span></div><button type="button" onClick={() => setRespondAlertCallId("")}>Return now</button></header>
-            <Respond onNavigate={navigateFromRespond} />
-          </div>}
 
           {(activeNav === "Timesheets" || activeNav === "My Timesheet") && selectedEmployee && selectedSummary && <div className={data.period.status === "finalized" ? "record-finalized" : "record-editable"}>{data.period.status === "finalized" && <div className="record-state-banner finalized"><span className="state-lock" aria-hidden="true">🔒</span><div><strong>Finalized timesheet · Read only</strong><span>This timesheet belongs to a closed payroll period.</span></div></div>}<section className="content-card timesheet-card">
             <div className="section-header"><div>{activeNav === "Timesheets" && isPayrollManagerView ? <><label htmlFor="employee-select">Employee</label><select id="employee-select" value={selectedEmployee.id} onChange={(event) => setSelectedEmployeeId(event.target.value)}>{payrollEmployees.map((employee) => <option value={employee.id} key={employee.id}>{displayName(employee.name)} — {employee.rank}</option>)}</select></> : <><p className="eyebrow">My timesheet</p><h2>{displayName(selectedEmployee.name)}</h2><p>{selectedEmployee.rank} · Read only</p></>}</div><span className={`status-pill ${selectedSummary.status.toLowerCase().replace(" ", "-")}`}>{selectedSummary.status}</span></div>
@@ -1197,7 +1192,7 @@ export default function PayrollApp({
               <article className="content-card rules-card"><div className="section-header"><div><h2>Payroll rules</h2><p>Set the rules used to calculate payroll. Review the effective date before saving.</p></div></div><div className="settings-grid"><label><span>Overtime threshold</span><div className="input-unit"><input type="number" min="0" step="1" value={rulesDraft.overtimeThreshold} onChange={(event) => setRulesDraft({ ...rulesDraft, overtimeThreshold: safeNumber(event.target.value) })} /><b>hours</b></div></label><label><span>Acting Officer stipend</span><div className="input-unit"><b>$</b><input type="number" value={ACTING_OFFICER_STIPEND_PER_HOUR.toFixed(2)} readOnly aria-readonly="true" /><b>/ AO hr</b></div><small>Straight stipend only—never multiplied for overtime or holidays.</small></label><label><span>DPW multiplier</span><div className="input-unit"><input type="number" min="1" step="0.05" value={rulesDraft.dpwMultiplier} onChange={(event) => setRulesDraft({ ...rulesDraft, dpwMultiplier: safeNumber(event.target.value) })} /><b>× rate</b></div></label></div></article>
             <article className="content-card"><div className="section-header"><div><h2>Pay rates</h2><p>Rates are saved by effective date, so closed and earlier payroll periods never change.</p></div></div><div className="rate-effective-control"><label><span>Effective pay-period date *</span><input type="date" required value={rateEffectiveDate} onChange={(event) => changeRateEffectiveDate(event.target.value)} /></label><small>Select the first day of a payroll period: the 11th or 26th. Existing history before this date remains unchanged.</small></div><div className="rate-list"><div className="rate-head"><span>Pay scale</span><span>Straight Time / Normal</span><span>Overtime · 1.5×</span><span>Holiday · 1.5×</span></div>{scaleDraft.map((scale, index) => <div className="rate-row" key={scale.id}><strong>{scale.label}</strong><label><span className="mobile-rate-label">Straight Time / Normal</span><b>$</b><input aria-label={`${scale.label} Straight Time / Normal Rate`} type="number" min="0" step="0.01" value={scale.regularRate} onChange={(event) => changeBaseRate(index, safeNumber(event.target.value))} /></label><label className="calculated-rate"><span className="mobile-rate-label">Overtime · 1.5×</span><b>$</b><input aria-label={`${scale.label} Overtime Rate`} readOnly value={scale.overtimeRate.toFixed(2)} /><em>Auto</em></label><label className="calculated-rate"><span className="mobile-rate-label">Holiday · 1.5×</span><b>$</b><input aria-label={`${scale.label} Holiday Rate`} readOnly value={scale.holidayRate.toFixed(2)} /><em>Auto</em></label></div>)}</div><button className="primary-action save-rules" onClick={() => void saveRules()}>Save Rates Effective {rateEffectiveDate}</button><div className="rate-history"><h3>Rate history</h3>{data.rateHistory.filter((rate, index, rows) => rows.findIndex((item) => item.effectiveDate === rate.effectiveDate) === index).slice(0, 8).map((rate) => <div key={rate.effectiveDate}><strong>{rate.effectiveDate}</strong><span>{data.rateHistory.filter((item) => item.effectiveDate === rate.effectiveDate).length} pay scales</span></div>)}</div></article>
           </section>}
-        </>}
+        </>)}
       </section>
       <footer className="portal-footer"><div className="footer-identity"><img src="/stickney-fd-patch.png?v=3" alt="Official Stickney Fire Department patch" width="56" height="56" /><div><strong>Stickney Fire Department Operations Portal</strong><span>Stickney, Illinois</span><a href="tel:+17089747721">Cicero Consolidated Dispatch · (708) 974-7721</a></div></div><div className="footer-links"><button onClick={() => navigate(homePage)}>Back to {portalPageLabel(homePage)}</button>{visibleNav.includes("Employee Contacts") && <button onClick={() => navigate("Employee Contacts")}>Employee contacts</button>}{visibleNav.includes("Phone Numbers") && <button onClick={() => navigate("Phone Numbers")}>Important phone numbers</button>}<span>For portal help, contact your department administrator.</span></div><p>© {new Date().getFullYear()} Stickney Fire Department · Official department system · Authorized use only</p></footer>
     </main>

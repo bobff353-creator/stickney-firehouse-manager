@@ -2,7 +2,7 @@ import { ensureDatabase } from "../../../../db/bootstrap";
 import {
   sameOriginInventoryRequest,
   sessionFailureResponse,
-  verifyInventoryRequest,
+  verifyPushRequest,
 } from "../../../lib/inventory-session";
 import { webPushPublicConfig } from "../../../cad-push";
 
@@ -16,7 +16,7 @@ function text(value: unknown, limit = 8192) {
 }
 
 export async function GET(request: Request) {
-  const session = await verifyInventoryRequest(request);
+  const session = await verifyPushRequest(request);
   if (!session.ok) return sessionFailureResponse(session);
   return Response.json(webPushPublicConfig(), {
     headers: { "Cache-Control": "private, no-store, max-age=0" },
@@ -24,15 +24,15 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const session = await verifyInventoryRequest(request);
+  const session = await verifyPushRequest(request);
   if (!session.ok) return sessionFailureResponse(session);
-  if (!session.context.grants.includes('field_preplans.view')) return Response.json({ error: 'Respond access is required for CAD alerts.' }, { status: 403 });
+  if (!['field_preplans.view','scheduling.view','scheduling.manage'].some(key => session.context.grants.includes(key as typeof session.context.grants[number]))) return Response.json({ error: 'Respond or scheduling access is required for portal notifications.' }, { status: 403 });
   if (!sameOriginInventoryRequest(request)) {
     return Response.json({ error: "Invalid notification registration origin." }, { status: 403 });
   }
   const config = webPushPublicConfig();
   if (!config.configured) {
-    return Response.json({ error: "CAD phone alerts are not configured yet." }, { status: 503 });
+    return Response.json({ error: "Portal phone alerts are not configured yet." }, { status: 503 });
   }
   const body = await request.json() as SubscriptionBody;
   const endpoint = text(body.endpoint);
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const session = await verifyInventoryRequest(request);
+  const session = await verifyPushRequest(request);
   if (!session.ok) return sessionFailureResponse(session);
   if (!sameOriginInventoryRequest(request)) {
     return Response.json({ error: "Invalid notification registration origin." }, { status: 403 });

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
+import type { ConfirmationStatus } from './required-confirmation-policy';
 
-type Access = { verified: boolean; permissions: string[]; revision: string | null; error: string; identity: string; checking: boolean };
+type Access = { verified: boolean; permissions: string[]; revision: string | null; error: string; identity: string; checking: boolean; confirmation?: ConfirmationStatus | null };
 const empty: Access = { verified: false, permissions: [], revision: null, error: "", identity: "", checking: false };
 let state = empty;
 const listeners = new Set<() => void>();
@@ -25,9 +26,9 @@ export function refreshPermissions() {
       try {
         const response = await fetch("/api/permissions?scope=viewer", { cache: "no-store", signal: AbortSignal.any([requestController.signal, AbortSignal.timeout(10000)]) });
         retryable = response.status === 409 || response.status >= 500;
-        const payload = await response.json() as { viewerPermissions?: string[]; revision?: string; identity?: string; error?: string };
+        const payload = await response.json() as { viewerPermissions?: string[]; revision?: string; identity?: string; error?: string; confirmation?: ConfirmationStatus | null };
         if (!response.ok || !Array.isArray(payload.viewerPermissions)) throw new Error(payload.error || "Your permissions could not be verified.");
-        const next = { verified: true, permissions: payload.viewerPermissions, revision: payload.revision ?? null, identity: payload.identity ?? "", error: "", checking: false };
+        const next = { verified: true, permissions: payload.viewerPermissions, revision: payload.revision ?? null, identity: payload.identity ?? "", error: "", checking: false, confirmation:payload.confirmation??null };
         if (requestGeneration === generation) publish(next);
         break;
       } catch (error) {

@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import InventoryOperations from "./inventory-operations";
+import { RequiredConfirmation } from './required-confirmation';
 import InventoryVinProfile from "./inventory-vin-profile";
 import { usePermissions, refreshPermissions } from "./use-permissions";
 import {
@@ -485,12 +486,13 @@ export default function Inventory360({
   }, []);
 
   useEffect(() => {
+    if (access.confirmation?.required !== false) return;
     const controller = new AbortController();
     void loadSuite(controller.signal);
     void loadTwin(undefined, controller.signal);
     void loadFleetOperations(controller.signal);
     return () => controller.abort();
-  }, [loadFleetOperations, loadSuite, loadTwin]);
+  }, [loadFleetOperations, loadSuite, loadTwin,access.confirmation?.required]);
 
   const linkedTwinCount = suite.apparatus.filter((unit) => (
     Boolean(matchingTwin(unit, twinData.apparatus))
@@ -569,6 +571,7 @@ export default function Inventory360({
     </main>
   );
 
+  if (!access.confirmation || access.confirmation.required) return <main className="inventory-app-shell"><RequiredConfirmation status={access.confirmation}/><Link href="/?page=respond&display=portal">Open Respond</Link></main>;
   return (
     <main className="inventory-app-shell inventory-portal-refresh">
       <header className="topbar">

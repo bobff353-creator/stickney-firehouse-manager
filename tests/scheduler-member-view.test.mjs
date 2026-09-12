@@ -77,6 +77,8 @@ test('open shift role filtering follows recorded clearance, not inferred firefig
   assert.equal(canRequestRole('Officer/AO', { ...viewer, rank: 'Lieutenant' }), false);
   assert.equal(canRequestRole('Officer/AO', { ...viewer, roles: ['Officer/AO'] }), true);
   assert.equal(canRequestRole('FF/Attendant', { ...viewer, employeeId: null }), false);
+  assert.equal(canRequestRole('Extra member', { ...viewer, roles: [] }), true);
+  assert.equal(canRequestRole('Engine Driver', { ...viewer, roles: [] }), false);
 });
 test('part-time member navigation exposes trades and no time-off route', async () => {
   const component = await readFile(new URL('../app/station-scheduler.tsx', import.meta.url), 'utf8');

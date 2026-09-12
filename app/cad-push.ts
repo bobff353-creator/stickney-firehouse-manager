@@ -76,6 +76,15 @@ export async function deliverCadPush(subscription: { endpoint: string; p256dh: s
     JSON.stringify(payload), { TTL: Math.min(300, Math.max(1, ttl)), urgency: "high", timeout: 8000 });
 }
 
+// Non-emergency reminders have their own queue/worker and normal priority.
+export async function deliverSchedulerPush(subscription: { endpoint: string; p256dh: string; auth: string }, payload: object, ttl: number) {
+  const config = runtimeConfig();
+  if (!config.configured) throw new Error("Push delivery is not configured");
+  webpush.setVapidDetails(config.subject, config.publicKey, config.privateKey);
+  return webpush.sendNotification({ endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } },
+    JSON.stringify(payload), { TTL: Math.min(86400, Math.max(1, ttl)), urgency: "normal", timeout: 8000 });
+}
+
 export async function sendCadPushNotifications(
   db: PushDatabase,
   incident: CadPushIncident,

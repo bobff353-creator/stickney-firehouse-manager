@@ -4,6 +4,10 @@
   "outputDirectory": ".next",
   "crons": [
     {
+      "path": "/api/cron/scheduler-reminders",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/cad-push",
       "schedule": "* * * * *"
     },

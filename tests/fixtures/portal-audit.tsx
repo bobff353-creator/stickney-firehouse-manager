@@ -30,6 +30,10 @@ let numbers = [{ id: "fixture-phone", category: "misc", name: "Fictional test co
 let failWrite = false;
 let failRead = false;
 let writes = 0;
+let confirmationVersion=1,confirmedVersion=0;
+let confirmationMessage={version:'00000000-0000-4000-8000-000000000001',title:'Fictional department notice',message:'This is a local test message, not department policy. Please confirm that you have read it before using regular tools.',enabled:params.has('confirmation')};
+const confirmationStatus=()=>({required:confirmationMessage.enabled&&!isAdmin&&confirmedVersion!==confirmationVersion,version:confirmationMessage.version,exempt:isAdmin});
+Object.assign(window,{confirmationAudit:{replaceMessage(){confirmationVersion++;confirmationMessage={...confirmationMessage,version:'00000000-0000-4000-8000-'+String(confirmationVersion).padStart(12,'0'),message:'Updated fictional message. Confirm this new version.'};window.dispatchEvent(new Event('firehouse:permissions-changed'));}}});
 const unknown = new Set<string>();
 const errors: string[] = [];
 const accessRequests: string[] = [];
@@ -41,7 +45,7 @@ window.addEventListener("unhandledrejection", event => errors.push(String(event.
 const accessEmployee = { ...employee, isAdmin: 0, loginLinked: true };
 function accessPayload() {
   const memberPermissions = resolveEmployeePermissions(accessEmployee, [], Object.entries(accessOverrides[employee.id] ?? {}).map(([permissionKey,effect]) => ({permissionKey,effect})));
-  return { catalog: permissionCatalog, viewerPermissions: isAdmin ? defaultPermissionsForRank("Firefighter",true) : memberPermissions, identity: "fictional:"+String(isAdmin), revision: String(accessRevision), ranks: ["Firefighter"], rankSettings: { Firefighter: defaultPermissionsForRank("Firefighter") }, overrides: accessOverrides, employees: [{ ...accessEmployee, effectivePermissions: memberPermissions }] };
+  return { confirmation:confirmationStatus(),catalog: permissionCatalog, viewerPermissions: isAdmin ? defaultPermissionsForRank("Firefighter",true) : memberPermissions, identity: "fictional:"+String(isAdmin), revision: String(accessRevision), ranks: ["Firefighter"], rankSettings: { Firefighter: defaultPermissionsForRank("Firefighter") }, overrides: accessOverrides, employees: [{ ...accessEmployee, effectivePermissions: memberPermissions }] };
 }
 Object.assign(window, { liveAccessAudit: { requests: accessRequests, errors, setGrant(effect?: "allow" | "deny") { accessOverrides = effect ? { [employee.id]: { "operations_board.view": effect } } : {}; accessRevision++; window.dispatchEvent(new Event("firehouse:permissions-changed")); } } });
 const briefing = { asOf: now, currentShift: "morning", priorShift: "night", onDuty: [], newMembers: [], officerInCharge: null, staffing: { filled: 0, required: 4, complete: false }, equipmentIssues: [], approvals: { logs: 0, payroll: 0 }, previousShift: { officer: null, note: "Fictional handoff", calls: [] }, activeCalls: [], apparatus: [], roadClosures: [] };
@@ -74,6 +78,7 @@ const payloads: Record<string, unknown> = {
   },
 };
 payloads["/api/logbook"] = payloads["/api/daily-log"];
+if(params.has('reminders'))Object.assign(payloads['/api/station-scheduler'] as object,{pushConfigured:true,requestDeadlines:[],reminderRules:[['open_shift_blast','Open shift blasts'],['shift_request','Shift request updates'],['request_deadline','Response deadline reminders']].map(([type,label])=>({id:type,type,label,offsets:'["immediate","2 days before"]',enabled:1,pushEnabled:0,emailEnabled:1,textEnabled:0,target:''})),slots:[{id:'fixture-slot',entryId:'fixture-entry',entryDate:date,shiftTypeId:'fixture-type',role:'FF/Attendant',employeeId:null,status:'open',startTime:'23:00',endTime:'06:00',sortOrder:0,isExtra:0,hasTimeOverride:0}]});
 if (params.has("preplan-capture")) {
   // Exercise a real focused editor with a full-width message, not just the list.
   payloads["/api/permissions"] = { ...(payloads["/api/permissions"] as object), viewerPermissions: defaultPermissionsForRank("Firefighter", isAdmin), identity: "fixture:preview@example.invalid", revision: "fixture-1" };
@@ -88,6 +93,21 @@ if (params.has("active-command")) {
 window.fetch = async (input, init) => {
   const url = new URL(String(input), location.origin);
   const method = init?.method ?? "GET";
+  if(url.pathname==='/api/required-confirmation') {
+    if(method==='GET')return Response.json(confirmationMessage);
+    writes++;if(failWrite){failWrite=false;return Response.json({error:'Simulated failed save. Confirmation was not saved.'},{status:503});}
+    const body=JSON.parse(String(init?.body||'{}'));
+    if(body.version!==confirmationMessage.version)return Response.json({error:'Message changed. Reload it.'},{status:409});
+    if(method==='POST'){confirmedVersion=confirmationVersion;return Response.json({ok:true});}
+    confirmationVersion++;confirmationMessage={...body,version:'00000000-0000-4000-8000-'+String(confirmationVersion).padStart(12,'0')};return Response.json({ok:true,version:confirmationMessage.version});
+  }
+  if(url.pathname==='/api/permissions'&&method==='GET'&&!params.has('live-access'))return Response.json({...payloads[url.pathname] as object,viewerPermissions:defaultPermissionsForRank('Firefighter',isAdmin),identity:'fixture:preview@example.invalid',revision:'fixture-1',confirmation:confirmationStatus()});
+  if(url.pathname==='/api/station-scheduler'&&method==='POST'&&params.has('reminders')){
+    writes++;if(failWrite){failWrite=false;return Response.json({error:'Simulated failed reminder save. Your draft remains.'},{status:503});}
+    const body=JSON.parse(String(init?.body||'{}'));const scheduler=payloads[url.pathname] as {reminderRules:Array<Record<string,unknown>>;requestDeadlines:Array<{id:string;deadline:string}>};
+    if(body.action==='saveReminderRule'){const rule=scheduler.reminderRules.find(rule=>rule.id===body.id);if(rule)Object.assign(rule,{...body,offsets:JSON.stringify(body.offsets),enabled:Number(body.enabled),pushEnabled:Number(body.pushEnabled)});return Response.json({ok:true});}
+    if(body.action==='saveRequestDeadline'){scheduler.requestDeadlines=[{id:body.slotId,deadline:body.deadline}];return Response.json({ok:true});}
+  }
   if (params.has("live-access")) {
     accessRequests.push(url.pathname+url.search);
     if (url.pathname === "/api/permissions") {

@@ -2,6 +2,8 @@
 
 import "./scheduler-member.css";
 import { schedulerAdminTask } from "./admin-tasks";
+import { reminderTimings, reminderAudience, reminderExplanation } from "./scheduler-reminders";
+import { RequiredConfirmationAdmin } from './required-confirmation';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { normalizeScheduleTime, scheduleTimeBlocks } from "./schedule-time";
@@ -26,7 +28,7 @@ type Claim = { id: string; slotId: string; role: string; employeeId: string; emp
 type TimeOff = { id: string; employeeId: string; employeeName: string; type: string; approverEmployeeId: string; approverName?: string; note: string; status: string; createdAt: string };
 type TimeOffDate = { requestId: string; offDate: string };
 type Availability = { id: string; employeeId: string; employeeName: string; availabilityDate: string; status: "available" | "unavailable"; allDay: number; startTime: string; endTime: string; note: string; updatedAt: string };
-type ReminderRule = { id: string; type: string; label: string; offsets: string; emailEnabled: number; textEnabled: number; target: string; enabled: number };
+type ReminderRule = { id: string; type: string; label: string; offsets: string; emailEnabled: number; textEnabled: number; pushEnabled?: number; target: string; enabled: number };
 type OtSetting = { exemptOffDuty: boolean; exemptAlreadyScheduled: boolean; exemptDeclined: boolean; exemptRecentlyMandated: boolean; recentDays: number; exemptMaxConsecutive: boolean; maxConsecutive: number; priorityOrder: string[] };
 type OtOffer = { id: string; slotId: string; employeeId: string; employeeName: string; mode: string; status: string; rank: number };
 type OtInterest = { id: string; slotId: string; employeeId: string; response: string };
@@ -34,6 +36,8 @@ type Weights = { seniorityWeight: number; hoursWeight: number; customWeight: num
 type Notice = { openShifts: number; overdueShifts: number; pendingTrades: number; pendingClaims: number; pendingTimeOff: number };
 
 type Data = {
+  pushConfigured?: boolean;
+  requestDeadlines?: { id: string; deadline: string }[];
   viewer: { employeeId: string | null; isAdmin: boolean; rank: string; roles: string[]; actingOfficerEligible: boolean; name: string };
   today: string;
   roles: string[];
@@ -182,7 +186,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
     ["overview", "Admin home"], ["openAdmin", "Open positions"],
     ["calendar", "Calendar"], ["shiftTypes", "Shift Builder"], ["roster", "Roster & Assignments"],
     ["trades", "Trades"], ["requests", "Requests"], ["distribution", "Auto-Distribution"],
-    ["availability", "Availability"], ["reminders", "Reminders"],
+    ["availability", "Availability"], ["reminders", "Reminders"], ["confirmation", "Required confirmation"],
   ] as const;
   const employeeTabs = [
     ["myshifts", "My shifts"], ["open", "Open shifts"], ["trades", "Offer a trade"], ["accepttrades", "Accept a trade"],
@@ -247,6 +251,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
       {tab === "availability" && <AvailabilityScreen data={data} isAdmin={isAdmin} act={act} busy={busy} />}
       {tab === "distribution" && isAdmin && <DistributionScreen data={data} act={act} busy={busy} />}
       {tab === "reminders" && isAdmin && <RemindersScreen data={data} act={act} busy={busy} />}
+      {tab === "confirmation" && isAdmin && <RequiredConfirmationAdmin />}
       {tab === "myrequests" && !isAdmin && <MyRequestsScreen data={data} act={act} busy={busy} />}
       {tab === "otlist" && !isAdmin && <OtListScreen data={data} act={act} busy={busy} />}
     </div>
@@ -302,10 +307,13 @@ function MemberOpenShifts({ data, act, busy }: { data: Data; act: (body: Record<
     {!visible.length && <p>{open.length ? "No open shifts match these filters. Try clearing the date or position." : "No open shifts match your recorded qualifications in the loaded schedule. If your qualifications are missing, ask an administrator to check your roster roles."}</p>}
     {visible.map((slot) => {
       const pending = data.claims.some((claim) => claim.slotId === slot.id && claim.employeeId === data.viewer.employeeId && claim.status === "pending");
+      const deadline = data.requestDeadlines?.find(row => row.id === slot.id)?.deadline;
+      const deadlineClosed = Boolean(deadline && !shiftHasNotStarted(deadline.slice(0,10),deadline.slice(11),now));
       const unavailable = data.availability.some((row) => row.employeeId === data.viewer.employeeId && row.availabilityDate === slot.entryDate && availabilityOverlaps(row, slot.startTime, slot.endTime));
       return <article className="scheduler-member-shift" key={slot.id}>
+        {deadline && <p>Request by {deadline.replace("T", " at ")} Central time</p>}
         <div><span className="section-kicker">{friendlyDate(slot.entryDate)}</span><strong>{shiftTimeLabel(slot.startTime, slot.endTime)}</strong><span>{slot.role}</span></div>
-        {pending ? <p role="status">Requested — awaiting review</p> : unavailable ? <p className="muted">Your availability says you cannot work this time. Update it under My Availability if needed.</p> : reviewId === slot.id ? <div className="scheduler-request-confirm">
+        {pending ? <p role="status">Requested — awaiting review</p> : deadlineClosed ? <p>Request deadline passed. Contact a schedule administrator.</p> : unavailable ? <p className="muted">Your availability says you cannot work this time. Update it under My Availability if needed.</p> : reviewId === slot.id ? <div className="scheduler-request-confirm">
           <p>Send this shift request for review? You are not assigned until approved.</p>
           <button disabled={busy} onClick={async () => { if (!shiftHasNotStarted(slot.entryDate, slot.startTime, new Date())) { setNow(new Date()); setReviewId(""); return; } if (await act({ action: "submitClaim", slotId: slot.id })) setReviewId(""); }}>{busy ? "Sending…" : "Send shift request"}</button>
           <button className="link" disabled={busy} onClick={() => setReviewId("")}>Cancel</button>
@@ -1133,11 +1141,29 @@ function DistributionScreen({ data, act, busy }: { data: Data; act: (b: Record<s
 }
 
 function RemindersScreen({ data, act, busy }: { data: Data; act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean }) {
+  const [date, setDate] = useState(data.today);
+  const [slotId, setSlotId] = useState("");
+  const [deadline, setDeadline] = useState("");
+  const slots = data.slots.filter(slot => slot.entryDate === date && slot.status === "open");
   return (
     <div className="scheduler-grid">
-      <section className="wide">
+      <section className="wide scheduler-reminders">
         <h3>Reminder rules</h3>
+        <p>Choose when to remind members, turn on Push notification, then save each rule. On their device, members open the notification bell → Portal phone alerts → Enable.</p>
+        {data.pushConfigured === false && <p role="alert">Push delivery is not configured on this server. Rules can be saved, but notifications cannot be sent yet.</p>}
+        <p className="muted">New activity sends after saving. Timed reminders are checked every 5 minutes. Enabling a rule does not send old reminders. A push is a reminder, not a confirmed shift assignment.</p>
         {data.reminderRules.map((rule) => <ReminderRuleEditor key={rule.id} rule={rule} act={act} busy={busy} />)}
+        <section className="entry-card" aria-label="Request deadlines">
+          <h3>Set a request deadline</h3>
+          <p>Choose an open position. The deadline controls when members can request it and when deadline reminders are due. All times are Central.</p>
+          <div className="scheduler-reminder-fields">
+            <label>Shift date<input type="date" value={date} min={data.today} onChange={event => { setDate(event.target.value); setSlotId(""); setDeadline(""); }} /></label>
+            <label>Open position<select value={slotId} onChange={event => { setSlotId(event.target.value); setDeadline(data.requestDeadlines?.find(row => row.id === event.target.value)?.deadline ?? ""); }}><option value="">Choose a position</option>{slots.map(slot => <option key={slot.id} value={slot.id}>{slot.role} · {shiftTimeLabel(slot.startTime,slot.endTime)}</option>)}</select></label>
+            <label>Request by · Central time<input type="datetime-local" value={deadline} disabled={!slotId} onChange={event => setDeadline(event.target.value)} /></label>
+          </div>
+          {!slots.length && <p>No open positions on this date.</p>}
+          <div className="row-actions"><button disabled={busy || !slotId || !deadline} onClick={() => act({ action: "saveRequestDeadline", slotId, deadline })}>Save deadline</button><button className="link" disabled={busy || !slotId} onClick={async () => { if (await act({ action: "saveRequestDeadline", slotId, deadline: "" })) setDeadline(""); }}>Remove deadline</button></div>
+        </section>
       </section>
     </div>
   );
@@ -1145,26 +1171,28 @@ function RemindersScreen({ data, act, busy }: { data: Data; act: (b: Record<stri
 
 function ReminderRuleEditor({ rule, act, busy }: { rule: ReminderRule; act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean }) {
   const [offsets, setOffsets] = useState<string[]>(() => { try { return JSON.parse(rule.offsets || "[]"); } catch { return []; } });
-  const [emailEnabled, setEmail] = useState(rule.emailEnabled === 1);
-  const [textEnabled, setText] = useState(rule.textEnabled === 1);
+  const [pushEnabled, setPush] = useState(rule.pushEnabled === 1);
   const [enabled, setEnabled] = useState(rule.enabled === 1);
-  const [target, setTarget] = useState(rule.target);
-  const [newOffset, setNewOffset] = useState("");
+  const [newOffset, setNewOffset] = useState("1 day before");
+  const [saved, setSaved] = useState(false);
   return (
-    <div className="entry-card">
-      <div className="entry-head"><strong>{rule.label}</strong>
-        <label className="chip"><input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />Enabled</label>
+    <fieldset className="entry-card scheduler-reminder-rule" disabled={busy} onChange={() => setSaved(false)}>
+      <legend>{rule.label}</legend>
+      <div className="entry-head">
+        <label className="chip"><input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />Rule enabled</label>
+        <label className="chip"><input type="checkbox" checked={pushEnabled} onChange={(e) => setPush(e.target.checked)} />Push notification</label>
       </div>
-      <div className="chip-list">{offsets.map((o) => <span key={o} className="chip">{o}<button className="link danger" onClick={() => setOffsets((prev) => prev.filter((x) => x !== o))}>×</button></span>)}</div>
+      <p>{reminderExplanation(rule.type)}</p>
+      <p><strong>Who receives it:</strong> {reminderAudience(rule.type)}.</p>
+      <div className="chip-list">{offsets.map((o) => <span key={o} className="chip">{o}<button aria-label={`Remove ${o}`} className="link danger" onClick={() => { setOffsets((prev) => prev.filter((x) => x !== o)); setSaved(false); }}>×</button></span>)}</div>
       <div className="inline-form">
-        <input value={newOffset} onChange={(e) => setNewOffset(e.target.value)} placeholder="e.g. 7 days before" />
-        <button className="link" onClick={() => { if (newOffset.trim()) { setOffsets((p) => [...new Set([...p, newOffset.trim()])]); setNewOffset(""); } }}>Add timing</button>
+        <label>Reminder timing<select value={newOffset} onChange={(e) => setNewOffset(e.target.value)}>{reminderTimings.map(timing => <option key={timing}>{timing}</option>)}</select></label>
+        <button className="link" disabled={offsets.includes(newOffset)} onClick={() => { setOffsets((p) => [...new Set([...p, newOffset])]); setSaved(false); }}>Add timing</button>
       </div>
-      <label className="row"><span>Email</span><input type="checkbox" checked={emailEnabled} onChange={(e) => setEmail(e.target.checked)} /></label>
-      <label className="row"><span>Text</span><input type="checkbox" checked={textEnabled} onChange={(e) => setText(e.target.checked)} /></label>
-      <label className="wide"><span>Target</span><input value={target} onChange={(e) => setTarget(e.target.value)} /></label>
-      <button disabled={busy} onClick={() => act({ action: "saveReminderRule", id: rule.id, offsets, emailEnabled, textEnabled, target, enabled })}>Save</button>
-    </div>
+      <p className="muted">Email and SMS delivery are not connected to these rules. Previous preferences are retained; this switch controls push only.</p>
+      <button disabled={busy} onClick={async () => { if (await act({ action: "saveReminderRule", id: rule.id, offsets, pushEnabled, enabled })) setSaved(true); }}>Save rule</button>
+      {saved && <p role="status">Rule saved. {enabled && pushEnabled ? "Push reminders are enabled for future activity and timings." : "Push reminders are off for this rule."}</p>}
+    </fieldset>
   );
 }
 

@@ -631,6 +631,7 @@ export const stationShiftSlots = sqliteTable("station_shift_slots", {
   endTime: text("end_time").notNull().default(""),
   isExtra: integer("is_extra").notNull().default(0),
   staffingReason: text("staffing_reason").notNull().default(""),
+  requestDeadline: text("request_deadline").notNull().default(""),
 }, (table) => [
   index("station_shift_slot_entry_idx").on(table.entryId, table.sortOrder),
   index("station_shift_slot_employee_idx").on(table.employeeId),
@@ -727,6 +728,7 @@ export const stationReminderRules = sqliteTable("station_reminder_rules", {
   offsets: text("offsets").notNull().default("[]"),        // JSON string[] e.g. ["7 days before","2 days before"]
   emailEnabled: integer("email_enabled", { mode: "boolean" }).notNull().default(true),
   textEnabled: integer("text_enabled", { mode: "boolean" }).notNull().default(false),
+  pushEnabled: integer("push_enabled", { mode: "boolean" }).notNull().default(false),
   target: text("target").notNull().default(""),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),

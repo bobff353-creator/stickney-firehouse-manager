@@ -1,6 +1,7 @@
 const CACHE_NAME = "stickney-firehouse-shell-v2";
 // IDs only, no call details or credentials. Keep across service-worker upgrades.
 const PUSH_RECEIPTS = "stickney-cad-receipts-v1";
+const SCHEDULER_RECEIPTS = "stickney-scheduler-receipts-v1";
 const OFFLINE_URL = "/offline.html";
 const SAFE_STATIC_ASSETS = [
   OFFLINE_URL,
@@ -20,7 +21,7 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME && key !== PUSH_RECEIPTS).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(keys.filter((key) => ![CACHE_NAME, PUSH_RECEIPTS, SCHEDULER_RECEIPTS].includes(key)).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });
@@ -43,13 +44,15 @@ self.addEventListener("fetch", (event) => {
 });
 
 let pushSequence = Promise.resolve();
+let schedulerSequence = Promise.resolve();
 async function displayCadPush(payload) {
+  const routine = payload.kind === 'scheduler';
   const eventId = typeof payload.eventId === "string" && /^[0-9a-f-]{36}$/i.test(payload.eventId) ? payload.eventId : null;
   const receiptUrl = eventId ? new URL(`/__cad_receipt__/${eventId}`, self.location.origin).href : null;
   let receipts = null;
   try {
     if (receiptUrl) {
-      receipts = await caches.open(PUSH_RECEIPTS);
+      receipts = await caches.open(routine ? SCHEDULER_RECEIPTS : PUSH_RECEIPTS);
       if (await receipts.match(receiptUrl)) return;
     }
   } catch { /* Storage failure must not suppress an emergency notification. */ }
@@ -60,8 +63,8 @@ async function displayCadPush(payload) {
     badge: payload.badge || "/icons/pwa-96.png",
     tag: payload.tag || "stickney-cad-call",
     renotify: false,
-    requireInteraction: true,
-    data: { url: payload.url || "/?page=respond", incidentId: payload.incidentId || "" }
+    requireInteraction: !routine,
+    data: { url: payload.url || "/?page=respond", incidentId: payload.incidentId || "", kind: payload.kind || "cad" }
   });
   // Record only after display succeeds: recording beforehand could lose an alert.
   try {
@@ -75,16 +78,26 @@ async function displayCadPush(payload) {
 self.addEventListener("push", (event) => {
   let payload = {};
   try { payload = event.data ? event.data.json() : {}; } catch { payload = {}; }
-  // Serialize overlapping events on this device as well as server-side claims.
-  pushSequence = pushSequence.catch(() => {}).then(() => displayCadPush(payload));
-  event.waitUntil(pushSequence);
+  // Routine work never queues in front of incoming CAD notifications, and its
+  // receipts cannot evict CAD duplicate protection.
+  if (payload.kind === 'scheduler') {
+    schedulerSequence = schedulerSequence.catch(() => {}).then(() => displayCadPush(payload));
+    event.waitUntil(schedulerSequence);
+  } else {
+    pushSequence = pushSequence.catch(() => {}).then(() => displayCadPush(payload));
+    event.waitUntil(pushSequence);
+  }
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const target = new URL(event.notification.data?.url || "/?page=respond", self.location.origin).href;
   event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clients) => {
-    const existing = clients.find((client) => new URL(client.url).origin === self.location.origin);
+    // A routine reminder must not navigate an apparatus/TV off its live call.
+    const existing = clients.find((client) => {
+      const url = new URL(client.url);
+      return url.origin === self.location.origin && (event.notification.data?.kind !== "scheduler" || url.searchParams.get("page") === "scheduling");
+    });
     if (existing) {
       if ("navigate" in existing) await existing.navigate(target);
       return existing.focus();

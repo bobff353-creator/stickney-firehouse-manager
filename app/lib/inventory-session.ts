@@ -33,7 +33,7 @@ export type InventorySessionResult =
     error: string;
   };
 
-async function verifiedSession(): Promise<InventorySessionResult> {
+async function verifiedSession(requiredPermissions = ['inventory.view']): Promise<InventorySessionResult> {
   try {
     const supabase = await createInventorySupabaseClient();
     const {
@@ -106,11 +106,11 @@ async function verifiedSession(): Promise<InventorySessionResult> {
     }
 
     const portalPermissions = await permissionsForEmail(user.email, await ensureDatabase());
-    if (!portalPermissions.has("inventory.view")) {
+    if (!requiredPermissions.some(permission => portalPermissions.has(permission as Parameters<typeof portalPermissions.has>[0]))) {
       return {
         ok: false,
         status: 403,
-        error: "Fleet and Inventory access is not enabled for this account.",
+        error: "Access to this tool is not enabled for this account.",
       };
     }
 
@@ -145,6 +145,13 @@ export async function verifyInventoryRequest(request: Request) {
 
 export async function verifyInventoryServerSession() {
   return verifiedSession();
+}
+
+// Reuse all session, department and PIN checks without requiring unrelated
+// Inventory access just to register a scheduling/Respond notification device.
+export async function verifyPushRequest(request: Request) {
+  void request;
+  return verifiedSession(['field_preplans.view', 'scheduling.view', 'scheduling.manage']);
 }
 
 export function sameOriginInventoryRequest(request: Request) {

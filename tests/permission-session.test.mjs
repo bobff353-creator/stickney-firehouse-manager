@@ -4,18 +4,35 @@ import fs from 'node:fs';
 import ts from 'typescript';
 
 function compile(file,deps){const module={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(name=>{if(!(name in deps))throw Error('Missing dependency '+name);return deps[name];},module,module.exports);return module.exports;}
-function proxyFixture({signedIn=true,member=true,configured=true,unlocked=true}={}){
+function proxyFixture({signedIn=true,member=true,configured=true,unlocked=true,confirmationRequired=false,confirmationError=false}={}){
  let forwarded;
  function cookieJar(){const map=new Map();return{getAll:()=>[...map.values()],set(name,value,options){if(typeof name==='object')map.set(name.name,name);else map.set(name,{name,value,...options});},get(name){return map.get(name);},toString:()=>[...map.values()].map(c=>c.name+'='+c.value).join('; ')};}
  const next={next(options){forwarded=options;return{headers:new Headers(),cookies:cookieJar()};},json:(body,init)=>Response.json(body,init)};
- const client=(_url,_key,options)=>({auth:{async getUser(){options.cookies.setAll([{name:'auth-refresh',value:'fixture-renewed',options:{httpOnly:true,path:'/'}}]);return{data:{user:signedIn?{id:'fixture',email:'member@example.invalid'}:null},error:null};}},from(){const chain={select:()=>chain,eq:()=>chain,maybeSingle:async()=>({data:member?{role:'user'}:null,error:null})};return chain;},async rpc(name){return{data:name==='is_platform_owner'?false:name==='portal_pin_status'?[{configured,unlocked}]:null,error:null};}});
- const proxy=compile('proxy.ts',{'@supabase/ssr':{createServerClient:client},'next/server':{NextResponse:next},'./app/supabase-config':{getPublicSupabaseConfig:()=>({url:'https://example.invalid',key:'publishable-fixture'})}}).proxy;
+ const client=(_url,_key,options)=>({auth:{async getUser(){options.cookies.setAll([{name:'auth-refresh',value:'fixture-renewed',options:{httpOnly:true,path:'/'}}]);return{data:{user:signedIn?{id:'fixture',email:'member@example.invalid'}:null},error:null};}},from(){const chain={select:()=>chain,eq:()=>chain,maybeSingle:async()=>({data:member?{role:'user'}:null,error:null})};return chain;},async rpc(name){return{data:name==='is_platform_owner'?false:name==='portal_pin_status'?[{configured,unlocked}]:name==='portal_confirmation_status'?{required:confirmationRequired,version:null,exempt:false}:null,error:name==='portal_confirmation_status'&&confirmationError?{message:'fixture unavailable'}:null};}});
+ const proxy=compile('proxy.ts',{'@supabase/ssr':{createServerClient:client},'next/server':{NextResponse:next},'./app/supabase-config':{getPublicSupabaseConfig:()=>({url:'https://example.invalid',key:'publishable-fixture'})},'./app/required-confirmation-policy':compile('app/required-confirmation-policy.ts',{})}).proxy;
  const request=(method='GET',origin='https://portal.test')=>({method,nextUrl:new URL('https://portal.test/api/payroll'),headers:new Headers({'origin':origin,'oai-authenticated-user-email':'spoofed@example.invalid'}),cookies:cookieJar()});
  return{proxy,request,get forwarded(){return forwarded;}};
 }
 test('session refresh preserves auth cookies and replaces spoofed identity',async()=>{
  const before=process.env.PAYROLL_DEPARTMENT_ID;process.env.PAYROLL_DEPARTMENT_ID='fixture';
  try{const f=proxyFixture();const response=await f.proxy(f.request());assert.equal(response.cookies.get('auth-refresh').value,'fixture-renewed');assert.equal(f.forwarded.request.headers.get('oai-authenticated-user-email'),'member@example.invalid');assert.match(f.forwarded.request.headers.get('cookie'),/auth-refresh=fixture-renewed/);assert.match(response.headers.get('Cache-Control'),/no-store/);}finally{if(before===undefined)delete process.env.PAYROLL_DEPARTMENT_ID;else process.env.PAYROLL_DEPARTMENT_ID=before;}
+});
+test('confirmation is server-enforced, strips spoofed status, and never blocks live-call checks',async()=>{
+ const before=process.env.PAYROLL_DEPARTMENT_ID;process.env.PAYROLL_DEPARTMENT_ID='fixture';
+ try {
+  for(const [options,denied] of [[{confirmationRequired:true},428],[{confirmationError:true},503]]) {
+   const f=proxyFixture(options),request=f.request();request.headers.set('x-portal-confirmation','{"required":false}');
+   assert.equal((await f.proxy(request)).status,denied);
+   for(const path of ['/api/respond','/api/dashboard?scope=live-operations','/api/required-confirmation']) {
+    const live=f.request();live.nextUrl=new URL(path,'https://portal.test');await f.proxy(live);
+    assert.equal(f.forwarded.request.headers.has('x-portal-confirmation'),false);
+    assert.equal(f.forwarded.request.headers.get('x-authenticated-user-id'),'fixture');
+   }
+   const viewer=f.request();viewer.nextUrl=new URL('https://portal.test/api/permissions?scope=viewer');await f.proxy(viewer);
+   const status=JSON.parse(f.forwarded.request.headers.get('x-portal-confirmation'));
+   if(options.confirmationError)assert.equal(status,null);else assert.equal(status.required,true);
+  }
+ }finally{if(before===undefined)delete process.env.PAYROLL_DEPARTMENT_ID;else process.env.PAYROLL_DEPARTMENT_ID=before;}
 });
 test('expired, unapproved, PIN-locked and cross-origin sessions are denied',async()=>{
  const before=process.env.PAYROLL_DEPARTMENT_ID;process.env.PAYROLL_DEPARTMENT_ID='fixture';

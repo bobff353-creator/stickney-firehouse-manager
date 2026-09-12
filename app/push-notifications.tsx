@@ -79,7 +79,7 @@ export default function PushNotifications() {
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error || "Unable to register this phone");
       setState("on");
-      setMessage("CAD phone alerts are on for this device.");
+      setMessage("Portal phone alerts are on for this device. Call alerts and enabled schedule reminders follow your access permissions.");
     } catch (caught) {
       setMessage(caught instanceof Error ? caught.message : "Unable to enable CAD alerts");
     } finally {
@@ -125,9 +125,9 @@ export default function PushNotifications() {
     }
   }
 
-  const label = state === "on" ? "CAD phone alerts on" : state === "checking" ? "Checking phone alerts..." : "CAD phone alerts off";
-  return <section className={`push-notification-control ${state}`} aria-label="CAD phone notifications">
-    <div><strong>{label}</strong><small>Call type - call number - time out - CAD notes</small></div>
+  const label = state === "on" ? "Portal phone alerts on" : state === "checking" ? "Checking phone alerts..." : "Portal phone alerts off";
+  return <section className={`push-notification-control ${state}`} aria-label="Portal phone notifications">
+    <div><strong>{label}</strong><small>CAD calls and enabled schedule reminders, based on your access. Turning off stops both on this device.</small></div>
     {state === "on" ? <div className="push-notification-actions"><button type="button" disabled={busy} onClick={() => void sendTest()}>Send test</button><button type="button" disabled={busy} onClick={() => void disable()}>Turn off</button></div>
       : state === "off" ? <button type="button" disabled={busy || !publicKey} onClick={() => void enable()}>{busy ? "Working..." : "Enable"}</button>
       : null}

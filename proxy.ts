@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getPublicSupabaseConfig } from "./app/supabase-config";
+import { confirmationExemptRequest } from "./app/required-confirmation-policy";
 
 const publicApiPaths = new Set([
   "/api/health",
@@ -51,7 +52,7 @@ export async function proxy(request: NextRequest) {
     && (signedWebhookPaths.has(pathname) || pathname === "/api/cad/cis");
   const publicAuthRequest = request.method === "POST" && publicAuthPostPaths.has(pathname);
   // Exact cron routes authenticate themselves before database/source I/O.
-  const signedCronRequest = request.method === 'GET' && ['/api/cron/cad-push', '/api/cron/board-feeds', '/api/cron/daily-refresh'].includes(pathname);
+  const signedCronRequest = request.method === 'GET' && ['/api/cron/cad-push', '/api/cron/scheduler-reminders', '/api/cron/board-feeds', '/api/cron/daily-refresh'].includes(pathname);
   if (publicApiPaths.has(pathname) || signedWebhookRequest || publicAuthRequest || signedCronRequest) {
     return NextResponse.next();
   }
@@ -67,6 +68,7 @@ export async function proxy(request: NextRequest) {
 
   let response = NextResponse.next({ request });
   const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete('x-portal-confirmation');
   const client = createServerClient(url, key, {
     cookies: {
       getAll() {
@@ -139,6 +141,19 @@ export async function proxy(request: NextRequest) {
   }
   if (!pinUnlocked && !pinSetupPaths.has(pathname)) {
     return jsonError("Enter your portal PIN to unlock department records.", 423);
+  }
+
+  const confirmationExempt = confirmationExemptRequest(request.nextUrl,request.method);
+  const viewerCheck = pathname === '/api/permissions' && request.nextUrl.searchParams.get('scope') === 'viewer';
+  if (pinConfigured && pinUnlocked && (!confirmationExempt || viewerCheck)) {
+    const confirmation = await client.rpc('portal_confirmation_status');
+    // A failed acknowledgment check must not revoke live-call permissions.
+    // Regular tools remain closed until confirmation can be verified.
+    if (viewerCheck) requestHeaders.set('x-portal-confirmation',JSON.stringify(confirmation.error ? null : confirmation.data));
+    if (!confirmationExempt) {
+      if (confirmation.error || typeof confirmation.data?.required !== 'boolean') return jsonError('Required confirmation could not be checked. Retry before opening regular tools.',503);
+      if (confirmation.data.required) return NextResponse.json({ error:'Confirm the department message before using this tool.',code:'CONFIRMATION_REQUIRED' },{status:428,headers:{'Cache-Control':'private, no-store'}});
+    }
   }
 
   requestHeaders.set("oai-authenticated-user-email", user.email.toLowerCase());
