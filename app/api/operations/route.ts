@@ -1,4 +1,6 @@
 import { createInventorySupabaseClient } from "../../lib/supabase-server";
+import { airAssetInput, airSaveError } from "../../inventory-air-input";
+import { serviceScheduleInput } from "../../inventory-service-schedule";
 import {
   canMutateInventory,
   sameOriginInventoryRequest,
@@ -90,7 +92,7 @@ export async function GET(request: Request) {
         .order("sort_order"),
       collectPages((from, to) => supabase
         .from("inventory_equipment")
-        .select("id,apparatus_id,compartment_id,name,manufacturer,model,serial_number,barcode,quantity_required,equipment_category,check_types,source_form,item_order,retired_at,item_type,parent_equipment_id,purchase_date,in_service_date,expiration_date,response_type,service_status,service_notes,retirement_reason,retired_by,updated_at")
+        .select("id,apparatus_id,compartment_id,name,manufacturer,model,serial_number,barcode,quantity_required,equipment_category,check_types,source_form,item_order,retired_at,item_type,parent_equipment_id,purchase_date,in_service_date,expiration_date,response_type,service_status,service_notes,retirement_reason,retired_by,updated_at,scba_asset_kind,asset_number,sku,hydro_test_date,hydro_due_date,scba_notes,scba_check_slot,last_serviced_date,service_interval_months,service_reminder_months")
         .eq("department_id", departmentId)
         .order("item_order")
         .order("name")
@@ -163,7 +165,7 @@ export async function GET(request: Request) {
         .order("updated_at", { ascending: false }),
       collectPages((from, to) => supabase
         .from("inventory_scba_check_entries")
-        .select("id,check_id,section,label,sort_order,harness_number,cylinder_number,psi,result,notes,checked_by,checked_at")
+        .select("id,check_id,section,label,sort_order,harness_number,cylinder_number,psi,result,notes,checked_by,checked_at,equipment_id,asset_number,location_snapshot")
         .eq("department_id", departmentId)
         .order("sort_order")
         .range(from, to)),
@@ -327,7 +329,7 @@ export async function POST(request: Request) {
     const action = clean(body.action, 60);
     const requiredPermission = ["start_check", "record_check_item", "record_scba_entry", "bulk_record_check_items", "complete_check", "adjust_stock", "request_restock", "request_location_change"].includes(action)
       ? "inventory.check" as const
-      : ["create_notice", "create_work_order", "close_work_order", "update_work_order_status", "set_equipment_status"].includes(action)
+      : ["create_notice", "create_work_order", "close_work_order", "update_work_order_status", "set_equipment_status", "log_air_maintenance"].includes(action)
         ? "inventory.repairs.manage" as const
         : "inventory.setup.manage" as const;
     if (!canMutateInventory(session.context, requiredPermission)) {
@@ -337,6 +339,35 @@ export async function POST(request: Request) {
     const actorId = session.context.user.id;
     const actor = session.context.user.email;
     const supabase = await createInventorySupabaseClient();
+
+    if (action === "save_air_asset") {
+      let asset;
+      try { asset = airAssetInput(body.asset); }
+      catch (error) { return privateJson({ error: error instanceof Error ? error.message : "Review the asset details." }, 400); }
+      const { data, error } = await supabase.rpc("inventory_save_air_asset", {
+        p_department: departmentId, p_id: clean(body.id, 80),
+        p_expected_updated_at: clean(body.expectedUpdatedAt, 80) || null, p_asset: asset,
+      });
+      if (error) { const failure = airSaveError(error); return privateJson({ error: failure.error }, failure.status); }
+      if (!data?.id) return privateJson({ error: "The asset save could not be confirmed." }, 503);
+      return privateJson(data);
+    }
+
+    if (action === "log_air_maintenance") {
+      const record = {
+        summary: clean(body.summary), resolution_notes: clean(body.resolutionNotes, 1000),
+        repair_date: clean(body.repairDate, 10), repair_cost: clean(body.repairCost, 20) || null,
+        vendor: clean(body.vendor), invoice_number: clean(body.invoiceNumber, 120),
+        performed_by: clean(body.performedBy), next_service_due_date: clean(body.nextServiceDueDate, 10) || null,
+      };
+      if (record.repair_cost !== null && (!Number.isFinite(Number(record.repair_cost)) || Number(record.repair_cost) < 0)) return privateJson({ error: "Enter a nonnegative cost or leave it blank." }, 400);
+      const { data, error } = await supabase.rpc("inventory_log_air_maintenance", {
+        p_department: departmentId, p_equipment: clean(body.equipmentId, 80), p_id: clean(body.id, 80), p_record: record,
+      });
+      if (error) { const failure = airSaveError(error); return privateJson({ error: failure.error }, failure.status); }
+      if (!data?.id) return privateJson({ error: "The maintenance save could not be confirmed." }, 503);
+      return privateJson(data);
+    }
 
     if (action === "save_inspection_schedule") {
       const id = clean(body.id, 80);
@@ -369,6 +400,7 @@ export async function POST(request: Request) {
         : supabase.from("inventory_inspection_schedules").upsert({ id: crypto.randomUUID(), ...row, created_by: actor }, { onConflict: "department_id,apparatus_id,check_type,day_of_week" }).select("id").maybeSingle();
       const { data, error } = await query;
       if (error) throw error;
+      if (!data?.id) return privateJson({ error: "This schedule could not be saved. Refresh and try again." }, 409);
       return privateJson({ scheduleId: data?.id });
     }
 
@@ -593,7 +625,7 @@ export async function POST(request: Request) {
       const [{ data: equipment }, { data: compartment }] = await Promise.all([
         supabase
           .from("inventory_equipment")
-          .select("id,apparatus_id")
+          .select("*")
           .eq("department_id", departmentId)
           .eq("id", equipmentId)
           .is("retired_at", null)
@@ -608,6 +640,7 @@ export async function POST(request: Request) {
       if (!equipment || !compartment || !name) {
         return privateJson({ error: "Choose a saved item, apparatus compartment, and name." }, 400);
       }
+      if (equipment.scba_asset_kind) return privateJson({ error: "Edit this registered ID in Air Packs & Bottles so its location and weekly position stay linked." }, 409);
       const parentEquipmentId = clean(body.parentEquipmentId, 80) || null;
       if (parentEquipmentId === equipmentId) {
         return privateJson({ error: "An item cannot be grouped inside itself." }, 400);
@@ -624,9 +657,14 @@ export async function POST(request: Request) {
           return privateJson({ error: "Choose a kit or container assigned to the selected apparatus." }, 400);
         }
       }
+      let serviceSchedule = {};
+      try { if (body.serviceSchedule) serviceSchedule = serviceScheduleInput(body.serviceSchedule as Record<string, unknown>); }
+      catch (caught) { return privateJson({ error: caught instanceof Error ? caught.message : "Review the service schedule." }, 400); }
+      if (body.expectedUpdatedAt !== undefined && body.expectedUpdatedAt !== equipment.updated_at) return privateJson({ error: "This item changed on another screen. Reopen it before saving." }, 409);
       const serviceStatus = clean(body.serviceStatus, 40) || "in_service";
       const retiring = serviceStatus === "retired";
       const changes = {
+        ...serviceSchedule,
         apparatus_id: compartment.apparatus_id,
         compartment_id: compartmentId,
         name,
@@ -654,13 +692,13 @@ export async function POST(request: Request) {
         retirement_reason: retiring ? clean(body.retirementReason, 1000) || "Retired by administrator" : null,
         updated_at: new Date().toISOString(),
       };
-      const { error } = await supabase
-        .from("inventory_equipment")
-        .update(changes)
-        .eq("department_id", departmentId)
-        .eq("id", equipmentId);
+      const unchanged = Object.entries(changes).every(([key, value]) => key === "updated_at" || JSON.stringify(equipment[key]) === JSON.stringify(value));
+      if (unchanged) return privateJson({ equipment, changed: false });
+      const update = supabase.from("inventory_equipment").update(changes).eq("department_id", departmentId).eq("id", equipmentId).is("retired_at", null);
+      const { data: saved, error } = await (equipment.updated_at ? update.eq("updated_at", equipment.updated_at) : update.is("updated_at", null)).select("id").maybeSingle();
       if (error) throw error;
-      return privateJson({ equipment: { id: equipmentId, ...changes } });
+      if (!saved) return privateJson({ error: "This item changed or your access changed. Reopen it before saving." }, 409);
+      return privateJson({ equipment: { id: equipmentId, ...changes }, changed: true });
     }
 
     if (action === "review_check") {
@@ -721,7 +759,15 @@ export async function POST(request: Request) {
       if (!checkTypes.has(checkType)) {
         return privateJson({ error: "Choose Daily, Weekly, Inventory, or Air Pack check." }, 400);
       }
-      const [{ data: apparatus }, { data: fleetApparatus }, { data: equipment }, { data: scbaTemplate }] = await Promise.all([
+      if (checkType === "air_pack") {
+        const { data, error } = await supabase.rpc("inventory_start_air_check", {
+          p_department: departmentId, p_apparatus: apparatusId, p_shift: clean(body.shiftId, 80) || null,
+        });
+        if (error) { const failure = airSaveError(error); return privateJson({ error: failure.error }, failure.status); }
+        if (!data?.checkId) return privateJson({ error: "The air check could not be opened." }, 503);
+        return privateJson(data, data.resumed ? 200 : 201);
+      }
+      const [{ data: apparatus }, { data: fleetApparatus }, { data: equipment }] = await Promise.all([
         supabase
           .from("inventory_apparatus_profiles")
           .select("id")
@@ -740,12 +786,6 @@ export async function POST(request: Request) {
           .eq("department_id", departmentId)
           .eq("apparatus_id", apparatusId)
           .is("retired_at", null),
-        supabase
-          .from("inventory_scba_templates")
-          .select("id,pack_positions,include_rit,spare_bottle_count,active")
-          .eq("department_id", departmentId)
-          .eq("apparatus_id", apparatusId)
-          .maybeSingle(),
       ]);
       if (!apparatus) {
         return privateJson({ error: "Select a saved department apparatus." }, 400);
@@ -769,14 +809,9 @@ export async function POST(request: Request) {
       const includedEquipment = (equipment || []).filter((item) => (
         Array.isArray(item.check_types) && item.check_types.includes(checkType)
       ));
-      const configuredScbaEntries = checkType === "air_pack" && scbaTemplate?.active
-        ? (Array.isArray(scbaTemplate.pack_positions) ? scbaTemplate.pack_positions.length : 0)
-          + (scbaTemplate.include_rit ? 1 : 0)
-          + Math.max(0, Number(scbaTemplate.spare_bottle_count || 0))
-        : 0;
-      if (checkType === "air_pack" ? !configuredScbaEntries : !includedEquipment.length) {
+      if (!includedEquipment.length) {
         return privateJson(
-          { error: checkType === "air_pack" ? "An administrator must configure this apparatus weekly SCBA template before starting it." : `Add at least one item to the ${checkType.replace("_", " ")} check before starting it.` },
+          { error: `Add at least one item to the ${checkType.replace("_", " ")} check before starting it.` },
           400,
         );
       }
@@ -804,22 +839,7 @@ export async function POST(request: Request) {
         }
       }
       if (checkError) throw checkError;
-      const { error: itemError } = checkType === "air_pack"
-        ? await supabase.from("inventory_scba_check_entries").insert([
-          ...(scbaTemplate?.pack_positions || []).map((label: string, index: number) => ({
-            id: crypto.randomUUID(), department_id: departmentId, check_id: checkId,
-            section: "pack", label, sort_order: index + 1, result: "pending",
-          })),
-          ...(scbaTemplate?.include_rit ? [{
-            id: crypto.randomUUID(), department_id: departmentId, check_id: checkId,
-            section: "rit", label: "R.I.T. Bag", sort_order: 100, result: "pending",
-          }] : []),
-          ...Array.from({ length: Math.max(0, Number(scbaTemplate?.spare_bottle_count || 0)) }, (_, index) => ({
-            id: crypto.randomUUID(), department_id: departmentId, check_id: checkId,
-            section: "spare", label: `Spare #${index + 1}`, sort_order: 200 + index, result: "pending",
-          })),
-        ])
-        : await supabase.from("inventory_check_items").insert(
+      const { error: itemError } = await supabase.from("inventory_check_items").insert(
           includedEquipment.map((item) => ({
             id: crypto.randomUUID(),
             department_id: departmentId,
@@ -844,7 +864,7 @@ export async function POST(request: Request) {
       }
       const { data: entry } = await supabase
         .from("inventory_scba_check_entries")
-        .select("id,check_id,section")
+        .select("id,check_id,section,equipment_id,asset_number")
         .eq("department_id", departmentId)
         .eq("id", entryId)
         .maybeSingle();
@@ -859,6 +879,7 @@ export async function POST(request: Request) {
         .maybeSingle();
       if (!check) return privateJson({ error: "This weekly SCBA check is no longer active." }, 409);
       if (result !== "not_applicable") {
+        if (entry.asset_number && (entry.section === "pack" ? harnessNumber : cylinderNumber) !== entry.asset_number) return privateJson({ error: "This checklist line is linked to a specific equipment ID. Check that item; ask an administrator to update the assignment if it has moved." }, 409);
         if (entry.section === "pack" && !harnessNumber) return privateJson({ error: "Enter the SCBA harness number." }, 400);
         if (!cylinderNumber) return privateJson({ error: "Enter the cylinder number." }, 400);
         if (psi < 0 || psi > 6000) return privateJson({ error: "Enter a PSI reading from 0 to 6000." }, 400);

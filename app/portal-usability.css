@@ -34,8 +34,21 @@
 .resource-reader-focus { scroll-margin-top: 100px; }
 .resource-page .resource-record, .resource-page .resource-form, .resource-page .policy-toc { scroll-margin-top: 110px; }
 .timesheet-phone-day { display: none; }
-.employee-page, .field-preplans-page, .respond-overview-page { min-width: 0; max-width: 100%; grid-template-columns: minmax(0, 1fr); }
+.employee-page, .field-preplans-page, .respond-overview-page { min-width: 0; max-width: 100%; }
+/* Focused records own their two-column layout. A one-column override creates an
+   implicit second column and puts the sticky map above the editor. */
+.employee-page, .field-preplans-page:not(.preplan-builder-focused), .respond-overview-page { grid-template-columns: minmax(0, 1fr); }
 .employee-page > *, .field-preplans-page > *, .respond-overview-page > * { min-width: 0; }
+.preplan-focus-map-panel { grid-column: 1; scroll-margin-top: 80px; }
+.preplan-focus-map-panel > .field-map-toolbar small { white-space: normal; }
+.preplan-focus-map-panel > .field-map-toolbar button { min-height: 44px; }
+.preplan-map-zoom { display: flex; flex-shrink: 0; align-items: center; gap: 6px; margin-left: auto; white-space: nowrap; }
+/* Keep section navigation in the form flow instead of floating over its fields. */
+.preplan-builder-focused > .preplan-editor > header { position: static; z-index: auto; }
+.preplan-builder-focused > .preplan-editor > header nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; }
+.preplan-builder-focused > .preplan-editor > header nav button { min-width: 0; min-height: 44px; height: auto; padding: 8px; white-space: normal; overflow-wrap: anywhere; }
+.preplan-capture-help { margin: 0; padding: 10px 12px; border: 1px solid #b8cbd6; border-radius: 7px; background: #edf5fa; color: #173e59; font-size: 13px; line-height: 1.5; }
+.preplan-capture-help strong { display: block; }
 .employee-save-fields { margin: 0 !important; padding: 0 !important; border: 0 !important; min-width: 0; }
 .portal-save-fields { margin: 0; padding: 0; border: 0; min-width: 0; width: 100%; }
 .record-details-toggle { display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 44px; padding: 10px 16px; font: inherit; font-weight: 650; font-size: 14px; text-align: left; border: 0; background: #fff; color: #234a64; cursor: pointer; }

@@ -14,7 +14,7 @@ import {
   useState,
 } from "react";
 
-type View = "due" | "fleet" | "inventory" | "check" | "equipment" | "reports" | "readiness" | "service" | "stock" | "setup";
+type View = "due" | "fleet" | "inventory" | "check" | "equipment" | "air" | "reports" | "readiness" | "service" | "stock" | "setup";
 type LoadState = "loading" | "ready" | "unavailable";
 type FleetFilter = "all" | "in-service" | "out-impaired" | "digital-twins";
 
@@ -23,6 +23,7 @@ const inventorySections: Array<[View, string]> = [
   ["fleet", "Checks"],
   ["inventory", "Inventory"],
   ["equipment", "Equipment"],
+  ["air", "Air Packs & Bottles"],
   ["reports", "Reports"],
   ["service", "Repairs"],
   ["stock", "Meds & Stock"],
@@ -34,6 +35,7 @@ const workspaceCopy: Record<View, { eyebrow: string; title: string; description:
   inventory: { eyebrow: "APPARATUS INVENTORY", title: "Inventory checks", description: "Start or resume the saved inventory for each apparatus." },
   check: { eyebrow: "ACTIVE WORK", title: "Complete this check", description: "Work one location at a time. Every result saves to the department record." },
   equipment: { eyebrow: "EQUIPMENT RECORDS", title: "Find equipment", description: "Search by name, apparatus, compartment, barcode, or serial number." },
+  air: { eyebrow: "AIR EQUIPMENT", title: "Air Packs & Bottles", description: "Individual IDs, locations, weekly checks, and maintenance history." },
   reports: { eyebrow: "COMPLETED WORK", title: "Reports & approvals", description: "Review, approve, print, or email completed checks." },
   readiness: { eyebrow: "READINESS EXCEPTIONS", title: "Items needing attention", description: "Review saved equipment problems and connected inventory updates." },
   service: { eyebrow: "SERVICE & REPAIRS", title: "Repair records", description: "Report, assign, document, and close fleet repairs." },
@@ -604,7 +606,7 @@ export default function Inventory360({
             <button type="button" onClick={() => setView("fleet")}><strong>{checksInProgress}</strong><span>Checks in progress</span></button>
           </div>
         ) : null}
-        <label className="inventory-mobile-destination">What do you need to do?<select aria-label="Inventory workspace" value={view === "check" ? "fleet" : view} onChange={event => setView(event.target.value as View)}>{inventorySections.map(([id,label]) => <option key={id} value={id}>{label}</option>)}{view === "readiness" && <option value="readiness">Items needing attention</option>}{canSetup && <option value="setup">Admin: checks &amp; equipment</option>}</select></label>
+        <label className="inventory-mobile-destination">What do you need to do?<select aria-label="Inventory workspace" value={view === "check" ? (selectedCheckType === "air_pack" ? "air" : "fleet") : view} onChange={event => setView(event.target.value as View)}>{inventorySections.map(([id,label]) => <option key={id} value={id}>{label}</option>)}{view === "readiness" && <option value="readiness">Items needing attention</option>}{canSetup && <option value="setup">Admin: checks &amp; equipment</option>}</select></label>
         <nav className="inventory-section-nav" aria-label="Inventory sections">
           {[
             ...inventorySections,
@@ -613,7 +615,7 @@ export default function Inventory360({
             <button
               key={id}
               type="button"
-              className={view === id || (view === "check" && id === "fleet") ? "active" : ""}
+              className={view === id || (view === "check" && id === (selectedCheckType === "air_pack" ? "air" : "fleet")) ? "active" : ""}
               aria-current={view === id ? "page" : undefined}
               onClick={() => setView(id)}
             >
@@ -649,7 +651,7 @@ export default function Inventory360({
               <span>5</span><b>Repair follow-up</b><small>Track failed items without duplicate work</small>
             </button>
           </nav>
-          <InventoryOperations view="due" onSetup={() => setView("setup")} onOpenUnit={(apparatusId, checkType) => { setSelectedApparatusId(apparatusId); setSelectedCheckType(checkType); window.history.replaceState(null, "", `/inventory?apparatus=${encodeURIComponent(apparatusId)}&check=${checkType}`); setView("check"); }} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+          <InventoryOperations view="due" onAir={() => setView("air")} onSetup={() => setView("setup")} onOpenUnit={(apparatusId, checkType) => { setSelectedApparatusId(apparatusId); setSelectedCheckType(checkType); window.history.replaceState(null, "", `/inventory?apparatus=${encodeURIComponent(apparatusId)}&check=${checkType}`); setView("check"); }} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
         </section>
       ) : null}
 
@@ -818,18 +820,21 @@ export default function Inventory360({
               <p>Add equipment once, then record every pass, missing item, damaged item, or not-applicable result.</p>
             </div>
             <div className="heading-actions">
-              <button className="secondary" onClick={() => setView("fleet")}>Back to fleet</button>
+              <button className="secondary" onClick={() => setView(selectedCheckType === "air_pack" ? "air" : "fleet")}>{selectedCheckType === "air_pack" ? "Back to Air Packs & Bottles" : "Back to fleet"}</button>
               {canSetup ? <button className="primary" onClick={() => setView("setup")}>Admin Configuration</button> : null}
             </div>
           </div>
+          {selectedCheckType === "air_pack" ? <div className="air-check-return"><button type="button" className="secondary" onClick={() => setView("air")}>← Back to Air Packs &amp; Bottles</button></div> : null}
           <InventoryOperations key={`${selectedApparatusId}-${selectedCheckType}`} view="check" onSetup={() => setView("setup")} initialApparatusId={selectedApparatusId} initialCheckType={selectedCheckType} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
         </section>
       ) : null}
 
+      {view === "air" ? <section className="page air-equipment-page"><InventoryOperations view="air" onSetup={() => setView("setup")} onRepairs={() => setView("service")} onOpenUnit={(id, type) => { setSelectedApparatusId(id); setSelectedCheckType(type); setView("check"); }} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} /></section> : null}
+
       {view === "equipment" ? (
         <section className="page equipment-page">
           <div className="page-heading compact crew-heading"><div><span className="eyebrow">DEPARTMENT EQUIPMENT</span><h1>Find an asset, compartment, or kit.</h1><p>Search across every apparatus and scan an asset tag without guessing where it is stored.</p></div></div>
-          <InventoryOperations view="equipment" onSetup={() => setView("setup")} scanRequest={scanRequest} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+          <InventoryOperations view="equipment" onSetup={() => setView("setup")} onAir={() => setView("air")} scanRequest={scanRequest} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
         </section>
       ) : null}
 
@@ -970,7 +975,7 @@ export default function Inventory360({
               )}
             </div>
             <div className="setup-workspace-panel" hidden={setupWorkspace !== "checks"}>
-              <InventoryOperations view="builder" onSetup={() => setView("setup")} initialApparatusId={selectedApparatusId} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+              <InventoryOperations view="builder" onSetup={() => setView("setup")} onAir={() => setView("air")} initialApparatusId={selectedApparatusId} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
             </div>
           </div>
         </section>

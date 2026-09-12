@@ -1,0 +1,55 @@
+@media (min-width: 981px) { .inventory-section-nav { grid-template-columns: repeat(9,minmax(0,1fr)); } }
+.air-check-return { margin: 12px 0 20px; }
+.air-check-return button { min-height: 44px; max-width: 100%; padding: 10px 16px; white-space: normal; }
+.air-systems { color: #12324d; min-width: 0; scroll-margin-top: 90px; outline: none; }
+.air-systems *, .air-systems *::before, .air-systems *::after { box-sizing: border-box; }
+.air-systems .air-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+.air-systems h2 { font-size: clamp(1.5rem, 4vw, 2rem); margin: 8px 0; }
+.air-systems h3 { margin: 0 0 12px; font-size: 1.15rem; }
+.air-systems p { line-height: 1.55; margin: 10px 0; }
+.air-systems button, .air-systems input:not([type=checkbox]), .air-systems select { min-height: 44px; }
+.air-systems button { white-space: normal; overflow-wrap: anywhere; padding: 10px 16px; border: 1px solid #b9cbd7; border-radius: 8px; background: #fff; color: #173d5c; cursor: pointer; font: inherit; font-weight: 700; }
+.air-systems button.ops-primary, .air-systems .air-tabs button[aria-pressed=true] { color: #fff; background: #163f60; border-color: #163f60; }
+.air-systems button:disabled { opacity: .6; cursor: not-allowed; }
+.air-systems :focus-visible { outline: 3px solid #277fba; outline-offset: 3px; }
+.air-systems .air-tabs { display: flex; gap: 8px; flex-wrap: wrap; padding-bottom: 18px; border-bottom: 1px solid #cfdae2; margin-bottom: 20px; }
+.air-systems .air-filters { display: grid; grid-template-columns: minmax(180px, 2fr) minmax(160px, 1fr) auto; align-items: end; gap: 16px; margin-bottom: 20px; }
+.air-systems label { display: flex; flex-direction: column; gap: 7px; font-weight: 700; min-width: 0; line-height: 1.4; }
+.air-systems label small, .air-systems label span { font-weight: 400; color: #4a6477; }
+.air-systems input:not([type=checkbox]), .air-systems select, .air-systems textarea { width: 100%; max-width: 100%; min-width: 0; border: 1px solid #a6bdce; border-radius: 7px; background: white; color: #12324d; padding: 10px; font: inherit; font-size: 16px; }
+.air-systems input[type=file] { overflow: hidden; }
+.air-systems .air-checkbox { flex-direction: row; align-items: center; min-height: 44px; }
+.air-systems .air-checkbox input { width: 20px; height: 20px; }
+.air-systems .air-asset-grid, .air-systems .air-check-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; }
+.air-systems button.air-asset-card { display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 8px; padding: 20px; border-left: 4px solid #198477; box-shadow: 0 3px 12px #12324d0b; }
+.air-systems .air-asset-card strong { font-size: 1.25rem; }
+.air-systems .air-asset-card span { font-weight: 400; }
+.air-systems .air-asset-card .air-open-label { font-weight: 700; margin-top: 8px; color: #155f8f; }
+.air-systems .air-record, .air-systems .air-empty { border: 1px solid #c9d8e3; padding: 22px; background: #fff; border-radius: 12px; margin: 16px 0; min-width: 0; overflow-wrap: anywhere; }
+.air-systems .air-check-grid .air-record { margin: 0; }
+.air-systems .air-note, .air-systems .air-warning { border-left: 4px solid #187c76; background: #edf6f5; padding: 14px; border-radius: 6px; }
+.air-systems .air-warning { background: #fff5dc; border-color: #bd7a12; color: #704607; }
+.air-systems .air-form { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.air-systems fieldset { margin: 0; padding: 20px; border: 1px solid #bfcfdc; border-radius: 10px; min-width: 0; background: #fff; }
+.air-systems legend { font-weight: 700; padding: 0 8px; }
+.air-systems .air-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
+.air-systems .air-wide { grid-column: 1 / -1; }
+.air-systems .air-actions { display: flex; justify-content: flex-end; gap: 12px; padding: 12px 0; }
+.air-systems details { background: #f8fbfd; border: 1px solid #d2dfe8; border-radius: 8px; padding: 14px; margin: 14px 0; min-width: 0; }
+.air-systems summary { cursor: pointer; min-height: 44px; padding: 10px 0; line-height: 1.5; font-weight: 700; overflow-wrap: anywhere; }
+.air-systems details[open] > summary { margin-bottom: 14px; border-bottom: 1px solid #d2dfe8; }
+.air-systems dl { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; margin: 14px 0; }
+.air-systems dl div { min-width: 0; }
+.air-systems dt { color: #506a7b; font-size: .85rem; }
+.air-systems dd { font-weight: 700; margin: 5px 0 0; overflow-wrap: anywhere; }
+.air-systems .air-photo { width: 180px; height: 140px; max-width: 100%; object-fit: contain; border-radius: 8px; }
+.air-systems .air-preserve { white-space: pre-wrap; overflow-wrap: anywhere; }
+.air-systems .scba-template-editor { min-width: 0; }
+@media (max-width: 1000px) { .air-systems .air-check-grid { grid-template-columns: 1fr; } .air-systems .air-filters { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 600px) {
+ .air-systems .air-fields, .air-systems .air-asset-grid, .air-systems .air-filters { grid-template-columns: 1fr; }
+ .air-systems .air-tabs { gap: 6px; } .air-systems .air-tabs button { flex: 1 1 90px; padding: 9px; font-size: .9rem; }
+ .air-systems .air-record, .air-systems fieldset { padding: 14px; } .air-systems details { padding: 10px; }
+ .air-systems .air-actions button { flex: 1; } .air-systems .air-heading > button { width: 100%; }
+ .air-systems dl { grid-template-columns: 1fr; } .air-systems .air-heading { gap: 10px; }
+}

@@ -1,5 +1,7 @@
 import "./inventory.css";
 import "./usability.css";
+import "./air-systems.css";
+import "./service-schedule.css";
 import "../suite-theme.css";
 
 export const metadata = {

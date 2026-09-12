@@ -1,4 +1,6 @@
 "use client";
+import { ServiceScheduleFields, ServiceScheduleSummary } from "./inventory-service-fields";
+import { serviceDateLabel, serviceReminders, serviceScheduleInput } from "./inventory-service-schedule";
 
 /* Authenticated inventory images must load directly so the browser sends the department session cookie. */
 /* eslint-disable @next/next/no-img-element */
@@ -6,9 +8,11 @@
 import { FormEvent, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { inventoryPreviewItems } from "./inventory-preview";
+import InventoryAirSystems from "./inventory-air-systems";
+import { airCheckLines } from "./inventory-air-checks";
 import type { IScannerControls } from "@zxing/browser";
 
-type OperationsView = "due" | "inventory" | "check" | "equipment" | "reports" | "readiness" | "service" | "stock" | "builder" | "legacy_check" | "legacy_service";
+type OperationsView = "due" | "inventory" | "check" | "equipment" | "air" | "reports" | "readiness" | "service" | "stock" | "builder" | "legacy_check" | "legacy_service";
 type Row = Record<string, string | number | boolean | string[] | null>;
 type CheckCard = {
   apparatusId: string;
@@ -323,10 +327,10 @@ function ScbaEntryEditor({
       notes: form.get("notes"),
     });
   }}>
-    <header><div><span>{formatStatus(entry.section)}</span><h4>{value(entry, "label")}</h4></div><b>{formatStatus(savedResult)}</b></header>
+    <header><div><span>{formatStatus(entry.section)}</span><h4>{value(entry, "label")}</h4>{entry.location_snapshot ? <small>{value(entry, "location_snapshot")}</small> : null}</div><b>{formatStatus(savedResult)}</b></header>
     <div className="scba-entry-fields">
-      {isPack ? <label><span>Harness number</span><input name="harnessNumber" defaultValue={value(entry, "harness_number")} required={!isNotApplicable} /></label> : null}
-      <label><span>Cylinder number</span><input name="cylinderNumber" defaultValue={value(entry, "cylinder_number")} required={!isNotApplicable} /></label>
+      {isPack ? <label><span>Harness number</span><input name="harnessNumber" defaultValue={value(entry, "asset_number") || value(entry, "harness_number")} readOnly={Boolean(entry.asset_number)} required={!isNotApplicable} /></label> : null}
+      <label><span>Cylinder number</span><input name="cylinderNumber" defaultValue={(!isPack && value(entry, "asset_number")) || value(entry, "cylinder_number")} readOnly={Boolean(entry.asset_number) && !isPack} required={!isNotApplicable} /></label>
       <label><span>PSI (fill to 4500)</span><input name="psi" type="number" inputMode="numeric" min="0" max="6000" defaultValue={value(entry, "psi")} required={!isNotApplicable} placeholder="4500" /></label>
       <label><span>{isPack ? "Electronics operational" : "Condition"}</span><select value={result} onChange={(event) => setResult(event.target.value)}><option value="pass">Pass</option><option value="failed">Issue</option><option value="not_applicable">N/A</option></select></label>
     </div>
@@ -345,6 +349,8 @@ export default function InventoryOperations({
   canCheck = false,
   canManageRepairs = false,
   canSetup = false,
+  onRepairs = onSetup,
+  onAir = onSetup,
 }: {
   view: OperationsView;
   onSetup: () => void;
@@ -355,6 +361,8 @@ export default function InventoryOperations({
   canCheck?: boolean;
   canManageRepairs?: boolean;
   canSetup?: boolean;
+  onRepairs?: () => void;
+  onAir?: () => void;
 }) {
   const [data, setData] = useState<OperationsData>(emptyData);
   const [loading, setLoading] = useState(true);
@@ -391,7 +399,7 @@ export default function InventoryOperations({
   const directorySummaryRef = useRef<HTMLElement>(null);
   const builderTopRef = useRef<HTMLElement>(null);
   useEffect(() => { if (selectedDirectoryEquipment) directorySummaryRef.current?.scrollIntoView({block:"start", behavior:"smooth"}); }, [selectedDirectoryEquipment]);
-  const openEquipmentEditor = (item: Row) => { setEditorSection("basics"); setEditingEquipment(item); };
+  const openEquipmentEditor = (item: Row) => { if (item.scba_asset_kind) { onAir(); return; } setEditorSection("basics"); setEditingEquipment(item); };
   const changeBuilderTask = (task: string) => { setBuilderTask(task); builderTopRef.current?.scrollIntoView({block:"start",behavior:"auto"}); };
   const [duplicatesOnly, setDuplicatesOnly] = useState(false);
   const [repairPath, setRepairPath] = useState<"notice" | "work" | null>(null);
@@ -608,9 +616,7 @@ export default function InventoryOperations({
       }
       const scbaTemplate = data.scbaTemplates.find((item) => value(item, "apparatus_id") === selectedApparatusId && item.active !== false);
       const configuredItems = initialCheckType === "air_pack"
-        ? (Array.isArray(scbaTemplate?.pack_positions) ? scbaTemplate.pack_positions.length : 0)
-          + (scbaTemplate?.include_rit ? 1 : 0)
-          + Number(scbaTemplate?.spare_bottle_count || 0)
+        ? airCheckLines(scbaTemplate, data.equipment, selectedApparatusId).length
         : data.equipment.filter((item) => (
           value(item, "apparatus_id") === selectedApparatusId
           && Array.isArray(item.check_types)
@@ -654,13 +660,15 @@ export default function InventoryOperations({
       });
       const result = await response.json().catch(() => ({})) as { error?: string };
       if (!response.ok) throw new Error(result.error || "The change could not be saved.");
-      const refreshed = await load();
+      const refreshed = await load({ background: view === "air" });
       const confirmations: Record<string, string> = {
         create_notice: "Repair notice saved with the selected assignees. Follow it in All repair records.",
         create_work_order: "Work order opened. Follow progress and add service documents in Maintenance history.",
         complete_check: "Inspection submitted for administrator review. Find the saved report in Reports.",
         update_equipment: "Equipment changes saved. Existing inspection history is retained.",
         create_equipment: "Equipment added to the selected compartment.",
+        save_air_asset: "Air equipment record saved. View its details below; location changes apply to the next check.",
+        log_air_maintenance: "Completed maintenance saved to this equipment ID. Service status and hydro dates are unchanged.",
         close_work_order: "Repair completion saved to maintenance history.",
         update_work_order_status: "Repair status updated. The saved record is shown below.",
         request_location_change: "Location change submitted for administrator approval. The official location is unchanged until approved.",
@@ -868,9 +876,7 @@ export default function InventoryOperations({
   const configuredItemsFor = (checkType: string) => {
     if (checkType === "air_pack") {
       const template = data.scbaTemplates.find((item) => value(item, "apparatus_id") === selectedApparatusId && item.active !== false);
-      return (Array.isArray(template?.pack_positions) ? template.pack_positions.length : 0)
-        + (template?.include_rit ? 1 : 0)
-        + Number(template?.spare_bottle_count || 0);
+      return airCheckLines(template, data.equipment, selectedApparatusId).length;
     }
     return selectedEquipment.filter((item) => Array.isArray(item.check_types) && item.check_types.includes(checkType)).length;
   };
@@ -941,9 +947,7 @@ export default function InventoryOperations({
       const checkType = value(schedule, "check_type") as CheckCard["checkType"];
       if (routineCheckNotNeeded(apparatus, checkType)) return [];
       const scbaTemplate = data.scbaTemplates.find((item) => value(item, "apparatus_id") === apparatusId && item.active !== false);
-      const scbaConfigured = (Array.isArray(scbaTemplate?.pack_positions) ? scbaTemplate.pack_positions.length : 0)
-        + (scbaTemplate?.include_rit ? 1 : 0)
-        + Number(scbaTemplate?.spare_bottle_count || 0);
+      const scbaConfigured = airCheckLines(scbaTemplate, data.equipment, apparatusId).length;
       const configured = checkType === "air_pack"
         ? scbaConfigured
         : equipment.filter((item) => Array.isArray(item.check_types) && item.check_types.includes(checkType)).length;
@@ -1061,6 +1065,9 @@ export default function InventoryOperations({
       {message ? <div className="ops-message" role="status">{message}</div> : null}
       {error ? <div className="ops-message ops-error" role="alert">{error}</div> : null}
       {refreshError ? <div className="ops-message ops-error" role="alert">Live refresh unavailable. Previously loaded records may be out of date. {refreshError} <button type="button" onClick={() => void load()}>Retry refresh</button></div> : null}
+      {view === "air" ? <InventoryAirSystems data={data} busy={Boolean(busy)} canSetup={canSetup} canManageRepairs={canManageRepairs} canCheck={canCheck} onSave={action} onOpenCheck={id => onOpenUnit?.(id, "air_pack")} onRepairs={onRepairs}
+        renderTemplate={apparatus => { const template = data.scbaTemplates.find(item => item.apparatus_id === apparatus.id); return <ScbaTemplateEditor key={`${apparatus.id}-${template?.updated_at}`} apparatus={apparatus} template={template} busy={Boolean(busy)} onSave={payload => action("air-template", payload)} />; }}
+        uploadDocument={uploadMaintenanceDocument} uploadPhoto={async (asset, file) => { await uploadEquipmentPhoto(asset, file); await load({ background: true }); }} /> : null}
       {view === "due" || view === "inventory" ? <div className="inventory-find-unit"><label>Find your apparatus<input type="search" value={unitSearch} onChange={event => setUnitSearch(event.target.value)} placeholder="Unit name or check type" /></label>{unitSearch && <button type="button" onClick={() => setUnitSearch("")}>Clear search</button>}<p>Choose your apparatus → check each item → submit for review.</p></div> : null}
 
       {view === "due" ? (
@@ -1069,6 +1076,16 @@ export default function InventoryOperations({
             <header><div><span>APPARATUS CHECKS DUE NOW</span><h2>{dueChecks.length ? `${dueChecks.length} required check${dueChecks.length === 1 ? "" : "s"}` : "All required checks are complete"}</h2></div><b>{data.checks.filter((check) => value(check, "status") === "in_progress" && value(check, "check_type") !== "inventory" && !routineCheckNotNeeded(data.apparatus.find((apparatus) => value(apparatus, "id") === value(check, "apparatus_id")), value(check, "check_type"))).length} in progress</b></header>
             {dueChecks.length ? renderCheckCards(dueChecks, (checkType) => `${formatStatus(checkType)} · DUE TODAY`) : <div className="ops-empty due-clear"><strong>No required apparatus checks are waiting.</strong><p>Completed scheduled checks fall off this list automatically.</p></div>}
             {notNeededChecks.length ? <div className="due-check-exemptions" role="status"><strong>Not needed — apparatus Out of Service</strong><div>{notNeededChecks.map((check) => <span key={`${check.apparatusId}-${check.checkType}`}>{check.name} · {formatStatus(check.checkType)}</span>)}</div><small>These checks will resume automatically when Fleet returns the apparatus to service.</small></div> : null}
+          </section>
+          <section className="ops-card service-reminders" aria-label="Service reminders">
+            <header><div><span>PLAN EQUIPMENT SERVICE</span><h2>Service reminders</h2></div></header>
+            <p>Upcoming and overdue service for saved equipment schedules. Reminders stay here until an administrator updates Last serviced after completion. Weekly checks are separate.</p>
+            <div className="service-reminder-list">{serviceReminders(data.equipment).filter(({ item }) => !unitSearch || `${item.name} ${data.apparatus.find(rig => rig.id === item.apparatus_id)?.name}`.toLowerCase().includes(unitSearch.toLowerCase())).map(({ item, due, reminder, status }) => <article key={value(item, "id")} className="service-reminder" data-status={status}>
+              <strong>{value(item, "name")}{item.asset_number ? ` · ID ${item.asset_number}` : ""}</strong><span>{value(data.apparatus.find(rig => rig.id === item.apparatus_id) || {}, "name")} · {value(item, "compartment_label")}</span>
+              <b>{status === "overdue" ? "Overdue" : status === "due" ? "Due today" : "Schedule service"} · {serviceDateLabel(due)}</b><span>Last serviced: {serviceDateLabel(value(item, "last_serviced_date"))}</span><small>Reminder started {serviceDateLabel(reminder)}</small>
+              {canSetup ? <button type="button" onClick={() => { openEquipmentEditor(item); if (!item.scba_asset_kind) setEditorSection("asset"); }}>{item.scba_asset_kind ? "Open Air Packs & Bottles" : "Edit service schedule"}</button> : <small>Contact an inventory administrator to update the service record.</small>}
+            </article>)}</div>
+            {!serviceReminders(data.equipment).length ? <p>No service reminders are due. Set an item’s service schedule under Asset details or Air Packs &amp; Bottles.</p> : null}
           </section>
           <section className="ops-card inventory-checks-card">
             <header><div><span>SEPARATE INVENTORY CHECKS</span><h2>Inventory by apparatus</h2></div><b>{inventoryChecks.length} apparatus</b></header>
@@ -1149,6 +1166,7 @@ export default function InventoryOperations({
                 <div><dt>Expiration</dt><dd>{value(selectedDirectoryEquipment, "expiration_date") || "Not tracked"}</dd></div>
                 <div><dt>Contained equipment</dt><dd>{containedItems.length ? `${containedItems.length} linked item${containedItems.length === 1 ? "" : "s"}` : "None"}</dd></div>
               </dl>
+              <ServiceScheduleSummary item={data.equipment.find(item => item.id === selectedDirectoryEquipment.id) || selectedDirectoryEquipment} />
               {value(selectedDirectoryEquipment, "service_notes") ? <p className="equipment-service-note">{value(selectedDirectoryEquipment, "service_notes")}</p> : null}
               <div className="equipment-record-actions">
                 {canSetup ? <button className="ops-primary" type="button" onClick={() => openEquipmentEditor(selectedDirectoryEquipment)}>Edit complete asset record</button> : null}
@@ -1767,7 +1785,8 @@ export default function InventoryOperations({
             void (async () => {
               try {
                 setBusy("edit-equipment");
-                const saved = await action("edit-equipment", { action: "update_equipment", equipmentId: value(editingEquipment, "id"), compartmentId: form.get("compartmentId"), name: form.get("name"), manufacturer: form.get("manufacturer"), model: form.get("model"), serialNumber: form.get("serialNumber"), barcode: form.get("barcode"), quantityRequired: form.get("quantityRequired"), equipmentCategory: form.get("equipmentCategory"), checkTypes: form.getAll("checkTypes"), itemType: form.get("itemType"), parentEquipmentId: form.get("parentEquipmentId"), purchaseDate: form.get("purchaseDate"), inServiceDate: form.get("inServiceDate"), expirationDate: form.get("expirationDate"), responseType: form.get("responseType"), serviceStatus: form.get("serviceStatus"), serviceNotes: form.get("serviceNotes"), retirementReason: form.get("retirementReason") });
+                const schedule = serviceScheduleInput(Object.fromEntries(form.entries()));
+                const saved = await action("edit-equipment", { action: "update_equipment", serviceSchedule: schedule, expectedUpdatedAt: editingEquipment.updated_at ?? null, equipmentId: value(editingEquipment, "id"), compartmentId: form.get("compartmentId"), name: form.get("name"), manufacturer: form.get("manufacturer"), model: form.get("model"), serialNumber: form.get("serialNumber"), barcode: form.get("barcode"), quantityRequired: form.get("quantityRequired"), equipmentCategory: form.get("equipmentCategory"), checkTypes: form.getAll("checkTypes"), itemType: form.get("itemType"), parentEquipmentId: form.get("parentEquipmentId"), purchaseDate: form.get("purchaseDate"), inServiceDate: form.get("inServiceDate"), expirationDate: form.get("expirationDate"), responseType: form.get("responseType"), serviceStatus: form.get("serviceStatus"), serviceNotes: form.get("serviceNotes"), retirementReason: form.get("retirementReason") });
                 if (saved && photo instanceof File && photo.size > 0) {
                   await uploadEquipmentPhoto(editingEquipment, photo);
                   await load();
@@ -1825,6 +1844,7 @@ export default function InventoryOperations({
               <label>Service status<select name="serviceStatus" defaultValue={value(editingEquipment, "service_status") || "in_service"}><option value="in_service">In service</option><option value="out_of_service">Out of service</option><option value="in_repair">In repair</option><option value="retired">Retired</option></select></label>
               <label>Retirement reason<input name="retirementReason" defaultValue={value(editingEquipment, "retirement_reason")} placeholder="Required when retiring equipment" /></label>
               <label className="ops-span-2">Asset and service notes<textarea name="serviceNotes" rows={3} defaultValue={value(editingEquipment, "service_notes")} placeholder="Condition, warranty, inspection interval, replacement notes, or service history" /></label>
+              <ServiceScheduleFields key={value(editingEquipment, "id")} item={editingEquipment} />
               <label className="ops-span-2">Take or attach item photo<input name="photo" type="file" accept="image/*" capture="environment" /></label>
             </div>
             <div className="ops-form ops-form-wide inventory-editor-group" data-editor-section="checks" hidden={editorSection !== "checks"}>

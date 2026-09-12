@@ -5,9 +5,11 @@ import AuthGateway from "../../app/auth-gateway";
 import ResetPasswordPage from "../../app/reset-password/page";
 import AcceptInvitePage from "../../app/accept-invite/page";
 import { emptyIncidentCommandState } from "../../app/incident-command-state";
+import { defaultPermissionsForRank } from "../../app/permissions";
 import "../../app/globals.css";
 import "../../app/mobile-usability.css";
 import "../../app/portal-usability.css";
+import "../../app/admin-usability.css";
 
 // Actual client UI, fictional responses only. No credentials or production writes.
 const params = new URLSearchParams(location.search);
@@ -63,6 +65,12 @@ const payloads: Record<string, unknown> = {
   },
 };
 payloads["/api/logbook"] = payloads["/api/daily-log"];
+if (params.has("preplan-capture")) {
+  // Exercise a real focused editor with a full-width message, not just the list.
+  payloads["/api/permissions"] = { ...(payloads["/api/permissions"] as object), viewerPermissions: defaultPermissionsForRank("Firefighter", isAdmin), identity: "fixture:preview@example.invalid", revision: "fixture-1" };
+  payloads["/api/field-preplans"] = { preplans: [], canEdit: true, imports: [{ id: "fixture-import", businessName: "Fictional footprint test — not a department record", address: "Preview address, Stickney, Illinois 60402", sourceFile: "Preview only", sourceRow: 1, status: "pending", latitude: null, longitude: null, geocodeNote: "Manual placement fixture", linkedPreplanId: null }] };
+  payloads["/api/field-hydrants"] = { canEdit: true, hydrants: [{ id: "fixture-hydrant", hydrantNumber: "PREVIEW ONLY", address: "Fictional water supply", latitude: 41.8189, longitude: -87.7734, serviceStatus: "in_service", manufacturer: "", model: "", portCount: 2, portSizes: [], notes: "Not operational", flushes: [], flowTests: [] }] };
+}
 if (params.has("active-command")) {
   const state = emptyIncidentCommandState();
   state.units["PREVIEW ENGINE"] = { assignment: "Staging", status: "Staged", floor: "Level unknown", side: "", crewStrength: 4 };

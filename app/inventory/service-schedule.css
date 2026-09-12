@@ -1,0 +1,12 @@
+.inventory-ops .service-schedule-fields { grid-column: 1 / -1; min-width: 0; margin: 8px 0; padding: 18px; border: 1px solid #b7cbd9; border-radius: 10px; background: #f5f9fc; }
+.inventory-ops .service-schedule-fields legend { font-size: 1rem; font-weight: 750; padding: 0 6px; }
+.inventory-ops .service-schedule-fields p { font-size: .9rem; font-weight: 400; text-transform: none; line-height: 1.5; margin: 0 0 14px; }
+.inventory-ops .service-schedule-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.inventory-ops .service-schedule-grid label { display: flex; flex-direction: column; gap: 7px; min-width: 0; text-transform: none; font-size: .9rem; }
+.inventory-ops .service-schedule-grid input, .inventory-ops .service-schedule-grid select { box-sizing: border-box; width: 100%; min-width: 0; min-height: 44px; font-size: 16px; }
+.inventory-ops .service-schedule-preview, .inventory-ops .service-schedule-summary { display: flex; flex-direction: column; gap: 7px; margin: 14px 0 0; padding: 14px; border-left: 3px solid #28728d; background: #eaf3f8; font-size: .95rem; font-weight: 400; text-transform: none; line-height: 1.5; overflow-wrap: anywhere; }
+.inventory-ops .service-reminder-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.inventory-ops .service-reminder { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 16px; border: 1px solid #bbccd7; border-radius: 10px; overflow-wrap: anywhere; min-width: 0; }
+.inventory-ops .service-reminder[data-status="overdue"] { border-left: 4px solid #a93429; }
+.inventory-ops .service-reminder button { white-space: normal; min-height: 44px; }
+@media (max-width: 600px) { .inventory-ops .service-schedule-grid, .inventory-ops .service-reminder-list { grid-template-columns: 1fr; } .inventory-ops .service-schedule-fields { padding: 12px; } }
