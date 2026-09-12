@@ -2976,4 +2976,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 }
 
 @media(prefers-reduced-motion:reduce){.safety-progress-bar>span{transition:none}}
+.respond-field-toolbar>.respond-jump-actions:only-child{grid-column:1/-1}
+.respond-progress-steps button:disabled{opacity:.55;cursor:not-allowed}
+.respond-progress-panel>p{grid-column:1/-1;margin:0;color:#ffe4a3;font-size:12px}
 @media print{.safety-inspections-page{display:block;color:#111}.safety-inspections-page>*{margin-bottom:10px}.safety-page-head h1{font-size:24px}.safety-template-card,.safety-report-table,.safety-section,.safety-notes,.safety-attachments,.safety-record-identity{break-inside:avoid;border-color:#888;box-shadow:none}.safety-progress-panel{position:static;box-shadow:none}.safety-check-row{break-inside:avoid;padding:7px 9px}.safety-result-buttons button{min-height:26px;padding:0 7px;border-color:#999;color:#333}.safety-result-buttons button:not(.selected){display:none}.safety-deficiency textarea,.safety-notes textarea,.safety-record-identity input{border:0;background:#fff;color:#111}.safety-kpis article{min-height:60px;border-color:#888}.safety-attachments li button{display:none}.safety-report-tools,.safety-workflow-guide,.safety-library-head{display:none!important}}

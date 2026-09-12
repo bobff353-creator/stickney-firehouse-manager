@@ -1,4 +1,29 @@
-export const RESPOND_PROGRESS_STORAGE_KEY = "stickney-respond-progress-v1";
+import { normalizeApparatusUnit, respondingUnitsIncludeUnit } from "./respond-device";
+
+// Do not reuse v1 browser-wide/portal records: they have no department identity.
+export const RESPOND_PROGRESS_STORAGE_KEY = "stickney-respond-progress-v2";
+export const RESPOND_PROGRESS_LIMIT = 100;
+
+export type RespondProgressScope = { departmentId: string; reportNumber: string; apparatus: string };
+
+export function assignedRespondProgressScope(apparatus: string, packet?: {
+  departmentId: string;
+  apparatusFilter: string | null;
+  activeCall: { reportNumber: string; respondingUnits: string } | null;
+} | null): RespondProgressScope | null {
+  const unit = normalizeApparatusUnit(apparatus);
+  const departmentId = packet?.departmentId.trim();
+  const reportNumber = packet?.activeCall?.reportNumber.trim();
+  if (!unit || !departmentId || !reportNumber
+    || normalizeApparatusUnit(packet?.apparatusFilter) !== unit
+    || !respondingUnitsIncludeUnit(packet?.activeCall?.respondingUnits, unit)) return null;
+  return { departmentId, reportNumber, apparatus: unit };
+}
+
+export function respondProgressKey(scope: RespondProgressScope | null) {
+  if (!scope?.departmentId.trim() || !scope.reportNumber.trim() || !normalizeApparatusUnit(scope.apparatus)) return null;
+  return JSON.stringify([scope.departmentId.trim(), scope.reportNumber.trim(), normalizeApparatusUnit(scope.apparatus)]);
+}
 
 export const respondProgressSteps = [
   "acknowledged",
@@ -35,20 +60,17 @@ type KeyValueStore = {
   setItem(key: string, value: string): void;
 };
 
-function progressKey(reportNumber: unknown, apparatus: unknown) {
-  return `${String(reportNumber ?? "").trim()}::${String(apparatus ?? "portal").trim() || "portal"}`;
-}
-
 function isProgressStatus(value: unknown): value is RespondProgressStatus {
   return respondProgressSteps.includes(value as RespondProgressStatus);
 }
 
 function readAll(store: Pick<KeyValueStore, "getItem">) {
+  const raw = store.getItem(RESPOND_PROGRESS_STORAGE_KEY);
   try {
     const parsed = JSON.parse(
-      store.getItem(RESPOND_PROGRESS_STORAGE_KEY) || "{}",
+      raw || "{}",
     ) as Record<string, Partial<RespondProgress>>;
-    return parsed && typeof parsed === "object" ? parsed : {};
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
   } catch {
     return {};
   }
@@ -56,11 +78,12 @@ function readAll(store: Pick<KeyValueStore, "getItem">) {
 
 export function readRespondProgress(
   store: Pick<KeyValueStore, "getItem">,
-  reportNumber: unknown,
-  apparatus: unknown,
+  scope: RespondProgressScope | null,
 ): RespondProgress | null {
-  const saved = readAll(store)[progressKey(reportNumber, apparatus)];
-  if (!saved || !isProgressStatus(saved.status)) return null;
+  const key = respondProgressKey(scope);
+  if (!key) return null;
+  const saved = readAll(store)[key];
+  if (!saved || !isProgressStatus(saved.status) || !Number.isFinite(Date.parse(String(saved.updatedAt)))) return null;
   return {
     status: saved.status,
     updatedAt: String(saved.updatedAt ?? ""),
@@ -69,14 +92,18 @@ export function readRespondProgress(
 
 export function writeRespondProgress(
   store: KeyValueStore,
-  reportNumber: unknown,
-  apparatus: unknown,
+  scope: RespondProgressScope | null,
   status: RespondProgressStatus,
   updatedAt = new Date().toISOString(),
 ) {
+  const key = respondProgressKey(scope);
+  if (!key || !isProgressStatus(status) || !Number.isFinite(Date.parse(updatedAt))) throw new Error("A department, call and apparatus are required for valid response progress.");
   const all = readAll(store);
   const progress = { status, updatedAt } satisfies RespondProgress;
-  all[progressKey(reportNumber, apparatus)] = progress;
-  store.setItem(RESPOND_PROGRESS_STORAGE_KEY, JSON.stringify(all));
+  // Bound local history without touching the legacy store or operational records.
+  const recent = Object.entries(all).filter(([entryKey, value]) => entryKey !== key && value && isProgressStatus(value.status) && Number.isFinite(Date.parse(String(value.updatedAt))))
+    .sort((a, b) => Date.parse(String(b[1].updatedAt)) - Date.parse(String(a[1].updatedAt)))
+    .slice(0, RESPOND_PROGRESS_LIMIT - 1);
+  store.setItem(RESPOND_PROGRESS_STORAGE_KEY, JSON.stringify({ ...Object.fromEntries(recent), [key]: progress }));
   return progress;
 }

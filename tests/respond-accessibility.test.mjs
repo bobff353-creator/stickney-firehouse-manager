@@ -63,7 +63,7 @@ test("Respond footprint has a keyboard and screen-reader map alternative", () =>
 
 test("Respond exposes clear device progress and one-tap tactical navigation", () => {
   assert.match(respond, /aria-label="Field response controls"/);
-  assert.match(respond, /aria-label="Crew response progress on this device"/);
+  assert.match(respond, /aria-label=\{`Unit \$\{progressScope.apparatus\} response progress on this device`\}/);
   // Progress controls are forward actions now, not persistent toggle buttons.
   assert.match(respond, /crewProgressActions\.map/);
   assert.match(respond, /<small aria-live="polite">/);

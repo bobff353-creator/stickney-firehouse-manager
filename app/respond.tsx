@@ -23,6 +23,9 @@ import {
   type OccupancyProfile,
 } from "./preplans/profiles";
 import {
+  assignedRespondProgressScope,
+  respondProgressKey,
+  RESPOND_PROGRESS_STORAGE_KEY,
   readRespondProgress,
   nextRespondActions,
   type RespondProgress,
@@ -690,7 +693,12 @@ export default function Respond({
   const requestInFlight = useRef(false);
   const lastPacketRevision = useRef({ apparatus: "", revision: "" });
   const [isOnline, setIsOnline] = useState(true);
-  const [crewProgress, setCrewProgress] = useState<RespondProgress | null>(null);
+  const progressScope = useMemo(() => assignedRespondProgressScope(apparatus, data), [apparatus, data]);
+  const progressScopeKey = respondProgressKey(progressScope);
+  const [savedCrewProgress, setSavedCrewProgress] = useState<{ key: string | null; progress: RespondProgress | null } | null>(null);
+  const progressLoaded = savedCrewProgress?.key === progressScopeKey;
+  const crewProgress = progressLoaded ? savedCrewProgress?.progress : null;
+  const canUpdateProgress = Boolean(progressScope && progressLoaded && isOnline && !error && respondSource === "live");
   const [progressError, setProgressError] = useState("");
   const progressActionsRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLElement>(null);
@@ -798,16 +806,23 @@ export default function Respond({
     };
   }, [load]);
   useEffect(() => {
-    const reportNumber = data?.activeCall?.reportNumber;
-    const timer = window.setTimeout(() => {
-      setCrewProgress(
-        reportNumber
-          ? readRespondProgress(window.localStorage, reportNumber, apparatus)
-          : null,
-      );
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [apparatus, data?.activeCall?.reportNumber]);
+    const scope = progressScopeKey ? JSON.parse(progressScopeKey) as [string, string, string] : null;
+    const update = () => {
+      try {
+        setSavedCrewProgress({ key: progressScopeKey, progress: scope ? readRespondProgress(window.localStorage, { departmentId: scope[0], reportNumber: scope[1], apparatus: scope[2] }) : null });
+        setProgressError("");
+      } catch {
+        setSavedCrewProgress({ key: progressScopeKey, progress: null });
+        setProgressError("Saved progress could not be read. Browser storage is unavailable.");
+      }
+    };
+    const timer = window.setTimeout(update, 0);
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === RESPOND_PROGRESS_STORAGE_KEY || event.key === null) update();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => { window.clearTimeout(timer); window.removeEventListener("storage", onStorage); };
+  }, [progressScopeKey]);
   useEffect(() => {
     const update = () => {
       if (!document.fullscreenElement) setMonitorMode(false);
@@ -857,11 +872,16 @@ export default function Respond({
     if (restore) restoreFocus(quickTriggerRef.current);
   }
   function updateCrewProgress(status: RespondProgressStatus) {
-    const reportNumber = data?.activeCall?.reportNumber;
-    if (!reportNumber) return;
+    if (!canUpdateProgress || !progressScope) return;
     try {
-      const next = writeRespondProgress(window.localStorage, reportNumber, apparatus, status);
-      setCrewProgress(next);
+      const current = readRespondProgress(window.localStorage, progressScope);
+      if (!nextRespondActions(current?.status).includes(status)) {
+        setSavedCrewProgress({ key: progressScopeKey, progress: current });
+        setProgressError("This unit's progress changed in another tab. Review its current step.");
+        return;
+      }
+      const next = writeRespondProgress(window.localStorage, progressScope, status);
+      setSavedCrewProgress({ key: progressScopeKey, progress: next });
       setProgressError("");
       window.requestAnimationFrame(() => {
         const group = progressActionsRef.current;
@@ -1218,23 +1238,24 @@ export default function Respond({
         {vehicleMapOpen&&<RespondOverviewMap locationModel={locations} apparatusOnly respondingUnits={call.respondingUnits} overview={{apparatus:null,preplans:[],hydrants:[],roadClosures:[]}} recentCalls={[]}/>}
       </details>
       <section className="respond-field-toolbar" aria-label="Field response controls">
-        <div className="respond-progress-panel">
+        {progressScope && <div className="respond-progress-panel">
           <div>
-            <span>THIS DEVICE{apparatus ? ` · UNIT ${apparatus}` : ""}</span>
-            <strong>Response progress</strong>
+            <span>UNIT {progressScope.apparatus} · CALL {progressScope.reportNumber}</span>
+            <strong>Unit response progress</strong>
             <small aria-live="polite">
-              {crewProgress
+              {!progressLoaded ? "Loading this unit's saved step…" : crewProgress
                 ? `${respondProgressLabels[crewProgress.status]} · ${displayTime(crewProgress.updatedAt)}`
                 : "Select the crew's current step"}
             </small>
           </div>
-          <div ref={progressActionsRef} tabIndex={-1} className="respond-progress-steps" role="group" aria-label="Crew response progress on this device">
+          <div ref={progressActionsRef} tabIndex={-1} className="respond-progress-steps" role="group" aria-label={`Unit ${progressScope.apparatus} response progress on this device`}>
             {crewProgressActions.map((status) => {
               return (
                 <button
                   key={status}
                   type="button"
                   className={status === "canceled" ? "cancel-action" : ""}
+                  disabled={!canUpdateProgress}
                   onClick={() => updateCrewProgress(status)}
                   data-test-safe
                 >
@@ -1244,11 +1265,12 @@ export default function Respond({
             })}
             {!crewProgressActions.length && <span role="status">{crewProgress ? respondProgressLabels[crewProgress.status] : ""} · saved on this device</span>}
           </div>
-          {progressError && <p role="alert">{progressError}</p>}
+          {progressLoaded && progressError && <p role="alert">{progressError}</p>}
+          {(!isOnline || error || respondSource !== "live") && <p role="status">Progress changes paused — reconnect to verify this unit&apos;s call assignment.</p>}
           <small className="respond-progress-note">
-            Saved on this browser only · does not change CAD status
+            Saved for this unit and call on this browser only · does not change CAD status or other devices
           </small>
-        </div>
+        </div>}
         <nav className="respond-jump-actions" aria-label="Open response information">
           <button type="button" onClick={() => openTacticalView("cad")}>
             <b>CAD</b>
