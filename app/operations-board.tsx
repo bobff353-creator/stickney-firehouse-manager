@@ -9,6 +9,7 @@ import ChiefBoardPanel from "./chief-board-panel";
 import { ifsiScheduleSource } from "./lib/training-parsers";
 import type { TrainingProvider as SavedTrainingProvider } from "./lib/external-feeds";
 import { useBoardFeeds } from "./use-board-feeds";
+import { refreshPermissions } from "./use-permissions";
 import { savedFeedLabel } from "./board-feeds-client";
 import StaffingRotation, { type NewMember, type StaffingPerson } from "./staffing-rotation";
 
@@ -26,7 +27,7 @@ type FleetApparatus = { id:string; unitNumber:string; name:string; status:string
 type TrainingCourse = { title: string; dates: string; startDate?: string; endDate: string; location?: string; url: string };
 type TrainingProvider = { name: string; shortName: string; sourceUrl: string; checked: string; courses: TrainingCourse[]; error?: string };
 type WakeLockHandle = { release: () => Promise<void>; addEventListener: (type: "release", listener: () => void) => void };
-type JsonResponse<T> = { ok: boolean; payload: T | null };
+type JsonResponse<T> = { ok: boolean; status: number; payload: T | null };
 type Rotation = "equipment" | "duty" | "news" | "fatalities" | "romeoville" | "ifsi" | "nipsta";
 type HeaderRotation = "title" | "today" | "hourly" | "tomorrow";
 const rotationOrder: Rotation[] = ["equipment", "duty", "news", "fatalities", "romeoville", "ifsi", "nipsta"];
@@ -59,7 +60,7 @@ const shiftLabel = (value: string) => value === "morning" ? "6:00 AM – Noon" :
 async function fetchBoardJson<T>(url: string, signal: AbortSignal): Promise<JsonResponse<T>> {
   const response = await fetch(url, { cache: "no-store", signal });
   const payload = await response.json().catch(() => null) as T | null;
-  return { ok: response.ok, payload };
+  return { ok: response.ok, status: response.status, payload };
 }
 
 function TrainingCourses({ provider, today }: { provider: TrainingProvider; today: string }) {
@@ -108,6 +109,7 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
   }, [tvMode]);
   const alertEnabledRef = useRef(false), alertToneRef = useRef<AlertTone>("minitor-two-tone"), seenCallIdsRef = useRef<Set<string> | null>(null), audioContextRef = useRef<AudioContext | null>(null), onNewActiveCallRef = useRef(onNewActiveCall);
   const loadInProgressRef = useRef(false), wakeLockRef = useRef<WakeLockHandle | null>(null);
+  const loadControllerRef = useRef<AbortController | null>(null);
   const boardStartedAtRef = useRef(clock.getTime()), recoveryReloadRef = useRef(false);
   const playAlert = useCallback(async (toneId = alertToneRef.current) => {
     const AudioContextClass = window.AudioContext;
@@ -145,13 +147,21 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
     if (loadInProgressRef.current) return;
     loadInProgressRef.current = true;
     const controller = new AbortController();
+    loadControllerRef.current = controller;
     const timeout = window.setTimeout(() => controller.abort(), 15000);
     try {
       const [dashboard, dutiesResult, fleetResult] = await Promise.all([
-        fetchBoardJson<BoardData>("/api/dashboard", controller.signal),
-        fetchBoardJson<{ currentDuty?: CurrentDuty | null; dailyFleetChecks?: DailyFleetCheck[] }>("/api/daily-duties", controller.signal).catch(() => ({ ok: false, payload: null })),
-        fetchBoardJson<{ apparatus?: FleetApparatus[] }>("/api/suite-context", controller.signal).catch(() => ({ ok: false, payload: null })),
+        fetchBoardJson<BoardData>("/api/dashboard?scope=live-operations", controller.signal),
+        fetchBoardJson<{ currentDuty?: CurrentDuty | null; dailyFleetChecks?: DailyFleetCheck[] }>("/api/daily-duties?scope=live-operations", controller.signal).catch(() => ({ ok: false, status: 0, payload: null })),
+        fetchBoardJson<{ apparatus?: FleetApparatus[] }>("/api/suite-context?scope=live-operations", controller.signal).catch(() => ({ ok: false, status: 0, payload: null })),
       ]);
+      if (controller.signal.aborted) return;
+      if ([dashboard, dutiesResult, fleetResult].some(result => result.status === 401 || result.status === 403)) {
+        setData(null); setCurrentDuty(null); setDailyFleetChecks([]); setLastRefresh(null);
+        setError("Live Operations access could not be confirmed. Rechecking your permissions.");
+        void refreshPermissions();
+        return;
+      }
       const result = dashboard.payload;
       if (!dashboard.ok || !result) {
         setError(result?.error || "Unable to load live operations");
@@ -184,6 +194,7 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
     } finally {
       window.clearTimeout(timeout);
       loadInProgressRef.current = false;
+      if (loadControllerRef.current === controller) loadControllerRef.current = null;
     }
   }, [playAlert]);
   useEffect(() => { onNewActiveCallRef.current = onNewActiveCall; }, [onNewActiveCall]);
@@ -192,7 +203,7 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
     const initial = window.setTimeout(() => void load(), 0);
     const refresh = window.setInterval(() => void load(), 30000);
     const ticker = window.setInterval(() => setClock(new Date()), 1000);
-    return () => { window.clearTimeout(initial); window.clearInterval(refresh); window.clearInterval(ticker); };
+    return () => { window.clearTimeout(initial); window.clearInterval(refresh); window.clearInterval(ticker); loadControllerRef.current?.abort(); };
   }, [load]);
   useEffect(() => {
     if (rotationPaused) return;

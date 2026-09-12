@@ -31,7 +31,7 @@ async function closureRows(db: Awaited<ReturnType<typeof ensureDatabase>>) {
 export async function GET(request: Request) {
   try {
     const db = await ensureDatabase();
-    if (!await hasPermission(request, db, "operations_board.view")) return Response.json({ error: "Live Operations access is required." }, { status: 403 });
+    if (!await hasPermission(request, db, "road_closures.view")) return Response.json({ error: "Road Closures access is required." }, { status: 403 });
     const [rows, canManage] = await Promise.all([closureRows(db), hasPermission(request, db, "incident_command.manage")]);
     return Response.json({ closures: rows.results.map(serialize), canManage }, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
   } catch (error) {

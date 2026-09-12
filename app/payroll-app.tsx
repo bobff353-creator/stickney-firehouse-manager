@@ -99,7 +99,7 @@ const adminNavGroups: Array<{ label: string; icon: IconName; items: Array<{ labe
   { label: "Station Duties", icon: "clock", items: [{ label: "Daily Duties", page: "Daily Duties" }, { label: "Inventory & Apparatus Checks", page: "Inventory" }] },
   { label: "Administration", icon: "settings", items: [{ label: "System Health & Backups", page: "System Health" }, { label: "Departments", page: "Departments" }, { label: "Important Phone Numbers", page: "Phone Numbers" }, { label: "Permissions", page: "Permissions" }, { label: "CIS CAD Integration", page: "CAD Integration" }, { label: "Respond Device Modes", page: "Respond Device Modes" }, { label: "Test as Member", page: "Test View" }] },
 ];
-const navPermission: Partial<Record<NavItem, string>> = { Dashboard: "dashboard.view", "Command Center": "command_center.view", "Operations Board": "operations_board.view", "Activity Timeline": "command_center.view", Respond: "field_preplans.view", "Command Board": "incident_command.view", "Field Preplans": "field_preplans.view", "Road Closures": "operations_board.view", "Safety Inspections": "safety_inspections.view", Scheduling: "scheduling.view", Payroll: "payroll.manage", "Work Details": "scheduling.manage", "Daily Log": "daily_log.view", Timesheets: "payroll.manage", "Callback Reviews": "payroll.manage", "My Timesheet": "payroll.view_own", Employees: "employees.manage", "Employee Contacts": "contacts.view", Policies: "documents.view", "Box Cards": "documents.view", "Holiday Policy": "documents.view", EMS: "documents.view", "Daily Duties": "documents.view", Inventory: "inventory.view", "Phone Numbers": "settings.manage", "Rates & Rules": "payroll.manage", Departments: "settings.manage", "System Health": "settings.manage", Permissions: "permissions.manage", "CAD Integration": "settings.manage", "Respond Device Modes": "settings.manage", "Test View": "permissions.manage" };
+const navPermission: Partial<Record<NavItem, string>> = { Dashboard: "dashboard.view", "Command Center": "command_center.view", "Operations Board": "operations_board.view", "Activity Timeline": "command_center.view", Respond: "field_preplans.view", "Command Board": "incident_command.view", "Field Preplans": "field_preplans.view", "Road Closures": "road_closures.view", "Safety Inspections": "safety_inspections.view", Scheduling: "scheduling.view", Payroll: "payroll.manage", "Work Details": "scheduling.manage", "Daily Log": "daily_log.view", Timesheets: "payroll.manage", "Callback Reviews": "payroll.manage", "My Timesheet": "payroll.view_own", Employees: "employees.manage", "Employee Contacts": "contacts.view", Policies: "documents.view", "Box Cards": "documents.view", "Holiday Policy": "documents.view", EMS: "documents.view", "Daily Duties": "documents.view", Inventory: "inventory.view", "Phone Numbers": "settings.manage", "Rates & Rules": "payroll.manage", Departments: "settings.manage", "System Health": "settings.manage", Permissions: "permissions.manage", "CAD Integration": "settings.manage", "Respond Device Modes": "settings.manage", "Test View": "permissions.manage" };
 
 function navigationForViewer(_viewer: PayrollData["viewer"], permissions: string[] | null) {
   if (!permissions) return [];
@@ -824,7 +824,16 @@ export default function PayrollApp({
   }, [sidebarCollapsed]);
   useEffect(() => { setSidebarCollapsed(true); }, [activeNav]);
   useEffect(() => {
-    if ((testMember || (data && viewerPermissions)) && !visibleNav.includes(activeNav)) setActiveNav(homePage);
+    if ((testMember || (data && viewerPermissions)) && !visibleNav.includes(activeNav)) {
+      if (activeNav === "Operations Board") {
+        setTvMode(false);
+        setRespondAlertCallId("");
+        window.localStorage.removeItem("stickney-operations-tv-mode");
+        window.dispatchEvent(new CustomEvent("firehouse:tv-mode", { detail: { enabled: false } }));
+        setNavigationNotice("Live Operations needs individual access. Ask an administrator to add it under Permissions → Member exceptions.");
+      }
+      setActiveNav(homePage);
+    }
   }, [activeNav, data, homePage, testMember, viewerPermissions, visibleNav]);
   useEffect(() => {
     if (visibleMoreNavGroups.some((group) => group.items.some((item) => item.page === activeNav))) setMoreToolsOpen(true);
@@ -1052,7 +1061,7 @@ export default function PayrollApp({
           {activeNav === "Command Center" && <CommandCenter />}
           {activeNav === "Work Details" && <WorkDetails onPayrollChanged={(approvedPeriodStart) => { if (approvedPeriodStart === periodStart) void loadPayroll(periodStart); else setPeriodStart(approvedPeriodStart); }} />}
           {activeNav === "Scheduling" && <StationScheduler key={navigationVersion} testMember={testMember} />}
-          {activeNav === "Operations Board" && <OperationsBoard tvMode={tvMode} onTvModeChange={(enabled) => {
+          {activeNav === "Operations Board" && visibleNav.includes("Operations Board") && <OperationsBoard tvMode={tvMode} onTvModeChange={(enabled) => {
             setTvMode(enabled);
             const url = new URL(window.location.href);
             if (enabled) {
@@ -1081,7 +1090,7 @@ export default function PayrollApp({
             setRespondDeviceSettings(settings);
             if (settings.mode === "apparatus") navigate("Respond");
           }} />}
-          {respondAlertCallId && activeNav === "Operations Board" && <div className="respond-auto-alert" role="dialog" aria-modal="true" aria-label="New active call Respond view">
+          {respondAlertCallId && activeNav === "Operations Board" && visibleNav.includes("Operations Board") && visibleNav.includes("Respond") && <div className="respond-auto-alert" role="dialog" aria-modal="true" aria-label="New active call Respond view">
             <header><div><strong>NEW ACTIVE CALL · RESPOND</strong><span>Returning to Live Operations in {respondAlertSeconds} seconds</span></div><button type="button" onClick={() => setRespondAlertCallId("")}>Return now</button></header>
             <Respond onNavigate={navigateFromRespond} />
           </div>}

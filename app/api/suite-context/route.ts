@@ -16,6 +16,9 @@ function privateJson(value: unknown, status = 200) {
 export async function GET(request: Request) {
   const session = await verifyInventoryRequest(request);
   if (!session.ok) return sessionFailureResponse(session);
+  if (new URL(request.url).searchParams.get("scope") === "live-operations" && !session.context.grants.includes("operations_board.view")) {
+    return privateJson({ error: "Live Operations access is required." }, 403);
+  }
   try {
     const supabase = await createInventorySupabaseClient();
     const { data, error } = await supabase

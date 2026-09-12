@@ -5,7 +5,7 @@ import AuthGateway from "../../app/auth-gateway";
 import ResetPasswordPage from "../../app/reset-password/page";
 import AcceptInvitePage from "../../app/accept-invite/page";
 import { emptyIncidentCommandState } from "../../app/incident-command-state";
-import { defaultPermissionsForRank } from "../../app/permissions";
+import { defaultPermissionsForRank, permissionCatalog, resolveEmployeePermissions } from "../../app/permissions";
 import "../../app/globals.css";
 import "../../app/mobile-usability.css";
 import "../../app/portal-usability.css";
@@ -32,9 +32,18 @@ let failRead = false;
 let writes = 0;
 const unknown = new Set<string>();
 const errors: string[] = [];
+const accessRequests: string[] = [];
+let accessOverrides: Record<string, Record<string, "allow" | "deny">> = {};
+let accessRevision = 1;
 Object.assign(window, { portalAudit: { errors, unknown, setFailWrite(value: boolean) { failWrite = value; }, setFailRead(value: boolean) { failRead = value; }, writes: () => writes } });
 window.addEventListener("error", event => errors.push(event.message));
 window.addEventListener("unhandledrejection", event => errors.push(String(event.reason)));
+const accessEmployee = { ...employee, isAdmin: 0, loginLinked: true };
+function accessPayload() {
+  const memberPermissions = resolveEmployeePermissions(accessEmployee, [], Object.entries(accessOverrides[employee.id] ?? {}).map(([permissionKey,effect]) => ({permissionKey,effect})));
+  return { catalog: permissionCatalog, viewerPermissions: isAdmin ? defaultPermissionsForRank("Firefighter",true) : memberPermissions, identity: "fictional:"+String(isAdmin), revision: String(accessRevision), ranks: ["Firefighter"], rankSettings: { Firefighter: defaultPermissionsForRank("Firefighter") }, overrides: accessOverrides, employees: [{ ...accessEmployee, effectivePermissions: memberPermissions }] };
+}
+Object.assign(window, { liveAccessAudit: { requests: accessRequests, errors, setGrant(effect?: "allow" | "deny") { accessOverrides = effect ? { [employee.id]: { "operations_board.view": effect } } : {}; accessRevision++; window.dispatchEvent(new Event("firehouse:permissions-changed")); } } });
 const briefing = { asOf: now, currentShift: "morning", priorShift: "night", onDuty: [], newMembers: [], officerInCharge: null, staffing: { filled: 0, required: 4, complete: false }, equipmentIssues: [], approvals: { logs: 0, payroll: 0 }, previousShift: { officer: null, note: "Fictional handoff", calls: [] }, activeCalls: [], apparatus: [], roadClosures: [] };
 const payloads: Record<string, unknown> = {
   "/api/payroll": payroll,
@@ -79,6 +88,21 @@ if (params.has("active-command")) {
 window.fetch = async (input, init) => {
   const url = new URL(String(input), location.origin);
   const method = init?.method ?? "GET";
+  if (params.has("live-access")) {
+    accessRequests.push(url.pathname+url.search);
+    if (url.pathname === "/api/permissions") {
+      if (method === "PUT") {
+        if (failWrite) { failWrite = false; return Response.json({error:"Simulated failed save"},{status:503}); }
+        const body=JSON.parse(String(init?.body || "{}"));
+        if (body.revision !== String(accessRevision)) return Response.json({error:"Stale fixture editor"},{status:409});
+        accessOverrides={...accessOverrides,[body.employeeId]:body.overrides};accessRevision++;
+        return Response.json({saved:true});
+      }
+      return Response.json(accessPayload());
+    }
+    if (url.pathname === "/api/board-feeds") return Response.json({feeds:[],checkedAt:now});
+    if (url.searchParams.get("scope") === "live-operations" && !accessPayload().viewerPermissions.includes("operations_board.view")) return Response.json({error:"Individual board access required"},{status:403});
+  }
   if (!["GET", "HEAD"].includes(method)) {
     writes++;
     if (failWrite) { failWrite = false; throw new Error("Simulated connection loss during save"); }

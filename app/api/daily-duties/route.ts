@@ -23,7 +23,8 @@ function chicagoNow() {
 export async function GET(request: Request) {
   try {
     const db = await ensureDatabase();
-    if (!await hasAnyPermission(request, db, ["documents.view","policies.manage","daily_log.view","operations_board.view"])) return Response.json({ error: "This account does not have access to this tool." }, { status: 403 });
+    const liveBoard = new URL(request.url).searchParams.get("scope") === "live-operations";
+    if (!await hasAnyPermission(request, db, liveBoard ? ["operations_board.view"] : ["documents.view","policies.manage","daily_log.view","operations_board.view"])) return Response.json({ error: "This account does not have access to this tool." }, { status: 403, headers: { "Cache-Control": "private, no-store" } });
     const canEdit = await isAdmin(request, db);
     const rows = await db.prepare("SELECT id, day_of_week AS dayOfWeek, shift_key AS shiftKey, duty, updated_by AS updatedBy, updated_at AS updatedAt FROM daily_duties ORDER BY CASE day_of_week WHEN 1 THEN 1 WHEN 2 THEN 2 WHEN 3 THEN 3 WHEN 4 THEN 4 WHEN 5 THEN 5 WHEN 6 THEN 6 ELSE 7 END, CASE shift_key WHEN 'morning' THEN 1 WHEN 'afternoon' THEN 2 ELSE 3 END").all();
     const dutyRows = rows.results as Array<{ id: string; dayOfWeek: number; shiftKey: string; duty: string; updatedBy: string; updatedAt: string }>;

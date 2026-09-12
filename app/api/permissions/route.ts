@@ -1,5 +1,5 @@
 import { ensureDatabase } from "../../../db/bootstrap";
-import { defaultPermissionsForRank, permissionCatalog, resolveEmployeePermissions } from "../../permissions";
+import { isIndividualOnlyPermission, permissionCatalog, resolveEmployeePermissions } from "../../permissions";
 import { hasPermission, isPermissionKey, ownerAdminEmails, permissionsForEmail } from "../../server-permissions";
 
 type Db = Awaited<ReturnType<typeof ensureDatabase>>;
@@ -32,9 +32,7 @@ export async function GET(request: Request) {
       db.prepare("SELECT employee_id employeeId,permission_key permissionKey,effect FROM employee_permission_overrides").all<OverrideRow>(),
     ]);
     const rankSettings = Object.fromEntries(ranks.results.map(({ rank }) => {
-      const saved = new Map(rankRows.results.filter(row => row.rank === rank).map(row => [row.permissionKey, Boolean(row.allowed)]));
-      const defaults = new Set(defaultPermissionsForRank(rank));
-      return [rank, permissionCatalog.filter(item => saved.has(item.key) ? saved.get(item.key) : defaults.has(item.key)).map(item => item.key)];
+      return [rank, resolveEmployeePermissions({ rank, isAdmin: false }, rankRows.results.filter(row => row.rank === rank), [])];
     }));
     const overrides: Record<string, Record<string, "allow" | "deny">> = {};
     for (const row of overrideRows.results) if (isPermissionKey(row.permissionKey)) (overrides[row.employeeId] ??= {})[row.permissionKey] = row.effect;
@@ -65,8 +63,9 @@ export async function PUT(request: Request) {
       const rank = String(body.rank ?? "").trim();
       if (!rank || !await db.prepare("SELECT 1 ok FROM pay_scales WHERE label=? LIMIT 1").bind(rank).first()) return json({ error: "Select a valid rank." }, 400);
       const selected = new Set((Array.isArray(body.permissions) ? body.permissions : []).filter(isPermissionKey));
+      if ([...selected].some(isIndividualOnlyPermission)) return json({ error: "Live Operations is granted individually. Use Member exceptions to add this permission." }, 400);
       selected.add("payroll.view_own");
-      for (const item of permissionCatalog) writes.push(db.prepare("INSERT INTO rank_permissions(rank,permission_key,allowed,updated_at) VALUES(?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(rank,permission_key) DO UPDATE SET allowed=excluded.allowed,updated_at=CURRENT_TIMESTAMP WHERE rank_permissions.allowed IS DISTINCT FROM excluded.allowed").bind(rank, item.key, selected.has(item.key) ? 1 : 0));
+      for (const item of permissionCatalog) if (!isIndividualOnlyPermission(item.key)) writes.push(db.prepare("INSERT INTO rank_permissions(rank,permission_key,allowed,updated_at) VALUES(?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(rank,permission_key) DO UPDATE SET allowed=excluded.allowed,updated_at=CURRENT_TIMESTAMP WHERE rank_permissions.allowed IS DISTINCT FROM excluded.allowed").bind(rank, item.key, selected.has(item.key) ? 1 : 0));
     } else if (body.scope === "employee") {
       const employeeId = String(body.employeeId ?? "");
       const employee = await db.prepare("SELECT COALESCE(ep.email,'') email FROM employees e LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1").bind(employeeId).first<{ email: string }>();

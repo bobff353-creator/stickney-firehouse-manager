@@ -1,6 +1,7 @@
 export const permissionCatalog = [
   { key: "dashboard.view", label: "View dashboard", group: "General" },
-  { key: "operations_board.view", label: "View Live Operations Board", group: "Operations" },
+  { key: "operations_board.view", label: "View Live Operations Board", group: "Operations", individualOnly: true },
+  { key: "road_closures.view", label: "View Road Closures", group: "Operations" },
   { key: "command_center.view", label: "View Command Center", group: "Operations" },
   { key: "daily_log.view", label: "View Daily Log", group: "Operations" },
   { key: "daily_log.manage", label: "Edit and approve Daily Log", group: "Operations" },
@@ -40,16 +41,21 @@ export const permissionCatalog = [
 export type PermissionKey = typeof permissionCatalog[number]["key"];
 
 const allPermissions = permissionCatalog.map((permission) => permission.key);
-const memberPermissions: PermissionKey[] = ["dashboard.view", "operations_board.view", "scheduling.view", "payroll.view_own", "documents.view", "field_preplans.view", "safety_inspections.view", "safety_inspections.complete", "inventory.view", "inventory.check"];
+const memberPermissions: PermissionKey[] = ["dashboard.view", "road_closures.view", "scheduling.view", "payroll.view_own", "documents.view", "field_preplans.view", "safety_inspections.view", "safety_inspections.complete", "inventory.view", "inventory.check"];
 const firefighterPermissions: PermissionKey[] = [...memberPermissions, "daily_log.view", "daily_log.manage", "field_preplans.edit", "incident_command.view"];
 const officerPermissions: PermissionKey[] = [...firefighterPermissions, "field_preplans.review", "field_preplans.verify_expiring", "employees.view", "contacts.view", "incident_command.manage", "safety_inspections.manage", "inventory.repairs.manage"];
 
 export function defaultPermissionsForRank(rank: string, isAdmin = false): PermissionKey[] {
   const value = rank.trim().toLowerCase();
-  if (isAdmin || value.includes("chief")) return [...allPermissions];
+  if (isAdmin) return [...allPermissions];
+  if (value.includes("chief")) return allPermissions.filter(key => !isIndividualOnlyPermission(key));
   if (value.includes("captain") || value.includes("lieutenant")) return [...officerPermissions, "command_center.view", "scheduling.manage"];
   if (value.includes("firefighter") || value === "ff") return [...firefighterPermissions];
   return [...memberPermissions];
+}
+
+export function isIndividualOnlyPermission(key: string): boolean {
+  return permissionCatalog.some(item => item.key === key && "individualOnly" in item && item.individualOnly);
 }
 
 export function resolveEmployeePermissions(
@@ -59,7 +65,7 @@ export function resolveEmployeePermissions(
 ): PermissionKey[] {
   const defaults = new Set(defaultPermissionsForRank(employee.rank, Boolean(employee.isAdmin)));
   const saved = new Map(rankRows.map(row => [row.permissionKey, Boolean(row.allowed)]));
-  const selected = new Set(permissionCatalog.filter(item => employee.isAdmin || !saved.has(item.key)
+  const selected = new Set(permissionCatalog.filter(item => employee.isAdmin || isIndividualOnlyPermission(item.key) || !saved.has(item.key)
     ? defaults.has(item.key) : saved.get(item.key)).map(item => item.key));
   for (const override of overrides) {
     if (!permissionCatalog.some(item => item.key === override.permissionKey)) continue;

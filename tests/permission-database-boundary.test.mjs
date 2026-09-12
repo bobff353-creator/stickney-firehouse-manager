@@ -8,7 +8,7 @@ const migration=fs.readFileSync(new URL('../supabase/migrations/20260911192047_p
 const digest=migration.match(/= '([a-f0-9]{64})'/)[1];
 const department='14a76771-4c24-481b-8def-e6cce005c17b', user='00000000-0000-4000-8000-000000000001';
 const tables=[...migration.matchAll(/CREATE POLICY portal_server_boundary ON public\.(\w+)/g)].map(m=>m[1]);
-async function fixture() {
+async function fixture({ beforeLiveAccess = false } = {}) {
  const db=new PGlite();
  await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
  CREATE SCHEMA auth; CREATE SCHEMA private; CREATE SCHEMA extensions; CREATE SCHEMA firehouse; CREATE SCHEMA storage;
@@ -44,11 +44,50 @@ async function fixture() {
  GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public,storage,firehouse TO authenticated;
  `);
  await db.exec(migration);
+ if (!beforeLiveAccess) await db.exec(fs.readFileSync(new URL('../supabase/migrations/20260912190645_live_operations_individual_access.sql',import.meta.url),'utf8'));
  await db.exec(fs.readFileSync(new URL('../supabase/migrations/20260912100948_inventory_invoker_schema_access.sql',import.meta.url),'utf8'));
  await db.exec(`CREATE OR REPLACE FUNCTION public.firehouse_sql(p_sql text,p_mode text DEFAULT 'all',p_secret text DEFAULT NULL) RETURNS jsonb LANGUAGE sql SECURITY INVOKER AS $$ SELECT firehouse.execute_portal_sql(p_sql,p_mode,p_secret) $$;`);
  return db;
 }
 async function identity(db,trusted=true){await db.exec(`SET ROLE authenticated; SET request.test_uid='${user}'; SET request.headers='${JSON.stringify(trusted?{'x-firehouse-server-key':'fixture-server-key'}:{})}';`);}
+
+test('Live Operations requires a member grant, ignores legacy rank grants and honors immediate revocation',async()=>{
+ const db=await fixture();try{
+  const allowed=async()=>{await identity(db);const row=(await db.query("SELECT private.portal_has_permission('operations_board.view') live,private.portal_has_permission('road_closures.view') roads")).rows[0];await db.exec('RESET ROLE');return row;};
+  for(const rank of ['Chief','Captain','Lieutenant','Firefighter']){
+   await db.query('UPDATE firehouse.pay_scales SET label=$1',[rank]);
+   await db.query("INSERT INTO firehouse.rank_permissions VALUES($1,'operations_board.view',1,NULL)",[rank]);
+   assert.deepEqual(await allowed(),{live:false,roads:true});
+  }
+  await db.exec("INSERT INTO firehouse.employee_permission_overrides VALUES('member','operations_board.view','allow',NULL)");
+  assert.equal((await allowed()).live,true);
+  await db.exec("BEGIN; UPDATE firehouse.employee_permission_overrides SET effect='deny'; ROLLBACK;");
+  assert.equal((await allowed()).live,true,'rolled back removal does not change access');
+  await db.exec("UPDATE firehouse.employee_permission_overrides SET effect='deny'");
+  assert.equal((await allowed()).live,false);
+  await db.exec("UPDATE firehouse.employee_profiles SET is_admin=1");
+  assert.equal((await allowed()).live,false,'individual deny wins over admin');
+  await db.exec("DELETE FROM firehouse.employee_permission_overrides");
+  assert.equal((await allowed()).live,true,'administrator default restored');
+  await db.exec("UPDATE firehouse.employee_profiles SET is_admin=0");
+  assert.equal((await allowed()).live,false,'clearing a member grant stays opt-in');
+ }finally{await db.close();}
+});
+
+test('cutover preserves historical rank and member Road Closures decisions without deleting old rows',async()=>{
+ const db=await fixture({beforeLiveAccess:true});try{
+  await db.exec("INSERT INTO firehouse.rank_permissions VALUES('Firefighter','operations_board.view',0,'old'); INSERT INTO firehouse.employee_permission_overrides VALUES('member','operations_board.view','allow','old');");
+  const sql=fs.readFileSync(new URL('../supabase/migrations/20260912190645_live_operations_individual_access.sql',import.meta.url),'utf8');
+  const before=(await db.query("SELECT value FROM firehouse.system_meta WHERE key='permissions-revision'")).rows[0].value;
+  await db.exec(sql);
+  assert.notEqual((await db.query("SELECT value FROM firehouse.system_meta WHERE key='permissions-revision'")).rows[0].value,before);
+  assert.deepEqual((await db.query("SELECT allowed FROM firehouse.rank_permissions ORDER BY permission_key")).rows,[{allowed:0},{allowed:0}]);
+  assert.deepEqual((await db.query("SELECT effect FROM firehouse.employee_permission_overrides ORDER BY permission_key")).rows,[{effect:'allow'},{effect:'allow'}]);
+  await db.exec("UPDATE firehouse.employee_permission_overrides SET effect='deny' WHERE permission_key='road_closures.view'");
+  await db.exec(sql);
+  assert.equal((await db.query("SELECT effect FROM firehouse.employee_permission_overrides WHERE permission_key='road_closures.view'")).rows[0].effect,'deny','replay cannot overwrite a later administrator decision');
+ }finally{await db.close();}
+});
 
 test('migration closes direct SQL/table/storage access while preserving authenticated server RPC',async()=>{
  const db=await fixture();try{

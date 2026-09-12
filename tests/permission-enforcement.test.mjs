@@ -50,13 +50,35 @@ function fixture({admin=0,overrides={},linked=true,duplicate=false}={}) {
   return{employee,db,api,payroll,scheduler,hydrants,command,request,persisted,get revision(){return revision;},get batches(){return batches;}};
 }
 
-test('864 rank/admin/exception combinations preserve explicit decisions and own-timesheet access',()=>{
+test('all rank/admin/exception combinations preserve explicit decisions and own-timesheet access',()=>{
   let count=0;
   for(const rank of ['Chief','Deputy Chief','Captain','Lieutenant','Firefighter','Temp Firefighter'])for(const isAdmin of [0,1])for(const {key}of permissionCatalog)for(const effect of ['allow','deny']){
     const actual=resolveEmployeePermissions({rank,isAdmin},[{permissionKey:key,allowed:0}],[{permissionKey:key,effect}]);
     assert.equal(actual.includes(key),effect==='allow'||key==='payroll.view_own');count++;
   }
-  assert.equal(count,864);
+  assert.equal(count,6*2*permissionCatalog.length*2);
+});
+
+test('all ranks are Live Operations opt-in; administrator and explicit member choices remain editable',()=>{
+ for(const rank of ['Chief','Deputy Chief','Captain','Lieutenant','Firefighter','Unknown'])for(const isAdmin of [0,1])for(const allowed of [0,1])for(const effect of [undefined,'allow','deny']){
+  const actual=resolveEmployeePermissions({rank,isAdmin},[{permissionKey:'operations_board.view',allowed}],effect?[{permissionKey:'operations_board.view',effect}]:[]);
+  assert.equal(actual.includes('operations_board.view'),effect?effect==='allow':Boolean(isAdmin));
+  assert.equal(actual.includes('road_closures.view'),true);
+  assert.equal(actual.includes('field_preplans.view'),true,'Respond remains available');
+ }
+});
+
+test('rank-wide Live Operations grant is rejected, and member grant/removal saves through the real handler',async()=>{
+ const f=fixture({admin:1});
+ const response=await f.api.PUT(f.request('PUT',{scope:'rank',rank:'Firefighter',permissions:['operations_board.view'],revision:f.revision}));
+ assert.equal(response.status,400);assert.equal(f.batches,0);
+ for(const effect of ['allow','deny',undefined]){
+  assert.equal((await f.api.PUT(f.request('PUT',{scope:'employee',employeeId:f.employee.id,overrides:effect?{'operations_board.view':effect}:{},revision:f.revision}))).status,200);
+  const body=await(await f.api.GET(f.request())).json();
+  assert.equal(body.employees[0].effectivePermissions.includes('operations_board.view'),effect!=='deny');
+  assert.equal(body.rankSettings.Firefighter.includes('operations_board.view'),false);
+  assert.equal(body.catalog.find(p=>p.key==='operations_board.view').individualOnly,true);
+ }
 });
 test('delegated member grants enable actual payroll, employee, scheduler, command and permission handlers',async()=>{
   const f=fixture({overrides:Object.fromEntries(['payroll.manage','employees.manage','scheduling.manage','command_center.view','permissions.manage'].map(k=>[k,'allow']))});
