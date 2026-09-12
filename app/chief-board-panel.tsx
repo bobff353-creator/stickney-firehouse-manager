@@ -60,24 +60,37 @@ export default function ChiefBoardPanel() {
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const readRequest = useRef<AbortController | null>(null);
   const load = useCallback(async () => {
-    const [boardResponse, riverResponse] = await Promise.all([fetch("/api/chief-board"), fetch("/api/river-gauge")]);
-    const result = await boardResponse.json() as { items?: ChiefItem[]; canEdit?: boolean; officers?: BoardOfficer[]; error?: string };
-    const riverResult = await riverResponse.json() as RiverGauge & { error?: string };
-    if (boardResponse.ok) {
-      setItems(result.items ?? []);
-      setCanEdit(Boolean(result.canEdit));
-      setOfficers(result.officers ?? []);
-    } else setMessage(result.error || "Unable to load Chief Notes and Events.");
-    if (riverResponse.ok) {
-      setRiver(riverResult);
-      setRiverError("");
-    } else setRiverError(riverResult.error || "Live river level is temporarily unavailable.");
+    if (readRequest.current) return;
+    const controller = new AbortController();
+    readRequest.current = controller;
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]);
+    try {
+      const [boardResponse, riverResponse] = await Promise.all([fetch("/api/chief-board", { cache: 'no-store', signal }), fetch("/api/river-gauge", { cache: 'no-store', signal })]);
+      const result = await boardResponse.json() as { items?: ChiefItem[]; canEdit?: boolean; officers?: BoardOfficer[]; error?: string };
+      const riverResult = await riverResponse.json() as RiverGauge & { error?: string };
+      if (controller.signal.aborted) return;
+      if (boardResponse.ok) {
+        setItems(result.items ?? []);
+        setCanEdit(Boolean(result.canEdit));
+        setOfficers(result.officers ?? []);
+      } else setMessage(result.error || "Unable to load Chief Notes and Events.");
+      if (riverResponse.ok) {
+        setRiver(riverResult);
+        setRiverError("");
+      } else setRiverError(riverResult.error || "Live river level is temporarily unavailable.");
+    } catch {
+      if (!controller.signal.aborted) {
+        setMessage('Chief Notes could not refresh. Displayed notes may be out of date.');
+        setRiverError('Live river level could not refresh. Displayed information is not verified.');
+      }
+    } finally { if (readRequest.current === controller) readRequest.current = null; }
   }, []);
   useEffect(() => {
     const initial = window.setTimeout(() => void load(), 0);
     const refresh = window.setInterval(() => void load(), 30000);
-    return () => { window.clearTimeout(initial); window.clearInterval(refresh); };
+    return () => { window.clearTimeout(initial); window.clearInterval(refresh); readRequest.current?.abort(); readRequest.current = null; };
   }, [load]);
   const slideCount = items.length + 1;
   useEffect(() => {

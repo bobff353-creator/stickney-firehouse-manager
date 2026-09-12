@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import GoogleFieldMap from "./google-field-map";
+import ApparatusLocationsPanel, { type LocationModel } from './apparatus-locations-panel';
+import { locationAgeLabel } from './apparatus-location-domain';
+import { respondingUnitsIncludeUnit } from './respond-device';
 import { clusterRecentCallLocations } from "./respond-call-clusters";
 import { formatRespondMilitaryTime } from "./respond-time";
 import { clusterHydrantLocations, hasMapLocation, projectMapPoint } from "./respond-map-markers";
@@ -82,13 +85,23 @@ export default function RespondOverviewMap({
   recentCalls,
   onNavigate,
   updatesAvailable = true,
+  locationModel,
+  apparatusOnly = false,
+  respondingUnits = '',
 }: {
   overview: RespondOverview;
   recentCalls: RecentCall[];
   updatesAvailable?: boolean;
+  locationModel?: LocationModel;
+  apparatusOnly?: boolean;
+  respondingUnits?: string;
   onNavigate?: (page: "Daily Log" | "Field Preplans" | "Box Cards") => void;
 }) {
   const mapElement = useRef<HTMLDivElement>(null);
+  const [locationNow,setLocationNow]=useState(Date.now);
+  const [onlyCallUnits,setOnlyCallUnits]=useState(false);
+  const hasLocationModel=Boolean(locationModel);
+  useEffect(()=>{if(!hasLocationModel)return;const timer=setInterval(()=>setLocationNow(Date.now()),5000);return()=>clearInterval(timer);},[hasLocationModel]);
   const [canvas, setCanvas] = useState({ width: 0, height: 0 });
   const [selectedHydrantIds, setSelectedHydrantIds] = useState<string[]>([]);
   const callClusters = useMemo(
@@ -281,8 +294,9 @@ export default function RespondOverviewMap({
   }
 
   return (
-    <section className="respond-map-shell" aria-label="Stickney response map">
-      <section className="respond-task-guide" aria-live="polite">
+    <section className={`respond-map-shell${apparatusOnly?' apparatus-only-map':''}`} aria-label="Stickney response map">
+      {locationModel&&<ApparatusLocationsPanel model={locationModel} respondingUnits={respondingUnits} onFilter={setOnlyCallUnits} onLocate={unit=>{if(unit.latitude==null||unit.longitude==null)return;setCenter({lat:unit.latitude,lng:unit.longitude});setZoom(16);mapElement.current?.scrollIntoView({block:'center',behavior:'smooth'});}}/>}
+      {!apparatusOnly&&<section className="respond-task-guide" aria-live="polite">
         <b>Step {guide.step}</b>
         <div>
           <strong>{guide.title}</strong>
@@ -316,7 +330,7 @@ export default function RespondOverviewMap({
             </button>
           )}
         </div>
-      </section>
+      </section>}
 
       <details className="respond-map-options">
         <summary>
@@ -404,10 +418,17 @@ export default function RespondOverviewMap({
         <span className="respond-hydrant-key unavailable"><HydrantMapSymbol /> Out of service</span>
         <span><b className="respond-group-key">12</b> Group · tap to zoom</span>
         <span><i className="closure" /> Red line: road closure</span>
+        {locationModel&&<span>Unit number: apparatus · dashed: last known</span>}
       </div>
 
       <div className="respond-map-layout">
         <div className="respond-overview-map" ref={mapElement}>
+          {locationModel?.units.filter(unit=>unit.latitude!=null&&unit.longitude!=null&&(!onlyCallUnits||respondingUnitsIncludeUnit(respondingUnits,unit.unit))).map(unit=>{
+            const point=projectMapPoint({lat:unit.latitude!,lng:unit.longitude!},center,zoom,canvas);
+            if(!canvas.width||point.x<0||point.y<0||point.x>canvas.width||point.y>canvas.height)return null;
+            const label=locationAgeLabel(unit,locationNow,locationModel.connected);
+            return <button key={unit.apparatusId} type="button" className={`respond-apparatus-marker${label.startsWith('Updated')?'':' stale'}`} style={{left:point.x,top:point.y}} title={`${unit.unit} · ${label} · accuracy ±${Math.round(unit.accuracy||0)} m`} onClick={()=>setCenter({lat:unit.latitude!,lng:unit.longitude!})}><span>{unit.unit}</span><small>{label}</small></button>;
+          })}
           {apiKey ? (
             <GoogleFieldMap
               apiKey={apiKey}
@@ -569,7 +590,8 @@ export default function RespondOverviewMap({
               </div>
             </div>
           ) : recentCalls.length ? (
-            <div className="respond-call-rail-list" role="tabpanel">
+            <div className="respond-call-rail-list" role="tabpanel" aria-label="Recent completed calls" tabIndex={0}>
+              <p className="respond-call-rail-help">Latest {recentCalls.length} completed calls · Scroll for more</p>
               {selectedCallCluster ? (
                 <div className="respond-call-map-selection" aria-live="polite">
                   <strong>
@@ -636,8 +658,8 @@ export default function RespondOverviewMap({
           )}
           <footer>
             <span>APPARATUS LOCATION</span>
-            <strong>GPS not connected</strong>
-            <small>No vehicle location is guessed.</small>
+            <strong>{locationModel?`${locationModel.units.filter(unit=>unit.fixAt).length} last-reported positions`:'GPS not connected'}</strong>
+            <small>No vehicle location is guessed. Dashed markers are last known.</small>
           </footer>
         </aside>
       </div>

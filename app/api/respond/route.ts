@@ -78,7 +78,7 @@ export async function GET(request: Request) {
     const [recentRows, recentLocationRows] = await Promise.all([
       db
         .prepare(
-          "SELECT report_number reportNumber,call_type callType,address,responding_units respondingUnits,time_out timeOut,time_in timeIn,log_date logDate FROM daily_log_calls WHERE trim(time_in)<>'' ORDER BY log_date DESC,sort_order DESC LIMIT 6",
+          "SELECT report_number reportNumber,call_type callType,address,responding_units respondingUnits,time_out timeOut,time_in timeIn,log_date logDate FROM daily_log_calls WHERE trim(time_in)<>'' ORDER BY log_date DESC,sort_order DESC,id DESC LIMIT 25",
         )
         .all<Row>(),
       db

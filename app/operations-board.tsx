@@ -6,7 +6,10 @@ import { formatMilitaryTime } from "./military-time";
 import { nextOperationsShiftChange } from "./operations-shift-time";
 import { createTvExitVisibility } from "./tv-exit-visibility";
 import ChiefBoardPanel from "./chief-board-panel";
-import { ifsiScheduleSource, type UpcomingTrainingCourse } from "./lib/training-parsers";
+import { ifsiScheduleSource } from "./lib/training-parsers";
+import type { TrainingProvider as SavedTrainingProvider } from "./lib/external-feeds";
+import { useBoardFeeds } from "./use-board-feeds";
+import { savedFeedLabel } from "./board-feeds-client";
 import StaffingRotation, { type NewMember, type StaffingPerson } from "./staffing-rotation";
 
 type BoardRoadClosure = { id:string;roadName:string;reason:string;path:Array<{lat:number;lng:number}>;detourLatitude:number;detourLongitude:number;startedAt:string;expectedClearAt:string|null };
@@ -31,38 +34,9 @@ const headerRotationOrder: HeaderRotation[] = ["title", "today", "hourly", "tomo
 function boardDetourUrl(closure:BoardRoadClosure){const destination=closure.path.at(-1);if(!destination)return "https://www.google.com/maps";return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${destination.lat},${destination.lng}`)}&waypoints=${encodeURIComponent(`${closure.detourLatitude},${closure.detourLongitude}`)}&travelmode=driving`;}
 function boardClosureTime(value:string|null){return value?new Date(value).toLocaleString("en-US",{timeZone:"America/Chicago",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"Until reopened";}
 const initialTrainingProviders: Record<"romeoville" | "ifsi" | "nipsta", TrainingProvider> = {
-  romeoville: {
-    name: "Romeoville Fire Academy",
-    shortName: "Romeoville",
-    sourceUrl: "https://www.romeoville.org/562/Fire-Rescue-Courses",
-    checked: "July 28, 2026",
-    courses: [
-      { title: "Basic Operations Firefighter Academy #6", dates: "Aug 3–Oct 2", endDate: "2026-10-02", url: "https://www.romeoville.org/DocumentCenter/View/15985/RFA-2026-Course-Catalog" },
-      { title: "Fire Apparatus Engineer", dates: "Aug 3–7", endDate: "2026-08-07", url: "https://www.romeoville.org/DocumentCenter/View/15985/RFA-2026-Course-Catalog" },
-      { title: "Common Passenger Vehicle Rescue", dates: "Aug 3–7", endDate: "2026-08-07", url: "https://www.romeoville.org/DocumentCenter/View/15985/RFA-2026-Course-Catalog" },
-      { title: "Advanced SCBA", dates: "Aug 10–12", endDate: "2026-08-12", url: "https://www.romeoville.org/DocumentCenter/View/15985/RFA-2026-Course-Catalog" },
-      { title: "Rope Operations", dates: "Aug 10–14", endDate: "2026-08-14", location: "North Aurora", url: "https://www.romeoville.org/DocumentCenter/View/15985/RFA-2026-Course-Catalog" },
-    ],
-  },
-  ifsi: {
-    name: "Illinois Fire Service Institute",
-    shortName: "IFSI",
-    sourceUrl: ifsiScheduleSource,
-    checked: "",
-    courses: [],
-  },
-  nipsta: {
-    name: "NIPSTA Fire & Technical Rescue",
-    shortName: "NIPSTA",
-    sourceUrl: "https://nipsta.org/175/Fire-Technical-Rescue-Training",
-    checked: "July 28, 2026",
-    courses: [
-      { title: "Advanced Technician Firefighter", dates: "Aug 24–28", endDate: "2026-08-28", location: "NIPSTA", url: "https://nipsta.org/360/Advanced-Technician-Firefighter" },
-      { title: "Rope Technician", dates: "Sep 8–11", endDate: "2026-09-11", location: "NIPSTA", url: "https://nipsta.org/369/Rope-Technician" },
-      { title: "Confined Space Entrant, Attendant & Entry Supervisor", dates: "Sep 9", endDate: "2026-09-09", location: "NIPSTA Campus", url: "https://nipsta.org/568/Con-Space-Entrant-Attendant-Entry-Superv" },
-      { title: "Advanced Technician Firefighter", dates: "Nov 16–20", endDate: "2026-11-20", location: "NIPSTA", url: "https://nipsta.org/360/Advanced-Technician-Firefighter" },
-    ],
-  },
+  romeoville: { name: "Romeoville Fire Academy", shortName: "Romeoville", sourceUrl: "https://www.romeoville.org/562/Fire-Rescue-Courses", checked: "", courses: [] },
+  ifsi: { name: "Illinois Fire Service Institute", shortName: "IFSI", sourceUrl: ifsiScheduleSource, checked: "", courses: [] },
+  nipsta: { name: "NIPSTA Fire & Technical Rescue", shortName: "NIPSTA", sourceUrl: "https://nipsta.org/175/Fire-Technical-Rescue-Training", checked: "", courses: [] },
 };
 type AlertSegment = { frequencies: readonly number[]; duration: number; waveform?: OscillatorType; sweepTo?: number };
 const alertTones = [
@@ -99,30 +73,22 @@ function TrainingCourses({ provider, today }: { provider: TrainingProvider; toda
 }
 
 export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewActiveCall }: { tvMode?: boolean; onTvModeChange?: (enabled: boolean) => void; onNewActiveCall?: (call: BoardData["activeCalls"][number]) => void }) {
-  const [ifsiProvider, setIfsiProvider] = useState<TrainingProvider>(initialTrainingProviders.ifsi);
-  const trainingProviders = { ...initialTrainingProviders, ifsi: ifsiProvider };
-  useEffect(() => {
-    const controller = new AbortController();
-    let running = false;
-    const refreshIfsi = async () => {
-      if (running) return;
-      running = true;
-      try {
-        const response = await fetch("/api/training-sites", { signal: controller.signal });
-        if (!response.ok) throw new Error("Schedule unavailable");
-        const result = await response.json() as { providers: Array<{ id: string; available: boolean; checkedAt: string; upcoming: UpcomingTrainingCourse[] }> };
-        const provider = result.providers.find((p) => p.id === "ifsi");
-        if (!provider?.available) throw new Error("Schedule unavailable");
-        setIfsiProvider({ ...initialTrainingProviders.ifsi, checked: new Date(provider.checkedAt).toLocaleString("en-US", { timeZone: "America/Chicago" }), courses: provider.upcoming.map((course) => ({ ...course, dates: new Date(`${course.startDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }) })) });
-      } catch {
-        if (!controller.signal.aborted) setIfsiProvider((previous) => ({ ...previous, error: "Schedule check unavailable — use the official link. Last confirmed listings retained." }));
-      } finally { running = false; }
+  const informational = useBoardFeeds(tvMode);
+  const news = (informational.feeds.close_calls?.data?.items as CloseCallReport[] | undefined) ?? [];
+  const fatalities = informational.feeds.usfa?.data as UsfaData | null | undefined;
+  const weather = informational.feeds.weather?.data as WeatherData | null | undefined;
+  const trainingProviders = { ...initialTrainingProviders };
+  for (const id of ["romeoville", "ifsi", "nipsta"] as const) {
+    const snapshot = informational.feeds[`training_${id}`];
+    const provider = snapshot?.data as SavedTrainingProvider | null | undefined;
+    trainingProviders[id] = {
+      ...initialTrainingProviders[id],
+      checked: provider?.checkedAt ?? "",
+      error: savedFeedLabel(snapshot, informational.unconfirmed.bulletins),
+      courses: (provider?.upcoming ?? []).map(course => ({ ...course, dates: new Date(`${course.startDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }) })),
     };
-    void refreshIfsi();
-    const timer = window.setInterval(() => void refreshIfsi(), 300000);
-    return () => { controller.abort(); window.clearInterval(timer); };
-  }, []);
-  const [data, setData] = useState<BoardData | null>(null), [currentDuty, setCurrentDuty] = useState<CurrentDuty | null>(null), [dailyFleetChecks, setDailyFleetChecks] = useState<DailyFleetCheck[]>([]), [news, setNews] = useState<CloseCallReport[]>([]), [fatalities, setFatalities] = useState<UsfaData | null>(null), [weather, setWeather] = useState<WeatherData | null>(null), [error, setError] = useState(""), [clock, setClock] = useState(new Date()), [rotation, setRotation] = useState<Rotation>("equipment"), [headerRotation, setHeaderRotation] = useState<HeaderRotation>("title");
+  }
+  const [data, setData] = useState<BoardData | null>(null), [currentDuty, setCurrentDuty] = useState<CurrentDuty | null>(null), [dailyFleetChecks, setDailyFleetChecks] = useState<DailyFleetCheck[]>([]), [error, setError] = useState(""), [clock, setClock] = useState(new Date()), [rotation, setRotation] = useState<Rotation>("equipment"), [headerRotation, setHeaderRotation] = useState<HeaderRotation>("title");
   const [alertEnabled, setAlertEnabled] = useState(false), [alertTone, setAlertTone] = useState<AlertTone>("minitor-two-tone"), [alertPanelOpen, setAlertPanelOpen] = useState(false);
   const [rotationPaused,setRotationPaused]=useState(false),[lastRefresh,setLastRefresh]=useState<Date|null>(null);
   const [tvExitVisible, setTvExitVisible] = useState(false);
@@ -181,12 +147,9 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 15000);
     try {
-      const [dashboard, dutiesResult, newsResult, fatalitiesResult, weatherResult, fleetResult] = await Promise.all([
+      const [dashboard, dutiesResult, fleetResult] = await Promise.all([
         fetchBoardJson<BoardData>("/api/dashboard", controller.signal),
         fetchBoardJson<{ currentDuty?: CurrentDuty | null; dailyFleetChecks?: DailyFleetCheck[] }>("/api/daily-duties", controller.signal).catch(() => ({ ok: false, payload: null })),
-        fetchBoardJson<{ items?: CloseCallReport[] }>("/api/close-call-news", controller.signal).catch(() => ({ ok: false, payload: null })),
-        fetchBoardJson<UsfaData>("/api/usfa-fatalities", controller.signal).catch(() => ({ ok: false, payload: null })),
-        fetchBoardJson<WeatherData>("/api/weather", controller.signal).catch(() => ({ ok: false, payload: null })),
         fetchBoardJson<{ apparatus?: FleetApparatus[] }>("/api/suite-context", controller.signal).catch(() => ({ ok: false, payload: null })),
       ]);
       const result = dashboard.payload;
@@ -215,9 +178,6 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
         setCurrentDuty(dutiesResult.payload.currentDuty ?? null);
         setDailyFleetChecks(dutiesResult.payload.dailyFleetChecks ?? []);
       }
-      if (newsResult.ok && newsResult.payload) setNews(newsResult.payload.items ?? []);
-      if (fatalitiesResult.ok && fatalitiesResult.payload) setFatalities(fatalitiesResult.payload);
-      if (weatherResult.ok && weatherResult.payload) setWeather(weatherResult.payload);
     } catch {
       controller.abort();
       setError("Live updates are temporarily delayed. The last confirmed board remains on screen.");
@@ -228,7 +188,18 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
   }, [playAlert]);
   useEffect(() => { onNewActiveCallRef.current = onNewActiveCall; }, [onNewActiveCall]);
   useEffect(() => { const timer = window.setTimeout(() => { const storedTone = window.localStorage.getItem("stickney-call-alert-tone") || ""; const selectedTone = alertToneIds.has(storedTone) ? storedTone as AlertTone : "minitor-two-tone"; const enabled = window.localStorage.getItem("stickney-call-alert-enabled") === "true"; setAlertTone(selectedTone); setAlertEnabled(enabled); alertToneRef.current = selectedTone; alertEnabledRef.current = enabled; }, 0); return () => window.clearTimeout(timer); }, []);
-  useEffect(() => { const initial = window.setTimeout(() => void load(), 0); const refresh = window.setInterval(() => void load(), 30000); const ticker = window.setInterval(() => setClock(new Date()), 1000); const rotate = rotationPaused?0:window.setInterval(() => setRotation((current) => rotationOrder[(rotationOrder.indexOf(current) + 1) % rotationOrder.length]), 12000); const rotateHeader = rotationPaused?0:window.setInterval(() => setHeaderRotation((current) => headerRotationOrder[(headerRotationOrder.indexOf(current) + 1) % headerRotationOrder.length]), 8000); return () => { window.clearTimeout(initial); window.clearInterval(refresh); window.clearInterval(ticker); if(rotate)window.clearInterval(rotate);if(rotateHeader)window.clearInterval(rotateHeader); }; }, [load,rotationPaused]);
+  useEffect(() => {
+    const initial = window.setTimeout(() => void load(), 0);
+    const refresh = window.setInterval(() => void load(), 30000);
+    const ticker = window.setInterval(() => setClock(new Date()), 1000);
+    return () => { window.clearTimeout(initial); window.clearInterval(refresh); window.clearInterval(ticker); };
+  }, [load]);
+  useEffect(() => {
+    if (rotationPaused) return;
+    const rotate = window.setInterval(() => setRotation(current => rotationOrder[(rotationOrder.indexOf(current) + 1) % rotationOrder.length]), 12000);
+    const rotateHeader = window.setInterval(() => setHeaderRotation(current => headerRotationOrder[(headerRotationOrder.indexOf(current) + 1) % headerRotationOrder.length]), 8000);
+    return () => { window.clearInterval(rotate); window.clearInterval(rotateHeader); };
+  }, [rotationPaused]);
   useEffect(() => {
     if (!tvMode) return;
     let disposed = false;
@@ -284,8 +255,13 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
   }, [clock, lastRefresh, tvMode]);
   const next = useMemo(() => nextOperationsShiftChange(clock), [clock]);
   const activeCall = data?.activeCalls[0];
-  const headerWeather = headerRotation === "today" ? weather?.days[0] : headerRotation === "tomorrow" ? weather?.days[1] : null;
   const today = clock.toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+  const tomorrowDate = new Date(clock.getTime() + 86400000).toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+  const wantedWeatherDate = headerRotation === "today" ? today : tomorrowDate;
+  const headerWeather = headerRotation === "today" || headerRotation === "tomorrow"
+    ? weather?.days.find(day => day.date === wantedWeatherDate) ?? weather?.days[headerRotation === "today" ? 0 : 1] : null;
+  const weatherTitle = headerWeather && headerWeather.date !== wantedWeatherDate ? `Saved weather · ${headerWeather.date}`
+    : headerRotation === "today" ? "Today’s Berwyn weather" : "Tomorrow’s Berwyn weather";
   const chicagoTimeParts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(clock);
   const chicagoMinutes = Number(chicagoTimeParts.find((part) => part.type === "hour")?.value || 0) * 60 + Number(chicagoTimeParts.find((part) => part.type === "minute")?.value || 0);
   const timeMinutes = (time: string) => { const [hours, minutes] = time.split(":").map(Number); return hours * 60 + minutes; };
@@ -337,7 +313,7 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
         ? <span className="board-station-mode"><i/>24/7 station mode</span>
         : <button type="button" onClick={() => void enterTvMode()} aria-label="Open the Live Operations Board in full-screen TV mode">TV full screen</button>}</div>
     </div>
-    <header className="board-header"><div className="board-header-rotation" aria-live="polite"><p>Stickney Fire Department</p>{headerRotation === "title" ? <div className="board-title-slide"><h1>Live Operations Board</h1><span>{data ? shiftLabel(data.currentShift) : "Loading current shift…"}</span></div> : headerRotation === "hourly" && weather?.hours?.length ? <div className="board-hourly-slide"><span className="weather-day">Berwyn hourly outlook</span><h1>Next 4 hours</h1><div className="board-hourly-grid">{weather.hours.slice(0, 4).map((hour) => <article key={hour.time}><time>{new Date(hour.time).toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric" })}</time><strong>{hour.temperature}°</strong><span>{hour.condition}</span><small>{hour.precipitationChance}% rain · {hour.windSpeed} mph</small></article>)}</div></div> : headerWeather ? <div className="board-weather-slide"><span className="weather-day">{headerRotation === "today" ? "Today’s Berwyn weather" : "Tomorrow’s Berwyn weather"}</span><h1>{headerWeather.condition}</h1><div><strong>{headerWeather.high}°</strong><span>High</span><b>{headerWeather.low}°</b><span>Low</span><small>{headerWeather.precipitationChance}% rain · Wind {headerWeather.windGust} mph</small></div>{weather?.detailUrl && <a href={weather.detailUrl} target="_blank" rel="noreferrer">Full Berwyn forecast on Weather.com ↗</a>}</div> : <div className="board-title-slide"><h1>Live Operations Board</h1><span>Weather forecast temporarily unavailable</span></div>}</div><div className="board-clock"><strong>{clock.toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit", second: "2-digit" })}</strong><span>{clock.toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "long", month: "long", day: "numeric" })}</span><small><i/> Live · refreshes every 30 seconds</small></div></header>
+    <header className="board-header"><div className="board-header-rotation" aria-live="polite"><p>Stickney Fire Department</p>{headerRotation === "title" ? <div className="board-title-slide"><h1>Live Operations Board</h1><span>{data ? shiftLabel(data.currentShift) : "Loading current shift…"}</span></div> : headerRotation === "hourly" && weather?.hours?.length ? <div className="board-hourly-slide"><span className="weather-day">Berwyn hourly outlook · {savedFeedLabel(informational.feeds.weather, informational.unconfirmed.weather)}</span><h1>{weather.hours.some(hour => Date.parse(hour.time) > clock.getTime()) ? "Next 4 hours" : "Saved hourly outlook"}</h1><div className="board-hourly-grid">{weather.hours.slice(0, 4).map((hour) => <article key={hour.time}><time>{new Date(hour.time).toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric" })}</time><strong>{hour.temperature}°</strong><span>{hour.condition}</span><small>{hour.precipitationChance}% rain · {hour.windSpeed} mph</small></article>)}</div></div> : headerWeather ? <div className="board-weather-slide"><span className="weather-day">{weatherTitle} · {savedFeedLabel(informational.feeds.weather, informational.unconfirmed.weather)}</span><h1>{headerWeather.condition}</h1><div><strong>{headerWeather.high}°</strong><span>High</span><b>{headerWeather.low}°</b><span>Low</span><small>{headerWeather.precipitationChance}% rain · Wind {headerWeather.windGust} mph</small></div>{weather?.detailUrl && <a href={weather.detailUrl} target="_blank" rel="noreferrer">Full Berwyn forecast on Weather.com ↗</a>}</div> : <div className="board-title-slide"><h1>Live Operations Board</h1><span>Weather forecast temporarily unavailable</span></div>}</div><div className="board-clock"><strong>{clock.toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit", second: "2-digit" })}</strong><span>{clock.toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "long", month: "long", day: "numeric" })}</span><small><i/> Live · refreshes every 30 seconds</small></div></header>
     {error && <div className="board-alert">{error}<button onClick={() => void load()}>Retry</button></div>}
     {Boolean(data?.roadClosures?.length)&&<section className="board-road-closures" aria-label="Active road closures"><header><span>ROAD OUT OF SERVICE</span><strong>{data!.roadClosures.length} active</strong></header><div>{data!.roadClosures.map((closure)=><article key={closure.id}><div><h2>{closure.roadName}</h2><p>{closure.reason||"Department road closure"}</p><small>Expected clear: {boardClosureTime(closure.expectedClearAt)}</small></div><a href={boardDetourUrl(closure)} target="_blank" rel="noreferrer">OPEN DETOUR ↗</a></article>)}</div></section>}
     <div className="board-summary"><article className={data?.staffing.complete ? "clear" : "warning"}><span>Staffing</span><strong>{data?.staffing.filled ?? "—"} / {data?.staffing.required ?? 4}</strong><small>{data?.staffing.complete ? "Complete" : "Coverage needs attention"}</small></article><article className={data?.officerInCharge ? "clear" : "warning"}><span>Officer in charge</span><strong>{data?.officerInCharge ? displayName(data.officerInCharge) : "Not signed in"}</strong><small>Current shift command</small></article><article className={`active-call-summary ${activeCall ? "active" : "clear"}`}><span>{data?.activeCalls.length ? `Active call${data.activeCalls.length > 1 ? ` · ${data.activeCalls.length} total` : ""}` : "Active call"}</span>{activeCall ? <><strong>{activeCall.callType}</strong><b>{activeCall.address || "Address not entered"}</b>{activeCall.narrative && <em>{activeCall.narrative}</em>}<small>{activeCall.respondingUnits || "Units pending"} · {activeCall.timeOut ? formatMilitaryTime(activeCall.timeOut) : "Time pending"}{activeCall.source ? ` · ${activeCall.source}` : ""}</small></> : <><strong>None</strong><small>No open calls</small></>}</article><article><span>Next shift change</span><strong>{next.label}</strong><small>In {next.remaining}</small></article></div>
@@ -346,13 +322,13 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
       <section className={`board-panel equipment rotating-panel ${rotation}${rotation === "duty" && dailyChecksNeedAttention ? " daily-check-alert" : ""}`} aria-live="polite">
         <header>
           <h2>{rotation === "equipment" ? "Equipment issues" : rotation === "duty" ? dailyFleetChecks.length ? "Scheduled apparatus checks" : "Current daily duty" : rotation === "news" ? "Firefighter Close Calls" : rotation === "fatalities" ? "U.S. Firefighter Line-of-Duty Deaths" : trainingProviders[rotation].name}</h2>
-          <span>{rotation === "equipment" ? `${data?.equipmentIssues.length ?? 0} reported` : rotation === "duty" ? dailyFleetChecks.length ? dailyCheckUrgency === "overdue" ? `OVERDUE · Earliest due ${dailyFleetChecks[0]?.endTime}` : dailyCheckUrgency === "due_soon" ? `DUE NOW · Earliest due ${dailyFleetChecks[0]?.endTime}` : `Scheduled · Begins ${dailyFleetChecks[0]?.startTime}` : `${clock.toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "long" })} · ${shiftLabel(currentDuty?.shiftKey ?? data?.currentShift ?? "night")}` : rotation === "news" ? "Newest 3 · updates automatically" : rotation === "fatalities" ? "USFA · latest 5" : "Upcoming classes · official links"}</span>
+          <span>{rotation === "equipment" ? `${data?.equipmentIssues.length ?? 0} reported` : rotation === "duty" ? dailyFleetChecks.length ? dailyCheckUrgency === "overdue" ? `OVERDUE · Earliest due ${dailyFleetChecks[0]?.endTime}` : dailyCheckUrgency === "due_soon" ? `DUE NOW · Earliest due ${dailyFleetChecks[0]?.endTime}` : `Scheduled · Begins ${dailyFleetChecks[0]?.startTime}` : `${clock.toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "long" })} · ${shiftLabel(currentDuty?.shiftKey ?? data?.currentShift ?? "night")}` : rotation === "news" ? savedFeedLabel(informational.feeds.close_calls, informational.unconfirmed.bulletins) : rotation === "fatalities" ? savedFeedLabel(informational.feeds.usfa, informational.unconfirmed.bulletins) : "Upcoming classes · official links"}</span>
         </header>
         <div className="rotation-content">
           <div className="rotation-slide" hidden={rotation !== "equipment"}>{data?.equipmentIssues.length ? data.equipmentIssues.map((issue) => <article key={issue.id || issue.item}><b>{issue.item}</b><strong>{issue.status}</strong><p>{issue.detail || "No details entered"}</p></article>) : <p className="board-empty clear">✓ No equipment issues reported</p>}</div>
           <div className="rotation-slide" hidden={rotation !== "duty"}>{dailyFleetChecks.length || currentDuty ? <article className={`current-duty-card${dailyChecksNeedAttention ? " daily-check-alert" : ""}`}><span>{dailyFleetChecks.length ? dailyCheckUrgency === "overdue" ? "OVERDUE" : dailyCheckUrgency === "due_soon" ? "DUE NOW" : "SCHEDULED CHECKS" : "NOW"}</span><b>{dailyFleetChecks.length ? "Required apparatus and inventory checks" : `${currentDuty?.shiftKey[0].toUpperCase()}${currentDuty?.shiftKey.slice(1)} duty`}</b>{currentDuty?.duty ? <p>{currentDuty.duty}</p> : dailyFleetChecks.length ? <p>Complete each scheduled check in its administrator-set window. Finished checks clear automatically.</p> : null}{dailyFleetChecks.length ? <div className="board-duty-checks daily">{dailyFleetChecks.map((check) => <a key={`${check.apparatusId}-${check.checkType}`} href={`/inventory?apparatus=${encodeURIComponent(check.apparatusId)}&check=${encodeURIComponent(check.checkType)}`}><b>{check.unit} · {check.checkType.replaceAll("_", " ")}</b><span>{check.status === "in_progress" ? "↻ Resume check" : "Start check"} · {check.startTime}–{check.endTime}</span></a>)}</div> : null}{weeklyChecksCompleted ? <p className="board-duty-complete">✓ Today&apos;s scheduled checks are completed or not needed.</p> : null}</article> : <p className="board-empty">No duty is entered for the current shift.</p>}</div>
           <div className="rotation-slide" hidden={rotation !== "news"}>{news.length ? <div className="close-call-list">{news.map((report) => <a href={report.url} target="_blank" rel="noreferrer" key={report.url} aria-label={`${report.title}. Open the full Firefighter Close Calls report.`}><time><span>Posted</span>{new Date(report.publishedAt).toLocaleDateString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", year: "numeric" })}</time><div><span className="close-call-kicker">Incident report</span><strong>{report.title}</strong>{report.excerpt && <p>{report.excerpt}</p>}<small>Read the complete report <b aria-hidden="true">↗</b></small></div></a>)}</div> : <p className="board-empty">Latest reports are temporarily unavailable.</p>}</div>
-          <div className="rotation-slide" hidden={rotation !== "fatalities"}>{fatalities ? <div className="fatality-board"><div className="fatality-total"><strong>{fatalities.total}</strong><div><b>firefighter deaths in {fatalities.year}</b><span>{fatalities.stale ? "Last confirmed USFA data" : "Current USFA reported total"}</span></div></div><div className="fatality-list">{fatalities.items.map((person) => <a href={person.url} target="_blank" rel="noreferrer" key={person.id}><time>{new Date(person.deathDate).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" })}</time><div><strong>{person.name}</strong><span>{person.department}</span><small>{person.location}</small></div><b aria-hidden="true">↗</b></a>)}</div><p className="fatality-source">Provisional on-duty fatality information from the U.S. Fire Administration.</p></div> : <p className="board-empty">USFA fatality information is temporarily unavailable.</p>}</div>
+          <div className="rotation-slide" hidden={rotation !== "fatalities"}>{fatalities ? <div className="fatality-board"><div className="fatality-total"><strong>{fatalities.total}</strong><div><b>firefighter deaths in {fatalities.year}</b><span>{savedFeedLabel(informational.feeds.usfa, informational.unconfirmed.bulletins)}</span></div></div><div className="fatality-list">{fatalities.items.map((person) => <a href={person.url} target="_blank" rel="noreferrer" key={person.id}><time>{new Date(person.deathDate).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" })}</time><div><strong>{person.name}</strong><span>{person.department}</span><small>{person.location}</small></div><b aria-hidden="true">↗</b></a>)}</div><p className="fatality-source">Provisional on-duty fatality information from the U.S. Fire Administration.</p></div> : <p className="board-empty">USFA fatality information is temporarily unavailable.</p>}</div>
           {(["romeoville", "ifsi", "nipsta"] as const).map((providerId) => <div className="rotation-slide" hidden={rotation !== providerId} key={providerId}><TrainingCourses provider={trainingProviders[providerId]} today={today} /></div>)}
         </div>
       </section></div>

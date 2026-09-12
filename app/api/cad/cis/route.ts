@@ -2,7 +2,7 @@ import { hasPermission } from "../../../server-permissions";
 import { ensureDatabase } from "../../../../db/bootstrap";
 import { parseCisCadPayload } from "../../../cis-cad";
 import { projectDispatchIntoDailyLog } from "../../../dispatch-daily-log";
-import { sendCadPushNotifications } from "../../../cad-push";
+import { scheduleCadPushDelivery } from "../../../cad-push-worker";
 
 type RuntimeEnv = {
   CIS_CAD_WEBHOOK_SECRET?: string;
@@ -225,12 +225,9 @@ export async function POST(request: Request) {
     const active = incident.eventType === "close" ? 0 : 1;
     const timeOut =
       incident.timeOut || chicagoMilitaryTime(incident.dispatchedAt);
-    const existing = await db.prepare(
-      "SELECT incident_id FROM dispatch_incidents WHERE incident_id = ? LIMIT 1",
-    ).bind(incident.incidentId).first<{ incident_id: string }>();
     const receipt = db
       .prepare(
-        "INSERT INTO cad_inbound_receipts (id, provider, dedupe_key, external_event_id, external_incident_id, event_type, payload_format, raw_payload, normalized_payload, status, received_at, processed_at) VALUES (?, 'cis', ?, ?, ?, ?, ?, ?, ?, 'accepted', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+        "INSERT INTO cad_inbound_receipts (id, provider, dedupe_key, external_event_id, external_incident_id, event_type, payload_format, raw_payload, normalized_payload, status, received_at, processed_at) VALUES (?, 'cis', ?, ?, ?, ?, ?, ?, ?, 'accepted', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT(provider,dedupe_key) DO NOTHING",
       )
       .bind(
         receiptId,
@@ -263,8 +260,13 @@ export async function POST(request: Request) {
         active,
         active,
       );
-    await db.batch([receipt, upsert]);
+    const receiptResults = await db.batch<{ id?: string }>([
+      db.prepare('SELECT enable_cad_push_outbox()'), receipt, upsert,
+      db.prepare("SELECT id FROM cad_inbound_receipts WHERE provider = 'cis' AND dedupe_key = ? LIMIT 1").bind(payloadHash).batchFirst(),
+    ]);
+    const savedReceiptId = receiptResults[3]?.id || receiptId;
     if (active) {
+      scheduleCadPushDelivery(incident.incidentId);
       await projectDispatchIntoDailyLog(db, {
         reportNumber: incident.incidentId,
         dispatchedAt: incident.dispatchedAt,
@@ -273,19 +275,11 @@ export async function POST(request: Request) {
         address: incident.address,
         callType: incident.callType,
       });
-      if (!existing) {
-        await sendCadPushNotifications(db, {
-          incidentId: incident.incidentId,
-          callType: incident.callType,
-          timeOut,
-          narrative: incident.narrative,
-        });
-      }
     }
     return Response.json({
       accepted: true,
-      duplicate: false,
-      receiptId,
+      duplicate: savedReceiptId !== receiptId,
+      receiptId: savedReceiptId,
       incidentId: incident.incidentId,
       eventType: incident.eventType,
     });

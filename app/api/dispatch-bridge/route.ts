@@ -1,6 +1,6 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 import { projectDispatchIntoDailyLog } from "../../dispatch-daily-log";
-import { sendCadPushNotifications } from "../../cad-push";
+import { scheduleCadPushDelivery } from "../../cad-push-worker";
 
 type RuntimeEnv = {
   DISPATCH_BRIDGE_READ_TOKEN?: string;
@@ -57,11 +57,8 @@ export async function POST(request: Request) {
     }
 
     const db = await ensureDatabase();
-    const existing = await db.prepare(
-      "SELECT incident_id FROM dispatch_incidents WHERE incident_id = ? LIMIT 1",
-    ).bind(reportNumber).first<{ incident_id: string }>();
     await db.prepare(
-      "INSERT INTO dispatch_incidents (incident_id, resend_email_id, call_type, category, address, city, narrative, responding_units, longitude, latitude, dispatched_at, time_out, attachment_count, source_payload, received_at, cleared_at, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, NULL, 1) ON CONFLICT(incident_id) DO UPDATE SET resend_email_id=excluded.resend_email_id, call_type=excluded.call_type, category=excluded.category, address=excluded.address, city=excluded.city, narrative=excluded.narrative, responding_units=excluded.responding_units, longitude=excluded.longitude, latitude=excluded.latitude, dispatched_at=excluded.dispatched_at, time_out=excluded.time_out, attachment_count=excluded.attachment_count, source_payload=excluded.source_payload, received_at=CURRENT_TIMESTAMP, cleared_at=NULL, active=1"
+      "WITH cad_push_enabled AS MATERIALIZED (SELECT enable_cad_push_outbox()) INSERT INTO dispatch_incidents (incident_id, resend_email_id, call_type, category, address, city, narrative, responding_units, longitude, latitude, dispatched_at, time_out, attachment_count, source_payload, received_at, cleared_at, active) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, NULL, 1 FROM cad_push_enabled ON CONFLICT(incident_id) DO UPDATE SET resend_email_id=excluded.resend_email_id, call_type=excluded.call_type, category=excluded.category, address=excluded.address, city=excluded.city, narrative=excluded.narrative, responding_units=excluded.responding_units, longitude=excluded.longitude, latitude=excluded.latitude, dispatched_at=excluded.dispatched_at, time_out=excluded.time_out, attachment_count=excluded.attachment_count, source_payload=excluded.source_payload, received_at=CURRENT_TIMESTAMP, cleared_at=NULL, active=1"
     ).bind(
       reportNumber,
       text(incident.resendEmailId) || `bridge-${reportNumber}`,
@@ -78,6 +75,7 @@ export async function POST(request: Request) {
       Math.max(0, Math.trunc(optionalNumber(incident.attachmentCount) || 0)),
       JSON.stringify(incident),
     ).run();
+    scheduleCadPushDelivery(reportNumber);
     await projectDispatchIntoDailyLog(db, {
       reportNumber,
       dispatchedAt,
@@ -86,14 +84,6 @@ export async function POST(request: Request) {
       address: text(incident.address),
       callType,
     });
-    if (!existing) {
-      await sendCadPushNotifications(db, {
-        incidentId: reportNumber,
-        callType,
-        timeOut: text(incident.timeOut),
-        narrative: text(incident.narrative),
-      });
-    }
 
     return Response.json({ accepted: true, incidentId: reportNumber });
   } catch (error) {

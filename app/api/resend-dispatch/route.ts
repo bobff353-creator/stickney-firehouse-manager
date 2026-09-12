@@ -2,7 +2,7 @@ import { createPostgresD1Adapter } from "../../../db/postgres-adapter";
 import { projectDispatchIntoDailyLog } from "../../dispatch-daily-log";
 import { parseDispatchJson, parseDispatchText, type DispatchIncident } from "../../dispatch-email";
 import { getSupabaseSystemClient } from "../../supabase-system";
-import { sendCadPushNotifications } from "../../cad-push";
+import { scheduleCadPushDelivery } from "../../cad-push-worker";
 
 type ResendEvent = {
   type?: string;
@@ -119,12 +119,10 @@ export async function POST(request: Request) {
       databaseSecret,
     );
     const timeOut = chicagoMilitaryTime(incident.dispatchedAt);
-    const existing = await db.prepare(
-      "SELECT incident_id FROM dispatch_incidents WHERE incident_id = ? LIMIT 1",
-    ).bind(incident.incidentId).first<{ incident_id: string }>();
     await db.prepare(
-      "INSERT INTO dispatch_incidents (incident_id, resend_email_id, call_type, category, address, city, narrative, responding_units, longitude, latitude, dispatched_at, time_out, attachment_count, source_payload, received_at, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 1) ON CONFLICT(incident_id) DO UPDATE SET call_type=excluded.call_type, category=excluded.category, address=excluded.address, city=excluded.city, narrative=excluded.narrative, responding_units=excluded.responding_units, longitude=excluded.longitude, latitude=excluded.latitude, dispatched_at=excluded.dispatched_at, time_out=excluded.time_out, attachment_count=excluded.attachment_count, source_payload=excluded.source_payload, received_at=CURRENT_TIMESTAMP"
+      "WITH cad_push_enabled AS MATERIALIZED (SELECT enable_cad_push_outbox()) INSERT INTO dispatch_incidents (incident_id, resend_email_id, call_type, category, address, city, narrative, responding_units, longitude, latitude, dispatched_at, time_out, attachment_count, source_payload, received_at, active) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 1 FROM cad_push_enabled ON CONFLICT(incident_id) DO UPDATE SET call_type=excluded.call_type, category=excluded.category, address=excluded.address, city=excluded.city, narrative=excluded.narrative, responding_units=excluded.responding_units, longitude=excluded.longitude, latitude=excluded.latitude, dispatched_at=excluded.dispatched_at, time_out=excluded.time_out, attachment_count=excluded.attachment_count, source_payload=excluded.source_payload, received_at=CURRENT_TIMESTAMP"
     ).bind(incident.incidentId, event.data?.email_id || "", incident.callType, incident.category, incident.address, incident.city, incident.narrative, incident.units, incident.longitude, incident.latitude, incident.dispatchedAt, timeOut, attachmentCount, JSON.stringify(incident)).run();
+    scheduleCadPushDelivery(incident.incidentId);
     await projectDispatchIntoDailyLog(db, {
       reportNumber: incident.incidentId,
       dispatchedAt: incident.dispatchedAt,
@@ -133,14 +131,6 @@ export async function POST(request: Request) {
       address: incident.address,
       callType: incident.callType,
     });
-    if (!existing) {
-      await sendCadPushNotifications(db, {
-        incidentId: incident.incidentId,
-        callType: incident.callType,
-        timeOut,
-        narrative: incident.narrative,
-      });
-    }
     return Response.json({ accepted: true, incidentId: incident.incidentId });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Unable to process dispatch email" }, { status: 500 });

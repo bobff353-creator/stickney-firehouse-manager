@@ -61,7 +61,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         {children}
         <Script src="/pwa-register.js" strategy="afterInteractive" />
-        <Script src="/training-route.js" strategy="afterInteractive" />
         <Script src="/fleet-notices.js" strategy="afterInteractive" />
       </body>
     </html>

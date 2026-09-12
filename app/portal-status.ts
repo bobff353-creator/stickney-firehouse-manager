@@ -7,8 +7,9 @@ export function portalConnectionState(online: boolean, loading: boolean, error: 
 }
 
 /** Bound read requests so a stalled connection does not leave an endless spinner. */
-export async function readPortalJson<T>(url: string, unavailable: string): Promise<T> {
-  const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(15000) });
+export async function readPortalJson<T>(url: string, unavailable: string, signal?: AbortSignal): Promise<T> {
+  const timeout = AbortSignal.timeout(15000);
+  const response = await fetch(url, { cache: "no-store", signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
   const body = await response.json();
   if (!response.ok) throw new Error(body.error || unavailable);
   return body as T;

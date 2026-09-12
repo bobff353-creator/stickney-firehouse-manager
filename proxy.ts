@@ -8,9 +8,14 @@ const publicApiPaths = new Set([
   "/api/river-gauge",
   "/api/usfa-fatalities",
   "/api/weather",
+  // Public-source-only snapshots; no member/session-specific values are cached.
+  "/api/board-feeds",
+  "/api/training-sites",
 ]);
 
 const signedWebhookPaths = new Set([
+  // Device credential, scope, rate limit and fix validation are enforced by this exact POST route.
+  "/api/apparatus-locations/ingest",
   "/api/dispatch-bridge",
   "/api/resend-dispatch",
   "/api/admin/migration-export",
@@ -45,7 +50,9 @@ export async function proxy(request: NextRequest) {
   const signedWebhookRequest = request.method === "POST"
     && (signedWebhookPaths.has(pathname) || pathname === "/api/cad/cis");
   const publicAuthRequest = request.method === "POST" && publicAuthPostPaths.has(pathname);
-  if (publicApiPaths.has(pathname) || signedWebhookRequest || publicAuthRequest) {
+  // Exact cron routes authenticate themselves before database/source I/O.
+  const signedCronRequest = request.method === 'GET' && ['/api/cron/cad-push', '/api/cron/board-feeds', '/api/cron/daily-refresh'].includes(pathname);
+  if (publicApiPaths.has(pathname) || signedWebhookRequest || publicAuthRequest || signedCronRequest) {
     return NextResponse.next();
   }
 
@@ -135,6 +142,7 @@ export async function proxy(request: NextRequest) {
   }
 
   requestHeaders.set("oai-authenticated-user-email", user.email.toLowerCase());
+  requestHeaders.set("x-authenticated-user-id", user.id);
   requestHeaders.set("x-department-id", departmentId);
   requestHeaders.set("x-department-role", isOwner ? "owner" : membership?.role || "member");
   requestHeaders.set("x-portal-pin-configured", String(pinConfigured));

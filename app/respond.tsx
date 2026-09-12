@@ -33,6 +33,7 @@ import RespondOverviewMap, {
   respondApparatusStatusLabel,
   type RespondOverview,
 } from "./respond-overview-map";
+import { useApparatusLocations } from './use-apparatus-locations';
 
 type Point = { lat: number; lng: number };
 type Feature = {
@@ -676,6 +677,8 @@ export default function Respond({
     [view, setView] = useState<RightView>("cad"),
     [selected, setSelected] = useState<QuickItem | null>(null);
   const [monitorMode, setMonitorMode] = useState(false);
+  const locations=useApparatusLocations(Boolean(apparatus)||monitorMode,data?.activeCall?.respondingUnits||'');
+  const [vehicleMapOpen,setVehicleMapOpen]=useState(false);
   const [selectedLevelId, setSelectedLevelId] = useState("");
   const [showAllAttachments, setShowAllAttachments] = useState(false);
   const [selectedHazmatId, setSelectedHazmatId] = useState("");
@@ -1111,7 +1114,7 @@ export default function Respond({
           </div>
           <div>
             <span>VEHICLE GPS</span>
-            <strong>GPS not connected</strong>
+            <strong>{locations.units.some(unit=>unit.fixAt)?`${locations.units.filter(unit=>unit.fixAt).length} last-reported positions`:'No vehicle position received'}</strong>
           </div>
           <small>Only verified record locations appear. Nothing is guessed.</small>
         </section>
@@ -1134,6 +1137,7 @@ export default function Respond({
           </section>
         ) : null}
         <RespondOverviewMap
+          locationModel={locations}
           overview={overview}
           recentCalls={data?.recentCalls ?? []}
           updatesAvailable={updatesAvailable}
@@ -1209,6 +1213,10 @@ export default function Respond({
         <span>Updated {displayTime(data?.generatedAt || "")}</span>
         {error && <span className="warning">{error}</span>}
       </div>
+      <details className="apparatus-map-only" onToggle={event=>setVehicleMapOpen(event.currentTarget.open)}>
+        <summary>Apparatus locations · all units / units on this call</summary>
+        {vehicleMapOpen&&<RespondOverviewMap locationModel={locations} apparatusOnly respondingUnits={call.respondingUnits} overview={{apparatus:null,preplans:[],hydrants:[],roadClosures:[]}} recentCalls={[]}/>}
+      </details>
       <section className="respond-field-toolbar" aria-label="Field response controls">
         <div className="respond-progress-panel">
           <div>

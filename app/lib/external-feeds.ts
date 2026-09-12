@@ -1,4 +1,5 @@
-import { unstable_cache } from "next/cache";
+import 'server-only';
+// These loaders may ONLY be invoked by the server-side scheduled refresh.
 import {
   parseIfsiSchedule,
   ifsiScheduleSource,
@@ -31,9 +32,6 @@ export type TrainingProvider = {
   upcoming: UpcomingTrainingCourse[];
   available: boolean;
 };
-
-const dailyFeedTag = "stickney-daily-external-feeds";
-export const externalFeedCacheTag = dailyFeedTag;
 
 const closeCallFeed =
   "https://www.firefighterclosecalls.com/category/news/feed/";
@@ -149,18 +147,10 @@ async function romeovilleUpcoming(html: string, sourceUrl: string, today: string
     url.hostname === "www.romeoville.org"
     && url.pathname.includes("/Activities/Activity/Detail/"),
   );
-  const courses = await mapLimited(activities, 6, async ({ title, url }) => {
-    try {
-      return parseRomeovilleActivity(
-        await fetchText(url.toString()),
-        url.toString(),
-        title,
-        today,
-      );
-    } catch {
-      return [];
-    }
-  });
+  const uniqueActivities = [...new Map(activities.map(activity => [activity.url.toString(), activity])).values()];
+  const courses = await mapLimited(uniqueActivities, 6, async ({ title, url }) =>
+    parseRomeovilleActivity(await fetchText(url.toString()), url.toString(), title, today),
+  );
   return courses.flat().sort((a, b) =>
     a.startDate.localeCompare(b.startDate) || a.title.localeCompare(b.title),
   );
@@ -223,7 +213,7 @@ async function nipstaUpcoming(today: string) {
   );
 }
 
-async function loadCloseCallNews() {
+export async function loadCloseCallNews() {
   try {
     const posts = JSON.parse(await fetchText(closeCallPosts)) as Array<{
       link?: unknown;
@@ -407,48 +397,20 @@ function resourcesFor(
     }));
 }
 
-async function loadTrainingSites() {
+export async function loadTrainingProvider(id: TrainingProvider['id']) {
+  const provider = trainingSources.find(source => source.id === id)!;
   const checkedAt = new Date().toISOString();
   const today = chicagoDate();
-  const providers = await Promise.all(
-    trainingSources.map(async (provider): Promise<TrainingProvider> => {
-      try {
-        const html = await fetchText(provider.sourceUrl);
-        const resources = resourcesFor(provider, html);
-        const upcoming = provider.id === "romeoville"
-          ? await romeovilleUpcoming(html, provider.sourceUrl, today)
-          : provider.id === "ifsi"
-            ? parseIfsiSchedule(html, provider.sourceUrl, today)
-            : await nipstaUpcoming(today);
-        return {
-          ...provider,
-          checkedAt,
-          resources,
-          upcoming,
-          available: resources.length > 0 || upcoming.length > 0,
-        };
-      } catch {
-        return {
-          ...provider,
-          checkedAt,
-          resources: [],
-          upcoming: [],
-          available: false,
-        };
-      }
-    }),
-  );
-  return { providers, checkedAt };
+  const html = await fetchText(provider.sourceUrl);
+  const resources = resourcesFor(provider, html);
+  const upcoming = provider.id === "romeoville"
+    ? await romeovilleUpcoming(html, provider.sourceUrl, today)
+    : provider.id === "ifsi"
+      ? parseIfsiSchedule(html, provider.sourceUrl, today)
+      : await nipstaUpcoming(today);
+  if (!resources.length && !upcoming.length) throw new Error('Training source incomplete');
+  return {
+    ...provider, checkedAt, resources, upcoming: upcoming.slice(0, 100),
+    available: resources.length > 0 || upcoming.length > 0,
+  };
 }
-
-export const getCloseCallNews = unstable_cache(
-  loadCloseCallNews,
-  ["stickney-close-call-news-v2"],
-  { revalidate: 86_400, tags: [dailyFeedTag] },
-);
-
-export const getTrainingSites = unstable_cache(
-  loadTrainingSites,
-  ["stickney-training-sites-v3"],
-  { revalidate: 86_400, tags: [dailyFeedTag] },
-);

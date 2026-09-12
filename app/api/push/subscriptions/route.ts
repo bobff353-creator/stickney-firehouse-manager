@@ -26,6 +26,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const session = await verifyInventoryRequest(request);
   if (!session.ok) return sessionFailureResponse(session);
+  if (!session.context.grants.includes('field_preplans.view')) return Response.json({ error: 'Respond access is required for CAD alerts.' }, { status: 403 });
   if (!sameOriginInventoryRequest(request)) {
     return Response.json({ error: "Invalid notification registration origin." }, { status: 403 });
   }

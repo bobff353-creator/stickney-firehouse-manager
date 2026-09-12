@@ -11,10 +11,10 @@ test('unchanged Respond polls skip catalogs while rechecking access and live cal
   const sql = [];
   const db = { prepare(query) {
     sql.push(query);
-    const statement = {bind(){return statement;}, async run(){return {};}, async first(){return null;}, async all(){return {results: query.startsWith('SELECT incident_id reportNumber,call_type') ? calls : []};}};
+    const statement = {bind(){return statement;}, async run(){return {};}, async first(){return null;}, async all(){return {results: query.startsWith('SELECT incident_id reportNumber,call_type') ? calls : query.includes("WHERE trim(time_in)<>''") ? Array.from({length:25}, (_,i)=>({reportNumber:`TEST-${25-i}`,address:'',timeIn:'1200'})) : []};}};
     return statement;
   }};
-  const module = {exports:{}};
+  const compiledModule = {exports:{}};
   const source = readFileSync(new URL('../app/api/respond/route.ts', import.meta.url), 'utf8');
   const compiled = ts.transpileModule(source, {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
   const mocks = {
@@ -27,37 +27,39 @@ test('unchanged Respond polls skip catalogs while rechecking access and live cal
     '../../preplans/domain': {}, '../../preplans/profiles': {},
   };
   class Clock extends Date { static now(){return now;} }
-  vm.runInNewContext(compiled, {exports:module.exports,module,require:name=>{assert.ok(name in mocks,name);return mocks[name];},Response,URL,Date:Clock,console,Error});
+  vm.runInNewContext(compiled, {exports:compiledModule.exports,module:compiledModule,require:name=>{assert.ok(name in mocks,name);return mocks[name];},Response,URL,Date:Clock,console,Error});
   const request = (revision,department='department-a')=>new Request('https://example.test/api/respond',{headers:{'x-department-id':department,...(revision?{'x-respond-revision':revision}:{})}});
-  const first = await module.exports.GET(request());
+  const first = await compiledModule.exports.GET(request());
   assert.equal(first.status,200);
+  assert.equal((await first.clone().json()).recentCalls.length,25);
   const revision = first.headers.get('x-respond-revision');
   assert.ok(revision);
   const fullQueries=sql.length;
   assert.ok(sql.some(query=>query.includes('FROM field_preplans')));
   sql.length=0;
   now+=10_000;
-  const unchanged=await module.exports.GET(request(revision));
+  const unchanged=await compiledModule.exports.GET(request(revision));
   assert.equal(unchanged.status,204);
   assert.equal(await unchanged.text(),'');
   assert.ok(sql.length<fullQueries);
   assert.equal(sql.some(query=>query.includes('FROM field_preplans')||query.includes('FROM field_hydrants')),false);
+  assert.equal(sql.some(query=>query.includes("WHERE trim(time_in)<>''")),false,'unchanged heartbeat does not reload 25-call history');
   assert.equal(checks,2);
   assert.match(unchanged.headers.get('cache-control'),/private, no-store/);
   now=90_000;
-  assert.equal((await module.exports.GET(request(revision))).status,200,'refresh reference data at 30-second boundary');
-  assert.equal((await module.exports.GET(request(revision,'department-b'))).status,200,'never reuse another department packet');
+  assert.equal((await compiledModule.exports.GET(request(revision))).status,200,'refresh reference data at 30-second boundary');
+  assert.equal((await compiledModule.exports.GET(request(revision,'department-b'))).status,200,'never reuse another department packet');
   allowed=false;
-  assert.equal((await module.exports.GET(request(revision))).status,403,'permission revocation overrides revision');
+  assert.equal((await compiledModule.exports.GET(request(revision))).status,403,'permission revocation overrides revision');
   allowed=true;
   now=70_000;
   calls=[{reportNumber:'new-call',address:'',callType:'FIRE ALARM'}];
-  const changed=await module.exports.GET(request(revision));
+  const changed=await compiledModule.exports.GET(request(revision));
   assert.equal(changed.status,200,'new calls must take the full response path immediately');
   const activeRevision=changed.headers.get('x-respond-revision');
-  assert.equal((await module.exports.GET(request(activeRevision))).status,204,'unchanged active calls also skip reference queries');
+  assert.equal((await compiledModule.exports.GET(request(activeRevision))).status,204,'unchanged active calls also skip reference queries');
   calls=[];
-  const cleared=await module.exports.GET(request(activeRevision));
+  const cleared=await compiledModule.exports.GET(request(activeRevision));
   assert.equal(cleared.status,200,'cleared call immediately replaces the active packet');
   assert.equal((await cleared.json()).activeCall,null);
   console.log(`Isolated idle poll: ${fullQueries} database statements before; 3 on unchanged heartbeat (permission check excluded).`);

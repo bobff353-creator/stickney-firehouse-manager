@@ -1,13 +1,8 @@
-import { getTrainingSites } from "../../lib/external-feeds";
-
-export const dynamic = "force-dynamic";
-
+import { savedFeedResponse } from '../../lib/board-feed-response';
+export const dynamic = 'force-dynamic';
 export async function GET() {
-  const data = await getTrainingSites();
-  return Response.json(data, {
-    headers: {
-      "Cache-Control":
-        "public, max-age=300, s-maxage=86400, stale-while-revalidate=604800",
-    },
-  });
+  return savedFeedResponse(['training_romeoville','training_ifsi','training_nipsta'], value => ({
+    providers: Object.values(value.feeds).filter(feed => feed.data).map(feed => ({ ...feed.data, checkedAt: feed.lastSuccessAt, stale: feed.status !== 'current' })),
+    nextCheckAt: value.nextCheckAt,
+  }));
 }

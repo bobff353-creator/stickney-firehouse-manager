@@ -19,7 +19,8 @@ test("idle Respond uses the real Stickney map data sources", async () => {
   assert.match(route, /Saved CAD location/);
   assert.match(route, /Published preplan address/);
   assert.match(respond, /<RespondOverviewMap/);
-  assert.match(respond, /GPS not connected/);
+  assert.match(respond, /No vehicle position received/);
+  assert.match(respond, /useApparatusLocations/);
   assert.match(respond, /Nothing is guessed/i);
   assert.match(overview, /fetch\("\/api\/maps-config"/);
   assert.match(overview, /GoogleFieldMap/);

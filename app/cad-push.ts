@@ -68,19 +68,26 @@ export function webPushPublicConfig() {
   return { configured, publicKey: configured ? publicKey : "" };
 }
 
+export async function deliverCadPush(subscription: { endpoint: string; p256dh: string; auth: string }, payload: object, ttl: number) {
+  const config = runtimeConfig();
+  if (!config.configured) throw new Error("Push delivery is not configured");
+  webpush.setVapidDetails(config.subject, config.publicKey, config.privateKey);
+  return webpush.sendNotification({ endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } },
+    JSON.stringify(payload), { TTL: Math.min(300, Math.max(1, ttl)), urgency: "high", timeout: 8000 });
+}
+
 export async function sendCadPushNotifications(
   db: PushDatabase,
   incident: CadPushIncident,
-  target?: { userId: string; departmentId: string },
+  target: { userId: string; departmentId: string },
 ) {
   const config = runtimeConfig();
   if (!config.configured) return { configured: false, delivered: 0, failed: 0 };
 
   try {
     webpush.setVapidDetails(config.subject, config.publicKey, config.privateKey);
-    const statement = target
-      ? db.prepare("SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE active = 1 AND user_id = ? AND department_id = ? ORDER BY created_at").bind(target.userId, target.departmentId)
-      : db.prepare("SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE active = 1 ORDER BY created_at").bind();
+    // Personal test only. Production broadcasts exclusively use the durable outbox.
+    const statement = db.prepare("SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE active = 1 AND user_id = ? AND department_id = ? ORDER BY created_at LIMIT 10").bind(target.userId, target.departmentId);
     const rows = await statement.all<StoredPushSubscription>();
     const payload = JSON.stringify(buildCadPushPayload(incident));
     let delivered = 0;
@@ -94,7 +101,7 @@ export async function sendCadPushNotifications(
             keys: { p256dh: subscription.p256dh, auth: subscription.auth },
           },
           payload,
-          { TTL: 300, urgency: "high" },
+          { TTL: 300, urgency: "high", timeout: 8000 },
         );
         delivered += 1;
         try {
@@ -110,7 +117,7 @@ export async function sendCadPushNotifications(
           ? Number((caught as { statusCode?: unknown }).statusCode)
           : 0;
         const deactivate = statusCode === 404 || statusCode === 410;
-        const message = caught instanceof Error ? caught.message.slice(0, 240) : "Push delivery failed";
+        const message = `Push provider status ${statusCode}`;
         try {
           await db.prepare(
             "UPDATE push_subscriptions SET active = ?, failure_count = failure_count + 1, last_error = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
