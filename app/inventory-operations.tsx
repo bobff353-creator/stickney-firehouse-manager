@@ -369,6 +369,9 @@ export default function InventoryOperations({
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [itemSaveError, setItemSaveError] = useState<{ name: string; message: string } | null>(null);
+  const itemSavePending = useRef(false);
+  const itemSaveGeneration = useRef(0);
   const [accessRequired, setAccessRequired] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerMessage, setScannerMessage] = useState("");
@@ -516,6 +519,8 @@ export default function InventoryOperations({
   }, [closeScanner, fillEquipmentForm, scannerOpen, scannerTarget]);
 
   const load = useCallback(async ({ background = false }: { background?: boolean } = {}) => {
+    if (background && itemSavePending.current) return false;
+    const readGeneration = itemSaveGeneration.current;
     if (!background) setLoading(true);
     try {
       const contextPromise = background ? null : Promise.all([
@@ -528,6 +533,8 @@ export default function InventoryOperations({
         if (!background) setAccessRequired(response.status === 401 || response.status === 403);
         throw new Error(payload.error || "Operational records are unavailable.");
       }
+      // An earlier crew refresh must not replace a newer acknowledged result.
+      if (readGeneration !== itemSaveGeneration.current || itemSavePending.current) return false;
       setData({
         configured: true,
         apparatus: payload.apparatus || [],
@@ -684,8 +691,12 @@ export default function InventoryOperations({
   }
 
   async function recordCheckItems(name: string, payload: Record<string, unknown>) {
+    if (itemSavePending.current) return false;
+    itemSavePending.current = true;
+    itemSaveGeneration.current += 1;
     setBusy(name);
     setError("");
+    setItemSaveError(null);
     setMessage("");
     try {
       const response = await fetch("/api/operations", {
@@ -696,6 +707,11 @@ export default function InventoryOperations({
       const result = await response.json().catch(() => ({})) as { checkItems?: Row[]; error?: string };
       if (!response.ok) throw new Error(result.error || "The inventory item could not be saved.");
       const savedItems = result.checkItems || [];
+      const expectedIds = payload.action === "bulk_record_check_items"
+        ? payload.checkItemIds as string[] : [String(payload.checkItemId)];
+      if (!savedItems.length || savedItems.some(item => !expectedIds.includes(value(item, "id")) || value(item, "result") !== String(payload.result || "pass"))) {
+        throw new Error("The server did not confirm this result. Refresh crew progress before trying again.");
+      }
       const savedById = new Map(savedItems.map((item) => [value(item, "id"), item]));
       setData((current) => ({
         ...current,
@@ -708,9 +724,13 @@ export default function InventoryOperations({
       setMessage(savedItems.length > 1 ? `${savedItems.length} inventory items passed.` : "Inventory item saved.");
       return true;
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "The inventory item could not be saved.");
+      const message = caught instanceof Error ? caught.message : "The inventory item could not be saved.";
+      setError(message);
+      setItemSaveError({ name, message });
       return false;
     } finally {
+      itemSaveGeneration.current += 1;
+      itemSavePending.current = false;
       setBusy("");
     }
   }
@@ -857,6 +877,8 @@ export default function InventoryOperations({
           <button disabled={Boolean(busy) || !itemCanCheck} onClick={() => void recordCheckItems(`item-${itemId}`, { action: "record_check_item", checkItemId: itemId, result: "not_applicable" })}>N/A</button>
           {allowsRelocation ? <button className="relocate" disabled={Boolean(busy) || !itemCanCheck || Boolean(pendingLocationChange)} onClick={() => openRelocation(item)}>{pendingLocationChange ? "Location review pending" : "Wrong location"}</button> : null}
         </div>}
+        {!preview && busy === `item-${itemId}` ? <p className="check-save-feedback" role="status">Saving result…</p> : null}
+        {!preview && itemSaveError?.name === `item-${itemId}` ? <p className="check-save-feedback ops-error" role="alert">{itemSaveError.message} This item has not been confirmed saved.</p> : null}
       </article>
     );
   };
@@ -1352,7 +1374,7 @@ export default function InventoryOperations({
                   <section className="check-location-group" key={label}>
                     <header>
                       <div><span>LOCATION</span><h3>{label}</h3><small>{items.length} shown</small></div>
-                      {pendingStandardItems.length > 1 ? <button type="button" disabled={Boolean(busy) || !canCheck} onClick={() => setBulkPassGroup({ label, itemIds: pendingStandardItems.map((item) => value(item, "id")) })}>Pass remaining in this location</button> : null}
+                      {value(activeCheck, "check_type") === "inventory" && pendingStandardItems.length > 1 ? <button type="button" disabled={Boolean(busy) || !canCheck} onClick={() => setBulkPassGroup({ label, itemIds: pendingStandardItems.map((item) => value(item, "id")) })}>Pass remaining in this location</button> : null}
                     </header>
                     <div className="check-location-items">{items.map(item => renderActiveItem(item))}</div>
                   </section>

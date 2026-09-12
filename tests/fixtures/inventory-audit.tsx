@@ -15,13 +15,15 @@ const equipment=[item,{...item,id:'fixture-mileage',name:'Current mileage / odom
 const checks=[{id:'fixture-check',apparatus_id:rig.id,apparatus_name:rig.name,check_type:'daily',status:'in_progress',started_at:new Date().toISOString(),started_by:'Preview crew'}];
 const data={configured:true,apparatus:[rig,{...rig,id:'fixture-ambulance',name:'Preview Ambulance',asset_type:'ambulance'}],compartments:[location],equipment,retiredEquipment:[],checks,checkItems:equipment.map(e=>({...e,id:`result-${e.id}`,equipment_id:e.id,equipment_name:e.name,check_id:checks[0].id,result:'pending'})),exceptions:[],workOrders:[],workOrderDocuments:[],inspectionSchedules:[{id:'fixture-schedule',apparatus_id:rig.id,apparatus_name:rig.name,check_type:'inventory',day_of_week:1,start_time:'06:00',end_time:'12:00',active:true}],stock:[],restockRequests:[],locationChanges:[],scbaTemplates:[{id:'fixture-scba',apparatus_id:rig.id,active:true,pack_positions:['Officer seat','Rear seat'],include_rit:true,spare_bottle_count:1}],scbaEntries:[]};
 let writes=0;
+const audit={data,permissionMode:'ok',permissionRequests:0,emptySave:false};
+Object.assign(window,{inventoryAudit:audit});
 window.fetch=async(input,init)=>{
  const url=String(input); if(!url.startsWith('/api/'))throw Error('Fixture blocks external fetch');
  if(init?.method==='POST'){
   const body=JSON.parse(String(init.body)); writes++;document.getElementById('audit-writes')!.textContent=`Test writes: ${writes} · ${body.action}`;
   if((document.getElementById('fail-save') as HTMLInputElement).checked){(document.getElementById('fail-save') as HTMLInputElement).checked=false;return Response.json({error:'Simulated save failure. Your edits were not saved.'},{status:503});}
   if(body.action==='update_equipment'){const target=data.equipment.find(e=>e.id===body.equipmentId)!;Object.assign(target,{name:body.name,quantity_required:Number(body.quantityRequired),check_types:body.checkTypes,response_type:body.responseType,barcode:body.barcode});return Response.json({ok:true});}
-  if(body.action==='record_check_item'){const target=data.checkItems.find(e=>e.id===body.checkItemId)!;Object.assign(target,{result:body.result,numeric_reading:body.numericReading,checked_at:new Date().toISOString(),checked_by:'Preview member'});return Response.json({checkItems:[target]});}
+  if(body.action==='record_check_item'){if(audit.emptySave){audit.emptySave=false;return Response.json({checkItems:[]});}const target=data.checkItems.find(e=>e.id===body.checkItemId)!;Object.assign(target,{result:body.result,numeric_reading:body.numericReading,checked_at:new Date().toISOString(),checked_by:'Preview member'});return Response.json({checkItems:[target]});}
   if(body.action==='complete_check'){Object.assign(data.checks[0],{status:'completed',review_status:'pending',completed_at:new Date().toISOString()});return Response.json({ok:true});}
   return Response.json({error:'This fixture does not save that action.'},{status:409});
  }
@@ -29,10 +31,16 @@ window.fetch=async(input,init)=>{
  if(url.startsWith('/api/digital-twin'))return Response.json({...data,photos:[],hotspots:[]});
  if(url.startsWith('/api/suite-context'))return Response.json({configured:true,department:{id:'fixture',name:'Preview department'},apparatus:data.apparatus.map(r=>({...r,unit_name:r.name,unit_type:r.asset_type,call_sign:r.name})),events:[]});
  if(url.startsWith('/api/dashboard'))return Response.json({viewer:{employeeId:'fixture-member'}});
- if(url.startsWith('/api/permissions'))return Response.json({employees:[{id:'fixture-member',name:'Preview member'}]});
+ if(url.startsWith('/api/permissions')){
+  audit.permissionRequests++;
+  if(audit.permissionMode==='timeout')throw new DOMException('signal timed out','TimeoutError');
+  if(audit.permissionMode==='denied')return Response.json({error:'Inventory access was removed.'},{status:403});
+  return Response.json({viewerPermissions:['inventory.view','inventory.check',...(admin?['inventory.repairs.manage','inventory.setup.manage']:[])],identity:'fixture:member',employees:[{id:'fixture-member',name:'Preview member'}]});
+ }
  return Response.json({error:'Unknown fixture request'},{status:404});
 };
 window.addEventListener('error',e=>{document.getElementById('audit-errors')!.textContent+=e.message;});
 window.addEventListener('unhandledrejection',e=>{document.getElementById('audit-errors')!.textContent+=String(e.reason);});
 const admin=new URLSearchParams(window.location.search).get('role')!=='member';
-createRoot(document.getElementById('root')!).render(<><aside style={{padding:8,background:'#fff4be',font:'12px Arial'}}>Fictional audit only · <span id="audit-writes">Test writes: 0</span><label><input id="fail-save" type="checkbox"/>Fail next save</label><span id="audit-errors"/></aside><Inventory departmentId="fixture" departmentName="Preview department" permissions={admin?['inventory.check','inventory.repairs.manage','inventory.setup.manage']:['inventory.check']}/></>);
+const startInCheck=new URLSearchParams(window.location.search).has('check');
+createRoot(document.getElementById('root')!).render(<><aside style={{padding:8,background:'#fff4be',font:'12px Arial'}}>Fictional audit only · <span id="audit-writes">Test writes: 0</span><label><input id="fail-save" type="checkbox"/>Fail next save</label><span id="audit-errors"/></aside><Inventory departmentId="fixture" departmentName="Preview department" initialApparatusId={startInCheck?rig.id:''} initialCheckType={startInCheck?'daily':''} permissions={admin?['inventory.check','inventory.repairs.manage','inventory.setup.manage']:['inventory.check']}/></>);

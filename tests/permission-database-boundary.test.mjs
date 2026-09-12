@@ -12,7 +12,7 @@ async function fixture() {
  const db=new PGlite();
  await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
  CREATE SCHEMA auth; CREATE SCHEMA private; CREATE SCHEMA extensions; CREATE SCHEMA firehouse; CREATE SCHEMA storage;
- GRANT USAGE ON SCHEMA public,auth,private,extensions,firehouse,storage TO authenticated;
+ GRANT USAGE ON SCHEMA public,auth,extensions,firehouse,storage TO authenticated;
  CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT NULLIF(current_setting('request.test_uid',true),'')::uuid $$;
  CREATE FUNCTION public.is_platform_owner() RETURNS boolean LANGUAGE sql AS $$ SELECT false $$;
  CREATE FUNCTION public.current_department_ids() RETURNS SETOF uuid LANGUAGE sql AS $$ SELECT '${department}'::uuid $$;
@@ -44,6 +44,7 @@ async function fixture() {
  GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public,storage,firehouse TO authenticated;
  `);
  await db.exec(migration);
+ await db.exec(fs.readFileSync(new URL('../supabase/migrations/20260912100948_inventory_invoker_schema_access.sql',import.meta.url),'utf8'));
  await db.exec(`CREATE OR REPLACE FUNCTION public.firehouse_sql(p_sql text,p_mode text DEFAULT 'all',p_secret text DEFAULT NULL) RETURNS jsonb LANGUAGE sql SECURITY INVOKER AS $$ SELECT firehouse.execute_portal_sql(p_sql,p_mode,p_secret) $$;`);
  return db;
 }

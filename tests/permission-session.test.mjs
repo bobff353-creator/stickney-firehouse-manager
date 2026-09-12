@@ -32,3 +32,31 @@ test('failed permission verification clears previously confirmed grants',async()
  const hook=compile('app/use-permissions.ts',{react:{useEffect(){},useSyncExternalStore(sub,snapshot){subscribe=sub;return snapshot();}}});
  try{hook.usePermissions();const off=subscribe(()=>{});globalThis.fetch=async()=>Response.json({viewerPermissions:['payroll.manage']});await hook.refreshPermissions();assert.equal(hook.usePermissions().verified,true);globalThis.fetch=async()=>Response.json({error:'Fixture unavailable'},{status:503});await hook.refreshPermissions();const result=hook.usePermissions();assert.equal(result.verified,false);assert.deepEqual(result.permissions,[]);off();}finally{globalThis.fetch=originalFetch;}
 });
+
+test('a transient timeout clears grants while retrying and recovers without parallel requests',async()=>{
+ const originalFetch=globalThis.fetch;let subscribe;let resolveRetry;let calls=0;
+ const hook=compile('app/use-permissions.ts',{react:{useEffect(){},useSyncExternalStore(sub,snapshot){subscribe=sub;return snapshot();}}});
+ try{
+  hook.usePermissions();const off=subscribe(()=>{});
+  globalThis.fetch=async()=>Response.json({viewerPermissions:['inventory.view','inventory.check']});
+  await hook.refreshPermissions();
+  globalThis.fetch=()=>{calls++;if(calls===1)return Promise.reject(new DOMException('signal timed out','TimeoutError'));return new Promise(resolve=>resolveRetry=resolve);};
+  const pending=hook.refreshPermissions();await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(hook.refreshPermissions(),pending);assert.equal(calls,2);
+  const during=hook.usePermissions();assert.equal(during.verified,false);assert.equal(during.checking,true);assert.deepEqual(during.permissions,[]);assert.match(during.error,/access check took too long/i);assert.doesNotMatch(during.error,/signal timed out/);
+  resolveRetry(Response.json({viewerPermissions:['inventory.view'],identity:'current'}));await pending;
+  assert.equal(hook.usePermissions().checking,false);assert.deepEqual(hook.usePermissions().permissions,['inventory.view']);off();
+ }finally{globalThis.fetch=originalFetch;}
+});
+
+test('denied, locked and expired sessions are not retried; repeated timeouts are bounded',async()=>{
+ const originalFetch=globalThis.fetch;
+ try{for(const status of [401,403,423,503,'timeout']){
+  let subscribe;let calls=0;
+  const hook=compile('app/use-permissions.ts',{react:{useEffect(){},useSyncExternalStore(sub,snapshot){subscribe=sub;return snapshot();}}});
+  hook.usePermissions();const off=subscribe(()=>{});
+  globalThis.fetch=async()=>{calls++;if(status==='timeout')throw new DOMException('signal timed out','TimeoutError');return Response.json({error:'Access unavailable'},{status});};
+  await hook.refreshPermissions();assert.equal(calls,status===503||status==='timeout'?2:1);
+  assert.equal(hook.usePermissions().verified,false);assert.equal(hook.usePermissions().checking,false);off();
+ }}finally{globalThis.fetch=originalFetch;}
+});

@@ -341,6 +341,12 @@ export default function Inventory360({
   void initialPermissions; // Server gate controls initial access; live grants are reverified below.
   const access = usePermissions();
   const permissions = access.verified ? access.permissions : [];
+  const accessAllowed = access.verified && permissions.includes("inventory.view");
+  useEffect(() => {
+    // A connection gate can replace a deeply scrolled checklist. Keep its
+    // explanation and recovery controls in view instead of above the viewport.
+    if (!accessAllowed) window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [accessAllowed]);
   const [view, setView] = useState<View>(() => initialApparatusId && initialCheckType ? "check" : "due");
   const [selectedApparatusId, setSelectedApparatusId] = useState(initialApparatusId);
   const [selectedCheckType, setSelectedCheckType] = useState(initialCheckType);
@@ -548,7 +554,20 @@ export default function Inventory360({
     showToast("Inventory refreshed");
   }
 
-  if (!access.verified || !permissions.includes("inventory.view")) return <main className="inventory-app-shell"><section className="content-card"><h1>Inventory access</h1><p role="status">{access.error || (access.verified ? "Inventory access is not enabled for your account." : "Checking your current permissions…")}</p><button onClick={() => void refreshPermissions()}>Retry access check</button><Link href="/">Back to portal</Link></section></main>;
+  if (!accessAllowed) return (
+    <main className="inventory-app-shell inventory-access-shell">
+      <section className="content-card inventory-access-card" aria-labelledby="inventory-access-title">
+        <span className="eyebrow">Inventory &amp; Apparatus Checks</span>
+        <h1 id="inventory-access-title">{access.checking ? "Checking your access…" : "Inventory access"}</h1>
+        <p role="status">{access.error || (access.verified ? "Inventory access is not enabled for your account. Ask an administrator to review your permissions." : "Verifying your current sign-in and permissions.")}</p>
+        {access.error ? <p>{access.checking ? "Retrying the connection automatically…" : "Retry to resume your check. Previously saved results will reload; nothing is marked passed by retrying."}</p> : null}
+        <div className="inventory-access-actions">
+          <button type="button" disabled={access.checking} onClick={() => void refreshPermissions()}>{access.checking ? "Checking…" : "Retry access check"}</button>
+          <Link href="/">← Back to portal</Link>
+        </div>
+      </section>
+    </main>
+  );
 
   return (
     <main className="inventory-app-shell inventory-portal-refresh">

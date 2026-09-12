@@ -5,6 +5,7 @@ import test from "node:test";
 const operations = await readFile(new URL("../app/inventory-operations.tsx", import.meta.url), "utf8");
 const route = await readFile(new URL("../app/api/operations/route.ts", import.meta.url), "utf8");
 const styles = await readFile(new URL("../app/inventory/inventory.css", import.meta.url), "utf8");
+const usabilityStyles = await readFile(new URL("../app/inventory/usability.css", import.meta.url), "utf8");
 
 test("active checks are grouped, searchable, filterable, and show progress", () => {
   assert.match(operations, /check-progress-summary/);
@@ -37,6 +38,10 @@ test("bulk location pass requires confirmation and excludes numeric readings", (
 });
 
 test("check controls remain touch-friendly on phones", () => {
+  assert.match(usabilityStyles, /@media \(max-width:820px\)/);
+  assert.match(usabilityStyles, /\.inventory-app-shell \.inventory-ops \.check-row \{ display:grid!important; \}/);
+  assert.match(usabilityStyles, /\.inventory-app-shell\.inventory-portal-refresh \.inventory-ops \.check-row\s*\{\s*grid-template-columns:minmax\(0,1fr\)/);
+  assert.match(usabilityStyles, /\.check-actions button\s*\{\s*width:100%; min-width:0; min-height:48px/);
   assert.match(styles, /\.check-actions button\{min-height:40px/);
   assert.match(styles, /@media\(max-width:820px\)\{\.check-worklist-tools\{grid-template-columns:1fr/);
   assert.match(styles, /\.check-actions button\{min-height:50px/);

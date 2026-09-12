@@ -2,8 +2,8 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 
-type Access = { verified: boolean; permissions: string[]; revision: string | null; error: string; identity: string };
-const empty: Access = { verified: false, permissions: [], revision: null, error: "", identity: "" };
+type Access = { verified: boolean; permissions: string[]; revision: string | null; error: string; identity: string; checking: boolean };
+const empty: Access = { verified: false, permissions: [], revision: null, error: "", identity: "", checking: false };
 let state = empty;
 const listeners = new Set<() => void>();
 let pending: Promise<Access> | null = null;
@@ -16,15 +16,30 @@ export function refreshPermissions() {
   const requestGeneration = generation;
   controller = new AbortController();
   const requestController = controller;
+  publish({ ...state, checking: true });
   const request = (async () => {
-    try {
-      const response = await fetch("/api/permissions?scope=viewer", { cache: "no-store", signal: AbortSignal.any([requestController.signal, AbortSignal.timeout(10000)]) });
-      const payload = await response.json() as { viewerPermissions?: string[]; revision?: string; identity?: string; error?: string };
-      if (!response.ok || !Array.isArray(payload.viewerPermissions)) throw new Error(payload.error || "Your permissions could not be verified.");
-      const next = { verified: true, permissions: payload.viewerPermissions, revision: payload.revision ?? null, identity: payload.identity ?? "", error: "" };
-      if (requestGeneration === generation) publish(next);
-    } catch (error) {
-      if (requestGeneration === generation) publish({ ...empty, error: error instanceof Error ? error.message : "Reconnect to verify access." });
+    // Retry one transient failure, never an expired/locked/denied login. Failed
+    // verification clears grants immediately; a retry never authorizes offline.
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      let retryable = true;
+      try {
+        const response = await fetch("/api/permissions?scope=viewer", { cache: "no-store", signal: AbortSignal.any([requestController.signal, AbortSignal.timeout(10000)]) });
+        retryable = response.status === 409 || response.status >= 500;
+        const payload = await response.json() as { viewerPermissions?: string[]; revision?: string; identity?: string; error?: string };
+        if (!response.ok || !Array.isArray(payload.viewerPermissions)) throw new Error(payload.error || "Your permissions could not be verified.");
+        const next = { verified: true, permissions: payload.viewerPermissions, revision: payload.revision ?? null, identity: payload.identity ?? "", error: "", checking: false };
+        if (requestGeneration === generation) publish(next);
+        break;
+      } catch (error) {
+        if (requestGeneration !== generation || requestController.signal.aborted) break;
+        const retry = retryable && attempt === 0;
+        const message = error instanceof Error && error.name === "TimeoutError"
+          ? "The access check took too long. Your saved inspection results are still stored."
+          : error instanceof TypeError ? "The connection was interrupted. Reconnect to verify access."
+          : error instanceof Error ? error.message : "Reconnect to verify access.";
+        publish({ ...empty, error: message, checking: retry });
+        if (!retry) break;
+      }
     }
     return state;
   })().finally(() => { if (pending === request) { pending = null; controller = null; } });

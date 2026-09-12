@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 const migration=fs.readFileSync(new URL('../supabase/migrations/20260908033045_inventory_atomic_item_result.sql',import.meta.url),'utf8');
+const schemaAccess=fs.readFileSync(new URL('../supabase/migrations/20260912100948_inventory_invoker_schema_access.sql',import.meta.url),'utf8');
 const department='00000000-0000-4000-8000-000000000001';
 const item='00000000-0000-4000-8000-000000000002';
 const check='00000000-0000-4000-8000-000000000003';
@@ -30,6 +31,44 @@ async function setup(){
  return pg;
 }
 const fail=pg=>pg.query('SELECT public.inventory_record_item_atomic($1,$2,$3,$4,NULL,$5)',[department,item,'damaged','Fixture only',photo]);
+
+test('real invoker role reproduces missing schema access, then saves with RLS intact',async()=>{
+ const pg=await setup();try{
+  await pg.exec(`CREATE ROLE anon;
+   GRANT USAGE ON SCHEMA public,auth TO authenticated;
+   GRANT SELECT,INSERT,UPDATE ON ALL TABLES IN SCHEMA public TO authenticated;
+   REVOKE ALL ON FUNCTION private.inventory_can_write(uuid) FROM PUBLIC;
+   GRANT EXECUTE ON FUNCTION private.inventory_can_write(uuid) TO authenticated;
+   ALTER TABLE public.inventory_check_items ENABLE ROW LEVEL SECURITY;
+   CREATE POLICY department_items ON public.inventory_check_items TO authenticated
+    USING(department_id='${department}'::uuid) WITH CHECK(department_id='${department}'::uuid);
+   SET ROLE authenticated;`);
+  const pass=()=>pg.query('SELECT public.inventory_record_item_atomic($1,$2,$3) saved',[department,item,'pass']);
+  await assert.rejects(pass(),/permission denied for schema private/);
+  assert.equal((await pg.query('SELECT result FROM public.inventory_check_items')).rows[0].result,'pending');
+  await pg.exec('RESET ROLE');await pg.exec(schemaAccess);await pg.exec('SET ROLE authenticated');
+  const saved=(await pass()).rows[0].saved;
+  assert.equal(saved.saved,true);assert.equal(saved.checkItems[0].result,'pass');
+  assert.equal(saved.checkItems[0].id,item);
+  await pg.query('SELECT public.inventory_record_item_atomic($1,$2,$3)',[department,item,'not_applicable']);
+  await assert.rejects(pg.query('SELECT public.inventory_record_item_atomic($1,$2,$3)',[apparatus,item,'pass']),/permission/);
+  // The active-parent guard can reject a foreign department before WITH CHECK.
+  await assert.rejects(pg.query('UPDATE public.inventory_check_items SET department_id=$1',[apparatus]),/row-level security|no longer in progress/);
+  assert.equal((await pg.query('SELECT department_id FROM public.inventory_check_items')).rows[0].department_id,department);
+  await pg.exec('RESET ROLE');
+  await pg.exec("UPDATE public.inventory_equipment SET response_type='mileage'; SET ROLE authenticated");
+  await assert.rejects(pass(),/numeric reading/);
+  await pg.query('SELECT public.inventory_record_item_atomic($1,$2,$3,NULL,1234)',[department,item,'pass']);
+  await pg.query('SELECT public.inventory_complete_check_atomic($1,$2)',[department,check]);
+  await assert.rejects(pass(),/no longer in progress/);
+  await pg.exec('RESET ROLE');
+  const privileges=(await pg.query(`SELECT has_schema_privilege('anon','private','usage') anonymous,
+   has_schema_privilege('authenticated','private','create') can_create,
+   (SELECT relrowsecurity FROM pg_class WHERE oid='public.inventory_check_items'::regclass) rls,
+   (SELECT prosecdef FROM pg_proc WHERE proname='inventory_record_item_atomic') definer`)).rows[0];
+  assert.deepEqual(privileges,{anonymous:false,can_create:false,rls:true,definer:false});
+ }finally{await pg.close();}
+});
 
 test('repair failure rolls back inspection result and notice; retry creates one linked repair',async()=>{
  const pg=await setup();try{
