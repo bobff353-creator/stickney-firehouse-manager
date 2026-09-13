@@ -1,13 +1,13 @@
 import 'server-only';
-// These loaders may ONLY be invoked by the server-side scheduled refresh.
+// Server-only: scheduled refresh or an explicitly authorized admin preview.
 import {
   parseIfsiSchedule,
-  ifsiScheduleSource,
   parseNipstaCourseNames,
   parseNipstaEvents,
-  parseRomeovilleActivity,
+  parseRomeovilleRegistration,
   type UpcomingTrainingCourse,
 } from "./training-parsers";
+import { trainingSources as officialSources, ifsiSearchUrl } from './training-sources';
 
 export type CloseCallItem = {
   title: string;
@@ -38,26 +38,7 @@ const closeCallFeed =
 const closeCallPosts =
   "https://www.firefighterclosecalls.com/wp-json/wp/v2/posts?categories=1&per_page=6&_fields=link,date_gmt,title,excerpt";
 
-const trainingSources = [
-  {
-    id: "romeoville",
-    name: "Romeoville Fire Academy",
-    shortName: "Romeoville",
-    sourceUrl: "https://www.romeoville.org/562/Fire-Rescue-Courses",
-  },
-  {
-    id: "ifsi",
-    name: "Illinois Fire Service Institute",
-    shortName: "IFSI",
-    sourceUrl: ifsiScheduleSource,
-  },
-  {
-    id: "nipsta",
-    name: "NIPSTA Fire & Technical Rescue",
-    shortName: "NIPSTA",
-    sourceUrl: "https://nipsta.org/175/Fire-Technical-Rescue-Training",
-  },
-] as const;
+const trainingSources = Object.values(officialSources);
 
 const nipstaCalendarUrl =
   "https://secure.rec1.com/IL/nipsta-il/Public-Calendar-Main-Calendar/76202fcal";
@@ -126,36 +107,6 @@ function chicagoDate() {
   return `${value.year}-${value.month}-${value.day}`;
 }
 
-async function mapLimited<T, R>(
-  values: T[],
-  limit: number,
-  task: (value: T) => Promise<R>,
-) {
-  const results = new Array<R>(values.length);
-  let index = 0;
-  await Promise.all(Array.from({ length: Math.min(limit, values.length) }, async () => {
-    while (index < values.length) {
-      const current = index++;
-      results[current] = await task(values[current]);
-    }
-  }));
-  return results;
-}
-
-async function romeovilleUpcoming(html: string, sourceUrl: string, today: string) {
-  const activities = anchors(html, sourceUrl).filter(({ url }) =>
-    url.hostname === "www.romeoville.org"
-    && url.pathname.includes("/Activities/Activity/Detail/"),
-  );
-  const uniqueActivities = [...new Map(activities.map(activity => [activity.url.toString(), activity])).values()];
-  const courses = await mapLimited(uniqueActivities, 6, async ({ title, url }) =>
-    parseRomeovilleActivity(await fetchText(url.toString()), url.toString(), title, today),
-  );
-  return courses.flat().sort((a, b) =>
-    a.startDate.localeCompare(b.startDate) || a.title.localeCompare(b.title),
-  );
-}
-
 function cookieHeader(response: Response) {
   const headers = response.headers as Headers & { getSetCookie?: () => string[] };
   const cookies = headers.getSetCookie?.() || [];
@@ -178,8 +129,11 @@ async function nipstaUpcoming(today: string) {
   const cookies = cookieHeader(page);
   if (!csrfToken || !csrfKey || !cookies) throw new Error("NIPSTA calendar session is unavailable");
 
-  const start = Math.floor(new Date(`${today}T00:00:00Z`).getTime() / 1000);
-  const end = start + 370 * 86_400;
+  const current = Math.floor(new Date(`${today}T00:00:00Z`).getTime() / 1000);
+  // Include the preceding year only to identify the FIRST day of multi-day
+  // sessions. Otherwise remaining days of an already-started class look new.
+  const start = current - 370 * 86_400;
+  const end = current + 370 * 86_400;
   const body = new URLSearchParams({
     start: String(start),
     end: String(end),
@@ -205,6 +159,7 @@ async function nipstaUpcoming(today: string) {
   });
   if (!response.ok) throw new Error(`NIPSTA event feed returned ${response.status}`);
   const payload = await response.json() as { events?: Array<{ title?: unknown; start?: unknown; end?: unknown }> };
+  if (!Array.isArray(payload.events)) throw Error('NIPSTA calendar response was not recognized');
   return parseNipstaEvents(
     Array.isArray(payload.events) ? payload.events : [],
     parseNipstaCourseNames(html),
@@ -401,16 +356,18 @@ export async function loadTrainingProvider(id: TrainingProvider['id']) {
   const provider = trainingSources.find(source => source.id === id)!;
   const checkedAt = new Date().toISOString();
   const today = chicagoDate();
-  const html = await fetchText(provider.sourceUrl);
-  const resources = resourcesFor(provider, html);
+  const url = id === 'ifsi' ? ifsiSearchUrl(today) : provider.sourceUrl;
+  const html = id === 'nipsta' ? '' : await fetchText(url);
+  const resources = id === 'ifsi' ? resourcesFor(provider, html) : [{ title: `${provider.shortName} official schedule and registration`, url: provider.sourceUrl, detail: 'Official class information' }];
+  if (id === 'ifsi' && !/showClass\(|No (?:classes|results|courses) (?:found|match)/i.test(html)) throw Error('IFSI schedule response was not recognized');
   const upcoming = provider.id === "romeoville"
-    ? await romeovilleUpcoming(html, provider.sourceUrl, today)
+    ? parseRomeovilleRegistration(html, provider.sourceUrl, today)
     : provider.id === "ifsi"
-      ? parseIfsiSchedule(html, provider.sourceUrl, today)
+      ? parseIfsiSchedule(html, url, today)
       : await nipstaUpcoming(today);
   if (!resources.length && !upcoming.length) throw new Error('Training source incomplete');
   return {
-    ...provider, checkedAt, resources, upcoming: upcoming.slice(0, 100),
+    ...provider, checkedAt, resources, upcoming: upcoming.filter(course => course.startDate > today).slice(0, 100),
     available: resources.length > 0 || upcoming.length > 0,
   };
 }

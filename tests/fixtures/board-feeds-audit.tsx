@@ -21,6 +21,7 @@ window.fetch = async (input, init) => {
   if (url.origin !== location.origin) throw new Error('External browser request blocked in local test');
   audit.requests.push(url.pathname + url.search);
   if(parameters.has('links') && url.pathname.startsWith('/__links-')) return nativeFetch(input, init);
+  if(parameters.has('training') && (url.pathname === '/api/training-import' || url.pathname.startsWith('/__training-'))) return nativeFetch(input, { ...init, headers: { ...init?.headers, 'x-fixture-role': parameters.has('member') ? 'member' : 'admin' } });
   if(parameters.has('links') && url.pathname === '/api/board-links') return nativeFetch(input, { ...init, headers: { ...init?.headers, 'x-fixture-role': parameters.has('member') ? 'member' : 'admin' } });
   if(parameters.has('links') && url.pathname === '/api/chief-board') {
     const response = await nativeFetch('/__links-state');

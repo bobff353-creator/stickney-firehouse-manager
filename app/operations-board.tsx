@@ -8,7 +8,11 @@ import { createTvExitVisibility } from "./tv-exit-visibility";
 import ChiefBoardPanel from "./chief-board-panel";
 import { ifsiScheduleSource } from "./lib/training-parsers";
 import type { TrainingProvider as SavedTrainingProvider } from "./lib/external-feeds";
-import { useBoardFeeds } from "./use-board-feeds";
+import { useBoardFeeds, trainingFeedsChanged } from "./use-board-feeds";
+import TrainingSourceEditor from './training-source-editor';
+import { TrainingClassCards } from './training-class-cards';
+import trainingStyles from './training-source.module.css';
+import { isTrainingSource, trainingSources, type TrainingSourceId } from './lib/training-sources';
 import { refreshPermissions } from "./use-permissions";
 import { savedFeedLabel } from "./board-feeds-client";
 import StaffingRotation, { type NewMember, type StaffingPerson } from "./staffing-rotation";
@@ -27,7 +31,7 @@ type WeatherDay = { date: string; condition: string; high: number; low: number; 
 type WeatherHour = { time: string; condition: string; temperature: number; precipitationChance: number; windSpeed: number };
 type WeatherData = { location: string; days: WeatherDay[]; hours?: WeatherHour[]; source?: string; detailUrl?: string };
 type FleetApparatus = { id:string; unitNumber:string; name:string; status:string };
-type TrainingCourse = { title: string; dates: string; startDate?: string; endDate: string; location?: string; url: string };
+type TrainingCourse = { title: string; dates: string; startDate: string; endDate: string; location: string; detail: string; url: string };
 type TrainingProvider = { name: string; shortName: string; sourceUrl: string; checked: string; courses: TrainingCourse[]; error?: string };
 type WakeLockHandle = { release: () => Promise<void>; addEventListener: (type: "release", listener: () => void) => void };
 type JsonResponse<T> = { ok: boolean; status: number; payload: T | null };
@@ -67,10 +71,10 @@ async function fetchBoardJson<T>(url: string, signal: AbortSignal): Promise<Json
 }
 
 function TrainingCourses({ provider, today }: { provider: TrainingProvider; today: string }) {
-  const upcoming = provider.courses.filter((course) => provider.shortName === "IFSI" ? Boolean(course.startDate && course.startDate > today) : course.endDate >= today).slice(0, 5);
+  const upcoming = provider.courses.filter(course => course.startDate > today);
   return <div className="training-board">
     <div className="training-provider"><span>Upcoming training</span><strong>{provider.name}</strong><small>{provider.error || (provider.checked ? `Official schedule checked ${provider.checked}` : "Loading official schedule…")}</small></div>
-    <div className="training-course-list">{upcoming.length ? upcoming.map((course) => <a href={course.url} target="_blank" rel="noreferrer" key={`${course.title}-${course.dates}-${course.location}`}><time>{course.dates}<small>{(course.startDate || course.endDate).slice(0, 4)}</small></time><div><strong>{course.title}</strong>{course.location && <span>{course.location}</span>}</div><b aria-hidden="true">↗</b></a>) : <p className="board-empty">{provider.checked ? "No future classes remain in the confirmed schedule." : "Use the official schedule link to check upcoming classes."}</p>}</div>
+    <div className={`training-cards-list ${trainingStyles.list}`}>{upcoming.length ? <TrainingClassCards courses={upcoming} today={today}/> : <p className="board-empty">{provider.checked ? "No future classes remain in the saved schedule. Check the official site for changes." : "Classes have not been imported yet. An administrator can select + Manage classes to test and save the official schedule."}</p>}</div>
     <p className="training-disclaimer">Dates and availability can change. Confirm with the training provider before registering.</p>
   </div>;
 }
@@ -78,8 +82,10 @@ function TrainingCourses({ provider, today }: { provider: TrainingProvider; toda
 export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewActiveCall }: { tvMode?: boolean; onTvModeChange?: (enabled: boolean) => void; onNewActiveCall?: (call: BoardData["activeCalls"][number]) => void }) {
   const [boardLinks, setBoardLinks] = useState(() => ({ settings: defaultBoardLinks(), canEdit: false, confirmed: false }));
   const [linkEditor, setLinkEditor] = useState<BoardLinkSectionId | null>(null);
+  const [trainingEditor, setTrainingEditor] = useState<TrainingSourceId | null>(null);
   const [linkMessage, setLinkMessage] = useState('');
   const receiveBoardLinks = useCallback((signal: BoardLinksSignal) => {
+    if (signal.confirmed) trainingFeedsChanged(signal.settings?.trainingRevision);
     setBoardLinks(current => signal.denied ? { settings: defaultBoardLinks(), canEdit: false, confirmed: false } : {
       settings: signal.settings ?? current.settings, canEdit: signal.canEdit && signal.confirmed, confirmed: signal.confirmed,
     });
@@ -94,6 +100,7 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
     const provider = snapshot?.data as SavedTrainingProvider | null | undefined;
     trainingProviders[id] = {
       ...initialTrainingProviders[id],
+      sourceUrl: trainingSources[id].sourceUrl,
       checked: provider?.checkedAt ?? "",
       error: savedFeedLabel(snapshot, informational.unconfirmed.bulletins),
       courses: (provider?.upcoming ?? []).map(course => ({ ...course, dates: new Date(`${course.startDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }) })),
@@ -216,11 +223,11 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
     return () => { window.clearTimeout(initial); window.clearInterval(refresh); window.clearInterval(ticker); loadControllerRef.current?.abort(); };
   }, [load]);
   useEffect(() => {
-    if (rotationPaused || linkEditor) return;
+    if (rotationPaused || linkEditor || trainingEditor) return;
     const rotate = window.setInterval(() => setRotation(current => rotationOrder[(rotationOrder.indexOf(current) + 1) % rotationOrder.length]), 12000);
     const rotateHeader = window.setInterval(() => setHeaderRotation(current => headerRotationOrder[(headerRotationOrder.indexOf(current) + 1) % headerRotationOrder.length]), 8000);
     return () => { window.clearInterval(rotate); window.clearInterval(rotateHeader); };
-  }, [rotationPaused, linkEditor]);
+  }, [rotationPaused, linkEditor, trainingEditor]);
   useEffect(() => {
     if (!tvMode) return;
     let disposed = false;
@@ -330,6 +337,7 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
     {tvMode && <button type="button" className={`board-exit-tv${tvExitVisible ? " is-visible" : ""}`} onClick={() => void exitTvMode()} aria-label="Exit full-screen TV mode and return to the portal"><span aria-hidden="true">×</span> Exit full screen</button>}
     <div className="board-display-controls">
       {boardLinks.canEdit && !tvMode && <button type="button" className={linkStyles.editButton} onClick={() => setLinkEditor(isBoardLinkSection(rotation) ? rotation : 'news')}><b aria-hidden="true">+</b> Edit news & training links</button>}
+      {boardLinks.canEdit && !tvMode && <button type="button" className={linkStyles.editButton} onClick={() => setTrainingEditor(isTrainingSource(rotation) ? rotation : 'romeoville')}><b aria-hidden="true">+</b> Manage classes</button>}
       {alertPanelOpen && <div className="call-alert-settings"><strong>New-call sound</strong><label><span>Alert tone</span><select value={alertTone} onChange={(event) => selectAlertTone(event.target.value)}>{alertTones.map((tone) => <option value={tone.id} key={tone.id}>{tone.label}</option>)}</select></label><div><button type="button" onClick={() => void playAlert(alertTone)}>Preview</button><button type="button" className={alertEnabled ? "enabled" : ""} onClick={() => void toggleCallAlerts()}>{alertEnabled ? "Disable alerts" : "Enable call alerts"}</button></div><small>Saved on this TV. Sounds only for newly received call numbers.</small></div>}
       <div className="board-control-buttons"><span className={`board-heartbeat ${feedDegraded?"degraded":""}`}><i/>{feedDegraded?"Feed delayed · reconnecting":`Updated ${lastRefresh?.toLocaleTimeString([],{hour:"numeric",minute:"2-digit",second:"2-digit"})}`}</span><button type="button" onClick={()=>setRotationPaused((current)=>!current)}>{rotationPaused?"Resume rotation":"Pause rotation"}</button><button type="button" onClick={() => setAlertPanelOpen((open) => !open)} aria-expanded={alertPanelOpen}>Call sound: {alertEnabled ? "On" : "Off"}</button>{tvMode
         ? <span className="board-station-mode"><i/>24/7 station mode</span>
@@ -347,7 +355,7 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
           <h2>{rotation === "equipment" ? "Equipment issues" : rotation === "duty" ? dailyFleetChecks.length ? "Scheduled apparatus checks" : "Current daily duty" : boardLinks.settings.sections[rotation].title}</h2>
           <div className={linkStyles.headerActions}>
           <span>{rotation === "equipment" ? `${data?.equipmentIssues.length ?? 0} reported` : rotation === "duty" ? dailyFleetChecks.length ? dailyCheckUrgency === "overdue" ? `OVERDUE · Earliest due ${dailyFleetChecks[0]?.endTime}` : dailyCheckUrgency === "due_soon" ? `DUE NOW · Earliest due ${dailyFleetChecks[0]?.endTime}` : `Scheduled · Begins ${dailyFleetChecks[0]?.startTime}` : `${clock.toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "long" })} · ${shiftLabel(currentDuty?.shiftKey ?? data?.currentShift ?? "night")}` : rotation === "news" ? savedFeedLabel(informational.feeds.close_calls, informational.unconfirmed.bulletins) : rotation === "fatalities" ? savedFeedLabel(informational.feeds.usfa, informational.unconfirmed.bulletins) : "Upcoming classes · official links"}</span>
-          {boardLinks.canEdit && isBoardLinkSection(rotation) && <button type="button" className={linkStyles.editButton} onClick={() => setLinkEditor(rotation)} aria-label={`Edit links for ${boardLinks.settings.sections[rotation].title}`}><b aria-hidden="true">+</b> Edit links</button>}
+          {boardLinks.canEdit && isBoardLinkSection(rotation) && <button type="button" className={linkStyles.editButton} onClick={() => isTrainingSource(rotation) ? setTrainingEditor(rotation) : setLinkEditor(rotation)} aria-label={`${isTrainingSource(rotation) ? 'Manage classes' : 'Edit links'} for ${boardLinks.settings.sections[rotation].title}`}><b aria-hidden="true">+</b> {isTrainingSource(rotation) ? 'Manage classes' : 'Edit links'}</button>}
           </div>
         </header>
         {!tvMode && <label className={linkStyles.picker}>Show section<select value={rotation} onChange={event => { setRotation(event.target.value as Rotation); setRotationPaused(true); }}><option value="equipment">Equipment issues</option><option value="duty">Apparatus checks & daily duty</option>{boardLinkSections.map(section => <option key={section.id} value={section.id}>{boardLinks.settings.sections[section.id].title}</option>)}</select></label>}
@@ -362,5 +370,6 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
       </section></div>
     <section className="board-panel apparatus apparatus-wide"><header><h2>Apparatus status</h2><span>Fleet + active CAD calls</span></header><div>{data?.apparatus.map((unit) => <article className={unit.status === "Committed to call" ? "committed" : unit.status === "Available" ? "available" : "unknown"} key={unit.unit}><b>Unit {unit.unit}</b><span>{unit.status}</span></article>)}</div><p className="board-source-note">Fleet status with active CAD commitment shown in red.</p></section>
     {linkEditor && <BoardLinksEditor initialSection={linkEditor} canEdit={boardLinks.canEdit} onClose={() => setLinkEditor(null)} onSaved={(signal, section) => { receiveBoardLinks(signal); setRotation(section); setRotationPaused(true); setLinkMessage('Links saved. This board shows the saved section; other boards receive it on their next board refresh. Select Resume rotation when ready.'); }}/>}
+    {trainingEditor && <TrainingSourceEditor initial={trainingEditor} canEdit={boardLinks.canEdit} onClose={() => setTrainingEditor(null)} onEditLinks={id => { setTrainingEditor(null); setLinkEditor(id); }} onSaved={(signal, id) => { receiveBoardLinks(signal); setRotation(id); setRotationPaused(true); setLinkMessage('Classes saved. Other boards receive the update on their existing refresh. Select Resume rotation when ready.'); }}/>}
   </section>;
 }

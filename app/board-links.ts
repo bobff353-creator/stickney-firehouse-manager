@@ -10,7 +10,7 @@ export const boardLinkSections = [
 export type BoardLinkSectionId = typeof boardLinkSections[number]['id'];
 export type BoardLink = { id: string; label: string; url: string; note: string };
 export type BoardLinkSection = { title: string; links: BoardLink[] };
-export type BoardLinks = { revision: string; updatedAt: string; sections: Record<BoardLinkSectionId, BoardLinkSection> };
+export type BoardLinks = { revision: string; updatedAt: string; trainingRevision?: string; sections: Record<BoardLinkSectionId, BoardLinkSection> };
 export type BoardLinksSignal = { settings?: BoardLinks; canEdit: boolean; confirmed: boolean; denied?: boolean; checkedAt: string };
 export const maxBoardLinks = 12;
 export function boardLinksSignal(settings: BoardLinks, knownRevision: string | null, canEdit: boolean, checkedAt: string): BoardLinksSignal {

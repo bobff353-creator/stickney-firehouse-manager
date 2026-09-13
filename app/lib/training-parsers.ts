@@ -7,7 +7,7 @@ export type UpcomingTrainingCourse = {
   detail: string;
 };
 
-export const ifsiScheduleSource = "https://www.fsi.illinois.edu/content/courses/schedule/results.cfm?action=search&keywords=&start_date=09%2F07%2F2026&end_date=01%2F01%2F2028&cost=&delivery=any&city=&county=&course=&program=";
+export const ifsiScheduleSource = 'https://www.fsi.illinois.edu/content/courses/schedule/';
 
 type NipstaCalendarEvent = {
   title?: unknown;
@@ -87,7 +87,7 @@ export function parseRomeovilleActivity(
   )].flatMap((match): UpcomingTrainingCourse[] => {
     const block = match[0];
     const range = dateRange(classText(block, "dates"));
-    if (!range.startDate || range.endDate < today) return [];
+    if (!range.startDate || range.startDate <= today) return [];
     const title = classText(block, "title") || fallbackTitle;
     const location = classText(block, "location");
     const time = classText(block, "time");
@@ -102,7 +102,44 @@ export function parseRomeovilleActivity(
   return uniqueCourses(courses);
 }
 
+// The public registration form is one authoritative list, avoiding dozens of
+// activity-page downloads. Preserve the provider's full wording for split days,
+// phases and locations instead of pretending every class runs continuously.
+export function parseRomeovilleRegistration(html: string, sourceUrl: string, today: string) {
+  const courses: UpcomingTrainingCourse[] = [];
+  const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+  let recognized = 0;
+  for (const match of html.matchAll(/<fieldset\b[^>]*>([\s\S]*?)<\/fieldset>/gi)) {
+    const title = decode(match[1].match(/<legend\b[^>]*>([\s\S]*?)<\/legend>/i)?.[1] || '');
+    if (!title || !/type=["']checkbox["']/i.test(match[1])) continue;
+    for (const label of match[1].matchAll(/<label\b[^>]*>([\s\S]*?)<\/label>/gi)) {
+      const detail = decode(label[1]);
+      const year = detail.match(/\b(20\d{2})\b/)?.[1];
+      if (!year) continue;
+      const dates: string[] = [];
+      let month = 0;
+      // Named month/day or a day following a range/list delimiter. Ignore
+      // phase/week numbers and the four-digit year.
+      const pattern = /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+(\d{1,2})\b|(?:[-–—&]|\band\b)\s*(\d{1,2})\b/gi;
+      for (const date of detail.matchAll(pattern)) {
+        if (date[1]) month = months.indexOf(date[1].slice(0, 3).toLowerCase()) + 1;
+        const value = month && isoDate(`${month}/${date[2] || date[3]}/${year}`);
+        if (value) dates.push(value);
+      }
+      if (!dates.length) continue;
+      recognized++;
+      dates.sort();
+      if (dates[0] <= today) continue;
+      const location = detail.match(/@\s*(.+?)(?:\s*\((?:Part|Full)-Time\))?$/i)?.[1]?.trim() || 'Location: see official class details';
+      courses.push({ title, url: sourceUrl, startDate: dates[0], endDate: dates.at(-1)!, location, detail });
+    }
+  }
+  if (!recognized) throw Error('Romeoville class dates were not recognized.');
+  return uniqueCourses(courses);
+}
+
 export function parseIfsiSchedule(html: string, sourceUrl: string, today: string) {
+  let recognized = 0;
   const courses = [...html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)]
     .flatMap((match): UpcomingTrainingCourse[] => {
       const activityId = match[1].match(/showClass\(['"](\d+)['"]\)/i)?.[1];
@@ -110,7 +147,9 @@ export function parseIfsiSchedule(html: string, sourceUrl: string, today: string
       const cells = [...match[1].matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)]
         .map((cell) => decode(cell[1]));
       const startDate = isoDate(cells[1] || "");
-      if (!cells[0] || !startDate || startDate <= today) return [];
+      if (!cells[0] || !startDate) return [];
+      recognized++;
+      if (startDate <= today) return [];
       const location = [cells[2], cells[3]].filter(Boolean).join(", ");
       return [{
         title: cells[0],
@@ -130,12 +169,15 @@ export function parseIfsiSchedule(html: string, sourceUrl: string, today: string
       const text = decode(anchor[1]);
       const date = text.match(/^(\d{1,2}\/\d{1,2}\/\d{2,4})\s+(.+?)(?:Host Dept:|Instate:|$)/i);
       const startDate = date ? isoDate(date[1]) : "";
-      if (!title || !startDate || startDate <= today) continue;
+      if (!title || !startDate) continue;
       const url = new URL(decode(heading[1]), sourceUrl);
       if (url.origin !== new URL(sourceUrl).origin) continue;
+      recognized++;
+      if (startDate <= today) continue;
       courses.push({ title, url: url.toString(), startDate, endDate: startDate, location: date?.[2].trim() || "", detail: text });
     }
   }
+  if (!recognized && !/No (?:classes|results|courses) (?:found|match)/i.test(decode(html))) throw Error('IFSI class dates were not recognized.');
   return uniqueCourses(courses);
 }
 
@@ -170,7 +212,7 @@ export function parseNipstaEvents(
     if (!title || nipstaExcluded.test(title) || !nipstaFireTraining.test(title)) continue;
     const startDate = typeof event.start === "string" ? event.start.slice(0, 10) : "";
     const endDate = typeof event.end === "string" ? event.end.slice(0, 10) : startDate;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || (endDate || startDate) < today) continue;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) continue;
     const afterTitle = rawTitle.slice(title.length);
     const session = afterTitle.split(/Rental/i)[0].trim();
     const location = rawTitle.match(/Rental\s+([^\n]+?)(?:\s+\d{1,2}:\d{2}|$)/i)?.[1]?.trim() || "NIPSTA";
@@ -190,5 +232,5 @@ export function parseNipstaEvents(
       detail: [session, location].filter(Boolean).join(" · "),
     });
   }
-  return uniqueCourses([...grouped.values()]);
+  return uniqueCourses([...grouped.values()]).filter(course => course.startDate > today);
 }

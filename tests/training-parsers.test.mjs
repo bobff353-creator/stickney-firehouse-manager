@@ -69,6 +69,11 @@ test("IFSI search-result panels exclude classes starting today or earlier", () =
   assert.equal(courses[0].title, 'Test course');
 });
 
+test('IFSI broken markup never looks like a confirmed empty schedule',()=>{
+  assert.throws(()=>parseIfsiSchedule('<script>function showClass(id){}</script><h1>Temporarily unavailable</h1>','https://www.fsi.illinois.edu/','2026-09-12'));
+  assert.deepEqual(parseIfsiSchedule('<p>No classes found</p>','https://www.fsi.illinois.edu/','2026-09-12'),[]);
+});
+
 test("collapses NIPSTA calendar days into fire and rescue course sessions", () => {
   const page = `<script>var leagues_data = {
     "1":{"name":"Advanced Technician Firefighter"},

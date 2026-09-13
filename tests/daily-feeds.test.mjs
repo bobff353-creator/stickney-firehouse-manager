@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 const read = path => readFile(new URL("../"+path, import.meta.url),"utf8");
-test("all public feed routes read saved data only; only cron imports external loaders",async()=>{
+test("all public feed routes read saved data only; imports require cron or an explicit authorized preview",async()=>{
  for(const path of ["weather","close-call-news","usfa-fatalities","training-sites","board-feeds"]){
   const source=await read("app/api/"+path+"/route.ts");
   assert.match(source,/board-feed-response/);
@@ -15,7 +15,7 @@ test("all public feed routes read saved data only; only cron imports external lo
 });
 test("training providers and Close Calls sources are preserved without global DOM polling",async()=>{
  const feeds=await read("app/lib/external-feeds.ts");
- for(const token of ["firefighterclosecalls.com/category/news/feed/","wp-json/wp/v2/posts","loadTrainingProvider","parseRomeovilleActivity","parseIfsiSchedule","parseNipstaEvents"])assert.ok(feeds.includes(token),token);
+ for(const token of ["firefighterclosecalls.com/category/news/feed/","wp-json/wp/v2/posts","loadTrainingProvider","parseRomeovilleRegistration","parseIfsiSchedule","parseNipstaEvents"])assert.ok(feeds.includes(token),token);
  assert.doesNotMatch(feeds,/unstable_cache|revalidate:/);
  const layout=await read("app/layout.tsx");
  assert.doesNotMatch(layout,/training-route/);

@@ -84,10 +84,11 @@ test("TV close-call cards reserve room for headlines and links instead of overfl
 
 test("training rotations use a bounded two-column TV layout", async () => {
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const cards = await readFile(new URL("../app/training-source.module.css", import.meta.url), "utf8");
 
   assert.match(styles, /\.tv-display \.training-board \{[^}]*height: 100%;[^}]*grid-template-rows: auto minmax\(0,1fr\) auto;[^}]*overflow: hidden/);
-  assert.match(styles, /\.tv-display \.training-course-list \{[^}]*grid-template-columns: repeat\(2,minmax\(0,1fr\)\);[^}]*grid-template-rows: repeat\(3,minmax\(0,1fr\)\);[^}]*overflow: hidden/);
-  assert.match(styles, /\.tv-display \.training-course-list a:last-child:nth-child\(odd\) \{ grid-column: 1\/-1; \}/);
+  assert.match(cards, /:global\(\.tv-display\) \.cards \{[^}]*height:100%;[^}]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\);[^}]*grid-template-rows:repeat\(3,minmax\(0,1fr\)\)/);
+  assert.match(cards, /\.card:last-child:nth-child\(odd\) \{ grid-column:1\/-1; \}/);
   assert.match(styles, /\.tv-display \.training-disclaimer \{ display: none; \}/);
 });
 

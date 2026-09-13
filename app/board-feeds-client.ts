@@ -91,6 +91,10 @@ export function createBoardFeedClient(env: Environment) {
   return {
     snapshot: () => state,
     resume: () => schedule(),
+    invalidateBulletins() {
+      pending.get('bulletins')?.abort(); pending.delete('bulletins');
+      next.bulletins = 0; schedule();
+    },
     subscribe(callback: () => void, alwaysOn = false) {
       listeners.set(callback, alwaysOn); schedule();
       return () => {

@@ -53,3 +53,10 @@ test('concurrent slow reads do not overlap, and unmount aborts the read',async()
  const client=createBoardFeedClient(h.env),stop=client.subscribe(()=>{},true);await h.advance(0);assert.equal(signals.length,2);
  client.resume();await h.advance(900_000);assert.equal(signals.length,2);stop();assert.ok(signals.every(signal=>signal.aborted));await h.advance(0);assert.equal(h.tasks.size,0);
 });
+
+test('published training invalidates only shared bulletins; offline/reconnect retains data and deduplicates',async()=>{
+ const h=harness(),client=createBoardFeedClient(h.env),stops=[client.subscribe(()=>{},true),client.subscribe(()=>{},true)];await h.advance(0);
+ client.invalidateBulletins();client.invalidateBulletins();await h.advance(0);assert.equal(h.requests.length,3);assert.equal(h.requests.at(-1).group,'bulletins');
+ h.setOnline(false);client.invalidateBulletins();await h.advance(60_000);assert.equal(h.requests.length,3);assert.ok(client.snapshot().feeds.training_ifsi.data);
+ h.setOnline(true);client.resume();client.resume();await h.advance(0);assert.equal(h.requests.length,4);stops.forEach(stop=>stop());assert.equal(h.tasks.size,0);
+});

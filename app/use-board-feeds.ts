@@ -3,13 +3,20 @@ import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import { createBoardFeedClient, emptyBoardFeeds, validBoardFeeds } from './board-feeds-client';
 import type { BoardFeeds } from './lib/board-feed-types';
 let client: ReturnType<typeof createBoardFeedClient> | undefined;
+let trainingRevision = '';
+export function trainingFeedsChanged(revision: string | undefined) {
+  if (!revision || revision === trainingRevision) return;
+  trainingRevision = revision;
+  browserClient()?.invalidateBulletins();
+}
 function browserClient() {
   if (typeof window === 'undefined') return undefined;
   client ??= createBoardFeedClient({
     now: Date.now, active: () => document.visibilityState !== 'hidden', online: () => navigator.onLine,
     setTimer: (callback, delay) => setTimeout(callback, delay), clearTimer: timer => clearTimeout(timer),
     request: async (group, signal) => {
-      const response = await fetch(`/api/board-feeds?group=${group}`, { signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]) });
+      const revision = group === 'bulletins' && trainingRevision ? `&revision=${encodeURIComponent(trainingRevision)}` : '';
+      const response = await fetch(`/api/board-feeds?group=${group}${revision}`, { signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]) });
       if (!response.ok) throw new Error('Saved feeds unavailable');
       return response.json() as Promise<BoardFeeds>;
     },
