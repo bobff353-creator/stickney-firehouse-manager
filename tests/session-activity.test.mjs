@@ -7,6 +7,8 @@ const source = readFileSync(new URL('../app/session-activity.ts', import.meta.ur
 const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText;
 const { latestSessionActivity, sessionIsIdle } = await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
 const minute = 60_000;
+const rememberCode=ts.transpileModule(readFileSync(new URL('../app/remember-device.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext}}).outputText;
+const {rememberedDeviceRemainingMs}=await import(`data:text/javascript;base64,${Buffer.from(rememberCode).toString('base64')}`);
 test('background tab respects activity in another portal tab', () => {
   const latest = latestSessionActivity(1 * minute, String(29 * minute), 31 * minute);
   assert.equal(sessionIsIdle(latest, 31 * minute, 30 * minute), false);
@@ -30,7 +32,7 @@ test('session lifecycle captures inner scrolling and flushes renewal on screen c
   assert.match(component, /finally \{\s+setUnlocking\(false\)/);
 });
 
-function lifecycle() {
+function lifecycle({ remembered=false, status=200 }={}) {
   const component = readFileSync(new URL('../app/session-idle-lock.tsx', import.meta.url), 'utf8');
   const start = component.lastIndexOf('useEffect(() => {', component.indexOf('if (locked) return;'));
   const end = component.indexOf('}, [locked, stationDisplay]);', start) + '}, [locked, stationDisplay]);'.length;
@@ -38,12 +40,15 @@ function lifecycle() {
   let now = minute;
   const storage = new Map(), events = new Map(), intervals = [], requests = [];
   let isLocked = false;
+  let checkStatus=status, remaining=remembered?7*24*60*minute:0;
   const scope = { locked: false, stationDisplay: false, inactivityLimitMs: 30 * minute,
     unlockRefreshThrottleMs: minute, stationDisplayRefreshMs: 5 * minute,
     latestSessionActivity, sessionIsIdle, sessionActivityKey: 'activity',
-    Date: { now: () => now }, Math, JSON, String,
-    setLocked: value => { isLocked = value; }, setPin: () => {}, setMessage: () => {},
-    fetch: async (url, options) => { requests.push(options.method); return { status: 200 }; },
+    rememberedDeviceRemainingMs,
+    Date: { now: () => now }, Math, JSON, String, AbortSignal,
+    setLocked: value => { isLocked = value; }, setPin: () => {}, setRememberDevice:()=>{}, setMessage: () => {},
+    fetch: async (url, options) => { requests.push(options.method); return { status: checkStatus,ok:checkStatus===200,
+      json:async()=>remaining?{rememberedUntil:new Date(now+remaining).toISOString(),serverNow:new Date(now).toISOString()}:{} }; },
     useEffect: fn => fn(),
     document: { visibilityState: 'visible', addEventListener: (name, fn) => events.set(name, fn), removeEventListener: () => {} },
     window: { localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) },
@@ -52,15 +57,19 @@ function lifecycle() {
     },
   };
   vm.runInNewContext(compiled, scope);
-  return { events, requests, storage, tick: value => { now = value; intervals[0](); }, locked: () => isLocked };
+  return { events, requests, storage, tick: value => { now = value; intervals[0](); }, locked: () => isLocked,
+    setStatus:value=>{checkStatus=value;},setRemembered:value=>{remaining=value;} };
 }
+const flush=()=>new Promise(resolve=>setImmediate(resolve));
 test('actual idle effect does not delete shared cookie while another tab is active', async () => {
   const h = lifecycle();
+  await flush();
   h.storage.set('activity', String(29 * minute));
   h.tick(31 * minute);
   assert.equal(h.locked(), false);
   assert.equal(h.requests.includes('DELETE'), false);
   h.tick(59 * minute);
+  await flush();
   assert.equal(h.locked(), true);
   assert.equal(h.requests.includes('DELETE'), true);
 });
@@ -71,6 +80,24 @@ test('actual visibility handler keeps a short background visit unlocked but not 
   h.events.get('visibilitychange')();
   assert.equal(h.locked(), false);
   assert.equal(h.requests.filter(method => method === 'PATCH').length, 2);
+  await flush();
   h.tick(50 * minute);
+  await flush();
   assert.equal(h.locked(), true);
+});
+
+test('remembered device survives ordinary inactivity but locks at the absolute deadline',async()=>{
+  const h=lifecycle({remembered:true});await flush();
+  h.tick(31*minute);await flush();assert.equal(h.locked(),false);
+  h.events.get('pointerdown')();await flush();assert.equal(h.requests.filter(x=>x==='PATCH').length,1);
+  h.tick(minute+7*24*60*minute);assert.equal(h.locked(),true);
+});
+test('failed initial status cannot invent a remembered lease and reconnect checks current authorization',async()=>{
+  const h=lifecycle({remembered:true,status:503});await flush();h.tick(31*minute);await flush();assert.equal(h.locked(),true);
+  const revoked=lifecycle({remembered:true});await flush();revoked.setStatus(423);
+  revoked.events.get('visibilitychange')();await flush();assert.equal(revoked.locked(),true);
+});
+test('an older tab checks shared remembered state before deleting the browser cookie on idle',async()=>{
+  const h=lifecycle();await flush();h.setRemembered(6*24*60*minute);
+  h.tick(31*minute);await flush();assert.equal(h.locked(),false);assert.equal(h.requests.includes('DELETE'),false);
 });

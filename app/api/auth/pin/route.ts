@@ -6,6 +6,7 @@ import { createPostgresD1Adapter } from "../../../../db/postgres-adapter";
 import { derivePortalPassword } from "../../../lib/portal-pin-password";
 import { getSupabaseServerClient } from "../../../supabase-server";
 import { getSupabaseSystemClient } from "../../../supabase-system";
+import { isRememberedDeviceToken, rememberedCookieSeconds, rememberedDeviceRemainingMs } from "../../../remember-device";
 
 const pinCookie = "__Secure-firehouse-pin";
 const unlockSeconds = 30 * 60;
@@ -47,7 +48,7 @@ async function syncPasswordLogin(client: Awaited<ReturnType<typeof getSupabaseSe
 }
 
 export async function POST(request: Request) {
-  const payload = await request.json().catch(() => ({})) as { action?: string; pin?: string; temporaryPin?: string };
+  const payload = await request.json().catch(() => ({})) as { action?: string; pin?: string; temporaryPin?: string; rememberDevice?: unknown };
   const action = payload.action === "set" || payload.action === "activate" || payload.action === "reset" ? payload.action : "verify";
   const pin = String(payload.pin ?? "").trim();
   if (!/^\d{4,6}$/.test(pin)) {
@@ -135,9 +136,16 @@ export async function POST(request: Request) {
     return withUnlockCookie({ ok: true, configured: true, unlocked: true }, data);
   }
 
-  const { data, error } = await client.rpc("verify_portal_pin", { p_pin: pin });
-  const result = Array.isArray(data) ? data[0] as { ok?: boolean; unlock_token?: string; locked_until?: string | null } | undefined : undefined;
-  if (error) return Response.json({ error: "The PIN could not be verified." }, { status: 400 });
+  const rememberDevice = payload.rememberDevice === true;
+  const departmentId = request.headers.get("x-department-id")?.trim() || process.env.PAYROLL_DEPARTMENT_ID?.trim();
+  if (rememberDevice && !departmentId) return Response.json({ error: "Department sign-in could not be verified." }, { status: 503 });
+  const { data, error } = rememberDevice
+    ? await client.rpc("verify_portal_pin_with_device", { p_pin: pin, p_department_id: departmentId })
+    : await client.rpc("verify_portal_pin", { p_pin: pin });
+  const result = Array.isArray(data) ? data[0] as { ok?: boolean; unlock_token?: string; locked_until?: string | null; remembered_until?: string } | undefined : undefined;
+  if (error) return Response.json({ error: rememberDevice
+    ? "Remember this device is unavailable. Try again, or leave the option unchecked."
+    : "The PIN could not be verified." }, { status: rememberDevice ? 503 : 400 });
   if (!result?.ok || !result.unlock_token) {
     return Response.json(
       {
@@ -149,6 +157,8 @@ export async function POST(request: Request) {
       { status: result?.locked_until ? 429 : 401 },
     );
   }
+  const maxAge = rememberDevice ? rememberedCookieSeconds(result.unlock_token, result.remembered_until) : unlockSeconds;
+  if (!maxAge) return Response.json({ error: "Remember this device could not be enabled. Try again, or leave the option unchecked." }, { status: 503 });
   const { data: userData } = await client.auth.getUser();
   const passwordVersion = Number(userData.user?.user_metadata?.portal_pin_password_version ?? 0);
   let loginUpgradePending = false;
@@ -156,11 +166,21 @@ export async function POST(request: Request) {
     const passwordError = await syncPasswordLogin(client, userData.user.email, pin);
     loginUpgradePending = Boolean(passwordError);
   }
-  return withUnlockCookie({ ok: true, configured: true, unlocked: true, loginUpgradePending }, result.unlock_token);
+  return withUnlockCookie({ ok: true, configured: true, unlocked: true, loginUpgradePending }, result.unlock_token, maxAge);
 }
 
 export async function DELETE() {
-  const response = NextResponse.json({ ok: true });
+  const token = (await cookies()).get(pinCookie)?.value ?? "";
+  let forgotten = true;
+  if (isRememberedDeviceToken(token)) {
+    try {
+      const client = await getSupabaseServerClient();
+      const { error } = await client.rpc("forget_own_portal_device", { p_unlock_token: token });
+      forgotten = !error;
+    } catch { forgotten = false; }
+  }
+  // Always clear this browser's cookie. Signing out also removes its Auth session.
+  const response = NextResponse.json(forgotten ? { ok: true } : { error: "Device revocation could not be confirmed. Sign out to end this session." }, { status: forgotten ? 200 : 503 });
   response.cookies.set(pinCookie, "", {
     httpOnly: true,
     secure: true,
@@ -184,6 +204,19 @@ export async function PATCH(request: Request) {
   const { data: userData, error: userError } = await client.auth.getUser();
   if (userError || !userData.user) {
     return Response.json({ error: "Your session has expired. Sign in again." }, { status: 401 });
+  }
+  if (isRememberedDeviceToken(token)) {
+    try {
+      // Read-only: a remembered device has a fixed deadline, even on a TV URL.
+      const { data, error } = await client.rpc("portal_remembered_device_status", { p_unlock_token: token });
+      if (error) return Response.json({ error: "Device security could not be verified." }, { status: 503 });
+      const status = data && typeof data === "object" ? data as { rememberedUntil?: unknown; serverNow?: unknown } : {};
+      const maxAge = Math.floor(rememberedDeviceRemainingMs(status) / 1000);
+      if (!maxAge) return Response.json({ error: "Enter your portal PIN to continue." }, { status: 423 });
+      return withUnlockCookie({ ok: true, configured: true, unlocked: true, ...status }, token, maxAge);
+    } catch {
+      return Response.json({ error: "Device security could not be verified." }, { status: 503 });
+    }
   }
   let renewed = false;
   try {

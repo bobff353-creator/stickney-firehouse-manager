@@ -4,6 +4,7 @@ import type { User } from "@supabase/supabase-js";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import PayrollApp from "./payroll-app";
 import SessionIdleLock from "./session-idle-lock";
+import RememberDeviceOption from "./remember-device-option";
 import { clearCachedRespondPackets } from "./preplans/offline-cache";
 import { getSupabaseBrowserClient } from "./supabase-browser";
 
@@ -22,6 +23,7 @@ export default function AuthGateway({
   const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState("");
   const [pin, setPin] = useState("");
+  const [rememberDevice, setRememberDevice] = useState(false);
   const [pinConfirmation, setPinConfirmation] = useState("");
   const [employeeNumber, setEmployeeNumber] = useState("");
   const [message, setMessage] = useState("");
@@ -59,6 +61,7 @@ export default function AuthGateway({
           clearAccessCache();
           void clearCachedRespondPackets().catch(() => undefined);
           setUser(null);
+          setRememberDevice(false);
           setMode("sign-in");
         }
         return;
@@ -108,7 +111,7 @@ export default function AuthGateway({
         }
         if (response.status !== 401 && !blocking) return;
         clearAccessCache();
-        await getSupabaseBrowserClient().auth.signOut();
+        await getSupabaseBrowserClient().auth.signOut({ scope: "local" });
         setUser(null);
         setMode("sign-in");
         setMessage(payload.error || "Your session expired. Please sign in again.");
@@ -141,7 +144,7 @@ export default function AuthGateway({
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: normalizedEmail, pin }),
+        body: JSON.stringify({ email: normalizedEmail, pin, rememberDevice }),
       });
       const responsePayload = await response.json().catch(() => ({})) as { error?: string };
       if (!response.ok) {
@@ -179,7 +182,7 @@ export default function AuthGateway({
     const response = await fetch("/api/auth/pin", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "verify", pin }),
+      body: JSON.stringify({ action: "verify", pin, rememberDevice }),
     });
     const payload = await response.json().catch(() => ({})) as { error?: string };
     if (!response.ok) {
@@ -294,13 +297,13 @@ export default function AuthGateway({
   async function signOut() {
     clearAccessCache();
     await clearCachedRespondPackets().catch(() => undefined);
-    const pinCleanup = fetch("/api/auth/pin", { method: "DELETE" }).catch(() => undefined);
+    await fetch("/api/auth/pin", { method: "DELETE", signal: AbortSignal.timeout(8_000) }).catch(() => undefined);
     await getSupabaseBrowserClient().auth.signOut({ scope: "local" });
     setPin("");
+    setRememberDevice(false);
     setUser(null);
     setMode("sign-in");
     setMessage("Signed out.");
-    void pinCleanup;
   }
 
   if (mode === "authorized") {
@@ -365,6 +368,7 @@ export default function AuthGateway({
           <p>Your email session is verified. Enter the 4 to 6 digit PIN you created when joining the department app.</p>
           <form onSubmit={event => { event.preventDefault(); void runAuthAction(() => unlockWithPin(event), "pin"); }}>
             <label>Portal PIN<input autoFocus type="password" inputMode="numeric" autoComplete="current-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
+            <RememberDeviceOption checked={rememberDevice} onChange={setRememberDevice} />
             {message ? <p className="login-message" role="status">{message}</p> : null}
             <button className="login-primary" type="submit" disabled={actionPending}>Unlock app</button>
           </form>
@@ -456,6 +460,7 @@ export default function AuthGateway({
         <form onSubmit={event => { event.preventDefault(); void runAuthAction(() => signIn(event), "sign-in"); }}>
           <label>Email address<input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
           <label>Private PIN<input type="password" inputMode="numeric" autoComplete="current-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
+          <RememberDeviceOption checked={rememberDevice} onChange={setRememberDevice} />
           {message ? <p className="login-message" role="status">{message}</p> : null}
           <button className="login-primary" type="submit" disabled={actionPending}>Sign in</button>
         </form>

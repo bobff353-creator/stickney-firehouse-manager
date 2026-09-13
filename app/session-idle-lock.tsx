@@ -3,6 +3,8 @@
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 import { getSupabaseBrowserClient } from "./supabase-browser";
 import { latestSessionActivity, sessionActivityKey, sessionIsIdle } from "./session-activity";
+import { rememberedDeviceRemainingMs } from "./remember-device";
+import RememberDeviceOption from "./remember-device-option";
 
 const inactivityLimitMs = 30 * 60 * 1000;
 const unlockRefreshThrottleMs = 60 * 1000;
@@ -21,6 +23,7 @@ export default function SessionIdleLock({
 }) {
   const [locked, setLocked] = useState(false);
   const [pin, setPin] = useState("");
+  const [rememberDevice, setRememberDevice] = useState(false);
   const [message, setMessage] = useState("");
   const [stationDisplay, setStationDisplay] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
@@ -46,6 +49,7 @@ export default function SessionIdleLock({
     let unlockRefreshTimer: number | undefined;
     let disposed = false;
     let refreshInFlight = false;
+    let rememberedDeadline = 0;
     const readActivity = () => {
       try { lastActivity = latestSessionActivity(lastActivity, window.localStorage.getItem(sessionActivityKey), Date.now()); } catch { /* This tab still tracks activity if storage is blocked. */ }
       return lastActivity;
@@ -59,26 +63,36 @@ export default function SessionIdleLock({
       if (stationDisplay && !force) return;
       setLocked(true);
       setPin("");
+      setRememberDevice(false);
       setMessage(force
         ? stationDisplay ? "The secure display lease ended. Enter your PIN to reconnect the board." : "Your secure session needs verification. Enter your PIN to continue."
         : "The app locked after 30 minutes without activity. Your unfinished work is still here.");
       void fetch("/api/auth/pin", { method: "DELETE" }).catch(() => undefined);
     };
-    const refreshUnlock = async () => {
+    const refreshUnlock = async (checkIdle = false) => {
       if (disposed || refreshInFlight) return;
       refreshInFlight = true;
       lastUnlockRefresh = Date.now();
       const response = await fetch("/api/auth/pin", {
         method: "PATCH",
         cache: "no-store",
+        signal: AbortSignal.timeout(8_000),
         keepalive: true,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ display: stationDisplay ? "tv" : "portal" }),
       }).catch(() => null);
+      if (!disposed && response?.ok) {
+        const status = await response.json().catch(() => ({}));
+        const remaining = rememberedDeviceRemainingMs(status);
+        rememberedDeadline = remaining ? Date.now() + remaining : 0;
+      }
       refreshInFlight = false;
       if (!disposed && (response?.status === 423 || response?.status === 401)) lock(true);
+      else if (!disposed && checkIdle && !rememberedDeadline && !stationDisplay
+        && sessionIsIdle(readActivity(), Date.now(), inactivityLimitMs)) lock();
     };
     const scheduleUnlockRefresh = () => {
+      if (rememberedDeadline) return; // No activity-based extension of a seven-day lease.
       if (unlockRefreshTimer !== undefined) return;
       const delay = Math.max(0, unlockRefreshThrottleMs - (Date.now() - lastUnlockRefresh));
       unlockRefreshTimer = window.setTimeout(() => {
@@ -86,17 +100,30 @@ export default function SessionIdleLock({
         void refreshUnlock();
       }, delay);
     };
+    const shouldStopForLock = () => {
+      if (rememberedDeadline) {
+        if (Date.now() >= rememberedDeadline) { lock(true); return true; }
+        return false;
+      }
+      if (!stationDisplay && sessionIsIdle(readActivity(), Date.now(), inactivityLimitMs)) {
+        // A different tab may have just remembered this browser. Check the shared
+        // server cookie before deleting it because of this tab's older idle state.
+        void refreshUnlock(true);
+        return true;
+      }
+      return false;
+    };
     const recordActivity = () => {
-      if (!stationDisplay && sessionIsIdle(readActivity(), Date.now(), inactivityLimitMs)) { lock(); return; }
+      if (shouldStopForLock()) return;
       lastActivity = Date.now();
       scheduleUnlockRefresh();
       shareActivity();
     };
     const checkInactivity = () => {
-      if (!stationDisplay && sessionIsIdle(readActivity(), Date.now(), inactivityLimitMs)) lock();
+      shouldStopForLock();
     };
     const checkVisibility = () => {
-      if (!stationDisplay && sessionIsIdle(readActivity(), Date.now(), inactivityLimitMs)) { lock(); return; }
+      if (shouldStopForLock()) return;
       // Leaving a screen starts the background grace period; returning within it is activity.
       recordActivity();
       if (unlockRefreshTimer !== undefined) { window.clearTimeout(unlockRefreshTimer); unlockRefreshTimer = undefined; }
@@ -135,7 +162,7 @@ export default function SessionIdleLock({
     const response = await fetch("/api/auth/pin", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "verify", pin }),
+      body: JSON.stringify({ action: "verify", pin, rememberDevice }),
     });
     const payload = await response.json().catch(() => ({})) as { error?: string };
     if (!response.ok) {
@@ -159,8 +186,8 @@ export default function SessionIdleLock({
       return;
     }
     clearAccessCache();
-    await fetch("/api/auth/pin", { method: "DELETE" }).catch(() => undefined);
-    await getSupabaseBrowserClient().auth.signOut();
+    await fetch("/api/auth/pin", { method: "DELETE", signal: AbortSignal.timeout(8_000) }).catch(() => undefined);
+    await getSupabaseBrowserClient().auth.signOut({ scope: "local" });
     window.location.assign("/");
   }
 
@@ -172,9 +199,10 @@ export default function SessionIdleLock({
           <span className="login-app-mark" aria-hidden="true">SFD</span>
           <p className="login-eyebrow">APP LOCKED · WORK PRESERVED</p>
           <h1 id="session-lock-title">Enter your portal PIN</h1>
-          <p>Your task and screen remain open behind this lock. The portal uses a 30-minute inactivity limit, including time in the background.</p>
+          <p>Your task and screen remain open behind this lock. Unless you remember a personal device, the portal locks after 30 minutes without activity.</p>
           <form onSubmit={unlock}>
             <label>Portal PIN<input autoFocus type="password" inputMode="numeric" autoComplete="current-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
+            <RememberDeviceOption checked={rememberDevice} onChange={setRememberDevice} />
             {message ? <p className="login-message" role="status">{message}</p> : null}
             <button className="login-primary" type="submit" disabled={unlocking}>{unlocking ? "Unlocking…" : "Unlock and continue"}</button>
           </form>

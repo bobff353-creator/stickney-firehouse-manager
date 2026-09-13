@@ -5,6 +5,7 @@ import { createPostgresD1Adapter } from "../../../../db/postgres-adapter";
 import { derivePortalPassword } from "../../../lib/portal-pin-password";
 import { getPublicSupabaseConfig } from "../../../supabase-config";
 import { getSupabaseSystemClient } from "../../../supabase-system";
+import { rememberedCookieSeconds } from "../../../remember-device";
 
 const pinCookie = "__Secure-firehouse-pin";
 const unlockSeconds = 30 * 60;
@@ -36,7 +37,8 @@ function cleanSecret(value: string | undefined) {
 }
 
 export async function POST(request: Request) {
-  const payload = await request.json().catch(() => ({})) as { email?: unknown; pin?: unknown };
+  const payload = await request.json().catch(() => ({})) as { email?: unknown; pin?: unknown; rememberDevice?: unknown };
+  const rememberDevice = payload.rememberDevice === true;
   const email = String(payload.email ?? "").trim().toLowerCase();
   const pin = String(payload.pin ?? "").trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !/^\d{4,6}$/.test(pin)) {
@@ -99,11 +101,21 @@ export async function POST(request: Request) {
     }
   }
 
-  const { data: verified, error: verifyError } = await client.rpc("verify_portal_pin", { p_pin: pin });
-  const result = Array.isArray(verified) ? verified[0] as { ok?: boolean; unlock_token?: string } | undefined : undefined;
+  const { data: verified, error: verifyError } = rememberDevice
+    ? await client.rpc("verify_portal_pin_with_device", { p_pin: pin, p_department_id: departmentId })
+    : await client.rpc("verify_portal_pin", { p_pin: pin });
+  const result = Array.isArray(verified) ? verified[0] as { ok?: boolean; unlock_token?: string; remembered_until?: string } | undefined : undefined;
   if (verifyError || !result?.ok || !result.unlock_token) {
     await recordLoginAudit("unlock_failure");
-    return Response.json({ error: "The PIN could not unlock department records." }, { status: 401 });
+    return Response.json({ error: verifyError && rememberDevice
+      ? "Remember this device is unavailable. Try again, or sign in with the option unchecked."
+      : "The PIN could not unlock department records." }, { status: verifyError && rememberDevice ? 503 : 401 });
+  }
+
+  const maxAge = rememberDevice ? rememberedCookieSeconds(result.unlock_token, result.remembered_until) : unlockSeconds;
+  if (!maxAge) {
+    await recordLoginAudit("unlock_failure");
+    return Response.json({ error: "Remember this device could not be enabled. Try again, or sign in with the option unchecked." }, { status: 503 });
   }
 
   await recordLoginAudit("success");
@@ -117,7 +129,7 @@ export async function POST(request: Request) {
     secure: true,
     sameSite: "lax",
     path: "/",
-    maxAge: unlockSeconds,
+    maxAge,
   });
   return response;
 }

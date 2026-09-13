@@ -35,7 +35,9 @@ test('direct board URLs and automatic call overlay require current visible acces
  const app=fs.readFileSync(new URL('../app/payroll-app.tsx',import.meta.url),'utf8');
  assert.match(app,/activeNav === "Operations Board" && visibleNav.includes\("Operations Board"\) && <OperationsBoard/);
  assert.match(app,/respondAlertCallId && activeNav === "Operations Board" && visibleNav.includes\("Operations Board"\) && visibleNav.includes\("Respond"\)/);
- assert.match(app,/"Road Closures": "road_closures.view"/);
+ assert.match(app,/import \{[^\n]*navPermission[^\n]*\} from "\.\/portal-menu-items"/);
+ const menu=fs.readFileSync(new URL('../app/portal-menu-items.ts',import.meta.url),'utf8');
+ assert.match(menu,/"Road Closures": "road_closures.view"/);
  const board=fs.readFileSync(new URL('../app/operations-board.tsx',import.meta.url),'utf8');
  assert.match(board,/if \(controller.signal.aborted\) return/);
  assert.match(board,/loadControllerRef.current\?\.abort\(\)/);
