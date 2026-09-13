@@ -8,6 +8,7 @@ import { serviceDateLabel, serviceReminders, serviceScheduleInput } from "./inve
 import { FormEvent, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { inventoryPreviewItems } from "./inventory-preview";
+import { useWorkspaceViewState } from "./workspace-view-state";
 import InventoryAirSystems from "./inventory-air-systems";
 import { airCheckLines } from "./inventory-air-checks";
 import type { IScannerControls } from "@zxing/browser";
@@ -351,6 +352,7 @@ export default function InventoryOperations({
   canSetup = false,
   onRepairs = onSetup,
   onAir = onSetup,
+  onReports,
 }: {
   view: OperationsView;
   onSetup: () => void;
@@ -363,11 +365,13 @@ export default function InventoryOperations({
   canSetup?: boolean;
   onRepairs?: () => void;
   onAir?: () => void;
+  onReports?: () => void;
 }) {
   const [data, setData] = useState<OperationsData>(emptyData);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
+  const [submittedCheck, setSubmittedCheck] = useState(false);
   const [error, setError] = useState("");
   const [itemSaveError, setItemSaveError] = useState<{ name: string; message: string } | null>(null);
   const itemSavePending = useRef(false);
@@ -388,16 +392,16 @@ export default function InventoryOperations({
   const [editingEquipment, setEditingEquipment] = useState<Row | null>(null);
   const [selectedDirectoryEquipment, setSelectedDirectoryEquipment] = useState<Row | null>(null);
   const [scannerTarget, setScannerTarget] = useState<"create" | "edit" | "search">("create");
-  const [equipmentSearch, setEquipmentSearch] = useState("");
-  const [equipmentRigFilter, setEquipmentRigFilter] = useState("all");
-  const [equipmentSort, setEquipmentSort] = useState<"rig" | "name" | "compartment" | "status">("rig");
+  const [equipmentSearch, setEquipmentSearch] = useWorkspaceViewState("equipment-search", "");
+  const [equipmentRigFilter, setEquipmentRigFilter] = useWorkspaceViewState("equipment-rig", "all");
+  const [equipmentSort, setEquipmentSort] = useWorkspaceViewState<"rig" | "name" | "compartment" | "status">("equipment-sort", "rig");
   const [repairEquipment, setRepairEquipment] = useState<Row | null>(null);
   const [setupSearch, setSetupSearch] = useState("");
   const [builderTask, setBuilderTask] = useState("items");
   const [showAllTemplateItems, setShowAllTemplateItems] = useState(false);
   const [refreshError, setRefreshError] = useState("");
   const [templateType, setTemplateType] = useState("inventory");
-  const [unitSearch, setUnitSearch] = useState("");
+  const [unitSearch, setUnitSearch] = useWorkspaceViewState("check-unit-search", "");
   const [editorSection, setEditorSection] = useState("basics");
   const directorySummaryRef = useRef<HTMLElement>(null);
   const builderTopRef = useRef<HTMLElement>(null);
@@ -467,7 +471,7 @@ export default function InventoryOperations({
     fill("model", scan.model);
     fill("serialNumber", scan.serialNumber);
     fill("barcode", scan.barcode);
-  }, [scannerTarget]);
+  }, [scannerTarget, setEquipmentSearch]);
 
   useEffect(() => {
     if (!scannerOpen || !scannerVideoRef.current) return;
@@ -668,6 +672,7 @@ export default function InventoryOperations({
       const result = await response.json().catch(() => ({})) as { error?: string };
       if (!response.ok) throw new Error(result.error || "The change could not be saved.");
       const refreshed = await load({ background: view === "air" });
+      if (payload.action === "complete_check") setSubmittedCheck(true);
       const confirmations: Record<string, string> = {
         create_notice: "Repair notice saved with the selected assignees. Follow it in All repair records.",
         create_work_order: "Work order opened. Follow progress and add service documents in Maintenance history.",
@@ -1085,6 +1090,7 @@ export default function InventoryOperations({
   return (
     <div className="inventory-ops">
       {message ? <div className="ops-message" role="status">{message}</div> : null}
+      {submittedCheck && onReports && <div className="ops-message"><strong>Submitted · awaiting administrator review</strong><p>Submission is not approval. Review the saved report and its status next.</p><button type="button" onClick={onReports}>View saved reports →</button></div>}
       {error ? <div className="ops-message ops-error" role="alert">{error}</div> : null}
       {refreshError ? <div className="ops-message ops-error" role="alert">Live refresh unavailable. Previously loaded records may be out of date. {refreshError} <button type="button" onClick={() => void load()}>Retry refresh</button></div> : null}
       {view === "air" ? <InventoryAirSystems data={data} busy={Boolean(busy)} canSetup={canSetup} canManageRepairs={canManageRepairs} canCheck={canCheck} onSave={action} onOpenCheck={id => onOpenUnit?.(id, "air_pack")} onRepairs={onRepairs}
@@ -1320,7 +1326,7 @@ export default function InventoryOperations({
                 <button type="button" disabled={Boolean(busy)} onClick={() => void load({ background: true })}>Refresh crew progress</button>
               </div>
               <div className="active-inspection-title">
-                <span>{formatStatus(activeCheck.check_type)} inspection in progress</span>
+                <span>{selectedApparatus ? value(selectedApparatus, "name") : "Apparatus"} · {formatStatus(activeCheck.check_type)} inspection in progress</span>
                 <small>Shared department inspection · updates refresh every 5 seconds{lastSyncedAt ? ` · synced ${formatDate(lastSyncedAt)}` : ""}</small>
                 <small>Work one location at a time. Passed items leave the Pending view immediately; issues still require notes and a photo.</small>
               </div>
@@ -1379,10 +1385,12 @@ export default function InventoryOperations({
                     <div className="check-location-items">{items.map(item => renderActiveItem(item))}</div>
                   </section>
                 );
-              }) : <div className="ops-empty check-filter-empty"><strong>No items match these filters</strong><p>Change the search, status, or location to see more checklist items.</p><button type="button" onClick={() => { setCheckSearch(""); setCheckResultFilter("pending"); setCheckCompartmentFilter("all"); }}>Clear filters</button></div>}
+              }) : <div className="ops-empty check-filter-empty"><strong>{!pendingItems && activeChecklistRows.length ? "All items have a saved result" : "No items match these filters"}</strong><p>{!pendingItems && activeChecklistRows.length ? "Review your results, then submit this check for administrator review below." : "Change the search, status, or location to see more checklist items."}</p><button type="button" onClick={() => { setCheckSearch(""); setCheckResultFilter(!pendingItems ? "all" : "pending"); setCheckCompartmentFilter("all"); }}>{!pendingItems && activeChecklistRows.length ? "Review all results" : "Clear filters"}</button></div>}
               </>}
               <div className="check-completion-bar">
                 <div><strong>{pendingItems ? `${pendingItems} items still need a result` : "Ready for administrator review"}</strong><small>{pendingItems ? "Finish the remaining locations before completing this inspection." : "Submitting creates a printable report and sends this check to the approval queue."}</small></div>
+                {pendingItems > 0 && <button type="button" onClick={() => { setCheckSearch(""); setCheckResultFilter("pending"); setCheckCompartmentFilter("all"); window.requestAnimationFrame(() => document.querySelector<HTMLElement>(".check-row.result-pending, .scba-check-worklist")?.scrollIntoView({ block: "center", behavior: "smooth" })); }}>Show remaining items ↑</button>}
+                {!canCheck && <span role="status">Check permission is required to record or submit results.</span>}
                 <button className="ops-primary" disabled={Boolean(busy) || pendingItems > 0 || !canCheck} onClick={() => void action("complete", { action: "complete_check", checkId: value(activeCheck, "id") })}>Submit {formatStatus(activeCheck.check_type)} check</button>
               </div>
             </div>

@@ -31,8 +31,8 @@ export default function AdminTools({ page, permissions, allowedPages, onNavigate
   const here = tasks.filter(task => task.page === page);
   return <aside className="admin-tools no-print" aria-label="Administration tools">
     <button type="button" className="quiet-button" onClick={() => { setSearch(""); dialog.current?.showModal(); }}>Admin tools · Find what to edit</button>
-    {here.length > 0 && <details className="admin-help" key={page}><summary>Editing this area</summary>{here.map(task => <div key={task.id}><strong>{task.title}</strong><p>{task.steps}</p><small><b>Check the result:</b> {task.preview}</small></div>)}</details>}
-    {sourceNotes[page] && <details className="admin-help" key={`${page}-source`}><summary>Where to make changes</summary><p>{sourceNotes[page]}</p></details>}
+    {here.length > 0 && <details className="admin-help" key={page}><summary>Edit this area · {here.length} tasks</summary>{here.map(task => <div key={task.id}><button type="button" className="admin-direct-edit" onClick={() => onNavigate(task.page, { adminTask: task.id })}>{task.title} →</button><p>{task.steps}</p><small><b>Save, then review:</b> {task.preview}</small></div>)}</details>}
+    {page !== "Dashboard" && sourceNotes[page] && <details className="admin-help" key={`${page}-source`}><summary>Where to make changes</summary><p>{sourceNotes[page]}</p></details>}
     <dialog ref={dialog} className="admin-task-dialog" aria-labelledby="admin-task-title" onClick={event => { if (event.target === dialog.current) dialog.current?.close(); }}>
       <header><div><h2 id="admin-task-title">What do you want to change?</h2><p>Only tools allowed for your account appear here.</p></div><button type="button" className="quiet-button" onClick={() => dialog.current?.close()} aria-label="Close admin tools">Close</button></header>
       <label className="admin-task-search">Find an admin task<input autoFocus type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Try member, checklist, rates, reminders…" /></label>

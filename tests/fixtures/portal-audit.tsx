@@ -88,6 +88,15 @@ const payloads: Record<string, unknown> = {
   },
 };
 payloads["/api/logbook"] = payloads["/api/daily-log"];
+if (params.has('seven-ux')) {
+  const nextDay = new Date(`${date}T12:00:00Z`); nextDay.setUTCDate(nextDay.getUTCDate()+1);
+  const day = nextDay.toISOString().slice(0,10);
+  Object.assign(payloads['/api/station-scheduler'] as object, {
+    shiftTypes:[{id:'fixture-type',name:'Fictional day crew',startTime:'06:00',endTime:'18:00',anchorDate:day,repeatEveryDays:1,color:'blue',active:1,sortOrder:0}],
+    entries:[{id:'fixture-entry',entryDate:day,shiftTypeId:'fixture-type'}],
+    slots:[{id:'fixture-own',entryId:'fixture-entry',entryDate:day,shiftTypeId:'fixture-type',role:'FF/Attendant',employeeId:employee.id,employeeName:employee.name,status:'filled',startTime:'06:00',endTime:'18:00',sortOrder:0,isExtra:0,hasTimeOverride:0}],
+  });
+}
 if(params.has('reminders'))Object.assign(payloads['/api/station-scheduler'] as object,{pushConfigured:true,requestDeadlines:[],reminderRules:[['open_shift_blast','Open shift blasts'],['shift_request','Shift request updates'],['request_deadline','Response deadline reminders']].map(([type,label])=>({id:type,type,label,offsets:'["immediate","2 days before"]',enabled:1,pushEnabled:0,emailEnabled:1,textEnabled:0,target:''})),slots:[{id:'fixture-slot',entryId:'fixture-entry',entryDate:date,shiftTypeId:'fixture-type',role:'FF/Attendant',employeeId:null,status:'open',startTime:'23:00',endTime:'06:00',sortOrder:0,isExtra:0,hasTimeOverride:0}]});
 if (params.has("preplan-capture")) {
   // Exercise a real focused editor with a full-width message, not just the list.
@@ -117,16 +126,29 @@ if (params.has("active-command")) {
 const previewPhoto='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="650"><rect width="1000" height="650" fill="#c9e4ef"/><rect y="460" width="1000" height="190" fill="#6d8a69"/><rect x="160" y="180" width="680" height="320" fill="#c0a28a"/><path d="M120 180L500 55L880 180Z" fill="#586575"/><rect x="460" y="320" width="100" height="180" fill="#30465b"/><rect x="240" y="260" width="120" height="100" fill="#9dc8dc"/><rect x="640" y="260" width="120" height="100" fill="#9dc8dc"/><text x="500" y="610" text-anchor="middle" fill="#fff" font-size="30">FICTIONAL PREVIEW - NOT OPERATIONAL</text></svg>');
 const previewPlan={id:'fixture-preplan',businessName:'Fictional Training Building',address:'Preview address, Stickney, Illinois 60402',latitude:41.8189,longitude:-87.7734,aSideLatitude:null,aSideLongitude:null,footprint:[{lat:41.8188,lng:-87.7735},{lat:41.819,lng:-87.7735},{lat:41.819,lng:-87.7732},{lat:41.8188,lng:-87.7732}],contactInfo:'',construction:'Fictional construction notes',accessInfo:'Fictional access notes',alarmSystem:'Monitored alarm',knoxBox:'Exterior Knox Box',riser:'Wet',fdc:'Siamese / two-way',sprinklerSystem:'Wet',floorCount:1,footprintSquareFeet:9000,fireFlowCalculationArea:9000,constructionType:'III',occupancyFlowCategory:'other',sprinklerStandard:'nfpa13',suggestedFireFlowGpm:1500,suggestedFireFlowDuration:2,status:'Quick Preplan',updatedAt:now,updatedBy:'Preview only',features:[],photos:['A','B','C','D'].map(side=>({id:`fixture-photo-${side}`,side,filename:'fictional.svg',caption:`Fictional ${side} side`,url:previewPhoto,illustrations:[],illustrationVersion:0}))};
 let preplanFixture=previewPlan;
+let failPreplanReadback=false;
 if(params.has('preplan-workflow')){
   try{preplanFixture=JSON.parse(sessionStorage.getItem('preplan-workflow-fixture')||'null')||previewPlan;}catch{/* Fresh fixture. */}
   payloads['/api/field-preplans']={preplans:[preplanFixture],imports:[],canEdit:isAdmin,canManageAttachments:isAdmin&&!params.has('no-photo-edit'),canDelete:isAdmin};
   payloads['/api/field-preplans/operational']={plan:{id:preplanFixture.id,publicationStatus:'published',businessName:preplanFixture.businessName,constructionProfile:{},occupancyProfile:{}},levels:[],spaces:[],alerts:[],hazmat:[],zones:[],annotations:[],assets:[],hoseLays:[],hydrants:[],apparatus:[],risks:[],reviews:[],revisions:[],permissions:Object.fromEntries(defaultPermissionsForRank('Chief',isAdmin).map(key=>[key,true]))};
 }
 const savePreplanFixture=()=>{sessionStorage.setItem('preplan-workflow-fixture',JSON.stringify(preplanFixture));(payloads['/api/field-preplans'] as {preplans:typeof previewPlan[]}).preplans=[preplanFixture];};
-Object.assign(window,{preplanAudit:{reset(){sessionStorage.removeItem('preplan-workflow-fixture');},conflict(){preplanFixture.photos[0].illustrationVersion++;savePreplanFixture();},plan:()=>preplanFixture}});
+Object.assign(window,{preplanAudit:{reset(){sessionStorage.removeItem('preplan-workflow-fixture');},failReadback(){failPreplanReadback=true;},conflict(){preplanFixture.photos[0].illustrationVersion++;savePreplanFixture();},plan:()=>preplanFixture}});
 window.fetch = async (input, init) => {
   const url = new URL(String(input), location.origin);
   const method = init?.method ?? "GET";
+  if(failPreplanReadback&&method==='GET'&&url.pathname==='/api/field-preplans'){failPreplanReadback=false;return Response.json({error:'Simulated saved-record reload failure'},{status:503});}
+  if(params.has('seven-ux') && url.pathname==='/api/station-scheduler' && method==='POST') {
+    writes++;
+    if(failWrite){failWrite=false;return Response.json({error:'Simulated failed trade save. Nothing was posted.'},{status:503});}
+    const body=JSON.parse(String(init?.body||'{}'));
+    const scheduler=payloads[url.pathname] as {trades:object[];slots:Array<{id:string;role:string;entryDate:string}>};
+    if(body.action!=='submitTrade')return Response.json({error:'Fixture blocks this mutation'},{status:409});
+    const slot=scheduler.slots.find(slot=>slot.id===body.slotId);
+    if(!slot)return Response.json({error:'Fixture shift missing'},{status:400});
+    scheduler.trades.push({id:'fixture-posted-trade',slotId:slot.id,returnSlotId:null,role:slot.role,fromEmployeeId:employee.id,fromEmployeeName:employee.name,targetEmployeeId:null,acceptedByEmployeeId:null,note:body.note,status:'pending',entryDate:slot.entryDate,createdAt:now});
+    return Response.json({ok:true,note:'Trade posted — waiting for member acceptance. Calendar unchanged until administrator approval.'});
+  }
   if(params.has('preplan-workflow')&&method==='GET'&&url.pathname.endsWith('/illustrations')){
     const photo=preplanFixture.photos.find(photo=>url.pathname.includes(`/${photo.id}/`));
     return photo?Response.json({id:photo.id,caption:photo.caption,illustrations:photo.illustrations,illustrationVersion:photo.illustrationVersion}):Response.json({error:'Not found'},{status:404});

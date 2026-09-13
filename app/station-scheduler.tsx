@@ -4,6 +4,8 @@ import "./scheduler-member.css";
 import { schedulerAdminTask } from "./admin-tasks";
 import { reminderTimings, reminderAudience, reminderExplanation } from "./scheduler-reminders";
 import { RequiredConfirmationAdmin } from './required-confirmation';
+import { useWorkspaceViewState } from './workspace-view-state';
+import { confirmLeavingWork, useUnsavedWork } from './use-unsaved-work';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { normalizeScheduleTime, scheduleTimeBlocks } from "./schedule-time";
@@ -106,13 +108,16 @@ const employeeEligibleForRole = (employee: Employee, role: string) => {
 export default function StationScheduler({ testMember = null }: { testMember?: TestMember | null }) {
   void testMember;
   const [data, setData] = useState<Data | null>(null);
-  const [tab, setTabState] = useState("myshifts");
+  const [tab, setTabState] = useWorkspaceViewState("scheduler-tab", "myshifts");
+  const [previewMember, setPreviewMember] = useState(false);
+  const previewReturn = useRef("overview");
   const navigationRef = useRef<HTMLDivElement>(null);
   const navigationRequested = useRef(false);
   const setTab = useCallback((next: string) => {
+    if (!confirmLeavingWork()) return;
     navigationRequested.current = true;
     setTabState(next);
-  }, []);
+  }, [setTabState]);
   useEffect(() => {
     if (!navigationRequested.current) return;
     navigationRequested.current = false;
@@ -120,7 +125,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
       navigationRef.current?.scrollIntoView({ block: "start", behavior: "instant" });
     }
   }, [tab]);
-  const [schedulerView, setSchedulerView] = useState<"admin" | "employee">("employee");
+  const [schedulerView, setSchedulerView] = useWorkspaceViewState<"admin" | "employee">("scheduler-view", "employee");
   const adminDestinationApplied = useRef(false);
   useEffect(() => {
     if (!data || adminDestinationApplied.current) return;
@@ -129,12 +134,12 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
     if (!testMember && data.viewer.isAdmin && schedulerAdminTask(requested)) {
       setSchedulerView("admin");
       setTab(requested);
-    }
-  }, [data, testMember, setTab]);
+    } else if (requested === "calendar") setTab("calendar");
+  }, [data, testMember, setTab, setSchedulerView]);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(todayIso());
+  const [selectedDate, setSelectedDate] = useWorkspaceViewState("scheduler-date", todayIso);
   const [tradeSlotId, setTradeSlotId] = useState("");
   const [loadedAt, setLoadedAt] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -158,12 +163,13 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
   useEffect(() => { void load(); }, [load]);
 
   const act = useCallback(async (body: Record<string, unknown>) => {
+    if (previewMember || testMember) { setError("Read-only preview. Return to editing before making changes."); return null; }
     setBusy(true); setError(""); setNotice("");
     try {
       const response = await fetch("/api/station-scheduler", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? "Unable to save.");
-      setNotice(payload.note ? String(payload.note) : ["submitClaim", "createTrade", "acceptTrade"].includes(String(body.action)) ? "Saved. Check My Requests for request status; requests are not assignments until approved." : "Saved successfully.");
+      setNotice(payload.note ? String(payload.note) : ["submitClaim", "submitTrade", "respondTrade", "createTrade", "acceptTrade"].includes(String(body.action)) ? "Saved. Check My Requests for request status; requests are not assignments until approved." : "Saved successfully.");
       await load();
       return payload;
     } catch (actError) {
@@ -172,7 +178,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
     } finally {
       setBusy(false);
     }
-  }, [load]);
+  }, [load, previewMember, testMember]);
 
   const employeeName = useCallback((id: string | null | undefined) => data?.employees.find((e) => e.id === id)?.name ?? "", [data]);
   const shiftTypeName = useCallback((id: string) => data?.shiftTypes.find((s) => s.id === id)?.name ?? "", [data]);
@@ -181,7 +187,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
   if (!data) return <div className="scheduler"><p>Loading the scheduler…</p></div>;
 
   const accountIsAdmin = data.viewer.isAdmin;
-  const isAdmin = accountIsAdmin && schedulerView === "admin";
+  const isAdmin = accountIsAdmin && schedulerView === "admin" && !previewMember;
   const adminTabs = [
     ["overview", "Admin home"], ["openAdmin", "Open positions"],
     ["calendar", "Calendar"], ["shiftTypes", "Shift Builder"], ["roster", "Roster & Assignments"],
@@ -194,6 +200,13 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
     ["myrequests", "My Requests"], ["calendar", "Calendar"],
   ] as const;
   const tabs = isAdmin ? adminTabs : employeeTabs;
+  const taskGroups = [
+    { label: "Daily staffing", ids: ["overview", "openAdmin", "calendar", "availability"] },
+    { label: "Requests & trades", ids: ["requests", "trades"] },
+    { label: "Schedule setup", ids: ["shiftTypes", "roster", "distribution", "reminders", "confirmation"] },
+  ];
+  const activeGroup = taskGroups.find(group => group.ids.includes(tab)) ?? taskGroups[0];
+  const visibleTabs = isAdmin ? tabs.filter(([id]) => activeGroup.ids.includes(id)) : tabs;
 
   return (
     <div className="scheduler">
@@ -206,23 +219,28 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
         <button type="button" className="link" disabled={refreshing || busy} onClick={() => void load()}>{refreshing ? "Refreshing…" : "Refresh schedule"}</button>
       </header>
       <div className="scheduler-view-bar" aria-label="Choose scheduler view">
-        {accountIsAdmin && <button type="button" className={isAdmin ? "current" : ""} aria-pressed={isAdmin} title="Open administrator scheduling tools" onClick={() => { setSchedulerView("admin"); setTab("overview"); }}>Admin</button>}
-        <button type="button" className={!isAdmin ? "current" : ""} aria-pressed={!isAdmin} onClick={() => { setSchedulerView("employee"); setTab("myshifts"); }}>My Schedule</button>
+        {accountIsAdmin && <button type="button" className={isAdmin ? "current" : ""} aria-pressed={isAdmin} title="Open administrator scheduling tools" onClick={() => { if (!confirmLeavingWork()) return; setSchedulerView("admin"); navigationRequested.current = true; setTabState("overview"); setPreviewMember(false); }}>Admin</button>}
+        <button type="button" className={!isAdmin ? "current" : ""} aria-pressed={!isAdmin} onClick={() => { if (!confirmLeavingWork()) return; setSchedulerView("employee"); navigationRequested.current = true; setTabState("myshifts"); setPreviewMember(false); }}>My Schedule</button>
         <strong>{data.viewer.name || "Department member"}</strong>
+        {isAdmin && <button type="button" className="scheduler-preview-button" disabled={busy || refreshing || Boolean(error)} title={error ? "Reload the saved schedule before previewing." : "Preview the last successfully loaded schedule without changing it."} onClick={() => { if (!confirmLeavingWork()) return; previewReturn.current = tab; setPreviewMember(true); setTabState("calendar"); }}>Preview member layout</button>}
       </div>
+      {previewMember && <div className="workspace-preview-banner" role="status"><div><strong>Member layout preview · read only</strong><p>Saved schedule for {friendlyDate(selectedDate)}. This does not sign in as another member or test their permissions. No requests or assignments can be saved here.</p></div><button type="button" onClick={() => { setPreviewMember(false); setSchedulerView("admin"); setTabState(previewReturn.current); }}>← Back to editing</button></div>}
       <p className="muted">{error ? "Schedule could not be confirmed. Refresh before relying on these assignments." : `Last loaded ${loadedAt} Central time. Refresh to check for changes.`}</p>
-      {error && <p className="error" role="alert">{error}</p>}
-      {notice && <p className="success" role="status">{notice}</p>}
+      {error && <div className="error" role="alert"><p>{error}</p><p>Your unsaved inputs stay on this screen. Review the message, then retry the action.</p><button type="button" disabled={refreshing || busy} onClick={() => void load()}>Retry loading saved schedule</button></div>}
+      {notice && <div className="success" role="status"><p>{notice}</p>{!isAdmin && !previewMember && <button type="button" onClick={() => setTab("myrequests")}>View my request status →</button>}</div>}
       <div ref={navigationRef} className="scheduler-navigation-anchor">
+      {isAdmin && <nav className="scheduler-task-groups" aria-label="Scheduling task groups">{taskGroups.map(group => <button type="button" key={group.label} aria-pressed={group === activeGroup} onClick={() => setTab(group.ids[0])}>{group.label}</button>)}</nav>}
       <label className="scheduler-mobile-picker"><span>{isAdmin ? "Admin tools" : "Scheduling"}</span><select aria-label="Choose scheduling screen" value={tab} onChange={(event) => setTab(event.target.value)}>
-        {(isAdmin ? adminTabs : employeeTabs).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+        {visibleTabs.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
       </select></label>
       <nav className={`scheduler-tabs${!isAdmin ? " scheduler-member-tabs" : " scheduler-admin-tabs"}`} aria-label="Scheduling tasks">
-        {tabs.map(([id, label]) => (
+        {visibleTabs.map(([id, label]) => (
           <button key={id} aria-current={tab === id ? "page" : undefined} className={tab === id ? "current" : ""} onClick={() => setTab(id)}>{label}</button>
         ))}
       </nav>
       </div>
+      {tab !== (isAdmin ? "overview" : "myshifts") && !previewMember && <div className="scheduler-task-context"><button type="button" onClick={() => setTab(isAdmin ? "overview" : "myshifts")}>← Back to {isAdmin ? "schedule tasks" : "my shifts"}</button><strong>{tabs.find(([id]) => id === tab)?.[1]}{tab === "calendar" ? ` · ${friendlyDate(selectedDate)}` : ""}</strong></div>}
+      <fieldset className="scheduler-workspace-fields" disabled={previewMember || Boolean(testMember)}>
 
       {isAdmin && tab === "overview" && <section className="scheduler-admin-home">
         <h3>What do you need to do?</h3>
@@ -254,6 +272,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
       {tab === "confirmation" && isAdmin && <RequiredConfirmationAdmin />}
       {tab === "myrequests" && !isAdmin && <MyRequestsScreen data={data} act={act} busy={busy} />}
       {tab === "otlist" && !isAdmin && <OtListScreen data={data} act={act} busy={busy} />}
+      </fieldset>
     </div>
   );
 }
@@ -332,8 +351,8 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
   const [rotationIndex, setRotationIndex] = useState(0);
   const [rotationPaused, setRotationPaused] = useState(false);
   const [dayViewOpen, setDayViewOpen] = useState(false);
-  const [adminDayMode, setAdminDayMode] = useState(isAdmin);
-  const [calendarScope, setCalendarScope] = useState("mine");
+  const [adminDayMode, setAdminDayMode] = useWorkspaceViewState("scheduler-day-mode", isAdmin);
+  const [calendarScope, setCalendarScope] = useWorkspaceViewState("scheduler-calendar-scope", "mine");
   const showAllSchedule = isAdmin || calendarScope === "all";
   const myId = data.viewer.employeeId;
   const activeShiftIds = useMemo(() => new Set(data.shiftTypes.filter((shift) => shift.active).map((shift) => shift.id)), [data.shiftTypes]);
@@ -566,6 +585,7 @@ function AssignmentEditor({ slot, employees, unavailableIds, act, busy }: {
   const saved = slot.employeeId ?? "";
   const [selected, setSelected] = useState(saved);
   const changed = selected !== saved;
+  useUnsavedWork(changed, changed && busy);
   return <div className="scheduler-assignment-editor">
     <label className="scheduler-employee-select"><span>Assigned employee</span>
       <select aria-label={`Assigned employee for ${slot.role}`} disabled={busy} value={selected} onChange={(event) => setSelected(event.target.value)}>
@@ -758,7 +778,7 @@ function RosterScreen({ data, act, busy, shiftTypeName }: { data: Data; act: (b:
         <label className="wide"><span>Member</span><select value={standEmp} onChange={(e) => { setStandEmp(e.target.value); setStandRole(""); }}><option value="">Select…</option>{data.employees.filter((e) => parseRoles(e.roles).length).map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}</select></label>
         <label className="wide"><span>Shift type</span><select value={standType} onChange={(e) => setStandType(e.target.value)}><option value="">Select…</option>{data.shiftTypes.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
         <label className="wide"><span>Eligible position</span><select disabled={!standEmp} value={standRole} onChange={(e) => setStandRole(e.target.value)}><option value="">{standEmp ? "Select position…" : "Choose a member first"}</option>{data.roles.filter((r) => data.employees.some((e) => e.id === standEmp && employeeEligibleForRole(e,r))).map((r) => <option key={r} value={r}>{r}</option>)}</select></label>
-        <p className="muted">For storms, holidays, events, or extra-only members, open Calendar and add a one-day position.</p>
+        <p className="muted">For storms, holidays, events, or extra-only members, open Calendar and add a one-day position.</p><p role="status">{!standEmp ? "Next: choose a member." : !standType ? "Next: choose a repeating shift type." : !standRole ? "Next: choose an eligible position." : "Ready to save this standing assignment."}</p>
         <button disabled={busy || !standEmp || !standType || !standRole} onClick={async () => { const r = await act({ action: "saveStandingAssignment", employeeId: standEmp, shiftTypeId: standType, role: standRole }); if (r) { setStandEmp(""); setStandType(""); setStandRole(""); } }}>Add standing assignment</button>
         <ul className="plain-list">
           {data.standingAssignments.map((s) => (
@@ -1225,6 +1245,7 @@ function TradeRequestScreen({ data, act, busy, initialSlotId }: { data: Data; ac
   const slot = mine.find((s) => s.id === slotId);
   const targets = slot ? data.employees.filter((e) => e.id !== data.viewer.employeeId && employeeEligibleForRole(e, slot.role)) : [];
   const returns = data.slots.filter((s) => s.employeeId === targetEmployeeId && s.status === "filled" && s.entryDate >= data.today && s.id !== slotId && me && canReceiveTrade(data, me, s, slotId));
+  useUnsavedWork(Boolean(slotId || targetEmployeeId || returnSlotId || note), busy);
   const label = (s: Slot) => `${friendlyDate(s.entryDate)} · ${s.startTime}–${s.endTime} · ${s.role}`;
   return <div className="scheduler-grid"><section className="wide">
     <h3>Request a trade or give away a shift</h3>
@@ -1235,7 +1256,7 @@ function TradeRequestScreen({ data, act, busy, initialSlotId }: { data: Data; ac
     {targetEmployeeId && <label className="wide">Trade arrangement<select value={tradeKind} onChange={(e) => { setKind(e.target.value); setReturn(""); }}><option value="giveaway">Give my shift away — no return shift</option><option value="swap">Swap — I will work one of their shifts</option></select></label>}
     {targetEmployeeId && tradeKind === "swap" && <label className="wide">Shift you will work in return<select value={returnSlotId} onChange={(e) => setReturn(e.target.value)}><option value="">Choose their shift</option>{returns.map((s) => <option key={s.id} value={s.id}>{label(s)}</option>)}</select></label>}
     <label className="wide">Note (optional)<textarea value={note} onChange={(e) => setNote(e.target.value)} /></label>
-    <button disabled={busy || !slot || (tradeKind === "swap" && !returnSlotId)} onClick={async () => { const result = await act({ action: "submitTrade", slotId, targetEmployeeId, tradeKind, returnSlotId: tradeKind === "swap" ? returnSlotId : null, note }); if (result) { setSlotId(""); setTarget(""); setReturn(""); setNote(""); setKind("giveaway"); } }}>{busy ? "Posting…" : "Post trade request"}</button>
+    <div className="task-action-bar"><p id="trade-next-step">{!slot ? "Choose your scheduled shift above before posting." : tradeKind === "swap" && !returnSlotId ? "Choose the return shift to complete this swap." : "Post your offer. A member must accept it, then an administrator must approve it."}</p><button aria-describedby="trade-next-step" disabled={busy || !slot || (tradeKind === "swap" && !returnSlotId)} onClick={async () => { const result = await act({ action: "submitTrade", slotId, targetEmployeeId, tradeKind, returnSlotId: tradeKind === "swap" ? returnSlotId : null, note }); if (result) { setSlotId(""); setTarget(""); setReturn(""); setNote(""); setKind("giveaway"); } }}>{busy ? "Posting…" : "Post trade request"}</button></div>
   </section></div>;
 }
 
@@ -1264,12 +1285,12 @@ function MyRequestsScreen({ data, act, busy, incomingOnly = false }: { data: Dat
       {!incomingOnly && <section className="wide">
         <h3>My open-shift requests</h3>
         {!myClaims.length && <p className="muted">No requests.</p>}
-        {myClaims.map((c) => <div key={c.id} className="entry-card"><strong>{c.role}</strong> · {friendlyDate(c.entryDate)} · <span className={`badge ${c.status}`}>{c.status}</span></div>)}
+        {myClaims.map((c) => <div key={c.id} className="entry-card"><strong>{c.role}</strong> · {friendlyDate(c.entryDate)} · <span className={`badge ${c.status}`}>{c.status === "pending" ? "Waiting for administrator approval" : c.status}</span></div>)}
       </section>}
       {!incomingOnly && <section className="wide">
         <h3>My trades</h3>
         {!myTrades.length && <p className="muted">No trades.</p>}
-        {myTrades.map((t) => <div key={t.id} className="entry-card"><strong>{t.role}</strong> · {friendlyDate(t.entryDate)} · <span className={`badge ${t.status}`}>{t.acceptedByEmployeeId && ["pending", "awaiting_acceptance"].includes(t.status) ? "Accepted — awaiting admin approval" : t.status}</span><TradeTerms trade={t} data={data} /></div>)}
+        {myTrades.map((t) => <div key={t.id} className="entry-card"><strong>{t.role}</strong> · {friendlyDate(t.entryDate)} · <span className={`badge ${t.status}`}>{t.acceptedByEmployeeId && ["pending", "awaiting_acceptance"].includes(t.status) ? "Accepted — awaiting admin approval" : ["pending", "awaiting_acceptance"].includes(t.status) ? "Waiting for member acceptance" : t.status}</span><TradeTerms trade={t} data={data} /></div>)}
       </section>}
     </div>
   );

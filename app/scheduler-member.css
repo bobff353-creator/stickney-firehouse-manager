@@ -68,6 +68,25 @@
   .scheduler .scheduler-task-choices button { padding: 16px; gap: 6px; }
 }
 .scheduler .scheduler-reminders { min-width: 0; }
+.scheduler-workspace-fields { min-width:0; margin:0; padding:0; border:0; }
+.scheduler :is(button,input,select,textarea) { scroll-margin-top:140px; scroll-margin-bottom:180px; }
+.scheduler-task-groups { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:12px 0; }
+.scheduler .scheduler-task-groups button { min-height:48px; padding:10px; background:#162e42; border:1px solid #587185; color:#fff; white-space:normal; }
+.scheduler .scheduler-task-groups [aria-pressed=true] { background:#f3c75f; color:#132330; border-color:#f3c75f; }
+.scheduler-task-context { display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin:12px 0; }
+.scheduler .workspace-preview-banner p { color:#123c4b; }
+.scheduler-task-context button { min-height:44px; }
+.scheduler .task-action-bar { margin-top:16px; background:#152c40; color:#fff; border-color:#587185; }
+.scheduler .workspace-preview-banner { color:#123c4b; }
+.scheduler .scheduler-workspace-fields:disabled { opacity:1; }
+@media(max-width:700px) {
+  .scheduler .scheduler-brand { padding:8px 0; }
+  .scheduler .scheduler-brand span { display:none; }
+  .scheduler .scheduler-task-groups { gap:5px; }
+  .scheduler .scheduler-task-groups button { font-size:13px; padding:8px 4px; }
+  .scheduler-task-context { position:sticky; top:64px; background:#0d1722; padding:8px; z-index:4; border-bottom:1px solid #587185; }
+  .scheduler-task-context strong { font-size:13px; }
+}
 .scheduler .scheduler-reminder-rule { margin: 1rem 0; min-width: 0; padding: 1rem; }
 .scheduler .scheduler-reminder-rule legend { font-weight: 750; padding: 0 .4rem; font-size: 1.05rem; }
 .scheduler .scheduler-reminder-rule p { font-size: .95rem; line-height: 1.5; }

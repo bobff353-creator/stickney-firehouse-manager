@@ -7,6 +7,8 @@ import PayrollCorrections from "./payroll-corrections";
 import { portalPageFromSearch, portalPageLabel, portalPageUrl, type PortalPage, type PortalRecord } from "./portal-navigation";
 import { featuredNavItems, featuredNavPages, adminNavGroups, navPermission, portalNavigationForPermissions } from "./portal-menu-items";
 import { confirmLeavingWork, useUnsavedWork } from "./use-unsaved-work";
+import { WorkspaceViewMemory, restoreWorkspaceScroll } from "./workspace-view-state";
+import { portalParentPage } from "./portal-navigation";
 import { WorkspaceGuide } from "./portal-wayfinding";
 import AdminTools from "./admin-tools";
 import { inventoryAdminDestination } from "./admin-tasks";
@@ -232,7 +234,8 @@ export default function PayrollApp({
   const [employeeSaveError, setEmployeeSaveError] = useState("");
   const [employeeBaseline, setEmployeeBaseline] = useState("");
   const [reviewSaving, setReviewSaving] = useState(false);
-  const [workspaceTrail, setWorkspaceTrail] = useState<Array<{ page: NavItem; record: PortalRecord }>>([]);
+  const [workspaceTrail, setWorkspaceTrail] = useState<Array<{ page: NavItem; record: PortalRecord; search: string; scroll: number }>>([]);
+  const restoreScrollRef = useRef<(() => void) | null>(null);
   const [navigationNotice, setNavigationNotice] = useState("");
   const [adminSaveNotice, setAdminSaveNotice] = useState("");
   const [permissionSelection, setPermissionSelection] = useState<{ editor: "rank" | "member"; rank: string; employeeId: string; search: string; group: string }>({ editor: "rank", rank: "", employeeId: "", search: "", group: "" });
@@ -760,6 +763,8 @@ export default function PayrollApp({
     return groups;
   }, [visibleNav]);
   const homePage = visibleFeaturedNav[0]?.page ?? visibleNav[0] ?? "My Timesheet";
+  const parentPage = portalParentPage(activeNav, homePage, visibleNav);
+  useEffect(() => () => restoreScrollRef.current?.(), []);
   useEffect(() => {
     lastPageUrlRef.current = window.location.href;
     const fromHistory = (event: PopStateEvent) => {
@@ -771,11 +776,14 @@ export default function PayrollApp({
       const page = portalPageFromSearch(window.location.search) ?? homePage;
       setWorkspaceTrail([]);
       setNavigationVersion(value => value + 1);
-      setEmployeeSearch(new URLSearchParams(window.location.search).get("query") || "");
+      const query = new URLSearchParams(window.location.search).get("query");
+      if (query !== null) setEmployeeSearch(query);
       setActiveNav(visibleNav.includes(page) ? page : homePage);
       setTvMode(new URLSearchParams(window.location.search).get("display") === "tv");
       setMobileMenuOpen(false); setGlobalSearchOpen(false);
       lastPageUrlRef.current = window.location.href;
+      restoreScrollRef.current?.();
+      restoreScrollRef.current = restoreWorkspaceScroll(Number(event.state?.workspaceScroll) || 0);
     };
     window.addEventListener("popstate", fromHistory, { capture: true });
     return () => window.removeEventListener("popstate", fromHistory, { capture: true });
@@ -867,23 +875,27 @@ export default function PayrollApp({
       window.localStorage.removeItem("stickney-operations-tv-mode");
       window.dispatchEvent(new CustomEvent("firehouse:tv-mode", { detail: { enabled: false } }));
     }
-    const url = portalPageUrl(window.location.pathname, window.location.search, page, record);
+    const priorVisit = fromBack ? workspaceTrail[workspaceTrail.length - 1] : undefined;
+    const url = priorVisit ? `${window.location.pathname}${priorVisit.search}` : portalPageUrl(window.location.pathname, window.location.search, page, record);
     if (`${window.location.pathname}${window.location.search}` !== url) {
       if (!fromBack) {
         const current = new URLSearchParams(window.location.search);
         const priorRecord = Object.fromEntries(["preplan", "hydrant", "policy", "boxCard", "query", "adminTask"].flatMap(key => current.get(key) ? [[key, current.get(key)!]] : []));
-        setWorkspaceTrail(trail => [...trail.slice(-19), { page: activeNav, record: priorRecord }]);
+        const priorSearch = window.location.search, priorScroll = window.scrollY;
+        setWorkspaceTrail(trail => [...trail.slice(-19), { page: activeNav, record: priorRecord, search: priorSearch, scroll: priorScroll }]);
       } else setWorkspaceTrail(trail => trail.slice(0, -1));
-      window.history.pushState({}, "", url);
+      window.history.replaceState({ ...window.history.state, workspaceScroll: window.scrollY }, "");
+      window.history.pushState({ workspaceScroll: priorVisit?.scroll ?? 0 }, "", url);
     }
-    setEmployeeSearch(record?.query ?? "");
+    if (record?.query !== undefined) setEmployeeSearch(record.query);
     setNavigationVersion(value => value + 1);
     lastPageUrlRef.current = window.location.href;
     setActiveNav(page);
     setMobileMenuOpen(false);
     setGlobalSearchOpen(false);
     setGlobalSearch("");
-    window.scrollTo({ top: 0, behavior: "instant" });
+    restoreScrollRef.current?.();
+    restoreScrollRef.current = restoreWorkspaceScroll(priorVisit?.scroll ?? 0);
   }
   function navigateFromRespond(page: "Daily Log" | "Field Preplans" | "Box Cards") {
     const params = new URLSearchParams(window.location.search);
@@ -926,7 +938,7 @@ export default function PayrollApp({
 
   if (!['Respond','Operations Board'].includes(activeNav) && (!access.confirmation || access.confirmation.required)) return <main className="app-shell sidebar-collapsed"><section className="workspace"><RequiredConfirmation status={access.confirmation} /><div className="required-confirmation-actions">{visibleNav.includes('Respond')&&<button onClick={()=>navigate('Respond')}>Open Respond</button>}{visibleNav.includes('Operations Board')&&<button onClick={()=>navigate('Operations Board')}>Open Live Operations</button>}<button onClick={onSignOut}>Sign out</button></div></section></main>;
   return (
-    <main className={`app-shell${tvMode ? " tv-shell" : ""}${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
+    <WorkspaceViewMemory key={`${access.identity}:${testMember?.id ?? "self"}`}><main className={`app-shell${tvMode ? " tv-shell" : ""}${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
       {!tvMode && <PwaInstall />}
       <aside id="desktop-navigation" className="desktop-sidebar" aria-hidden={sidebarCollapsed} inert={sidebarCollapsed}>
         <button className="sidebar-brand" onClick={() => navigate(homePage)} aria-label="Stickney Fire Department Operations Portal home" title="Dashboard"><img className="brand-patch" src="/stickney-fd-patch.png?v=3" alt="Stickney Fire Department patch" width="64" height="64" /><span><strong>Stickney Fire Department</strong><small>Operations Portal</small></span></button>
@@ -975,7 +987,7 @@ export default function PayrollApp({
 
       <a className="portal-skip-link" href="#portal-workspace">Skip to workspace</a>
       <section key={`${access.identity}:${access.revision}:${access.permissions.join(",")}`} id="portal-workspace" tabIndex={-1} className={`workspace${testMember ? " testing-member-view" : ""}`} onClickCapture={(event) => { if (testMember && (event.target as HTMLElement).closest("button,input,select,textarea") && !(event.target as HTMLElement).closest(".test-view-banner,[data-test-safe],[data-test-interactive]")) { event.preventDefault(); event.stopPropagation(); } }} onSubmitCapture={(event) => { if (testMember && !(event.target as HTMLElement).closest("[data-test-interactive]")) { event.preventDefault(); event.stopPropagation(); } }} onChangeCapture={(event) => { if (testMember && !(event.target as HTMLElement).closest(".test-view-banner,[data-test-safe],[data-test-interactive]")) { event.preventDefault(); event.stopPropagation(); } }}>
-        {!tvMode && <WorkspaceGuide page={activeNav} home={homePage} backLabel={workspaceTrail.length ? portalPageLabel(workspaceTrail[workspaceTrail.length - 1].page) : undefined} onBack={() => { const prior = workspaceTrail[workspaceTrail.length - 1]; if (prior) navigate(prior.page, prior.record, true); }} onNavigate={navigate} />}
+        {!tvMode && <WorkspaceGuide page={activeNav} home={homePage} backLabel={activeNav !== homePage ? portalPageLabel(parentPage) : undefined} onBack={() => { const prior = workspaceTrail[workspaceTrail.length - 1]; navigate(parentPage, undefined, prior?.page === parentPage); }} returnLabel={workspaceTrail.length && workspaceTrail[workspaceTrail.length - 1].page !== parentPage && workspaceTrail[workspaceTrail.length - 1].page !== activeNav ? portalPageLabel(workspaceTrail[workspaceTrail.length - 1].page) : undefined} onReturn={() => { const prior = workspaceTrail[workspaceTrail.length - 1]; if (prior) navigate(prior.page, prior.record, true); }} onNavigate={navigate} />}
         {!tvMode && !testMember && activeNav !== "Respond" && activeNav !== "Command Board" && <AdminTools page={activeNav} permissions={viewerPermissions} allowedPages={visibleNav} onNavigate={navigate} />}
         {navigationNotice && <div className="error-banner" role="alert">{navigationNotice}</div>}
         {adminSaveNotice && <div className="phone-message" role="status">{adminSaveNotice}<button type="button" className="quiet-button" onClick={() => setAdminSaveNotice("")}>Dismiss</button></div>}
@@ -1049,7 +1061,7 @@ export default function PayrollApp({
             </section>
           </div>}
 
-          {activeNav === "Dashboard" && <RoleDashboard data={{ viewer: testMember ? { isAdmin: false, employeeId: testMember.id, displayName: testMember.name } : { isAdmin: data.viewer.isAdmin, employeeId: data.viewer.employeeId, displayName: data.viewer.displayName }, employees: testMember ? data.employees.filter((employee) => employee.id === testMember.id) : data.employees, entries: testMember ? data.entries.filter((entry) => entry.employeeId === testMember.id) : data.entries, period: data.period, grossPayroll, reviewCount, employeeGross: selectedSummary?.gross ?? 0 }} onNavigate={(page) => navigate(page)} allowedPages={visibleNav} />}
+          {activeNav === "Dashboard" && <RoleDashboard data={{ viewer: testMember ? { isAdmin: false, employeeId: testMember.id, displayName: testMember.name } : { isAdmin: data.viewer.isAdmin, employeeId: data.viewer.employeeId, displayName: data.viewer.displayName }, employees: testMember ? data.employees.filter((employee) => employee.id === testMember.id) : data.employees, entries: testMember ? data.entries.filter((entry) => entry.employeeId === testMember.id) : data.entries, period: data.period, grossPayroll, reviewCount, employeeGross: selectedSummary?.gross ?? 0 }} onNavigate={navigate} allowedPages={visibleNav} />}
 
           {activeNav === "Inventory" && <section className="content-card action-empty-state"><div><h1>Apparatus Checks &amp; Inventory</h1><p>Open the dedicated workspace to choose an apparatus, complete checks, and find equipment.</p></div><button type="button" className="primary-action" disabled={openingInventory} onClick={() => void openInventory()}>{openingInventory ? "Checking access…" : "Open Apparatus Checks"}</button></section>}
           {activeNav === "Command Center" && <CommandCenter />}
@@ -1171,6 +1183,6 @@ export default function PayrollApp({
         </>)}
       </section>
       <footer className="portal-footer"><div className="footer-identity"><img src="/stickney-fd-patch.png?v=3" alt="Official Stickney Fire Department patch" width="56" height="56" /><div><strong>Stickney Fire Department Operations Portal</strong><span>Stickney, Illinois</span><a href="tel:+17089747721">Cicero Consolidated Dispatch · (708) 974-7721</a></div></div><div className="footer-links"><button onClick={() => navigate(homePage)}>Back to {portalPageLabel(homePage)}</button>{visibleNav.includes("Employee Contacts") && <button onClick={() => navigate("Employee Contacts")}>Employee contacts</button>}{visibleNav.includes("Phone Numbers") && <button onClick={() => navigate("Phone Numbers")}>Important phone numbers</button>}<span>For portal help, contact your department administrator.</span></div><p>© {new Date().getFullYear()} Stickney Fire Department · Official department system · Authorized use only</p></footer>
-    </main>
+    </main></WorkspaceViewMemory>
   );
 }

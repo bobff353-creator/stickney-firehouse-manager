@@ -21,7 +21,8 @@ test('mobile navigation uses one labeled picker and scrolls only after a request
   const component = await readFile(new URL('../app/station-scheduler.tsx', import.meta.url), 'utf8');
   const styles = await readFile(new URL('../app/scheduler-member.css', import.meta.url), 'utf8');
   assert.ok(component.includes('aria-label="Choose scheduling screen"'));
-  assert.ok(component.includes('(isAdmin ? adminTabs : employeeTabs).map(([id, label]) => <option'));
+  assert.ok(component.includes('visibleTabs.map(([id, label]) => <option'));
+  assert.ok(component.includes('tabs.filter(([id]) => activeGroup.ids.includes(id))'));
   assert.ok(component.includes('if (!navigationRequested.current) return;'));
   assert.ok(component.includes('window.matchMedia("(max-width: 700px)").matches'));
   assert.ok(component.includes('scrollIntoView({ block: "start", behavior: "instant" })'));
@@ -39,8 +40,8 @@ test('open requests exclude started shifts using Central time in summer and wint
 
 test('admin navigation uses daily staffing and explicit assignment saves', async () => {
   const component = await readFile(new URL('../app/station-scheduler.tsx', import.meta.url), 'utf8');
-  assert.ok(component.includes('setSchedulerView("admin"); setTab("overview")'));
-  assert.ok(component.includes('const [adminDayMode, setAdminDayMode] = useState(isAdmin)'));
+  assert.ok(component.includes('if (!confirmLeavingWork()) return; setSchedulerView("admin"); navigationRequested.current = true; setTabState("overview")'));
+  assert.ok(component.includes('useWorkspaceViewState("scheduler-day-mode", isAdmin)'));
   assert.ok(component.includes('role={adminDayMode ? "region" : "dialog"}'));
   const editor = component.split('function AssignmentEditor(')[1].split('function DaySlotTimeEditor(')[0];
   assert.ok(editor.includes('onChange={(event) => setSelected(event.target.value)}'));

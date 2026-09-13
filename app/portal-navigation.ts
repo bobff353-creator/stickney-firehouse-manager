@@ -1,6 +1,10 @@
 export const portalPages = ["Dashboard", "Command Center", "Operations Board", "Activity Timeline", "Respond", "Command Board", "Field Preplans", "Road Closures", "Safety Inspections", "Scheduling", "Payroll", "Work Details", "Daily Log", "Timesheets", "Callback Reviews", "My Timesheet", "Employees", "Employee Contacts", "Policies", "Box Cards", "Holiday Policy", "EMS", "Daily Duties", "Inventory", "Phone Numbers", "Rates & Rules", "Departments", "System Health", "Permissions", "CAD Integration", "Respond Device Modes", "Test View"] as const;
 export type PortalPage = typeof portalPages[number];
 export type PortalRecord = { preplan?: string; hydrant?: string; policy?: string; boxCard?: string; query?: string; adminTask?: string };
+export function portalParentPage(page: PortalPage, home: PortalPage, allowed: readonly PortalPage[]) {
+  const parent = ({ Timesheets: "Payroll", "Callback Reviews": "Payroll", "Work Details": "Payroll", "Employee Contacts": "Employees" } as Partial<Record<PortalPage, PortalPage>>)[page];
+  return parent && allowed.includes(parent) ? parent : home;
+}
 export function pageSlug(page: PortalPage) { return page.toLowerCase().replaceAll(" & ", "-").replaceAll(" ", "-"); }
 export function portalPageFromSearch(search: string): PortalPage | null {
   const params = new URLSearchParams(search);

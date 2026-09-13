@@ -5,6 +5,7 @@ import Image from "next/image";
 import { RecordCredibility, type Revision } from "./record-credibility";
 import { confirmLeavingWork, useUnsavedWork } from "./use-unsaved-work";
 import { readPortalJson } from "./portal-status";
+import { useWorkspaceViewState } from "./workspace-view-state";
 
 type AuditFields = {
   status?: string;
@@ -89,9 +90,9 @@ function SharedPage({ type }: { type: "policy" | "boxCard" }) {
   const isPolicy = type === "policy";
   const [items, setItems] = useState<Array<Policy | BoxCard>>([]);
   const [canEdit, setCanEdit] = useState(false);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useWorkspaceViewState(`${type}-search`, "");
   const [selectedPolicyId, setSelectedPolicyId] = useState("");
-  const [selectedDepartment, setSelectedDepartment] = useState("");
+  const [selectedDepartment, setSelectedDepartment] = useWorkspaceViewState("box-card-department", "");
   const [selectedBoxCardId, setSelectedBoxCardId] = useState("");
   const [draft, setDraft] = useState<Policy | BoxCard | null>(null);
   const [draftBaseline, setDraftBaseline] = useState("");
@@ -122,7 +123,7 @@ function SharedPage({ type }: { type: "policy" | "boxCard" }) {
     return data.items ?? [];
     } catch (caught) { setError(`${caught instanceof Error ? caught.message : "Records unavailable"}. Retry to load the library; displayed records may be out of date.`); return null; }
     finally { setLoading(false); }
-  }, [type]);
+  }, [type, setSelectedDepartment]);
 
   useEffect(() => { const timer = window.setTimeout(() => { void load(); }, 0); return () => window.clearTimeout(timer); }, [load]);
 

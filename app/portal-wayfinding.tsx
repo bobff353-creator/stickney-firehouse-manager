@@ -1,15 +1,16 @@
 "use client";
-import { useState } from "react";
+import { useWorkspaceViewState } from "./workspace-view-state";
 import { portalPageLabel, type PortalPage } from "./portal-navigation";
 import { portalWorkflows } from "./portal-workflows";
 
-export function WorkspaceGuide({ page, home, backLabel, onBack, onNavigate }: { page: PortalPage; home: PortalPage; backLabel?: string; onBack: () => void; onNavigate: (page: PortalPage) => void }) {
+export function WorkspaceGuide({ page, home, backLabel, onBack, returnLabel, onReturn, onNavigate }: { page: PortalPage; home: PortalPage; backLabel?: string; onBack: () => void; returnLabel?: string; onReturn?: () => void; onNavigate: (page: PortalPage) => void }) {
   const guide = portalWorkflows[page];
   return <div className="workspace-wayfinding no-print" data-test-safe>
     <nav aria-label="Workspace navigation">
       {backLabel && <button type="button" onClick={onBack}>← Back to {backLabel}</button>}
-      {page !== home && <button type="button" onClick={() => onNavigate(home)}>{portalPageLabel(home)}</button>}
+      {page !== home && backLabel !== portalPageLabel(home) && <button type="button" onClick={() => onNavigate(home)}>{portalPageLabel(home)}</button>}
       <span aria-current="page">{portalPageLabel(page)}</span>
+      {returnLabel && <button type="button" className="workspace-return" onClick={onReturn}>Return to {returnLabel}</button>}
     </nav>
     <details className="workspace-guide" key={page}>
       <summary>How to use this screen</summary>
@@ -19,7 +20,7 @@ export function WorkspaceGuide({ page, home, backLabel, onBack, onNavigate }: { 
 }
 
 export function TaskDirectory({ allowedPages, onNavigate }: { allowedPages: readonly PortalPage[]; onNavigate: (page: PortalPage) => void }) {
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useWorkspaceViewState("task-directory-search", "");
   const pages = allowedPages.filter(page => page !== "Dashboard" && `${portalPageLabel(page)} ${portalWorkflows[page].purpose} ${portalWorkflows[page].group}`.toLowerCase().includes(search.trim().toLowerCase()));
   const groups = [...new Set(pages.map(page => portalWorkflows[page].group))];
   return <section className="portal-task-directory" aria-labelledby="portal-tasks-title" data-test-safe>

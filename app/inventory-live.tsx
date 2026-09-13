@@ -4,6 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import PortalModuleMenu from "./components/PortalModuleMenu";
 import InventoryOperations from "./inventory-operations";
+import { WorkspaceViewMemory } from "./workspace-view-state";
+import { confirmLeavingWork } from "./use-unsaved-work";
 import { RequiredConfirmation } from './required-confirmation';
 import InventoryVinProfile from "./inventory-vin-profile";
 import { usePermissions, refreshPermissions } from "./use-permissions";
@@ -22,11 +24,11 @@ type FleetFilter = "all" | "in-service" | "out-impaired" | "digital-twins";
 
 const inventorySections: Array<[View, string]> = [
   ["due", "Due Now"],
-  ["fleet", "Checks"],
-  ["inventory", "Inventory"],
-  ["equipment", "Equipment"],
+  ["fleet", "Apparatus checks"],
+  ["inventory", "Inventory counts"],
+  ["equipment", "Find equipment"],
   ["air", "Air Packs & Bottles"],
-  ["reports", "Reports"],
+  ["reports", "Reports & approvals"],
   ["service", "Repairs"],
   ["stock", "Meds & Stock"],
 ];
@@ -349,7 +351,8 @@ export default function Inventory360({
     // explanation and recovery controls in view instead of above the viewport.
     if (!accessAllowed) window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [accessAllowed]);
-  const [view, setView] = useState<View>(() => initialApparatusId && initialCheckType ? "check" : "due");
+  const [view, setViewState] = useState<View>(() => initialApparatusId && initialCheckType ? "check" : "due");
+  const setView = useCallback((next: View) => { if (confirmLeavingWork()) setViewState(next); }, []);
   const [selectedApparatusId, setSelectedApparatusId] = useState(initialApparatusId);
   const [selectedCheckType, setSelectedCheckType] = useState(initialCheckType);
   const [fleetFilter, setFleetFilter] = useState<FleetFilter>("all");
@@ -387,7 +390,7 @@ export default function Inventory360({
       setView("setup");
     } else if (canSetup && initialAdminTask === "equipment") setView("equipment");
     else if (canManageRepairs && initialAdminTask === "service") setView("service");
-  }, [access.verified, canSetup, canManageRepairs, initialAdminTask]);
+  }, [access.verified, canSetup, canManageRepairs, initialAdminTask, setView]);
 
   const loadTwin = useCallback(async (
     apparatusId?: string,
@@ -554,7 +557,7 @@ export default function Inventory360({
     void loadSuite();
     void loadTwin(selectedApparatusId || undefined);
     void loadFleetOperations();
-    showToast("Inventory refreshed");
+    showToast("Refresh requested. Check each section’s connection status before relying on its records.");
   }
 
   if (!accessAllowed) return (
@@ -574,7 +577,7 @@ export default function Inventory360({
 
   if (!access.confirmation || access.confirmation.required) return <main className="inventory-app-shell"><RequiredConfirmation status={access.confirmation}/><Link href="/?page=respond&display=portal">Open Respond</Link></main>;
   return (
-    <main className="inventory-app-shell inventory-portal-refresh">
+    <WorkspaceViewMemory key={access.identity}><main className={`inventory-app-shell inventory-portal-refresh${view === "check" ? " inventory-task-focused" : ""}`}>
       <header className="topbar">
         <PortalModuleMenu permissions={permissions} currentPage="Inventory" departmentName={activeDepartmentName}/>
         <button className="brand" onClick={() => setView("due")} aria-label="Inventory and Apparatus Checks home">
@@ -608,7 +611,7 @@ export default function Inventory360({
       </header>
 
       <section ref={workspaceHeadingRef} className="inventory-command-header" aria-labelledby="inventory-workspace-title">
-        <button className="inventory-command-back" type="button" onClick={() => setView("due")}>← Inventory home</button>
+        {view !== "due" && <button className="inventory-command-back" type="button" onClick={() => setView("due")}>← Back to inventory home</button>}
         <div className="inventory-command-hero">
           <div>
             <span>{activeWorkspace.eyebrow}</span>
@@ -845,7 +848,7 @@ export default function Inventory360({
             </div>
           </div>
           {selectedCheckType === "air_pack" ? <div className="air-check-return"><button type="button" className="secondary" onClick={() => setView("air")}>← Back to Air Packs &amp; Bottles</button></div> : null}
-          <InventoryOperations key={`${selectedApparatusId}-${selectedCheckType}`} view="check" onSetup={() => setView("setup")} initialApparatusId={selectedApparatusId} initialCheckType={selectedCheckType} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+          <InventoryOperations key={`${selectedApparatusId}-${selectedCheckType}`} view="check" onSetup={() => setView("setup")} onReports={() => setView("reports")} initialApparatusId={selectedApparatusId} initialCheckType={selectedCheckType} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
         </section>
       ) : null}
 
@@ -1022,7 +1025,7 @@ export default function Inventory360({
         ))}
       </nav>
       {toast ? <div className="toast" role="status"><span>OK</span>{toast}</div> : null}
-    </main>
+    </main></WorkspaceViewMemory>
   );
 }
 

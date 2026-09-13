@@ -51,6 +51,22 @@
 .inventory-find-unit label { flex:1 1 230px; }
 .inventory-find-unit p { flex:1 1 230px; color:#345465; font-size:14px; margin:0 0 8px; }
 .inventory-member-preview { border:2px solid #197b85!important; }
+.inventory-task-focused .inventory-command-hero { padding:16px 20px; }
+.inventory-task-focused .inventory-command-hero h1 { font-size:26px; margin:4px 0; }
+.inventory-task-focused .inventory-command-hero small { display:none; }
+.inventory-task-focused .check-completion-bar { flex-wrap:wrap; }
+.inventory-task-focused .check-completion-bar button { min-height:44px; white-space:normal; }
+@media(max-width:980px) {
+  .inventory-task-focused .inventory-command-hero { display:none; }
+  .inventory-task-focused .inventory-command-header { margin-bottom:10px; }
+  .inventory-task-focused .active-inspection-title { position:sticky; top:64px; z-index:4; background:#e9f2f7; border-bottom:1px solid #abc3d3; padding:8px; }
+  .inventory-task-focused .active-inspection-title small { font-size:12px; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-task-focused .check-completion-bar { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); position:sticky; bottom:calc(76px + env(safe-area-inset-bottom)); padding:10px; gap:8px; min-width:0; }
+  .inventory-task-focused .check-completion-bar > div { min-width:0; grid-column:1/-1; }
+  .inventory-task-focused .check-completion-bar button:only-of-type { grid-column:1/-1; }
+  .inventory-task-focused .check-completion-bar button { width:100%; min-width:0; }
+  .inventory-task-focused .active-inspection-title small:last-child { display:none; }
+}
 .inventory-member-preview .check-location-items { display:grid; gap:12px; }
 .inventory-preview-fieldset { border:0; padding:0; margin:0; min-width:0; }
 .inventory-member-preview button:disabled { opacity:.75; cursor:default; }
