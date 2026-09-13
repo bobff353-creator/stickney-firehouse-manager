@@ -5,6 +5,8 @@ import { createServer } from 'vite';
 import react from '@vitejs/plugin-react';
 import { PGlite } from '@electric-sql/pglite';
 import { readFile } from 'node:fs/promises';
+import { boardLinksHarness, store as linkStore } from '../tests/helpers/board-links-harness.mjs';
+const links = await boardLinksHarness();
 const { createFeedReader } = await import('../app/lib/board-feed-reader.ts');
 const { feedGroups, nextFeedSlot } = await import('../app/lib/feed-schedule.ts');
 const pg = new PGlite();
@@ -23,12 +25,22 @@ let databaseReads=0;
 const read=createFeedReader(async sources=>{databaseReads++;return (await pg.query('SELECT * FROM firehouse.board_feed_cache WHERE source=ANY($1)',[sources])).rows;});
 const server=await createServer({configFile:false,root:process.cwd(),plugins:[react(),{name:'isolated-board-cache',configureServer(server){server.middlewares.use(async(req,res,next)=>{
  const url=new URL(req.url,'http://localhost');
+ if(url.pathname==='/api/board-links'){
+  let raw=''; for await(const chunk of req) raw+=chunk;
+  const role=String(req.headers['x-fixture-role']||'admin');
+  const request=new Request('http://localhost/api/board-links',{method:req.method,headers:{'x-fixture-role':role,'oai-authenticated-user-email':role+'@example.invalid'},...(raw?{body:raw}:{})});
+  const handler=links.api[req.method];if(!handler){res.statusCode=405;return res.end();}
+  const response=await handler(request);res.statusCode=response.status;response.headers.forEach((value,key)=>res.setHeader(key,value));return res.end(await response.text());
+ }
+ if(url.pathname==='/__links-state') {res.setHeader('Content-Type','application/json');return res.end(JSON.stringify({settings:await linkStore.readBoardLinks(links.db),canEdit:true,confirmed:true,checkedAt:new Date().toISOString()}));}
+ if(url.pathname==='/__links-fail-next') {links.stats.failNext=true;return res.end('armed');}
+ if(url.pathname==='/__links-stats') {res.setHeader('Content-Type','application/json');return res.end(JSON.stringify(links.stats));}
  if(url.pathname==='/api/board-feeds'){
   const group=url.searchParams.get('group');if(!feedGroups[group]){res.statusCode=400;return res.end();}
   res.setHeader('Content-Type','application/json');res.setHeader('Cache-Control','no-store');return res.end(JSON.stringify(await read(feedGroups[group])));
  }
  if(url.pathname==='/__feed-audit'){res.setHeader('Content-Type','application/json');return res.end(JSON.stringify({databaseReads,externalRequests:0}));}
  if(url.pathname.startsWith('/api/')){res.statusCode=404;return res.end('Fixture route missing');}next();
-});}}],server:{host:'127.0.0.1',port:4192,strictPort:true}});
+});}}],server:{host:'127.0.0.1',port:4192,strictPort:true,watch:{ignored:['**/.next/**','**/outputs/**']}}});
 await server.listen();console.log('Isolated board verification: http://127.0.0.1:4192/tests/fixtures/board-feeds-audit.html');
-for(const signal of ['SIGINT','SIGTERM'])process.on(signal,async()=>{await server.close();await pg.close();process.exit(0);});
+for(const signal of ['SIGINT','SIGTERM'])process.on(signal,async()=>{await server.close();await pg.close();await links.close();process.exit(0);});

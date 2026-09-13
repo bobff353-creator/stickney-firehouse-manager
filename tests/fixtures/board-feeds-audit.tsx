@@ -20,6 +20,15 @@ window.fetch = async (input, init) => {
   const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, location.href);
   if (url.origin !== location.origin) throw new Error('External browser request blocked in local test');
   audit.requests.push(url.pathname + url.search);
+  if(parameters.has('links') && url.pathname.startsWith('/__links-')) return nativeFetch(input, init);
+  if(parameters.has('links') && url.pathname === '/api/board-links') return nativeFetch(input, { ...init, headers: { ...init?.headers, 'x-fixture-role': parameters.has('member') ? 'member' : 'admin' } });
+  if(parameters.has('links') && url.pathname === '/api/chief-board') {
+    const response = await nativeFetch('/__links-state');
+    const boardLinks = await response.json();
+    if(parameters.has('member')) boardLinks.canEdit = false;
+    if(url.searchParams.get('links-revision') === boardLinks.settings.revision) delete boardLinks.settings;
+    return Response.json({ items: [], officers: [], canEdit: false, boardLinks });
+  }
   if (url.pathname === '/api/board-feeds') {
     if (audit.holdFeeds) await new Promise((resolve, reject) => init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true }));
     return nativeFetch(input, init);

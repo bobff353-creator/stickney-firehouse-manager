@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "./chief-board-panel.module.css";
 import type { BoardOfficer } from "./board-officers";
+import type { BoardLinksSignal } from './board-links';
 
 type Attachment = { id: string; filename: string; contentType: string; sizeBytes: number; url: string };
 type ChiefItem = {
@@ -48,7 +49,7 @@ function floodLabel(category: string) {
   return category.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export default function ChiefBoardPanel() {
+export default function ChiefBoardPanel({ onBoardLinks }: { onBoardLinks?: (signal: BoardLinksSignal) => void }) {
   const [items, setItems] = useState<ChiefItem[]>([]);
   const [river, setRiver] = useState<RiverGauge | null>(null);
   const [riverError, setRiverError] = useState("");
@@ -61,16 +62,21 @@ export default function ChiefBoardPanel() {
   const [saving, setSaving] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const readRequest = useRef<AbortController | null>(null);
+  const linksRevision = useRef<string | null>(null);
   const load = useCallback(async () => {
     if (readRequest.current) return;
     const controller = new AbortController();
     readRequest.current = controller;
     const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]);
     try {
-      const [boardResponse, riverResponse] = await Promise.all([fetch("/api/chief-board", { cache: 'no-store', signal }), fetch("/api/river-gauge", { cache: 'no-store', signal })]);
-      const result = await boardResponse.json() as { items?: ChiefItem[]; canEdit?: boolean; officers?: BoardOfficer[]; error?: string };
+      const linksQuery = linksRevision.current === null ? '' : `&links-revision=${encodeURIComponent(linksRevision.current)}`;
+      const [boardResponse, riverResponse] = await Promise.all([fetch(onBoardLinks ? `/api/chief-board?include-links=1${linksQuery}` : "/api/chief-board", { cache: 'no-store', signal }), fetch("/api/river-gauge", { cache: 'no-store', signal })]);
+      const result = await boardResponse.json() as { items?: ChiefItem[]; canEdit?: boolean; officers?: BoardOfficer[]; error?: string; boardLinks?: BoardLinksSignal };
       const riverResult = await riverResponse.json() as RiverGauge & { error?: string };
       if (controller.signal.aborted) return;
+      if (result.boardLinks?.settings) linksRevision.current = result.boardLinks.settings.revision;
+      if (boardResponse.status === 401 || boardResponse.status === 403) linksRevision.current = null;
+      onBoardLinks?.(result.boardLinks ?? { canEdit: false, confirmed: false, denied: boardResponse.status === 401 || boardResponse.status === 403, checkedAt: new Date().toISOString() });
       if (boardResponse.ok) {
         setItems(result.items ?? []);
         setCanEdit(Boolean(result.canEdit));
@@ -82,11 +88,25 @@ export default function ChiefBoardPanel() {
       } else setRiverError(riverResult.error || "Live river level is temporarily unavailable.");
     } catch {
       if (!controller.signal.aborted) {
+        onBoardLinks?.({ canEdit: false, confirmed: false, checkedAt: new Date().toISOString() });
         setMessage('Chief Notes could not refresh. Displayed notes may be out of date.');
         setRiverError('Live river level could not refresh. Displayed information is not verified.');
       }
     } finally { if (readRequest.current === controller) readRequest.current = null; }
-  }, []);
+  }, [onBoardLinks]);
+  useEffect(() => {
+    if (!onBoardLinks) return;
+    const changed = () => { readRequest.current?.abort(); readRequest.current = null; void load(); };
+    const resume = () => { if (document.visibilityState !== 'hidden') void load(); };
+    const offline = () => onBoardLinks({ canEdit: false, confirmed: false, checkedAt: new Date().toISOString() });
+    let channel: BroadcastChannel | null = null;
+    try { channel = new BroadcastChannel('stickney-board-links'); channel.onmessage = changed; } catch { /* Existing 30-second board read is the fallback. */ }
+    window.addEventListener('firehouse:board-links-changed', changed);
+    window.addEventListener('online', resume);
+    window.addEventListener('offline', offline);
+    document.addEventListener('visibilitychange', resume);
+    return () => { channel?.close(); window.removeEventListener('firehouse:board-links-changed', changed); window.removeEventListener('online', resume); window.removeEventListener('offline', offline); document.removeEventListener('visibilitychange', resume); };
+  }, [load, onBoardLinks]);
   useEffect(() => {
     const initial = window.setTimeout(() => void load(), 0);
     const refresh = window.setInterval(() => void load(), 30000);

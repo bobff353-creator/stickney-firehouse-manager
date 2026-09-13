@@ -12,6 +12,9 @@ import { useBoardFeeds } from "./use-board-feeds";
 import { refreshPermissions } from "./use-permissions";
 import { savedFeedLabel } from "./board-feeds-client";
 import StaffingRotation, { type NewMember, type StaffingPerson } from "./staffing-rotation";
+import BoardLinksEditor, { BoardSectionLinks } from './board-links-panel';
+import { boardLinkSections, defaultBoardLinks, isBoardLinkSection, type BoardLinksSignal, type BoardLinkSectionId } from './board-links';
+import linkStyles from './board-links.module.css';
 
 type BoardRoadClosure = { id:string;roadName:string;reason:string;path:Array<{lat:number;lng:number}>;detourLatitude:number;detourLongitude:number;startedAt:string;expectedClearAt:string|null };
 type BoardData = { asOf: string; currentShift: string; onDuty: StaffingPerson[]; newMembers: NewMember[]; officerInCharge: string | null; staffing: { filled: number; required: number; complete: boolean }; equipmentIssues: Array<{ id?: string; item: string; status: string; detail: string }>; activeCalls: Array<{ reportNumber: string; timeOut: string; respondingUnits: string; address: string; callType: string; narrative?: string; source?: string }>; apparatus: Array<{ unit: string; status: string }>; roadClosures:BoardRoadClosure[]; error?: string };
@@ -68,12 +71,19 @@ function TrainingCourses({ provider, today }: { provider: TrainingProvider; toda
   return <div className="training-board">
     <div className="training-provider"><span>Upcoming training</span><strong>{provider.name}</strong><small>{provider.error || (provider.checked ? `Official schedule checked ${provider.checked}` : "Loading official schedule…")}</small></div>
     <div className="training-course-list">{upcoming.length ? upcoming.map((course) => <a href={course.url} target="_blank" rel="noreferrer" key={`${course.title}-${course.dates}-${course.location}`}><time>{course.dates}<small>{(course.startDate || course.endDate).slice(0, 4)}</small></time><div><strong>{course.title}</strong>{course.location && <span>{course.location}</span>}</div><b aria-hidden="true">↗</b></a>) : <p className="board-empty">{provider.checked ? "No future classes remain in the confirmed schedule." : "Use the official schedule link to check upcoming classes."}</p>}</div>
-    <a className="training-source" href={provider.sourceUrl} target="_blank" rel="noreferrer">View {provider.shortName} official courses and registration ↗</a>
     <p className="training-disclaimer">Dates and availability can change. Confirm with the training provider before registering.</p>
   </div>;
 }
 
 export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewActiveCall }: { tvMode?: boolean; onTvModeChange?: (enabled: boolean) => void; onNewActiveCall?: (call: BoardData["activeCalls"][number]) => void }) {
+  const [boardLinks, setBoardLinks] = useState(() => ({ settings: defaultBoardLinks(), canEdit: false, confirmed: false }));
+  const [linkEditor, setLinkEditor] = useState<BoardLinkSectionId | null>(null);
+  const [linkMessage, setLinkMessage] = useState('');
+  const receiveBoardLinks = useCallback((signal: BoardLinksSignal) => {
+    setBoardLinks(current => signal.denied ? { settings: defaultBoardLinks(), canEdit: false, confirmed: false } : {
+      settings: signal.settings ?? current.settings, canEdit: signal.canEdit && signal.confirmed, confirmed: signal.confirmed,
+    });
+  }, []);
   const informational = useBoardFeeds(tvMode);
   const news = (informational.feeds.close_calls?.data?.items as CloseCallReport[] | undefined) ?? [];
   const fatalities = informational.feeds.usfa?.data as UsfaData | null | undefined;
@@ -206,11 +216,11 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
     return () => { window.clearTimeout(initial); window.clearInterval(refresh); window.clearInterval(ticker); loadControllerRef.current?.abort(); };
   }, [load]);
   useEffect(() => {
-    if (rotationPaused) return;
+    if (rotationPaused || linkEditor) return;
     const rotate = window.setInterval(() => setRotation(current => rotationOrder[(rotationOrder.indexOf(current) + 1) % rotationOrder.length]), 12000);
     const rotateHeader = window.setInterval(() => setHeaderRotation(current => headerRotationOrder[(headerRotationOrder.indexOf(current) + 1) % headerRotationOrder.length]), 8000);
     return () => { window.clearInterval(rotate); window.clearInterval(rotateHeader); };
-  }, [rotationPaused]);
+  }, [rotationPaused, linkEditor]);
   useEffect(() => {
     if (!tvMode) return;
     let disposed = false;
@@ -319,6 +329,7 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
   return <section className={`operations-board${tvMode ? " tv-display" : ""}`}>
     {tvMode && <button type="button" className={`board-exit-tv${tvExitVisible ? " is-visible" : ""}`} onClick={() => void exitTvMode()} aria-label="Exit full-screen TV mode and return to the portal"><span aria-hidden="true">×</span> Exit full screen</button>}
     <div className="board-display-controls">
+      {boardLinks.canEdit && !tvMode && <button type="button" className={linkStyles.editButton} onClick={() => setLinkEditor(isBoardLinkSection(rotation) ? rotation : 'news')}><b aria-hidden="true">+</b> Edit news & training links</button>}
       {alertPanelOpen && <div className="call-alert-settings"><strong>New-call sound</strong><label><span>Alert tone</span><select value={alertTone} onChange={(event) => selectAlertTone(event.target.value)}>{alertTones.map((tone) => <option value={tone.id} key={tone.id}>{tone.label}</option>)}</select></label><div><button type="button" onClick={() => void playAlert(alertTone)}>Preview</button><button type="button" className={alertEnabled ? "enabled" : ""} onClick={() => void toggleCallAlerts()}>{alertEnabled ? "Disable alerts" : "Enable call alerts"}</button></div><small>Saved on this TV. Sounds only for newly received call numbers.</small></div>}
       <div className="board-control-buttons"><span className={`board-heartbeat ${feedDegraded?"degraded":""}`}><i/>{feedDegraded?"Feed delayed · reconnecting":`Updated ${lastRefresh?.toLocaleTimeString([],{hour:"numeric",minute:"2-digit",second:"2-digit"})}`}</span><button type="button" onClick={()=>setRotationPaused((current)=>!current)}>{rotationPaused?"Resume rotation":"Pause rotation"}</button><button type="button" onClick={() => setAlertPanelOpen((open) => !open)} aria-expanded={alertPanelOpen}>Call sound: {alertEnabled ? "On" : "Off"}</button>{tvMode
         ? <span className="board-station-mode"><i/>24/7 station mode</span>
@@ -328,21 +339,28 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
     {error && <div className="board-alert">{error}<button onClick={() => void load()}>Retry</button></div>}
     {Boolean(data?.roadClosures?.length)&&<section className="board-road-closures" aria-label="Active road closures"><header><span>ROAD OUT OF SERVICE</span><strong>{data!.roadClosures.length} active</strong></header><div>{data!.roadClosures.map((closure)=><article key={closure.id}><div><h2>{closure.roadName}</h2><p>{closure.reason||"Department road closure"}</p><small>Expected clear: {boardClosureTime(closure.expectedClearAt)}</small></div><a href={boardDetourUrl(closure)} target="_blank" rel="noreferrer">OPEN DETOUR ↗</a></article>)}</div></section>}
     <div className="board-summary"><article className={data?.staffing.complete ? "clear" : "warning"}><span>Staffing</span><strong>{data?.staffing.filled ?? "—"} / {data?.staffing.required ?? 4}</strong><small>{data?.staffing.complete ? "Complete" : "Coverage needs attention"}</small></article><article className={data?.officerInCharge ? "clear" : "warning"}><span>Officer in charge</span><strong>{data?.officerInCharge ? displayName(data.officerInCharge) : "Not signed in"}</strong><small>Current shift command</small></article><article className={`active-call-summary ${activeCall ? "active" : "clear"}`}><span>{data?.activeCalls.length ? `Active call${data.activeCalls.length > 1 ? ` · ${data.activeCalls.length} total` : ""}` : "Active call"}</span>{activeCall ? <><strong>{activeCall.callType}</strong><b>{activeCall.address || "Address not entered"}</b>{activeCall.narrative && <em>{activeCall.narrative}</em>}<small>{activeCall.respondingUnits || "Units pending"} · {activeCall.timeOut ? formatMilitaryTime(activeCall.timeOut) : "Time pending"}{activeCall.source ? ` · ${activeCall.source}` : ""}</small></> : <><strong>None</strong><small>No open calls</small></>}</article><article><span>Next shift change</span><strong>{next.label}</strong><small>In {next.remaining}</small></article></div>
-    <div className="board-grid redesigned"><ChiefBoardPanel />
+    {linkMessage && !tvMode && <p role="status">{linkMessage}</p>}
+    <div className="board-grid redesigned"><ChiefBoardPanel onBoardLinks={receiveBoardLinks} />
       <StaffingRotation mode="board" onDuty={data?.onDuty ?? []} newMembers={data?.newMembers ?? []} />
-      <section className={`board-panel equipment rotating-panel ${rotation}${rotation === "duty" && dailyChecksNeedAttention ? " daily-check-alert" : ""}`} aria-live="polite">
+      <section className={`board-panel equipment rotating-panel ${linkStyles.panel} ${rotation}${rotation === "duty" && dailyChecksNeedAttention ? " daily-check-alert" : ""}`} aria-live="polite">
         <header>
-          <h2>{rotation === "equipment" ? "Equipment issues" : rotation === "duty" ? dailyFleetChecks.length ? "Scheduled apparatus checks" : "Current daily duty" : rotation === "news" ? "Firefighter Close Calls" : rotation === "fatalities" ? "U.S. Firefighter Line-of-Duty Deaths" : trainingProviders[rotation].name}</h2>
+          <h2>{rotation === "equipment" ? "Equipment issues" : rotation === "duty" ? dailyFleetChecks.length ? "Scheduled apparatus checks" : "Current daily duty" : boardLinks.settings.sections[rotation].title}</h2>
+          <div className={linkStyles.headerActions}>
           <span>{rotation === "equipment" ? `${data?.equipmentIssues.length ?? 0} reported` : rotation === "duty" ? dailyFleetChecks.length ? dailyCheckUrgency === "overdue" ? `OVERDUE · Earliest due ${dailyFleetChecks[0]?.endTime}` : dailyCheckUrgency === "due_soon" ? `DUE NOW · Earliest due ${dailyFleetChecks[0]?.endTime}` : `Scheduled · Begins ${dailyFleetChecks[0]?.startTime}` : `${clock.toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "long" })} · ${shiftLabel(currentDuty?.shiftKey ?? data?.currentShift ?? "night")}` : rotation === "news" ? savedFeedLabel(informational.feeds.close_calls, informational.unconfirmed.bulletins) : rotation === "fatalities" ? savedFeedLabel(informational.feeds.usfa, informational.unconfirmed.bulletins) : "Upcoming classes · official links"}</span>
+          {boardLinks.canEdit && isBoardLinkSection(rotation) && <button type="button" className={linkStyles.editButton} onClick={() => setLinkEditor(rotation)} aria-label={`Edit links for ${boardLinks.settings.sections[rotation].title}`}><b aria-hidden="true">+</b> Edit links</button>}
+          </div>
         </header>
+        {!tvMode && <label className={linkStyles.picker}>Show section<select value={rotation} onChange={event => { setRotation(event.target.value as Rotation); setRotationPaused(true); }}><option value="equipment">Equipment issues</option><option value="duty">Apparatus checks & daily duty</option>{boardLinkSections.map(section => <option key={section.id} value={section.id}>{boardLinks.settings.sections[section.id].title}</option>)}</select></label>}
         <div className="rotation-content">
           <div className="rotation-slide" hidden={rotation !== "equipment"}>{data?.equipmentIssues.length ? data.equipmentIssues.map((issue) => <article key={issue.id || issue.item}><b>{issue.item}</b><strong>{issue.status}</strong><p>{issue.detail || "No details entered"}</p></article>) : <p className="board-empty clear">✓ No equipment issues reported</p>}</div>
           <div className="rotation-slide" hidden={rotation !== "duty"}>{dailyFleetChecks.length || currentDuty ? <article className={`current-duty-card${dailyChecksNeedAttention ? " daily-check-alert" : ""}`}><span>{dailyFleetChecks.length ? dailyCheckUrgency === "overdue" ? "OVERDUE" : dailyCheckUrgency === "due_soon" ? "DUE NOW" : "SCHEDULED CHECKS" : "NOW"}</span><b>{dailyFleetChecks.length ? "Required apparatus and inventory checks" : `${currentDuty?.shiftKey[0].toUpperCase()}${currentDuty?.shiftKey.slice(1)} duty`}</b>{currentDuty?.duty ? <p>{currentDuty.duty}</p> : dailyFleetChecks.length ? <p>Complete each scheduled check in its administrator-set window. Finished checks clear automatically.</p> : null}{dailyFleetChecks.length ? <div className="board-duty-checks daily">{dailyFleetChecks.map((check) => <a key={`${check.apparatusId}-${check.checkType}`} href={`/inventory?apparatus=${encodeURIComponent(check.apparatusId)}&check=${encodeURIComponent(check.checkType)}`}><b>{check.unit} · {check.checkType.replaceAll("_", " ")}</b><span>{check.status === "in_progress" ? "↻ Resume check" : "Start check"} · {check.startTime}–{check.endTime}</span></a>)}</div> : null}{weeklyChecksCompleted ? <p className="board-duty-complete">✓ Today&apos;s scheduled checks are completed or not needed.</p> : null}</article> : <p className="board-empty">No duty is entered for the current shift.</p>}</div>
           <div className="rotation-slide" hidden={rotation !== "news"}>{news.length ? <div className="close-call-list">{news.map((report) => <a href={report.url} target="_blank" rel="noreferrer" key={report.url} aria-label={`${report.title}. Open the full Firefighter Close Calls report.`}><time><span>Posted</span>{new Date(report.publishedAt).toLocaleDateString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", year: "numeric" })}</time><div><span className="close-call-kicker">Incident report</span><strong>{report.title}</strong>{report.excerpt && <p>{report.excerpt}</p>}<small>Read the complete report <b aria-hidden="true">↗</b></small></div></a>)}</div> : <p className="board-empty">Latest reports are temporarily unavailable.</p>}</div>
           <div className="rotation-slide" hidden={rotation !== "fatalities"}>{fatalities ? <div className="fatality-board"><div className="fatality-total"><strong>{fatalities.total}</strong><div><b>firefighter deaths in {fatalities.year}</b><span>{savedFeedLabel(informational.feeds.usfa, informational.unconfirmed.bulletins)}</span></div></div><div className="fatality-list">{fatalities.items.map((person) => <a href={person.url} target="_blank" rel="noreferrer" key={person.id}><time>{new Date(person.deathDate).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" })}</time><div><strong>{person.name}</strong><span>{person.department}</span><small>{person.location}</small></div><b aria-hidden="true">↗</b></a>)}</div><p className="fatality-source">Provisional on-duty fatality information from the U.S. Fire Administration.</p></div> : <p className="board-empty">USFA fatality information is temporarily unavailable.</p>}</div>
           {(["romeoville", "ifsi", "nipsta"] as const).map((providerId) => <div className="rotation-slide" hidden={rotation !== providerId} key={providerId}><TrainingCourses provider={trainingProviders[providerId]} today={today} /></div>)}
+          {isBoardLinkSection(rotation) && <BoardSectionLinks section={boardLinks.settings.sections[rotation]} confirmed={boardLinks.confirmed}/>}
         </div>
       </section></div>
     <section className="board-panel apparatus apparatus-wide"><header><h2>Apparatus status</h2><span>Fleet + active CAD calls</span></header><div>{data?.apparatus.map((unit) => <article className={unit.status === "Committed to call" ? "committed" : unit.status === "Available" ? "available" : "unknown"} key={unit.unit}><b>Unit {unit.unit}</b><span>{unit.status}</span></article>)}</div><p className="board-source-note">Fleet status with active CAD commitment shown in red.</p></section>
+    {linkEditor && <BoardLinksEditor initialSection={linkEditor} canEdit={boardLinks.canEdit} onClose={() => setLinkEditor(null)} onSaved={(signal, section) => { receiveBoardLinks(signal); setRotation(section); setRotationPaused(true); setLinkMessage('Links saved. This board shows the saved section; other boards receive it on their next board refresh. Select Resume rotation when ready.'); }}/>}
   </section>;
 }

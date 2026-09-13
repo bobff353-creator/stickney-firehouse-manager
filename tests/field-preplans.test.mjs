@@ -89,7 +89,7 @@ test("IFC Appendix B advisory flow uses total levels and sprinkler assumptions",
 });
 
 test("Field Preplans provides map-first quick and detailed capture", async () => {
-  const [page, api, photoApi, hydrantApi, bootstrap, shell, permissions, googleMap, mapsConfig, styles, fireFlow, layout] = await Promise.all([
+  const [page, api, photoApi, hydrantApi, bootstrap, shell, permissions, googleMap, mapsConfig, styles, fireFlow, layout, menu] = await Promise.all([
     readFile(new URL("../app/field-preplans.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/field-preplans/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/field-preplans/photos/route.ts", import.meta.url), "utf8"),
@@ -102,8 +102,10 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../app/preplan-fire-flow.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/portal-menu-items.ts", import.meta.url), "utf8"),
   ]);
-  assert.match(shell, /label: "Field"/);
+  assert.match(shell, /from "\.\/portal-menu-items"/);
+  assert.match(menu, /label: "Field"/);
   assert.match(shell, /activeNav === "Field Preplans"/);
   assert.match(permissions, /field_preplans\.view/);
   assert.match(permissions, /field_preplans\.edit/);
