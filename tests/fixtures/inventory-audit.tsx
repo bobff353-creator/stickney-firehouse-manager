@@ -18,11 +18,13 @@ const equipment=[item,{...item,id:'fixture-mileage',name:'Current mileage / odom
 const checks=[{id:'fixture-check',apparatus_id:rig.id,apparatus_name:rig.name,check_type:'daily',status:'in_progress',started_at:new Date().toISOString(),started_by:'Preview crew'}];
 const data={configured:true,apparatus:[rig,{...rig,id:'fixture-ambulance',name:'Preview Ambulance',asset_type:'ambulance'}],compartments:[location],equipment,retiredEquipment:[],checks,checkItems:equipment.map(e=>({...e,id:`result-${e.id}`,equipment_id:e.id,equipment_name:e.name,check_id:checks[0].id,result:'pending'})),exceptions:[],workOrders:[],workOrderDocuments:[],inspectionSchedules:[{id:'fixture-schedule',apparatus_id:rig.id,apparatus_name:rig.name,check_type:'inventory',day_of_week:1,start_time:'06:00',end_time:'12:00',active:true}],stock:[],restockRequests:[],locationChanges:[],scbaTemplates:[{id:'fixture-scba',apparatus_id:rig.id,active:true,pack_positions:['Officer seat','Rear seat'],include_rit:true,spare_bottle_count:1}],scbaEntries:[]};
 let writes=0;
-const audit={data,permissionMode:'ok',permissionRequests:0,emptySave:false,requests:[] as string[],errors:[] as string[],permissions:null as string[]|null};
+const pendingReads:Array<()=>void>=[];
+const audit={data,permissionMode:'ok',permissionRequests:0,emptySave:false,requests:[] as string[],requestTimes:[] as {url:string;at:number}[],holdReads:false,activeReads:0,maxReads:0,releaseReads(){pendingReads.splice(0).forEach(resolve=>resolve());},errors:[] as string[],permissions:null as string[]|null};
 Object.assign(window,{inventoryAudit:audit});
 window.fetch=async(input,init)=>{
  const url=String(input); if(!url.startsWith('/api/'))throw Error('Fixture blocks external fetch');
  audit.requests.push(url);
+ audit.requestTimes.push({url,at:performance.now()});
  if(init?.method==='POST'){
   const body=JSON.parse(String(init.body)); writes++;document.getElementById('audit-writes')!.textContent=`Test writes: ${writes} · ${body.action}`;
   if((document.getElementById('fail-save') as HTMLInputElement).checked){(document.getElementById('fail-save') as HTMLInputElement).checked=false;return Response.json({error:'Simulated save failure. Your edits were not saved.'},{status:503});}
@@ -31,7 +33,11 @@ window.fetch=async(input,init)=>{
   if(body.action==='complete_check'){Object.assign(data.checks[0],{status:'completed',review_status:'pending',completed_at:new Date().toISOString()});return Response.json({ok:true});}
   return Response.json({error:'This fixture does not save that action.'},{status:409});
  }
- if(url.startsWith('/api/operations'))return Response.json(data);
+ if(url.startsWith('/api/operations')){
+  audit.activeReads++;audit.maxReads=Math.max(audit.maxReads,audit.activeReads);
+  try{if(audit.holdReads)await new Promise<void>((resolve,reject)=>{pendingReads.push(resolve);init?.signal?.addEventListener('abort',()=>reject(new DOMException('Cancelled','AbortError')),{once:true});});return Response.json(data);}
+  finally{audit.activeReads--;}
+ }
  if(url.startsWith('/api/digital-twin'))return Response.json({...data,photos:[],hotspots:[]});
  if(url.startsWith('/api/suite-context'))return Response.json({configured:true,department:{id:'fixture',name:'Preview department'},apparatus:data.apparatus.map(r=>({...r,unit_name:r.name,unit_type:r.asset_type,call_sign:r.name})),events:[]});
  if(url.startsWith('/api/dashboard'))return Response.json({viewer:{employeeId:'fixture-member'}});

@@ -2,13 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import ts from 'typescript';
+import { definitiveAuthFailure } from '../app/auth-failure-policy.ts';
 
-function compile(file,deps){const module={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(name=>{if(!(name in deps))throw Error('Missing dependency '+name);return deps[name];},module,module.exports);return module.exports;}
-function proxyFixture({signedIn=true,member=true,configured=true,unlocked=true,confirmationRequired=false,confirmationError=false}={}){
+function compile(file,deps){const module={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(name=>{if(name === './app/auth-failure-policy') return {definitiveAuthFailure};if(!(name in deps))throw Error('Missing dependency '+name);return deps[name];},module,module.exports);return module.exports;}
+function proxyFixture({signedIn=true,member=true,configured=true,unlocked=true,confirmationRequired=false,confirmationError=false,authError=null}={}){
  let forwarded;
  function cookieJar(){const map=new Map();return{getAll:()=>[...map.values()],set(name,value,options){if(typeof name==='object')map.set(name.name,name);else map.set(name,{name,value,...options});},get(name){return map.get(name);},toString:()=>[...map.values()].map(c=>c.name+'='+c.value).join('; ')};}
  const next={next(options){forwarded=options;return{headers:new Headers(),cookies:cookieJar()};},json:(body,init)=>Response.json(body,init)};
- const client=(_url,_key,options)=>({auth:{async getUser(){options.cookies.setAll([{name:'auth-refresh',value:'fixture-renewed',options:{httpOnly:true,path:'/'}}]);return{data:{user:signedIn?{id:'fixture',email:'member@example.invalid'}:null},error:null};}},from(){const chain={select:()=>chain,eq:()=>chain,maybeSingle:async()=>({data:member?{role:'user'}:null,error:null})};return chain;},async rpc(name){return{data:name==='is_platform_owner'?false:name==='portal_pin_status'?[{configured,unlocked}]:name==='portal_confirmation_status'?{required:confirmationRequired,version:null,exempt:false}:null,error:name==='portal_confirmation_status'&&confirmationError?{message:'fixture unavailable'}:null};}});
+ const client=(_url,_key,options)=>({auth:{async getUser(){options.cookies.setAll([{name:'auth-refresh',value:'fixture-renewed',options:{httpOnly:true,path:'/'}}]);return{data:{user:signedIn?{id:'fixture',email:'member@example.invalid'}:null},error:authError};}},from(){const chain={select:()=>chain,eq:()=>chain,maybeSingle:async()=>({data:member?{role:'user'}:null,error:null})};return chain;},async rpc(name){return{data:name==='is_platform_owner'?false:name==='portal_pin_status'?[{configured,unlocked}]:name==='portal_confirmation_status'?{required:confirmationRequired,version:null,exempt:false}:null,error:name==='portal_confirmation_status'&&confirmationError?{message:'fixture unavailable'}:null};}});
  const proxy=compile('proxy.ts',{'@supabase/ssr':{createServerClient:client},'next/server':{NextResponse:next},'./app/supabase-config':{getPublicSupabaseConfig:()=>({url:'https://example.invalid',key:'publishable-fixture'})},'./app/required-confirmation-policy':compile('app/required-confirmation-policy.ts',{})}).proxy;
  const request=(method='GET',origin='https://portal.test')=>({method,nextUrl:new URL('https://portal.test/api/payroll'),headers:new Headers({'origin':origin,'oai-authenticated-user-email':'spoofed@example.invalid'}),cookies:cookieJar()});
  return{proxy,request,get forwarded(){return forwarded;}};
@@ -37,6 +38,13 @@ test('confirmation is server-enforced, strips spoofed status, and never blocks l
 test('expired, unapproved, PIN-locked and cross-origin sessions are denied',async()=>{
  const before=process.env.PAYROLL_DEPARTMENT_ID;process.env.PAYROLL_DEPARTMENT_ID='fixture';
  try{for(const[options,status]of [[{signedIn:false},401],[{member:false},403],[{configured:false},423],[{unlocked:false},423]]){const f=proxyFixture(options);assert.equal((await f.proxy(f.request())).status,status);}const f=proxyFixture();assert.equal((await f.proxy(f.request('POST','https://wrong.invalid'))).status,403);}finally{if(before===undefined)delete process.env.PAYROLL_DEPARTMENT_ID;else process.env.PAYROLL_DEPARTMENT_ID=before;}
+});
+
+test('proxy distinguishes auth outages from invalid sessions and forwards neither',async()=>{
+ const before=process.env.PAYROLL_DEPARTMENT_ID;process.env.PAYROLL_DEPARTMENT_ID='fixture';
+ try{for(const [authError,status] of [[{status:503},503],[{status:429},503],[new TypeError('offline'),503],[{status:401},401],[{code:'session_expired'},401]]){
+  const f=proxyFixture({signedIn:false,authError}),response=await f.proxy(f.request());assert.equal(response.status,status);assert.ok((await response.json()).error);assert.match(response.headers.get('Cache-Control'),/no-store/);
+ }}finally{if(before===undefined)delete process.env.PAYROLL_DEPARTMENT_ID;else process.env.PAYROLL_DEPARTMENT_ID=before;}
 });
 test('permission subscriptions discard an old in-flight result after unmount/remount',async()=>{
  const originalFetch=globalThis.fetch;let subscribed;const effects=[];const replies=[];

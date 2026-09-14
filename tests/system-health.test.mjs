@@ -49,7 +49,7 @@ test("backup controls do not claim success without a connected verification feed
 });
 
 test("administrators can open the health page from Administration", () => {
-  assert.match(shell, /System Health & Backups/);
+  assert.match(readFileSync(new URL("../app/portal-menu-items.ts", import.meta.url), "utf8"), /System Health & Backups/);
   assert.match(shell, /activeNav === "System Health"/);
   assert.match(component, /No green check without proof/);
 });

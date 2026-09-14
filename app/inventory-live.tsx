@@ -369,6 +369,12 @@ export default function Inventory360({
   const [twinState, setTwinState] = useState<LoadState>("loading");
   const [twinData, setTwinData] = useState<TwinData>(emptyTwin);
   const [fleetOperations, setFleetOperations] = useState<FleetOperationsSummary>(emptyFleetOperations);
+  const [fleetSummaryReady, setFleetSummaryReady] = useState(false);
+  const receiveOperations = useCallback((records: unknown) => {
+    const payload = records as FleetOperationsSummary | null;
+    setFleetSummaryReady(Boolean(payload));
+    if (payload) setFleetOperations({ equipment: payload.equipment, checks: payload.checks, checkItems: payload.checkItems });
+  }, []);
   const [toast, setToast] = useState("");
   const [scanRequest, setScanRequest] = useState(0);
   const [setupWorkspace, setSetupWorkspace] = useState<"apparatus" | "checks">("checks");
@@ -478,14 +484,16 @@ export default function Inventory360({
     try {
       const response = await fetch("/api/operations", { cache: "no-store", signal });
       const payload = await response.json().catch(() => ({})) as Partial<FleetOperationsSummary> & { configured?: boolean };
-      if (!response.ok || payload.configured !== true) return;
+      if (!response.ok || payload.configured !== true) { setFleetSummaryReady(false); return; }
       setFleetOperations({
         equipment: Array.isArray(payload.equipment) ? payload.equipment : [],
         checks: Array.isArray(payload.checks) ? payload.checks : [],
         checkItems: Array.isArray(payload.checkItems) ? payload.checkItems : [],
       });
+      setFleetSummaryReady(true);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
+      setFleetSummaryReady(false);
     }
   }, []);
 
@@ -493,10 +501,17 @@ export default function Inventory360({
     if (access.confirmation?.required !== false) return;
     const controller = new AbortController();
     void loadSuite(controller.signal);
-    void loadTwin(undefined, controller.signal);
-    void loadFleetOperations(controller.signal);
     return () => controller.abort();
-  }, [loadFleetOperations, loadSuite, loadTwin,access.confirmation?.required]);
+  }, [loadSuite,access.confirmation?.required]);
+
+  useEffect(() => {
+    if (!accessAllowed || access.confirmation?.required !== false || !["fleet", "setup"].includes(view)) return;
+    const controller = new AbortController();
+    void loadTwin(undefined, controller.signal);
+    // All other workspaces receive the already-loaded child records below.
+    if (view === "fleet") void loadFleetOperations(controller.signal);
+    return () => controller.abort();
+  }, [view, accessAllowed, access.confirmation?.required, loadTwin, loadFleetOperations]);
 
   const linkedTwinCount = suite.apparatus.filter((unit) => (
     Boolean(matchingTwin(unit, twinData.apparatus))
@@ -555,8 +570,9 @@ export default function Inventory360({
 
   function refreshWorkspace() {
     void loadSuite();
-    void loadTwin(selectedApparatusId || undefined);
-    void loadFleetOperations();
+    if (["fleet", "setup"].includes(view)) void loadTwin(selectedApparatusId || undefined);
+    if (view === "fleet") void loadFleetOperations();
+    window.dispatchEvent(new Event("firehouse:inventory-refresh"));
     showToast("Refresh requested. Check each section’s connection status before relying on its records.");
   }
 
@@ -626,7 +642,7 @@ export default function Inventory360({
             <button type="button" onClick={() => openFleetFilter("in-service")}><strong>{inService}</strong><span>In service</span></button>
             <button type="button" onClick={() => openFleetFilter("out-impaired")}><strong>{outOfService.length}</strong><span>Out / impaired</span></button>
             <button type="button" onClick={() => setView("readiness")}><strong>{inventoryEvents.length}</strong><span>Readiness updates</span></button>
-            <button type="button" onClick={() => setView("fleet")}><strong>{checksInProgress}</strong><span>Checks in progress</span></button>
+            <button type="button" onClick={() => setView("fleet")}><strong>{fleetSummaryReady ? checksInProgress : "—"}</strong><span>Checks in progress</span></button>
           </div>
         ) : null}
         <label className="inventory-mobile-destination">What do you need to do?<select aria-label="Inventory workspace" value={view === "check" ? (selectedCheckType === "air_pack" ? "air" : "fleet") : view} onChange={event => setView(event.target.value as View)}>{inventorySections.map(([id,label]) => <option key={id} value={id}>{label}</option>)}{view === "readiness" && <option value="readiness">Items needing attention</option>}{canSetup && <option value="setup">Admin: checks &amp; equipment</option>}</select></label>
@@ -674,7 +690,7 @@ export default function Inventory360({
               <span>5</span><b>Repair follow-up</b><small>Track failed items without duplicate work</small>
             </button>
           </nav>
-          <InventoryOperations view="due" onAir={() => setView("air")} onSetup={() => setView("setup")} onOpenUnit={(apparatusId, checkType) => { setSelectedApparatusId(apparatusId); setSelectedCheckType(checkType); window.history.replaceState(null, "", `/inventory?apparatus=${encodeURIComponent(apparatusId)}&check=${checkType}`); setView("check"); }} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+          <InventoryOperations onRecords={receiveOperations} view="due" onAir={() => setView("air")} onSetup={() => setView("setup")} onOpenUnit={(apparatusId, checkType) => { setSelectedApparatusId(apparatusId); setSelectedCheckType(checkType); window.history.replaceState(null, "", `/inventory?apparatus=${encodeURIComponent(apparatusId)}&check=${checkType}`); setView("check"); }} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
         </section>
       ) : null}
 
@@ -687,7 +703,7 @@ export default function Inventory360({
               <p>Each apparatus has its own inventory check, progress, and completion record.</p>
             </div>
           </div>
-          <InventoryOperations view="inventory" onSetup={() => setView("setup")} onOpenUnit={(apparatusId, checkType) => { setSelectedApparatusId(apparatusId); setSelectedCheckType(checkType); window.history.replaceState(null, "", `/inventory?apparatus=${encodeURIComponent(apparatusId)}&check=${checkType}`); setView("check"); }} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+          <InventoryOperations onRecords={receiveOperations} view="inventory" onSetup={() => setView("setup")} onOpenUnit={(apparatusId, checkType) => { setSelectedApparatusId(apparatusId); setSelectedCheckType(checkType); window.history.replaceState(null, "", `/inventory?apparatus=${encodeURIComponent(apparatusId)}&check=${checkType}`); setView("check"); }} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
         </section>
       ) : null}
 
@@ -848,23 +864,23 @@ export default function Inventory360({
             </div>
           </div>
           {selectedCheckType === "air_pack" ? <div className="air-check-return"><button type="button" className="secondary" onClick={() => setView("air")}>← Back to Air Packs &amp; Bottles</button></div> : null}
-          <InventoryOperations key={`${selectedApparatusId}-${selectedCheckType}`} view="check" onSetup={() => setView("setup")} onReports={() => setView("reports")} initialApparatusId={selectedApparatusId} initialCheckType={selectedCheckType} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+          <InventoryOperations onRecords={receiveOperations} key={`${selectedApparatusId}-${selectedCheckType}`} view="check" onSetup={() => setView("setup")} onReports={() => setView("reports")} initialApparatusId={selectedApparatusId} initialCheckType={selectedCheckType} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
         </section>
       ) : null}
 
-      {view === "air" ? <section className="page air-equipment-page"><InventoryOperations view="air" onSetup={() => setView("setup")} onRepairs={() => setView("service")} onOpenUnit={(id, type) => { setSelectedApparatusId(id); setSelectedCheckType(type); setView("check"); }} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} /></section> : null}
+      {view === "air" ? <section className="page air-equipment-page"><InventoryOperations onRecords={receiveOperations} view="air" onSetup={() => setView("setup")} onRepairs={() => setView("service")} onOpenUnit={(id, type) => { setSelectedApparatusId(id); setSelectedCheckType(type); setView("check"); }} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} /></section> : null}
 
       {view === "equipment" ? (
         <section className="page equipment-page">
           <div className="page-heading compact crew-heading"><div><span className="eyebrow">DEPARTMENT EQUIPMENT</span><h1>Find an asset, compartment, or kit.</h1><p>Search across every apparatus and scan an asset tag without guessing where it is stored.</p></div></div>
-          <InventoryOperations view="equipment" onSetup={() => setView("setup")} onAir={() => setView("air")} scanRequest={scanRequest} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+          <InventoryOperations onRecords={receiveOperations} view="equipment" onSetup={() => setView("setup")} onAir={() => setView("air")} scanRequest={scanRequest} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
         </section>
       ) : null}
 
       {view === "reports" ? (
         <section className="page reports-page">
           <div className="page-heading compact crew-heading"><div><span className="eyebrow">CHECK REPORTS &amp; APPROVALS</span><h1>Review, print, and email completed work.</h1><p>Daily, weekly, inventory, and air-pack checks create permanent reports. Administrators approve new completions here.</p></div></div>
-          <InventoryOperations view="reports" onSetup={() => setView("setup")} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+          <InventoryOperations onRecords={receiveOperations} view="reports" onSetup={() => setView("setup")} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
         </section>
       ) : null}
 
@@ -920,7 +936,7 @@ export default function Inventory360({
               )}
             </section>
           </div>
-          <InventoryOperations view="readiness" onSetup={() => setView("setup")} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+          <InventoryOperations onRecords={receiveOperations} view="readiness" onSetup={() => setView("setup")} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
         </section>
       ) : null}
 
@@ -933,7 +949,7 @@ export default function Inventory360({
               <p>Repair notices appear on assigned employee home pages and Live Ops until the repair is completed.</p>
             </div>
           </div>
-          <InventoryOperations view="service" onSetup={() => setView("setup")} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+          <InventoryOperations onRecords={receiveOperations} view="service" onSetup={() => setView("setup")} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
         </section>
       ) : null}
 
@@ -946,7 +962,7 @@ export default function Inventory360({
               <p>Track real station supplies without treating controlled medications as ordinary stock.</p>
             </div>
           </div>
-          <InventoryOperations view="stock" onSetup={() => setView("setup")} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+          <InventoryOperations onRecords={receiveOperations} view="stock" onSetup={() => setView("setup")} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
         </section>
       ) : null}
 
@@ -998,7 +1014,7 @@ export default function Inventory360({
               )}
             </div>
             <div className="setup-workspace-panel" hidden={setupWorkspace !== "checks"}>
-              <InventoryOperations view="builder" onSetup={() => setView("setup")} onAir={() => setView("air")} initialApparatusId={selectedApparatusId} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+              <InventoryOperations onRecords={receiveOperations} view="builder" onSetup={() => setView("setup")} onAir={() => setView("air")} initialApparatusId={selectedApparatusId} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
             </div>
           </div>
         </section>

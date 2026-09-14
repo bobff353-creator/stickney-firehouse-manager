@@ -86,7 +86,7 @@ test("Respond reads existing call and preplan records and exposes requested fiel
   assert.match(component, /type RightView = "cad"\s*\|\s*"floorplan"\s*\|\s*"footprint"\s*\|\s*"B"\s*\|\s*"C"\s*\|\s*"D"/);
   assert.match(component, /\$\{item\} Side/);
   assert.match(component, /Open Google Navigation/);
-  assert.match(shell, /\{ label: "Respond", page: "Respond" \}/);
+  assert.match(await readFile(new URL("../app/portal-menu-items.ts", import.meta.url), "utf8"), /\{ label: "Respond", page: "Respond" \}/);
   assert.match(shell, /activeNav === "Respond"/);
   assert.match(shell, /Respond Device Modes/);
   assert.match(shell, /respondDeviceSettings\.mode === "operations-alert" && activeNav === "Operations Board"/);

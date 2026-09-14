@@ -10,6 +10,8 @@ const listeners = new Set<() => void>();
 let pending: Promise<Access> | null = null;
 let controller: AbortController | null = null;
 let generation = 0;
+let pollingOwners = 0;
+let stopPolling: (() => void) | null = null;
 function publish(next: Access) { state = next; listeners.forEach(notify => notify()); }
 
 export function refreshPermissions() {
@@ -63,9 +65,7 @@ function subscribe(notify: () => void) {
   };
 }
 
-export function usePermissions() {
-  const access = useSyncExternalStore(subscribe, () => state, () => empty);
-  useEffect(() => {
+function startPolling() {
     const refresh = () => { if (document.visibilityState !== "hidden") void refreshPermissions(); };
     const offline = () => { generation += 1; controller?.abort(); controller = null; pending = null; publish({ ...empty, error: "Offline. Reconnect to verify your current access." }); };
     void refreshPermissions();
@@ -84,6 +84,17 @@ export function usePermissions() {
       window.removeEventListener("offline", offline);
       window.removeEventListener("firehouse:permissions-changed", refresh);
       document.removeEventListener("visibilitychange", refresh);
+    };
+}
+
+export function usePermissions() {
+  const access = useSyncExternalStore(subscribe, () => state, () => empty);
+  useEffect(() => {
+    // Every consumer shares one timer and one set of browser listeners.
+    // No grants are shared between browsers; each browser verifies on the server.
+    if (pollingOwners++ === 0) stopPolling = startPolling();
+    return () => {
+      if (--pollingOwners === 0) { stopPolling?.(); stopPolling = null; }
     };
   }, []);
   return access;

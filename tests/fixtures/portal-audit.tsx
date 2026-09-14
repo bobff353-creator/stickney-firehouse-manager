@@ -47,9 +47,10 @@ Object.assign(window,{confirmationAudit:{replaceMessage(){confirmationVersion++;
 const unknown = new Set<string>();
 const errors: string[] = [];
 const accessRequests: string[] = [];
+const startupRequests: string[] = [];
 let accessOverrides: Record<string, Record<string, "allow" | "deny">> = {};
 let accessRevision = 1;
-Object.assign(window, { portalAudit: { errors, unknown, setFailWrite(value: boolean) { failWrite = value; }, setFailRead(value: boolean) { failRead = value; }, writes: () => writes } });
+Object.assign(window, { portalAudit: { errors, unknown, requests: startupRequests, setFailWrite(value: boolean) { failWrite = value; }, setFailRead(value: boolean) { failRead = value; }, writes: () => writes } });
 window.addEventListener("error", event => errors.push(event.message));
 window.addEventListener("unhandledrejection", event => errors.push(String(event.reason)));
 const accessEmployee = { ...employee, isAdmin: 0, loginLinked: true };
@@ -137,6 +138,8 @@ Object.assign(window,{preplanAudit:{reset(){sessionStorage.removeItem('preplan-w
 window.fetch = async (input, init) => {
   const url = new URL(String(input), location.origin);
   const method = init?.method ?? "GET";
+  startupRequests.push(method + ' ' + url.pathname + url.search);
+  if (params.has('payroll-unavailable') && url.pathname === '/api/payroll') return Response.json({error:'Fictional payroll outage'}, {status:503});
   if(failPreplanReadback&&method==='GET'&&url.pathname==='/api/field-preplans'){failPreplanReadback=false;return Response.json({error:'Simulated saved-record reload failure'},{status:503});}
   if(params.has('seven-ux') && url.pathname==='/api/station-scheduler' && method==='POST') {
     writes++;

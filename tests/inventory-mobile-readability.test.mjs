@@ -28,7 +28,7 @@ test("inventory uses its own full-width shell instead of the portal sidebar grid
     readFile(new URL("../app/inventory-live.tsx", import.meta.url), "utf8"),
   ]);
 
-  assert.match(inventory, /<main className="inventory-app-shell inventory-portal-refresh">/);
+  assert.match(inventory, /<main className=\{`inventory-app-shell inventory-portal-refresh/);
   assert.doesNotMatch(inventory, /<main className="app-shell">/);
   assert.match(styles, /\.inventory-app-shell \{ display: block; width: 100%; min-width: 0; min-height: 100vh; \}/);
 });

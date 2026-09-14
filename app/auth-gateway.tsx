@@ -1,14 +1,15 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import PayrollApp from "./payroll-app";
+import { boundedAuthRead, definitiveAuthFailure } from "./auth-failure-policy";
 import SessionIdleLock from "./session-idle-lock";
 import RememberDeviceOption from "./remember-device-option";
 import { clearCachedRespondPackets } from "./preplans/offline-cache";
 import { getSupabaseBrowserClient } from "./supabase-browser";
 
-type Mode = "loading" | "sign-in" | "new-user" | "checking" | "set-pin" | "pin" | "reset-pin" | "authorized" | "waiting";
+type Mode = "loading" | "sign-in" | "new-user" | "checking" | "set-pin" | "pin" | "reset-pin" | "authorized" | "waiting" | "unavailable";
 
 function clearAccessCache() {
   document.cookie = "__Secure-firehouse-access=; Path=/; Max-Age=0; SameSite=Lax; Secure";
@@ -28,9 +29,17 @@ export default function AuthGateway({
   const [employeeNumber, setEmployeeNumber] = useState("");
   const [message, setMessage] = useState("");
   const accessCheckRef = useRef<Promise<void> | null>(null);
+  const identityAttemptRef = useRef(0);
+  const sessionGenerationRef = useRef(0);
   const pinLoginRef = useRef(false);
   const actionPendingRef = useRef(false);
   const [actionPending, setActionPending] = useState(false);
+
+  const invalidateSession = useCallback(() => {
+    identityAttemptRef.current++;
+    sessionGenerationRef.current++;
+    accessCheckRef.current = null;
+  }, []);
 
   async function runAuthAction(action: () => Promise<void>, returnMode: Mode) {
     if (actionPendingRef.current) return;
@@ -43,48 +52,18 @@ export default function AuthGateway({
     } finally { actionPendingRef.current = false; setActionPending(false); }
   }
 
-  useEffect(() => {
-    const client = getSupabaseBrowserClient();
-    void client.auth.getUser().then(({ data }) => {
-      if (data.user) void checkAccess(data.user, true);
-      else {
-        clearAccessCache();
-        setMode("sign-in");
-      }
-    }).catch(() => {
-      setMode("sign-in");
-      setMessage("Secure sign-in could not load. Check your connection and try signing in again.");
-    });
-    const { data } = client.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_OUT" || !session?.user) {
-        if (event === "SIGNED_OUT") {
-          clearAccessCache();
-          void clearCachedRespondPackets().catch(() => undefined);
-          setUser(null);
-          setRememberDevice(false);
-          setMode("sign-in");
-        }
-        return;
-      }
-      if (event === "SIGNED_IN") {
-        if (pinLoginRef.current) return;
-        void checkAccess(session.user, true);
-      } else if (event === "USER_UPDATED" || event === "TOKEN_REFRESHED") {
-        void checkAccess(session.user, false);
-      }
-    });
-    return () => data.subscription.unsubscribe();
-  }, []);
-
-  async function checkAccess(nextUser: User, blocking = true) {
+  const checkAccess = useCallback(async (nextUser: User, blocking = true) => {
     if (accessCheckRef.current) return accessCheckRef.current;
+    const generation = sessionGenerationRef.current;
     const request = (async () => {
       setUser(nextUser);
       if (blocking) setMode("checking");
       try {
-        const response = await fetch("/api/auth/context", { cache: "no-store" });
+        const response = await fetch("/api/auth/context", { cache: "no-store", signal: AbortSignal.timeout(10000) });
+        if (generation !== sessionGenerationRef.current) return;
         if (response.ok) {
           const payload = await response.json() as { pinConfigured?: boolean; pinUnlocked?: boolean };
+          if (generation !== sessionGenerationRef.current) return;
           if (!payload.pinConfigured) {
             setPin("");
             setPinConfirmation("");
@@ -103,21 +82,29 @@ export default function AuthGateway({
           return;
         }
         const payload = await response.json().catch(() => ({})) as { error?: string };
+        if (generation !== sessionGenerationRef.current) return;
         if (response.status === 403) {
           clearAccessCache();
           setMode("waiting");
           setMessage(payload.error || "A department administrator must approve access.");
           return;
         }
-        if (response.status !== 401 && !blocking) return;
+        if (response.status !== 401) {
+          if (blocking) {
+            setMode("unavailable");
+            setMessage("Department access could not be verified. Your login has not been removed. Retry when the connection is available.");
+          }
+          return;
+        }
         clearAccessCache();
         await getSupabaseBrowserClient().auth.signOut({ scope: "local" });
         setUser(null);
         setMode("sign-in");
         setMessage(payload.error || "Your session expired. Please sign in again.");
       } catch {
+        if (generation !== sessionGenerationRef.current) return;
         if (blocking) {
-          setMode("sign-in");
+          setMode("unavailable");
           setMessage("Department access could not be verified. Check the connection and try again.");
         }
       }
@@ -126,9 +113,64 @@ export default function AuthGateway({
     try {
       await request;
     } finally {
-      accessCheckRef.current = null;
+      if (accessCheckRef.current === request) accessCheckRef.current = null;
     }
-  }
+  }, []);
+
+  const verifyIdentity = useCallback(async () => {
+    const attempt = ++identityAttemptRef.current;
+    try {
+      const { data, error } = await boundedAuthRead(getSupabaseBrowserClient().auth.getUser());
+      if (attempt !== identityAttemptRef.current) return;
+      if (error && !definitiveAuthFailure(error)) throw error;
+      if (!error && data.user) void checkAccess(data.user, true);
+      else {
+        clearAccessCache();
+        setMode("sign-in");
+      }
+    } catch {
+      if (attempt !== identityAttemptRef.current) return;
+      setMode("unavailable");
+      setMessage("Secure access is temporarily unavailable. Your login has not been removed. Reconnect and retry to verify access.");
+    }
+  }, [checkAccess]);
+
+  useEffect(() => {
+    if (mode !== "unavailable") return;
+    const retry = () => { setMode("checking"); void verifyIdentity(); };
+    window.addEventListener("online", retry);
+    return () => window.removeEventListener("online", retry);
+  }, [mode, verifyIdentity]);
+
+  useEffect(() => {
+    const client = getSupabaseBrowserClient();
+    let mounted = true;
+    void Promise.resolve().then(() => { if (mounted) void verifyIdentity(); });
+    const { data } = client.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT" || !session?.user) {
+        if (event === "SIGNED_OUT") {
+          invalidateSession();
+          clearAccessCache();
+          void clearCachedRespondPackets().catch(() => undefined);
+          setUser(null);
+          setRememberDevice(false);
+          setMode("sign-in");
+        }
+        return;
+      }
+      if (event === "SIGNED_IN") {
+        if (pinLoginRef.current) return;
+        void checkAccess(session.user, true);
+      } else if (event === "USER_UPDATED" || event === "TOKEN_REFRESHED") {
+        void checkAccess(session.user, false);
+      }
+    });
+    return () => {
+      mounted = false;
+      invalidateSession();
+      data.subscription.unsubscribe();
+    };
+  }, [checkAccess, verifyIdentity, invalidateSession]);
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -295,6 +337,8 @@ export default function AuthGateway({
   }
 
   async function signOut() {
+    invalidateSession();
+    setMode("checking");
     clearAccessCache();
     await clearCachedRespondPackets().catch(() => undefined);
     await fetch("/api/auth/pin", { method: "DELETE", signal: AbortSignal.timeout(8_000) }).catch(() => undefined);
@@ -316,6 +360,16 @@ export default function AuthGateway({
         />
       </SessionIdleLock>
     );
+  }
+
+  if (mode === "unavailable") {
+    return <main className="login-shell"><section className="login-card">
+      <p className="login-eyebrow">ACCESS NOT YET VERIFIED</p>
+      <h1>Check your connection</h1><p role="alert">{message}</p>
+      <p>Protected tools remain locked until verification succeeds. Saved department records have not changed.</p>
+      <button type="button" className="login-primary" onClick={() => { setMode("checking"); void verifyIdentity(); }}>Retry secure access</button>
+      <button type="button" className="login-link-button" onClick={signOut}>Sign out</button>
+    </section></main>;
   }
 
   if (mode === "waiting") {

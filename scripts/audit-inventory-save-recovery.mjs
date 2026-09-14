@@ -4,7 +4,7 @@ import {mkdirSync,writeFileSync,openSync,closeSync,readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 const cli=process.env.INVENTORY_AUDIT_BROWSER;
 if(!cli)throw Error('Set INVENTORY_AUDIT_BROWSER to the installed agent-browser entrypoint.');
-const out=resolve('outputs/inventory-save-recovery');mkdirSync(out,{recursive:true});
+const out=resolve(process.env.INVENTORY_AUDIT_OUTPUT || 'outputs/inventory-save-recovery');mkdirSync(out,{recursive:true});
 // Native browser daemons can inherit Windows capture pipes. Files let the
 // command finish independently of the long-lived browser process.
 let command=0;
@@ -57,5 +57,5 @@ try{for(const width of [360,768,1213]){
  evaluate(`(window.inventoryAudit.permissionMode='denied',window.dispatchEvent(new Event('firehouse:permissions-changed')),true)`);run('wait','.inventory-access-card');
  check(`!document.querySelector('.check-actions')&&document.body.textContent.includes('access was removed')`,'Revoked access not enforced');capture('access-denied',width);
 }}
-finally{writeFileSync(resolve(out,'results.json'),JSON.stringify(results,null,2));run('close');}
+finally{writeFileSync(resolve(out,'results.json'),JSON.stringify(results,null,2));try{run('close');}catch{console.warn('Browser assertions complete; automation session close timed out.');}}
 console.log(`${results.length} render/flow states passed. Simulated browser API; database invoker tests run separately.`);

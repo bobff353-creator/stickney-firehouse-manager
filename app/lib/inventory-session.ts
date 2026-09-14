@@ -2,6 +2,7 @@ import { createInventorySupabaseClient } from "./supabase-server";
 import { cookies } from "next/headers";
 import { ensureDatabase } from "../../db/bootstrap";
 import { permissionsForEmail } from "../server-permissions";
+import { definitiveAuthFailure } from "../auth-failure-policy";
 
 export const INVENTORY_MODULE_ID = "inventory";
 export const STICKNEY_DEPARTMENT_SLUG = "stickney-fire-department";
@@ -40,6 +41,9 @@ async function verifiedSession(requiredPermissions = ['inventory.view']): Promis
       data: { user },
       error: userError,
     } = await supabase.auth.getUser();
+    if (userError && !definitiveAuthFailure(userError)) {
+      return { ok: false, status: 503, error: "Secure access is temporarily unavailable. Your login has not been removed. Retry after reconnecting." };
+    }
     if (userError || !user?.id || !user.email) {
       return {
         ok: false,

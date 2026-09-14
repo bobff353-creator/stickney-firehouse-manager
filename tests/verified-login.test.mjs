@@ -55,14 +55,14 @@ test("the portal does not render authorized records until the PIN session is ver
   assert.match(gateway, /checkAccess\(data\.user, true\)/);
   assert.match(gateway, /event === "TOKEN_REFRESHED"/);
   assert.match(gateway, /checkAccess\(session\.user, false\)/);
-  assert.match(gateway, /response\.status !== 401 && !blocking/);
+  assert.match(gateway, /response\.status !== 401\) \{\s*if \(blocking\) \{\s*setMode\("unavailable"\)/);
   assert.doesNotMatch(gateway, /TOKEN_REFRESHED"\) \{\s*setMode\("checking"\)/);
 });
 
 test("verified account sign out lives in the scrolling navigation", () => {
   assert.match(gateway, /accountEmail=\{user\?\.email/);
   assert.match(payrollApp, /className="account-session-bar"/);
-  assert.match(payrollApp, /Test as Member/);
+  assert.match(readFileSync(new URL("../app/portal-menu-items.ts", import.meta.url), "utf8"), /Test as Member/);
   assert.match(styles, /\.account-session-bar \{ margin:/);
   assert.doesNotMatch(styles, /\.account-session-bar \{ position: fixed/);
 });

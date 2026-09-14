@@ -30,7 +30,7 @@ test("the legacy scheduler UI is removed while its records API remains available
 
 test("the Scheduling nav renders the new Station Scheduler", async () => {
   const app = await read("../app/payroll-app.tsx");
-  assert.equal(app.includes('import StationScheduler from "./station-scheduler"'), true);
+  assert.equal(app.includes('const StationScheduler = dynamic(() => import("./station-scheduler")'), true);
   assert.equal(app.includes('activeNav === "Scheduling" && <StationScheduler'), true);
 });
 

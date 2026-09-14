@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getPublicSupabaseConfig } from "./app/supabase-config";
 import { confirmationExemptRequest } from "./app/required-confirmation-policy";
+import { definitiveAuthFailure } from "./app/auth-failure-policy";
 
 const publicApiPaths = new Set([
   "/api/health",
@@ -82,7 +83,10 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  const { data: userResult, error: userError } = await client.auth.getUser();
+  const { data: userResult, error: userError } = await client.auth.getUser().catch(() => ({ data: { user: null }, error: { status: 503 } }));
+  if (userError && !definitiveAuthFailure(userError)) {
+    return jsonError("Secure access is temporarily unavailable. Retry when the connection is available.", 503);
+  }
   const user = userResult.user;
   if (userError || !user?.email) {
     return jsonError("Your session has expired. Sign in again.", 401);

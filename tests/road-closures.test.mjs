@@ -44,8 +44,8 @@ test("Live Operations shows active road closure and detour", () => {
   assert.match(board, /waypoints=/);
 });
 
-test("road closures have a field navigation entry", () => {
-  assert.match(shell, /label: "Road Closures", page: "Road Closures"/);
+test("road closures have a field navigation entry", async () => {
+  assert.match(await readFile(new URL("../app/portal-menu-items.ts", import.meta.url), "utf8"), /label: "Road Closures", page: "Road Closures"/);
 });
 
 test("Supabase road closure table is protected and explicitly granted", () => {

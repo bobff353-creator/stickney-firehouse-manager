@@ -120,8 +120,9 @@ test("Command Board is under Field, permission gated, durable, and contains no c
     readFile(new URL("../db/bootstrap.ts", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0028_incident_command_board.sql", import.meta.url), "utf8"),
   ]);
-  assert.match(app, /label: "Field".*page: "Command Board"/);
-  assert.match(app, /"Command Board": "incident_command\.view"/);
+  const menu = await readFile(new URL("../app/portal-menu-items.ts", import.meta.url), "utf8");
+  assert.match(menu, /label: "Field".*page: "Command Board"/);
+  assert.match(menu, /"Command Board": "incident_command\.view"/);
   assert.match(permissions, /incident_command\.manage/);
   assert.match(route, /dispatch_incidents/);
   assert.match(route, /field_preplans/);

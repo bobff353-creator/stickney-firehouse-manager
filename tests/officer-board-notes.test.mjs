@@ -17,14 +17,14 @@ function fixture() {
     CREATE TABLE chief_board_attachments(id TEXT,item_id TEXT,filename TEXT,content_type TEXT,size_bytes INTEGER,created_at TEXT);`);
   const db = { prepare(sql) { let args=[]; return { bind(...values){args=values;return this;}, async all(){return {results:sqlite.prepare(sql).all(...args)};},async first(){return sqlite.prepare(sql).get(...args)??null;}, async run(){return sqlite.prepare(sql).run(...args);} }; }, async batch(statements){ for(const statement of statements) await statement.run(); } };
   function compile(path, require) {
-    const context={exports:{},require,Error,Response,Request,FormData,File,Date,TextEncoder,crypto:webcrypto,process:{env:{}},btoa};
+    const context={exports:{},require,Error,Response,Request,URL,FormData,File,Date,TextEncoder,crypto:webcrypto,process:{env:{}},btoa};
     vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,context);
     return context.exports;
   }
   const officers=compile('../app/board-officers.ts',()=>{throw Error('Unexpected import');});
   const permissions=compile('../app/permissions.ts',()=>{throw Error('Unexpected import');});
   const serverPermissions=compile('../app/server-permissions.ts',()=>permissions);
-  const route=compile('../app/api/chief-board/route.ts',(name)=>name.includes('bootstrap')?{ensureDatabase:async()=>db}:name.includes('server-permissions')?serverPermissions:name.includes('board-officers')?officers:{getPortalStorage:()=>null});
+  const route=compile('../app/api/chief-board/route.ts',(name)=>name.includes('bootstrap')?{ensureDatabase:async()=>db}:name.includes('server-permissions')?serverPermissions:name.includes('board-officers')?officers:name.includes('board-links-store')?{readBoardLinks:async()=>({sections:{},revision:'fictional'})}:name.includes('board-links')?{boardLinksSignal:()=> 'fictional'}:{getPortalStorage:()=>null});
   const request=(method,body,admin=true)=>new Request('https://example.test/api/chief-board',{method,headers:{...(admin?{'oai-authenticated-user-email':'bobff353@gmail.com'}:{}),...(body instanceof FormData?{}:{'content-type':'application/json'})},...(body?{body:body instanceof FormData?body:JSON.stringify(body)}:{})});
   const note=(officerId='officer')=>{const form=new FormData();for(const [key,value] of Object.entries({itemType:'note',title:'Preview note',body:'Preview only',officerId})) form.set(key,value);return form;};
   return {sqlite,route,request,note};
@@ -35,6 +35,7 @@ test('officer note persists through POST, fresh GET and PATCH without impersonat
   try {
     assert.equal((await route.POST(request('POST',note()))).status,200);
     let result=await (await route.GET(request('GET'))).json();
+    assert.equal(result.error,undefined,'Fixture read failed: '+result.error);
     assert.equal(result.officers.length,1);
     const saved=result.items[0];
     assert.equal(saved.officerId,'officer');assert.equal(saved.officerName,'Preview Officer');assert.equal(saved.createdBy,'bobff353@gmail.com');

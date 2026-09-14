@@ -29,7 +29,8 @@ test("approved work details post once and add to existing work detail hours", as
   assert.equal(api.includes('detail.status !== "pending"'), true);
   assert.equal(api.includes("periodStart: period.start"), true);
   assert.equal(page.includes("onPayrollChanged?.(result.periodStart)"), true);
-  assert.equal(shell.includes("approvedPeriodStart === periodStart"), true);
+  assert.match(shell, /onPayrollChanged=\{\(approvedPeriodStart\)[^\n]*setPeriodStart\(approvedPeriodStart\)/);
+  assert.doesNotMatch(shell, /onPayrollChanged=\{\(approvedPeriodStart\)[^\n]*loadPayroll/);
 });
 
 test("requesting officers and approvers are validated from employee ranks", async () => {

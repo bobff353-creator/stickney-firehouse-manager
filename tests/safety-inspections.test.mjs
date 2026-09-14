@@ -8,8 +8,8 @@ const read = (path) => readFile(new URL(path, root), "utf8");
 test("monthly safety inspections are available under Field with role permissions", async () => {
   const [shell, permissions] = await Promise.all([read("app/payroll-app.tsx"), read("app/permissions.ts")]);
   assert.match(shell, /Safety Inspections/);
-  assert.match(shell, /page: "Safety Inspections"/);
-  assert.match(shell, /<SafetyInspections readOnly=/);
+  assert.match(await read("app/portal-menu-items.ts"), /page: "Safety Inspections"/);
+  assert.match(shell, /<SafetyInspections\b[^>]*readOnly=/);
   assert.match(permissions, /safety_inspections\.view/);
   assert.match(permissions, /safety_inspections\.complete/);
   assert.match(permissions, /safety_inspections\.manage/);

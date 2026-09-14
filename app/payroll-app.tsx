@@ -2,6 +2,8 @@
 /* eslint-disable @next/next/no-img-element -- direct static assets avoid runtime image-proxy failures for the department patch. */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import { portalNeedsPayroll } from "./portal-data-needs";
 import { payrollReviewIssues, type ReviewStaffing } from "./payroll-review";
 import PayrollCorrections from "./payroll-corrections";
 import { portalPageFromSearch, portalPageLabel, portalPageUrl, type PortalPage, type PortalRecord } from "./portal-navigation";
@@ -14,39 +16,40 @@ import AdminTools from "./admin-tools";
 import { inventoryAdminDestination } from "./admin-tasks";
 import { portalWorkflows } from "./portal-workflows";
 import { portalConnectionState, readPortalJson } from "./portal-status";
-import DailyLog from "./daily-log";
-import CallbackReviews from "./callback-reviews";
-import HolidayPolicy from "./holiday-policy";
-import PhoneNumbers from "./phone-numbers";
-import EmployeeDirectory from "./employee-directory";
+const DailyLog = dynamic(() => import("./daily-log"), { loading: () => <ModuleLoading /> });
+const CallbackReviews = dynamic(() => import("./callback-reviews"), { loading: () => <ModuleLoading /> });
+const HolidayPolicy = dynamic(() => import("./holiday-policy"), { loading: () => <ModuleLoading /> });
+const PhoneNumbers = dynamic(() => import("./phone-numbers"), { loading: () => <ModuleLoading /> });
+const EmployeeDirectory = dynamic(() => import("./employee-directory"), { loading: () => <ModuleLoading /> });
 import { usePermissions, refreshPermissions, permissionsChanged } from "./use-permissions";
-import { BoxCardsPage, PoliciesPage } from "./resource-pages";
-import RoleDashboard from "./role-dashboard";
+const BoxCardsPage = dynamic(() => import("./resource-pages").then(module => module.BoxCardsPage), { loading: () => <ModuleLoading /> });
+const PoliciesPage = dynamic(() => import("./resource-pages").then(module => module.PoliciesPage), { loading: () => <ModuleLoading /> });
+const RoleDashboard = dynamic(() => import("./role-dashboard"), { loading: () => <ModuleLoading /> });
 import ConfirmDialog from "./confirm-dialog";
 import { RecordCredibility, type Revision } from "./record-credibility";
 import OperationsBoard from "./operations-board";
-import ActivityTimeline from "./activity-timeline";
+const ActivityTimeline = dynamic(() => import("./activity-timeline"), { loading: () => <ModuleLoading /> });
 import SmartAlerts from "./smart-alerts";
 import PwaInstall from "./pwa-install";
-import CommandCenter from "./command-center";
-import DailyDuties from "./daily-duties";
+const CommandCenter = dynamic(() => import("./command-center"), { loading: () => <ModuleLoading /> });
+const DailyDuties = dynamic(() => import("./daily-duties"), { loading: () => <ModuleLoading /> });
 import { compareEmployeeNames, employeeNameFromParts, formatEmployeeName, splitEmployeeName } from "./employee-names";
 import { roundPayrollToCent } from "./payroll-rounding";
 import { ACTING_OFFICER_STIPEND_PER_HOUR, calculateGrossPay, workDetailRateForRank } from "./payroll-calculation";
 import { payrollExportRows } from "./payroll-export";
-import WorkDetails from "./work-details";
-import StationScheduler from "./station-scheduler";
+const WorkDetails = dynamic(() => import("./work-details"), { loading: () => <ModuleLoading /> });
+const StationScheduler = dynamic(() => import("./station-scheduler"), { loading: () => <ModuleLoading /> });
 import { RequiredConfirmation } from './required-confirmation';
-import PermissionSettings from "./permission-settings";
-import FieldPreplans from "./field-preplans";
-import CadIntegrationSettings from "./cad-integration-settings";
+const PermissionSettings = dynamic(() => import("./permission-settings"), { loading: () => <ModuleLoading /> });
+const FieldPreplans = dynamic(() => import("./field-preplans"), { loading: () => <ModuleLoading /> });
+const CadIntegrationSettings = dynamic(() => import("./cad-integration-settings"), { loading: () => <ModuleLoading /> });
 import Respond from "./respond";
-import IncidentCommandBoard from "./incident-command-board";
-import RespondDeviceSettingsPage from "./respond-device-settings";
-import DepartmentSettings from "./department-settings";
-import SystemHealth from "./system-health";
-import RoadClosures from "./road-closures";
-import SafetyInspections from "./safety-inspections";
+const IncidentCommandBoard = dynamic(() => import("./incident-command-board"), { loading: () => <ModuleLoading /> });
+const RespondDeviceSettingsPage = dynamic(() => import("./respond-device-settings"), { loading: () => <ModuleLoading /> });
+const DepartmentSettings = dynamic(() => import("./department-settings"), { loading: () => <ModuleLoading /> });
+const SystemHealth = dynamic(() => import("./system-health"), { loading: () => <ModuleLoading /> });
+const RoadClosures = dynamic(() => import("./road-closures"), { loading: () => <ModuleLoading /> });
+const SafetyInspections = dynamic(() => import("./safety-inspections"), { loading: () => <ModuleLoading /> });
 import { defaultRespondDeviceSettings, readRespondDeviceSettings, RESPOND_ALERT_DURATION_SECONDS, type RespondDeviceSettings } from "./respond-device";
 
 type Category = "shift" | "drill" | "workDetail" | "callback" | "actingOfficer" | "holiday" | "dpw";
@@ -192,6 +195,10 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   </svg>;
 }
 
+function ModuleLoading() {
+  return <section className="content-card" role="status" aria-busy="true">Opening this tool… Your department records will load next.</section>;
+}
+
 function PortalSkeleton({ page }: { page: NavItem }) {
   const tableLike = ["Payroll", "Timesheets", "My Timesheet", "Employees", "Employee Contacts"].includes(page);
   return <div className="portal-skeleton" aria-label={`Loading ${page}`} aria-busy="true"><div className="skeleton-heading"><span/><strong/></div>{tableLike ? <><div className="skeleton-metrics">{[1,2,3,4].map((item) => <span key={item}/>)}</div><div className="skeleton-table"><i/><i/><i/><i/><i/></div></> : <><div className="skeleton-hero"/><div className="skeleton-cards">{[1,2,3].map((item) => <span key={item}/>)}</div></>}</div>;
@@ -208,6 +215,7 @@ export default function PayrollApp({
 }) {
   const [activeNav, setActiveNav] = useState<NavItem>(initialPage);
   const [tvMode, setTvMode] = useState(false);
+  const [routeReady, setRouteReady] = useState(false);
   const [periodStart, setPeriodStart] = useState(currentPeriodStart);
   const [data, setData] = useState<PayrollData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -304,6 +312,7 @@ export default function PayrollApp({
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
+      setRouteReady(true);
       const settings = readRespondDeviceSettings(window.localStorage);
       setRespondDeviceSettings(settings);
       const params = new URLSearchParams(window.location.search);
@@ -341,11 +350,12 @@ export default function PayrollApp({
     return () => window.clearInterval(timer);
   }, [respondAlertCallId]);
 
+  const canLoadPayroll = routeReady && access.verified && confirmationCleared && portalNeedsPayroll(activeNav) && navigationForViewer(undefined, viewerPermissions).includes(activeNav);
   useEffect(() => {
-    if (!access.verified || !confirmationCleared || ['Respond','Operations Board'].includes(activeNav)) return;
+    if (!canLoadPayroll) return;
     const timer = window.setTimeout(() => { void loadPayroll(periodStart); }, 0);
     return () => window.clearTimeout(timer);
-  }, [loadPayroll, periodStart,access.verified,confirmationCleared,activeNav]);
+  }, [loadPayroll, periodStart, canLoadPayroll]);
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(""), 2600);
@@ -361,9 +371,7 @@ export default function PayrollApp({
     try {
       const searchableScreens = testMember
         ? adminNavItems.filter((item) => !navPermission[item] || testMember.effectivePermissions.includes(navPermission[item]!))
-        : data?.viewer
-          ? navigationForViewer(data.viewer, viewerPermissions)
-          : employeeNavItems;
+        : navigationForViewer(data?.viewer, viewerPermissions);
       const sources = [
         { url: "/api/resources?type=policy", page: "Policies" }, { url: "/api/resources?type=boxCard", page: "Box Cards" },
         { url: "/api/phone-numbers", page: "Phone Numbers" }, { url: "/api/field-preplans", page: "Field Preplans" },
@@ -747,7 +755,7 @@ export default function PayrollApp({
   }
 
   const statusLabel = data?.period.status ? data.period.status[0].toUpperCase() + data.period.status.slice(1) : "Draft";
-  const connection = portalConnectionState(isOnline, loading, error, Boolean(lastSynced), savingCells.size > 0);
+  const connection = portalConnectionState(isOnline, portalNeedsPayroll(activeNav) && loading, portalNeedsPayroll(activeNav) ? error : "", portalNeedsPayroll(activeNav) ? Boolean(lastSynced) : access.verified, savingCells.size > 0);
   const isPayrollManagerView = Boolean(data?.viewer.canManagePayroll && !testMember);
   const visibleNav = useMemo(() => testMember ? adminNavItems.filter((item) => !navPermission[item] || testMember.effectivePermissions.includes(navPermission[item]!)) : navigationForViewer(data?.viewer, viewerPermissions), [data?.viewer, testMember, viewerPermissions]);
   const visibleFeaturedNav = useMemo(() => featuredNavItems.filter((item) => visibleNav.includes(item.page)), [visibleNav]);
@@ -811,7 +819,7 @@ export default function PayrollApp({
   }, [sidebarCollapsed]);
   useEffect(() => { setSidebarCollapsed(true); }, [activeNav]);
   useEffect(() => {
-    if ((testMember || (data && viewerPermissions)) && !visibleNav.includes(activeNav)) {
+    if (routeReady && access.verified && !visibleNav.includes(activeNav)) {
       if (activeNav === "Operations Board") {
         setTvMode(false);
         setRespondAlertCallId("");
@@ -821,7 +829,7 @@ export default function PayrollApp({
       }
       setActiveNav(homePage);
     }
-  }, [activeNav, data, homePage, testMember, viewerPermissions, visibleNav]);
+  }, [activeNav, access.verified, routeReady, homePage, testMember, viewerPermissions, visibleNav]);
   useEffect(() => {
     if (visibleMoreNavGroups.some((group) => group.items.some((item) => item.page === activeNav))) setMoreToolsOpen(true);
   }, [activeNav, visibleMoreNavGroups]);
@@ -922,9 +930,9 @@ export default function PayrollApp({
       setTestMember(null);
       setProfileOpen(false);
       setNavigationVersion(current => current + 1);
-      if (confirmationCleared && !['Respond','Operations Board'].includes(activeNav)) void loadPayroll(periodStart);
+      if (canLoadPayroll) void loadPayroll(periodStart);
     }
-  }, [access, loadPayroll, periodStart,activeNav,confirmationCleared]);
+  }, [access, loadPayroll, periodStart, canLoadPayroll]);
 
   function permissionsSaved(payload: { viewerPermissions?: string[]; employees: Array<{ id: string; name: string; rank: string; effectivePermissions: string[] }> }) {
     setAdminSaveNotice("Last permission save verified. Any new edits still need to be saved.");
@@ -961,7 +969,7 @@ export default function PayrollApp({
         <button className="desktop-sidebar-toggle" type="button" aria-expanded={!sidebarCollapsed} aria-controls="desktop-navigation" aria-label={sidebarCollapsed ? "Show navigation menu" : "Hide navigation menu"} title={sidebarCollapsed ? "Show menu" : "Hide menu"} onClick={() => setDesktopMenuHidden(!sidebarCollapsed)}><Icon name="menu" size={19}/><span>{sidebarCollapsed ? "Show menu" : "Hide menu"}</span></button>
         <button className="mobile-brand" onClick={() => navigate(homePage)} aria-label="Stickney Fire Department Operations Portal home"><img src="/stickney-fd-patch.png?v=3" alt="Stickney Fire Department patch" width="44" height="44" /><strong>Stickney FD Operations Portal</strong></button>
         <div className="topbar-context"><span>Stickney Fire Department</span><strong>{portalPageLabel(activeNav)}</strong></div>
-        <div className="topbar-utilities"><div className={`sync-indicator ${connection.tone}`} role="status" aria-label={`${connection.label}. ${connection.detail}`} title={connection.detail}><Icon name={connection.tone === "offline" ? "warning" : "save"} size={16}/><span><strong>{connection.label}</strong><small>Connection only</small></span></div><button className="global-search-trigger" aria-label="Search the portal" onClick={() => void openGlobalSearch()}><Icon name="search"/><span>Search</span><kbd>Ctrl / ⌘ K</kbd></button>{!tvMode && <SmartAlerts icon={<Icon name="bell"/>} onNavigate={(page) => navigate(page as NavItem)} />}<div className="profile"><span className="avatar">{(testMember?.name ?? data?.viewer.displayName ?? "").split(/[ ,]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span><span className="profile-copy"><strong>{testMember ? displayName(testMember.name) : data ? displayName(data.viewer.displayName) : "Signed in"}</strong><small>{testMember ? `Test view · ${testMember.rank}` : data?.viewer.isAdmin ? "Administrator" : "Employee"}</small></span></div><button className="mobile-menu-toggle" aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen((current) => !current)} aria-label={mobileMenuOpen ? "Close navigation" : "Open navigation"}><Icon name={mobileMenuOpen ? "close" : "menu"}/></button></div>
+        <div className="topbar-utilities"><div className={`sync-indicator ${connection.tone}`} role="status" aria-label={`${connection.label}. ${connection.detail}`} title={connection.detail}><Icon name={connection.tone === "offline" ? "warning" : "save"} size={16}/><span><strong>{connection.label}</strong><small>Connection only</small></span></div><button className="global-search-trigger" aria-label="Search the portal" onClick={() => void openGlobalSearch()}><Icon name="search"/><span>Search</span><kbd>Ctrl / ⌘ K</kbd></button>{!tvMode && <SmartAlerts icon={<Icon name="bell"/>} onNavigate={(page) => navigate(page as NavItem)} />}<div className="profile"><span className="avatar">{(testMember?.name ?? data?.viewer.displayName ?? "").split(/[ ,]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span><span className="profile-copy"><strong>{testMember ? displayName(testMember.name) : data ? displayName(data.viewer.displayName) : accountEmail}</strong><small>{testMember ? `Test view · ${testMember.rank}` : data ? (data.viewer.isAdmin ? "Administrator" : "Employee") : "Verified account"}</small></span></div><button className="mobile-menu-toggle" aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen((current) => !current)} aria-label={mobileMenuOpen ? "Close navigation" : "Open navigation"}><Icon name={mobileMenuOpen ? "close" : "menu"}/></button></div>
       </header>
       {mobileMenuOpen && <nav id="mobile-navigation" className="mobile-nav-panel" aria-label="Mobile navigation">
           <section className="mobile-core-nav"><h2>Core navigation</h2>{visibleFeaturedNav.map((item) => <button key={item.page} aria-current={activeNav === item.page ? "page" : undefined} className={activeNav === item.page ? "current" : ""} onClick={() => navigate(item.page)}><span className={`sidebar-feature-icon ${item.tone}`}><Icon name={navIcons[item.page]}/></span>{item.label}</button>)}</section>
@@ -992,7 +1000,7 @@ export default function PayrollApp({
         {navigationNotice && <div className="error-banner" role="alert">{navigationNotice}</div>}
         {adminSaveNotice && <div className="phone-message" role="status">{adminSaveNotice}<button type="button" className="quiet-button" onClick={() => setAdminSaveNotice("")}>Dismiss</button></div>}
         {testMember && <div className="test-view-banner"><div><b>TEST VIEW</b><span>Previewing as {displayName(testMember.name)} · {testMember.rank}</span><small>No identity or approval authority has changed.</small></div><button onClick={() => changeTestMember(null)}>Exit test view</button></div>}
-        {error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={() => { setError(""); void loadPayroll(periodStart); }}>Retry</button></div>}
+        {portalNeedsPayroll(activeNav) && error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={() => { setError(""); void loadPayroll(periodStart); }}>Retry</button></div>}
         {Object.keys(failedCells).length > 0 && <div className="error-banner" role="alert"><span>{Object.keys(failedCells).length} hour entry save(s) remain unconfirmed. Use the highlighted timesheet cells to retry, or reload the saved hours before continuing.</span><button disabled={savingCells.size > 0} onClick={() => {
           if (!window.confirm("Discard the failed retry attempts and reload the saved hours?")) return;
           setFailedCells({}); void loadPayroll(periodStart);
@@ -1014,7 +1022,49 @@ export default function PayrollApp({
         {respondAlertCallId && activeNav === "Operations Board" && visibleNav.includes("Operations Board") && visibleNav.includes("Respond") && <div className="respond-auto-alert" role="dialog" aria-modal="true" aria-label="New active call Respond view">
           <header><div><strong>NEW ACTIVE CALL · RESPOND</strong><span>Returning to Live Operations in {respondAlertSeconds} seconds</span></div><button type="button" onClick={() => setRespondAlertCallId("")}>Return now</button></header><Respond onNavigate={navigateFromRespond} />
         </div>}
-        {!['Respond','Operations Board'].includes(activeNav) && (loading && !data ? <PortalSkeleton page={activeNav} /> : data && <>
+        {visibleNav.includes(activeNav) && <>
+          {activeNav === "Inventory" && <section className="content-card action-empty-state"><div><h1>Apparatus Checks &amp; Inventory</h1><p>Open the dedicated workspace to choose an apparatus, complete checks, and find equipment.</p></div><button type="button" className="primary-action" disabled={openingInventory} onClick={() => void openInventory()}>{openingInventory ? "Checking access…" : "Open Apparatus Checks"}</button></section>}
+          {activeNav === "Command Center" && <CommandCenter />}
+          {activeNav === "Work Details" && <WorkDetails onPayrollChanged={(approvedPeriodStart) => { setPeriodStart(approvedPeriodStart); }} />}
+          {activeNav === "Scheduling" && <StationScheduler key={navigationVersion} testMember={testMember} />}
+
+          {activeNav === "Activity Timeline" && <ActivityTimeline />}
+          {activeNav === "Command Board" && <IncidentCommandBoard />}
+          {activeNav === "Field Preplans" && <FieldPreplans />}
+          {activeNav === "Road Closures" && <RoadClosures />}
+          {activeNav === "Safety Inspections" && <SafetyInspections readOnly={Boolean(testMember)} />}
+          {activeNav === "Respond Device Modes" && viewerPermissions.includes("settings.manage") && <RespondDeviceSettingsPage onSaved={(settings) => {
+            setRespondDeviceSettings(settings);
+            if (settings.mode === "apparatus") navigate("Respond");
+          }} />}
+
+          {activeNav === "Callback Reviews" && <CallbackReviews />}
+
+          {activeNav === "Holiday Policy" && <HolidayPolicy />}
+          {activeNav === "EMS" && <section className="ems-documents-page">
+            <div className="standard-page-header"><div><span className="page-icon"><Icon name="document" size={25}/></span><div><p className="eyebrow">Documents</p><h1>EMS</h1><p>Approved emergency medical services documents and references.</p></div></div></div>
+            <article className="content-card ems-document-card">
+              <span className="ems-document-mark" aria-hidden="true">PDF</span>
+              <div><p className="eyebrow">Fillable EMS form</p><h2>Refusal of Medical Advice</h2><p>Advocate Christ Medical Center Emergency Medical Services System waiver of rights for Stickney Fire Department.</p><small>One-page fillable PDF · Patient, witness, guardian, and physician signature fields</small></div>
+              <div className="ems-document-actions"><a className="primary-action compact" href="/ems/stickney-refusal-of-medical-advice.pdf" target="_blank" rel="noreferrer">Open fillable PDF</a><a className="quiet-button" href="/ems/stickney-refusal-of-medical-advice.pdf" download>Download</a></div>
+            </article>
+          </section>}
+          {activeNav === "Daily Duties" && <DailyDuties />}
+          {activeNav === "Phone Numbers" && <PhoneNumbers key={navigationVersion} />}
+          {activeNav === "CAD Integration" && viewerPermissions.includes("settings.manage") && <CadIntegrationSettings />}
+          {activeNav === "Departments" && viewerPermissions.includes("settings.manage") && <DepartmentSettings />}
+          {activeNav === "System Health" && viewerPermissions.includes("settings.manage") && <SystemHealth />}
+
+          {activeNav === "Employee Contacts" && <EmployeeDirectory key={navigationVersion} contacts initialSearch={employeeSearch} />}
+
+          {activeNav === "Policies" && <PoliciesPage key={navigationVersion} />}
+
+          {activeNav === "Box Cards" && <BoxCardsPage key={navigationVersion} />}
+
+          {(activeNav === "Permissions" || activeNav === "Test View") && viewerPermissions.includes("permissions.manage") && <PermissionSettings key={navigationVersion} initialSelection={permissionSelection} onSelectionChange={setPermissionSelection} initialTab={activeNav === "Test View" ? "test" : "permissions"} testEmployeeId={testMember?.id ?? ""} onTestEmployee={changeTestMember} onPermissionsSaved={permissionsSaved} />}
+
+        </>}
+        {portalNeedsPayroll(activeNav) && visibleNav.includes(activeNav) && (loading && !data ? <PortalSkeleton page={activeNav} /> : data && <>
           {["Payroll", "Timesheets", "My Timesheet"].includes(activeNav) && <div className="period-row">
             <div>
               <p className="eyebrow">{activeNav === "Payroll" ? "Current pay period" : activeNav}</p>
@@ -1063,21 +1113,6 @@ export default function PayrollApp({
 
           {activeNav === "Dashboard" && <RoleDashboard data={{ viewer: testMember ? { isAdmin: false, employeeId: testMember.id, displayName: testMember.name } : { isAdmin: data.viewer.isAdmin, employeeId: data.viewer.employeeId, displayName: data.viewer.displayName }, employees: testMember ? data.employees.filter((employee) => employee.id === testMember.id) : data.employees, entries: testMember ? data.entries.filter((entry) => entry.employeeId === testMember.id) : data.entries, period: data.period, grossPayroll, reviewCount, employeeGross: selectedSummary?.gross ?? 0 }} onNavigate={navigate} allowedPages={visibleNav} />}
 
-          {activeNav === "Inventory" && <section className="content-card action-empty-state"><div><h1>Apparatus Checks &amp; Inventory</h1><p>Open the dedicated workspace to choose an apparatus, complete checks, and find equipment.</p></div><button type="button" className="primary-action" disabled={openingInventory} onClick={() => void openInventory()}>{openingInventory ? "Checking access…" : "Open Apparatus Checks"}</button></section>}
-          {activeNav === "Command Center" && <CommandCenter />}
-          {activeNav === "Work Details" && <WorkDetails onPayrollChanged={(approvedPeriodStart) => { if (approvedPeriodStart === periodStart) void loadPayroll(periodStart); else setPeriodStart(approvedPeriodStart); }} />}
-          {activeNav === "Scheduling" && <StationScheduler key={navigationVersion} testMember={testMember} />}
-
-          {activeNav === "Activity Timeline" && <ActivityTimeline />}
-          {activeNav === "Command Board" && <IncidentCommandBoard />}
-          {activeNav === "Field Preplans" && <FieldPreplans />}
-          {activeNav === "Road Closures" && <RoadClosures />}
-          {activeNav === "Safety Inspections" && <SafetyInspections readOnly={Boolean(testMember)} />}
-          {activeNav === "Respond Device Modes" && viewerPermissions.includes("settings.manage") && <RespondDeviceSettingsPage onSaved={(settings) => {
-            setRespondDeviceSettings(settings);
-            if (settings.mode === "apparatus") navigate("Respond");
-          }} />}
-
           {(activeNav === "Timesheets" || activeNav === "My Timesheet") && selectedEmployee && selectedSummary && <div className={data.period.status === "finalized" ? "record-finalized" : "record-editable"}>{data.period.status === "finalized" && <div className="record-state-banner finalized"><span className="state-lock" aria-hidden="true">🔒</span><div><strong>Finalized timesheet · Read only</strong><span>This timesheet belongs to a closed payroll period.</span></div></div>}<section className="content-card timesheet-card">
             <div className="section-header"><div>{activeNav === "Timesheets" && isPayrollManagerView ? <><label htmlFor="employee-select">Employee</label><select id="employee-select" value={selectedEmployee.id} onChange={(event) => setSelectedEmployeeId(event.target.value)}>{payrollEmployees.map((employee) => <option value={employee.id} key={employee.id}>{displayName(employee.name)} — {employee.rank}</option>)}</select></> : <><p className="eyebrow">My timesheet</p><h2>{displayName(selectedEmployee.name)}</h2><p>{selectedEmployee.rank} · Read only</p></>}</div><span className={`status-pill ${selectedSummary.status.toLowerCase().replace(" ", "-")}`}>{selectedSummary.status}</span></div>
             <div className="mini-summary"><div><span>Paid hours</span><strong>{selectedSummary.hours.toFixed(1)}</strong></div><div><span>Hourly rate</span><strong>{formatMoney(selectedEmployee.regularRate)}<small>/hr</small></strong></div><div><span>Overtime</span><strong>{selectedSummary.overtimeHours.toFixed(1)}</strong></div><div><span>Holiday</span><strong>{selectedSummary.holidayHours.toFixed(1)}</strong></div><div><span>Gross pay</span><strong>{formatMoney(selectedSummary.gross)}</strong></div></div>
@@ -1099,31 +1134,6 @@ export default function PayrollApp({
 
           {activeNav === "My Timesheet" && !selectedEmployee && <div className="content-card action-empty-state"><div><h2>No timesheet available for this period</h2><p>Your account may not be linked to an employee on this payroll. Try another pay period or ask a payroll administrator to check the account link.</p></div></div>}
           {activeNav === "Daily Log" && <DailyLog employees={data.employees} onPayrollSynced={() => { void loadPayroll(periodStart); }} />}
-          {activeNav === "Callback Reviews" && <CallbackReviews />}
-
-          {activeNav === "Holiday Policy" && <HolidayPolicy />}
-          {activeNav === "EMS" && <section className="ems-documents-page">
-            <div className="standard-page-header"><div><span className="page-icon"><Icon name="document" size={25}/></span><div><p className="eyebrow">Documents</p><h1>EMS</h1><p>Approved emergency medical services documents and references.</p></div></div></div>
-            <article className="content-card ems-document-card">
-              <span className="ems-document-mark" aria-hidden="true">PDF</span>
-              <div><p className="eyebrow">Fillable EMS form</p><h2>Refusal of Medical Advice</h2><p>Advocate Christ Medical Center Emergency Medical Services System waiver of rights for Stickney Fire Department.</p><small>One-page fillable PDF · Patient, witness, guardian, and physician signature fields</small></div>
-              <div className="ems-document-actions"><a className="primary-action compact" href="/ems/stickney-refusal-of-medical-advice.pdf" target="_blank" rel="noreferrer">Open fillable PDF</a><a className="quiet-button" href="/ems/stickney-refusal-of-medical-advice.pdf" download>Download</a></div>
-            </article>
-          </section>}
-          {activeNav === "Daily Duties" && <DailyDuties />}
-          {activeNav === "Phone Numbers" && <PhoneNumbers key={navigationVersion} />}
-          {activeNav === "CAD Integration" && viewerPermissions.includes("settings.manage") && <CadIntegrationSettings />}
-          {activeNav === "Departments" && viewerPermissions.includes("settings.manage") && <DepartmentSettings />}
-          {activeNav === "System Health" && viewerPermissions.includes("settings.manage") && <SystemHealth />}
-
-          {activeNav === "Employee Contacts" && <EmployeeDirectory key={navigationVersion} contacts initialSearch={employeeSearch} />}
-
-          {activeNav === "Policies" && <PoliciesPage key={navigationVersion} />}
-
-          {activeNav === "Box Cards" && <BoxCardsPage key={navigationVersion} />}
-
-          {(activeNav === "Permissions" || activeNav === "Test View") && viewerPermissions.includes("permissions.manage") && <PermissionSettings key={navigationVersion} initialSelection={permissionSelection} onSelectionChange={setPermissionSelection} initialTab={activeNav === "Test View" ? "test" : "permissions"} testEmployeeId={testMember?.id ?? ""} onTestEmployee={changeTestMember} onPermissionsSaved={permissionsSaved} />}
-
           {activeNav === "Employees" && !data.viewer.canManageEmployees && <EmployeeDirectory key={navigationVersion} initialSearch={employeeSearch} />}
           {activeNav === "Employees" && data.viewer.canManageEmployees && <section className="employee-page">
             <div className="standard-page-header"><div><span className="page-icon"><Icon name="users" size={25}/></span><div><p className="eyebrow">Personnel administration</p><h1>Employees</h1><p>Manage employment, contact, access, driver status, and emergency information.</p></div></div><button type="button" className="primary-action" disabled={!access.permissions.includes("permissions.manage")} title="Creating an account requires Manage permissions access." onClick={() => editEmployee()}>Add Employee</button></div>

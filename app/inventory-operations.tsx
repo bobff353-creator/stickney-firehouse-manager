@@ -353,6 +353,7 @@ export default function InventoryOperations({
   onRepairs = onSetup,
   onAir = onSetup,
   onReports,
+  onRecords,
 }: {
   view: OperationsView;
   onSetup: () => void;
@@ -366,6 +367,7 @@ export default function InventoryOperations({
   onRepairs?: () => void;
   onAir?: () => void;
   onReports?: () => void;
+  onRecords?: (records: Pick<OperationsData, "equipment" | "checks" | "checkItems"> | null) => void;
 }) {
   const [data, setData] = useState<OperationsData>(emptyData);
   const [loading, setLoading] = useState(true);
@@ -376,6 +378,9 @@ export default function InventoryOperations({
   const [itemSaveError, setItemSaveError] = useState<{ name: string; message: string } | null>(null);
   const itemSavePending = useRef(false);
   const itemSaveGeneration = useRef(0);
+  const readPending = useRef<Promise<boolean> | null>(null);
+  const readController = useRef<AbortController | null>(null);
+  const readerMounted = useRef(true);
   const [accessRequired, setAccessRequired] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerMessage, setScannerMessage] = useState("");
@@ -522,23 +527,36 @@ export default function InventoryOperations({
     };
   }, [closeScanner, fillEquipmentForm, scannerOpen, scannerTarget]);
 
-  const load = useCallback(async ({ background = false }: { background?: boolean } = {}) => {
+  const load = useCallback(async ({ background = false, fresh = false }: { background?: boolean; fresh?: boolean } = {}) => {
     if (background && itemSavePending.current) return false;
+    if (background && (document.visibilityState === "hidden" || !navigator.onLine)) return false;
+    if (fresh) itemSaveGeneration.current += 1;
+    // Foreground reloads after a save must get a fresh response, not an older read.
+    while (readPending.current) {
+      if (background && !fresh) return readPending.current;
+      await readPending.current;
+    }
+    if (!readerMounted.current) return false;
+    const controller = new AbortController();
+    readController.current = controller;
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]);
+    const request = (async () => {
     const readGeneration = itemSaveGeneration.current;
     if (!background) setLoading(true);
     try {
       const contextPromise = background ? null : Promise.all([
-        fetch("/api/dashboard", { cache: "no-store" }),
-        fetch("/api/permissions", { cache: "no-store" }),
+        fetch("/api/dashboard", { cache: "no-store", signal }).catch(() => null),
+        fetch("/api/permissions", { cache: "no-store", signal }).catch(() => null),
       ]);
-      const response = await fetch("/api/operations", { cache: "no-store" });
+      const response = await fetch("/api/operations", { cache: "no-store", signal });
       const payload = await response.json().catch(() => ({})) as Partial<OperationsData>;
       if (!response.ok || payload.configured !== true) {
         if (!background) setAccessRequired(response.status === 401 || response.status === 403);
         throw new Error(payload.error || "Operational records are unavailable.");
       }
       // An earlier crew refresh must not replace a newer acknowledged result.
-      if (readGeneration !== itemSaveGeneration.current || itemSavePending.current) return false;
+      if (controller.signal.aborted || readGeneration !== itemSaveGeneration.current || itemSavePending.current) return false;
+      onRecords?.({ equipment: payload.equipment || [], checks: payload.checks || [], checkItems: payload.checkItems || [] });
       setData({
         configured: true,
         apparatus: payload.apparatus || [],
@@ -561,39 +579,53 @@ export default function InventoryOperations({
       if (contextPromise) {
         const [dashboardResponse, permissionsResponse] = await contextPromise;
         const [dashboard, permissions] = await Promise.all([
-          dashboardResponse.json().catch(() => ({})) as Promise<{ viewer?: { employeeId?: string } }>,
-          permissionsResponse.json().catch(() => ({})) as Promise<{ employees?: Employee[] }>,
+          dashboardResponse?.ok ? dashboardResponse.json().catch(() => ({})) as Promise<{ viewer?: { employeeId?: string } }> : {} as { viewer?: { employeeId?: string } },
+          permissionsResponse?.ok ? permissionsResponse.json().catch(() => ({})) as Promise<{ employees?: Employee[] }> : {} as { employees?: Employee[] },
         ]);
+        if (controller.signal.aborted) return false;
         setViewerEmployeeId(dashboard.viewer?.employeeId || "");
         setEmployees(Array.isArray(permissions.employees) ? permissions.employees : []);
       }
+      if (controller.signal.aborted) return false;
       setSelectedApparatusId((current) => current || initialApparatusId || payload.apparatus?.[0]?.id?.toString() || "");
       setLastSyncedAt(Date.now());
       setRefreshError("");
       setAccessRequired(false);
       return true;
     } catch (caught) {
+      if (controller.signal.aborted) return false;
+      onRecords?.(null);
       setRefreshError(caught instanceof Error ? caught.message : "Operational records are unavailable.");
       return false;
     } finally {
-      if (!background) setLoading(false);
+      if (!background && !controller.signal.aborted) setLoading(false);
     }
-  }, [initialApparatusId]);
+    })();
+    readPending.current = request;
+    try { return await request; }
+    finally { if (readPending.current === request) { readPending.current = null; readController.current = null; } }
+  }, [initialApparatusId, onRecords]);
 
   useEffect(() => {
     // Loading is intentionally kicked off once when this operational panel opens.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    readerMounted.current = true;
     void load();
     const refresh = () => void load({ background: true });
     const interval = window.setInterval(refresh, 5000);
     window.addEventListener("focus", refresh);
+    window.addEventListener("online", refresh);
+    window.addEventListener("firehouse:inventory-refresh", refresh);
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") refresh();
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       window.clearInterval(interval);
+      readerMounted.current = false;
+      readController.current?.abort();
       window.removeEventListener("focus", refresh);
+      window.removeEventListener("online", refresh);
+      window.removeEventListener("firehouse:inventory-refresh", refresh);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [load]);
@@ -671,7 +703,7 @@ export default function InventoryOperations({
       });
       const result = await response.json().catch(() => ({})) as { error?: string };
       if (!response.ok) throw new Error(result.error || "The change could not be saved.");
-      const refreshed = await load({ background: view === "air" });
+      const refreshed = await load({ background: view === "air", fresh: true });
       if (payload.action === "complete_check") setSubmittedCheck(true);
       const confirmations: Record<string, string> = {
         create_notice: "Repair notice saved with the selected assignees. Follow it in All repair records.",
@@ -762,7 +794,7 @@ export default function InventoryOperations({
     const response = await fetch("/api/operations/documents", { method: "POST", body: form });
     const payload = await response.json().catch(() => ({})) as { document?: { id?: string }; error?: string };
     if (!response.ok || !payload.document?.id) throw new Error(payload.error || "The service document could not be saved.");
-    await load({ background: true });
+    await load({ background: true, fresh: true });
     setMessage("Service document added to the apparatus maintenance history.");
   }
 
@@ -1095,7 +1127,7 @@ export default function InventoryOperations({
       {refreshError ? <div className="ops-message ops-error" role="alert">Live refresh unavailable. Previously loaded records may be out of date. {refreshError} <button type="button" onClick={() => void load()}>Retry refresh</button></div> : null}
       {view === "air" ? <InventoryAirSystems data={data} busy={Boolean(busy)} canSetup={canSetup} canManageRepairs={canManageRepairs} canCheck={canCheck} onSave={action} onOpenCheck={id => onOpenUnit?.(id, "air_pack")} onRepairs={onRepairs}
         renderTemplate={apparatus => { const template = data.scbaTemplates.find(item => item.apparatus_id === apparatus.id); return <ScbaTemplateEditor key={`${apparatus.id}-${template?.updated_at}`} apparatus={apparatus} template={template} busy={Boolean(busy)} onSave={payload => action("air-template", payload)} />; }}
-        uploadDocument={uploadMaintenanceDocument} uploadPhoto={async (asset, file) => { await uploadEquipmentPhoto(asset, file); await load({ background: true }); }} /> : null}
+        uploadDocument={uploadMaintenanceDocument} uploadPhoto={async (asset, file) => { await uploadEquipmentPhoto(asset, file); await load({ background: true, fresh: true }); }} /> : null}
       {view === "due" || view === "inventory" ? <div className="inventory-find-unit"><label>Find your apparatus<input type="search" value={unitSearch} onChange={event => setUnitSearch(event.target.value)} placeholder="Unit name or check type" /></label>{unitSearch && <button type="button" onClick={() => setUnitSearch("")}>Clear search</button>}<p>Choose your apparatus → check each item → submit for review.</p></div> : null}
 
       {view === "due" ? (
