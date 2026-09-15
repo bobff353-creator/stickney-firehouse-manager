@@ -12,8 +12,28 @@ function workerFixture(shared=new Map(), storageFails=false) {
  let failDisplay=false,routineWait=null;
  const context={caches,Response,URL,console,self:{location:{origin:'https://fixture.invalid'},registration:{async showNotification(title,options){if(failDisplay)throw Error('Fixture display failed');if(options.data.kind==='scheduler'&&routineWait)await routineWait;shown.push({title,options});}},addEventListener:(name,fn)=>handlers.set(name,fn),skipWaiting(){},clients:{claim:async()=>{}}}};
  vm.runInNewContext(readFileSync(new URL('../public/sw.js',import.meta.url),'utf8'),context);
- return{shared,shown,setRoutineWait:value=>{routineWait=value;},setFail:value=>{failDisplay=value;},async push(eventId,kind='cad'){let work;handlers.get('push')({data:{json:()=>({eventId,kind,title:'LOCAL TEST',tag:'fixture-'+eventId})},waitUntil:p=>{work=p;}});return work;},async activate(){let work;handlers.get('activate')({waitUntil:p=>{work=p;}});return work;}};
+ return{shared,shown,setRoutineWait:value=>{routineWait=value;},setFail:value=>{failDisplay=value;},async push(eventId,kind='cad',overrides={}){let work;handlers.get('push')({data:{json:()=>({eventId,kind,title:'LOCAL TEST',tag:'fixture-'+eventId,...overrides})},waitUntil:p=>{work=p;}});return work;},async activate(){let work;handlers.get('activate')({waitUntil:p=>{work=p;}});return work;}};
 }
+
+test('CAD, reminder and legacy queued pushes use the transparent badge and keep the full-color large icon',async()=>{
+ const f=workerFixture();
+ await f.push(undefined);
+ await f.push(undefined,'scheduler');
+ await f.push(undefined,'cad',{badge:'/icons/pwa-96.png'});
+ for(const {options} of f.shown){
+  assert.equal(options.badge,'/icons/notification-badge-v1.png');
+  assert.equal(options.icon,'/icons/pwa-192.png');
+ }
+});
+test('icon cache upgrade removes the old shell but preserves CAD and scheduler duplicate receipts',async()=>{
+ const f=workerFixture(),id='00000000-0000-4000-8000-000000000099';
+ f.shared.set('stickney-firehouse-shell-v2',new Map());
+ f.shared.set('stickney-firehouse-shell-v3',new Map());
+ await f.push(id);await f.push(id,'scheduler');await f.activate();
+ assert.equal(f.shared.has('stickney-firehouse-shell-v2'),false);
+ assert.equal(f.shared.has('stickney-firehouse-shell-v3'),true);
+ await f.push(id);await f.push(id,'scheduler');assert.equal(f.shown.length,2);
+});
 
 test('a stalled scheduling notification cannot delay CAD; receipts and duplicate queues are separate',async()=>{
  const f=workerFixture(),id='00000000-0000-4000-8000-000000000001';let release;

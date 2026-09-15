@@ -6,6 +6,8 @@ import test from 'node:test';
 const read=p=>readFileSync(new URL(p,import.meta.url),'utf8');
 const helper=ts.transpileModule(read('../app/remember-device.ts'),{compilerOptions:{module:ts.ModuleKind.ESNext}}).outputText;
 const remember=await import(`data:text/javascript;base64,${Buffer.from(helper).toString('base64')}`);
+const loginResponseHelper=ts.transpileModule(read('../app/login-response.ts'),{compilerOptions:{module:ts.ModuleKind.ESNext}}).outputText;
+const loginResponse=await import(`data:text/javascript;base64,${Buffer.from(loginResponseHelper).toString('base64')}`);
 const compiled=ts.transpileModule(read('../app/api/auth/login/route.ts'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
 function harness({verified=true,rpcError=null,loginAllowed=true}={}) {
   const calls=[],cookies=[];
@@ -20,6 +22,7 @@ function harness({verified=true,rpcError=null,loginAllowed=true}={}) {
     '../../../supabase-config':{getPublicSupabaseConfig:()=>({url:'https://example.test',key:'fixture-only'})},
     '../../../supabase-system':{getSupabaseSystemClient:()=>{}},
     '../../../remember-device':remember,
+    '../../../login-response':loginResponse,
   };
   const exports={};vm.runInNewContext(compiled,{exports,Response,process:{env:{PAYROLL_DEPARTMENT_ID:'verified-department',FIREHOUSE_DATABASE_SECRET:'fixture-only',PORTAL_PIN_PASSWORD_PEPPER:'fixture-only'}},require:n=>{assert.ok(n in modules,n);return modules[n];}});
   return {post:exports.POST,calls,cookies};

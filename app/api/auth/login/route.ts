@@ -6,6 +6,7 @@ import { derivePortalPassword } from "../../../lib/portal-pin-password";
 import { getPublicSupabaseConfig } from "../../../supabase-config";
 import { getSupabaseSystemClient } from "../../../supabase-system";
 import { rememberedCookieSeconds } from "../../../remember-device";
+import { loginServiceUnavailable } from "../../../login-response";
 
 const pinCookie = "__Secure-firehouse-pin";
 const unlockSeconds = 30 * 60;
@@ -61,9 +62,18 @@ export async function POST(request: Request) {
       // Audit storage must never disclose credentials or block a member from signing in.
     }
   };
-  const check = await database.prepare(
-    "SELECT ok, email, locked_until AS lockedUntil FROM verify_portal_login(?, ?, ?)",
-  ).bind(email, pin, departmentId).first<LoginCheck>();
+  let check: LoginCheck | null;
+  try {
+    check = await database.prepare(
+      "SELECT ok, email, locked_until AS lockedUntil FROM verify_portal_login(?, ?, ?)",
+    ).bind(email, pin, departmentId).first<LoginCheck>();
+  } catch {
+    console.error("[auth/login] PIN verification service unavailable");
+    return Response.json({ error: loginServiceUnavailable }, {
+      status: 503,
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  }
   if (!check?.ok || !check.email) {
     await recordLoginAudit("failed_pin");
     return Response.json(

@@ -1,10 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-
-type HealthState = "healthy" | "warning" | "unavailable";
-type HealthCheck = { id: string; label: string; state: HealthState; value: string; detail: string; verifiedAt: string };
-type HealthPayload = { summary: { state: "healthy" | "attention"; label: string; checkedAt: string }; checks: HealthCheck[] };
+import type { HealthPayload } from "./system-health-model";
 
 function checkedTime(value: string) {
   const date = new Date(value);
@@ -25,6 +22,7 @@ export default function SystemHealth() {
       if (!response.ok) throw new Error(result.error || "System health could not be checked.");
       setPayload(result);
     } catch (problem) {
+      setPayload(null); // Do not leave old green cards visible after a failed live check.
       setError(problem instanceof Error ? problem.message : "System health could not be checked.");
     } finally {
       setLoading(false);
@@ -43,13 +41,15 @@ export default function SystemHealth() {
 
     <article className={`system-health-summary ${payload?.summary.state ?? "loading"}`}>
       <span className="system-health-light" aria-hidden="true" />
-      <div><p>System status</p><h2>{payload?.summary.label ?? "Checking system status…"}</h2><small>{payload ? `Verified ${checkedTime(payload.summary.checkedAt)}` : "Running live checks"}</small></div>
+      <div><p>System status</p><h2>{payload?.summary.label ?? (error ? "System status could not be verified" : "Checking system status…")}</h2><small>{payload ? `Checked ${checkedTime(payload.summary.checkedAt)}` : error ? "No current results available" : "Running live checks"}</small></div>
     </article>
 
     <div className="system-health-grid" aria-live="polite" aria-busy={loading}>
       {(payload?.checks ?? []).map((check) => <article className={`system-health-card ${check.state}`} key={check.id}>
-        <header><span className="system-health-checkmark" aria-hidden="true">{check.state === "healthy" ? "✓" : check.state === "warning" ? "!" : "—"}</span><span className="system-health-state">{check.state === "healthy" ? "Verified" : check.state === "warning" ? "Needs attention" : "Not connected"}</span></header>
+        <header><span className="system-health-checkmark" aria-hidden="true">{check.state === "healthy" ? "✓" : check.state === "warning" ? "!" : "—"}</span><span className="system-health-state">{check.statusLabel ?? (check.state === "healthy" ? "Verified" : check.state === "warning" ? "Needs attention" : "Not connected")}</span></header>
         <p>{check.label}</p><h3>{check.value}</h3><small>{check.detail}</small>
+        {check.verifiedAt ? <small>Checked {checkedTime(check.verifiedAt)}</small> : null}
+        {check.action ? <a className="quiet-button" href={check.action.href} target="_blank" rel="noopener noreferrer">{check.action.label} ↗</a> : null}
       </article>)}
       {loading && !payload ? Array.from({ length: 8 }, (_, index) => <article className="system-health-card loading" key={index}><span className="health-skeleton wide"/><span className="health-skeleton"/><span className="health-skeleton wide"/></article>) : null}
     </div>

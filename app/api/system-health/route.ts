@@ -1,24 +1,16 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 import { hasPermission } from "../../server-permissions";
+import { getPublicSupabaseConfig } from "../../supabase-config";
+import { getSupabaseBackupHealth } from "../../lib/supabase-backup-health";
+import { summarizeHealth, type HealthCheck } from "../../system-health-model";
 
-type HealthState = "healthy" | "warning" | "unavailable";
-
-type HealthCheck = {
-  id: string;
-  label: string;
-  state: HealthState;
-  value: string;
-  detail: string;
-  verifiedAt: string;
-};
-
-const unavailable = (id: string, label: string, detail: string, checkedAt: string): HealthCheck => ({
+const unavailable = (id: string, label: string, detail: string): HealthCheck => ({
   id,
   label,
   state: "unavailable",
   value: "Monitoring not connected",
   detail,
-  verifiedAt: checkedAt,
+  verifiedAt: null,
 });
 
 function formatBytes(value: unknown) {
@@ -49,6 +41,13 @@ export async function GET(request: Request) {
   }
 
   const checks: HealthCheck[] = [];
+  // Admin-only, bounded, and independent of every call/dispatch polling path.
+  const backupCheck = getSupabaseBackupHealth({
+    supabaseUrl: getPublicSupabaseConfig().url,
+    projectRef: process.env.SUPABASE_BACKUP_PROJECT_REF,
+    token: process.env.SUPABASE_BACKUP_ACCESS_TOKEN,
+    requiredAfter: process.env.SUPABASE_BACKUP_REQUIRED_AFTER,
+  });
   try {
     const [database, activeMembers] = await Promise.all([
       db.prepare("SELECT 1 AS online").first<{ online: number }>(),
@@ -118,7 +117,7 @@ export async function GET(request: Request) {
       verifiedAt: checkedAt,
     });
   } else {
-    checks.push(unavailable("database-usage", "Database used", "The live PostgreSQL size query is not available.", checkedAt));
+    checks.push(unavailable("database-usage", "Database used", "The live PostgreSQL size query is not available."));
   }
 
   if (providerUsage) {
@@ -132,7 +131,7 @@ export async function GET(request: Request) {
       verifiedAt: checkedAt,
     });
   } else {
-    checks.push(unavailable("storage-usage", "File storage used", "The live Supabase Storage size query is not available.", checkedAt));
+    checks.push(unavailable("storage-usage", "File storage used", "The live Supabase Storage size query is not available."));
   }
 
   type LoginAudit = {
@@ -164,7 +163,7 @@ export async function GET(request: Request) {
       verifiedAt: checkedAt,
     });
   } catch {
-    checks.push(unavailable("failed-logins", "Failed portal logins · last 24 hours", "The private portal login audit feed is not available.", checkedAt));
+    checks.push(unavailable("failed-logins", "Failed portal logins · last 24 hours", "The private portal login audit feed is not available."));
   }
 
   const commit = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) || "local";
@@ -175,27 +174,23 @@ export async function GET(request: Request) {
     id: "deployment",
     label: "Application deployment",
     state: environment === "production" ? "healthy" : "warning",
-    value: environment === "production" ? `Production · ${commit}` : `${environment} · ${commit}`,
+    value: environment === "production" ? `Production · ${commit}` : "Test preview",
+    statusLabel: environment === "production" ? "Verified" : "Preview",
     detail: environment === "production"
       ? `${repository ? `GitHub repository ${repository}` : "Git-connected source"}${branch ? ` · branch ${branch}` : ""}. This commit is serving the current request.`
-      : "This is the application version serving the current request.",
+      : "This is a test deployment, not the live production release. Preview status is expected during migration testing.",
     verifiedAt: checkedAt,
   });
 
   checks.push(
-    unavailable("database-backup", "Last database backup", "Connect the database provider backup feed before displaying a successful backup date.", checkedAt),
-    unavailable("file-backup", "Last file backup", "Connect an independent file-backup job and receipt feed before displaying a successful backup date.", checkedAt),
-    unavailable("offsite-backup", "Off-site backup", "No independent off-site backup verification feed is connected.", checkedAt),
-    unavailable("backup-verification", "Last backup verification", "No automated restore test or checksum verification receipt is connected.", checkedAt),
+    await backupCheck,
+    { ...unavailable("file-backup", "Independent photo & file backup", "Files are stored in Supabase, but Supabase database backups do not include the file contents. No independent file-backup service is configured."), value: "Not configured", statusLabel: "Not configured" },
+    { ...unavailable("offsite-backup", "Independent off-site backup", "No separate department-owned backup destination is configured. This is separate from Supabase database service health."), value: "Not configured", statusLabel: "Not configured" },
+    { ...unavailable("backup-verification", "Recovery testing", "No recurring restore test is configured. A successful database backup or migration copy is not evidence of an ongoing restore test."), value: "Not configured", statusLabel: "Not configured" },
   );
 
-  const allHealthy = checks.every((check) => check.state === "healthy");
   return Response.json({
-    summary: {
-      state: allHealthy ? "healthy" : "attention",
-      label: allHealthy ? "All systems normal" : "Core systems online · backup proof needs attention",
-      checkedAt,
-    },
+    summary: summarizeHealth(checks, checkedAt),
     checks,
   }, {
     headers: { "cache-control": "private, no-store, max-age=0", "x-content-type-options": "nosniff" },

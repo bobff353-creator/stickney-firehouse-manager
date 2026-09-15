@@ -48,7 +48,7 @@ export function buildCadPushPayload(incident: CadPushIncident) {
     title: callType,
     body: `Call ${callNumber} - Time out ${timeOut}\n${cadNotesPreview(incident.narrative)}`,
     icon: "/icons/pwa-192.png",
-    badge: "/icons/pwa-96.png",
+    badge: "/icons/notification-badge-v1.png",
     tag: `cad-${callNumber}`,
     incidentId: callNumber,
     url: `/?page=respond&call=${encodeURIComponent(callNumber)}`,

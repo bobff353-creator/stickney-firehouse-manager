@@ -8,6 +8,7 @@ const shell = readFileSync(new URL("../app/payroll-app.tsx", import.meta.url), "
 const providerHealthMigration = readFileSync(new URL("../supabase/migrations/20260830151225_add_system_health_usage_function.sql", import.meta.url), "utf8");
 const loginAuditMigration = readFileSync(new URL("../supabase/migrations/20260830181919_add_portal_login_audit.sql", import.meta.url), "utf8");
 const loginRoute = readFileSync(new URL("../app/api/auth/login/route.ts", import.meta.url), "utf8");
+const backupHealth = readFileSync(new URL("../app/lib/supabase-backup-health.ts", import.meta.url), "utf8");
 
 test("system health is admin-only and uses live service checks", () => {
   assert.match(route, /hasPermission\(request, db, "settings\.manage"\)/);
@@ -41,7 +42,12 @@ test("system health is admin-only and uses live service checks", () => {
 
 test("backup controls do not claim success without a connected verification feed", () => {
   assert.match(route, /Monitoring not connected/);
-  assert.match(route, /No automated restore test or checksum verification receipt is connected/);
+  assert.match(route, /No recurring restore test is configured/);
+  assert.match(route, /await backupCheck/);
+  assert.match(backupHealth, /api\.supabase\.com\/v1\/projects/);
+  assert.match(backupHealth, /SUPABASE|Supabase/);
+  assert.match(component, /setPayload\(null\)/);
+  assert.match(component, /check\.action\.href/);
   assert.match(route, /id: "database-usage"[\s\S]*state: "healthy"/);
   assert.match(route, /id: "storage-usage"[\s\S]*state: "healthy"/);
   assert.doesNotMatch(route, /Provider usage telemetry is not available to the portal runtime/);

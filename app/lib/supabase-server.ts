@@ -1,13 +1,15 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { portalServerHeaders } from "../portal-server-headers";
-
-const supabaseUrl = "https://ukpdacqjmhvlhmrwxtcx.supabase.co";
-const supabasePublishableKey = "sb_publishable_HY1UlYHvPnvDIuq_N_X_Sg_xu7bxTzs";
+import { getPublicSupabaseConfig } from "../supabase-config";
 
 export async function createInventorySupabaseClient() {
   const cookieStore = await cookies();
-  return createServerClient(supabaseUrl, supabasePublishableKey, {
+  // Inventory must use the same project as portal authentication and payroll.
+  // Keep the connection in one place so a verified project migration cannot
+  // leave apparatus checks writing to the previous database.
+  const { url, key } = getPublicSupabaseConfig();
+  return createServerClient(url, key, {
     global: { headers: portalServerHeaders() },
     cookies: {
       getAll() {

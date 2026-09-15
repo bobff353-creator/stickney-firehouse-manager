@@ -1775,18 +1775,19 @@ export default function Respond({
             Open box cards
           </button>
         </article>
-        <article>
+        <article className="respond-nearest-hydrants">
           <span>NEAREST HYDRANTS</span>
           {data?.nearestHydrants?.length ? (
             <div>
               {data.nearestHydrants.map((hydrant) => (
-                <p key={hydrant.id}>
+                <p key={hydrant.id} className="respond-hydrant-summary">
                   <b>
-                    {hydrant.hydrantNumber ||
-                      hydrant.address ||
-                      "Mapped hydrant"}
+                    {hydrant.address?.trim() || "Location not recorded"}
                   </b>
                   <small>
+                    {hydrant.hydrantNumber?.trim()
+                      ? `Hydrant ${hydrant.hydrantNumber.trim()} · `
+                      : ""}
                     {hydrant.distanceFeet.toLocaleString()} ft ·{" "}
                     {hydrant.serviceStatus.replaceAll("_", " ")}
                   </small>

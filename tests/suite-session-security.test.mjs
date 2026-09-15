@@ -46,9 +46,15 @@ test("all inventory APIs resolve the department from the verified session", asyn
 
 test("uses the browser-safe Supabase key and never a server secret", async () => {
   const client = await read("app/lib/supabase-server.ts");
+  const config = await read("app/supabase-config.ts");
 
-  assert.match(client, /sb_publishable_/);
-  assert.match(client, /createServerClient/);
+  assert.match(client, /import \{ getPublicSupabaseConfig \} from "\.\.\/supabase-config"/);
+  assert.match(client, /const \{ url, key \} = getPublicSupabaseConfig\(\)/);
+  assert.match(client, /createServerClient\(url, key,/);
   assert.match(client, /cookies\(\)/);
-  assert.doesNotMatch(client, /service_role|SUPABASE_SERVICE_ROLE/i);
+  assert.match(config, /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);
+  assert.match(config, /sb_publishable_/);
+  for (const source of [client, config]) {
+    assert.doesNotMatch(source, /service_role|SUPABASE_SERVICE_ROLE|SUPABASE_SECRET_KEY|sb_secret_/i);
+  }
 });

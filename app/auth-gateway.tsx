@@ -4,6 +4,7 @@ import type { User } from "@supabase/supabase-js";
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import PayrollApp from "./payroll-app";
 import { boundedAuthRead, definitiveAuthFailure } from "./auth-failure-policy";
+import { pinLoginError } from "./login-response";
 import SessionIdleLock from "./session-idle-lock";
 import RememberDeviceOption from "./remember-device-option";
 import { clearCachedRespondPackets } from "./preplans/offline-cache";
@@ -191,7 +192,7 @@ export default function AuthGateway({
       const responsePayload = await response.json().catch(() => ({})) as { error?: string };
       if (!response.ok) {
         setMode("sign-in");
-        setMessage(responsePayload.error || "That email or PIN is not correct.");
+        setMessage(pinLoginError(response.status, responsePayload));
         return;
       }
       setPin("");

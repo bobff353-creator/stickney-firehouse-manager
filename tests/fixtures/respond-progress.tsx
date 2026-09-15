@@ -6,7 +6,11 @@ import '../../app/mobile-usability.css';
 import '../../app/portal-usability.css';
 
 const params = new URLSearchParams(location.search);
-const audit = { errors: [] as string[], requests: [] as string[], writes: 0, reportNumber: 'FIXTURE-100', departmentId: 'fixture-a', assigned: '1204, 1205', failed: false, noCall: false, hold: false, pending: null as null | (() => void) };
+const audit = { errors: [] as string[], requests: [] as string[], writes: 0, navigations: [] as string[], reportNumber: 'FIXTURE-100', departmentId: 'fixture-a', assigned: '1204, 1205', failed: false, noCall: false, hold: false, pending: null as null | (() => void), hydrants: params.has('hydrants') ? [
+  { id: 'fixture-h1', hydrantNumber: '106', address: '  Preview only — Oak Avenue at West Sample Street, northeast corner  ', distanceFeet: 126, serviceStatus: 'in_service' },
+  { id: 'fixture-h2', hydrantNumber: '107', address: '  ', distanceFeet: 256, serviceStatus: 'out_of_service' },
+  { id: 'fixture-h3', hydrantNumber: '', address: 'Preview only — south entrance', distanceFeet: 352, serviceStatus: 'unknown' },
+] : [] };
 Object.assign(window, { progressAudit: audit });
 window.addEventListener('error', event => audit.errors.push(event.message));
 window.addEventListener('unhandledrejection', event => audit.errors.push(String(event.reason)));
@@ -25,7 +29,7 @@ window.fetch = async (input, init) => {
   return Response.json({
     departmentId: audit.departmentId, apparatusFilter: url.searchParams.get('apparatus'), generatedAt: new Date().toISOString(),
     activeCall: audit.noCall ? null : { reportNumber: audit.reportNumber, callType: 'FICTIONAL TEST CALL', category: 'Test', address: 'Preview only — not an incident', city: 'Stickney', narrative: '', respondingUnits: audit.assigned, longitude: null, latitude: null, dispatchedAt: new Date().toISOString(), timeOut: '1200', source: 'Fixture', receivedAt: new Date().toISOString() },
-    preplan: null, match: null, cadUpdates: [], recentCalls: [], boxCard: null, nearestHydrants: [], operational: null,
+    preplan: null, match: null, cadUpdates: [], recentCalls: [], boxCard: null, nearestHydrants: audit.hydrants, operational: null,
     overview: { apparatus: null, preplans: [], hydrants: [], roadClosures: [] },
   });
 };
@@ -40,7 +44,7 @@ function Fixture() {
       <button onClick={() => window.dispatchEvent(new Event('online'))}>Refresh fixture</button>
       <button onClick={() => setMounted(value => !value)}>Toggle Respond</button>
     </div>
-    {mounted && <section className="workspace" style={{ margin: 0, padding: 12 }}><Respond apparatus={unit} /></section>}
+    {mounted && <section className="workspace" style={{ margin: 0, padding: 12 }}><Respond apparatus={unit} onNavigate={page => audit.navigations.push(page)} /></section>}
   </main>;
 }
 createRoot(document.getElementById('root')!).render(<Fixture />);

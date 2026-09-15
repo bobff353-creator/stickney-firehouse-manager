@@ -1,4 +1,6 @@
-const CACHE_NAME = "stickney-firehouse-shell-v2";
+const CACHE_NAME = "stickney-firehouse-shell-v3";
+// Android uses the alpha silhouette here, not the colors of the full app logo.
+const NOTIFICATION_BADGE = "/icons/notification-badge-v1.png";
 // IDs only, no call details or credentials. Keep across service-worker upgrades.
 const PUSH_RECEIPTS = "stickney-cad-receipts-v1";
 const SCHEDULER_RECEIPTS = "stickney-scheduler-receipts-v1";
@@ -7,6 +9,7 @@ const SAFE_STATIC_ASSETS = [
   OFFLINE_URL,
   "/manifest.webmanifest",
   "/icons/pwa-96.png",
+  NOTIFICATION_BADGE,
   "/icons/pwa-192.png",
   "/icons/pwa-512.png",
   "/icons/pwa-maskable-512.png",
@@ -60,7 +63,8 @@ async function displayCadPush(payload) {
   await self.registration.showNotification(title, {
     body: payload.body || "Open Respond for call details.",
     icon: payload.icon || "/icons/pwa-192.png",
-    badge: payload.badge || "/icons/pwa-96.png",
+    // Also correct older queued payloads that still name the opaque app icon.
+    badge: NOTIFICATION_BADGE,
     tag: payload.tag || "stickney-cad-call",
     renotify: false,
     requireInteraction: !routine,
