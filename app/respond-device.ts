@@ -36,6 +36,18 @@ export function respondingUnitsIncludeUnit(respondingUnits: unknown, apparatus: 
   return tokens.includes(unit);
 }
 
+// Board handoff is automatic in every device mode. An assigned rig still sees
+// only its eligible calls; this never interrupts another portal workflow.
+export function shouldOpenBoardRespondAlert(
+  page: string,
+  visiblePages: readonly string[],
+  settings: RespondDeviceSettings,
+  call: { reportNumber: string; respondingUnits: string },
+) {
+  return page === 'Operations Board' && visiblePages.includes('Operations Board') && visiblePages.includes('Respond') && Boolean(call.reportNumber.trim())
+    && (settings.mode !== 'apparatus' || respondingUnitsIncludeUnit(call.respondingUnits, settings.apparatus));
+}
+
 export function readRespondDeviceSettings(store: Pick<KeyValueStore, "getItem">): RespondDeviceSettings {
   try {
     const parsed = JSON.parse(store.getItem(RESPOND_DEVICE_STORAGE_KEY) || "{}") as Partial<RespondDeviceSettings>;

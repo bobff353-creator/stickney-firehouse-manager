@@ -63,7 +63,7 @@ export default function RespondDeviceSettingsPage({ onSaved }: { onSaved: (setti
 
     <div className="respond-mode-options" role="radiogroup" aria-label="Respond device mode">
       <button type="button" role="radio" aria-checked={draft.mode === "standard"} className={draft.mode === "standard" ? "selected" : ""} onClick={() => chooseMode("standard")}>
-        <b>Standard portal</b><span>Respond remains available from the Field menu. New calls never change the page automatically.</span>
+        <b>Standard portal</b><span>Use the portal normally. While Live Operations is open, new calls automatically show Respond for {RESPOND_ALERT_DURATION_SECONDS} seconds, then return to the board.</span>
       </button>
       <button type="button" role="radio" aria-checked={draft.mode === "apparatus"} className={draft.mode === "apparatus" ? "selected" : ""} onClick={() => chooseMode("apparatus")}>
         <b>Option 1 · Apparatus Respond</b><span>Open this device on Respond and show only calls whose CAD responding-units field includes the selected rig.</span>
@@ -85,7 +85,7 @@ export default function RespondDeviceSettingsPage({ onSaved }: { onSaved: (setti
 
     <aside className="respond-device-safety">
       <strong>Interruption protection</strong>
-      <p>Operations Alert can take over only when this device is already displaying Live Operations. It will not interrupt Daily Log, Payroll, Preplans, employee forms, or any other page.</p>
+      <p>In every device mode, Live Operations automatically shows a new call in Respond for {RESPOND_ALERT_DURATION_SECONDS} seconds. An assigned apparatus still receives only its matching calls. Daily Log, Payroll, Preplans, employee forms, and other pages are not interrupted. Call sound is controlled separately on the board.</p>
     </aside>
   </section>;
 }

@@ -200,9 +200,11 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
       setNextChangeAt(bundle.dashboard?.payload?.nextChangeAt ?? 0);
       const incomingIds = new Set(result.activeCalls.map((call) => call.reportNumber).filter(Boolean));
       if (seenCallIdsRef.current) {
-        const newCall = result.activeCalls.find((call) => call.reportNumber && !seenCallIdsRef.current?.has(call.reportNumber));
-        if (newCall && alertEnabledRef.current) void playAlert();
-        if (newCall) onNewActiveCallRef.current?.(newCall);
+        const newCalls = result.activeCalls.filter((call) => call.reportNumber && !seenCallIdsRef.current?.has(call.reportNumber));
+        if (newCalls.length && alertEnabledRef.current) void playAlert();
+        // Offer every new call so an apparatus filter can select its eligible
+        // one. Newest comes last and receives the full 90-second takeover.
+        for (const newCall of [...newCalls].reverse()) onNewActiveCallRef.current?.(newCall);
         incomingIds.forEach((id) => seenCallIdsRef.current?.add(id));
       } else {
         seenCallIdsRef.current = incomingIds;

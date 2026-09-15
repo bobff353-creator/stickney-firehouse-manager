@@ -677,9 +677,11 @@ function FootprintDiagram({
 
 export default function Respond({
   apparatus = "",
+  initialReportNumber = "",
   onNavigate,
 }: {
   apparatus?: string;
+  initialReportNumber?: string;
   onNavigate?: (page: "Daily Log" | "Field Preplans" | "Box Cards") => void;
 }) {
   const [data, setData] = useState<RespondData | null>(null),
@@ -687,7 +689,7 @@ export default function Respond({
     [view, setView] = useState<RightView>("cad"),
     [selected, setSelected] = useState<QuickItem | null>(null);
   const [monitorMode, setMonitorMode] = useState(false);
-  const [selectedReportNumber, setSelectedReportNumber] = useState("");
+  const [selectedReportNumber, setSelectedReportNumber] = useState(initialReportNumber);
   const [selectionNotice, setSelectionNotice] = useState("");
   const locations=useApparatusLocations(Boolean(apparatus)||monitorMode,data?.activeCall?.respondingUnits||'');
   const [vehicleMapOpen,setVehicleMapOpen]=useState(false);

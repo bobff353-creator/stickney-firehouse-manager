@@ -89,7 +89,8 @@ test("Respond reads existing call and preplan records and exposes requested fiel
   assert.match(await readFile(new URL("../app/portal-menu-items.ts", import.meta.url), "utf8"), /\{ label: "Respond", page: "Respond" \}/);
   assert.match(shell, /activeNav === "Respond"/);
   assert.match(shell, /Respond Device Modes/);
-  assert.match(shell, /respondDeviceSettings\.mode === "operations-alert" && activeNav === "Operations Board"/);
+  assert.match(shell, /shouldOpenBoardRespondAlert\(activeNav, visibleNav, respondDeviceSettings, call\)/);
+  assert.match(shell, /key=\{respondAlertCallId\} initialReportNumber=\{respondAlertCallId\}/);
   assert.match(shell, /Returning to Live Operations in \{respondAlertSeconds\} seconds/);
   assert.match(settings, /No separate device account is required/);
   assert.match(settings, /Option 1 · Apparatus Respond/);

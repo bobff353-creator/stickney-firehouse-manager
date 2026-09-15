@@ -50,7 +50,7 @@ const DepartmentSettings = dynamic(() => import("./department-settings"), { load
 const SystemHealth = dynamic(() => import("./system-health"), { loading: () => <ModuleLoading /> });
 const RoadClosures = dynamic(() => import("./road-closures"), { loading: () => <ModuleLoading /> });
 const SafetyInspections = dynamic(() => import("./safety-inspections"), { loading: () => <ModuleLoading /> });
-import { defaultRespondDeviceSettings, readRespondDeviceSettings, RESPOND_ALERT_DURATION_SECONDS, type RespondDeviceSettings } from "./respond-device";
+import { defaultRespondDeviceSettings, readRespondDeviceSettings, RESPOND_ALERT_DURATION_SECONDS, shouldOpenBoardRespondAlert, type RespondDeviceSettings } from "./respond-device";
 
 type Category = "shift" | "drill" | "workDetail" | "callback" | "actingOfficer" | "holiday" | "dpw";
 type PayScale = { id: string; label: string; regularRate: number; overtimeRate: number; holidayRate: number };
@@ -1016,11 +1016,11 @@ export default function PayrollApp({
           window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
           window.dispatchEvent(new CustomEvent("firehouse:tv-mode", { detail: { enabled } }));
         }} onNewActiveCall={(call) => {
-          if (respondDeviceSettings.mode === "operations-alert" && activeNav === "Operations Board") { setRespondAlertSeconds(RESPOND_ALERT_DURATION_SECONDS); setRespondAlertCallId(call.reportNumber); }
+          if (shouldOpenBoardRespondAlert(activeNav, visibleNav, respondDeviceSettings, call)) { setRespondAlertSeconds(RESPOND_ALERT_DURATION_SECONDS); setRespondAlertCallId(call.reportNumber); }
         }} />}
         {activeNav === "Respond" && visibleNav.includes("Respond") && <Respond apparatus={respondDeviceSettings.mode === "apparatus" ? respondDeviceSettings.apparatus : ""} onNavigate={navigateFromRespond} />}
         {respondAlertCallId && activeNav === "Operations Board" && visibleNav.includes("Operations Board") && visibleNav.includes("Respond") && <div className="respond-auto-alert" role="dialog" aria-modal="true" aria-label="New active call Respond view">
-          <header><div><strong>NEW ACTIVE CALL · RESPOND</strong><span>Returning to Live Operations in {respondAlertSeconds} seconds</span></div><button type="button" onClick={() => setRespondAlertCallId("")}>Return now</button></header><Respond onNavigate={navigateFromRespond} />
+          <header><div><strong>NEW ACTIVE CALL · RESPOND</strong><span>Returning to Live Operations in {respondAlertSeconds} seconds</span></div><button type="button" onClick={() => setRespondAlertCallId("")}>Return now</button></header><Respond key={respondAlertCallId} initialReportNumber={respondAlertCallId} apparatus={respondDeviceSettings.mode === "apparatus" ? respondDeviceSettings.apparatus : ""} onNavigate={navigateFromRespond} />
         </div>}
         {visibleNav.includes(activeNav) && <>
           {activeNav === "Inventory" && <section className="content-card action-empty-state"><div><h1>Apparatus Checks &amp; Inventory</h1><p>Open the dedicated workspace to choose an apparatus, complete checks, and find equipment.</p></div><button type="button" className="primary-action" disabled={openingInventory} onClick={() => void openInventory()}>{openingInventory ? "Checking access…" : "Open Apparatus Checks"}</button></section>}
