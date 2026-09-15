@@ -48,7 +48,11 @@ window.fetch = async (input, init) => {
   if (!(url.pathname in payloads)) throw new Error('Unexpected fixture API '+url.pathname);
   return Response.json(payloads[url.pathname]);
 };
+function PreviewBoard() {
+  const [tvMode, setTvMode] = React.useState(tv);
+  return <main className={tvMode ? 'tv-shell' : ''}><section className="workspace">{parameters.has('alerts') && !tvMode && <SmartAlerts icon={<span>Notifications</span>} onNavigate={() => {}}/>}<OperationsBoard tvMode={tvMode} onTvModeChange={setTvMode} onNewActiveCall={() => { audit.alerts++; }} /></section></main>;
+}
 createRoot(document.getElementById('root')!).render(<>
   <p style={{ margin: 0, background: '#fff7d6', color: '#442e00', padding: 4 }}>LOCAL TEST — fictional source data; no operational records.</p>
-  {Array.from({ length: count }, (_, index) => <main key={index} className={tv ? 'tv-shell' : ''}><section className="workspace">{parameters.has('alerts') && !tv && <SmartAlerts icon={<span>Notifications</span>} onNavigate={() => {}}/>}<OperationsBoard tvMode={tv} onNewActiveCall={() => { audit.alerts++; }} /></section></main>)}
+  {Array.from({ length: count }, (_, index) => <PreviewBoard key={index}/>)}
 </>);

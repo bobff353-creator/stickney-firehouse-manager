@@ -73,12 +73,14 @@ test("staffing uses content height while the river card fills reclaimed space", 
   assert.match(styles, /\.staffing-rotation-panel \.new-member-photo img \{ position: absolute; inset: 0; object-position: center top/);
 });
 
-test("TV close-call cards reserve room for headlines and links instead of overflowing summaries", async () => {
+test("TV close-call cards use two rows with room for brief source descriptions", async () => {
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(styles, /\.tv-display \.close-call-list a \{ box-sizing: border-box;[^}]+overflow: hidden/);
   assert.match(styles, /\.tv-display \.close-call-list strong \{[^}]+-webkit-line-clamp: 2;[^}]+font-size: clamp\(14px,1vw,20px\)/);
   assert.match(styles, /\.rotating-panel\.news > \.rotation-content \{ grid-template-rows: minmax\(0,1fr\); align-content: stretch/);
-  assert.match(styles, /\.tv-display \.close-call-list p,\.tv-display \.close-call-kicker \{ display: none; \}/);
+  assert.match(styles, /\.tv-display \.close-call-list \{ grid-template-rows: repeat\(2,minmax\(0,1fr\)\); \}/);
+  assert.match(styles, /\.tv-display \.close-call-list p \{ display: -webkit-box; -webkit-line-clamp: 2;/);
+  assert.match(styles, /\.tv-display \.close-call-kicker \{ display: none; \}/);
   assert.match(styles, /\.close-call-list p \{ display: -webkit-box/);
 });
 

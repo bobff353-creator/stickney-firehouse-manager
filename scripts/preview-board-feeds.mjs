@@ -16,7 +16,12 @@ const now = Date.now(), today = new Intl.DateTimeFormat('en-CA',{timeZone:'Ameri
 const courseDay = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Chicago'}).format(now+7*86400000);
 const payloads = {
  weather: { location:'Berwyn, IL',days:[today,tomorrow].map(date=>({date,condition:'Fixture clear weather',high:72,low:60,precipitationChance:10,windGust:8})),hours:Array.from({length:4},(_,i)=>({time:new Date(now+(i+1)*3600000).toISOString(),condition:'Fixture clear',temperature:72,precipitationChance:10,windSpeed:8})),detailUrl:'https://weather.com/us/illinois/city/berwyn/today' },
- close_calls:{items:[{title:'Fictional report for layout verification',url:'https://www.firefighterclosecalls.com/',publishedAt:new Date(now).toISOString(),excerpt:'Local test data only. This is not an incident report.'}]},
+ close_calls:{items:Array.from({length:6},(_,index)=>({
+   title:index===0?'Fictional report for layout verification':'FICTIONAL LAYOUT TEST '+(index+1)+' — long Close Calls headline to verify wrapping and readable descriptions',
+   url:'https://www.firefighterclosecalls.com/'+(index?'#fixture-'+index:''),
+   publishedAt:new Date(now-index*86400000).toISOString(),
+   excerpt:'Local test data only. This is not an incident report. This longer preview description verifies that the TV display shows a readable brief summary below each headline without overlapping the next report or pushing important information outside the panel.',
+ }))},
  usfa:{year:new Date().getFullYear(),total:0,items:[],source:'Fixture USFA payload'},
  ...Object.fromEntries(['romeoville','ifsi','nipsta'].map(id=>['training_'+id,{id,checkedAt:new Date(now-120000).toISOString(),available:true,resources:[],upcoming:[{title:'Fictional training class — local test',url:'https://example.invalid/',startDate:courseDay,endDate:courseDay,location:'Preview only',detail:'Not an actual class'}]}])),
 };
