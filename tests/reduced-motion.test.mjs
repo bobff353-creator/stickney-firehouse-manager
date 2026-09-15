@@ -13,7 +13,7 @@ test("reduced-motion preference stops animation, transitions, and smooth scrolli
 });
 
 test("stopping motion does not remove Respond refresh or emergency labels", () => {
-  assert.match(respond, /setInterval\(\(\) => void load\(\), 10000\)/);
+  assert.match(respond, /fallbackMs: 10_000/);
   assert.match(respond, /alert\.severity\.toUpperCase\(\)/);
   assert.match(respond, /HAZMAT EMERGENCY DETAIL/);
   assert.match(respond, /OFFLINE — READ-ONLY PREPLAN/);

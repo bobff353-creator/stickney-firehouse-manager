@@ -1,5 +1,6 @@
 "use client";
 import { onOperationalPush } from './operational-push-refresh';
+import { useOperationalUpdates } from './use-operational-updates';
 /* eslint-disable @next/next/no-img-element -- preplan photos are protected runtime records. */
 
 import {
@@ -698,6 +699,9 @@ export default function Respond({
   );
   const [cachedAt, setCachedAt] = useState("");
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [nextChangeAt, setNextChangeAt] = useState(0);
+  const reloadRequested = useRef(false);
+  const reloadTimer = useRef<number | null>(null);
   const requestInFlight = useRef<{ apparatus: string; reportNumber: string; controller: AbortController } | null>(null);
   const lastPacketRevision = useRef({ apparatus: "", reportNumber: "", revision: "" });
   const lastContentRevision = useRef({ apparatus: "", reportNumber: "", revision: "" });
@@ -719,8 +723,8 @@ export default function Respond({
   const hazmatTriggerRef = useRef<HTMLElement | null>(null);
   const quickCloseRef = useRef<HTMLButtonElement>(null);
   const quickTriggerRef = useRef<HTMLElement | null>(null);
-  const load = useCallback(async () => {
-    if (requestInFlight.current?.apparatus === apparatus && requestInFlight.current.reportNumber === selectedReportNumber) return;
+  const load = useCallback(async function loadSnapshot(): Promise<void> {
+    if (requestInFlight.current?.apparatus === apparatus && requestInFlight.current.reportNumber === selectedReportNumber) { reloadRequested.current = true; return; }
     requestInFlight.current?.controller.abort();
     const pending = { apparatus, reportNumber: selectedReportNumber, controller: new AbortController() };
     requestInFlight.current = pending;
@@ -744,6 +748,7 @@ export default function Respond({
         signal: AbortSignal.any([pending.controller.signal, AbortSignal.timeout(15000)]),
       });
       if (!isCurrentRequest()) return;
+      if (response.headers.has('x-operational-next-change')) setNextChangeAt(Number(response.headers.get('x-operational-next-change')) || 0);
       if ([401, 403, 423].includes(response.status)) {
         allowCachedPacket = false;
         setData(null);
@@ -821,18 +826,24 @@ export default function Respond({
       );
     } finally {
       if (requestInFlight.current === pending) requestInFlight.current = null;
+      if (reloadRequested.current && !pending.controller.signal.aborted) { reloadRequested.current = false; reloadTimer.current = window.setTimeout(() => void loadSnapshot(), 0); }
     }
   }, [apparatus, selectedReportNumber]);
+  const refreshLive = useCallback(async () => {
+    // A changed preplan/hydrant can arrive inside the old 30-second revision
+    // window. Invalidate that shortcut so the new reference data is read now.
+    lastPacketRevision.current = { apparatus: '', reportNumber: '', revision: '' };
+    await load();
+  }, [load]);
+  const liveConnected = useOperationalUpdates({ scope: 'respond', sections: ['respond'], refresh: refreshLive, fallbackMs: 10_000, nextChangeAt, readFailed: Boolean(error) || !data || respondSource !== 'live' });
   useEffect(() => onOperationalPush(() => {
     lastPacketRevision.current = { apparatus: "", reportNumber: "", revision: "" };
     void load();
   }, 'cad'), [load]);
   useEffect(() => {
-    const initial = window.setTimeout(() => void load(), 0);
-    const timer = window.setInterval(() => void load(), 10000);
     return () => {
-      window.clearTimeout(initial);
-      window.clearInterval(timer);
+      reloadRequested.current = false;
+      if (reloadTimer.current !== null) window.clearTimeout(reloadTimer.current);
       requestInFlight.current?.controller.abort();
       requestInFlight.current = null;
     };
@@ -1179,7 +1190,7 @@ export default function Respond({
             )}
           </div>
           <div className="respond-title-actions">
-            <small><i /> {updatesAvailable ? "Live · refreshes every 10 seconds" : "Updates interrupted"}</small>
+            <small><i /> {updatesAvailable ? liveConnected ? "Live · updates when records change" : "Backup updates · checks every 10 seconds" : "Updates interrupted"}</small>
             <button onClick={() => void toggleMonitor()}>
               {monitorMode ? "Exit full screen" : "Open full screen"}
             </button>

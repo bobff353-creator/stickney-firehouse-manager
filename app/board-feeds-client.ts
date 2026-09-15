@@ -91,6 +91,10 @@ export function createBoardFeedClient(env: Environment) {
   return {
     snapshot: () => state,
     resume: () => schedule(),
+    invalidate() {
+      pending.forEach(controller => controller.abort()); pending.clear();
+      groups.forEach(group => { next[group] = 0; }); schedule();
+    },
     invalidateBulletins() {
       pending.get('bulletins')?.abort(); pending.delete('bulletins');
       next.bulletins = 0; schedule();

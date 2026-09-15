@@ -23,6 +23,8 @@ import { createConditionalJsonReader } from './conditional-json-reader';
 import { synchronizedSlide } from './board-sync-clock';
 import { BoardEquipmentSummary } from './board-equipment-summary';
 import { onOperationalPush } from './operational-push-refresh';
+import { useOperationalUpdates } from './use-operational-updates';
+import type { OperationalSection } from './operational-signals';
 
 type BoardRoadClosure = { id:string;roadName:string;reason:string;path:Array<{lat:number;lng:number}>;detourLatitude:number;detourLongitude:number;startedAt:string;expectedClearAt:string|null };
 type BoardData = { asOf: string; currentShift: string; onDuty: StaffingPerson[]; newMembers: NewMember[]; officerInCharge: string | null; staffing: { filled: number; required: number; complete: boolean }; equipmentIssues: Array<{ id?: string; item: string; status: string; detail: string }>; activeCalls: Array<{ reportNumber: string; timeOut: string; respondingUnits: string; address: string; callType: string; narrative?: string; source?: string }>; apparatus: Array<{ unit: string; status: string }>; roadClosures:BoardRoadClosure[]; error?: string };
@@ -39,6 +41,7 @@ type TrainingCourse = { title: string; dates: string; startDate: string; endDate
 type TrainingProvider = { name: string; shortName: string; sourceUrl: string; checked: string; courses: TrainingCourse[]; error?: string };
 type WakeLockHandle = { release: () => Promise<void>; addEventListener: (type: "release", listener: () => void) => void };
 type JsonResponse<T> = { ok: boolean; status: number; payload: T | null };
+type BoardBundle = { dashboard?: JsonResponse<BoardData & { nextChangeAt?: number }>; duties?: JsonResponse<{ currentDuty?: CurrentDuty | null; dailyFleetChecks?: DailyFleetCheck[] }>; fleet?: JsonResponse<{ apparatus?: FleetApparatus[] }>; error?: string };
 type Rotation = "equipment" | "duty" | "news" | "fatalities" | "romeoville" | "ifsi" | "nipsta";
 type HeaderRotation = "title" | "today" | "hourly" | "tomorrow";
 const rotationOrder: Rotation[] = ["equipment", "duty", "news", "fatalities", "romeoville", "ifsi", "nipsta"];
@@ -79,6 +82,10 @@ function TrainingCourses({ provider, today }: { provider: TrainingProvider; toda
 
 export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewActiveCall }: { tvMode?: boolean; onTvModeChange?: (enabled: boolean) => void; onNewActiveCall?: (call: BoardData["activeCalls"][number]) => void }) {
   const packetReader = useRef(createConditionalJsonReader());
+  const confirmedBundle = useRef<BoardBundle>({});
+  const reloadRequested = useRef(false);
+  const reloadTimer = useRef<number | null>(null);
+  const [nextChangeAt, setNextChangeAt] = useState(0);
   const [boardLinks, setBoardLinks] = useState(() => ({ settings: defaultBoardLinks(), canEdit: false, confirmed: false }));
   const [linkEditor, setLinkEditor] = useState<BoardLinkSectionId | null>(null);
   const [trainingEditor, setTrainingEditor] = useState<TrainingSourceId | null>(null);
@@ -89,7 +96,7 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
       settings: signal.settings ?? current.settings, canEdit: signal.canEdit && signal.confirmed, confirmed: signal.confirmed,
     });
   }, []);
-  const informational = useBoardFeeds(tvMode);
+  const informational = useBoardFeeds(tvMode, true);
   const news = (informational.feeds.close_calls?.data?.items as CloseCallReport[] | undefined) ?? [];
   const displayedNews = tvMode ? news.slice(0, 4) : news;
   const fatalities = informational.feeds.usfa?.data as UsfaData | null | undefined;
@@ -160,26 +167,25 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
       segmentStart += segment.duration;
     });
   }, []);
-  const load = useCallback(async () => {
-    if (loadInProgressRef.current) return;
+  const load = useCallback(async function loadSnapshot(sections?: readonly OperationalSection[]): Promise<void> {
+    if (loadInProgressRef.current) { reloadRequested.current = true; return; }
     loadInProgressRef.current = true;
     const controller = new AbortController();
     loadControllerRef.current = controller;
     const timeout = window.setTimeout(() => controller.abort(), 15000);
     try {
-      const response = await packetReader.current.read('/api/live-operations', { signal: controller.signal });
-      const bundle = await response.json() as {
-        dashboard?: JsonResponse<BoardData>;
-        duties?: JsonResponse<{ currentDuty?: CurrentDuty | null; dailyFleetChecks?: DailyFleetCheck[] }>;
-        fleet?: JsonResponse<{ apparatus?: FleetApparatus[] }>;
-        error?: string;
-      };
+      const parts = sections?.filter(section => ['dashboard', 'duties', 'fleet'].includes(section));
+      const query = parts?.length && confirmedBundle.current.dashboard?.ok ? `?parts=${parts.toSorted().join(',')}` : '';
+      const response = await packetReader.current.read(`/api/live-operations${query}`, { signal: controller.signal });
+      const received = await response.json() as BoardBundle;
+      const bundle = response.ok ? { ...confirmedBundle.current, ...received } : received;
       const failed = { ok: false, status: response.status, payload: null };
       const dashboard = bundle.dashboard ?? { ...failed, payload: { error: bundle.error } as BoardData };
       const dutiesResult = bundle.duties ?? failed;
       const fleetResult = bundle.fleet ?? failed;
       if (controller.signal.aborted) return;
       if ([dashboard, dutiesResult, fleetResult].some(result => [401, 403, 423].includes(result.status))) {
+        confirmedBundle.current = {};
         setData(null); setCurrentDuty(null); setDailyFleetChecks([]); setLastRefresh(null);
         setError("Live Operations access could not be confirmed. Rechecking your permissions.");
         void refreshPermissions();
@@ -190,6 +196,8 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
         setError(result?.error || "Unable to load live operations");
         return;
       }
+      confirmedBundle.current = bundle;
+      setNextChangeAt(bundle.dashboard?.payload?.nextChangeAt ?? 0);
       const incomingIds = new Set(result.activeCalls.map((call) => call.reportNumber).filter(Boolean));
       if (seenCallIdsRef.current) {
         const newCall = result.activeCalls.find((call) => call.reportNumber && !seenCallIdsRef.current?.has(call.reportNumber));
@@ -206,7 +214,7 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
       }));
       setData({ ...result, apparatus: fleetStatuses.length ? fleetStatuses : result.apparatus });
       setLastRefresh(new Date());
-      setError("");
+      setError([dashboard, dutiesResult, fleetResult].every(part => part.ok) ? '' : 'Some board information could not refresh. Retrying the last confirmed information.');
       if (dutiesResult.ok && dutiesResult.payload) {
         setCurrentDuty(dutiesResult.payload.currentDuty ?? null);
         setDailyFleetChecks(dutiesResult.payload.dailyFleetChecks ?? []);
@@ -218,16 +226,16 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
       window.clearTimeout(timeout);
       loadInProgressRef.current = false;
       if (loadControllerRef.current === controller) loadControllerRef.current = null;
+      if (reloadRequested.current && !controller.signal.aborted) { reloadRequested.current = false; reloadTimer.current = window.setTimeout(() => void loadSnapshot(), 0); }
     }
   }, [playAlert]);
+  const liveConnected = useOperationalUpdates({ scope: 'board', sections: ['dashboard', 'duties', 'fleet'], refresh: load, fallbackMs: 30_000, nextChangeAt, readFailed: Boolean(error) || !data });
   useEffect(() => { onNewActiveCallRef.current = onNewActiveCall; }, [onNewActiveCall]);
   useEffect(() => onOperationalPush(() => void load()), [load]);
   useEffect(() => { const timer = window.setTimeout(() => { const storedTone = window.localStorage.getItem("stickney-call-alert-tone") || ""; const selectedTone = alertToneIds.has(storedTone) ? storedTone as AlertTone : "minitor-two-tone"; const enabled = window.localStorage.getItem("stickney-call-alert-enabled") === "true"; setAlertTone(selectedTone); setAlertEnabled(enabled); alertToneRef.current = selectedTone; alertEnabledRef.current = enabled; }, 0); return () => window.clearTimeout(timer); }, []);
   useEffect(() => {
-    const initial = window.setTimeout(() => void load(), 0);
-    const refresh = window.setInterval(() => void load(), 30000);
     const ticker = window.setInterval(() => setClock(new Date()), 1000);
-    return () => { window.clearTimeout(initial); window.clearInterval(refresh); window.clearInterval(ticker); loadControllerRef.current?.abort(); };
+    return () => { window.clearInterval(ticker); reloadRequested.current = false; if (reloadTimer.current !== null) window.clearTimeout(reloadTimer.current); loadControllerRef.current?.abort(); };
   }, [load]);
   useEffect(() => {
     if (rotationPaused || linkEditor || trainingEditor) return;
@@ -315,7 +323,7 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
   const dailyChecksNeedAttention = dailyFleetChecks.length > 0 && dailyCheckUrgency !== "scheduled";
   const scheduledWeeklyChecks = currentDuty?.fleetChecks ?? [];
   const weeklyChecksCompleted = scheduledWeeklyChecks.length > 0 && scheduledWeeklyChecks.every((check) => ["completed", "not_needed"].includes(check.status));
-  const feedDegraded=Boolean(error)||!lastRefresh||clock.getTime()-lastRefresh.getTime()>75000;
+  const feedDegraded=Boolean(error)||!lastRefresh||(!liveConnected&&clock.getTime()-lastRefresh.getTime()>75000);
   async function enterTvMode() {
     onTvModeChange?.(true);
     try {
@@ -355,11 +363,11 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
       {boardLinks.canEdit && !tvMode && <button type="button" className={linkStyles.editButton} onClick={() => setLinkEditor(isBoardLinkSection(rotation) ? rotation : 'news')}><b aria-hidden="true">+</b> Edit news & training links</button>}
       {boardLinks.canEdit && !tvMode && <button type="button" className={linkStyles.editButton} onClick={() => setTrainingEditor(isTrainingSource(rotation) ? rotation : 'romeoville')}><b aria-hidden="true">+</b> Manage classes</button>}
       {alertPanelOpen && <div className="call-alert-settings"><strong>New-call sound</strong><label><span>Alert tone</span><select value={alertTone} onChange={(event) => selectAlertTone(event.target.value)}>{alertTones.map((tone) => <option value={tone.id} key={tone.id}>{tone.label}</option>)}</select></label><div><button type="button" onClick={() => void playAlert(alertTone)}>Preview</button><button type="button" className={alertEnabled ? "enabled" : ""} onClick={() => void toggleCallAlerts()}>{alertEnabled ? "Disable alerts" : "Enable call alerts"}</button></div><small>Saved on this TV. Sounds only for newly received call numbers.</small></div>}
-      <div className="board-control-buttons"><span className={`board-heartbeat ${feedDegraded?"degraded":""}`}><i/>{feedDegraded?"Feed delayed · reconnecting":`Updated ${lastRefresh?.toLocaleTimeString([],{hour:"numeric",minute:"2-digit",second:"2-digit"})}`}</span><button type="button" onClick={()=>setRotationPaused((current)=>!current)}>{rotationPaused?"Resume rotation":"Pause rotation"}</button><button type="button" onClick={() => setAlertPanelOpen((open) => !open)} aria-expanded={alertPanelOpen}>Call sound: {alertEnabled ? "On" : "Off"}</button>{tvMode
+      <div className="board-control-buttons"><span className={`board-heartbeat ${feedDegraded?"degraded":""}`}><i/>{feedDegraded?"Feed delayed · reconnecting":liveConnected?'Live · updates on changes':`Backup updates · checked ${lastRefresh?.toLocaleTimeString([],{hour:"numeric",minute:"2-digit",second:"2-digit"})}`}</span><button type="button" onClick={()=>setRotationPaused((current)=>!current)}>{rotationPaused?"Resume rotation":"Pause rotation"}</button><button type="button" onClick={() => setAlertPanelOpen((open) => !open)} aria-expanded={alertPanelOpen}>Call sound: {alertEnabled ? "On" : "Off"}</button>{tvMode
         ? <span className="board-station-mode"><i/>24/7 station mode</span>
         : <button type="button" onClick={() => void enterTvMode()} aria-label="Open the Live Operations Board in full-screen TV mode">TV full screen</button>}</div>
     </div>
-    <header className="board-header"><div className="board-header-rotation" aria-live="polite"><p>Stickney Fire Department</p>{headerRotation === "title" ? <div className="board-title-slide"><h1>Live Operations Board</h1><span>{data ? shiftLabel(data.currentShift) : "Loading current shift…"}</span></div> : headerRotation === "hourly" && weather?.hours?.length ? <div className="board-hourly-slide"><span className="weather-day">Berwyn hourly outlook · {savedFeedLabel(informational.feeds.weather, informational.unconfirmed.weather)}</span><h1>{weather.hours.some(hour => Date.parse(hour.time) > clock.getTime()) ? "Next 4 hours" : "Saved hourly outlook"}</h1><div className="board-hourly-grid">{weather.hours.slice(0, 4).map((hour) => <article key={hour.time}><time>{new Date(hour.time).toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric" })}</time><strong>{hour.temperature}°</strong><span>{hour.condition}</span><small>{hour.precipitationChance}% rain · {hour.windSpeed} mph</small></article>)}</div></div> : headerWeather ? <div className="board-weather-slide"><span className="weather-day">{weatherTitle} · {savedFeedLabel(informational.feeds.weather, informational.unconfirmed.weather)}</span><h1>{headerWeather.condition}</h1><div><strong>{headerWeather.high}°</strong><span>High</span><b>{headerWeather.low}°</b><span>Low</span><small>{headerWeather.precipitationChance}% rain · Wind {headerWeather.windGust} mph</small></div>{weather?.detailUrl && <a href={weather.detailUrl} target="_blank" rel="noreferrer">Full Berwyn forecast on Weather.com ↗</a>}</div> : <div className="board-title-slide"><h1>Live Operations Board</h1><span>Weather forecast temporarily unavailable</span></div>}</div><div className="board-clock"><strong>{clock.toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit", second: "2-digit" })}</strong><span>{clock.toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "long", month: "long", day: "numeric" })}</span><small><i/> Live · refreshes every 30 seconds</small></div></header>
+    <header className="board-header"><div className="board-header-rotation" aria-live="polite"><p>Stickney Fire Department</p>{headerRotation === "title" ? <div className="board-title-slide"><h1>Live Operations Board</h1><span>{data ? shiftLabel(data.currentShift) : "Loading current shift…"}</span></div> : headerRotation === "hourly" && weather?.hours?.length ? <div className="board-hourly-slide"><span className="weather-day">Berwyn hourly outlook · {savedFeedLabel(informational.feeds.weather, informational.unconfirmed.weather)}</span><h1>{weather.hours.some(hour => Date.parse(hour.time) > clock.getTime()) ? "Next 4 hours" : "Saved hourly outlook"}</h1><div className="board-hourly-grid">{weather.hours.slice(0, 4).map((hour) => <article key={hour.time}><time>{new Date(hour.time).toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric" })}</time><strong>{hour.temperature}°</strong><span>{hour.condition}</span><small>{hour.precipitationChance}% rain · {hour.windSpeed} mph</small></article>)}</div></div> : headerWeather ? <div className="board-weather-slide"><span className="weather-day">{weatherTitle} · {savedFeedLabel(informational.feeds.weather, informational.unconfirmed.weather)}</span><h1>{headerWeather.condition}</h1><div><strong>{headerWeather.high}°</strong><span>High</span><b>{headerWeather.low}°</b><span>Low</span><small>{headerWeather.precipitationChance}% rain · Wind {headerWeather.windGust} mph</small></div>{weather?.detailUrl && <a href={weather.detailUrl} target="_blank" rel="noreferrer">Full Berwyn forecast on Weather.com ↗</a>}</div> : <div className="board-title-slide"><h1>Live Operations Board</h1><span>Weather forecast temporarily unavailable</span></div>}</div><div className="board-clock"><strong>{clock.toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit", second: "2-digit" })}</strong><span>{clock.toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "long", month: "long", day: "numeric" })}</span><small><i/> {liveConnected ? 'Live · updates on changes' : 'Backup updates · every 30 seconds'}</small></div></header>
     {error && <div className="board-alert">{error}<button onClick={() => void load()}>Retry</button></div>}
     {Boolean(data?.roadClosures?.length)&&<section className="board-road-closures" aria-label="Active road closures"><header><span>ROAD OUT OF SERVICE</span><strong>{data!.roadClosures.length} active</strong></header><div>{data!.roadClosures.map((closure)=><article key={closure.id}><div><h2>{closure.roadName}</h2><p>{closure.reason||"Department road closure"}</p><small>Expected clear: {boardClosureTime(closure.expectedClearAt)}</small></div><a href={boardDetourUrl(closure)} target="_blank" rel="noreferrer">OPEN DETOUR ↗</a></article>)}</div></section>}
     <div className="board-summary"><article className={data?.staffing.complete ? "clear" : "warning"}><span>Staffing</span><strong>{data?.staffing.filled ?? "—"} / {data?.staffing.required ?? 4}</strong><small>{data?.staffing.complete ? "Complete" : "Coverage needs attention"}</small></article><article className={data?.officerInCharge ? "clear" : "warning"}><span>Officer in charge</span><strong>{data?.officerInCharge ? displayName(data.officerInCharge) : "Not signed in"}</strong><small>Current shift command</small></article><article className={`active-call-summary ${activeCall ? "active" : "clear"}`}><span>{data?.activeCalls.length ? `Active call${data.activeCalls.length > 1 ? ` · ${data.activeCalls.length} total` : ""}` : "Active call"}</span>{activeCall ? <><strong>{activeCall.callType}</strong><b>{activeCall.address || "Address not entered"}</b>{activeCall.narrative && <em>{activeCall.narrative}</em>}<small>{activeCall.respondingUnits || "Units pending"} · {activeCall.timeOut ? formatMilitaryTime(activeCall.timeOut) : "Time pending"}{activeCall.source ? ` · ${activeCall.source}` : ""}</small></> : <><strong>None</strong><small>No open calls</small></>}</article><article><span>Next shift change</span><strong>{next.label}</strong><small>In {next.remaining}</small></article></div>

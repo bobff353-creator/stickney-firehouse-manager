@@ -78,6 +78,6 @@ test("idle Respond displays interrupted updates even in full screen", () => {
   const map=fs.readFileSync("app/respond-overview-map.tsx","utf8");
   assert.match(source,/Current call status cannot be verified/);
   assert.match(source,/updatesAvailable=\{updatesAvailable\}/);
-  assert.match(source,/signal: AbortSignal.timeout\(15000\)/);
+  assert.match(source,/signal: AbortSignal.any\(\[pending.controller.signal, AbortSignal.timeout\(15000\)\]\)/);
   assert.match(map,/updatesAvailable \? "No active calls" : "Current call status unavailable"/);
 });

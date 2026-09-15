@@ -28,7 +28,7 @@ test('six mounted permission consumers use one timer, hidden tabs pause, and cle
   globalThis.window=w;globalThis.document=d;globalThis.BroadcastChannel=class{constructor(){channels++;}close(){channels--;}};
   globalThis.fetch=async()=>{requests++;return Response.json({viewerPermissions:['inventory.view'],identity:'fixture:member',confirmation:{required:false}});};
   const module={exports:{}};
-  new Function('require','module','exports',ts.transpileModule(fs.readFileSync('app/use-permissions.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(name=>{assert.equal(name,'react');return{useEffect(fn){effects.push(fn);},useSyncExternalStore(sub,snapshot){subscriptions.push(sub);return snapshot();}};},module,module.exports);
+  new Function('require','module','exports',ts.transpileModule(fs.readFileSync('app/use-permissions.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(name=>{if(name==='./operational-signals')return{operationalQuery:()=>'',publishOperationalSignal:()=>{}};assert.equal(name,'react');return{useEffect(fn){effects.push(fn);},useSyncExternalStore(sub,snapshot){subscriptions.push(sub);return snapshot();}};},module,module.exports);
   const hooks=module.exports,cleanups=[];
   try {
     for(let i=0;i<6;i++){hooks.usePermissions();const off=subscriptions.at(-1)(()=>{}),stop=effects.at(-1)();cleanups.push(()=>{stop();off();});await new Promise(r=>setImmediate(r));}
@@ -45,7 +45,7 @@ test('call detection remains eager and polling intervals are unchanged', () => {
   const portal=fs.readFileSync('app/payroll-app.tsx','utf8');
   assert.match(portal,/import Respond from "\.\/respond"/);assert.match(portal,/import OperationsBoard from "\.\/operations-board"/);
   assert.match(portal,/const FieldPreplans = dynamic/);assert.match(portal,/const StationScheduler = dynamic/);
-  assert.match(fs.readFileSync('app/respond.tsx','utf8'),/setInterval\(\(\) => void load\(\), 10000\)/);
+  assert.match(fs.readFileSync('app/respond.tsx','utf8'),/fallbackMs: 10_000/);
 });
 
 test('Inventory shares concurrent background reads but fetches anew after a save', async () => {
@@ -60,6 +60,7 @@ test('Inventory shares concurrent background reads but fetches anew after a save
     initialApparatusId:'fixture',setLoading(){},setAccessRequired(){},setData(data){shown=data;},setViewerEmployeeId(){},setEmployees(){},setSelectedApparatusId(){},setLastSyncedAt(){},setRefreshError(){},onRecords:r=>records.push(r),
     fetch:async url=>url==='/api/operations'?await new Promise(resolve=>replies.push(resolve)):Response.json({}),
   };
+  env.packetReader=ref({read:env.fetch});
   const load=new Function(...Object.keys(env),code+';return load;')(...Object.values(env));
   const first=load({background:true});const duplicate=load({background:true});assert.equal(replies.length,1);
   const afterSave=load({background:true,fresh:true});assert.equal(replies.length,1);

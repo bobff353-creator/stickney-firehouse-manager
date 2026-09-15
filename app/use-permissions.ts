@@ -2,6 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import type { ConfirmationStatus } from './required-confirmation-policy';
+import { operationalQuery, publishOperationalSignal, type OperationalSignal } from './operational-signals';
 
 type Access = { verified: boolean; permissions: string[]; revision: string | null; error: string; identity: string; checking: boolean; confirmation?: ConfirmationStatus | null };
 const empty: Access = { verified: false, permissions: [], revision: null, error: "", identity: "", checking: false };
@@ -26,12 +27,13 @@ export function refreshPermissions() {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       let retryable = true;
       try {
-        const response = await fetch("/api/permissions?scope=viewer", { cache: "no-store", signal: AbortSignal.any([requestController.signal, AbortSignal.timeout(10000)]) });
+        const live = operationalQuery();
+        const response = await fetch(`/api/permissions?scope=viewer${live ? `&live=${encodeURIComponent(live)}` : ''}`, { cache: "no-store", signal: AbortSignal.any([requestController.signal, AbortSignal.timeout(10000)]) });
         retryable = response.status === 409 || response.status >= 500;
-        const payload = await response.json() as { viewerPermissions?: string[]; revision?: string; identity?: string; error?: string; confirmation?: ConfirmationStatus | null };
+        const payload = await response.json() as { viewerPermissions?: string[]; revision?: string; identity?: string; error?: string; confirmation?: ConfirmationStatus | null; operational?: OperationalSignal | null };
         if (!response.ok || !Array.isArray(payload.viewerPermissions)) throw new Error(payload.error || "Your permissions could not be verified.");
         const next = { verified: true, permissions: payload.viewerPermissions, revision: payload.revision ?? null, identity: payload.identity ?? "", error: "", checking: false, confirmation:payload.confirmation??null };
-        if (requestGeneration === generation) publish(next);
+        if (requestGeneration === generation) { publish(next); publishOperationalSignal(payload.operational ?? null); }
         break;
       } catch (error) {
         if (requestGeneration !== generation || requestController.signal.aborted) break;
@@ -41,6 +43,7 @@ export function refreshPermissions() {
           : error instanceof TypeError ? "The connection was interrupted. Reconnect to verify access."
           : error instanceof Error ? error.message : "Reconnect to verify access.";
         publish({ ...empty, error: message, checking: retry });
+        publishOperationalSignal(null);
         if (!retry) break;
       }
     }
@@ -48,6 +51,23 @@ export function refreshPermissions() {
   })().finally(() => { if (pending === request) { pending = null; controller = null; } });
   pending = request;
   return pending;
+}
+
+// Subscription catch-up must run AFTER any in-flight pre-subscription snapshot.
+// Coalesce concurrent channel joins into one additional security/revision read.
+let catchup: Promise<Access> | null = null;
+let catchupAfter: Promise<Access> | null = null;
+export function refreshPermissionsAfterCurrent() {
+  // A join during the catch-up GET needs a subsequent GET too. Coalesce only
+  // callers waiting behind the SAME request, not a snapshot begun before join.
+  if (!catchup || catchupAfter !== pending) {
+    const requestGeneration = generation;
+    catchupAfter = pending;
+    const next = Promise.resolve(pending).then(() => requestGeneration === generation ? refreshPermissions() : state)
+      .finally(() => { if (catchup === next) { catchup = null; catchupAfter = null; } });
+    catchup = next;
+  }
+  return catchup;
 }
 
 export function permissionsChanged() {
@@ -61,13 +81,13 @@ function subscribe(notify: () => void) {
   listeners.add(notify);
   return () => {
     listeners.delete(notify);
-    if (!listeners.size) { generation += 1; state = empty; controller?.abort(); controller = null; pending = null; }
+    if (!listeners.size) { generation += 1; state = empty; controller?.abort(); controller = null; pending = null; publishOperationalSignal(null); }
   };
 }
 
 function startPolling() {
     const refresh = () => { if (document.visibilityState !== "hidden") void refreshPermissions(); };
-    const offline = () => { generation += 1; controller?.abort(); controller = null; pending = null; publish({ ...empty, error: "Offline. Reconnect to verify your current access." }); };
+    const offline = () => { generation += 1; controller?.abort(); controller = null; pending = null; publishOperationalSignal(null); publish({ ...empty, error: "Offline. Reconnect to verify your current access." }); };
     void refreshPermissions();
     const timer = window.setInterval(refresh, 15000);
     let channel: BroadcastChannel | null = null;

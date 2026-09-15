@@ -105,6 +105,6 @@ test('failed import, stale cron results, and failed transaction never clear data
 });
 test('new import endpoint stays private and existing call cadence is unchanged',()=>{
   const proxy=readFileSync('proxy.ts','utf8');assert.ok(!proxy.slice(0,proxy.indexOf('export async')).includes('/api/training-import'));
-  const source=readFileSync('app/operations-board.tsx','utf8');assert.match(source,/rotationPaused \|\| linkEditor \|\| trainingEditor/);assert.match(source,/30000/);
+  const source=readFileSync('app/operations-board.tsx','utf8');assert.match(source,/rotationPaused \|\| linkEditor \|\| trainingEditor/);assert.match(source,/fallbackMs: 30_000/);
   const api=readFileSync('app/api/board-feeds/route.ts','utf8');assert.ok(!api.includes('loadTrainingProvider'));assert.ok(!api.includes('external-feeds'));
 });

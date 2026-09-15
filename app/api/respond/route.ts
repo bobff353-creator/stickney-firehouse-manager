@@ -16,6 +16,7 @@ import {
 import { hasPermission } from "../../server-permissions";
 import { isOperationallyVisible, matchCadRoom } from "../../preplans/domain";
 import { constructionProfile, occupancyProfile } from "../../preplans/profiles";
+import { nextOperationalDeadline } from '../../operational-deadlines';
 
 type Row = Record<string, unknown>;
 
@@ -87,9 +88,10 @@ export async function GET(request: Request) {
     const revision = createHash("sha256").update(JSON.stringify([
       departmentId, apparatus, requestedReport, availableCalls, activeCall, Math.floor(Date.now() / 30_000),
     ])).digest("hex");
+    const timeCandidates: unknown[] = [...activeDispatches.results];
     const responseHeaders = { "cache-control": "private, no-store", "x-respond-revision": revision };
     const packetResponse = (payload: Record<string, unknown>) => privatePacketResponse(request, payload, {
-      headers: responseHeaders, fingerprint: { ...payload, generatedAt: null },
+      headers: { ...responseHeaders, 'x-operational-next-change': String(nextOperationalDeadline(timeCandidates, Date.now(), true)) }, fingerprint: { ...payload, generatedAt: null },
     });
     if (request.headers.get("x-respond-revision") === revision) {
       return new Response(null, { status: 204, headers: responseHeaders });
@@ -381,6 +383,7 @@ export async function GET(request: Request) {
             .bind(preplanId)
             .first<Row>(),
         ]);
+        timeCandidates.push(...alerts.results, ...hazmat.results, ...hazmatZones.results);
         const roomCandidates = spaces.results.map((space) => ({
           id: String(space.id),
           name: String(space.name),

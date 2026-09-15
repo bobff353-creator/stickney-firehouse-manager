@@ -41,5 +41,5 @@ test('direct board URLs and automatic call overlay require current visible acces
  const board=fs.readFileSync(new URL('../app/operations-board.tsx',import.meta.url),'utf8');
  assert.match(board,/if \(controller.signal.aborted\) return/);
  assert.match(board,/loadControllerRef.current\?\.abort\(\)/);
- assert.match(board,/setInterval\(\(\) => void load\(\), 30000\)/,'unchanged board detection cadence');
+ assert.match(board,/useOperationalUpdates\(\{ scope: 'board',[^\n]*fallbackMs: 30_000/,'board retains 30-second fallback');
 });

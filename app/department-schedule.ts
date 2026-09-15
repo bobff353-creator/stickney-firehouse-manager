@@ -84,6 +84,19 @@ function assignmentInterval(assignment: DepartmentScheduleAssignment) {
   return { start, end: start + duration };
 }
 
+// Calendar-minute boundary for the moving 24-hour window. Comparing Chicago
+// calendar minutes in the client keeps DST changes out of elapsed-time guesses.
+export function nextDepartmentScheduleChange(assignments: DepartmentScheduleAssignment[], date: string, minute: number) {
+  const now = dayNumber(date) * 1440 + minute;
+  const candidates = [dayNumber(date) * 1440 + 1440];
+  for (const boundary of [360, 720, 1080]) candidates.push(dayNumber(date) * 1440 + boundary);
+  for (const assignment of assignments) {
+    const interval = assignmentInterval(assignment);
+    if (interval) candidates.push(interval.start - 1440 + 1, interval.start, interval.end);
+  }
+  return Math.min(...candidates.filter(value => value > now));
+}
+
 function absoluteDateTime(value: number) {
   const day = Math.floor(value / 1440);
   const minute = ((value % 1440) + 1440) % 1440;

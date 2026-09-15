@@ -3,6 +3,7 @@ import { ensureDatabase } from "../../../db/bootstrap";
 import {
   next24DepartmentSchedule,
   nextThreeDepartmentShifts,
+  nextDepartmentScheduleChange,
   scheduleQueryDates,
   type DepartmentScheduleAssignment,
 } from "../../department-schedule";
@@ -21,6 +22,7 @@ export async function GET(request: Request) {
     return Response.json({
       source: "department_schedule",
       asOf: new Date().toISOString(),
+      nextCalendarChange: nextDepartmentScheduleChange(assignments.results, now.calendarDate, now.minutes),
       windowHours: 24,
       items,
       upcomingShifts: nextThreeDepartmentShifts(assignments.results, now.calendarDate, now.minutes),

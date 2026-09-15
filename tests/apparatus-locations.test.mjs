@@ -88,7 +88,7 @@ test('hidden ordinary tabs pause, designated monitors remain subscribed, and clo
  const always=clientHarness();const close=always.client.subscribe(()=>{},true);await always.advance(0);always.hide();await always.advance(0);assert.equal(always.client.getSnapshot().connected,true);close();assert.equal(always.timers.size,0);
 });
 test('integration keeps call polling, limits the auth bypass to signed POST and has no public GPS cache',()=>{
- const respond=readFileSync(new URL('../app/respond.tsx',import.meta.url),'utf8');assert.match(respond,/setInterval\(\(\) => void load\(\), 10000\)/);assert.match(respond,/useApparatusLocations/);
+ const respond=readFileSync(new URL('../app/respond.tsx',import.meta.url),'utf8');assert.match(respond,/fallbackMs: 10_000/);assert.match(respond,/useApparatusLocations/);
  const proxy=readFileSync(new URL('../proxy.ts',import.meta.url),'utf8');assert.match(proxy,/request\.method === "POST"[\s\S]*signedWebhookPaths/);assert.match(proxy,/requestHeaders\.set\("x-authenticated-user-id", user.id\)/);
  const ingest=readFileSync(new URL('../app/api/apparatus-locations/ingest/route.ts',import.meta.url),'utf8');assert.match(ingest,/validLocationFix/);assert.match(ingest,/createHash\('sha256'\)/);
  const setup=readFileSync(new URL('../app/api/apparatus-locations/route.ts',import.meta.url),'utf8');assert.match(setup,/canManage/);assert.match(setup,/HttpOnly; Secure; SameSite=Strict/);assert.doesNotMatch(setup,/ensureDatabase/);

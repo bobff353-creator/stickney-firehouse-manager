@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import ts from 'typescript';
 import { normalizeApparatusUnit, respondingUnitsIncludeUnit } from '../app/respond-device.ts';
 import { privatePacketResponse } from '../app/lib/private-packet-response.ts';
+import { nextOperationalDeadline } from '../app/operational-deadlines.ts';
 
 const route = readFileSync('app/api/respond/route.ts', 'utf8');
 const client = readFileSync('app/respond.tsx', 'utf8').replaceAll('\r\n', '\n');
@@ -26,6 +27,7 @@ function routeHarness() {
   }};
   const mocks={
     '../../lib/private-packet-response':{privatePacketResponse},
+    '../../operational-deadlines':{nextOperationalDeadline},
     '../../../db/bootstrap':{ensureDatabase:async()=>db},'node:crypto':{createHash},
     '../../server-permissions':{hasPermission:async()=>state.allowed},
     '../../operational-day':{chicagoOperationalContext:()=>({operationalDate:'2026-09-15'})},
@@ -90,11 +92,11 @@ test('Daily Log fallback exposes the same scoped selection when CAD has no eligi
   assert.equal((await (await get('?apparatus=1204&report=TEST-1')).json()).activeCalls.length,1);
 });
 
-const loadBlock=client.slice(client.indexOf('  const load = useCallback('),client.indexOf('  useEffect(() => onOperationalPush'));
+const loadBlock=client.slice(client.indexOf('  const load = useCallback('),client.indexOf('  const refreshLive = useCallback('));
 assert.ok(loadBlock.includes('isCurrentRequest'));
 const loadFactory=new Function('context',compile(`
   const {apparatus,selectedReportNumber,requestInFlight,lastPacketRevision,lastContentRevision,departmentIdRef,fetch,
-    setData,setLastRefresh,setRespondSource,setCachedAt,setError,setSelectedReportNumber,setSelectionNotice,
+    setData,setLastRefresh,setRespondSource,setCachedAt,setError,setSelectedReportNumber,setSelectionNotice,setNextChangeAt,reloadRequested,reloadTimer,
     setSelected,setSelectedHazmatId,setSelectedLevelId,setView,setShowAllAttachments,
     cacheRespondPacket,removeCachedRespondPacket,getCachedRespondPacket,clearCachedRespondPackets}=context;
   const useCallback=fn=>fn;
@@ -106,6 +108,7 @@ function clientHarness() {
   const state={packets:[],errors:[],clearCount:0,cached:null,requests:[]};
   const context={apparatus:'',selectedReportNumber:'',requestInFlight:{current:null},lastPacketRevision:{current:{apparatus:'',reportNumber:'',revision:''}},departmentIdRef:{current:'fixture-department'},
     lastContentRevision:{current:{apparatus:'',reportNumber:'',revision:''}},
+    setNextChangeAt:()=>{},reloadRequested:{current:false},reloadTimer:{current:null},
     setData:value=>state.packets.push(value),setError:value=>state.errors.push(value),
     setLastRefresh:()=>{},setRespondSource:()=>{},setCachedAt:()=>{},setSelectedReportNumber:()=>{},setSelectionNotice:()=>{},
     setSelected:()=>{},setSelectedHazmatId:()=>{},setSelectedLevelId:()=>{},setView:()=>{},setShowAllAttachments:()=>{},
@@ -148,13 +151,13 @@ test('access denial clears private cached packets and never uses them as fallbac
   assert.match(state.errors.at(-1),/Access denied/);
 });
 
-test('request revision is scoped to apparatus and selected report, with unchanged polling',async()=>{
+test('request revision is scoped to apparatus and selected report, with rapid fallback',async()=>{
   const {state,context}=clientHarness();
   context.lastPacketRevision.current={apparatus:'1204',reportNumber:'OTHER',revision:'old'};
   await loadFactory({...context,apparatus:'1204',selectedReportNumber:'CALL & 1'})();
   assert.equal(state.requests[0].url,'/api/respond?apparatus=1204&report=CALL%20%26%201');
   assert.equal(state.requests[0].options.headers['x-respond-revision'],undefined);
-  assert.match(client,/setInterval\(\(\) => void load\(\), 10000\)/);
+  assert.match(client,/useOperationalUpdates\(\{ scope: 'respond',[^\n]*fallbackMs: 10_000/);
   assert.match(client,/setData\(null\);[\s\S]*setView\("cad"\)/);
 });
 

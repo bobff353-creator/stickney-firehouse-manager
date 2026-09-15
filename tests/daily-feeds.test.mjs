@@ -9,9 +9,9 @@ test("all public feed routes read saved data only; imports require cron or an ex
   assert.doesNotMatch(source,/fetch\(|external-feeds|weather-source|usfa-source|unstable_cache/);
  }
  const board=await read("app/operations-board.tsx");
- assert.match(board,/useBoardFeeds\(tvMode\)/);
+ assert.match(board,/useBoardFeeds\(tvMode, true\)/);
  assert.doesNotMatch(board,/\/api\/(weather|usfa-fatalities|close-call-news|training-sites)/);
- assert.match(board,/void load\(\), 30000/);
+ assert.match(board,/fallbackMs: 30_000/);
 });
 test("training providers and Close Calls sources are preserved without global DOM polling",async()=>{
  const feeds=await read("app/lib/external-feeds.ts");

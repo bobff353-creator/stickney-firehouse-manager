@@ -90,6 +90,6 @@ test('nonessential poller pauses hidden tabs, deduplicates overlapping refreshes
 test('TV board does not mount hidden SmartAlerts; live polling and permission refresh remain unchanged',()=>{
  const source=readFileSync(new URL('../app/payroll-app.tsx',import.meta.url),'utf8');
  assert.match(source,/!tvMode && <SmartAlerts/);
- assert.match(readFileSync(new URL('../app/operations-board.tsx',import.meta.url),'utf8'),/setInterval\(\(\) => void load\(\), 30000\)/);
- assert.match(readFileSync(new URL('../app/respond.tsx',import.meta.url),'utf8'),/10000/);
+ assert.match(readFileSync(new URL('../app/operations-board.tsx',import.meta.url),'utf8'),/fallbackMs: 30_000/);
+ assert.match(readFileSync(new URL('../app/respond.tsx',import.meta.url),'utf8'),/fallbackMs: 10_000/);
 });

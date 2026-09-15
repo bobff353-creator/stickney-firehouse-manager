@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import { createBoardFeedClient, emptyBoardFeeds, validBoardFeeds } from './board-feeds-client';
 import type { BoardFeeds } from './lib/board-feed-types';
+import { useOperationalUpdates } from './use-operational-updates';
+import type { OperationalSection } from './operational-signals';
 let client: ReturnType<typeof createBoardFeedClient> | undefined;
 let trainingRevision = '';
 export function trainingFeedsChanged(revision: string | undefined) {
@@ -27,7 +29,13 @@ function browserClient() {
   });
   return client;
 }
-export function useBoardFeeds(alwaysOn: boolean) {
+export function useBoardFeeds(alwaysOn: boolean, live = false) {
+  const changed = useCallback(async (sections?: readonly OperationalSection[]) => {
+    // Public feeds already have source-specific schedules. Only a saved feed
+    // change invalidates them; the live connection's repair timer does not.
+    if (sections?.includes('feeds')) browserClient()?.invalidate();
+  }, []);
+  useOperationalUpdates({ scope: 'board', sections: ['feeds'], refresh: changed, fallbackMs: 300_000, enabled: live });
   const subscribe = useCallback((callback: () => void) => browserClient()?.subscribe(callback, alwaysOn) ?? (() => {}), [alwaysOn]);
   const value = useSyncExternalStore(subscribe, () => browserClient()?.snapshot() ?? emptyBoardFeeds, () => emptyBoardFeeds);
   useEffect(() => {

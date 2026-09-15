@@ -22,7 +22,7 @@ test("runs the full portal natively on Vercel without a Sites proxy", async () =
   assert.match(destinations, /return "\/inventory"/);
   assert.doesNotMatch(destinations, /https?:\/\//);
   assert.doesNotMatch(layout, /training-route\.js/);
-  assert.match(await read("app/operations-board.tsx"), /useBoardFeeds\(tvMode\)/);
+  assert.match(await read("app/operations-board.tsx"), /useBoardFeeds\(tvMode, true\)/);
   assert.match(layout, /fleet-notices\.js/);
   assert.doesNotMatch(layout, /preplan-route\.js/);
   assert.doesNotMatch([page, layout, payroll, confirm, packageJson].join("\n"), /chatgpt\.site|stickney-payroll-manager|cloudflare:workers|OAI-Sites/i);

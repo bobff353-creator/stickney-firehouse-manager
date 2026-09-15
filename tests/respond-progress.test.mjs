@@ -133,7 +133,7 @@ test("local progress history is bounded and rejects malformed values", async () 
   }
 });
 
-test("Respond gates both rendering and writes, isolates scope switches, and keeps polling unchanged", async () => {
+test("Respond gates both rendering and writes, isolates scope switches, and keeps fast fallback", async () => {
   const source = await readFile(new URL("../app/respond.tsx",import.meta.url),"utf8");
   assert.match(source,/progressScope && <section className="respond-field-toolbar"/);
   assert.match(source,/if \(!canUpdateProgress \|\| !progressScope\) return/);
@@ -141,5 +141,5 @@ test("Respond gates both rendering and writes, isolates scope switches, and keep
   assert.match(source,/disabled=\{!canUpdateProgress\}/);
   assert.match(source,/window\.addEventListener\("storage", onStorage\)/);
   assert.match(source,/window\.removeEventListener\("storage", onStorage\)/);
-  assert.match(source,/setInterval\(\(\) => void load\(\), 10000\)/);
+  assert.match(source,/useOperationalUpdates\(\{ scope: 'respond',[^\n]*fallbackMs: 10_000/);
 });

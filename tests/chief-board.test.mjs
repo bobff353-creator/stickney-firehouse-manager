@@ -46,7 +46,7 @@ test("Chief events require a start and end and email active employee profiles", 
 test("Chief Board rotates the live NOAA Des Plaines River gauge every 12 seconds", () => {
   assert.match(panel, /fetch\("\/api\/river-gauge", \{ signal \}\)/);
   assert.match(riverRoute, /next: \{ revalidate: 300 \}/);
-  assert.match(panel, /if \(readRequest.current\) return/);
+  assert.match(panel, /if \(readRequest.current\) \{ reloadRequested.current = true; return; \}/);
   assert.match(panel, /readRequest.current\?\.abort\(\)/);
   assert.match(panel, /synchronizedSlide\(Date.now\(\), 12000, slideCount\)/);
   assert.match(panel, /tvMode \? 1000 : 12000/);

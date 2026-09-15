@@ -89,7 +89,7 @@ test('whole-record size is bounded before the signed SQL query limit can be exce
 test('private API, existing refresh path and safety-critical call intervals stay intact', () => {
   const source = path => readFileSync(new URL('../'+path, import.meta.url), 'utf8');
   const proxy = source('proxy.ts'); assert.doesNotMatch(proxy.match(/const publicApiPaths =[\s\S]*?\]\);/)[0], /board-links/); assert.match(proxy, /origin !== request.nextUrl.origin/);
-  const board = source('app/operations-board.tsx'); assert.match(board, /setInterval\(\(\) => void load\(\), 30000\)/); assert.match(board, /rotationPaused \|\| linkEditor/); assert.match(board, /<ChiefBoardPanel onBoardLinks=/);
+  const board = source('app/operations-board.tsx'); assert.match(board, /fallbackMs: 30_000/); assert.match(board, /rotationPaused \|\| linkEditor/); assert.match(board, /<ChiefBoardPanel onBoardLinks=/);
   assert.doesNotMatch(source('app/board-links-panel.tsx'), /setInterval|localStorage/);
   assert.match(source('app/api/board-links/route.ts'), /private, no-store/);
   assert.match(source('app/api/chief-board/route.ts'), /include-links/);

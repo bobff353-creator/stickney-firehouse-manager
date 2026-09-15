@@ -26,6 +26,7 @@ test('bundled board rechecks all original scopes; unchanged content sends no pay
   const api=compileRoute('app/api/live-operations/route.ts',{
     '../dashboard/route':{GET:handler('dashboard')},'../daily-duties/route':{GET:handler('duties')},'../suite-context/route':{GET:handler('fleet')},
     '../../lib/private-packet-response':{privatePacketResponse},
+    '../../lib/inventory-session':{verifyInventoryRequest:async()=>({ok:true,context:{grants:['operations_board.view']}})},
   });
   const request=revision=>new Request('https://fixture.invalid/api/live-operations',{headers:{'x-department-id':'fixture',...(revision?{'x-content-revision':revision}:{})}});
   const first=await api.GET(request());assert.equal(first.status,200);
@@ -105,8 +106,8 @@ test('Inventory confirms unchanged packets only after fresh scoped reads; change
 });
 
 test('poll safety, provider-cache freshness, and hidden noncritical panels retain their boundaries',()=>{
-  assert.match(source('app/operations-board.tsx'),/setInterval\(\(\) => void load\(\), 30000\)/);
-  assert.match(source('app/respond.tsx'),/setInterval\(\(\) => void load\(\), 10000\)/);
+  assert.match(source('app/operations-board.tsx'),/fallbackMs: 30_000/);
+  assert.match(source('app/respond.tsx'),/fallbackMs: 10_000/);
   assert.match(source('app/use-permissions.ts'),/setInterval\(refresh, 15000\)/);
   assert.match(source('app/inventory-operations.tsx'),/background && \(document.visibilityState === "hidden" \|\| !navigator.onLine\)/);
   assert.match(source('app/api/river-gauge/route.ts'),/next: \{ revalidate: 300 \}/);

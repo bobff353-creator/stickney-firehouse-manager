@@ -6,6 +6,8 @@ import styles from "./chief-board-panel.module.css";
 import type { BoardOfficer } from "./board-officers";
 import type { BoardLinksSignal } from './board-links';
 import { synchronizedSlide } from './board-sync-clock';
+import { useOperationalUpdates } from './use-operational-updates';
+import { nextOperationalDeadline } from './operational-deadlines';
 
 type Attachment = { id: string; filename: string; contentType: string; sizeBytes: number; url: string };
 type ChiefItem = {
@@ -60,12 +62,15 @@ export default function ChiefBoardPanel({ onBoardLinks, tvMode = false }: { onBo
   const [draft, setDraft] = useState<typeof emptyDraft | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [message, setMessage] = useState("");
+  const [readFailed, setReadFailed] = useState(true);
   const [saving, setSaving] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const readRequest = useRef<AbortController | null>(null);
+  const reloadRequested = useRef(false);
+  const reloadTimer = useRef<number | null>(null);
   const linksRevision = useRef<string | null>(null);
-  const load = useCallback(async () => {
-    if (readRequest.current) return;
+  const load = useCallback(async function loadSnapshot(): Promise<void> {
+    if (readRequest.current) { reloadRequested.current = true; return; }
     const controller = new AbortController();
     readRequest.current = controller;
     const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]);
@@ -75,6 +80,7 @@ export default function ChiefBoardPanel({ onBoardLinks, tvMode = false }: { onBo
       const result = await boardResponse.json() as { items?: ChiefItem[]; canEdit?: boolean; officers?: BoardOfficer[]; error?: string; boardLinks?: BoardLinksSignal };
       const riverResult = await riverResponse.json() as RiverGauge & { error?: string };
       if (controller.signal.aborted) return;
+      setReadFailed(!boardResponse.ok || !riverResponse.ok);
       if (result.boardLinks?.settings) linksRevision.current = result.boardLinks.settings.revision;
       if (boardResponse.status === 401 || boardResponse.status === 403) linksRevision.current = null;
       onBoardLinks?.(result.boardLinks ?? { canEdit: false, confirmed: false, denied: boardResponse.status === 401 || boardResponse.status === 403, checkedAt: new Date().toISOString() });
@@ -89,12 +95,17 @@ export default function ChiefBoardPanel({ onBoardLinks, tvMode = false }: { onBo
       } else setRiverError(riverResult.error || "Live river level is temporarily unavailable.");
     } catch {
       if (!controller.signal.aborted) {
+        setReadFailed(true);
         onBoardLinks?.({ canEdit: false, confirmed: false, checkedAt: new Date().toISOString() });
         setMessage('Chief Notes could not refresh. Displayed notes may be out of date.');
         setRiverError('Live river level could not refresh. Displayed information is not verified.');
       }
-    } finally { if (readRequest.current === controller) readRequest.current = null; }
+    } finally {
+      if (readRequest.current === controller) readRequest.current = null;
+      if (reloadRequested.current && !controller.signal.aborted) { reloadRequested.current = false; reloadTimer.current = window.setTimeout(() => void loadSnapshot(), 0); }
+    }
   }, [onBoardLinks]);
+  useOperationalUpdates({ scope: 'board', sections: ['chief'], refresh: load, fallbackMs: 30_000, nextChangeAt: nextOperationalDeadline(items), readFailed });
   useEffect(() => {
     if (!onBoardLinks) return;
     const changed = () => { readRequest.current?.abort(); readRequest.current = null; void load(); };
@@ -109,9 +120,7 @@ export default function ChiefBoardPanel({ onBoardLinks, tvMode = false }: { onBo
     return () => { channel?.close(); window.removeEventListener('firehouse:board-links-changed', changed); window.removeEventListener('online', resume); window.removeEventListener('offline', offline); document.removeEventListener('visibilitychange', resume); };
   }, [load, onBoardLinks]);
   useEffect(() => {
-    const initial = window.setTimeout(() => void load(), 0);
-    const refresh = window.setInterval(() => void load(), 30000);
-    return () => { window.clearTimeout(initial); window.clearInterval(refresh); readRequest.current?.abort(); readRequest.current = null; };
+    return () => { reloadRequested.current = false; if (reloadTimer.current !== null) window.clearTimeout(reloadTimer.current); readRequest.current?.abort(); readRequest.current = null; };
   }, [load]);
   const slideCount = items.length + 1;
   useEffect(() => {

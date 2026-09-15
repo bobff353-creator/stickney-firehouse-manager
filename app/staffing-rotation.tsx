@@ -1,7 +1,8 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- employee photos are served from the portal's authenticated R2 route. */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useOperationalUpdates } from './use-operational-updates';
 import { formatEmployeeName } from "./employee-names";
 import { joinedLabel } from "./member-start-label";
 import { synchronizedSlide } from './board-sync-clock';
@@ -11,6 +12,7 @@ export type StaffingPerson = { employeeId: string; name: string; rank: string; t
 export type NewMember = { id: string; name: string; rank: string; employeeNumber: string | null; startDate: string; photoUpdatedAt: string | null };
 type ScheduleItem = DepartmentScheduleWindowItem;
 type SchedulePayload = {
+  nextCalendarChange?: number;
   source?: "department_schedule";
   asOf?: string;
   error?: string;
@@ -52,6 +54,7 @@ export default function StaffingRotation({
   tvMode?: boolean;
 }) {
   const [schedule, setSchedule] = useState<SchedulePayload | null>(null);
+  const readRequest = useRef<AbortController | null>(null);
   const [viewIndex, setViewIndex] = useState(0);
   const views = useMemo<View[]>(() => {
     const staffingViews: View[] = mode === "board"
@@ -62,20 +65,26 @@ export default function StaffingRotation({
   const activeIndex = viewIndex % views.length;
   const current = views[activeIndex] ?? views[0];
 
-  useEffect(() => {
-    const load = async () => {
+  const load = useCallback(async () => {
+      readRequest.current?.abort();
+      const controller = new AbortController(); readRequest.current = controller;
       try {
-        const response = await fetch("/api/department-schedule");
+        const response = await fetch("/api/department-schedule", { cache: 'no-store', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]) });
         const payload = await response.json() as SchedulePayload;
+        if (controller.signal.aborted) return;
         setSchedule(response.ok ? payload : { error: payload.error || "The department schedule is temporarily unavailable.", items: [] });
       } catch {
+        if (controller.signal.aborted) return;
         setSchedule({ error: "The department schedule is temporarily unavailable.", items: [] });
       }
-    };
+    }, []);
+  useOperationalUpdates({ scope: 'board', sections: ['staffing'], refresh: load, fallbackMs: 60_000, enabled: mode === 'board', nextCalendarChange: schedule?.nextCalendarChange, readFailed: !schedule || Boolean(schedule.error) });
+  useEffect(() => {
+    if (mode === 'board') return () => { readRequest.current?.abort(); };
     const initial = window.setTimeout(() => void load(), 0);
     const refresh = window.setInterval(() => void load(), 60 * 1000);
-    return () => { window.clearTimeout(initial); window.clearInterval(refresh); };
-  }, []);
+    return () => { window.clearTimeout(initial); window.clearInterval(refresh); readRequest.current?.abort(); };
+  }, [load, mode]);
 
   useEffect(() => {
     if (views.length < 2) return;

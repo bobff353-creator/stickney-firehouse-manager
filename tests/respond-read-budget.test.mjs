@@ -6,6 +6,7 @@ import ts from 'typescript';
 import { createHash } from 'node:crypto';
 import { privatePacketResponse } from '../app/lib/private-packet-response.ts';
 import { readIllustrations } from '../app/preplans/photo-illustrations.ts';
+import { nextOperationalDeadline } from '../app/operational-deadlines.ts';
 
 test('unchanged Respond polls skip catalogs while rechecking access and live calls', async () => {
   let now = 60_000, allowed = true, checks = 0;
@@ -21,6 +22,7 @@ test('unchanged Respond polls skip catalogs while rechecking access and live cal
   const compiled = ts.transpileModule(source, {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
   const mocks = {
     '../../lib/private-packet-response': {privatePacketResponse},
+    '../../operational-deadlines': {nextOperationalDeadline},
     '../../../db/bootstrap': {ensureDatabase: async()=>db},
     'node:crypto': {createHash},
     '../../server-permissions': {hasPermission:async()=>{checks++;return allowed;}},
@@ -75,5 +77,5 @@ test('client retains packet on heartbeat and forces a full retry after failure',
   assert.match(source,/lastPacketRevision.current = \{ apparatus: "", reportNumber: "", revision: "" \}/);
   assert.match(source,/lastPacketRevision.current.reportNumber === selectedReportNumber/);
   assert.match(source,/lastPacketRevision.current.apparatus === apparatus/);
-  assert.match(source,/setInterval\(\(\) => void load\(\), 10000\)/);
+  assert.match(source,/useOperationalUpdates\(\{ scope: 'respond',[^\n]*fallbackMs: 10_000/);
 });

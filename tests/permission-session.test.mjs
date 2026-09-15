@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import ts from 'typescript';
 import { definitiveAuthFailure } from '../app/auth-failure-policy.ts';
 
-function compile(file,deps){const module={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(name=>{if(name === './app/auth-failure-policy') return {definitiveAuthFailure};if(!(name in deps))throw Error('Missing dependency '+name);return deps[name];},module,module.exports);return module.exports;}
+function compile(file,deps){const module={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(name=>{if(name==='./operational-signals')return{operationalQuery:()=>'',publishOperationalSignal:()=>{}};if(name === './app/auth-failure-policy') return {definitiveAuthFailure};if(!(name in deps))throw Error('Missing dependency '+name);return deps[name];},module,module.exports);return module.exports;}
 function proxyFixture({signedIn=true,member=true,configured=true,unlocked=true,confirmationRequired=false,confirmationError=false,authError=null}={}){
  let forwarded;
  function cookieJar(){const map=new Map();return{getAll:()=>[...map.values()],set(name,value,options){if(typeof name==='object')map.set(name.name,name);else map.set(name,{name,value,...options});},get(name){return map.get(name);},toString:()=>[...map.values()].map(c=>c.name+'='+c.value).join('; ')};}
