@@ -32,6 +32,16 @@ window.fetch = async (input, init) => {
   }
   if (url.pathname === '/api/board-feeds') {
     if (audit.holdFeeds) await new Promise((resolve, reject) => init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true }));
+    if (parameters.has('dense')) {
+      // Long-content layout cases only; never modify the real feed or cache.
+      const response = await nativeFetch(input, init), result = await response.json();
+      if (result.feeds.usfa) result.feeds.usfa.data = {year:2026,total:6,items:Array.from({length:6},(_,i)=>({id:i,name:`Fictional memorial ${i+1} — layout test`,department:'Fictional department — local preview only',location:'Not an actual fatality report',deathDate:'2026-09-01',url:'https://example.invalid/'}))};
+      for (const id of ['romeoville','ifsi','nipsta']) {
+        const saved = result.feeds[`training_${id}`]?.data;
+        if (saved?.upcoming?.[0]) saved.upcoming = Array.from({length:5},(_,i)=>({...saved.upcoming[0],title:`Fictional training ${i+1} — longer class title for layout checks`,detail:'Local test description. This verifies that the existing saved class information fits on a larger television without using additional feed requests.'}));
+      }
+      return Response.json(result);
+    }
     return nativeFetch(input, init);
   }
   const now = new Date().toISOString();
@@ -57,7 +67,7 @@ window.fetch = async (input, init) => {
 };
 function PreviewBoard() {
   const [tvMode, setTvMode] = React.useState(tv);
-  return <main className={tvMode ? 'tv-shell' : ''}><section className="workspace">{parameters.has('alerts') && !tvMode && <SmartAlerts icon={<span>Notifications</span>} onNavigate={() => {}}/>}<OperationsBoard tvMode={tvMode} onTvModeChange={setTvMode} onNewActiveCall={() => { audit.alerts++; }} /></section></main>;
+  return <><button style={{position:'fixed',bottom:2,right:2,zIndex:2147483647}} onClick={() => setTvMode(value => !value)}>Toggle local TV layout</button><main className={tvMode ? 'tv-shell' : ''}><section className="workspace">{parameters.has('alerts') && !tvMode && <SmartAlerts icon={<span>Notifications</span>} onNavigate={() => {}}/>}<OperationsBoard tvMode={tvMode} onTvModeChange={setTvMode} onNewActiveCall={() => { audit.alerts++; }} /></section></main></>;
 }
 function AuditControls() {
   const [stats,setStats]=React.useState('');

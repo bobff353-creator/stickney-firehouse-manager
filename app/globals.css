@@ -979,22 +979,82 @@ td strong { font-size: 16px; }
 .operations-board.tv-display .board-grid.redesigned .rotating-panel > .rotation-content,
 .operations-board.tv-display .board-grid.redesigned .rotating-panel.news > .rotation-content { box-sizing: border-box; height: calc(100% - 32px); min-height: 0; padding: 6px 8px; overflow: hidden; }
 .tv-display .rotation-slide,.tv-display .close-call-list { height: 100%; min-height: 0; gap: 5px; }
-.tv-display .close-call-list { grid-template-rows: repeat(2,minmax(0,1fr)); }
+.tv-display .close-call-list { grid-template-rows: none; grid-auto-rows: minmax(0,1fr); }
 .operations-board.tv-display .board-grid.redesigned .rotating-panel.news > .rotation-content { grid-template-rows: minmax(0,1fr); align-content: stretch; }
 .tv-display .rotating-panel.news .rotation-slide { grid-template-rows: minmax(0,1fr); align-content: stretch; }
 .tv-display .close-call-list a { box-sizing: border-box; padding: 6px 8px; grid-template-columns: 58px minmax(0,1fr); gap: 8px; overflow: hidden; }
 .tv-display .close-call-list time { font-size: 9px; }
 .tv-display .close-call-list time span,.tv-display .close-call-kicker { font-size: 7px; }
-.tv-display .close-call-list a > div { min-height: 0; gap: 3px; }
+.tv-display .close-call-list a > div { min-height: 0; height: 100%; display: flex; flex-direction: column; gap: 3px; overflow: hidden; }
 .tv-display .close-call-list strong { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; font-size: clamp(14px,1vw,20px); line-height: 1.2; }
-.tv-display .close-call-list p { display: -webkit-box; -webkit-line-clamp: 2; font-size: clamp(12px,.9vw,18px); line-height: 1.35; }
+.tv-display .close-call-list p { display: -webkit-box; -webkit-line-clamp: 3; flex: 0 0 auto; min-height: 0; font-size: clamp(12px,.9vw,18px); line-height: 1.35; }
+.tv-display .close-call-list strong { flex: 0 0 auto; }
+.tv-display .close-call-list a:nth-child(n+4) { display: none; }
+.tv-display .close-call-list small { display: none; }
 .tv-display .close-call-kicker { display: none; }
 .tv-display .close-call-list small { font-size: 10px; line-height: 1.2; }
+/* Use the actual panel height, not the physical TV's advertised resolution.
+   Three stories on compact screens, four only with room for their summaries. */
+.tv-display .rotating-panel > .rotation-content { container: tv-rotation / size; }
+@container tv-rotation (min-height: 400px) {
+  .tv-display .close-call-list p { -webkit-line-clamp: 4; }
+}
+@container tv-rotation (min-height: 560px) {
+  .tv-display .close-call-list a:nth-child(4) { display: grid; }
+  .tv-display .close-call-list a { padding: 12px; gap: 12px; }
+}
+@container tv-rotation (max-height: 300px) {
+  .tv-display .close-call-list { gap: 4px; }
+  .tv-display .close-call-list a { padding: 4px 6px; grid-template-columns: 48px minmax(0,1fr); gap: 6px; }
+  .tv-display .close-call-list strong { font-size: 14px; line-height: 1.1; }
+  .tv-display .close-call-list p { -webkit-line-clamp: 2; font-size: 12px; line-height: 1.25; }
+  .tv-display .close-call-list a > div { gap: 2px; }
+}
+@container tv-rotation (max-height: 215px) {
+  .tv-display .close-call-list p { -webkit-line-clamp: 1; }
+}
+@container tv-rotation (min-height: 800px) {
+  .tv-display .close-call-list p { -webkit-line-clamp: 6; }
+}
+@media (min-width: 1000px) and (max-height: 700px) {
+  .tv-shell .operations-board { grid-template-rows: minmax(100px,auto) 78px minmax(0,1fr) 92px; }
+  .tv-display .board-header { min-height: 100px; padding: 0; }
+}
+.tv-display .rotation-slide:has(> .board-empty),.tv-display .rotation-slide:has(> .board-equipment-summary) { grid-template-rows: minmax(0,1fr); align-content: stretch; }
+.tv-display .rotation-slide:has(> .training-board),.tv-display .rotation-slide:has(> .fatality-board),.tv-display .rotation-slide:has(> .current-duty-card) { grid-template-rows: minmax(0,1fr); align-content: stretch; }
+.tv-display .rotation-slide > .board-empty,.tv-display .training-cards-list > .board-empty { box-sizing: border-box; height: 100%; min-height: 0; margin: 0; display: grid; place-content: center; padding: clamp(12px,2vw,28px); font-size: clamp(18px,1.5vw,26px); line-height: 1.45; text-align: center; text-wrap: balance; }
+.board-equipment-summary { box-sizing: border-box; min-height: 0; height: 100%; padding: clamp(10px,1.4vw,24px); display: grid; grid-template-rows: auto minmax(0,1fr) auto; gap: 14px; border: 1px solid #38785b; border-radius: 8px; background: linear-gradient(135deg,#14382d,#132c36); }
+.equipment-clear-heading { display: flex; align-items: center; gap: 12px; }
+.equipment-clear-heading > span { display: grid; place-items: center; flex-shrink: 0; width: 42px; height: 42px; border-radius: 50%; background: #246a4b; color: #cff9e0; font-size: 28px; }
+.operations-board .board-equipment-summary strong { color: #e6faee; font-size: clamp(18px,1.6vw,28px); line-height: 1.2; }
+.operations-board .board-equipment-summary p { margin: 5px 0 0; color: #b6d4cb; font-size: clamp(12px,1vw,16px); line-height: 1.35; }
+.board-equipment-summary dl { min-height: 0; margin: 0; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
+.board-equipment-summary dl > div { min-width: 0; display: flex; flex-direction: column; justify-content: center; padding: 8px; border: 1px solid #3e645b; border-radius: 8px; background: #102a2c; text-align: center; }
+.board-equipment-summary dt { order: 2; color: #c9dfdb; font-size: clamp(11px,1vw,16px); }
+.board-equipment-summary dd { order: 1; margin: 0; color: #fff; font-weight: 900; font-size: clamp(28px,3vw,48px); line-height: 1.15; }
+.board-equipment-summary .equipment-fleet-units { order: 3; display: grid; gap: 6px; margin-top: 16px; color: #b8d9d0; font-size: clamp(12px,1vw,17px); font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.board-equipment-summary.unconfirmed { border-color: #a07b40; background: #342e20; align-content: center; }
+.board-equipment-summary.unconfirmed .equipment-clear-heading > span { background: #886428; color: #fff1c5; }
+@container tv-rotation (max-height: 300px) {
+  .board-equipment-summary { padding: 10px; gap: 8px; }
+  .operations-board .board-equipment-summary strong { font-size: 18px; }
+  .operations-board .board-equipment-summary p { font-size: 11px; }
+  .board-equipment-summary dd { font-size: 26px; }
+  .board-equipment-summary .equipment-fleet-units { display: none; }
+}
 .tv-display .fatality-board,.tv-display .fatality-list,.tv-display .training-board,.tv-display .training-course-list { gap: 4px !important; }
 .tv-display .fatality-total { padding: 5px 8px; }
 .tv-display .fatality-total > strong { font-size: 27px; }
 .tv-display .fatality-list a { padding: 3px 6px; }
-.tv-display .training-board { box-sizing: border-box; height: 100%; min-height: 0; grid-template-rows: auto minmax(0,1fr) auto; overflow: hidden; }
+@container tv-rotation (min-height: 440px) {
+  .tv-display .fatality-board { display: grid; height: 100%; min-height: 0; grid-template-rows: auto minmax(0,1fr) auto; }
+  .tv-display .fatality-list { min-height: 0; grid-auto-rows: minmax(0,1fr); }
+  .tv-display .fatality-list a { min-height: 0; padding: 8px 12px; }
+  .tv-display .fatality-list strong { font-size: clamp(16px,1.2vw,22px); }
+  .tv-display .fatality-list span,.tv-display .fatality-list small { font-size: clamp(12px,.9vw,16px); }
+}
+.tv-display .training-board { display: grid; box-sizing: border-box; height: 100%; min-height: 0; grid-template-rows: auto minmax(0,1fr); overflow: hidden; }
+.tv-display .training-cards-list { min-height: 0; }
 .tv-display .training-provider { min-height: 0; padding: 5px 8px; }
 .tv-display .training-provider strong { font-size: 13px; line-height: 1.1; }
 .tv-display .training-course-list { min-height: 0; grid-template-columns: repeat(2,minmax(0,1fr)); grid-template-rows: repeat(3,minmax(0,1fr)); align-content: stretch; overflow: hidden; }

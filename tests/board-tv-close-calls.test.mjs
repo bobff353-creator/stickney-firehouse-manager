@@ -26,16 +26,16 @@ const reports = Array.from({ length: 5 }, (_, index) => ({
 }));
 const render = (tvMode, news = reports, rotation = 'news') => renderToStaticMarkup(React.createElement(exports.CloseCalls, { tvMode, news, rotation }));
 
-test('TV displays only the first two feed reports with their source descriptions', () => {
+test('TV provides four source reports for the height-aware three/four card layout', () => {
   const original = structuredClone(reports);
   const html = render(true);
-  assert.equal((html.match(/<a /g) ?? []).length, 2);
-  for (const report of reports.slice(0, 2)) {
+  assert.equal((html.match(/<a /g) ?? []).length, 4);
+  for (const report of reports.slice(0, 4)) {
     assert.ok(html.includes(report.title));
     assert.ok(html.includes(report.excerpt));
     assert.ok(html.includes(report.url));
   }
-  for (const report of reports.slice(2)) assert.ok(!html.includes(report.title));
+  for (const report of reports.slice(4)) assert.ok(!html.includes(report.title));
   assert.deepEqual(reports, original, 'TV selection must not mutate the shared feed');
 });
 

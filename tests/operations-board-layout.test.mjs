@@ -73,13 +73,18 @@ test("staffing uses content height while the river card fills reclaimed space", 
   assert.match(styles, /\.staffing-rotation-panel \.new-member-photo img \{ position: absolute; inset: 0; object-position: center top/);
 });
 
-test("TV close-call cards use two rows with room for brief source descriptions", async () => {
+test("TV close-call cards adapt to panel height and prioritize source descriptions", async () => {
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(styles, /\.tv-display \.close-call-list a \{ box-sizing: border-box;[^}]+overflow: hidden/);
   assert.match(styles, /\.tv-display \.close-call-list strong \{[^}]+-webkit-line-clamp: 2;[^}]+font-size: clamp\(14px,1vw,20px\)/);
   assert.match(styles, /\.rotating-panel\.news > \.rotation-content \{ grid-template-rows: minmax\(0,1fr\); align-content: stretch/);
-  assert.match(styles, /\.tv-display \.close-call-list \{ grid-template-rows: repeat\(2,minmax\(0,1fr\)\); \}/);
-  assert.match(styles, /\.tv-display \.close-call-list p \{ display: -webkit-box; -webkit-line-clamp: 2;/);
+  assert.match(styles, /\.tv-display \.close-call-list \{ grid-template-rows: none; grid-auto-rows: minmax\(0,1fr\); \}/);
+  assert.match(styles, /\.tv-display \.close-call-list p \{ display: -webkit-box; -webkit-line-clamp: 3;/);
+  assert.match(styles, /container: tv-rotation \/ size/);
+  assert.match(styles, /\.tv-display \.close-call-list a:nth-child\(n\+4\) \{ display: none; \}/);
+  assert.match(styles, /@container tv-rotation \(min-height: 560px\) \{\s*\.tv-display \.close-call-list a:nth-child\(4\) \{ display: grid; \}/);
+  assert.match(styles, /@container tv-rotation \(min-height: 400px\) \{\s*\.tv-display \.close-call-list p \{ -webkit-line-clamp: 4; \}/);
+  assert.match(styles, /\.tv-display \.close-call-list small \{ display: none; \}/);
   assert.match(styles, /\.tv-display \.close-call-kicker \{ display: none; \}/);
   assert.match(styles, /\.close-call-list p \{ display: -webkit-box/);
 });
@@ -88,8 +93,10 @@ test("training rotations use a bounded two-column TV layout", async () => {
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   const cards = await readFile(new URL("../app/training-source.module.css", import.meta.url), "utf8");
 
-  assert.match(styles, /\.tv-display \.training-board \{[^}]*height: 100%;[^}]*grid-template-rows: auto minmax\(0,1fr\) auto;[^}]*overflow: hidden/);
-  assert.match(cards, /:global\(\.tv-display\) \.cards \{[^}]*height:100%;[^}]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\);[^}]*grid-template-rows:repeat\(3,minmax\(0,1fr\)\)/);
+  assert.match(styles, /\.tv-display \.training-board \{ display: grid;[^}]*height: 100%;[^}]*grid-template-rows: auto minmax\(0,1fr\);[^}]*overflow: hidden/);
+  assert.match(cards, /:global\(\.tv-display\) \.cards \{[^}]*height:100%;[^}]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\);[^}]*grid-auto-rows:minmax\(0,1fr\)/);
+  assert.match(cards, /\.cards:not\(:has\(\.card:nth-child\(3\)\)\) \{ grid-template-columns:1fr; \}/);
+  assert.match(cards, /\.cards:not\(:has\(\.card:nth-child\(3\)\)\) \.card div > small \{ display:-webkit-box/);
   assert.match(cards, /\.card:last-child:nth-child\(odd\) \{ grid-column:1\/-1; \}/);
   assert.match(styles, /\.tv-display \.training-disclaimer \{ display: none; \}/);
 });

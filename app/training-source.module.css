@@ -11,11 +11,21 @@
 .source { display:grid; gap:12px; }
 .list { min-height:0; overflow:auto; }
 :global(.operations-board) .cards { grid-template-columns:1fr; }
-:global(.tv-display) .cards { height:100%; grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-rows:repeat(3,minmax(0,1fr)); gap:6px; }
+:global(.tv-display) .cards { height:100%; grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-rows:minmax(0,1fr); gap:6px; }
 :global(.tv-display) .card { box-sizing:border-box; min-height:0; grid-template-columns:90px minmax(0,1fr); padding:10px; gap:10px; overflow:hidden; }
 :global(.tv-display) .card:last-child:nth-child(odd) { grid-column:1/-1; }
 :global(.tv-display) .card strong { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden; font-size:clamp(14px,1vw,19px); }
 :global(.tv-display) .card time { font-size:12px; }
 :global(.tv-display) .card small { font-size:10px; }
 :global(.tv-display) .card div > small { display:none; }
+/* Sparse schedules use the space they actually need, without two empty rows. */
+:global(.tv-display) .cards:not(:has(.card:nth-child(3))) { grid-template-columns:1fr; }
+:global(.tv-display) .cards:not(:has(.card:nth-child(3))) .card { align-content:center; grid-template-columns:110px minmax(0,1fr); padding:16px; }
+:global(.tv-display) .cards:not(:has(.card:nth-child(3))) .card strong { font-size:clamp(18px,1.6vw,28px); }
+:global(.tv-display) .cards:not(:has(.card:nth-child(3))) .card div > small { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:4; overflow:hidden; font-size:clamp(12px,1vw,17px); }
+@container tv-rotation (min-height: 440px) {
+  :global(.tv-display) .card div > small { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden; }
+  :global(.tv-display) .card { align-content:center; }
+  :global(.tv-display) .card span,:global(.tv-display) .card small { font-size:13px; }
+}
 @media(max-width:520px) { .card { grid-template-columns:1fr; gap:8px; padding:12px; }.card time { font-size:14px; }.card time small { display:inline; margin-left:6px; } }
