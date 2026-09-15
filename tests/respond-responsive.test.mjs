@@ -38,8 +38,7 @@ test("phone Respond stacks title actions and critical detail without tiny contro
   assert.match(css, /\.respond-operational-banner>div\{grid-template-columns:1fr\}/);
   assert.match(css, /\.respond-progress-steps button\{[^}]*min-height:48px/);
   assert.match(css, /@media\(max-width:650px\)[^{]*\{[^]*\.respond-progress-steps\{grid-template-columns:1fr\}/);
-  assert.match(css, /\.respond-jump-actions\{[^}]*grid-template-columns:repeat\(4/);
-  assert.match(css, /@media\(max-width:650px\)[^{]*\{[^]*\.respond-jump-actions\{grid-template-columns:repeat\(2/);
+  assert.match(css, /\.respond-active-call>\.respond-field-toolbar\{grid-template-columns:minmax\(0,1fr\)\}/);
 });
 
 test("fullscreen apparatus and iPad views respect every safe-area inset", () => {

@@ -135,7 +135,7 @@ test("local progress history is bounded and rejects malformed values", async () 
 
 test("Respond gates both rendering and writes, isolates scope switches, and keeps polling unchanged", async () => {
   const source = await readFile(new URL("../app/respond.tsx",import.meta.url),"utf8");
-  assert.match(source,/progressScope && <div className="respond-progress-panel"/);
+  assert.match(source,/progressScope && <section className="respond-field-toolbar"/);
   assert.match(source,/if \(!canUpdateProgress \|\| !progressScope\) return/);
   assert.match(source,/savedCrewProgress\?\.key === progressScopeKey/);
   assert.match(source,/disabled=\{!canUpdateProgress\}/);

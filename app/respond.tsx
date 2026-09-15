@@ -834,6 +834,17 @@ export default function Respond({
     return () => document.removeEventListener("fullscreenchange", update);
   }, []);
   useEffect(() => {
+    if (!monitorMode) return;
+    // Some installed browsers refuse native fullscreen. Escape still exits the layout fallback.
+    const exitFallback = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape" && !document.fullscreenElement && !selected && !selectedHazmatId) {
+        setMonitorMode(false);
+      }
+    };
+    document.addEventListener("keydown", exitFallback);
+    return () => document.removeEventListener("keydown", exitFallback);
+  }, [monitorMode, selected, selectedHazmatId]);
+  useEffect(() => {
     if (selectedHazmatId) hazmatCloseRef.current?.focus();
   }, [selectedHazmatId]);
   useEffect(() => {
@@ -899,13 +910,6 @@ export default function Respond({
         arrivalRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
       );
     }
-  }
-  function openTacticalView(nextView: RightView) {
-    setView(nextView);
-    window.requestAnimationFrame(() => {
-      tacticalRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      document.getElementById(`respond-tab-${nextView}`)?.focus();
-    });
   }
   async function toggleMonitor() {
     if (monitorMode) {
@@ -1172,7 +1176,7 @@ export default function Respond({
   return (
     <section
       ref={pageRef}
-      className={`respond-page${monitorMode ? " monitor-view" : ""}`}
+      className={`respond-page respond-active-call${monitorMode ? " monitor-view" : ""}`}
     >
       {apparatus && (
         <div className="respond-apparatus-strip">
@@ -1227,21 +1231,13 @@ export default function Respond({
           </a>
         </div>
       </header>
-      <div className="respond-statusline">
-        <span className={plan ? "matched" : "unmatched"}>
-          {plan
-            ? `Preplan matched by ${data?.match?.method}${data?.match?.method === "gps" ? ` · ${data.match.distanceFeet} ft` : ""}`
-            : "No matching preplan"}
-        </span>
-        <span>Updated {displayTime(data?.generatedAt || "")}</span>
-        {error && <span className="warning">{error}</span>}
-      </div>
+      {error && <p className="respond-update-warning" role="alert">{error}</p>}
       <details className="apparatus-map-only" onToggle={event=>setVehicleMapOpen(event.currentTarget.open)}>
         <summary>Apparatus locations · all units / units on this call</summary>
         {vehicleMapOpen&&<RespondOverviewMap locationModel={locations} apparatusOnly respondingUnits={call.respondingUnits} overview={{apparatus:null,preplans:[],hydrants:[],roadClosures:[]}} recentCalls={[]}/>}
       </details>
-      <section className="respond-field-toolbar" aria-label="Field response controls">
-        {progressScope && <div className="respond-progress-panel">
+      {progressScope && <section className="respond-field-toolbar" aria-label="Field response controls">
+        <div className="respond-progress-panel">
           <div>
             <span>UNIT {progressScope.apparatus} · CALL {progressScope.reportNumber}</span>
             <strong>Unit response progress</strong>
@@ -1273,47 +1269,8 @@ export default function Respond({
           <small className="respond-progress-note">
             Saved for this unit and call on this browser only · does not change CAD status or other devices
           </small>
-        </div>}
-        <nav className="respond-jump-actions" aria-label="Open response information">
-          <button type="button" onClick={() => openTacticalView("cad")}>
-            <b>CAD</b>
-            <span>Latest notes</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => openTacticalView("floorplan")}
-            disabled={!floorPlanAsset}
-          >
-            <b>Floor plan</b>
-            <span>{floorPlanAsset ? selectedLevel?.name || "Open level" : "Not published"}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => openTacticalView("footprint")}
-            disabled={!plan}
-          >
-            <b>Footprint</b>
-            <span>{plan ? "Systems map" : "No preplan"}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              hydrantRef.current?.scrollIntoView({
-                behavior: "smooth",
-                block: "center",
-              })
-            }
-            disabled={!data?.nearestHydrants?.length}
-          >
-            <b>Hydrant</b>
-            <span>
-              {data?.nearestHydrants?.length
-                ? `${data.nearestHydrants[0].distanceFeet.toLocaleString()} ft away`
-                : "None verified"}
-            </span>
-          </button>
-        </nav>
-      </section>
+        </div>
+      </section>}
       {respondSource === "offline" && (
         <section className="respond-offline-banner" role="status">
           <strong>OFFLINE — READ-ONLY PREPLAN</strong>
@@ -1763,12 +1720,12 @@ export default function Respond({
         className="respond-glance"
         aria-label="Matched response records"
       >
-        <article>
+        <article className="respond-box-card">
           <span>BOX CARD</span>
           <strong>{data?.boxCard?.title || "No matching box card"}</strong>
           <small>
             {data?.boxCard
-              ? `${data.boxCard.boxNumber || "Number pending"} · ${data.boxCard.accessNotes || data.boxCard.address}`
+              ? `Box ${data.boxCard.boxNumber || "number pending"} · Full instructions in box cards.`
               : "Search by the incident address."}
           </small>
           <button onClick={() => onNavigate?.("Box Cards")}>
