@@ -1,6 +1,7 @@
 import { ensureDatabase } from "../../../db/bootstrap";
 import { readIllustrations } from "../../preplans/photo-illustrations";
 import { createHash } from "node:crypto";
+import { privatePacketResponse } from '../../lib/private-packet-response';
 import { chicagoOperationalContext } from "../../operational-day";
 import {
   distanceFeet,
@@ -40,6 +41,7 @@ export async function GET(request: Request) {
     const apparatus = normalizeApparatusUnit(
       new URL(request.url).searchParams.get("apparatus"),
     );
+    const requestedReport = new URL(request.url).searchParams.get("report")?.trim() || "";
     await db
       .prepare(
         "UPDATE dispatch_incidents SET active=0,cleared_at=COALESCE(cleared_at,CURRENT_TIMESTAMP) WHERE active=1 AND EXISTS (SELECT 1 FROM daily_log_calls WHERE trim(daily_log_calls.report_number)=trim(dispatch_incidents.incident_id) AND trim(daily_log_calls.time_in)<>'')",
@@ -50,11 +52,11 @@ export async function GET(request: Request) {
         "SELECT incident_id reportNumber,call_type callType,category,address,city,narrative,responding_units respondingUnits,longitude,latitude,dispatched_at dispatchedAt,time_out timeOut,source_system source,received_at receivedAt FROM dispatch_incidents WHERE active=1 AND cleared_at IS NULL AND datetime(dispatched_at)>=datetime('now','-12 hours') AND NOT EXISTS (SELECT 1 FROM daily_log_calls WHERE trim(daily_log_calls.report_number)=trim(dispatch_incidents.incident_id) AND trim(daily_log_calls.time_in)<>'') ORDER BY datetime(dispatched_at) DESC LIMIT 24",
       )
       .all<Row>();
-    let activeCall =
-      activeDispatches.results.find((call) =>
+    let availableCalls =
+      activeDispatches.results.filter((call) =>
         respondingUnitsIncludeUnit(call.respondingUnits, apparatus),
-      ) ?? null;
-    if (!activeCall) {
+      );
+    if (!availableCalls.length) {
       const date = chicagoOperationalContext().operationalDate;
       const dailyLogCalls = await db
         .prepare(
@@ -62,17 +64,33 @@ export async function GET(request: Request) {
         )
         .bind(date)
         .all<Row>();
-      activeCall =
-        dailyLogCalls.results.find((call) =>
+      availableCalls =
+        dailyLogCalls.results.filter((call) =>
           respondingUnitsIncludeUnit(call.respondingUnits, apparatus),
-        ) ?? null;
+        );
     }
+    // Selection is only from the already-authorized, active apparatus-filtered pool.
+    // Never look up an arbitrary report or write CAD status when changing views.
+    const selectedCall = requestedReport
+      ? availableCalls.find(call => String(call.reportNumber || "").trim() === requestedReport)
+      : null;
+    const activeCall = selectedCall ?? availableCalls[0] ?? null;
+    const selectionUnavailable = Boolean(requestedReport && !selectedCall);
+    const activeCalls = availableCalls.map(call => ({
+      reportNumber: String(call.reportNumber || "").trim(),
+      callType: String(call.callType || call.category || "Call type not reported"),
+      address: String(call.address || ""), city: String(call.city || ""),
+      respondingUnits: String(call.respondingUnits || ""), timeOut: String(call.timeOut || ""),
+    }));
     // Recheck authority and live calls on every poll. Only skip reference-data
     // loading for this client's unchanged packet, for at most 30 seconds.
     const revision = createHash("sha256").update(JSON.stringify([
-      departmentId, apparatus, activeCall, Math.floor(Date.now() / 30_000),
+      departmentId, apparatus, requestedReport, availableCalls, activeCall, Math.floor(Date.now() / 30_000),
     ])).digest("hex");
     const responseHeaders = { "cache-control": "private, no-store", "x-respond-revision": revision };
+    const packetResponse = (payload: Record<string, unknown>) => privatePacketResponse(request, payload, {
+      headers: responseHeaders, fingerprint: { ...payload, generatedAt: null },
+    });
     if (request.headers.get("x-respond-revision") === revision) {
       return new Response(null, { status: 204, headers: responseHeaders });
     }
@@ -222,9 +240,11 @@ export async function GET(request: Request) {
             }
           : call;
       });
-      return Response.json(
+      return packetResponse(
         {
           activeCall: null,
+          activeCalls,
+          selectionUnavailable,
           preplan: null,
           match: null,
           cadUpdates: [],
@@ -236,7 +256,6 @@ export async function GET(request: Request) {
           departmentId,
           generatedAt: new Date().toISOString(),
         },
-        { headers: responseHeaders },
       );
     }
 
@@ -523,9 +542,11 @@ export async function GET(request: Request) {
           .slice(0, 3)
       : [];
 
-    return Response.json(
+    return packetResponse(
       {
         activeCall,
+        activeCalls,
+        selectionUnavailable,
         preplan,
         operational,
         match: matched
@@ -542,7 +563,6 @@ export async function GET(request: Request) {
         departmentId,
         generatedAt: new Date().toISOString(),
       },
-      { headers: responseHeaders },
     );
   } catch (error) {
     return Response.json(

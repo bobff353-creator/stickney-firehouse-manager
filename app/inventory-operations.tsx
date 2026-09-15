@@ -12,6 +12,7 @@ import { useWorkspaceViewState } from "./workspace-view-state";
 import InventoryAirSystems from "./inventory-air-systems";
 import { airCheckLines } from "./inventory-air-checks";
 import type { IScannerControls } from "@zxing/browser";
+import { createConditionalJsonReader } from './conditional-json-reader';
 
 type OperationsView = "due" | "inventory" | "check" | "equipment" | "air" | "reports" | "readiness" | "service" | "stock" | "builder" | "legacy_check" | "legacy_service";
 type Row = Record<string, string | number | boolean | string[] | null>;
@@ -381,6 +382,7 @@ export default function InventoryOperations({
   const readPending = useRef<Promise<boolean> | null>(null);
   const readController = useRef<AbortController | null>(null);
   const readerMounted = useRef(true);
+  const packetReader = useRef(createConditionalJsonReader());
   const [accessRequired, setAccessRequired] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerMessage, setScannerMessage] = useState("");
@@ -548,7 +550,7 @@ export default function InventoryOperations({
         fetch("/api/dashboard", { cache: "no-store", signal }).catch(() => null),
         fetch("/api/permissions", { cache: "no-store", signal }).catch(() => null),
       ]);
-      const response = await fetch("/api/operations", { cache: "no-store", signal });
+      const response = await packetReader.current.read('/api/operations', { signal });
       const payload = await response.json().catch(() => ({})) as Partial<OperationsData>;
       if (!response.ok || payload.configured !== true) {
         if (!background) setAccessRequired(response.status === 401 || response.status === 403);
@@ -610,7 +612,7 @@ export default function InventoryOperations({
     // Loading is intentionally kicked off once when this operational panel opens.
     readerMounted.current = true;
     void load();
-    const refresh = () => void load({ background: true });
+    const refresh = () => { void load({ background: true }); };
     const interval = window.setInterval(refresh, 5000);
     window.addEventListener("focus", refresh);
     window.addEventListener("online", refresh);

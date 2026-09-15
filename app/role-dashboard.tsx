@@ -34,13 +34,18 @@ export default function RoleDashboard({ data, onNavigate, allowedPages }: { data
     setRefreshing(true);
     await Promise.all([
       readPortalJson<Briefing>("/api/dashboard", "Operational briefing unavailable").then(value => { setBriefing(value); setBriefingError(""); }).catch(() => setBriefingError("The department briefing could not refresh. Do not rely on this screen for current readiness until it reconnects.")),
-      readPortalJson<{ items?: unknown[] }>("/api/resources?type=policy", "Policies unavailable").then(value => setResourceCounts(current => ({ ...current, policies: value.items?.length ?? 0 }))).catch(() => setResourceCounts(current => ({ ...current, policies: null }))),
-      readPortalJson<{ items?: unknown[] }>("/api/resources?type=boxCard", "Box Cards unavailable").then(value => setResourceCounts(current => ({ ...current, boxCards: value.items?.length ?? 0 }))).catch(() => setResourceCounts(current => ({ ...current, boxCards: null }))),
+      readPortalJson<{ count: number }>("/api/resources?type=policy&summary=1", "Policies unavailable").then(value => setResourceCounts(current => ({ ...current, policies: value.count }))).catch(() => setResourceCounts(current => ({ ...current, policies: null }))),
+      readPortalJson<{ count: number }>("/api/resources?type=boxCard&summary=1", "Box Cards unavailable").then(value => setResourceCounts(current => ({ ...current, boxCards: value.count }))).catch(() => setResourceCounts(current => ({ ...current, boxCards: null }))),
     ]);
     requestInFlight.current = false;
     setRefreshing(false);
   }, []);
-  useEffect(() => { const initial = window.setTimeout(() => void load(), 0); const timer = window.setInterval(() => void load(), 60000); return () => { window.clearTimeout(initial); window.clearInterval(timer); }; }, [load]);
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState !== 'hidden') void load(); };
+    const initial = window.setTimeout(refresh, 0), timer = window.setInterval(refresh, 60000);
+    document.addEventListener('visibilitychange', refresh); window.addEventListener('online', refresh);
+    return () => { window.clearTimeout(initial); window.clearInterval(timer); document.removeEventListener('visibilitychange', refresh); window.removeEventListener('online', refresh); };
+  }, [load]);
 
   const ownHours = useMemo(() => data.entries.filter((entry) => entry.employeeId === ownEmployee?.id && entry.category !== "actingOfficer").reduce((sum, entry) => sum + entry.hours, 0), [data.entries, ownEmployee?.id]);
   const pending = (briefing?.approvals.logs ?? 0) + (data.viewer.isAdmin ? briefing?.approvals.payroll ?? 0 : 0);

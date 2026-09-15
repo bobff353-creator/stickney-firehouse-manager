@@ -5,6 +5,9 @@ export function confirmationExemptRequest(url: URL, method: string) {
   if (['/api/auth/context','/api/auth/pin','/api/auth/session'].includes(url.pathname)) return true;
   if (url.pathname === '/api/push/subscriptions') return true;
   if (method !== 'GET') return false;
+  // The bundled read retains the same live-call exception as its three source
+  // handlers below; it does not bypass sign-in, PIN, membership or permissions.
+  if (url.pathname === '/api/live-operations') return true;
   if (url.pathname === '/api/permissions' && url.searchParams.get('scope') === 'viewer') return true;
   if (['/api/respond','/api/respond/street-view','/api/apparatus-locations','/api/maps-config','/api/field-hydrants','/api/field-preplans/operational','/api/road-closures','/api/alerts'].includes(url.pathname)) return true;
   if (/^\/api\/field-preplans\/assets\/[^/]+$/.test(url.pathname)) return true;

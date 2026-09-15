@@ -72,6 +72,8 @@ test('regular tools cannot escape the gate, while live call dependencies stay av
  for(const path of ['/api/respond','/api/respond/street-view','/api/field-preplans/operational','/api/field-preplans/assets/fixture','/api/apparatus-locations','/api/dashboard?scope=live-operations','/api/suite-context?scope=live-operations','/api/daily-duties?scope=live-operations','/api/permissions?scope=viewer'])assert.equal(confirmationExemptRequest(new URL(path,'https://fixture.invalid'),'GET'),true,path);
  for(const path of ['/api/payroll','/api/station-scheduler','/api/operations','/api/permissions','/api/dashboard','/api/suite-context','/api/auth/invites'])for(const method of ['GET','POST','PUT'])assert.equal(confirmationExemptRequest(new URL(path,'https://fixture.invalid'),method),false,path+method);
  assert.equal(confirmationExemptRequest(new URL('https://fixture.invalid/api/dashboard?scope=live-operations'),'POST'),false);
+ assert.equal(confirmationExemptRequest(new URL('https://fixture.invalid/api/live-operations'),'GET'),true);
+ assert.equal(confirmationExemptRequest(new URL('https://fixture.invalid/api/live-operations'),'POST'),false);
  assert.equal(parseConfirmationStatus('false'),null);assert.equal(parseConfirmationStatus('{"required":false}'),null);
 });
 test('confirmation handlers require permission, explicit consent and trusted identity',async()=>{

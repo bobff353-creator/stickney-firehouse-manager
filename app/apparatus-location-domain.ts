@@ -6,7 +6,7 @@ export type ApparatusLocation = {
  fixAt: string | null; receivedAt: string | null; moving: boolean; sequence: number;
 };
 export type LocationSnapshot = { departmentId: string; userId: string; units: ApparatusLocation[]; topic: string; expiresAt: string; serverTime: string; canManage: boolean };
-export const locationCadence = { responding: 5000, moving: 15000, parked: 120000, maxAccuracy: 75, maxFixAge: 30000 } as const;
+export const locationCadence = { responding: 5000, moving: 15000, maxAccuracy: 75, maxFixAge: 30000 } as const;
 export function validLocationFix(value: unknown, now=Date.now()): value is LocationFix {
  if(!value || typeof value!=='object') return false;
  const fix=value as Partial<LocationFix>;
@@ -29,7 +29,9 @@ export function shouldSendLocation(fix: LocationFix,last: LocationFix|null,lastS
  if(elapsed<locationCadence.responding) return false;
  if(fix.moving!==last.moving) return true;
  const moved=metresBetween(last,fix)>Math.max(20,Math.min(fix.accuracy,last.accuracy));
- return fix.moving || moved ? elapsed>=(responding?locationCadence.responding:locationCadence.moving) : elapsed>=locationCadence.parked;
+ // First fix and moving/stopped transitions are sent above. A stationary
+ // coordinate is not a heartbeat: receivers honestly age it as last known.
+ return (fix.moving || moved) && elapsed>=(responding?locationCadence.responding:locationCadence.moving);
 }
 export function locationAgeLabel(unit: ApparatusLocation,now=Date.now(),connected=true) {
  if(unit.latitude==null || unit.longitude==null || !unit.fixAt) return unit.deviceId ? 'Waiting for accurate location' : 'Not paired';

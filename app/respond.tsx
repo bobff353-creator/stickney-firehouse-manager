@@ -1,4 +1,5 @@
 "use client";
+import { onOperationalPush } from './operational-push-refresh';
 /* eslint-disable @next/next/no-img-element -- preplan photos are protected runtime records. */
 
 import {
@@ -141,6 +142,8 @@ type NearbyHydrant = {
 type RespondData = {
   departmentId: string;
   activeCall: ActiveCall | null;
+  activeCalls?: Array<Pick<ActiveCall, "reportNumber" | "callType" | "address" | "city" | "respondingUnits" | "timeOut">>;
+  selectionUnavailable?: boolean;
   preplan: Preplan | null;
   match: { method: "address" | "gps"; distanceFeet: number } | null;
   cadUpdates: Array<{
@@ -683,6 +686,8 @@ export default function Respond({
     [view, setView] = useState<RightView>("cad"),
     [selected, setSelected] = useState<QuickItem | null>(null);
   const [monitorMode, setMonitorMode] = useState(false);
+  const [selectedReportNumber, setSelectedReportNumber] = useState("");
+  const [selectionNotice, setSelectionNotice] = useState("");
   const locations=useApparatusLocations(Boolean(apparatus)||monitorMode,data?.activeCall?.respondingUnits||'');
   const [vehicleMapOpen,setVehicleMapOpen]=useState(false);
   const [selectedLevelId, setSelectedLevelId] = useState("");
@@ -693,8 +698,9 @@ export default function Respond({
   );
   const [cachedAt, setCachedAt] = useState("");
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
-  const requestInFlight = useRef(false);
-  const lastPacketRevision = useRef({ apparatus: "", revision: "" });
+  const requestInFlight = useRef<{ apparatus: string; reportNumber: string; controller: AbortController } | null>(null);
+  const lastPacketRevision = useRef({ apparatus: "", reportNumber: "", revision: "" });
+  const lastContentRevision = useRef({ apparatus: "", reportNumber: "", revision: "" });
   const [isOnline, setIsOnline] = useState(true);
   const progressScope = useMemo(() => assignedRespondProgressScope(apparatus, data), [apparatus, data]);
   const progressScopeKey = respondProgressKey(progressScope);
@@ -714,20 +720,37 @@ export default function Respond({
   const quickCloseRef = useRef<HTMLButtonElement>(null);
   const quickTriggerRef = useRef<HTMLElement | null>(null);
   const load = useCallback(async () => {
-    if (requestInFlight.current) return;
-    requestInFlight.current = true;
+    if (requestInFlight.current?.apparatus === apparatus && requestInFlight.current.reportNumber === selectedReportNumber) return;
+    requestInFlight.current?.controller.abort();
+    const pending = { apparatus, reportNumber: selectedReportNumber, controller: new AbortController() };
+    requestInFlight.current = pending;
+    const isCurrentRequest = () => requestInFlight.current === pending && !pending.controller.signal.aborted;
+    let allowCachedPacket = true;
     try {
-      const query = apparatus
+      const apparatusQuery = apparatus
         ? `?apparatus=${encodeURIComponent(apparatus)}`
         : "";
+      const query = selectedReportNumber
+        ? `${apparatusQuery}${apparatusQuery ? "&" : "?"}report=${encodeURIComponent(selectedReportNumber)}`
+        : apparatusQuery;
       const response = await fetch(`/api/respond${query}`, {
         cache: "no-store",
-        headers: lastPacketRevision.current.apparatus === apparatus && lastPacketRevision.current.revision
-          ? { "x-respond-revision": lastPacketRevision.current.revision }
-          : {},
-        signal: AbortSignal.timeout(15000),
+        headers: {
+          ...(lastPacketRevision.current.apparatus === apparatus && lastPacketRevision.current.reportNumber === selectedReportNumber && lastPacketRevision.current.revision
+            ? { "x-respond-revision": lastPacketRevision.current.revision } : {}),
+          ...(lastContentRevision.current.apparatus === apparatus && lastContentRevision.current.reportNumber === selectedReportNumber && lastContentRevision.current.revision
+            ? { "x-content-revision": lastContentRevision.current.revision } : {}),
+        },
+        signal: AbortSignal.any([pending.controller.signal, AbortSignal.timeout(15000)]),
       });
+      if (!isCurrentRequest()) return;
+      if ([401, 403, 423].includes(response.status)) {
+        allowCachedPacket = false;
+        setData(null);
+        await clearCachedRespondPackets().catch(() => undefined);
+      }
       if (response.status === 204) {
+        lastPacketRevision.current = { apparatus, reportNumber: selectedReportNumber, revision: response.headers.get('x-respond-revision') || '' };
         setLastRefresh(new Date());
         setRespondSource("live");
         setCachedAt("");
@@ -735,9 +758,22 @@ export default function Respond({
         return;
       }
       const body = (await response.json()) as RespondData & { error?: string };
+      if (!isCurrentRequest()) return;
       if (!response.ok)
         throw new Error(body.error || "Unable to load Respond.");
-      lastPacketRevision.current = { apparatus, revision: response.headers.get("x-respond-revision") || "" };
+      lastPacketRevision.current = { apparatus, reportNumber: selectedReportNumber, revision: response.headers.get("x-respond-revision") || "" };
+      lastContentRevision.current = { apparatus, reportNumber: selectedReportNumber, revision: response.headers.get('x-content-revision') || '' };
+      if (body.selectionUnavailable) {
+        setSelectedReportNumber("");
+        setSelected(null);
+        setSelectedHazmatId("");
+        setSelectedLevelId("");
+        setView("cad");
+        setShowAllAttachments(false);
+        setSelectionNotice(body.activeCall
+          ? "That call is no longer available in this view. Showing the latest active call."
+          : "That call is no longer available. No active calls remain in this view.");
+      }
       departmentIdRef.current = body.departmentId;
       setData(body);
       setLastRefresh(new Date());
@@ -759,35 +795,46 @@ export default function Respond({
         );
       }
     } catch (value) {
-      lastPacketRevision.current = { apparatus: "", revision: "" };
+      if (!isCurrentRequest()) return;
+      lastPacketRevision.current = { apparatus: "", reportNumber: "", revision: "" };
+      lastContentRevision.current = { apparatus: "", reportNumber: "", revision: "" };
       const departmentId = departmentIdRef.current;
-      if (departmentId) {
+      if (departmentId && allowCachedPacket) {
         const cached = await getCachedRespondPacket<RespondData>(
           departmentId,
           apparatus,
         ).catch(() => null);
-        if (cached && isCachedRespondData(cached.payload)) {
+        if (!isCurrentRequest()) return;
+        if (cached && isCachedRespondData(cached.payload) &&
+          (!selectedReportNumber || cached.payload.activeCall?.reportNumber === selectedReportNumber)) {
           setData(cached.payload);
           setCachedAt(cached.cachedAt);
           setRespondSource("offline");
           setError("");
           return;
         }
-        if (cached) await clearCachedRespondPackets().catch(() => undefined);
+        if (cached && !isCachedRespondData(cached.payload)) await clearCachedRespondPackets().catch(() => undefined);
       }
+      if (!isCurrentRequest()) return;
       setError(
         value instanceof Error ? value.message : "Unable to load Respond.",
       );
     } finally {
-      requestInFlight.current = false;
+      if (requestInFlight.current === pending) requestInFlight.current = null;
     }
-  }, [apparatus]);
+  }, [apparatus, selectedReportNumber]);
+  useEffect(() => onOperationalPush(() => {
+    lastPacketRevision.current = { apparatus: "", reportNumber: "", revision: "" };
+    void load();
+  }, 'cad'), [load]);
   useEffect(() => {
     const initial = window.setTimeout(() => void load(), 0);
     const timer = window.setInterval(() => void load(), 10000);
     return () => {
       window.clearTimeout(initial);
       window.clearInterval(timer);
+      requestInFlight.current?.controller.abort();
+      requestInFlight.current = null;
     };
   }, [load]);
   useEffect(() => {
@@ -808,6 +855,20 @@ export default function Respond({
       window.removeEventListener("offline", update);
     };
   }, [load]);
+  function selectActiveCall(reportNumber: string) {
+    if (reportNumber === selectedReportNumber) return;
+    // Clear the old packet while loading so its map/notes can never be mistaken
+    // for the newly selected call. Keep Monitor View's root element mounted.
+    setSelectedReportNumber(reportNumber);
+    setData(null);
+    setError("");
+    setSelectionNotice("");
+    setView("cad");
+    setSelected(null);
+    setSelectedHazmatId("");
+    setSelectedLevelId("");
+    setShowAllAttachments(false);
+  }
   useEffect(() => {
     const scope = progressScopeKey ? JSON.parse(progressScopeKey) as [string, string, string] : null;
     const update = () => {
@@ -1067,20 +1128,23 @@ export default function Respond({
     crewProgressActions = nextRespondActions(crewProgress?.status);
   if (!data && !error)
     return (
-      <section className="respond-page">
+      <section ref={pageRef} className={`respond-page${monitorMode ? " monitor-view" : ""}`} aria-busy="true">
         <div className="respond-empty">
-          <strong>Loading active response…</strong>
+          <strong>{selectedReportNumber ? "Opening selected call…" : "Loading active response…"}</strong>
           <span>Checking current CAD and preplan records.</span>
+          {monitorMode && <button onClick={() => void toggleMonitor()}>Exit Monitor</button>}
         </div>
       </section>
     );
   if (error && !data)
     return (
-      <section className="respond-page">
+      <section ref={pageRef} className={`respond-page${monitorMode ? " monitor-view" : ""}`}>
         <div className="respond-empty danger">
           <strong>Respond could not load</strong>
           <span>{error}</span>
           <button onClick={() => void load()}>Try again</button>
+          {selectedReportNumber && <button onClick={() => selectActiveCall("")}>Return to latest active call</button>}
+          {monitorMode && <button onClick={() => void toggleMonitor()}>Exit Monitor</button>}
         </div>
       </section>
     );
@@ -1121,6 +1185,7 @@ export default function Respond({
             </button>
           </div>
         </header>
+        {selectionNotice && <p className="respond-selection-notice" role="status">{selectionNotice}</p>}
         {!updatesAvailable && <div className="respond-update-warning" role="alert"><div><strong>Current call status cannot be verified</strong><span>Updates are interrupted. The map shows previously loaded records, not a confirmed all-clear.</span><small>{lastRefresh ? `Last received ${lastRefresh.toLocaleTimeString("en-US", { timeZone: "America/Chicago" })}` : "No current update received"}</small></div><button onClick={() => void load()}>Retry updates</button></div>}
         <section
           className="respond-monitor-status"
@@ -1188,13 +1253,31 @@ export default function Respond({
         </div>
       )}
       <header className="respond-callbar">
-        <div>
-          <span>ACTIVE CALL · {call.source || "CAD"}</span>
-          <h1>{call.callType || call.category || "Call type not reported"}</h1>
-          <p>
-            {[call.address, call.city].filter(Boolean).join(", ") ||
-              "Address not reported"}
-          </p>
+        <div className="respond-call-heading">
+          <div>
+            <span>ACTIVE CALL · {call.source || "CAD"}</span>
+            <h1>{call.callType || call.category || "Call type not reported"}</h1>
+            <p>
+              {[call.address, call.city].filter(Boolean).join(", ") ||
+                "Address not reported"}
+            </p>
+          </div>
+          {((data?.activeCalls?.length ?? 0) > 1 || selectedReportNumber) && (
+            <label className="respond-call-selector">
+              <span>Select active call{data?.activeCalls?.length ? ` (${data.activeCalls.length})` : ""}</span>
+              <select
+                aria-label="Select active call"
+                value={selectedReportNumber}
+                onChange={event => selectActiveCall(event.target.value)}
+                disabled={!isOnline || respondSource !== "live"}
+              >
+                <option value="">Latest active call (automatic)</option>
+                {(data?.activeCalls ?? []).map(item => <option key={item.reportNumber} value={item.reportNumber}>
+                  {item.callType} · {item.address || "Address not reported"} · #{item.reportNumber}
+                </option>)}
+              </select>
+            </label>
+          )}
         </div>
         <dl>
           <div>
@@ -1231,6 +1314,7 @@ export default function Respond({
           </a>
         </div>
       </header>
+      {selectionNotice && <p className="respond-selection-notice" role="status">{selectionNotice}</p>}
       {error && <p className="respond-update-warning" role="alert">{error}</p>}
       <details className="apparatus-map-only" onToggle={event=>setVehicleMapOpen(event.currentTarget.open)}>
         <summary>Apparatus locations · all units / units on this call</summary>

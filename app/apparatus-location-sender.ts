@@ -26,7 +26,7 @@ export function createBrowserLocationSender(report:(text:string)=>void,respondin
    if(stopped)return;
    const result=await response.json();
    if(response.status===401){stop();report('This device pairing expired or was revoked. Ask an administrator to pair it again.');return;}
-   if(response.ok&&result.accepted){last=fix;lastSent=Date.now();nextAttempt=0;report(`Sharing this vehicle’s location · accuracy ±${Math.round(fix.accuracy)} m`);}
+   if(response.ok&&result.accepted){last=fix;lastSent=Date.now();nextAttempt=0;report(`Sharing this vehicle’s location · accuracy ±${Math.round(fix.accuracy)} m${fix.moving?'':' · stopped position saved; no repeat uploads until movement. Screens show the last-known age.'}`);}
    else {nextAttempt=Date.now()+(response.status===429?5000:15000);report('Location was not saved. Keeping the last confirmed position.');}
   }catch{if(!stopped){nextAttempt=Date.now()+15000;report('Connection interrupted. Location will retry; old fixes are not replayed.');}}
   finally{inFlight=false;controller=null;}

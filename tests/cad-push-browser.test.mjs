@@ -5,15 +5,29 @@ import vm from 'node:vm';
 import ts from 'typescript';
 
 function workerFixture(shared=new Map(), storageFails=false) {
- const handlers=new Map(),shown=[];
+ const handlers=new Map(),shown=[],hints=[];
  const caches={async open(name){if(storageFails)throw Error('Fixture storage blocked'); if(!shared.has(name))shared.set(name,new Map());const rows=shared.get(name);return{
    match:async key=>rows.get(key),put:async(key,value)=>{rows.set(key,value);},keys:async()=>Array.from(rows.keys()),delete:async key=>rows.delete(key),
  };},keys:async()=>Array.from(shared.keys()),delete:async key=>shared.delete(key)};
- let failDisplay=false,routineWait=null;
- const context={caches,Response,URL,console,self:{location:{origin:'https://fixture.invalid'},registration:{async showNotification(title,options){if(failDisplay)throw Error('Fixture display failed');if(options.data.kind==='scheduler'&&routineWait)await routineWait;shown.push({title,options});}},addEventListener:(name,fn)=>handlers.set(name,fn),skipWaiting(){},clients:{claim:async()=>{}}}};
+ let failDisplay=false,routineWait=null,windowWait=null;
+ const context={caches,Response,URL,console,self:{location:{origin:'https://fixture.invalid'},registration:{async showNotification(title,options){if(failDisplay)throw Error('Fixture display failed');if(options.data.kind==='scheduler'&&routineWait)await routineWait;shown.push({title,options});}},addEventListener:(name,fn)=>handlers.set(name,fn),skipWaiting(){},clients:{claim:async()=>{},matchAll:async()=>{if(windowWait)await windowWait;return[{postMessage:value=>{assert.ok(shown.length,'display comes before hint');hints.push(value);}}];}}}};
  vm.runInNewContext(readFileSync(new URL('../public/sw.js',import.meta.url),'utf8'),context);
- return{shared,shown,setRoutineWait:value=>{routineWait=value;},setFail:value=>{failDisplay=value;},async push(eventId,kind='cad',overrides={}){let work;handlers.get('push')({data:{json:()=>({eventId,kind,title:'LOCAL TEST',tag:'fixture-'+eventId,...overrides})},waitUntil:p=>{work=p;}});return work;},async activate(){let work;handlers.get('activate')({waitUntil:p=>{work=p;}});return work;}};
+ return{shared,shown,hints,setWindowWait:value=>{windowWait=value;},setRoutineWait:value=>{routineWait=value;},setFail:value=>{failDisplay=value;},async push(eventId,kind='cad',overrides={}){let work;handlers.get('push')({data:{json:()=>({eventId,kind,title:'LOCAL TEST',tag:'fixture-'+eventId,...overrides})},waitUntil:p=>{work=p;}});return work;},async activate(){let work;handlers.get('activate')({waitUntil:p=>{work=p;}});return work;}};
 }
+
+test('a stalled screen refresh hint cannot hold up the next CAD notification',async()=>{
+ const f=workerFixture();let release;f.setWindowWait(new Promise(resolve=>{release=resolve;}));
+ const first=f.push('00000000-0000-4000-8000-000000000441');
+ await new Promise(setImmediate);assert.equal(f.shown.length,1);
+ const second=f.push('00000000-0000-4000-8000-000000000442');
+ await new Promise(setImmediate);assert.equal(f.shown.length,2);assert.equal(f.hints.length,0);
+ release();await Promise.all([first,second]);assert.equal(f.hints.length,2);
+});
+
+test('push wakes open screens once with a hint, never dispatch contents or authority',async()=>{
+ const f=workerFixture(),id='00000000-0000-4000-8000-000000000333';await f.push(id);await f.push(id);
+ assert.equal(f.hints.length,1);assert.equal(JSON.stringify(f.hints[0]),JSON.stringify({type:'firehouse:records-changed',kind:'cad'}));
+});
 
 test('CAD, reminder and legacy queued pushes use the transparent badge and keep the full-color large icon',async()=>{
  const f=workerFixture();

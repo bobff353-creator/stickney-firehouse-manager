@@ -14,11 +14,13 @@ test('only fresh, accurate numeric positions are eligible; network/default/old f
 test('adaptive sender does not multiply stationary writes and moves immediately after its minimum spacing',()=>{
  const previous=fix();assert.equal(shouldSendLocation(previous,null,0,false,now),true);
  assert.equal(shouldSendLocation(fix(now+119000),previous,now,false,now+119000),false);
- assert.equal(shouldSendLocation(fix(now+120000),previous,now,false,now+120000),true);
+ assert.equal(shouldSendLocation(fix(now+120000),previous,now,false,now+120000),false);
  assert.equal(shouldSendLocation(fix(now+5000,{moving:true}),previous,now,false,now+5000),true);
  assert.equal(shouldSendLocation(fix(now+5000,{moving:true}),fix(now,{moving:true}),now,false,now+5000),false);
  assert.equal(shouldSendLocation(fix(now+5000,{moving:true}),fix(now,{moving:true}),now,true,now+5000),true);
- let last=fix(),sent=now,count=1;for(let time=now+1000;time<now+86400000;time+=1000){const candidate=fix(time);if(shouldSendLocation(candidate,last,sent,false,time)){last=candidate;sent=time;count++;}}assert.equal(count,720,'stationary 24-hour simulation, initial fix included');
+ let last=fix(),sent=now,count=1;for(let time=now+1000;time<now+86400000;time+=1000){const candidate=fix(time);if(shouldSendLocation(candidate,last,sent,false,time)){last=candidate;sent=time;count++;}}assert.equal(count,1,'stationary 24-hour simulation sends only the initial fix');
+ assert.equal(shouldSendLocation(fix(now+5000),fix(now,{moving:true}),now,true,now+5000),true,'final stopped position is still sent');
+ assert.equal(shouldSendLocation(fix(now+15000,{latitude:41.82}),previous,now,false,now+15000),true,'actual displacement still sends without a speed reading');
 });
 test('atomic ingest is scoped to the paired vehicle; rejected/no-op fixes send no notifications',async()=>{
  const pg=await locationTestDatabase();try{

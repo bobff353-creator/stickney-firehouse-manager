@@ -14,6 +14,11 @@ export async function GET(request: Request) {
     const db = await ensureDatabase();
     const type = resourceType(request);
     if (!await hasPermission(request, db, "documents.view")) return Response.json({ error: "Document access is not enabled for this account." }, { status: 403 });
+    if (new URL(request.url).searchParams.get('summary') === '1') {
+      // Home needs a count, not every policy/box-card body and revision history.
+      const row = await db.prepare(type === 'policy' ? 'SELECT COUNT(*) count FROM policies' : 'SELECT COUNT(*) count FROM box_cards').first<{ count: number }>();
+      return Response.json({ count: Number(row?.count ?? 0) }, { headers: { 'Cache-Control': 'private, no-store' } });
+    }
     const canEdit = await hasPermission(request, db, type === "policy" ? "policies.manage" : "box_cards.manage");
     const rows = type === "policy"
       ? await db.prepare("SELECT id, title, policy_number AS policyNumber, category, effective_date AS effectiveDate, body, status, created_by AS createdBy, COALESCE(created_at, updated_at) AS createdAt, updated_by AS updatedBy, updated_at AS updatedAt FROM policies ORDER BY CAST(policy_number AS INTEGER), title COLLATE NOCASE").all()

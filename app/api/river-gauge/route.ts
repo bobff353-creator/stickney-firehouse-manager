@@ -27,8 +27,9 @@ export async function GET() {
   try {
     const response = await fetch(apiUrl, {
       headers: { accept: "application/json", "user-agent": "Stickney-Fire-Operations-Board/1.0" },
-      cf: { cacheTtl: 300, cacheEverything: true },
-    } as RequestInit & { cf: { cacheTtl: number; cacheEverything: boolean } });
+      next: { revalidate: 300 },
+      signal: AbortSignal.timeout(12000),
+    });
     if (!response.ok) throw new Error(`NOAA returned ${response.status}`);
     const gauge = await response.json() as GaugeMetadata;
     const observed = gauge.status?.observed;

@@ -1,4 +1,5 @@
 import { createInventorySupabaseClient } from "../../lib/supabase-server";
+import { privatePacketResponse } from '../../lib/private-packet-response';
 import { airAssetInput, airSaveError } from "../../inventory-air-input";
 import { serviceScheduleInput } from "../../inventory-service-schedule";
 import {
@@ -285,7 +286,7 @@ export async function GET(request: Request) {
       proposed_apparatus_name: apparatusById.get(request.proposed_apparatus_id)?.name || "Unknown apparatus",
       proposed_compartment_label: compartmentById.get(request.proposed_compartment_id)?.label || "Unknown location",
     }));
-    return privateJson({
+    return privatePacketResponse(request, {
       configured: true,
       apparatus,
       compartments,

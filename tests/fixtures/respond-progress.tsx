@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import Respond from '../../app/respond';
+import { respondingUnitsIncludeUnit } from '../../app/respond-device';
 import '../../app/globals.css';
 import '../../app/mobile-usability.css';
 import '../../app/portal-usability.css';
 
 const params = new URLSearchParams(location.search);
 const compactPreview = params.has('compact');
+const multiCallPreview = params.has('calls');
+let clearedPreviewCall = false, addedPreviewCall = false;
 const previewNotes = Array.from({ length: 12 }, (_, index) => `Preview dispatch note ${index + 1}: Fictional layout verification only. This longer line checks that all notes remain readable without being clipped.`).join('\n\n') + '\n\nEND OF PREVIEW DISPATCH NOTES';
 const previewPhoto = params.get('photo');
 const previewWidth = previewPhoto === 'portrait' ? 600 : 1200;
@@ -33,6 +36,27 @@ window.fetch = async (input, init) => {
   if (url.pathname !== '/api/respond') throw new Error(`Unexpected API ${url.pathname}`);
   if (audit.hold) await new Promise<void>(resolve => { audit.pending = resolve; });
   if (audit.failed) return Response.json({ error: 'Simulated interrupted call update' }, { status: 503 });
+  if (multiCallPreview) {
+    const eligible = [
+      ...(addedPreviewCall ? [{reportNumber:'PREVIEW-400',callType:'NEW FICTIONAL CALL',address:'4 Preview Avenue',respondingUnits:'1204'}] : []),
+      {reportNumber:'PREVIEW-300',callType:'FICTIONAL LIFT ASSIST',address:'3 Preview Avenue',respondingUnits:'1204'},
+      ...(!clearedPreviewCall ? [{reportNumber:'PREVIEW-200',callType:'FICTIONAL FIRE ALARM AT A LONG BUILDING NAME',address:'2 Preview Avenue',respondingUnits:'1205'}] : []),
+      {reportNumber:'PREVIEW-100',callType:'FICTIONAL WATER CALL',address:'1 Preview Avenue',respondingUnits:'1204'},
+    ].filter(call=>respondingUnitsIncludeUnit(call.respondingUnits,url.searchParams.get('apparatus')||''));
+    const requested=url.searchParams.get('report')||'';
+    const chosen=eligible.find(call=>call.reportNumber===requested);
+    const active=chosen||eligible[0];
+    return Response.json({
+      departmentId:audit.departmentId,apparatusFilter:url.searchParams.get('apparatus'),generatedAt:new Date().toISOString(),
+      activeCalls:eligible,selectionUnavailable:Boolean(requested&&!chosen),
+      activeCall:active?{...active,city:'Preview only',narrative:`Notes for ${active.reportNumber}`,source:'Fictional fixture',timeOut:'1200',dispatchedAt:new Date().toISOString(),latitude:null,longitude:null}:null,
+      preplan:active&&previewPreplan?{...previewPreplan,id:'plan-'+active.reportNumber,businessName:'Building for '+active.reportNumber,address:active.address}:null,
+      cadUpdates:active?[{eventType:'Preview dispatch',status:'test',narrative:`Notes for ${active.reportNumber}`,receivedAt:new Date().toISOString(),respondingUnits:active.respondingUnits}]:[],
+      recentCalls:[],boxCard:active?{id:'box-'+active.reportNumber,title:'Box for '+active.reportNumber,boxNumber:active.reportNumber,address:'Preview only'}:null,
+      nearestHydrants:active?[{id:'hydrant-'+active.reportNumber,address:'Hydrant for '+active.reportNumber,distanceFeet:100,serviceStatus:'in_service'}]:[],
+      operational:null,overview:{apparatus:null,preplans:[],hydrants:[],roadClosures:[]},
+    });
+  }
   return Response.json({
     departmentId: audit.departmentId, apparatusFilter: url.searchParams.get('apparatus'), generatedAt: new Date().toISOString(),
     activeCall: audit.noCall ? null : { reportNumber: audit.reportNumber, callType: 'FICTIONAL TEST CALL', category: 'Test', address: 'Preview only — not an incident', city: 'Stickney', narrative: compactPreview ? previewNotes : '', respondingUnits: audit.assigned, longitude: null, latitude: null, dispatchedAt: new Date().toISOString(), timeOut: '1200', source: 'Fixture', receivedAt: new Date().toISOString() },
@@ -52,6 +76,10 @@ function Fixture() {
       <button onClick={() => window.dispatchEvent(new Event('online'))}>Refresh fixture</button>
       <button onClick={() => setMounted(value => !value)}>Toggle Respond</button>
       {compactPreview && <button onClick={() => { audit.failed = !audit.failed; window.dispatchEvent(new Event('online')); }}>Toggle interrupted updates</button>}
+      {multiCallPreview && <>
+        <button onClick={()=>{clearedPreviewCall=true;window.dispatchEvent(new Event('online'));}}>Clear preview call 200</button>
+        <button onClick={()=>{addedPreviewCall=true;window.dispatchEvent(new Event('online'));}}>Add preview call 400</button>
+      </>}
       {destination && <output>Preview navigation: {destination}</output>}
     </div>
     {mounted && <section className="workspace" style={{ margin: 0, padding: 12 }}><Respond apparatus={unit} onNavigate={page => { audit.navigations.push(page); setDestination(page); }} /></section>}

@@ -19,6 +19,9 @@ import StaffingRotation, { type NewMember, type StaffingPerson } from "./staffin
 import BoardLinksEditor, { BoardSectionLinks } from './board-links-panel';
 import { boardLinkSections, defaultBoardLinks, isBoardLinkSection, type BoardLinksSignal, type BoardLinkSectionId } from './board-links';
 import linkStyles from './board-links.module.css';
+import { createConditionalJsonReader } from './conditional-json-reader';
+import { synchronizedSlide } from './board-sync-clock';
+import { onOperationalPush } from './operational-push-refresh';
 
 type BoardRoadClosure = { id:string;roadName:string;reason:string;path:Array<{lat:number;lng:number}>;detourLatitude:number;detourLongitude:number;startedAt:string;expectedClearAt:string|null };
 type BoardData = { asOf: string; currentShift: string; onDuty: StaffingPerson[]; newMembers: NewMember[]; officerInCharge: string | null; staffing: { filled: number; required: number; complete: boolean }; equipmentIssues: Array<{ id?: string; item: string; status: string; detail: string }>; activeCalls: Array<{ reportNumber: string; timeOut: string; respondingUnits: string; address: string; callType: string; narrative?: string; source?: string }>; apparatus: Array<{ unit: string; status: string }>; roadClosures:BoardRoadClosure[]; error?: string };
@@ -64,12 +67,6 @@ const alertToneIds = new Set<string>(alertTones.map((tone) => tone.id));
 const displayName = formatEmployeeName;
 const shiftLabel = (value: string) => value === "morning" ? "6:00 AM – Noon" : value === "afternoon" ? "Noon – 6:00 PM" : "6:00 PM – 6:00 AM";
 
-async function fetchBoardJson<T>(url: string, signal: AbortSignal): Promise<JsonResponse<T>> {
-  const response = await fetch(url, { cache: "no-store", signal });
-  const payload = await response.json().catch(() => null) as T | null;
-  return { ok: response.ok, status: response.status, payload };
-}
-
 function TrainingCourses({ provider, today }: { provider: TrainingProvider; today: string }) {
   const upcoming = provider.courses.filter(course => course.startDate > today);
   return <div className="training-board">
@@ -80,6 +77,7 @@ function TrainingCourses({ provider, today }: { provider: TrainingProvider; toda
 }
 
 export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewActiveCall }: { tvMode?: boolean; onTvModeChange?: (enabled: boolean) => void; onNewActiveCall?: (call: BoardData["activeCalls"][number]) => void }) {
+  const packetReader = useRef(createConditionalJsonReader());
   const [boardLinks, setBoardLinks] = useState(() => ({ settings: defaultBoardLinks(), canEdit: false, confirmed: false }));
   const [linkEditor, setLinkEditor] = useState<BoardLinkSectionId | null>(null);
   const [trainingEditor, setTrainingEditor] = useState<TrainingSourceId | null>(null);
@@ -168,13 +166,19 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
     loadControllerRef.current = controller;
     const timeout = window.setTimeout(() => controller.abort(), 15000);
     try {
-      const [dashboard, dutiesResult, fleetResult] = await Promise.all([
-        fetchBoardJson<BoardData>("/api/dashboard?scope=live-operations", controller.signal),
-        fetchBoardJson<{ currentDuty?: CurrentDuty | null; dailyFleetChecks?: DailyFleetCheck[] }>("/api/daily-duties?scope=live-operations", controller.signal).catch(() => ({ ok: false, status: 0, payload: null })),
-        fetchBoardJson<{ apparatus?: FleetApparatus[] }>("/api/suite-context?scope=live-operations", controller.signal).catch(() => ({ ok: false, status: 0, payload: null })),
-      ]);
+      const response = await packetReader.current.read('/api/live-operations', { signal: controller.signal });
+      const bundle = await response.json() as {
+        dashboard?: JsonResponse<BoardData>;
+        duties?: JsonResponse<{ currentDuty?: CurrentDuty | null; dailyFleetChecks?: DailyFleetCheck[] }>;
+        fleet?: JsonResponse<{ apparatus?: FleetApparatus[] }>;
+        error?: string;
+      };
+      const failed = { ok: false, status: response.status, payload: null };
+      const dashboard = bundle.dashboard ?? { ...failed, payload: { error: bundle.error } as BoardData };
+      const dutiesResult = bundle.duties ?? failed;
+      const fleetResult = bundle.fleet ?? failed;
       if (controller.signal.aborted) return;
-      if ([dashboard, dutiesResult, fleetResult].some(result => result.status === 401 || result.status === 403)) {
+      if ([dashboard, dutiesResult, fleetResult].some(result => [401, 403, 423].includes(result.status))) {
         setData(null); setCurrentDuty(null); setDailyFleetChecks([]); setLastRefresh(null);
         setError("Live Operations access could not be confirmed. Rechecking your permissions.");
         void refreshPermissions();
@@ -216,6 +220,7 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
     }
   }, [playAlert]);
   useEffect(() => { onNewActiveCallRef.current = onNewActiveCall; }, [onNewActiveCall]);
+  useEffect(() => onOperationalPush(() => void load()), [load]);
   useEffect(() => { const timer = window.setTimeout(() => { const storedTone = window.localStorage.getItem("stickney-call-alert-tone") || ""; const selectedTone = alertToneIds.has(storedTone) ? storedTone as AlertTone : "minitor-two-tone"; const enabled = window.localStorage.getItem("stickney-call-alert-enabled") === "true"; setAlertTone(selectedTone); setAlertEnabled(enabled); alertToneRef.current = selectedTone; alertEnabledRef.current = enabled; }, 0); return () => window.clearTimeout(timer); }, []);
   useEffect(() => {
     const initial = window.setTimeout(() => void load(), 0);
@@ -225,10 +230,19 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
   }, [load]);
   useEffect(() => {
     if (rotationPaused || linkEditor || trainingEditor) return;
+    if (tvMode) {
+      const sync = () => {
+        setRotation(rotationOrder[synchronizedSlide(Date.now(), 12000, rotationOrder.length)]);
+        setHeaderRotation(headerRotationOrder[synchronizedSlide(Date.now(), 8000, headerRotationOrder.length)]);
+      };
+      const initial = window.setTimeout(sync, 0);
+      const timer = window.setInterval(sync, 1000);
+      return () => { window.clearTimeout(initial); window.clearInterval(timer); };
+    }
     const rotate = window.setInterval(() => setRotation(current => rotationOrder[(rotationOrder.indexOf(current) + 1) % rotationOrder.length]), 12000);
     const rotateHeader = window.setInterval(() => setHeaderRotation(current => headerRotationOrder[(headerRotationOrder.indexOf(current) + 1) % headerRotationOrder.length]), 8000);
     return () => { window.clearInterval(rotate); window.clearInterval(rotateHeader); };
-  }, [rotationPaused, linkEditor, trainingEditor]);
+  }, [rotationPaused, linkEditor, trainingEditor, tvMode]);
   useEffect(() => {
     if (!tvMode) return;
     let disposed = false;
@@ -349,8 +363,8 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
     {Boolean(data?.roadClosures?.length)&&<section className="board-road-closures" aria-label="Active road closures"><header><span>ROAD OUT OF SERVICE</span><strong>{data!.roadClosures.length} active</strong></header><div>{data!.roadClosures.map((closure)=><article key={closure.id}><div><h2>{closure.roadName}</h2><p>{closure.reason||"Department road closure"}</p><small>Expected clear: {boardClosureTime(closure.expectedClearAt)}</small></div><a href={boardDetourUrl(closure)} target="_blank" rel="noreferrer">OPEN DETOUR ↗</a></article>)}</div></section>}
     <div className="board-summary"><article className={data?.staffing.complete ? "clear" : "warning"}><span>Staffing</span><strong>{data?.staffing.filled ?? "—"} / {data?.staffing.required ?? 4}</strong><small>{data?.staffing.complete ? "Complete" : "Coverage needs attention"}</small></article><article className={data?.officerInCharge ? "clear" : "warning"}><span>Officer in charge</span><strong>{data?.officerInCharge ? displayName(data.officerInCharge) : "Not signed in"}</strong><small>Current shift command</small></article><article className={`active-call-summary ${activeCall ? "active" : "clear"}`}><span>{data?.activeCalls.length ? `Active call${data.activeCalls.length > 1 ? ` · ${data.activeCalls.length} total` : ""}` : "Active call"}</span>{activeCall ? <><strong>{activeCall.callType}</strong><b>{activeCall.address || "Address not entered"}</b>{activeCall.narrative && <em>{activeCall.narrative}</em>}<small>{activeCall.respondingUnits || "Units pending"} · {activeCall.timeOut ? formatMilitaryTime(activeCall.timeOut) : "Time pending"}{activeCall.source ? ` · ${activeCall.source}` : ""}</small></> : <><strong>None</strong><small>No open calls</small></>}</article><article><span>Next shift change</span><strong>{next.label}</strong><small>In {next.remaining}</small></article></div>
     {linkMessage && !tvMode && <p role="status">{linkMessage}</p>}
-    <div className="board-grid redesigned"><ChiefBoardPanel onBoardLinks={receiveBoardLinks} />
-      <StaffingRotation mode="board" onDuty={data?.onDuty ?? []} newMembers={data?.newMembers ?? []} />
+    <div className="board-grid redesigned"><ChiefBoardPanel onBoardLinks={receiveBoardLinks} tvMode={tvMode} />
+      <StaffingRotation mode="board" onDuty={data?.onDuty ?? []} newMembers={data?.newMembers ?? []} tvMode={tvMode} />
       <section className={`board-panel equipment rotating-panel ${linkStyles.panel} ${rotation}${rotation === "duty" && dailyChecksNeedAttention ? " daily-check-alert" : ""}`} aria-live="polite">
         <header>
           <h2>{rotation === "equipment" ? "Equipment issues" : rotation === "duty" ? dailyFleetChecks.length ? "Scheduled apparatus checks" : "Current daily duty" : boardLinks.settings.sections[rotation].title}</h2>

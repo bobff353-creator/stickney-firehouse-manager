@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import { createHash } from 'node:crypto';
+import { privatePacketResponse } from '../app/lib/private-packet-response.ts';
 import { readIllustrations } from '../app/preplans/photo-illustrations.ts';
 
 test('unchanged Respond polls skip catalogs while rechecking access and live calls', async () => {
@@ -19,6 +20,7 @@ test('unchanged Respond polls skip catalogs while rechecking access and live cal
   const source = readFileSync(new URL('../app/api/respond/route.ts', import.meta.url), 'utf8');
   const compiled = ts.transpileModule(source, {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
   const mocks = {
+    '../../lib/private-packet-response': {privatePacketResponse},
     '../../../db/bootstrap': {ensureDatabase: async()=>db},
     'node:crypto': {createHash},
     '../../server-permissions': {hasPermission:async()=>{checks++;return allowed;}},
@@ -70,7 +72,8 @@ test('unchanged Respond polls skip catalogs while rechecking access and live cal
 test('client retains packet on heartbeat and forces a full retry after failure',()=>{
   const source=readFileSync(new URL('../app/respond.tsx',import.meta.url),'utf8');
   assert.match(source,/response.status === 204/);
-  assert.match(source,/catch \(value\) \{\s+lastPacketRevision.current = \{ apparatus: "", revision: "" \}/);
+  assert.match(source,/lastPacketRevision.current = \{ apparatus: "", reportNumber: "", revision: "" \}/);
+  assert.match(source,/lastPacketRevision.current.reportNumber === selectedReportNumber/);
   assert.match(source,/lastPacketRevision.current.apparatus === apparatus/);
   assert.match(source,/setInterval\(\(\) => void load\(\), 10000\)/);
 });

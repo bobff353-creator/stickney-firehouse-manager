@@ -77,8 +77,16 @@ async function displayCadPush(payload) {
       const keys = await receipts.keys();
       await Promise.all(keys.slice(0, Math.max(0, keys.length - 200)).map(key => receipts.delete(key)));
     }
-  } catch { /* Stable notification tag still avoids replacing alerts noisily. */ }
-}
+    } catch { /* Stable notification tag still avoids replacing alerts noisily. */ }
+    return routine ? 'scheduler' : 'cad';
+  }
+  async function wakeOpenScreens(kind) {
+    if (!kind) return; // Duplicate delivery did not display a new notification.
+    try {
+      const screens = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      screens.forEach(screen => screen.postMessage({ type: 'firehouse:records-changed', kind }));
+    } catch { /* Polling remains the recovery path; never fail push display. */ }
+  }
 self.addEventListener("push", (event) => {
   let payload = {};
   try { payload = event.data ? event.data.json() : {}; } catch { payload = {}; }
@@ -86,10 +94,13 @@ self.addEventListener("push", (event) => {
   // receipts cannot evict CAD duplicate protection.
   if (payload.kind === 'scheduler') {
     schedulerSequence = schedulerSequence.catch(() => {}).then(() => displayCadPush(payload));
-    event.waitUntil(schedulerSequence);
+      event.waitUntil(schedulerSequence.then(wakeOpenScreens));
   } else {
     pushSequence = pushSequence.catch(() => {}).then(() => displayCadPush(payload));
-    event.waitUntil(pushSequence);
+      // Waking screens stays outside the notification queue: a stalled window
+      // lookup cannot hold up the next CAD alert. Only hints cross this boundary;
+      // each screen fetches records through its own current permissions.
+      event.waitUntil(pushSequence.then(wakeOpenScreens));
   }
 });
 

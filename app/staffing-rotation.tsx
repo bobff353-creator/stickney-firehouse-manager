@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { formatEmployeeName } from "./employee-names";
 import { joinedLabel } from "./member-start-label";
+import { synchronizedSlide } from './board-sync-clock';
 import type { DepartmentScheduleShift, DepartmentScheduleWindowItem } from "./department-schedule";
 
 export type StaffingPerson = { employeeId: string; name: string; rank: string; timeIn: string; timeOut: string; actingOfficer: number };
@@ -42,11 +43,13 @@ export default function StaffingRotation({
   newMembers,
   mode,
   onOpenDailyLog,
+  tvMode = false,
 }: {
   onDuty: StaffingPerson[];
   newMembers: NewMember[];
   mode: "dashboard" | "board";
   onOpenDailyLog?: () => void;
+  tvMode?: boolean;
 }) {
   const [schedule, setSchedule] = useState<SchedulePayload | null>(null);
   const [viewIndex, setViewIndex] = useState(0);
@@ -76,9 +79,9 @@ export default function StaffingRotation({
 
   useEffect(() => {
     if (views.length < 2) return;
-    const timer = window.setInterval(() => setViewIndex((index) => (index + 1) % views.length), 10000);
+    const timer = window.setInterval(() => setViewIndex((index) => tvMode ? synchronizedSlide(Date.now(), 10000, views.length) : (index + 1) % views.length), tvMode ? 1000 : 10000);
     return () => window.clearInterval(timer);
-  }, [views.length]);
+  }, [views.length, tvMode]);
 
   const title = current.type === "current"
     ? "Current staffing"

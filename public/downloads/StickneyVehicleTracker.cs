@@ -67,7 +67,7 @@ public sealed class StickneyVehicleTracker : Form {
  }
  void StopSharing(){running=false;runId++;timer.Stop();if(cancellation!=null)cancellation.Cancel();if(watcher!=null){watcher.Stop();watcher.Dispose();watcher=null;}latest=null;}
  public static bool ValidFix(GeoCoordinate point,DateTimeOffset measured,DateTime now){return point!=null&&!point.IsUnknown&&!double.IsNaN(point.HorizontalAccuracy)&&point.HorizontalAccuracy>0&&point.HorizontalAccuracy<=75&&measured.UtcDateTime>=now.AddSeconds(-30)&&measured.UtcDateTime<=now.AddSeconds(5);}
- public static bool Due(double elapsed,bool moving,bool previousMoving,bool first){return first||elapsed>=5&&(moving!=previousMoving||elapsed>=(moving?5:120));}
+ public static bool Due(double elapsed,bool moving,bool previousMoving,bool first){return first||elapsed>=5&&(moving!=previousMoving||moving);}
  async Task Tick(){
   if(!running||busy||DateTime.UtcNow<nextAttempt)return;
   var now=DateTime.UtcNow;
@@ -89,7 +89,7 @@ public sealed class StickneyVehicleTracker : Form {
      if(!running||own!=runId)return;
      if(response.StatusCode==HttpStatusCode.Unauthorized){StopSharing();status.Text="This vehicle pairing expired or was disabled. Create a replacement in Respond.";return;}
      var result=json.Deserialize<Dictionary<string,object>>(await response.Content.ReadAsStringAsync());object accepted;
-     if(response.IsSuccessStatusCode&&result.TryGetValue("accepted",out accepted)&&accepted is bool&&(bool)accepted){last=point;lastSent=DateTime.UtcNow;lastMoving=moving;nextAttempt=DateTime.MinValue;status.Text="Unit "+unit+": sharing location, accuracy ±"+Math.Round(point.HorizontalAccuracy)+" m. Last saved "+lastSent.ToLocalTime().ToString("T")+".\n"+(moving?"Moving: at most one update every 5 seconds.":"Stationary: one update every 2 minutes.")+"\nMinimize this window to keep sharing while using other applications.";}
+     if(response.IsSuccessStatusCode&&result.TryGetValue("accepted",out accepted)&&accepted is bool&&(bool)accepted){last=point;lastSent=DateTime.UtcNow;lastMoving=moving;nextAttempt=DateTime.MinValue;status.Text="Unit "+unit+": sharing location, accuracy ±"+Math.Round(point.HorizontalAccuracy)+" m. Last saved "+lastSent.ToLocalTime().ToString("T")+".\n"+(moving?"Moving: at most one update every 5 seconds.":"Stopped: position saved. No repeated parked uploads; screens show its last-known age.")+"\nMinimize this window to keep sharing while using other applications.";}
      else{nextAttempt=DateTime.UtcNow.AddSeconds(15);status.Text="Location not accepted. Check GPS accuracy and Windows time. Last confirmed position is retained.";}
     }
    }
@@ -101,7 +101,7 @@ public sealed class StickneyVehicleTracker : Form {
   if(!ValidFix(new GeoCoordinate(41.8,-87.7,0,10,0,0,0),new DateTimeOffset(now),now))return 1;
   if(ValidFix(new GeoCoordinate(41.8,-87.7,0,500,0,0,0),new DateTimeOffset(now),now))return 2;
   if(ValidFix(new GeoCoordinate(41.8,-87.7,0,10,0,0,0),new DateTimeOffset(now.AddMinutes(-2)),now))return 3;
-  if(Due(4,true,true,false)||!Due(5,true,true,false)||Due(119,false,false,false)||!Due(120,false,false,false))return 4;
+  if(Due(4,true,true,false)||!Due(5,true,true,false)||Due(120,false,false,false)||Due(86400,false,false,false)||!Due(5,false,true,false)||!Due(0,false,false,true))return 4;
   if(ValidSetup(new Dictionary<string,object>{{"endpoint","https://example.invalid/api/apparatus-locations/ingest"},{"token",new string('x',43)},{"unit","TEST"}}))return 5;
   Console.WriteLine("PASS: Windows sender accuracy, freshness, cadence and destination checks. No GPS or network accessed.");return 0;
  }

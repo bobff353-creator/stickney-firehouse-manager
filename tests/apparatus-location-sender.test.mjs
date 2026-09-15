@@ -20,7 +20,8 @@ test('browser sender validates GPS, prevents overlapping posts, pauses hidden pa
   clock+=10000;callback(point());interval();await flush();assert.equal(fetches,1,'in-flight POST is not duplicated');
   resolveFetch(Response.json({accepted:true}));await flush();await flush();assert.match(reports.at(-1),/Sharing/);
   hidden=true;clock+=120000;callback(point());interval();await flush();assert.equal(fetches,1);assert.match(reports.at(-1),/hidden/);
-  hidden=false;interval();await flush();assert.equal(fetches,2);resolveFetch(Response.json({accepted:false},{status:401}));await flush();await flush();
+  hidden=false;interval();await flush();assert.equal(fetches,1,'parked coordinates are not resent after visibility resumes');
+  callback({...point(),coords:{...point().coords,speed:2}});interval();await flush();assert.equal(fetches,2);resolveFetch(Response.json({accepted:false},{status:401}));await flush();await flush();
   assert.equal(active.at(-1),false);assert.equal(interval,null);assert.equal(cleared,1);assert.match(reports.at(-1),/revoked/);
   const count=reports.length;callback(point(999));assert.equal(reports.length,count,'late GPS callback cannot update a stopped sender');await running;
  }finally{sender.stop();Date.now=originalNow;for(const[name,descriptor]of originals){if(descriptor)Object.defineProperty(globalThis,name,descriptor);else delete globalThis[name];}}

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "./chief-board-panel.module.css";
 import type { BoardOfficer } from "./board-officers";
 import type { BoardLinksSignal } from './board-links';
+import { synchronizedSlide } from './board-sync-clock';
 
 type Attachment = { id: string; filename: string; contentType: string; sizeBytes: number; url: string };
 type ChiefItem = {
@@ -49,7 +50,7 @@ function floodLabel(category: string) {
   return category.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export default function ChiefBoardPanel({ onBoardLinks }: { onBoardLinks?: (signal: BoardLinksSignal) => void }) {
+export default function ChiefBoardPanel({ onBoardLinks, tvMode = false }: { onBoardLinks?: (signal: BoardLinksSignal) => void; tvMode?: boolean }) {
   const [items, setItems] = useState<ChiefItem[]>([]);
   const [river, setRiver] = useState<RiverGauge | null>(null);
   const [riverError, setRiverError] = useState("");
@@ -70,7 +71,7 @@ export default function ChiefBoardPanel({ onBoardLinks }: { onBoardLinks?: (sign
     const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]);
     try {
       const linksQuery = linksRevision.current === null ? '' : `&links-revision=${encodeURIComponent(linksRevision.current)}`;
-      const [boardResponse, riverResponse] = await Promise.all([fetch(onBoardLinks ? `/api/chief-board?include-links=1${linksQuery}` : "/api/chief-board", { cache: 'no-store', signal }), fetch("/api/river-gauge", { cache: 'no-store', signal })]);
+      const [boardResponse, riverResponse] = await Promise.all([fetch(onBoardLinks ? `/api/chief-board?include-links=1${linksQuery}` : "/api/chief-board", { cache: 'no-store', signal }), fetch("/api/river-gauge", { signal })]);
       const result = await boardResponse.json() as { items?: ChiefItem[]; canEdit?: boolean; officers?: BoardOfficer[]; error?: string; boardLinks?: BoardLinksSignal };
       const riverResult = await riverResponse.json() as RiverGauge & { error?: string };
       if (controller.signal.aborted) return;
@@ -115,9 +116,9 @@ export default function ChiefBoardPanel({ onBoardLinks }: { onBoardLinks?: (sign
   const slideCount = items.length + 1;
   useEffect(() => {
     if (slideCount < 2) return;
-    const timer = window.setInterval(() => setCurrent((value) => (value + 1) % slideCount), 12000);
+    const timer = window.setInterval(() => setCurrent((value) => tvMode ? synchronizedSlide(Date.now(), 12000, slideCount) : (value + 1) % slideCount), tvMode ? 1000 : 12000);
     return () => window.clearInterval(timer);
-  }, [slideCount]);
+  }, [slideCount, tvMode]);
   useEffect(() => { setCurrent((value) => value % slideCount); }, [slideCount]);
   const riverActive = current === items.length;
   const item = riverActive ? undefined : items[current];
