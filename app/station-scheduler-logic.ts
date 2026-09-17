@@ -207,7 +207,7 @@ export type DistributionEmployee = {
   crossTrained: boolean;  // legacy metadata; never overrides role eligibility
 };
 
-export type OpenSlot = { slotId: string; date: string; role: string; hours: number; startTime?: string; endTime?: string };
+export type OpenSlot = { slotId: string; date: string; role: string; hours: number; startTime: string; endTime: string };
 
 export type DistributionBooking = { employeeId: string; date: string; startTime: string; endTime: string };
 
@@ -254,16 +254,22 @@ function distributionRolePriority(role: string) {
   const index = order.indexOf(role);
   return index < 0 ? order.length : index;
 }
+function distributionWindow(slot: { date: string; startTime: string; endTime: string }): [number, number] {
+  const base = Date.parse(`${slot.date}T00:00:00Z`) / 60000;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(slot.date) || !Number.isFinite(base)
+    || new Date(base * 60000).toISOString().slice(0, 10) !== slot.date
+    || ![slot.startTime, slot.endTime].every(time => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time))) {
+    throw new Error("A saved shift has an invalid time. Correct it before Auto-Distribution.");
+  }
+  const minute = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
+  const start = base + minute(slot.startTime);
+  let end = base + minute(slot.endTime);
+  if (end <= start) end += 1440;
+  return [start, end];
+}
+
 export function distributionOverlaps(a: { date: string; startTime: string; endTime: string }, b: { date: string; startTime: string; endTime: string }) {
-  const window = (slot: typeof a) => {
-    const base = Date.parse(`${slot.date}T00:00:00Z`) / 60000;
-    const minute = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
-    const start = base + minute(slot.startTime);
-    let end = base + minute(slot.endTime);
-    if (end <= start) end += 1440;
-    return [start, end];
-  };
-  const [startA, endA] = window(a), [startB, endB] = window(b);
+  const [startA, endA] = distributionWindow(a), [startB, endB] = distributionWindow(b);
   return startA < endB && startB < endA;
 }
 
@@ -298,10 +304,11 @@ export function scoreCandidate(
  * Fill Officer/AO, Engine Driver, Ambulance Driver, then FF/Attendant within
  * each shift. Among eligible members prefer fewer scheduled hours, then rank
  * and earlier start-date seniority. Old numeric weights cannot override this.
- * Members already working that day are excluded (across existing bookings and
- * slots filled earlier in this run). Assigned hours accrue so later
+ * Only overlapping work excludes a member, across existing bookings and slots
+ * filled earlier in this run. Adjoining shifts do not overlap. Hours accrue so later
  * slots see updated load. `eligibility[slotId]` lists eligible employee ids for
- * that slot's role; `busyByDate[date]` seeds employees already booked that day.
+ * that slot's role; existing bookings include the prior and following day so
+ * overnight conflicts are checked without blocking the entire calendar date.
  *
  * Deterministic: process dates/times first; final ties break by name then ID.
  * Returns only the slots that could be filled.
@@ -311,33 +318,30 @@ export function autoDistribute(
   employees: DistributionEmployee[],
   _weights: DistributionWeights,
   eligibility: Record<string, string[]>,
-  busyByDate: Record<string, string[]> = {},
   existingBookings: DistributionBooking[] = [],
 ): DistributionAssignment[] {
   const byId = new Map(employees.map((e) => [e.employeeId, { ...e }]));
-  const busy: Record<string, Set<string>> = {};
-  for (const [date, ids] of Object.entries(busyByDate)) busy[date] = new Set(ids);
 
   const assignments: DistributionAssignment[] = [];
   const bookings = [...existingBookings];
+  // Missing or malformed bounds cannot silently remove overlap protection.
+  for (const booking of bookings) distributionWindow(booking);
+  for (const slot of openSlots) distributionWindow(slot);
   const orderedSlots = [...openSlots].sort((a, b) => a.date.localeCompare(b.date)
-    || (a.startTime ?? "").localeCompare(b.startTime ?? "")
+    || a.startTime.localeCompare(b.startTime)
     || distributionRolePriority(a.role) - distributionRolePriority(b.role)
     || a.slotId.localeCompare(b.slotId));
   for (const slot of orderedSlots) {
     const eligibleIds = new Set(eligibility[slot.slotId] ?? []);
-    const dayBusy = (busy[slot.date] ??= new Set());
     const candidates = employees
       .map((e) => byId.get(e.employeeId)!)
-      .filter((e) => eligibleIds.has(e.employeeId) && !dayBusy.has(e.employeeId)
-        && (!slot.startTime || !slot.endTime || !bookings.some(booking => booking.employeeId === e.employeeId
-          && distributionOverlaps({ date: slot.date, startTime: slot.startTime!, endTime: slot.endTime! }, booking))));
+      .filter((e) => eligibleIds.has(e.employeeId)
+        && !bookings.some(booking => booking.employeeId === e.employeeId && distributionOverlaps(slot, booking)));
     if (!candidates.length) continue;
     const best = candidates.sort(compareDistributionCandidates)[0];
     if (!best) continue;
     assignments.push({ slotId: slot.slotId, employeeId: best.employeeId, score: -best.hours, hours: slot.hours });
-    dayBusy.add(best.employeeId);
-    if (slot.startTime && slot.endTime) bookings.push({ employeeId: best.employeeId, date: slot.date, startTime: slot.startTime, endTime: slot.endTime });
+    bookings.push({ employeeId: best.employeeId, date: slot.date, startTime: slot.startTime, endTime: slot.endTime });
     const record = byId.get(best.employeeId)!;
     record.hours += slot.hours;
   }

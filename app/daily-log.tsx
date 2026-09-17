@@ -1,6 +1,7 @@
 "use client";
 import { fleetChecksForShift } from "./fleet-check-shift";
 import { parseSavedTime, savedTimeLabel } from "./workflow-status";
+import { SaveStatus } from "./save-status";
 import { useWorkspaceViewState } from "./workspace-view-state";
 import { CALLBACK_QUALIFYING_CALL_TYPES } from "./callback-rules";
 
@@ -455,6 +456,9 @@ export default function DailyLog({
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState("");
   const [handoff, setHandoff] = useState<Handoff | null>(null);
+  const [handoffSaving, setHandoffSaving] = useState(false);
+  const [handoffError, setHandoffError] = useState("");
+  const handoffPending = useRef(false);
   const [officerId, setOfficerId] = useState("");
   const [equipment, setEquipment] = useState(cleanEquipment);
   const [handoffNote, setHandoffNote] = useState("");
@@ -476,7 +480,7 @@ export default function DailyLog({
   const [saveConflict, setSaveConflict] = useState(false);
   const latestSave = useRef({ logDate, staffing, calls, shiftNotes });
   const readOnly = loading || loadError || loadedDate !== logDate || (locked && !adminUnlocked) || saveConflict;
-  useUnsavedWork(dirty, saving);
+  useUnsavedWork(dirty, saving || handoffSaving);
   const holiday = useMemo(() => holidayForDate(logDate), [logDate]);
   useEffect(() => {
     latestSave.current = { logDate, staffing, calls, shiftNotes };
@@ -862,6 +866,7 @@ export default function DailyLog({
     }
     setMessage("");
     setHandoff({ shiftKey, shiftTitle, mode });
+    setHandoffError("");
     setOfficerId("");
     setEquipment(cleanEquipment());
     setHandoffNote("");
@@ -869,7 +874,7 @@ export default function DailyLog({
     setAcceptedFleetDuties(false);
   }
   async function submitHandoff() {
-    if (!handoff) return;
+    if (!handoff || handoffPending.current) return;
     const hasIssueWithoutDetail = Object.values(equipment).some(
       (item) => item.status !== "Present" && !item.detail.trim(),
     );
@@ -890,6 +895,10 @@ export default function DailyLog({
       !handoffNote.trim()
     )
       return setMessage("Add a handoff note for the equipment issue.");
+    handoffPending.current = true;
+    setHandoffSaving(true);
+    setHandoffError("");
+    try {
     const response = await fetch("/api/logbook", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -913,7 +922,7 @@ export default function DailyLog({
     if (!response.ok) {
       if (result.incompleteFleetChecks)
         setIncompleteFleetChecks(result.incompleteFleetChecks);
-      return setMessage(result.error || "Unable to save approval");
+      throw new Error(result.error || "Unable to save approval");
     }
     const successMessage =
       handoff.mode === "in"
@@ -922,6 +931,12 @@ export default function DailyLog({
     setHandoff(null);
     await loadLog(logDate);
     setMessage(successMessage);
+    } catch (error) {
+      setHandoffError(error instanceof Error ? error.message : "The approval was not confirmed. Check your connection, then retry.");
+    } finally {
+      handoffPending.current = false;
+      setHandoffSaving(false);
+    }
   }
   async function adminUnlock() {
     if (unlocking) return;
@@ -1562,6 +1577,7 @@ export default function DailyLog({
               </div>
               <button
                 aria-label="Close officer approval"
+                disabled={handoffSaving}
                 onClick={() => setHandoff(null)}
               >
                 ×
@@ -1712,20 +1728,21 @@ export default function DailyLog({
                 onChange={(event) => setHandoffNote(event.target.value)}
               />
             </label>
+            <SaveStatus state={handoffSaving ? "saving" : handoffError ? "failed" : "unsaved"} detail={handoffError || "Approval is separate from saving the Daily Log."} />
             <div className="handoff-footer">
-              <button className="quiet-button" onClick={() => setHandoff(null)}>
+              <button className="quiet-button" disabled={handoffSaving} onClick={() => setHandoff(null)}>
                 Cancel
               </button>
               <button
                 className="primary-action compact"
                 disabled={
-                  !officerId ||
+                  handoffSaving || !officerId ||
                   (handoff.mode === "in" && !acceptedNotes) ||
                   (handoff.mode === "out" && !acceptedFleetDuties)
                 }
                 onClick={() => void submitHandoff()}
               >
-                {handoff.mode === "in"
+                {handoffSaving ? "Saving…" : handoffError ? "Retry approval" : handoff.mode === "in"
                   ? "Accept Shift & Sign In"
                   : "Acknowledge Duties & Sign Out"}
               </button>

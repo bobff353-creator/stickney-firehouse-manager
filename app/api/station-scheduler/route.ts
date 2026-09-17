@@ -852,9 +852,7 @@ async function runAutoDistribution(db: Db, payload: Record<string, unknown>, req
     employeeId: e.id, name: e.name, rank: e.rank, seniority: seniorityFromStartDate(e.startDate, today),
     hours: scheduledHours.get(e.id) ?? 0, crossTrained: parseRoles(e.roles).length > 1,
   }));
-  const busyByDate: Record<string, string[]> = {};
-  for (const booking of bookings) (busyByDate[booking.date] ??= []).push(booking.employeeId);
-  const assignments = autoDistribute(openSlots, distEmployees, weights, eligibility, busyByDate, bookings);
+  const assignments = autoDistribute(openSlots, distEmployees, weights, eligibility, bookings);
   if (assignments.length) {
     // One atomic save: changed availability must not leave assignments or hours half-saved.
     if (assignments.length > 500) return bad("Choose a shorter date range (up to 500 assignments per run).");

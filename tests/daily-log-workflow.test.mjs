@@ -48,7 +48,7 @@ test('shift expansion follows Central time across day boundaries and DST', () =>
 });
 test('log workflow retains navigation, locks, save conflict protection, and explicit call editing', () => {
   const component = readFileSync(new URL('../app/daily-log.tsx', import.meta.url), 'utf8');
-  assert.match(component, /useUnsavedWork\(dirty, saving\)/);
+  assert.match(component, /useUnsavedWork\(dirty, saving \|\| handoffSaving\)/);
   assert.match(component, /expectedVersion: savedVersions.current.get\(logDate\)/);
   assert.match(component, /callIsComplete\(existing\) && !editingCalls.includes\(id\)/);
   assert.match(component, /setRemoveCall\(call\)/);

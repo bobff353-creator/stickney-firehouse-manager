@@ -59,7 +59,7 @@ test("compact TV panels fit without internal staffing scrollbars or oversized he
   assert.match(styles, /\.tv-display \.schedule-24-list \{[^}]*overflow: hidden/);
   assert.match(styles, /\.tv-display \.staffing-rotation-panel \.new-member-photo \{ width: 100%; height: 100%; min-height: 100px/);
   assert.match(styles, /\.tv-display \.board-alert \{ display: none; \}/);
-  assert.match(staffing, /current\.shift\.items\.slice\(\(current\.page \?\? 0\) \* 6/);
+  assert.match(staffing, /groupedSchedule\.slice\(\(current\.page \?\? 0\) \* 6/);
   assert.match(staffing, /remaining members rotate automatically/);
   assert.match(staffing, /Upcoming crew ·/);
   assert.match(staffing, /No members assigned to this time slot/);

@@ -1,13 +1,14 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { WorkspaceTaskNavigation } from "./workspace-task-navigation";
 
 // View choices only, never records, drafts, credentials, or permissions. The
 // authenticated shell owns this bounded memory and drops it on identity change.
 const ViewMemory = createContext<Map<string, unknown> | null>(null);
 export function WorkspaceViewMemory({ children }: { children: ReactNode }) {
   const [memory] = useState(() => new Map<string, unknown>());
-  return <ViewMemory.Provider value={memory}>{children}</ViewMemory.Provider>;
+  return <ViewMemory.Provider value={memory}><WorkspaceTaskNavigation>{children}</WorkspaceTaskNavigation></ViewMemory.Provider>;
 }
 export function useWorkspaceViewState<T>(key: string, initial: T | (() => T)) {
   const memory = useContext(ViewMemory);

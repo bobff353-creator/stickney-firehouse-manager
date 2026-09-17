@@ -11,6 +11,7 @@ import { FormEvent, useCallback, useDeferredValue, useEffect, useMemo, useRef, u
 import Link from "next/link";
 import { inventoryPreviewItems } from "./inventory-preview";
 import { useWorkspaceViewState } from "./workspace-view-state";
+import { confirmLeavingWork, useUnsavedWork } from "./use-unsaved-work";
 import InventoryAirSystems from "./inventory-air-systems";
 import { airCheckLines } from "./inventory-air-checks";
 import type { IScannerControls } from "@zxing/browser";
@@ -419,6 +420,8 @@ export default function InventoryOperations({
   const changeBuilderTask = (task: string) => { setBuilderTask(task); builderTopRef.current?.scrollIntoView({block:"start",behavior:"auto"}); };
   const [duplicatesOnly, setDuplicatesOnly] = useState(false);
   const [repairPath, setRepairPath] = useState<"notice" | "work" | null>(null);
+  const [noticeSaveState, setNoticeSaveState] = useState<"unsaved" | "saving" | "saved" | "failed" | null>(null);
+  const changeRepairPath = (next: "notice" | "work" | null) => { if (!confirmLeavingWork()) return; setRepairPath(next); setNoticeSaveState(null); setRepairNoticeAssignees([]); };
   const [maintenanceApparatusId, setMaintenanceApparatusId] = useState("all");
   const [selectedMaintenanceOrder, setSelectedMaintenanceOrder] = useState<Row | null>(null);
   const [selectedReportCheck, setSelectedReportCheck] = useState<Row | null>(null);
@@ -840,6 +843,11 @@ export default function InventoryOperations({
   const activeCheckType = value(activeCheck || {}, "check_type");
   const activeAllowsRelocation = activeCheckType === "inventory";
   const activeChecklistRows = activeCheckType === "air_pack" ? activeScbaEntries : activeItems;
+  const unsavedReadings = activeItems.some(item => {
+    const reading = numericReadings[value(item, "id")];
+    return reading !== undefined && numericReadingInputValue(reading) !== numericReadingInputValue(item.numeric_reading);
+  });
+  useUnsavedWork(unsavedReadings || noticeSaveState === "unsaved" || noticeSaveState === "failed", noticeSaveState === "saving" || (unsavedReadings && Boolean(busy)));
   const pendingItems = activeChecklistRows.filter((item) => value(item, "result") === "pending").length;
   const completedItems = activeChecklistRows.length - pendingItems;
   const checkProgress = activeChecklistRows.length ? Math.round((completedItems / activeChecklistRows.length) * 100) : 0;
@@ -1371,7 +1379,7 @@ export default function InventoryOperations({
                 <strong>Apparatus {value(selectedApparatus || {}, "name")} · {formatStatus(activeCheck.check_type)}</strong>
                 <div><strong>{completedItems} of {activeChecklistRows.length} completed</strong><span>{pendingItems} remaining</span></div>
                 <div className="check-progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={checkProgress}><i style={{ width: `${checkProgress}%` }} /></div>
-                <SaveStatus state={busy ? "saving" : itemSaveError || error ? "failed" : "saved"} detail={pendingItems ? `${checkProgress}% recorded · continue with remaining items` : "All results recorded · submission is still required"} />
+                <SaveStatus state={busy ? "saving" : itemSaveError || error ? "failed" : unsavedReadings ? "unsaved" : "saved"} detail={unsavedReadings ? "Select Save reading for each changed reading before submitting." : pendingItems ? `${checkProgress}% recorded · continue with remaining items` : "All results recorded · submission is still required"} />
                 <button type="button" onClick={() => document.getElementById("check-completion")?.scrollIntoView({ block: "center" })}>{pendingItems ? "Go to remaining items / submission" : "Review & submit"}</button>
               </section>
               {value(activeCheck, "check_type") === "air_pack" ? <div className="scba-check-worklist">
@@ -1431,7 +1439,7 @@ export default function InventoryOperations({
                 <div><strong>{pendingItems ? `${pendingItems} items still need a result` : "Ready for administrator review"}</strong><small>{pendingItems ? "Finish the remaining locations before completing this inspection." : "Submitting creates a printable report and sends this check to the approval queue."}</small></div>
                 {pendingItems > 0 && <button type="button" onClick={() => { setCheckSearch(""); setCheckResultFilter("pending"); setCheckCompartmentFilter("all"); window.requestAnimationFrame(() => document.querySelector<HTMLElement>(".check-row.result-pending, .scba-check-worklist")?.scrollIntoView({ block: "center", behavior: "smooth" })); }}>Show remaining items ↑</button>}
                 {!canCheck && <span role="status">Check permission is required to record or submit results.</span>}
-                <button className="ops-primary" disabled={Boolean(busy) || pendingItems > 0 || !canCheck} onClick={() => void action("complete", { action: "complete_check", checkId: value(activeCheck, "id") })}>Submit {formatStatus(activeCheck.check_type)} check</button>
+                <button className="ops-primary" disabled={Boolean(busy) || unsavedReadings || pendingItems > 0 || !canCheck} onClick={() => void action("complete", { action: "complete_check", checkId: value(activeCheck, "id") })}>Submit {formatStatus(activeCheck.check_type)} check</button>
               </div>
             </div>
           ) : null}
@@ -1533,7 +1541,7 @@ export default function InventoryOperations({
                     </div>}
                   </article>
                 )})}
-                <button className="ops-primary" disabled={Boolean(busy) || pendingItems > 0} onClick={() => void action("complete", { action: "complete_check", checkId: value(activeCheck, "id") })}>Submit apparatus check for approval</button>
+                <button className="ops-primary" disabled={Boolean(busy) || unsavedReadings || pendingItems > 0} onClick={() => void action("complete", { action: "complete_check", checkId: value(activeCheck, "id") })}>Submit apparatus check for approval</button>
               </div>
             ) : (
               <form className="ops-form" onSubmit={(event) => {
@@ -1578,10 +1586,10 @@ export default function InventoryOperations({
 
       {view === "service" ? (
         <>
-          {canManageRepairs && <section className="ops-card"><h2>Start a repair or service request</h2><p>Report a new deficiency to assign employees and create its repair record. Use a work order for planned service or maintenance. For an issue already reported by an inspection, update its existing record below instead.</p><div className="repair-start-actions"><button type="button" className="ops-primary" aria-pressed={repairPath === "notice"} onClick={() => setRepairPath(repairPath === "notice" ? null : "notice")}>Report a problem</button><button type="button" aria-pressed={repairPath === "work"} onClick={() => setRepairPath(repairPath === "work" ? null : "work")}>Plan service / maintenance</button></div></section>}
+          {canManageRepairs && <section className="ops-card"><h2>Start a repair or service request</h2><p>Report a new deficiency to assign employees and create its repair record. Use a work order for planned service or maintenance. For an issue already reported by an inspection, update its existing record below instead.</p><div className="repair-start-actions"><button type="button" className="ops-primary" aria-pressed={repairPath === "notice"} onClick={() => changeRepairPath(repairPath === "notice" ? null : "notice")}>Report a problem</button><button type="button" aria-pressed={repairPath === "work"} onClick={() => changeRepairPath(repairPath === "work" ? null : "work")}>Plan service / maintenance</button></div></section>}
           {canManageRepairs && repairPath === "notice" ? <section className="ops-card">
             <header><div><span>ASSIGN A REPAIR NOTICE</span><h2>Notify selected employees about a fleet deficiency</h2></div></header>
-            {!data.apparatus.length ? <div className="ops-empty"><strong>No apparatus added</strong><button onClick={onSetup}>Build Fleet &amp; Inventory</button></div> : <form className="ops-form ops-form-wide" onSubmit={(event) => {
+            {!data.apparatus.length ? <div className="ops-empty"><strong>No apparatus added</strong><button onClick={onSetup}>Build Fleet &amp; Inventory</button></div> : <form className="ops-form ops-form-wide" onChange={() => setNoticeSaveState("unsaved")} onSubmit={(event) => {
               event.preventDefault();
               const element = event.currentTarget;
               const form = new FormData(element);
@@ -1591,14 +1599,17 @@ export default function InventoryOperations({
               void (async () => {
                 try {
                   setBusy("notice");
+                  setNoticeSaveState("saving");
                   const evidencePhotoId = photo instanceof File && photo.size > 0 ? await uploadEvidence(String(form.get("apparatusId")), photo) : "";
                   const saved = await action("notice", { action: "create_notice", apparatusId: form.get("apparatusId"), priority: form.get("priority"), notes: form.get("notes"), issueCategories: form.getAll("issueCategories"), assignedEmployeeIds: employeeIds, assignedEmployeeNames: employeeNames, evidencePhotoId });
+                  setNoticeSaveState(saved ? "saved" : "failed");
                   if (saved) {
                     element.reset();
                     setRepairNoticeAssignees([]);
                   }
                 } catch (caught) {
                   setError(caught instanceof Error ? caught.message : "The notice could not be saved.");
+                  setNoticeSaveState("failed");
                 } finally {
                   setBusy("");
                 }
@@ -1610,7 +1621,8 @@ export default function InventoryOperations({
               <EmployeeNotifyPicker className="ops-span-2" employees={employees} selectedIds={repairNoticeAssignees} onChange={setRepairNoticeAssignees} emptyText="Employee selection is available to an authorized officer or administrator." />
               <label className="ops-span-2">Notice / repair details<textarea name="notes" rows={4} required /></label>
               <label className="ops-span-2">Attach photo (optional)<input name="photo" type="file" accept="image/*" capture="environment" /></label>
-              <button className="ops-primary" disabled={Boolean(busy)}>Assign repair notice</button>
+              {noticeSaveState && <SaveStatus state={noticeSaveState} detail={noticeSaveState === "saved" ? "Repair notice saved. Follow it in All repair records." : noticeSaveState === "failed" ? "Details are retained. Retry when connected." : "This creates a repair record; it does not mark the repair completed."} />}
+              <button className="ops-primary" disabled={Boolean(busy)}>{noticeSaveState === "failed" ? "Retry save" : noticeSaveState === "saving" ? "Saving…" : "Assign repair notice"}</button>
             </form>}
           </section> : null}
           {canManageRepairs && repairPath === "work" ? <section className="ops-card maintenance-work-order-create">

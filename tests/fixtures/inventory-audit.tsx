@@ -32,6 +32,11 @@ window.fetch=async(input,init)=>{
   if(body.action==='update_equipment'){const target=data.equipment.find(e=>e.id===body.equipmentId)!;Object.assign(target,{name:body.name,quantity_required:Number(body.quantityRequired),check_types:body.checkTypes,response_type:body.responseType,barcode:body.barcode});return Response.json({ok:true});}
   if(body.action==='record_check_item'){if(audit.emptySave){audit.emptySave=false;return Response.json({checkItems:[]});}const target=data.checkItems.find(e=>e.id===body.checkItemId)!;Object.assign(target,{result:body.result,numeric_reading:body.numericReading,checked_at:new Date().toISOString(),checked_by:'Preview member'});return Response.json({checkItems:[target]});}
   if(body.action==='complete_check'){Object.assign(data.checks[0],{status:'completed',review_status:'pending',completed_at:new Date().toISOString()});return Response.json({ok:true});}
+  if(body.action==='create_notice'){
+    if(!body.notes||!body.apparatusId)return Response.json({error:'Fixture details required'},{status:400});
+    (data.workOrders as object[]).push({id:'fixture-repair-'+writes,apparatus_id:body.apparatusId,apparatus_name:rig.name,status:'open',priority:body.priority,summary:body.notes,notes:body.notes,created_at:new Date().toISOString(),assigned_employee_names:body.assignedEmployeeNames});
+    return Response.json({ok:true});
+  }
   return Response.json({error:'This fixture does not save that action.'},{status:409});
  }
  if(url.startsWith('/api/operations')){

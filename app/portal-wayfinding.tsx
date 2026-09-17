@@ -2,15 +2,19 @@
 import { useWorkspaceViewState } from "./workspace-view-state";
 import { portalPageLabel, type PortalPage } from "./portal-navigation";
 import { portalWorkflows } from "./portal-workflows";
+import { useWorkspaceTaskNavigation } from "./workspace-task-navigation";
 
 export function WorkspaceGuide({ page, backLabel, onBack, returnLabel, onReturn }: { page: PortalPage; home: PortalPage; backLabel?: string; onBack: () => void; returnLabel?: string; onReturn?: () => void; onNavigate: (page: PortalPage) => void }) {
   const guide = portalWorkflows[page];
-  const destination = returnLabel || backLabel;
+  const taskReturn = useWorkspaceTaskNavigation(page);
+  const destination = taskReturn?.label || returnLabel || backLabel;
   return <div className="workspace-wayfinding no-print" data-test-safe>
     <nav aria-label="Workspace navigation">
-      {destination && <button type="button" onClick={returnLabel && onReturn ? onReturn : onBack}>← Back to {destination}</button>}
+      {destination && <button type="button" disabled={taskReturn?.disabled} onClick={taskReturn?.onBack ?? (returnLabel && onReturn ? onReturn : onBack)}>← Back to {destination}</button>}
       <span className="workspace-section">{guide.group} →</span>
-      <span aria-current="page">{portalPageLabel(page)}</span>
+      <span aria-current={taskReturn ? undefined : "page"}>{portalPageLabel(page)}</span>
+      {taskReturn?.record && <span>→ {taskReturn.record}</span>}
+      {taskReturn && <span aria-current="page">→ {taskReturn.task || "Current task"}</span>}
     </nav>
     <details className="workspace-guide" key={page}>
       <summary>How to use this screen</summary>

@@ -40,9 +40,13 @@
 .preplan-save-bar .workflow-save-status { max-width:420px; }
 .preplan-workflow-footer > span { font-size:12px; color:#355365; }
 .operational-editor .workflow-save-status { grid-column:1 / -1; }
+.inventory-command-hero > button { background:transparent; color:#fff; border:1px solid #adc4d5; min-height:40px; font-weight:600; }
+.inventory-command-hero > button:hover { background:#ffffff18; }
+.inventory-portal-refresh .inventory-section-nav button.active, .inventory-portal-refresh .inventory-scan-global { background:#21608b; border-color:#5485a6; color:#fff; }
+.inventory-command-header .inventory-command-back { color:#21608b; }
 @media (max-width:900px) {
   .home-current-work > div { grid-template-columns:repeat(2,minmax(0,1fr)); }
-  .respond-page .respond-context-line { position:static; }
+  .respond-page .respond-context-line { top:70px; gap:3px 8px; font-size:11px; }
   .workflow-sticky-check.check-progress-summary { top:70px; display:flex; flex-wrap:wrap; gap:6px; }
   .workflow-sticky-check .workflow-save-status { flex:1 1 180px; }
   .workflow-sticky-check .workflow-save-status small { display:none; }
@@ -54,6 +58,9 @@
   .role-dashboard .dashboard-welcome .dashboard-live { min-width:0; font-size:11px; }
   .home-current-work > div { grid-template-columns:1fr; }
   .home-current-work button { min-height:68px; }
+  .respond-page .respond-context-line { top:64px; padding:5px 8px; }
+  .respond-context-line small { font-size:10px; }
+  .workspace-wayfinding nav { min-width:0; flex-wrap:wrap; overflow-wrap:anywhere; }
   .workflow-sticky-check.check-progress-summary { top:64px; }
   .workflow-sticky-check > button { min-height:38px; }
   .payroll-panel .workflow-payroll-review { position:static; }

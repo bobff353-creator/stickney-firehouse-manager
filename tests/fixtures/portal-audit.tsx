@@ -90,6 +90,10 @@ const payloads: Record<string, unknown> = {
   },
 };
 payloads["/api/logbook"] = payloads["/api/daily-log"];
+if (params.has("handoff-audit")) Object.assign(payloads["/api/logbook"] as object, {
+  fleetVerificationAvailable:true, incompleteFleetChecks:[],
+  approvals:[{shiftKey:"morning",signInAt:now,signInOfficerId:employees[1].id,signInOfficerName:employees[1].name}],
+});
 if (params.has("workflow-audit")) {
   Object.assign(briefing, { checksDue: 2, nextShift: {employeeId:employee.id, workDate:"2026-09-25", startTime:"06:00", endTime:"12:00", role:"FF/Attendant"}, equipmentIssues:[{item:"Fictional apparatus",status:"out_of_service",detail:"Preview only"}] });
   (payloads["/api/daily-log"] as {log:{updatedAt:string}}).log.updatedAt = "2026-09-17 15:04:06.89538+00";
@@ -144,6 +148,16 @@ window.fetch = async (input, init) => {
   const url = new URL(String(input), location.origin);
   const method = init?.method ?? "GET";
   startupRequests.push(method + ' ' + url.pathname + url.search);
+  if(params.has('handoff-audit') && url.pathname==='/api/logbook' && method==='POST') {
+    const body=JSON.parse(String(init?.body||'{}'));
+    if(body.action!=='handoff')return Response.json({error:'Fixture permits only officer handoff.'},{status:409});
+    if(failWrite){failWrite=false;throw new TypeError('Simulated disconnected approval. No record changed.');}
+    const log=payloads[url.pathname] as {approvals:Array<Record<string,unknown>>};
+    const approval=log.approvals.find(item=>item.shiftKey===body.shiftKey);
+    if(!approval||body.mode!=='out'||!body.officerId||!body.fleetDutiesAcknowledged)return Response.json({error:'Incomplete fictional approval'},{status:400});
+    Object.assign(approval,{signOutAt:new Date().toISOString(),signOutOfficerId:body.officerId});
+    return Response.json({ok:true});
+  }
   if (params.has('payroll-unavailable') && url.pathname === '/api/payroll') return Response.json({error:'Fictional payroll outage'}, {status:503});
   if(failPreplanReadback&&method==='GET'&&url.pathname==='/api/field-preplans'){failPreplanReadback=false;return Response.json({error:'Simulated saved-record reload failure'},{status:503});}
   if(params.has('seven-ux') && url.pathname==='/api/station-scheduler' && method==='POST') {
@@ -231,4 +245,4 @@ class Boundary extends Component<{ children: React.ReactNode }, { error: string 
   static getDerivedStateFromError(error: Error) { errors.push(error.message); return { error: error.message }; }
   render() { return this.state.error ? <p role="alert">AUDIT RENDER ERROR: {this.state.error}</p> : this.props.children; }
 }
-createRoot(document.getElementById("root")!).render(<Boundary><div style={{ padding: 6, background: "#ffecb5", color: "#12354a", textAlign: "center", fontSize: 13 }}>Fictional local audit · {isAdmin ? "Administrator" : "Member"} · No real records</div>{params.get("screen") === "sign-in" ? <AuthGateway /> : params.get("screen") === "reset-password" ? <ResetPasswordPage /> : params.get("screen") === "accept-invite" ? <AcceptInvitePage /> : <PayrollApp accountEmail="preview@example.invalid" onSignOut={() => { location.href = "./portal-audit.html"; }} />}</Boundary>);
+createRoot(document.getElementById("root")!).render(<Boundary><div style={{ padding: 6, background: "#ffecb5", color: "#12354a", textAlign: "center", fontSize: 13 }}>Fictional local audit · {isAdmin ? "Administrator" : "Member"} · No real records {params.has('workflow-audit')&&<button onClick={()=>{failWrite=true;}}>Fail next test save</button>}</div>{params.get("screen") === "sign-in" ? <AuthGateway /> : params.get("screen") === "reset-password" ? <ResetPasswordPage /> : params.get("screen") === "accept-invite" ? <AcceptInvitePage /> : <PayrollApp accountEmail="preview@example.invalid" onSignOut={() => { location.href = "./portal-audit.html"; }} />}</Boundary>);

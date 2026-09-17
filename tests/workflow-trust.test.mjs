@@ -58,3 +58,44 @@ test('personal next shift is server-scoped and not queried by always-on boards',
   assert.match(route,/people.results.length === 1/);
   assert.doesNotMatch(route,/searchParams.get\("employeeId"\)/);
 });
+
+test('one scoped return action replaces shell navigation for mounted preplan and schedule tasks',()=>{
+  const navigation=fs.readFileSync('app/workspace-task-navigation.tsx','utf8');
+  assert.match(navigation,/value\?\.owner === task.owner \? null : value/);
+  assert.match(navigation,/navigation\?\.current\?\.page === page/);
+  assert.match(navigation,/handler.current\(\)/);
+  const preplan=fs.readFileSync('app/field-preplans.tsx','utf8');
+  assert.match(preplan,/!managedReturn&&<button disabled=\{busy\} onClick=\{closePreplan\}/);
+  const scheduler=fs.readFileSync('app/station-scheduler.tsx','utf8');
+  assert.match(scheduler,/!managedReturn && <button/);
+  assert.ok(scheduler.indexOf('const managedReturn = useWorkspaceTaskReturn') < scheduler.indexOf('if (!data) return'));
+  assert.match(scheduler,/const \[cleanSlotId, setCleanSlotId\] = useState\(initialSlotId\)/);
+  assert.match(scheduler,/slotId !== cleanSlotId \|\| targetEmployeeId \|\| returnSlotId \|\| note/);
+  assert.match(scheduler,/if \(result\) \{ setCleanSlotId\(""\); setSlotId\(""\)/);
+});
+
+test('TV pagination groups saved assignments before dividing into pages and retains review warning',()=>{
+  const source=fs.readFileSync('app/staffing-rotation.tsx','utf8');
+  assert.match(source,/Math.ceil\(groupStaffingAssignments\(shift.items\).length \/ 6\)/);
+  assert.match(source,/groupedSchedule.slice/);
+  assert.doesNotMatch(source,/shift.items.slice/);
+  assert.match(source,/saved assignments — review roster/);
+});
+
+test('typed readings cannot be presented as saved or submitted before explicit confirmation',()=>{
+  const source=fs.readFileSync('app/inventory-operations.tsx','utf8');
+  assert.match(source,/reading !== undefined && numericReadingInputValue\(reading\) !== numericReadingInputValue\(item.numeric_reading\)/);
+  assert.match(source,/unsavedReadings \? "unsaved" : "saved"/);
+  assert.match(source,/disabled=\{Boolean\(busy\) \|\| unsavedReadings \|\| pendingItems > 0 \|\| !canCheck\}/);
+  assert.match(source,/setNoticeSaveState\(saved \? "saved" : "failed"\)/);
+});
+
+test('officer approval retains dialog after network failure and prevents duplicate submits',()=>{
+  const source=fs.readFileSync('app/daily-log.tsx','utf8');
+  const handoff=source.split('async function submitHandoff()')[1].split('async function adminUnlock()')[0];
+  assert.match(handoff,/if \(!handoff \|\| handoffPending.current\) return/);
+  assert.match(handoff,/catch \(error\) \{\s+setHandoffError/);
+  assert.match(handoff,/finally \{\s+handoffPending.current = false/);
+  assert.ok(handoff.indexOf('throw new Error(result.error')<handoff.indexOf('setHandoff(null)'));
+  assert.match(source,/handoffError \? "Retry approval"/);
+});

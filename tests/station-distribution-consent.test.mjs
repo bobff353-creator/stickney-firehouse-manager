@@ -205,6 +205,73 @@ test('previous-night booking prevents overlap even with saved availability',asyn
   }finally{await f.pg.close();}
 });
 
+test('saved afternoon availability fills before a recurring night, preserving that night and the next morning',async()=>{
+  const f=await fixture();try{
+    await f.pg.exec(`UPDATE pay_scales SET label='Lieutenant';
+      UPDATE station_shift_slots SET role='Officer/AO',start_time='12:00',end_time='18:00';
+      INSERT INTO station_schedule_entries VALUES('night','2099-01-07','red-1'),('next','2099-01-08','red-1');
+      INSERT INTO station_shift_slots(id,entry_id,role,status,employee_id,start_time,end_time) VALUES
+        ('recurring-night','night','Engine Driver','filled','a','18:00','06:00'),
+        ('saved-morning','next','Officer/AO','filled','a','06:00','12:00');`);
+    await f.markAvailable('a','2099-01-07','12:00','18:00');
+    const preserved=(await f.pg.query("SELECT * FROM station_shift_slots WHERE id<>'slot' ORDER BY id")).rows;
+    const result=await f.run({endDate:'2099-01-08'});
+    assert.equal(result.assigned,1,'the non-overlapping afternoon must not be blocked by the recurring night');
+    assert.equal((await f.pg.query("SELECT employee_id FROM station_shift_slots WHERE id='slot'")).rows[0].employee_id,'a');
+    assert.deepEqual((await f.pg.query("SELECT * FROM station_shift_slots WHERE id<>'slot' ORDER BY id")).rows,preserved);
+    assert.equal((await f.run({endDate:'2099-01-08'})).assigned,0,'rerunning cannot duplicate assignments');
+  }finally{await f.pg.close();}
+});
+
+test('one run fills both available day blocks but never two overlapping roles',async()=>{
+  const f=await fixture();try{
+    await f.markAvailable('a','2099-01-07','06:00','18:00');
+    await f.pg.exec(`INSERT INTO station_shift_slots(id,entry_id,role,start_time,end_time) VALUES
+      ('afternoon','day','FF/Attendant','12:00','18:00'),
+      ('duplicate-role','day','FF/Attendant','12:00','18:00');`);
+    const result=await f.run();
+    assert.equal(result.assigned,2);assert.equal(result.unfilled,1);
+    assert.deepEqual((await f.pg.query("SELECT id,employee_id FROM station_shift_slots WHERE employee_id IS NOT NULL ORDER BY id")).rows,
+      [{id:'afternoon',employee_id:'a'},{id:'slot',employee_id:'a'}]);
+    assert.equal((await f.pg.query("SELECT station_hours_this_period FROM employee_profiles WHERE employee_id='a'")).rows[0].station_hours_this_period,12);
+  }finally{await f.pg.close();}
+});
+
+test('a same-day booking still blocks any true overlap, including a one-minute overlap',async()=>{
+  for(const start of ['11:00','11:59']) {
+    const f=await fixture();try{
+      await f.markAvailable();
+      await f.pg.query("INSERT INTO station_shift_slots(id,entry_id,role,status,employee_id,start_time,end_time) VALUES('existing','day','FF/Attendant','filled','a',$1,'18:00')",[start]);
+      assert.equal((await f.run()).assigned,0,start);
+    }finally{await f.pg.close();}
+  }
+});
+
+test('October and November six-day pattern fills every available afternoon and morning, preserving recurring nights',async()=>{
+  const f=await fixture();try{
+    const expected=[];
+    for(let day=Date.parse('2099-10-05T00:00:00Z');day<=Date.parse('2099-11-30T00:00:00Z');day+=6*86400000) {
+      const date=new Date(day).toISOString().slice(0,10);
+      const next=new Date(day+86400000).toISOString().slice(0,10);
+      await f.pg.query("INSERT INTO station_schedule_entries VALUES($1,$1,'red-1'),($2,$2,'red-1')",[date,next]);
+      await f.pg.query(`INSERT INTO station_shift_slots(id,entry_id,role,status,employee_id,start_time,end_time) VALUES
+        ($1,$4,'FF/Attendant','open',NULL,'12:00','18:00'),
+        ($2,$4,'FF/Attendant','filled','a','18:00','06:00'),
+        ($3,$5,'FF/Attendant','open',NULL,'06:00','12:00')`,['pm-'+date,'night-'+date,'am-'+next,date,next]);
+      await f.markAvailable('a',date,'12:00','18:00');
+      await f.markAvailable('a',next,'06:00','12:00');
+      expected.push('pm-'+date,'am-'+next);
+    }
+    const preserved=(await f.pg.query("SELECT * FROM station_shift_slots WHERE id LIKE 'night-%' ORDER BY id")).rows;
+    const range={fromDate:'2099-10-01',endDate:'2099-11-30'};
+    const result=await f.run(range);
+    assert.equal(result.assigned,expected.length);assert.equal(result.unfilled,0);
+    assert.deepEqual((await f.pg.query("SELECT id FROM station_shift_slots WHERE id NOT LIKE 'night-%' AND employee_id='a' ORDER BY id")).rows.map(r=>r.id),expected.sort());
+    assert.deepEqual((await f.pg.query("SELECT * FROM station_shift_slots WHERE id LIKE 'night-%' ORDER BY id")).rows,preserved);
+    assert.equal((await f.run(range)).assigned,0);
+  }finally{await f.pg.close();}
+});
+
 test('overnight assignments in the same run cannot overlap the next morning',()=>{
   const result=logic.autoDistribute([
     {slotId:'night',date:'2099-01-07',role:'FF/Attendant',hours:14,startTime:'18:00',endTime:'08:00'},

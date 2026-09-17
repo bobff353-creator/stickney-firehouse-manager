@@ -6,6 +6,7 @@ import { schedulerAdminTask } from "./admin-tasks";
 import { reminderTimings, reminderAudience, reminderExplanation } from "./scheduler-reminders";
 import { RequiredConfirmationAdmin } from './required-confirmation';
 import { useWorkspaceViewState } from './workspace-view-state';
+import { useWorkspaceTaskReturn } from './workspace-task-navigation';
 import { confirmLeavingWork, useUnsavedWork } from './use-unsaved-work';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
@@ -186,10 +187,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
   const employeeName = useCallback((id: string | null | undefined) => data?.employees.find((e) => e.id === id)?.name ?? "", [data]);
   const shiftTypeName = useCallback((id: string) => data?.shiftTypes.find((s) => s.id === id)?.name ?? "", [data]);
 
-  if (error && !data) return <div className="scheduler"><p className="error" role="alert">{error}</p><button type="button" disabled={refreshing} onClick={() => void load()}>{refreshing ? "Retrying…" : "Retry schedule"}</button></div>;
-  if (!data) return <div className="scheduler"><p>Loading the scheduler…</p></div>;
-
-  const accountIsAdmin = data.viewer.isAdmin;
+  const accountIsAdmin = data?.viewer.isAdmin ?? false;
   const isAdmin = accountIsAdmin && schedulerView === "admin" && !previewMember;
   const adminTabs = [
     ["overview", "Admin home"], ["openAdmin", "Open positions"],
@@ -210,6 +208,10 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
   ];
   const activeGroup = taskGroups.find(group => group.ids.includes(tab)) ?? taskGroups[0];
   const visibleTabs = isAdmin ? tabs.filter(([id]) => activeGroup.ids.includes(id)) : tabs;
+  const managedReturn = useWorkspaceTaskReturn("Scheduling", data && !previewMember && tab !== (isAdmin ? "overview" : "myshifts") ? (isAdmin ? "schedule tasks" : "my shifts") : null, () => setTab(isAdmin ? "overview" : "myshifts"), { task: tabs.find(([id]) => id === tab)?.[1], record: tab === "calendar" ? friendlyDate(selectedDate) : undefined, disabled: busy });
+
+  if (error && !data) return <div className="scheduler"><p className="error" role="alert">{error}</p><button type="button" disabled={refreshing} onClick={() => void load()}>{refreshing ? "Retrying…" : "Retry schedule"}</button></div>;
+  if (!data) return <div className="scheduler"><p>Loading the scheduler…</p></div>;
 
   return (
     <div className="scheduler">
@@ -245,7 +247,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
       </nav>
       </details>
       </div>
-      {tab !== (isAdmin ? "overview" : "myshifts") && !previewMember && <div className="scheduler-task-context"><button type="button" onClick={() => setTab(isAdmin ? "overview" : "myshifts")}>← Back to {isAdmin ? "schedule tasks" : "my shifts"}</button><strong>{tabs.find(([id]) => id === tab)?.[1]}{tab === "calendar" ? ` · ${friendlyDate(selectedDate)}` : ""}</strong></div>}
+      {tab !== (isAdmin ? "overview" : "myshifts") && !previewMember && <div className="scheduler-task-context">{!managedReturn && <button type="button" onClick={() => setTab(isAdmin ? "overview" : "myshifts")}>← Back to {isAdmin ? "schedule tasks" : "my shifts"}</button>}<strong>{tabs.find(([id]) => id === tab)?.[1]}{tab === "calendar" ? ` · ${friendlyDate(selectedDate)}` : ""}</strong></div>}
       <fieldset className="scheduler-workspace-fields" disabled={previewMember || Boolean(testMember)}>
 
       {isAdmin && tab === "overview" && <section className="scheduler-admin-home">
@@ -600,7 +602,8 @@ function AssignmentEditor({ slot, employees, unavailableIds, act, busy }: {
         {employees.map((employee) => <option key={employee.id} value={employee.id} disabled={unavailableIds.has(employee.id) && employee.id !== saved}>{employee.name} · {employee.rank}{unavailableIds.has(employee.id) ? " · unavailable" : ""}</option>)}
       </select>
     </label>
-    {changed && <div className="scheduler-assignment-actions"><SaveStatus state={busy ? "saving" : saveFailed ? "failed" : "unsaved"} /><button type="button" className="link" disabled={busy} onClick={() => { setSelected(saved); setSaveFailed(false); }}>Cancel</button><button type="button" disabled={busy} onClick={async () => { setSaveFailed(false); const result = await act(selected ? { action: "assignSlot", slotId: slot.id, employeeId: selected } : { action: "clearSlot", slotId: slot.id }); if (!result) setSaveFailed(true); }}>{saveFailed ? "Retry save" : "Save assignment"}</button></div>}
+    <SaveStatus state={changed ? (busy ? "saving" : saveFailed ? "failed" : "unsaved") : "saved"} detail={!changed ? "Assignment matches the loaded schedule." : undefined} />
+    {changed && <div className="scheduler-assignment-actions"><button type="button" className="link" disabled={busy} onClick={() => { setSelected(saved); setSaveFailed(false); }}>Cancel</button><button type="button" disabled={busy} onClick={async () => { setSaveFailed(false); const result = await act(selected ? { action: "assignSlot", slotId: slot.id, employeeId: selected } : { action: "clearSlot", slotId: slot.id }); if (!result) setSaveFailed(true); }}>{saveFailed ? "Retry save" : "Save assignment"}</button></div>}
   </div>;
 }
 
@@ -1159,6 +1162,7 @@ function DistributionScreen({ data, act, busy }: { data: Data; act: (b: Record<s
         <h3>Run auto-distribution</h3>
         <p><strong>Only members with saved Available times.</strong> Auto-Distribution reads Department availability / My Availability. The full shift must fit within the member’s saved Available days and times. Blank days never count as available.</p>
         <p className="muted">Shift requests and recurring Red, Black, or Gold membership do not bypass availability for a new assignment. Qualifications, time off, and assignment conflicts still apply. Saved recurring assignments stay unchanged.</p>
+        <p className="muted">Conflicts are checked by actual shift times, not the whole day. Available 12:00–18:00 can be assigned before an existing 18:00–06:00 shift. Overlapping shifts are never assigned together.</p>
         <p className="muted">This saves assignments to future open positions within both dates. Filled positions stay unchanged, including earlier automatic assignments. Positions without an available, qualified member stay open. Build repeating shifts in Shift Builder first.</p>
         <label className="row"><span>From date</span><input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} /></label>
         <label className="row"><span>End date</span><input type="date" min={fromDate || undefined} value={endDate} onChange={(e) => setEndDate(e.target.value)} /></label>
@@ -1245,6 +1249,7 @@ function TradeTerms({ trade, data }: { trade: Trade; data: Data }) {
 }
 function TradeRequestScreen({ data, act, busy, initialSlotId }: { data: Data; act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean; initialSlotId: string }) {
   const [slotId, setSlotId] = useState(initialSlotId);
+  const [cleanSlotId, setCleanSlotId] = useState(initialSlotId);
   const [targetEmployeeId, setTarget] = useState("");
   const [tradeKind, setKind] = useState("giveaway");
   const [returnSlotId, setReturn] = useState("");
@@ -1254,7 +1259,8 @@ function TradeRequestScreen({ data, act, busy, initialSlotId }: { data: Data; ac
   const slot = mine.find((s) => s.id === slotId);
   const targets = slot ? data.employees.filter((e) => e.id !== data.viewer.employeeId && employeeEligibleForRole(e, slot.role)) : [];
   const returns = data.slots.filter((s) => s.employeeId === targetEmployeeId && s.status === "filled" && s.entryDate >= data.today && s.id !== slotId && me && canReceiveTrade(data, me, s, slotId));
-  useUnsavedWork(Boolean(slotId || targetEmployeeId || returnSlotId || note), busy);
+  // Opening a preselected shift is navigation, not an edit to discard.
+  useUnsavedWork(Boolean(slotId !== cleanSlotId || targetEmployeeId || returnSlotId || note || tradeKind !== "giveaway"), busy);
   const label = (s: Slot) => `${friendlyDate(s.entryDate)} · ${s.startTime}–${s.endTime} · ${s.role}`;
   return <div className="scheduler-grid"><section className="wide">
     <h3>Request a trade or give away a shift</h3>
@@ -1265,7 +1271,7 @@ function TradeRequestScreen({ data, act, busy, initialSlotId }: { data: Data; ac
     {targetEmployeeId && <label className="wide">Trade arrangement<select value={tradeKind} onChange={(e) => { setKind(e.target.value); setReturn(""); }}><option value="giveaway">Give my shift away — no return shift</option><option value="swap">Swap — I will work one of their shifts</option></select></label>}
     {targetEmployeeId && tradeKind === "swap" && <label className="wide">Shift you will work in return<select value={returnSlotId} onChange={(e) => setReturn(e.target.value)}><option value="">Choose their shift</option>{returns.map((s) => <option key={s.id} value={s.id}>{label(s)}</option>)}</select></label>}
     <label className="wide">Note (optional)<textarea value={note} onChange={(e) => setNote(e.target.value)} /></label>
-    <div className="task-action-bar"><p id="trade-next-step">{!slot ? "Choose your scheduled shift above before posting." : tradeKind === "swap" && !returnSlotId ? "Choose the return shift to complete this swap." : "Post your offer. A member must accept it, then an administrator must approve it."}</p><button aria-describedby="trade-next-step" disabled={busy || !slot || (tradeKind === "swap" && !returnSlotId)} onClick={async () => { const result = await act({ action: "submitTrade", slotId, targetEmployeeId, tradeKind, returnSlotId: tradeKind === "swap" ? returnSlotId : null, note }); if (result) { setSlotId(""); setTarget(""); setReturn(""); setNote(""); setKind("giveaway"); } }}>{busy ? "Posting…" : "Post trade request"}</button></div>
+    <div className="task-action-bar"><p id="trade-next-step">{!slot ? "Choose your scheduled shift above before posting." : tradeKind === "swap" && !returnSlotId ? "Choose the return shift to complete this swap." : "Post your offer. A member must accept it, then an administrator must approve it."}</p><button aria-describedby="trade-next-step" disabled={busy || !slot || (tradeKind === "swap" && !returnSlotId)} onClick={async () => { const result = await act({ action: "submitTrade", slotId, targetEmployeeId, tradeKind, returnSlotId: tradeKind === "swap" ? returnSlotId : null, note }); if (result) { setCleanSlotId(""); setSlotId(""); setTarget(""); setReturn(""); setNote(""); setKind("giveaway"); } }}>{busy ? "Posting…" : "Post trade request"}</button></div>
   </section></div>;
 }
 

@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWorkspaceViewState, restoreWorkspaceScroll } from "./workspace-view-state";
+import { useWorkspaceTaskReturn } from "./workspace-task-navigation";
 import { SaveStatus } from "./save-status";
 import { availableHydrantFlow, hydrantOutletFlow, nfpa291FlowClass } from "./hydrant-flow";
 import GoogleFieldMap from "./google-field-map";
@@ -488,12 +489,13 @@ export default function FieldPreplans() {
   const footprintSquareFeet=draft?Math.round(polygonAreaSquareFeet(draft.footprint)):0;
   const fireFlowPreview=draft?suggestedFireFlow({footprintSquareFeet,floorCount:draft.floorCount,constructionType:draft.constructionType,occupancyFlowCategory:draft.occupancyFlowCategory,sprinklerStandard:draft.sprinklerStandard}):null;
   const mapPlans=draft?.id ? plans.map((plan)=>plan.id===draft.id?{...plan,...draft}:plan) : plans;
+  const managedReturn=useWorkspaceTaskReturn("Field Preplans",focusedPreplan&&draft?"Preplan list":null,closePreplan,{record:draft?.businessName||draft?.address||"Building",task:recordMode==="edit"?"Edit building":"View preplan",disabled:busy});
   const recordFocused=focusedPreplan||Boolean(hydrantDraft);
   const capturingFootprint=recordMode==="edit"&&mode==="footprint";
   const writingDetails=focusedPreplan&&recordMode==='edit'&&(tab==='photos'||(tab==='quick'&&quickStep!==1));
   return <section className={`field-preplans-page${recordFocused?" preplan-builder-focused":""}${hydrantDraft?" hydrant-record-focused":""}${writingDetails?' preplan-form-focused':''}`}>
     {focusedPreplan&&draft&&<>
-      <header className="preplan-focus-header"><button disabled={busy} onClick={closePreplan}>&larr; Back to Preplan list</button><div><span>{draft.id?(recordMode==="view"?"VIEW PREPLAN":"EDIT PREPLAN"):"NEW PREPLAN"}</span><h1>{draft.businessName||"New building preplan"}</h1><p>{fullAddress(draft)||"A-side GPS location"} &middot; {draft.status}</p></div>{recordMode==="edit"&&<div className="preplan-save-bar"><SaveStatus state={busy?"saving":buildingSaveError?"failed":formDirty||!draft.id?"unsaved":"saved"} detail={buildingSaveError|| (savedReloadNeeded?"Save acknowledged; reload to verify the saved record.":"Building details save separately from operational review and publication. Existing published building edits may be visible immediately.")} onRetry={()=>void savePlan()} /><button className="primary-action" disabled={busy||savedReloadNeeded||!footprintAccepted||!formDirty} onClick={()=>void savePlan()}>{draft.id?'Save building changes':'Save new preplan'}</button>{current&&<button className="record-focus-view-button" disabled={busy||savedReloadNeeded} onClick={()=>view(current)}>Preview saved preplan</button>}</div>}</header>
+      <header className="preplan-focus-header">{!managedReturn&&<button disabled={busy} onClick={closePreplan}>&larr; Back to Preplan list</button>}<div><span>{draft.id?(recordMode==="view"?"VIEW PREPLAN":"EDIT PREPLAN"):"NEW PREPLAN"}</span><h1>{draft.businessName||"New building preplan"}</h1><p>{fullAddress(draft)||"A-side GPS location"} &middot; {draft.status}</p></div>{recordMode==="edit"&&<div className="preplan-save-bar"><SaveStatus state={busy?"saving":buildingSaveError?"failed":formDirty||!draft.id?"unsaved":"saved"} detail={buildingSaveError|| (savedReloadNeeded?"Save acknowledged; reload to verify the saved record.":"Building details save separately from operational review and publication. Existing published building edits may be visible immediately.")} onRetry={()=>void savePlan()} /><button className="primary-action" disabled={busy||savedReloadNeeded||!footprintAccepted||!formDirty} onClick={()=>void savePlan()}>{draft.id?'Save building changes':'Save new preplan'}</button>{current&&<button className="record-focus-view-button" disabled={busy||savedReloadNeeded} onClick={()=>view(current)}>Preview saved preplan</button>}</div>}</header>
       {message&&<div role="status" className="field-message preplan-focus-message">{message}</div>}
       {savedReloadNeeded&&<div className="field-message" role="alert"><strong>Saved record needs verification.</strong> <button type="button" disabled={busy} onClick={()=>{setBusy(true);void load().then(()=>{setSavedReloadNeeded(false);setMessage("Saved preplan reloaded. You can now preview or continue.");}).catch(()=>setMessage("The saved record still could not reload. Reconnect, then retry.")).finally(()=>setBusy(false));}}>Reload saved preplan</button></div>}
       <div className="preplan-focus-map-panel" ref={focusMapPanel}>

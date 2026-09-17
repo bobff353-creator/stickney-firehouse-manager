@@ -627,7 +627,7 @@ export default function Inventory360({
       </header>
 
       <section ref={workspaceHeadingRef} className="inventory-command-header" aria-labelledby="inventory-workspace-title">
-        {view !== "due" && <button className="inventory-command-back" type="button" onClick={() => setView("due")}>← Back to inventory home</button>}
+        {view !== "due" && view !== "check" && <button className="inventory-command-back" type="button" onClick={() => setView("due")}>← Back to inventory home</button>}
         <div className="inventory-command-hero">
           <div>
             <span>{activeWorkspace.eyebrow}</span>
@@ -1023,7 +1023,7 @@ export default function Inventory360({
       <nav className="mobile-nav" aria-label="Mobile inventory sections">
         {([
           ["due", "Due"],
-          ["fleet", "Fleet"],
+          ["fleet", "Checks"],
           ["inventory", "Inventory"],
           ["equipment", "Equipment"],
           ["service", "Repairs"],
