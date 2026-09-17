@@ -4,7 +4,7 @@ import { projectDispatchIntoDailyLog } from "../../dispatch-daily-log";
 import { scheduleQueryDates, scheduledStaffingForLog, type DepartmentScheduleAssignment } from "../../department-schedule";
 import { chicagoOperationalContext } from "../../operational-day";
 import { syncRecentResendDispatches } from "../../resend-dispatch-sync";
-import { openFleetEquipmentIssues } from "../../lib/fleet-projections";
+import { openFleetEquipmentIssues, pendingDailyFleetChecks } from "../../lib/fleet-projections";
 import { createInventorySupabaseClient } from "../../lib/supabase-server";
 import { nextOperationalDeadline } from '../../operational-deadlines';
 
@@ -88,12 +88,14 @@ export async function GET(request: Request) {
     const issues = equipmentIssues(currentApproval?.signOutEquipment || currentApproval?.signInEquipment);
     const departmentId = request.headers.get("x-department-id")?.trim() || "";
     let fleetIssues: Awaited<ReturnType<typeof openFleetEquipmentIssues>> = [];
+    let checksDue: number | null = null;
     if (departmentId) {
       try {
         fleetIssues = await openFleetEquipmentIssues(
           await createInventorySupabaseClient(),
           departmentId,
         );
+        if (!liveBoard) checksDue = (await pendingDailyFleetChecks(await createInventorySupabaseClient(), departmentId)).length;
       } catch (error) {
         console.error("Live Operations fleet issue projection failed", error);
       }
@@ -107,6 +109,18 @@ export async function GET(request: Request) {
     const apparatus = ["1201", "1203", "1204", "1205", "1207"].map((unit) => ({ unit, status: new RegExp(`(^|\\D)${unit}(\\D|$)`).test(activeUnitText) ? "Committed to call" : "Status not reported" }));
     const roadClosures = await db.prepare("SELECT id, road_name roadName, reason, path_json pathJson, detour_latitude detourLatitude, detour_longitude detourLongitude, started_at startedAt, expected_clear_at expectedClearAt FROM road_closures WHERE status='active' ORDER BY datetime(started_at) DESC").all<{ id:string;roadName:string;reason:string;pathJson:string;detourLatitude:number;detourLongitude:number;startedAt:string;expectedClearAt:string|null }>();
     const openLogApprovals = (currentApproval?.signInAt ? 0 : 1) + (priorApproval?.signOutAt ? 0 : 1);
+    // Personal next shift comes only from the server-verified account, never a
+    // requested employee ID. Keep this query off the always-on board path.
+    let nextShift = null;
+    if (!liveBoard) {
+      const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() || "";
+      const people = await db.prepare("SELECT e.id FROM employees e JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(trim(ep.email))=? LIMIT 2").bind(email).all<{ id: string }>();
+      if (email && people.results.length === 1) {
+        const context = chicagoOperationalContext();
+        const hhmm = `${String(Math.floor(context.minutes / 60)).padStart(2, "0")}${String(context.minutes % 60).padStart(2, "0")}`;
+        nextShift = await db.prepare("SELECT s.employee_id employeeId,en.entry_date workDate,COALESCE(NULLIF(s.start_time,''),t.start_time) startTime,COALESCE(NULLIF(s.end_time,''),t.end_time) endTime,s.role FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id WHERE s.employee_id=? AND s.status='filled' AND t.active=1 AND (en.entry_date>? OR (en.entry_date=? AND replace(COALESCE(NULLIF(s.start_time,''),t.start_time),':','')>=?)) ORDER BY en.entry_date,COALESCE(NULLIF(s.start_time,''),t.start_time) LIMIT 1").bind(people.results[0].id, context.calendarDate, context.calendarDate, hhmm).first();
+      }
+    }
     return Response.json({
       asOf: new Date().toISOString(), date: now.date, currentShift, priorShift,
       nextChangeAt: nextOperationalDeadline(dispatchCalls.results, Date.now(), true),
@@ -116,6 +130,8 @@ export async function GET(request: Request) {
       staffing: { filled: onDuty.length, required: 4, complete: onDuty.length >= 4 && Boolean(currentApproval?.signInAt) },
       equipmentIssues: [...fleetIssues, ...issues.map((issue, index) => ({ id: `handoff-${index}-${issue.item}`, ...issue }))],
       activeCalls,
+      checksDue,
+      nextShift,
       apparatus,
       roadClosures: roadClosures.results.map((closure) => { let path: Array<{lat:number;lng:number}> = []; try { path = JSON.parse(closure.pathJson); } catch {} return { ...closure, path, pathJson: undefined }; }),
       newMembers: newMembers.results,

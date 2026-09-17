@@ -1,4 +1,6 @@
 "use client";
+import { checkNextAction } from "./workflow-status";
+import { SaveStatus } from "./save-status";
 import { ServiceScheduleFields, ServiceScheduleSummary } from "./inventory-service-fields";
 import { serviceDateLabel, serviceReminders, serviceScheduleInput } from "./inventory-service-schedule";
 
@@ -1056,7 +1058,7 @@ export default function InventoryOperations({
     return <article key={`${item.apparatusId}-${item.checkType}`} className={item.active ? "in-progress" : "pending"}>
       <div><span>{labelFor(item.checkType)}</span><h3>{item.name}</h3><p>{item.active ? item.total ? `${item.pending} of ${item.total} items remaining. Crew progress is shared.` : "Checklist entries are unavailable. Open the checklist to inspect its setup; completion has not been verified." : `${item.configured} configured items are ready to check.`}</p></div>
       {item.total > 0 && <div className="due-progress" aria-label={`${percent}% complete`}><i style={{ width: `${percent}%` }} /></div>}
-      <button type="button" disabled={!canCheck || (!item.active && item.configured === 0)} onClick={() => onOpenUnit?.(item.apparatusId, item.checkType)}>{item.active ? item.total ? "Resume check" : "View checklist" : item.configured ? "Start check" : "Not configured"}</button>
+      <button type="button" disabled={!canCheck || (!item.active && item.configured === 0)} onClick={() => onOpenUnit?.(item.apparatusId, item.checkType)}>{!item.active && !item.configured ? "Not configured" : checkNextAction(Boolean(item.active), item.total, item.pending)}</button>
     </article>;
   })}</div>;
 
@@ -1135,7 +1137,8 @@ export default function InventoryOperations({
       {view === "due" ? (
         <>
           <section className="ops-card due-now-card">
-            <header><div><span>APPARATUS CHECKS DUE NOW</span><h2>{dueChecks.length ? `${dueChecks.length} required check${dueChecks.length === 1 ? "" : "s"}` : "All required checks are complete"}</h2></div><b>{data.checks.filter((check) => value(check, "status") === "in_progress" && value(check, "check_type") !== "inventory" && !routineCheckNotNeeded(data.apparatus.find((apparatus) => value(apparatus, "id") === value(check, "apparatus_id")), value(check, "check_type"))).length} in progress</b></header>
+            <header><div><span>APPARATUS CHECKS DUE NOW</span><h2>{dueChecks.length ? `${dueChecks.length} required check${dueChecks.length === 1 ? "" : "s"}` : "All required checks are complete"}</h2></div><b title="All unfinished apparatus and air-pack checks, including earlier dates; Inventory counts are separate.">{data.checks.filter((check) => value(check, "status") === "in_progress" && value(check, "check_type") !== "inventory" && !routineCheckNotNeeded(data.apparatus.find((apparatus) => value(apparatus, "id") === value(check, "apparatus_id")), value(check, "check_type"))).length} in progress</b></header>
+            <p className="muted">In progress includes unfinished apparatus and air-pack checks from all dates. Inventory counts are listed separately below.</p>
             {dueChecks.length ? renderCheckCards(dueChecks, (checkType) => `${formatStatus(checkType)} · DUE TODAY`) : <div className="ops-empty due-clear"><strong>No required apparatus checks are waiting.</strong><p>Completed scheduled checks fall off this list automatically.</p></div>}
             {notNeededChecks.length ? <div className="due-check-exemptions" role="status"><strong>Not needed — apparatus Out of Service</strong><div>{notNeededChecks.map((check) => <span key={`${check.apparatusId}-${check.checkType}`}>{check.name} · {formatStatus(check.checkType)}</span>)}</div><small>These checks will resume automatically when Fleet returns the apparatus to service.</small></div> : null}
           </section>
@@ -1338,8 +1341,8 @@ export default function InventoryOperations({
                         }
                       });
                     }}>
-                      <small className="inspection-choice-action">{notNeeded ? "Not required" : inProgress ? "Tap to resume" : "Tap to open"}</small>
-                      <strong>{inProgress ? `Resume ${label}` : label}</strong>
+                      <small className="inspection-choice-action">{notNeeded ? "Not required" : inProgress && !remaining ? "Review & submit" : inProgress ? "Tap to resume" : "Tap to open"}</small>
+                      <strong>{inProgress ? `${remaining ? "Resume" : "Review"} ${label}` : label}</strong>
                       <span>{notNeeded
                         ? "Not needed — apparatus Out of Service"
                         : inProgress
@@ -1364,10 +1367,12 @@ export default function InventoryOperations({
                 <small>Shared department inspection · updates refresh every 5 seconds{lastSyncedAt ? ` · synced ${formatDate(lastSyncedAt)}` : ""}</small>
                 <small>Work one location at a time. Passed items leave the Pending view immediately; issues still require notes and a photo.</small>
               </div>
-              <section className="check-progress-summary" aria-label="Inspection progress">
+              <section className="check-progress-summary workflow-sticky-check" aria-label="Inspection progress">
+                <strong>Apparatus {value(selectedApparatus || {}, "name")} · {formatStatus(activeCheck.check_type)}</strong>
                 <div><strong>{completedItems} of {activeChecklistRows.length} completed</strong><span>{pendingItems} remaining</span></div>
                 <div className="check-progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={checkProgress}><i style={{ width: `${checkProgress}%` }} /></div>
-                <small>{checkProgress}% complete · your selections save immediately</small>
+                <SaveStatus state={busy ? "saving" : itemSaveError || error ? "failed" : "saved"} detail={pendingItems ? `${checkProgress}% recorded · continue with remaining items` : "All results recorded · submission is still required"} />
+                <button type="button" onClick={() => document.getElementById("check-completion")?.scrollIntoView({ block: "center" })}>{pendingItems ? "Go to remaining items / submission" : "Review & submit"}</button>
               </section>
               {value(activeCheck, "check_type") === "air_pack" ? <div className="scba-check-worklist">
                 <div className="scba-check-guidance"><strong>Weekly SCBA readiness</strong><span>Record the harness, cylinder, 4500-PSI reading, and operational result. RIT and spare-cylinder rows follow the saved rig template.</span></div>
@@ -1421,7 +1426,8 @@ export default function InventoryOperations({
                 );
               }) : <div className="ops-empty check-filter-empty"><strong>{!pendingItems && activeChecklistRows.length ? "All items have a saved result" : "No items match these filters"}</strong><p>{!pendingItems && activeChecklistRows.length ? "Review your results, then submit this check for administrator review below." : "Change the search, status, or location to see more checklist items."}</p><button type="button" onClick={() => { setCheckSearch(""); setCheckResultFilter(!pendingItems ? "all" : "pending"); setCheckCompartmentFilter("all"); }}>{!pendingItems && activeChecklistRows.length ? "Review all results" : "Clear filters"}</button></div>}
               </>}
-              <div className="check-completion-bar">
+              <div className="check-completion-bar" id="check-completion">
+                <div className="check-review-summary" aria-label="Submission review"><span>{value(selectedApparatus || {}, "name")} · {formatStatus(activeCheck.check_type)}</span><span>{completedItems} of {activeChecklistRows.length} saved</span><span>{activeChecklistRows.filter(item => ["failed", "missing", "damaged"].includes(value(item, "result"))).length} results with issues</span></div>
                 <div><strong>{pendingItems ? `${pendingItems} items still need a result` : "Ready for administrator review"}</strong><small>{pendingItems ? "Finish the remaining locations before completing this inspection." : "Submitting creates a printable report and sends this check to the approval queue."}</small></div>
                 {pendingItems > 0 && <button type="button" onClick={() => { setCheckSearch(""); setCheckResultFilter("pending"); setCheckCompartmentFilter("all"); window.requestAnimationFrame(() => document.querySelector<HTMLElement>(".check-row.result-pending, .scba-check-worklist")?.scrollIntoView({ block: "center", behavior: "smooth" })); }}>Show remaining items ↑</button>}
                 {!canCheck && <span role="status">Check permission is required to record or submit results.</span>}
@@ -1572,7 +1578,7 @@ export default function InventoryOperations({
 
       {view === "service" ? (
         <>
-          {canManageRepairs && <section className="ops-card"><h2>Start a repair or service request</h2><p>Report a new deficiency to assign employees and create its repair record. Use a work order for planned service or maintenance. For an issue already reported by an inspection, update its existing record below instead.</p><div className="repair-start-actions"><button type="button" aria-pressed={repairPath === "notice"} onClick={() => setRepairPath(repairPath === "notice" ? null : "notice")}>Report a deficiency</button><button type="button" aria-pressed={repairPath === "work"} onClick={() => setRepairPath(repairPath === "work" ? null : "work")}>Plan service / maintenance</button></div></section>}
+          {canManageRepairs && <section className="ops-card"><h2>Start a repair or service request</h2><p>Report a new deficiency to assign employees and create its repair record. Use a work order for planned service or maintenance. For an issue already reported by an inspection, update its existing record below instead.</p><div className="repair-start-actions"><button type="button" className="ops-primary" aria-pressed={repairPath === "notice"} onClick={() => setRepairPath(repairPath === "notice" ? null : "notice")}>Report a problem</button><button type="button" aria-pressed={repairPath === "work"} onClick={() => setRepairPath(repairPath === "work" ? null : "work")}>Plan service / maintenance</button></div></section>}
           {canManageRepairs && repairPath === "notice" ? <section className="ops-card">
             <header><div><span>ASSIGN A REPAIR NOTICE</span><h2>Notify selected employees about a fleet deficiency</h2></div></header>
             {!data.apparatus.length ? <div className="ops-empty"><strong>No apparatus added</strong><button onClick={onSetup}>Build Fleet &amp; Inventory</button></div> : <form className="ops-form ops-form-wide" onSubmit={(event) => {

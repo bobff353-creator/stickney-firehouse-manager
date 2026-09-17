@@ -5,6 +5,7 @@ import "./globals.css";
 import "./mobile-usability.css";
 import "./portal-usability.css";
 import "./admin-usability.css";
+import "./workflow-usability.css";
 
 export const viewport: Viewport = {
   width: "device-width",

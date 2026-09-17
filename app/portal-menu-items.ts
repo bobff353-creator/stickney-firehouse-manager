@@ -9,7 +9,7 @@ export const featuredNavItems: Array<{ page: NavItem; label: string; tone: strin
   { page: "Field Preplans", label: "Maps & Preplans", tone: "maps" },
   { page: "Daily Log", label: "Daily Log", tone: "log" },
   { page: "Scheduling", label: "Station Schedule", tone: "schedule" },
-  { page: "Inventory", label: "Apparatus Checks", tone: "apparatus" },
+  { page: "Inventory", label: "Inventory & Apparatus Checks", tone: "apparatus" },
 ];
 export const featuredNavPages = new Set<NavItem>(featuredNavItems.map((item) => item.page));
 export const adminNavGroups: Array<{ label: string; icon: IconName; items: Array<{ label: string; page: NavItem }> }> = [

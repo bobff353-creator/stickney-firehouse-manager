@@ -1,4 +1,5 @@
 "use client";
+import { SaveStatus } from "./save-status";
 
 import "./scheduler-member.css";
 import { schedulerAdminTask } from "./admin-tasks";
@@ -112,11 +113,13 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
   const [previewMember, setPreviewMember] = useState(false);
   const previewReturn = useRef("overview");
   const navigationRef = useRef<HTMLDivElement>(null);
+  const [jobChooserOpen, setJobChooserOpen] = useState(false);
   const navigationRequested = useRef(false);
   const setTab = useCallback((next: string) => {
     if (!confirmLeavingWork()) return;
     navigationRequested.current = true;
     setTabState(next);
+    setJobChooserOpen(false);
   }, [setTabState]);
   useEffect(() => {
     if (!navigationRequested.current) return;
@@ -229,7 +232,9 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
       {error && <div className="error" role="alert"><p>{error}</p><p>Your unsaved inputs stay on this screen. Review the message, then retry the action.</p><button type="button" disabled={refreshing || busy} onClick={() => void load()}>Retry loading saved schedule</button></div>}
       {notice && <div className="success" role="status"><p>{notice}</p>{!isAdmin && !previewMember && <button type="button" onClick={() => setTab("myrequests")}>View my request status →</button>}</div>}
       <div ref={navigationRef} className="scheduler-navigation-anchor">
-      {isAdmin && <nav className="scheduler-task-groups" aria-label="Scheduling task groups">{taskGroups.map(group => <button type="button" key={group.label} aria-pressed={group === activeGroup} onClick={() => setTab(group.ids[0])}>{group.label}</button>)}</nav>}
+      <details className="scheduler-job-chooser" open={jobChooserOpen} onToggle={event => setJobChooserOpen(event.currentTarget.open)}>
+      <summary>Change scheduling job · {tabs.find(([id]) => id === tab)?.[1] || "Choose a task"}</summary>
+      {isAdmin && <nav className="scheduler-task-groups" aria-label="Scheduling task groups">{taskGroups.map(group => <button type="button" key={group.label} aria-pressed={group === activeGroup} onClick={() => { if (!confirmLeavingWork()) return; setTabState(group.ids[0]); }}>{group.label}</button>)}</nav>}
       <label className="scheduler-mobile-picker"><span>{isAdmin ? "Admin tools" : "Scheduling"}</span><select aria-label="Choose scheduling screen" value={tab} onChange={(event) => setTab(event.target.value)}>
         {visibleTabs.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
       </select></label>
@@ -238,6 +243,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
           <button key={id} aria-current={tab === id ? "page" : undefined} className={tab === id ? "current" : ""} onClick={() => setTab(id)}>{label}</button>
         ))}
       </nav>
+      </details>
       </div>
       {tab !== (isAdmin ? "overview" : "myshifts") && !previewMember && <div className="scheduler-task-context"><button type="button" onClick={() => setTab(isAdmin ? "overview" : "myshifts")}>← Back to {isAdmin ? "schedule tasks" : "my shifts"}</button><strong>{tabs.find(([id]) => id === tab)?.[1]}{tab === "calendar" ? ` · ${friendlyDate(selectedDate)}` : ""}</strong></div>}
       <fieldset className="scheduler-workspace-fields" disabled={previewMember || Boolean(testMember)}>
@@ -584,6 +590,7 @@ function AssignmentEditor({ slot, employees, unavailableIds, act, busy }: {
 }) {
   const saved = slot.employeeId ?? "";
   const [selected, setSelected] = useState(saved);
+  const [saveFailed, setSaveFailed] = useState(false);
   const changed = selected !== saved;
   useUnsavedWork(changed, changed && busy);
   return <div className="scheduler-assignment-editor">
@@ -593,7 +600,7 @@ function AssignmentEditor({ slot, employees, unavailableIds, act, busy }: {
         {employees.map((employee) => <option key={employee.id} value={employee.id} disabled={unavailableIds.has(employee.id) && employee.id !== saved}>{employee.name} · {employee.rank}{unavailableIds.has(employee.id) ? " · unavailable" : ""}</option>)}
       </select>
     </label>
-    {changed && <div className="scheduler-assignment-actions"><span>Unsaved change</span><button type="button" className="link" disabled={busy} onClick={() => setSelected(saved)}>Cancel</button><button type="button" disabled={busy} onClick={() => void act(selected ? { action: "assignSlot", slotId: slot.id, employeeId: selected } : { action: "clearSlot", slotId: slot.id })}>Save assignment</button></div>}
+    {changed && <div className="scheduler-assignment-actions"><SaveStatus state={busy ? "saving" : saveFailed ? "failed" : "unsaved"} /><button type="button" className="link" disabled={busy} onClick={() => { setSelected(saved); setSaveFailed(false); }}>Cancel</button><button type="button" disabled={busy} onClick={async () => { setSaveFailed(false); const result = await act(selected ? { action: "assignSlot", slotId: slot.id, employeeId: selected } : { action: "clearSlot", slotId: slot.id }); if (!result) setSaveFailed(true); }}>{saveFailed ? "Retry save" : "Save assignment"}</button></div>}
   </div>;
 }
 
@@ -1134,25 +1141,24 @@ function OvertimeScreen({ data, act, busy, employeeName }: { data: Data; act: (b
 }
 
 function DistributionScreen({ data, act, busy }: { data: Data; act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean }) {
-  const [w, setW] = useState<Weights>(data.distributionWeights);
   const [fromDate, setFromDate] = useState(data.today);
   const [endDate, setEndDate] = useState(data.today);
   const validRange = Boolean(fromDate && endDate && endDate >= fromDate);
-  useEffect(() => { setW(data.distributionWeights); }, [data.distributionWeights]);
   return (
     <div className="scheduler-grid">
       <section>
-        <h3>Distribution weights</h3>
-        <label className="row"><span>Seniority weight</span><input type="number" min={0} max={10} step={0.1} value={w.seniorityWeight} onChange={(e) => setW({ ...w, seniorityWeight: Number(e.target.value) })} /></label>
-        <label className="row"><span>Hours-balance weight</span><input type="number" min={0} max={10} step={0.1} value={w.hoursWeight} onChange={(e) => setW({ ...w, hoursWeight: Number(e.target.value) })} /></label>
-        <label className="row"><span>{w.customLabel} weight</span><input type="number" min={0} max={10} step={0.1} value={w.customWeight} onChange={(e) => setW({ ...w, customWeight: Number(e.target.value) })} /></label>
-        <label className="row"><span>Custom label</span><input value={w.customLabel} onChange={(e) => setW({ ...w, customLabel: e.target.value })} /></label>
-        <button disabled={busy} onClick={() => act({ action: "saveDistributionWeights", ...w })}>Save weights</button>
+        <h3>Assignment priority</h3>
+        <ol>
+          <li><strong>Fill the required role.</strong> Use only qualified members who marked themselves available for the entire shift. Fill Officer/AO → Engine Driver → Ambulance Driver → FF/Attendant.</li>
+          <li><strong>Fewer scheduled hours first.</strong> Compare shifts starting within the selected dates, including existing recurring shifts and assignments added during this run. Overlapping duplicate roles count once.</li>
+          <li><strong>Rank, then seniority.</strong> When hours are equal, use higher rank, then earlier department start date. A missing start date does not gain seniority.</li>
+        </ol>
+        <p className="muted">This order is fixed. Cross-training and old weight settings cannot override availability, qualifications, or hours balance. Paid hours and old manually entered hour totals are not used here.</p>
       </section>
       <section>
         <h3>Run auto-distribution</h3>
         <p><strong>Only members with saved Available times.</strong> Auto-Distribution reads Department availability / My Availability. The full shift must fit within the member’s saved Available days and times. Blank days never count as available.</p>
-        <p className="muted">Shift requests and recurring Red, Black, or Gold membership do not bypass availability. Qualifications, time off, and assignment conflicts still apply. Weights rank only eligible members.</p>
+        <p className="muted">Shift requests and recurring Red, Black, or Gold membership do not bypass availability for a new assignment. Qualifications, time off, and assignment conflicts still apply. Saved recurring assignments stay unchanged.</p>
         <p className="muted">This saves assignments to future open positions within both dates. Filled positions stay unchanged, including earlier automatic assignments. Positions without an available, qualified member stay open. Build repeating shifts in Shift Builder first.</p>
         <label className="row"><span>From date</span><input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} /></label>
         <label className="row"><span>End date</span><input type="date" min={fromDate || undefined} value={endDate} onChange={(e) => setEndDate(e.target.value)} /></label>

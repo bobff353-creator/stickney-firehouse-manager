@@ -5,6 +5,7 @@ import test from 'node:test';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
+import { hydrantLocationLabel } from '../app/workflow-status.ts';
 
 // Render the actual Respond card, not a separately maintained copy of its labels.
 const source = await readFile(new URL('../app/respond.tsx', import.meta.url), 'utf8');
@@ -15,7 +16,7 @@ const compiled = ts.transpileModule(`export function Card({data,onNavigate}) { r
   compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 const exports = {};
-new Function('require', 'exports', compiled)(createRequire(import.meta.url), exports);
+new Function('require', 'exports', 'hydrantLocationLabel', compiled)(createRequire(import.meta.url), exports, hydrantLocationLabel);
 const hydrant = { id: 'fixture', address: 'Preview address', hydrantNumber: '106', distanceFeet: 126, serviceStatus: 'in_service' };
 const render = rows => renderToStaticMarkup(React.createElement(exports.Card, { data: { nearestHydrants: rows } }));
 
@@ -26,12 +27,19 @@ test('nearest hydrants show saved location first with number, distance and statu
   assert.doesNotMatch(html, /<b>106<\/b>/);
 });
 
-test('missing and blank addresses are explicitly unrecorded, not guessed from an ID', () => {
+test('missing and blank addresses explicitly identify an unverified map position, never a guessed street', () => {
   for (const address of ['', '   ', null, undefined]) {
     const html = render([{ ...hydrant, address, serviceStatus: 'out_of_service' }]);
-    assert.match(html, /<b>Location not recorded<\/b>/);
+    assert.match(html, /<b>Hydrant 106 · Map position unavailable<\/b>/);
+    assert.match(html, /Address not verified/);
     assert.match(html, /Hydrant 106 · 126 ft · out of service/);
   }
+});
+
+test('missing street address displays saved coordinates and marks the address unverified', () => {
+  const html = render([{ ...hydrant, address: '', latitude: 41.815, longitude: -87.78 }]);
+  assert.match(html, /<b>Hydrant 106 · 41.81500, -87.78000<\/b>/);
+  assert.match(html, /Address not verified/);
 });
 
 test('an unnumbered hydrant keeps location, distance and status without an empty ID label', () => {

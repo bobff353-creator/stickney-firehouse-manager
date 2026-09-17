@@ -218,3 +218,23 @@ test('UI explains the availability calendar, blank days, open seats and unchange
   for(const text of ['Only members with saved Available times.','Blank days never count as available.','Assign from saved availability','position(s) remain open','Existing assignments were not changed.','All day means midnight to midnight'])assert.ok(ui.includes(text),text);
   assert.ok(!ui.includes('Only requested shifts or saved recurring assignments.'));
 });
+
+test('the route balances actual active scheduled hours, not the old manual hours counter',async()=>{
+  const f=await fixture();try{
+    await f.markAvailable('a'); await f.markAvailable('b');
+    await f.pg.exec("INSERT INTO station_schedule_entries VALUES('earlier','2099-01-06','red-1'); INSERT INTO station_shift_slots(id,entry_id,role,status,employee_id) VALUES('existing','earlier','FF/Attendant','filled','a'); UPDATE employee_profiles SET station_hours_this_period=100 WHERE employee_id='b'");
+    assert.equal((await f.run({fromDate:'2099-01-06',endDate:'2099-01-07'})).assigned,1);
+    assert.equal((await f.pg.query("SELECT employee_id FROM station_shift_slots WHERE id='slot'")).rows[0].employee_id,'b');
+    assert.equal((await f.pg.query("SELECT employee_id FROM station_shift_slots WHERE id='existing'")).rows[0].employee_id,'a');
+  }finally{await f.pg.close();}
+});
+
+test('retired imported shift assignments do not block an available member',async()=>{
+  const f=await fixture();try{
+    await f.markAvailable('a');
+    await f.pg.exec("UPDATE station_shift_types SET active=0 WHERE id='red-2'; INSERT INTO station_schedule_entries VALUES('retired','2099-01-07','red-2'); INSERT INTO station_shift_slots(id,entry_id,role,status,employee_id) VALUES('old','retired','FF/Attendant','filled','a')");
+    assert.equal((await f.run()).assigned,1);
+    assert.equal((await f.pg.query("SELECT employee_id FROM station_shift_slots WHERE id='slot'")).rows[0].employee_id,'a');
+    assert.equal((await f.pg.query("SELECT employee_id FROM station_shift_slots WHERE id='old'")).rows[0].employee_id,'a');
+  }finally{await f.pg.close();}
+});

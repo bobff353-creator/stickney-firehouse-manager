@@ -23,7 +23,7 @@ test('shared portal navigation fails closed and honors individual grants/removal
 });
 
 test('inventory shares portal labels and routes without carrying apparatus/check query state',()=>{
-  assert.deepEqual(Array.from(menu.featuredNavItems,item=>item.label),['Home','Respond','Live Operations','Maps & Preplans','Daily Log','Station Schedule','Apparatus Checks']);
+  assert.deepEqual(Array.from(menu.featuredNavItems,item=>item.label),['Home','Respond','Live Operations','Maps & Preplans','Daily Log','Station Schedule','Inventory & Apparatus Checks']);
   assert.ok(menu.adminNavGroups.some(group=>group.label==='Station Duties'&&group.items.some(item=>item.page==='Daily Duties')));
   for(const page of navigation.portalPages){const url=navigation.portalPageUrl('/','',page);assert.equal(navigation.portalPageFromSearch(url.slice(1)),page);assert.ok(!/[?&](apparatus|check)=/.test(url));}
 });

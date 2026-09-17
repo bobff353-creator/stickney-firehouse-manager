@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useOperationalUpdates } from './use-operational-updates';
 import { formatEmployeeName } from "./employee-names";
+import { groupStaffingAssignments } from "./staffing-display";
 import { joinedLabel } from "./member-start-label";
 import { synchronizedSlide } from './board-sync-clock';
 import type { DepartmentScheduleShift, DepartmentScheduleWindowItem } from "./department-schedule";
@@ -104,13 +105,14 @@ export default function StaffingRotation({
       : current.member.startDate;
   const boardScheduleItems = current.type === "schedule" && current.shift ? current.shift.items.slice((current.page ?? 0) * 6, ((current.page ?? 0) + 1) * 6) : mode === "board" ? [] : schedule?.items ?? [];
   const pageCount = current.type === "schedule" && current.shift ? Math.ceil(current.shift.items.length / 6) : 0;
+  const displayedSchedule = groupStaffingAssignments(boardScheduleItems);
 
   const content = current.type === "current"
-    ? <div className="staffing-current-list">{onDuty.length ? onDuty.map((person) => <div key={person.employeeId}><span>{formatEmployeeName(person.name)}{person.actingOfficer ? <b>AO</b> : null}</span><small>{person.rank} · {person.timeIn}–{person.timeOut}</small></div>) : <p>No current staffing has been entered.</p>}</div>
+    ? <div className="staffing-current-list">{onDuty.length ? onDuty.map((person) => <div key={`${person.employeeId}:${person.timeIn}:${person.timeOut}`}><span>{formatEmployeeName(person.name)}{person.actingOfficer ? <b>AO</b> : null}</span><small>{person.rank} · {person.timeIn}–{person.timeOut}</small></div>) : <p>No current staffing has been entered.</p>}</div>
     : current.type === "schedule"
       ? schedule?.error
         ? <div className="aladtec-connection-state"><strong>{schedule.error}</strong><p>Assignments will reappear automatically when the department schedule is available.</p></div>
-        : <div className="schedule-24-list">{boardScheduleItems.length ? <>{boardScheduleItems.map((item) => <div key={item.id}><time>{timeRange(item)}</time><strong>{formatEmployeeName(item.employeeName ?? "Name unavailable")}</strong><small>{item.role}</small></div>)}{pageCount > 1 ? <p className="schedule-24-overflow">Crew page {(current.page ?? 0) + 1} of {pageCount} · remaining members rotate automatically</p> : null}</> : <p>{!schedule ? "Loading department schedule…" : current.shift ? "No members assigned to this time slot." : mode === "board" ? "Upcoming time slots are unavailable." : "No department assignments overlap the next 24 hours."}</p>}</div>
+        : <div className="schedule-24-list">{boardScheduleItems.length ? <>{displayedSchedule.map((item) => <div key={item.id}><time>{timeRange(item)}</time><strong>{formatEmployeeName(item.employeeName ?? "Name unavailable")}</strong><small>{item.roles.join(" / ")}{item.assignmentCount > 1 ? ` · ${item.assignmentCount} saved assignments — review roster` : ""}</small></div>)}{pageCount > 1 ? <p className="schedule-24-overflow">Crew page {(current.page ?? 0) + 1} of {pageCount} · remaining members rotate automatically</p> : null}</> : <p>{!schedule ? "Loading department schedule…" : current.shift ? "No members assigned to this time slot." : mode === "board" ? "Upcoming time slots are unavailable." : "No department assignments overlap the next 24 hours."}</p>}</div>
       : <div className="new-member-spotlight"><div className="new-member-photo">{current.member.photoUpdatedAt ? <img src={`/api/employee-photo/${current.member.id}?v=${encodeURIComponent(current.member.photoUpdatedAt)}`} alt={`${formatEmployeeName(current.member.name)} employee photo`} /> : <span>{initials(current.member.name)}</span>}</div><div><span>Welcome to Stickney Fire Department</span><strong>{formatEmployeeName(current.member.name)}</strong><p>{current.member.rank}</p><dl><div><dt>Employee ID</dt><dd>{current.member.employeeNumber || "Not entered"}</dd></div><div><dt>Start date</dt><dd>{new Date(`${current.member.startDate}T12:00:00`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</dd></div></dl><small>{joinedLabel(current.member.startDate)}</small></div></div>;
 
   if (mode === "board") {

@@ -1,0 +1,62 @@
+/* Shared workflow language; warning/destructive controls keep their own styling. */
+.workflow-save-status { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; padding:8px 10px; border:1px solid #b4c7d4; border-radius:6px; background:#f2f6f9; color:#173b53; font-size:13px; }
+.workflow-save-status small { flex-basis:100%; }
+.workflow-save-status.failed { border-color:#b33a3a; background:#fff0ec; color:#842c24; }
+.workflow-save-status.unsaved { border-color:#b3893b; background:#fff8e9; color:#654a17; }
+.workflow-save-status.saved { border-color:#93b3a5; background:#f0f8f4; color:#215c42; }
+.role-dashboard .dashboard-welcome { padding:12px 16px; margin-bottom:12px; gap:12px; }
+.role-dashboard .dashboard-welcome h1 { font-size:24px; line-height:1.2; margin:2px 0; }
+.role-dashboard .dashboard-welcome p:last-child { margin-top:4px; font-size:14px; }
+.home-current-work { margin-bottom:18px; }
+.home-current-work h2 { font-size:18px; margin:0 0 10px; }
+.home-current-work > div { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.home-current-work button { min-width:0; min-height:84px; display:grid; align-content:center; gap:6px; padding:12px; border:1px solid #9bb6c8; border-left:4px solid #21608b; border-radius:8px; background:#fff; color:#14384f; text-align:left; cursor:pointer; }
+.home-current-work button:first-child { background:#e8f2f8; }
+.home-current-work button span { font-size:13px; line-height:1.4; overflow-wrap:anywhere; }
+.home-current-work button:hover { background:#e8f2f8; }
+.home-current-work button:focus-visible { outline:3px solid #1474b7; outline-offset:2px; }
+.respond-page .respond-context-line { position:sticky; top:74px; z-index:6; display:flex; flex-wrap:wrap; align-items:center; gap:4px 14px; padding:7px 10px; border:1px solid #91b0c2; border-radius:6px; background:#edf5fa; color:#14384f; font-size:12px; line-height:1.4; box-shadow:0 2px 4px #10283d15; }
+.respond-page .respond-context-line.stale { background:#fff3d9; border-color:#b97b15; color:#624114; }
+.respond-context-line small { font-size:11px; }
+.respond-context-line button { margin-left:auto; min-height:36px; padding:4px 10px; }
+.respond-page.monitor-view .respond-context-line, .respond-page:fullscreen .respond-context-line { top:0; }
+.workflow-sticky-check.check-progress-summary { position:sticky; top:76px; z-index:12; padding:10px 12px; background:#fff; border:1px solid #98b2c3; box-shadow:0 3px 8px #10283d1c; scroll-margin-top:150px; }
+.workflow-sticky-check .workflow-save-status { padding:5px 8px; }
+#check-completion { scroll-margin-top:230px; }
+.check-completion-bar .check-review-summary { display:flex; flex-wrap:wrap; gap:8px; }
+.check-review-summary span { padding:4px 8px; background:#edf4f8; border-radius:4px; color:#153b53; }
+.log-handoff-next { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:14px; border:1px solid #9bb6c8; border-radius:8px; background:#edf4f8; }
+.log-handoff-next p { flex-basis:100%; margin:0; }
+.scheduler .scheduler-job-chooser { padding:10px; border:1px solid #476376; border-radius:6px; background:#142633; }
+.scheduler .scheduler-job-chooser > summary { min-height:36px; align-content:center; cursor:pointer; color:#e8f4ff; font-weight:700; }
+.scheduler .scheduler-job-chooser[open] > summary { margin-bottom:8px; }
+.scheduler .scheduler-tabs button, .scheduler .scheduler-view-bar > button, .scheduler .scheduler-task-context > button { background:#174b70; border-color:#4e7895; color:#fff; }
+.scheduler .scheduler-tabs button.current, .scheduler .scheduler-view-bar > button.current { background:#226c9c; border-color:#91c5e5; }
+.scheduler .scheduler-tabs button.current::after { background:#90d1fb; }
+.scheduler .scheduler-grid button:not(.danger):not(.link):not([aria-pressed]), .scheduler .availability-actions button:not(.danger), .scheduler .assignment-editor button:not(.danger):not(.link) { background:#21608b; border-color:#5485a6; color:white; }
+.scheduler .workflow-save-status { margin-top:8px; }
+.payroll-panel .workflow-payroll-review { position:sticky; top:74px; z-index:5; margin:0; padding:12px; background:#edf5fa; border-block:1px solid #b4c7d4; }
+.timesheet-card > .workflow-save-status { margin:0 14px 12px; }
+.preplan-save-bar .workflow-save-status { max-width:420px; }
+.preplan-workflow-footer > span { font-size:12px; color:#355365; }
+.operational-editor .workflow-save-status { grid-column:1 / -1; }
+@media (max-width:900px) {
+  .home-current-work > div { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .respond-page .respond-context-line { position:static; }
+  .workflow-sticky-check.check-progress-summary { top:70px; display:flex; flex-wrap:wrap; gap:6px; }
+  .workflow-sticky-check .workflow-save-status { flex:1 1 180px; }
+  .workflow-sticky-check .workflow-save-status small { display:none; }
+  .payroll-panel .workflow-payroll-review { flex-wrap:wrap; gap:8px; }
+}
+@media (max-width:520px) {
+  .role-dashboard .dashboard-welcome { flex-direction:row; align-items:center; }
+  .role-dashboard .dashboard-welcome h1 { font-size:20px; }
+  .role-dashboard .dashboard-welcome .dashboard-live { min-width:0; font-size:11px; }
+  .home-current-work > div { grid-template-columns:1fr; }
+  .home-current-work button { min-height:68px; }
+  .workflow-sticky-check.check-progress-summary { top:64px; }
+  .workflow-sticky-check > button { min-height:38px; }
+  .payroll-panel .workflow-payroll-review { position:static; }
+  .log-handoff-next button { width:100%; min-height:44px; }
+}
+@media print { .workflow-save-status, .respond-context-line, .scheduler-job-chooser, .workflow-payroll-review { display:none !important; } .workflow-sticky-check.check-progress-summary { position:static; } }

@@ -30,5 +30,5 @@ export function portalPageUrl(pathname: string, search: string, page: PortalPage
   return `${pathname}?${params.toString()}`;
 }
 export function portalPageLabel(page: PortalPage) {
-  return ({ Dashboard: "Home", "Field Preplans": "Maps & Preplans", Scheduling: "Station Schedule", Inventory: "Apparatus Checks", "Operations Board": "Live Operations" } as Partial<Record<PortalPage,string>>)[page] ?? page;
+  return ({ Dashboard: "Home", "Field Preplans": "Maps & Preplans", Scheduling: "Station Schedule", Inventory: "Inventory & Apparatus Checks", "Operations Board": "Live Operations" } as Partial<Record<PortalPage,string>>)[page] ?? page;
 }

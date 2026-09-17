@@ -1,5 +1,7 @@
 "use client";
 import { fleetChecksForShift } from "./fleet-check-shift";
+import { parseSavedTime, savedTimeLabel } from "./workflow-status";
+import { useWorkspaceViewState } from "./workspace-view-state";
 import { CALLBACK_QUALIFYING_CALL_TYPES } from "./callback-rules";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -415,13 +417,12 @@ function CallbackPanel({ call, logDate }: { call: CallRow; logDate: string }) {
 export default function DailyLog({
   employees,
   onPayrollSynced,
-  onHome,
 }: {
   employees: LogEmployee[];
   onPayrollSynced?: () => void;
   onHome?: () => void;
 }) {
-  const [logDate, setLogDate] = useState(
+  const [logDate, setLogDate] = useWorkspaceViewState("daily-log-date",
     () => chicagoOperationalContext().operationalDate,
   );
   const [staffing, setStaffing] = useState<StaffingRow[]>([]);
@@ -502,7 +503,7 @@ export default function DailyLog({
       const stored = window.localStorage.getItem(draftKey(date));
       const draft = stored ? (JSON.parse(stored) as OfflineDraft) : null;
       const updatedAt = data.log?.updatedAt;
-      const serverUpdatedAt = updatedAt ? new Date(/(?:Z|[+-]\d{2}:?\d{2})$/i.test(updatedAt) ? updatedAt : `${updatedAt.replace(" ", "T")}Z`) : null;
+      const serverUpdatedAt = parseSavedTime(updatedAt);
       const serverTime = serverUpdatedAt?.getTime() ?? 0;
       const restore = Boolean(draft && new Date(draft.savedAt).getTime() > serverTime);
       const conflict = Boolean(restore && draft?.expectedVersion !== data.log?.saveVersion);
@@ -535,7 +536,7 @@ export default function DailyLog({
       setSchedulePrefilled(!restore && Boolean(data.schedulePrefilled));
       if (restore) setMessage("Unsaved work restored from this device");
       if (conflict) setMessage("Your local draft differs from the saved log. Automatic saving is paused to protect the other changes.");
-      setLastSynced(serverUpdatedAt ?? new Date());
+      setLastSynced(serverUpdatedAt);
       setLoadedDate(date);
       window.setTimeout(() => {
         if (request === loadRequest.current) loaded.current = true;
@@ -993,12 +994,11 @@ export default function DailyLog({
       </header>
       <div className="log-sticky-tools no-print">
         <nav aria-label="Daily Log sections">
-          {onHome && <button type="button" onClick={onHome}>← Home</button>}
           {[["log-staffing", "Staffing"], ["log-calls", "Calls"], ["log-checks", "Checks"], ["log-notes", "Notes & Handoff"]].map(([id, label]) => <a key={id} href={`#${id}`} onClick={event => { event.preventDefault(); const section = document.getElementById(id); section?.scrollIntoView({ block: "start" }); section?.focus({ preventScroll: true }); }}>{label}</a>)}
         </nav>
         <div className={`log-save-status ${saveError || saveConflict || loadError ? "attention" : loading || loadedDate !== logDate || dirty || !isOnline || schedulePrefilled ? "pending" : "saved"}`} role="status" aria-live="polite">
-          <strong>{loading ? "Loading log…" : loadError || loadedDate !== logDate ? "Not loaded" : saveConflict ? "Needs attention · conflicting changes" : saveError ? "Needs attention · save unconfirmed" : saving ? "Saving…" : dirty ? deviceDraftSaved ? "Saved on this device · waiting to sync" : "Changes not yet saved" : schedulePrefilled ? "Review scheduled staffing" : !isOnline ? "Offline · showing last saved log" : "Saved to server"}</strong>
-          <small>{lastSynced ? `Last server save ${lastSynced.toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit" })} Central` : "No server save confirmed"} · Saving is not officer sign-off.</small>
+          <strong>{loading ? "Loading log…" : loadError || loadedDate !== logDate ? "Not loaded" : saveConflict ? "Needs attention · conflicting changes" : saveError ? "Save failed — Retry" : saving ? "Saving…" : dirty ? deviceDraftSaved ? "Saved on this device · waiting to sync" : "Unsaved changes" : schedulePrefilled ? "Review scheduled staffing" : !isOnline ? "Offline · showing last saved log" : "Saved to server"}</strong>
+          <small>{lastSynced ? `Last server save ${savedTimeLabel(lastSynced)} Central` : "Saved time unavailable · not proof of a failed save"} · Saving is not officer sign-off.</small>
           {saveError && !saveConflict && !readOnly && <button type="button" disabled={saving} onClick={() => void saveLog()}>Retry save</button>}
         </div>
       </div>
@@ -1542,7 +1542,7 @@ export default function DailyLog({
           <a className="log-next no-print" href="#log-notes">Next: Notes &amp; Handoff →</a>
         </article>
         <DailyLogNotes key={logDate} value={shiftNotes} onChange={value => { setShiftNotes(value); markDirty(); }} recentNotes={recentNotes} onOpenDate={changeLogDate} readOnly={readOnly} />
-        <div className="log-handoff-next no-print"><strong>Ready to hand off?</strong><span>Saved entries do not sign off a shift. Return to your staffing section and choose Officer Sign Out.</span><a href="#log-staffing">Review staffing &amp; officer sign-off ↑</a></div>
+        <div className="log-handoff-next no-print"><strong>Review &amp; hand off</strong><span>Saving does not complete a shift. Review the shift, required checks, and notes before signing off.</span>{shiftSections.filter(shift => approvals.some(approval => approval.shiftKey === shift.key && approval.signInAt && !approval.signOutAt)).map(shift => <button type="button" key={shift.key} disabled={saving || dirty || saveError || !isOnline} onClick={() => void openHandoff(shift.key, shift.title, "out")}>Review &amp; hand off · {shift.title}</button>)}{!approvals.some(approval => approval.signInAt && !approval.signOutAt) && <span>No signed-in shift is awaiting handoff. Review officer sign-in under Staffing.</span>}{dirty && <span>Save your changes before handing off.</span>}</div>
       </fieldset>
 
       {handoff && (

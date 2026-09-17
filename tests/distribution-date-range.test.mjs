@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import { PGlite } from '@electric-sql/pglite';
+import { scheduledDistributionHours } from '../app/station-scheduler-logic.ts';
 
 test('distribution requires valid dates and includes only open positions inside both boundaries', async () => {
   const source = fs.readFileSync(new URL('../app/api/station-scheduler/route.ts', import.meta.url), 'utf8');
@@ -20,7 +21,7 @@ test('distribution requires valid dates and includes only open positions inside 
       INSERT INTO station_shift_slots(id,entry_id,role,status,start_time,end_time,sort_order) VALUES('filled','start','FF/Attendant','filled','','',1);`);
     let selected = [], reads = 0;
     const db = {prepare(sql) { let values=[]; const statement={bind(...v){values=v;return statement;},async first(){return null;},async all(){reads++;if(!sql.includes("WHERE s.status='open'"))return {results:[]};let i=0;const result=await pg.query(sql.replaceAll('?',()=>`$${++i}`).replace(/\b(entryDate|startTime|endTime)\b/g,'"$1"'),values);return {results:result.rows};}};return statement;}};
-    const sandbox={exports:{},iso:/^\d{4}-\d{2}-\d{2}$/,chicagoToday:()=> '2026-09-09',shiftHasNotStarted:()=>true,loadEmployees:async()=>[],shiftHours:()=>6,busyEmployeesByDate:async()=>({}),autoDistribute:(slots)=>{selected=slots.map(s=>s.slotId);return [];},ok:v=>({status:200,...v}),bad:error=>({status:400,error})};
+    const sandbox={exports:{},iso:/^\d{4}-\d{2}-\d{2}$/,chicagoToday:()=> '2026-09-09',shiftHasNotStarted:()=>true,loadEmployees:async()=>[],shiftHours:()=>6,scheduledDistributionHours,autoDistribute:(slots)=>{selected=slots.map(s=>s.slotId);return [];},ok:v=>({status:200,...v}),bad:error=>({status:400,error})};
     vm.runInNewContext(ts.transpileModule(fn.getText(ast)+'\nexports.run=runAutoDistribution;', {compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,sandbox);
     const run=payload=>sandbox.exports.run(db,payload,()=>{});
     for(const payload of [{},{fromDate:'2026-09-10'},{fromDate:'2026-09-12',endDate:'2026-09-10'},{fromDate:'2026-02-30',endDate:'2026-03-01'}])assert.equal((await run(payload)).status,400);

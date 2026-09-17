@@ -18,6 +18,7 @@ import {
   recurringShiftOccursOnDate,
   sameRecurringPattern,
   seniorityFromStartDate,
+  scheduledDistributionHours,
   type DistributionEmployee,
   type DistributionBooking,
   type OpenSlot,
@@ -825,8 +826,8 @@ async function runAutoDistribution(db: Db, payload: Record<string, unknown>, req
   const validDate = (date: string) => iso.test(date) && Number.isFinite(Date.parse(date)) && new Date(date).toISOString().slice(0, 10) === date;
   if (!validDate(fromDate) || !validDate(endDate) || endDate < fromDate) return bad("Choose valid From and End dates. End date must be on or after From date.");
   const employees = await loadEmployees(db);
-  const weightsRow = await db.prepare("SELECT seniority_weight seniorityWeight,hours_weight hoursWeight,custom_weight customWeight,custom_label customLabel FROM station_distribution_weights WHERE id=1").first<{ seniorityWeight: number; hoursWeight: number; customWeight: number; customLabel: string }>();
-  const weights = weightsRow ?? { seniorityWeight: 1, hoursWeight: 1, customWeight: 0, customLabel: "Cross-trained" };
+  // Kept for the legacy helper signature; assignment priority is fixed, not weighted.
+  const weights = { seniorityWeight: 0, hoursWeight: 1, customWeight: 0, customLabel: "Role eligibility" };
 
   const openRows = (await db.prepare("SELECT s.id,s.role,s.is_extra isExtra,en.entry_date entryDate,en.shift_type_id shiftTypeId,t.active shiftActive,t.anchor_date anchorDate,t.repeat_every_days repeatEveryDays,t.start_time shiftStartTime,t.end_time shiftEndTime,COALESCE(NULLIF(s.start_time,''),t.start_time) startTime,COALESCE(NULLIF(s.end_time,''),t.end_time) endTime FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id WHERE s.status='open' AND s.employee_id IS NULL AND t.active=1 AND date(en.entry_date)>=date(?) AND date(en.entry_date)<=date(?) ORDER BY en.entry_date,s.sort_order,s.id").bind(fromDate, endDate).all<DistributionPosition>()).results
     .filter(row => shiftHasNotStarted(row.entryDate, row.startTime, new Date()));
@@ -837,10 +838,6 @@ async function runAutoDistribution(db: Db, payload: Record<string, unknown>, req
   ]);
 
   const openSlots: OpenSlot[] = openRows.map((r) => ({ slotId: r.id, date: r.entryDate, role: r.role, startTime: r.startTime, endTime: r.endTime, hours: shiftHours(r.startTime, r.endTime) }));
-  const distEmployees: DistributionEmployee[] = employees.map((e) => ({
-    employeeId: e.id, name: e.name, seniority: seniorityFromStartDate(e.startDate, today), hours: e.hoursThisPeriod,
-    crossTrained: parseRoles(e.roles).length > 1,
-  }));
   const eligibility: Record<string, string[]> = {};
   for (const row of openRows) {
     eligibility[row.id] = employees.filter((e) => {
@@ -848,11 +845,15 @@ async function runAutoDistribution(db: Db, payload: Record<string, unknown>, req
       return isGeneralOneDayPosition(row.role) || eligibleForRole(row.role, e);
     }).map((e) => e.id);
   }
-  const busy = await busyEmployeesByDate(db, [...new Set(openRows.map((r) => r.entryDate))]);
+  // Retired imported shifts must not block availability or inflate scheduled hours.
+  const bookings = (await db.prepare("SELECT s.employee_id employeeId,en.entry_date date,COALESCE(NULLIF(s.start_time,''),t.start_time) startTime,COALESCE(NULLIF(s.end_time,''),t.end_time) endTime FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id WHERE s.status='filled' AND s.employee_id IS NOT NULL AND t.active=1 AND date(en.entry_date)>=date(?,'-1 day') AND date(en.entry_date)<=date(?,'1 day')").bind(fromDate, endDate).all<DistributionBooking>()).results;
+  const scheduledHours = scheduledDistributionHours(bookings, fromDate, endDate);
+  const distEmployees: DistributionEmployee[] = employees.map(e => ({
+    employeeId: e.id, name: e.name, rank: e.rank, seniority: seniorityFromStartDate(e.startDate, today),
+    hours: scheduledHours.get(e.id) ?? 0, crossTrained: parseRoles(e.roles).length > 1,
+  }));
   const busyByDate: Record<string, string[]> = {};
-  for (const [date, set] of Object.entries(busy)) busyByDate[date] = [...set];
-
-  const bookings = (await db.prepare("SELECT s.employee_id employeeId,en.entry_date date,COALESCE(NULLIF(s.start_time,''),t.start_time) startTime,COALESCE(NULLIF(s.end_time,''),t.end_time) endTime FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id WHERE s.status='filled' AND s.employee_id IS NOT NULL AND date(en.entry_date)>=date(?,'-1 day') AND date(en.entry_date)<=date(?,'1 day')").bind(fromDate, endDate).all<DistributionBooking>()).results;
+  for (const booking of bookings) (busyByDate[booking.date] ??= []).push(booking.employeeId);
   const assignments = autoDistribute(openSlots, distEmployees, weights, eligibility, busyByDate, bookings);
   if (assignments.length) {
     // One atomic save: changed availability must not leave assignments or hours half-saved.

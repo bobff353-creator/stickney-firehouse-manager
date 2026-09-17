@@ -10,6 +10,7 @@ import "../../app/globals.css";
 import "../../app/mobile-usability.css";
 import "../../app/portal-usability.css";
 import "../../app/admin-usability.css";
+import "../../app/workflow-usability.css";
 
 // Actual client UI, fictional responses only. No credentials or production writes.
 const params = new URLSearchParams(location.search);
@@ -89,6 +90,10 @@ const payloads: Record<string, unknown> = {
   },
 };
 payloads["/api/logbook"] = payloads["/api/daily-log"];
+if (params.has("workflow-audit")) {
+  Object.assign(briefing, { checksDue: 2, nextShift: {employeeId:employee.id, workDate:"2026-09-25", startTime:"06:00", endTime:"12:00", role:"FF/Attendant"}, equipmentIssues:[{item:"Fictional apparatus",status:"out_of_service",detail:"Preview only"}] });
+  (payloads["/api/daily-log"] as {log:{updatedAt:string}}).log.updatedAt = "2026-09-17 15:04:06.89538+00";
+}
 if (params.has('seven-ux')) {
   const nextDay = new Date(`${date}T12:00:00Z`); nextDay.setUTCDate(nextDay.getUTCDate()+1);
   const day = nextDay.toISOString().slice(0,10);

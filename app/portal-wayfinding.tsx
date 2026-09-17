@@ -3,14 +3,14 @@ import { useWorkspaceViewState } from "./workspace-view-state";
 import { portalPageLabel, type PortalPage } from "./portal-navigation";
 import { portalWorkflows } from "./portal-workflows";
 
-export function WorkspaceGuide({ page, home, backLabel, onBack, returnLabel, onReturn, onNavigate }: { page: PortalPage; home: PortalPage; backLabel?: string; onBack: () => void; returnLabel?: string; onReturn?: () => void; onNavigate: (page: PortalPage) => void }) {
+export function WorkspaceGuide({ page, backLabel, onBack, returnLabel, onReturn }: { page: PortalPage; home: PortalPage; backLabel?: string; onBack: () => void; returnLabel?: string; onReturn?: () => void; onNavigate: (page: PortalPage) => void }) {
   const guide = portalWorkflows[page];
+  const destination = returnLabel || backLabel;
   return <div className="workspace-wayfinding no-print" data-test-safe>
     <nav aria-label="Workspace navigation">
-      {backLabel && <button type="button" onClick={onBack}>← Back to {backLabel}</button>}
-      {page !== home && backLabel !== portalPageLabel(home) && <button type="button" onClick={() => onNavigate(home)}>{portalPageLabel(home)}</button>}
+      {destination && <button type="button" onClick={returnLabel && onReturn ? onReturn : onBack}>← Back to {destination}</button>}
+      <span className="workspace-section">{guide.group} →</span>
       <span aria-current="page">{portalPageLabel(page)}</span>
-      {returnLabel && <button type="button" className="workspace-return" onClick={onReturn}>Return to {returnLabel}</button>}
     </nav>
     <details className="workspace-guide" key={page}>
       <summary>How to use this screen</summary>

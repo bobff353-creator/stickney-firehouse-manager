@@ -5,6 +5,7 @@ import { respondingUnitsIncludeUnit } from '../../app/respond-device';
 import '../../app/globals.css';
 import '../../app/mobile-usability.css';
 import '../../app/portal-usability.css';
+import '../../app/workflow-usability.css';
 
 const params = new URLSearchParams(location.search);
 const compactPreview = params.has('compact');

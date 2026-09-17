@@ -18,5 +18,5 @@ test("due work keeps inventory in its own apparatus-aligned section", () => {
   assert.match(operations, /item\.check_types\.includes\("inventory"\)/);
   assert.match(operations, /renderCheckCards\(inventoryChecks/);
   assert.match(operations, /key={`\$\{item\.apparatusId\}-\$\{item\.checkType\}`}/);
-  assert.match(operations, /item\.configured \? "Start check" : "Not configured"/);
+  assert.match(operations, /!item\.active && !item\.configured \? "Not configured" : checkNextAction\(Boolean\(item\.active\), item\.total, item\.pending\)/);
 });

@@ -642,7 +642,7 @@ export default function Inventory360({
             <button type="button" onClick={() => openFleetFilter("in-service")}><strong>{inService}</strong><span>In service</span></button>
             <button type="button" onClick={() => openFleetFilter("out-impaired")}><strong>{outOfService.length}</strong><span>Out / impaired</span></button>
             <button type="button" onClick={() => setView("readiness")}><strong>{inventoryEvents.length}</strong><span>Readiness updates</span></button>
-            <button type="button" onClick={() => setView("fleet")}><strong>{fleetSummaryReady ? checksInProgress : "—"}</strong><span>Checks in progress</span></button>
+            <button type="button" onClick={() => setView("fleet")}><strong>{fleetSummaryReady ? checksInProgress : "—"}</strong><span>All unfinished checks</span><small>All dates · includes Inventory counts</small></button>
           </div>
         ) : null}
         <label className="inventory-mobile-destination">What do you need to do?<select aria-label="Inventory workspace" value={view === "check" ? (selectedCheckType === "air_pack" ? "air" : "fleet") : view} onChange={event => setView(event.target.value as View)}>{inventorySections.map(([id,label]) => <option key={id} value={id}>{label}</option>)}{view === "readiness" && <option value="readiness">Items needing attention</option>}{canSetup && <option value="setup">Admin: checks &amp; equipment</option>}</select></label>

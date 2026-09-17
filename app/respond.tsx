@@ -1,4 +1,5 @@
 "use client";
+import { hydrantLocationLabel, responseFreshness, savedTimeLabel } from "./workflow-status";
 import { onOperationalPush } from './operational-push-refresh';
 import { useOperationalUpdates } from './use-operational-updates';
 /* eslint-disable @next/next/no-img-element -- preplan photos are protected runtime records. */
@@ -701,6 +702,8 @@ export default function Respond({
   );
   const [cachedAt, setCachedAt] = useState("");
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [statusClock, setStatusClock] = useState(() => Date.now());
+  useEffect(() => { const timer = window.setInterval(() => setStatusClock(Date.now()), 5000); return () => window.clearInterval(timer); }, []);
   const [nextChangeAt, setNextChangeAt] = useState(0);
   const reloadRequested = useRef(false);
   const reloadTimer = useRef<number | null>(null);
@@ -1139,6 +1142,15 @@ export default function Respond({
         )
       : [],
     crewProgressActions = nextRespondActions(crewProgress?.status);
+  const freshness = responseFreshness(lastRefresh, statusClock, isOnline, liveConnected, Boolean(error) || respondSource !== "live");
+  const contextLine = <aside className={`respond-context-line${freshness.warning ? " stale" : ""}`} aria-label="Response context" role={freshness.warning ? "alert" : "status"}>
+    <strong>{apparatus ? `Calls for apparatus ${apparatus}` : "Viewing all department calls"}</strong>
+    <span>{call ? `Incident ${call.reportNumber} · ${call.callType || "Type not reported"}` : "No selected incident"}</span>
+    <span>{freshness.label}</span>
+    <span>Last successful update: {savedTimeLabel(lastRefresh, "not yet received")}{lastRefresh ? " Central" : ""}</span>
+    <small>CAD delivery: {call?.receivedAt ? `last incident received ${savedTimeLabel(call.receivedAt)}` : "no incident receipt in this view"}. Upstream CAD connection is not independently verified.</small>
+    {freshness.warning && <button type="button" onClick={() => void load()}>Retry updates</button>}
+  </aside>;
   if (!data && !error)
     return (
       <section ref={pageRef} className={`respond-page${monitorMode ? " monitor-view" : ""}`} aria-busy="true">
@@ -1177,6 +1189,7 @@ export default function Respond({
         ref={pageRef}
         className={`respond-page respond-overview-page${monitorMode ? " monitor-view" : ""}`}
       >
+        {contextLine}
         <header className="respond-title">
           <div>
             <span>FIELD · RESPOND</span>
@@ -1256,6 +1269,7 @@ export default function Respond({
       ref={pageRef}
       className={`respond-page respond-active-call${monitorMode ? " monitor-view" : ""}`}
     >
+      {contextLine}
       {apparatus && (
         <div className="respond-apparatus-strip">
           <strong>APPARATUS RESPOND · UNIT {apparatus}</strong>
@@ -1836,9 +1850,10 @@ export default function Respond({
               {data.nearestHydrants.map((hydrant) => (
                 <p key={hydrant.id} className="respond-hydrant-summary">
                   <b>
-                    {hydrant.address?.trim() || "Location not recorded"}
+                    {hydrantLocationLabel(hydrant)}
                   </b>
                   <small>
+                    {!hydrant.address?.trim() && "Address not verified · "}
                     {hydrant.hydrantNumber?.trim()
                       ? `Hydrant ${hydrant.hydrantNumber.trim()} · `
                       : ""}

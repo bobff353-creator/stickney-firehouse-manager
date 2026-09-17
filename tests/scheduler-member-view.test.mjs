@@ -45,7 +45,7 @@ test('admin navigation uses daily staffing and explicit assignment saves', async
   assert.ok(component.includes('role={adminDayMode ? "region" : "dialog"}'));
   const editor = component.split('function AssignmentEditor(')[1].split('function DaySlotTimeEditor(')[0];
   assert.ok(editor.includes('onChange={(event) => setSelected(event.target.value)}'));
-  assert.ok(editor.includes('Unsaved change'));
+  assert.ok(editor.includes('<SaveStatus state={busy ? "saving" : saveFailed ? "failed" : "unsaved"}'));
   assert.ok(editor.includes('Save assignment'));
   assert.ok(editor.includes('action: "assignSlot"'));
   assert.ok(editor.includes('action: "clearSlot"'));

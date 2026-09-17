@@ -202,13 +202,58 @@ export type DistributionEmployee = {
   employeeId: string;
   name: string;
   seniority: number;      // larger = more senior
-  hours: number;          // hoursThisPeriod
-  crossTrained: boolean;  // earns the custom weight when true
+  rank?: string;
+  hours: number;          // saved scheduled hours in the selected date range
+  crossTrained: boolean;  // legacy metadata; never overrides role eligibility
 };
 
 export type OpenSlot = { slotId: string; date: string; role: string; hours: number; startTime?: string; endTime?: string };
 
 export type DistributionBooking = { employeeId: string; date: string; startTime: string; endTime: string };
+
+/** Count actual scheduled time once, even when duplicate roles overlap. */
+export function scheduledDistributionHours(bookings: DistributionBooking[], fromDate: string, endDate: string): Map<string, number> {
+  const windows = new Map<string, Array<[number, number]>>();
+  for (const booking of bookings) {
+    if (booking.date < fromDate || booking.date > endDate) continue;
+    const base = Date.parse(`${booking.date}T00:00:00Z`) / 60000;
+    if (!Number.isFinite(base) || ![booking.startTime, booking.endTime].every(time => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time))) throw new Error("A saved shift has an invalid time. Correct it before Auto-Distribution.");
+    const minute = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
+    const start = base + minute(booking.startTime);
+    let end = base + minute(booking.endTime);
+    if (end <= start) end += 1440;
+    const own = windows.get(booking.employeeId) ?? [];
+    own.push([start, end]); windows.set(booking.employeeId, own);
+  }
+  return new Map([...windows].map(([id, own]) => {
+    let hours = 0, covered = -Infinity;
+    for (const [start, end] of own.sort((a, b) => a[0] - b[0])) {
+      hours += Math.max(0, end - Math.max(start, covered)) / 60;
+      covered = Math.max(covered, end);
+    }
+    return [id, hours];
+  }));
+}
+
+export function distributionRankPriority(rank = ""): number {
+  const label = rank.trim().toLowerCase();
+  if (/\bchief\b/.test(label)) return /\b(deputy|assistant|battalion|division)\b/.test(label) ? 1 : 0;
+  if (/\bcaptain\b/.test(label)) return 2;
+  if (/\blieutenant\b/.test(label)) return 3;
+  return 4;
+}
+
+/** Eligibility is a hard gate. Hours always precede rank, then start-date seniority. */
+export function compareDistributionCandidates(a: DistributionEmployee, b: DistributionEmployee) {
+  return a.hours - b.hours || distributionRankPriority(a.rank) - distributionRankPriority(b.rank)
+    || b.seniority - a.seniority || a.name.localeCompare(b.name) || a.employeeId.localeCompare(b.employeeId);
+}
+
+function distributionRolePriority(role: string) {
+  const order = ["Officer/AO", "Engine Driver", "Ambulance Driver", "FF/Attendant"];
+  const index = order.indexOf(role);
+  return index < 0 ? order.length : index;
+}
 export function distributionOverlaps(a: { date: string; startTime: string; endTime: string }, b: { date: string; startTime: string; endTime: string }) {
   const window = (slot: typeof a) => {
     const base = Date.parse(`${slot.date}T00:00:00Z`) / 60000;
@@ -230,6 +275,8 @@ export type DistributionAssignment = {
 };
 
 /**
+ * Legacy scoring utility, retained for compatibility only. Auto-Distribution
+ * uses compareDistributionCandidates instead and never calls this function.
  * Score = seniority/maxSeniority*seniorityWeight
  *       + (1 - hours/maxHours)*hoursWeight
  *       + (crossTrained ? customWeight : 0)
@@ -248,19 +295,21 @@ export function scoreCandidate(
 }
 
 /**
- * Greedily fill each open slot with the highest-scoring role-eligible employee
- * who is not already working that day (across both existing bookings and slots
- * filled earlier in this run). Assigned hours accrue to the employee so later
+ * Fill Officer/AO, Engine Driver, Ambulance Driver, then FF/Attendant within
+ * each shift. Among eligible members prefer fewer scheduled hours, then rank
+ * and earlier start-date seniority. Old numeric weights cannot override this.
+ * Members already working that day are excluded (across existing bookings and
+ * slots filled earlier in this run). Assigned hours accrue so later
  * slots see updated load. `eligibility[slotId]` lists eligible employee ids for
  * that slot's role; `busyByDate[date]` seeds employees already booked that day.
  *
- * Deterministic: slots are processed in the given order and ties break by name.
+ * Deterministic: process dates/times first; final ties break by name then ID.
  * Returns only the slots that could be filled.
  */
 export function autoDistribute(
   openSlots: OpenSlot[],
   employees: DistributionEmployee[],
-  weights: DistributionWeights,
+  _weights: DistributionWeights,
   eligibility: Record<string, string[]>,
   busyByDate: Record<string, string[]> = {},
   existingBookings: DistributionBooking[] = [],
@@ -268,11 +317,14 @@ export function autoDistribute(
   const byId = new Map(employees.map((e) => [e.employeeId, { ...e }]));
   const busy: Record<string, Set<string>> = {};
   for (const [date, ids] of Object.entries(busyByDate)) busy[date] = new Set(ids);
-  const maxSeniority = Math.max(0, ...employees.map((e) => e.seniority));
 
   const assignments: DistributionAssignment[] = [];
   const bookings = [...existingBookings];
-  for (const slot of openSlots) {
+  const orderedSlots = [...openSlots].sort((a, b) => a.date.localeCompare(b.date)
+    || (a.startTime ?? "").localeCompare(b.startTime ?? "")
+    || distributionRolePriority(a.role) - distributionRolePriority(b.role)
+    || a.slotId.localeCompare(b.slotId));
+  for (const slot of orderedSlots) {
     const eligibleIds = new Set(eligibility[slot.slotId] ?? []);
     const dayBusy = (busy[slot.date] ??= new Set());
     const candidates = employees
@@ -281,18 +333,9 @@ export function autoDistribute(
         && (!slot.startTime || !slot.endTime || !bookings.some(booking => booking.employeeId === e.employeeId
           && distributionOverlaps({ date: slot.date, startTime: slot.startTime!, endTime: slot.endTime! }, booking))));
     if (!candidates.length) continue;
-    const maxHours = Math.max(0, ...candidates.map((e) => e.hours));
-    let best: DistributionEmployee | null = null;
-    let bestScore = -Infinity;
-    for (const candidate of candidates) {
-      const score = scoreCandidate(candidate, maxSeniority, maxHours, weights);
-      if (score > bestScore || (score === bestScore && best && candidate.name.localeCompare(best.name) < 0)) {
-        best = candidate;
-        bestScore = score;
-      }
-    }
+    const best = candidates.sort(compareDistributionCandidates)[0];
     if (!best) continue;
-    assignments.push({ slotId: slot.slotId, employeeId: best.employeeId, score: bestScore, hours: slot.hours });
+    assignments.push({ slotId: slot.slotId, employeeId: best.employeeId, score: -best.hours, hours: slot.hours });
     dayBusy.add(best.employeeId);
     if (slot.startTime && slot.endTime) bookings.push({ employeeId: best.employeeId, date: slot.date, startTime: slot.startTime, endTime: slot.endTime });
     const record = byId.get(best.employeeId)!;
