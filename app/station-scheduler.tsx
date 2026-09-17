@@ -481,11 +481,14 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
                 "--calendar-shift-text": shiftTextColor(shift.color),
               } as CSSProperties : undefined;
               return <button type="button" role="gridcell" key={date} style={calendarStyle} className={`${date === selectedDate ? "selected " : ""}${date === data.today ? "today " : ""}${shift ? "calendar-has-shift" : ""}`} onClick={() => { setSelectedDate(date); setDayViewOpen(true); }} aria-label={ariaLabel}>
-                <span className="calendar-day-number">{day}{hasOpen && <i className="open-dot" />}</span>
-                {!!availability.length && <span className="calendar-availability-summary">
-                  {!!availableCount && <small className="available">{isAdmin ? `${availableCount} available` : "Available"}</small>}
-                  {!!unavailableCount && <small className="unavailable">{isAdmin ? `${unavailableCount} unavailable` : "Unavailable"}</small>}
-                </span>}
+                <span className="calendar-day-header">
+                  <span className="calendar-day-number">{day}</span>
+                  {!!availability.length && <span className="calendar-availability-summary">
+                    {!!availableCount && <small className="available">{isAdmin ? `${availableCount} available` : "Available"}</small>}
+                    {!!unavailableCount && <small className="unavailable">{isAdmin ? `${unavailableCount} unavailable` : "Unavailable"}</small>}
+                  </span>}
+                  {hasOpen && <i className="open-dot" />}
+                </span>
                 {visibleEntry && shift ? (
                   <span className="calendar-shift-summary">
                     <strong>

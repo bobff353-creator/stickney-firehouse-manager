@@ -9,6 +9,17 @@ const missing = async (path) => {
   catch { return true; }
 };
 
+test("calendar availability stays beside the day number with the open-position dot last", async () => {
+  const component = await read("../app/station-scheduler.tsx");
+  const css = await read("../app/globals.css");
+  const header = component.split('<span className="calendar-day-header">')[1].split("{visibleEntry && shift ?")[0];
+  assert.match(header, /calendar-day-number[\s\S]*calendar-availability-summary[\s\S]*open-dot/);
+  assert.match(header, /availableCount[\s\S]*unavailableCount/);
+  assert.match(css, /\.scheduler \.calendar-day-header \{[^}]*display: flex;[^}]*align-items: center;/);
+  assert.match(css, /\.calendar-day-header > \.open-dot \{ margin-left: auto; \}/);
+  assert.match(css, /\.calendar-availability-summary \{[^}]*min-width: 0;[^}]*flex-wrap: wrap;/);
+});
+
 test("member and admin navigation omit overtime without deleting historical tools", async () => {
   const component = await read("../app/station-scheduler.tsx");
   const memberTabs = component.split("const employeeTabs = [")[1].split("] as const;")[0];

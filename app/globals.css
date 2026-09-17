@@ -2391,8 +2391,10 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .scheduler-month > button.calendar-has-shift { border-top: 5px solid var(--calendar-shift-color); background: linear-gradient(150deg, var(--calendar-shift-tint) 0%, #1c2634 62%); }
 .scheduler-month > button:hover { border-color: #617188; }
 .scheduler-month > button.selected { border-color: var(--sched-red); border-top-color: var(--calendar-shift-color, var(--sched-red)); box-shadow: inset 0 0 0 1px var(--sched-red); }
-.scheduler-month > button.today > span:first-child { color: #ff6f79; font-weight: 900; }
-.scheduler .calendar-day-number { min-height: 18px; color: #f3f6fa; display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 900; }
+.scheduler-month > button.today .calendar-day-number { color: #ff6f79; font-weight: 900; }
+.scheduler .calendar-day-header { min-width: 0; min-height: 18px; display: flex; align-items: center; gap: 5px; }
+.scheduler .calendar-day-number { flex: 0 0 auto; min-height: 18px; color: #f3f6fa; display: flex; align-items: center; font-size: 12px; font-weight: 900; }
+.scheduler .calendar-day-header > .open-dot { margin-left: auto; }
 .scheduler .calendar-shift-summary { min-width: 0; flex: 1; display: grid; align-content: start; gap: 5px; }
 .scheduler .calendar-shift-summary > strong { min-width: 0; padding: 4px 6px; border-radius: 4px; background: var(--calendar-shift-color); color: var(--calendar-shift-text); display: flex; justify-content: space-between; align-items: baseline; gap: 5px; font-size: 10px; }
 .scheduler .calendar-shift-summary > strong span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2405,7 +2407,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .scheduler .calendar-slot.open small { color: #ffc65e; }
 .scheduler .calendar-rotation-count { margin-top: auto; color: #758495; font-size: 7px; text-align: right; }
 .scheduler .calendar-no-shift { margin: auto 0; color: #718091; font-size: 9px; }
-.scheduler .calendar-availability-summary { display: flex; flex-wrap: wrap; gap: 3px; }
+.scheduler .calendar-availability-summary { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 3px; }
 .scheduler .calendar-availability-summary small { padding: 2px 5px; border-radius: 999px; font-size: 7px; font-weight: 850; }
 .scheduler .calendar-availability-summary .available { background: #1c5538; color: #baf1d0; }
 .scheduler .calendar-availability-summary .unavailable { background: #5c252b; color: #ffc2c6; }

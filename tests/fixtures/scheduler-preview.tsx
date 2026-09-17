@@ -19,6 +19,16 @@ const data = {
   otSettings: null, otTiming: { awardDaysOut: 7, completeByDaysOut: 2 }, distributionWeights: { seniorityWeight: 1, hoursWeight: 1, customWeight: 0, customLabel: "Other" },
   otInterest: [], otOffers: [], awardBySlot: {}, otStandings: {}, notice: { openShifts: 1, overdueShifts: 0, pendingTrades: 0, pendingClaims: 0, pendingTimeOff: 0 },
 };
+const previewOptions = new URLSearchParams(window.location.search);
+if (previewOptions.has("availability-layout")) {
+  Object.assign(shift, { name: "Preview day crew", startTime: "06:00", endTime: "12:00" });
+  Object.assign(data, { availability: [
+    { id: "fixture-available", employeeId: member.id, availabilityDate: today, status: "available", allDay: 0, startTime: "12:00", endTime: "18:00", note: "" },
+    ...(previewOptions.has("mixed") ? [
+      { id: "fixture-unavailable", employeeId: other.id, availabilityDate: today, status: "unavailable", allDay: 1, startTime: "00:00", endTime: "00:00", note: "" },
+    ] : []),
+  ] });
+}
 let failNextAssignment = true;
 let writes = 0;
 window.fetch = async (input, init) => {
