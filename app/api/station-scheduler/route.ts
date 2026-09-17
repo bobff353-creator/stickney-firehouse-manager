@@ -7,6 +7,7 @@ import { webPushPublicConfig } from "../../cad-push";
 import { shiftHasNotStarted } from "../../scheduler-member-view";
 import { ensureDatabase } from "../../../db/bootstrap";
 import { normalizeScheduleTime } from "../../schedule-time";
+import { distributionConsent, distributionConsentGuard, type DistributionPosition, type DistributionRequest, type DistributionStanding } from "../../station-distribution";
 import {
   autoDistribute,
   buildCallList,
@@ -18,6 +19,7 @@ import {
   sameRecurringPattern,
   seniorityFromStartDate,
   type DistributionEmployee,
+  type DistributionBooking,
   type OpenSlot,
   type OtCriterion,
   type OtEmployee,
@@ -120,7 +122,7 @@ async function loadEmployees(db: Db): Promise<EmployeeRow[]> {
 
 async function staffingConflict(db: Db, employeeId: string, date: string, start: string, end: string, excluded = "") {
   if (await isExplicitlyUnavailable(db, employeeId, date, start, end)) return "That member marked themselves unavailable for this time.";
-  const occupied = await db.prepare("SELECT s.id,en.entry_date entryDate,COALESCE(NULLIF(s.start_time,''),t.start_time) startTime,COALESCE(NULLIF(s.end_time,''),t.end_time) endTime FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id WHERE s.employee_id=? AND s.status='filled' AND s.id<>? AND date(en.entry_date)>=date(?,'-1 day') AND date(en.entry_date)<=date(?,'+1 day')")
+  const occupied = await db.prepare("SELECT s.id,en.entry_date entryDate,COALESCE(NULLIF(s.start_time,''),t.start_time) startTime,COALESCE(NULLIF(s.end_time,''),t.end_time) endTime FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id WHERE s.employee_id=? AND s.status='filled' AND s.id<>? AND date(en.entry_date)>=date(?,'-1 day') AND date(en.entry_date)<=date(?,'1 day')")
     .bind(employeeId, excluded, date, date).all<{ id: string; entryDate: string; startTime: string; endTime: string }>();
   const window = (day: string, from: string, to: string) => {
     const base = Date.parse(`${day}T00:00:00Z`) / 60000;
@@ -312,7 +314,7 @@ export async function POST(request: Request) {
       case "saveOtSettings": return await saveOtSettings(db, payload, requireAdmin);
       case "saveOtTiming": return await saveOtTiming(db, payload, requireAdmin);
       case "saveDistributionWeights": return await saveDistributionWeights(db, payload, requireAdmin);
-      case "runAutoDistribution": return await runAutoDistribution(db, payload, requireAdmin);
+      case "runAutoDistribution": return await runAutoDistribution(db, payload, requireAdmin, current.name);
       case "buildOtCallList": return await buildOtCallList(db, payload, requireAdmin);
       case "awardOtOffer": return await awardOtOffer(db, payload, requireAdmin);
       case "saveReminderRule": return await saveReminderRule(db, payload, requireAdmin);
@@ -815,7 +817,7 @@ async function saveDistributionWeights(db: Db, payload: Record<string, unknown>,
   return ok();
 }
 
-async function runAutoDistribution(db: Db, payload: Record<string, unknown>, requireAdmin: () => void) {
+async function runAutoDistribution(db: Db, payload: Record<string, unknown>, requireAdmin: () => void, actor = "Auto-Distribution") {
   requireAdmin();
   const today = chicagoToday();
   const fromDate = String(payload.fromDate ?? "");
@@ -826,8 +828,13 @@ async function runAutoDistribution(db: Db, payload: Record<string, unknown>, req
   const weightsRow = await db.prepare("SELECT seniority_weight seniorityWeight,hours_weight hoursWeight,custom_weight customWeight,custom_label customLabel FROM station_distribution_weights WHERE id=1").first<{ seniorityWeight: number; hoursWeight: number; customWeight: number; customLabel: string }>();
   const weights = weightsRow ?? { seniorityWeight: 1, hoursWeight: 1, customWeight: 0, customLabel: "Cross-trained" };
 
-  const openRows = (await db.prepare("SELECT s.id,s.role,en.entry_date entryDate,COALESCE(NULLIF(s.start_time,''),t.start_time) startTime,COALESCE(NULLIF(s.end_time,''),t.end_time) endTime FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id WHERE s.status='open' AND date(en.entry_date)>=date(?) AND date(en.entry_date)<=date(?) ORDER BY en.entry_date,s.sort_order").bind(fromDate, endDate).all<{ id: string; role: string; entryDate: string; startTime: string; endTime: string }>()).results;
-  if (!openRows.length) return ok({ assigned: 0 });
+  const openRows = (await db.prepare("SELECT s.id,s.role,s.is_extra isExtra,en.entry_date entryDate,en.shift_type_id shiftTypeId,t.active shiftActive,t.anchor_date anchorDate,t.repeat_every_days repeatEveryDays,t.start_time shiftStartTime,t.end_time shiftEndTime,COALESCE(NULLIF(s.start_time,''),t.start_time) startTime,COALESCE(NULLIF(s.end_time,''),t.end_time) endTime FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id WHERE s.status='open' AND s.employee_id IS NULL AND t.active=1 AND date(en.entry_date)>=date(?) AND date(en.entry_date)<=date(?) ORDER BY en.entry_date,s.sort_order,s.id").bind(fromDate, endDate).all<DistributionPosition>()).results
+    .filter(row => shiftHasNotStarted(row.entryDate, row.startTime, new Date()));
+  if (!openRows.length) return ok({ assigned: 0, unfilled: 0 });
+  const [requestRows, standingRows] = await Promise.all([
+    db.prepare("SELECT c.id,c.slot_id slotId,c.employee_id employeeId,c.role,c.status FROM station_shift_claims c JOIN station_shift_slots s ON s.id=c.slot_id JOIN station_schedule_entries en ON en.id=s.entry_id WHERE c.status='pending' AND en.entry_date>=? AND en.entry_date<=?").bind(fromDate, endDate).all<DistributionRequest>(),
+    db.prepare("SELECT id,employee_id employeeId,shift_type_id shiftTypeId,role,active FROM station_standing_assignments WHERE active=1").all<DistributionStanding>(),
+  ]);
 
   const unavailable = new Map<string, Set<string>>();
   for (const row of (await db.prepare("SELECT employee_id employeeId,off_date offDate FROM station_unavailability").all<{ employeeId: string; offDate: string }>()).results) {
@@ -838,7 +845,7 @@ async function runAutoDistribution(db: Db, payload: Record<string, unknown>, req
     (availabilityByDate.get(row.availabilityDate) ?? availabilityByDate.set(row.availabilityDate, []).get(row.availabilityDate)!).push(row);
   }
 
-  const openSlots: OpenSlot[] = openRows.map((r) => ({ slotId: r.id, date: r.entryDate, role: r.role, hours: shiftHours(r.startTime, r.endTime) }));
+  const openSlots: OpenSlot[] = openRows.map((r) => ({ slotId: r.id, date: r.entryDate, role: r.role, startTime: r.startTime, endTime: r.endTime, hours: shiftHours(r.startTime, r.endTime) }));
   const distEmployees: DistributionEmployee[] = employees.map((e) => ({
     employeeId: e.id, name: e.name, seniority: seniorityFromStartDate(e.startDate, today), hours: e.hoursThisPeriod,
     crossTrained: parseRoles(e.roles).length > 1,
@@ -846,25 +853,57 @@ async function runAutoDistribution(db: Db, payload: Record<string, unknown>, req
   const eligibility: Record<string, string[]> = {};
   for (const row of openRows) {
     eligibility[row.id] = employees.filter((e) => {
+      if (!distributionConsent(row, e.id, requestRows.results, standingRows.results)) return false;
       if (unavailable.get(row.entryDate)?.has(e.id)) return false;
       if (availabilityByDate.get(row.entryDate)?.some((window) => window.employeeId === e.id && availabilityBlocksShift(window, row.startTime, row.endTime))) return false;
-      return eligibleForRole(row.role, e);
+      return isGeneralOneDayPosition(row.role) || eligibleForRole(row.role, e);
     }).map((e) => e.id);
   }
   const busy = await busyEmployeesByDate(db, [...new Set(openRows.map((r) => r.entryDate))]);
   const busyByDate: Record<string, string[]> = {};
   for (const [date, set] of Object.entries(busy)) busyByDate[date] = [...set];
 
-  const assignments = autoDistribute(openSlots, distEmployees, weights, eligibility, busyByDate);
+  const bookings = (await db.prepare("SELECT s.employee_id employeeId,en.entry_date date,COALESCE(NULLIF(s.start_time,''),t.start_time) startTime,COALESCE(NULLIF(s.end_time,''),t.end_time) endTime FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id WHERE s.status='filled' AND s.employee_id IS NOT NULL AND date(en.entry_date)>=date(?,'-1 day') AND date(en.entry_date)<=date(?,'1 day')").bind(fromDate, endDate).all<DistributionBooking>()).results;
+  const assignments = autoDistribute(openSlots, distEmployees, weights, eligibility, busyByDate, bookings);
   if (assignments.length) {
-    for (let index = 0; index < assignments.length; index += 50) {
-      await db.batch(assignments.slice(index, index + 50).flatMap((a) => [
-        db.prepare("UPDATE station_shift_slots SET employee_id=?,status='filled' WHERE id=? AND status='open'").bind(a.employeeId, a.slotId),
-        db.prepare("UPDATE employee_profiles SET station_hours_this_period=station_hours_this_period+?,updated_at=CURRENT_TIMESTAMP WHERE employee_id=?").bind(a.hours, a.employeeId),
-      ]));
+    // One atomic save: a changed/withdrawn request must not leave assignments or hours half-saved.
+    if (assignments.length > 500) return bad("Choose a shorter date range (up to 500 assignments per run).");
+    const writes: Array<ReturnType<Db["prepare"]>> = [];
+    const selectedEmployees = [...new Set(assignments.map(a => a.employeeId))].sort();
+    writes.push(db.prepare(`INSERT INTO employee_profiles(employee_id) VALUES ${selectedEmployees.map(() => "(?)").join(",")} ON CONFLICT(employee_id) DO NOTHING`).bind(...selectedEmployees));
+    // Lock selected profiles in a stable order and reject stale qualification/hour snapshots.
+    for (const employeeId of selectedEmployees) {
+      const employee = employees.find(e => e.id === employeeId)!;
+      writes.push(db.prepare("UPDATE employee_profiles SET station_hours_this_period=COALESCE(station_hours_this_period,0) WHERE employee_id=? AND COALESCE(station_hours_this_period,0)=? AND COALESCE(driver_status,'')=? AND COALESCE(single_role,0)=? AND COALESCE(acting_officer_eligible,0)=? AND COALESCE(TRIM(end_date),'')='' AND EXISTS (SELECT 1 FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id WHERE e.id=employee_profiles.employee_id AND e.active=1 AND p.label=?)")
+        .bind(employeeId, employee.hoursThisPeriod, employee.driverStatus, employee.singleRole, employee.actingOfficerEligible, employee.rank).expectChanges(1));
     }
+    let assigned = 0;
+    for (const a of assignments) {
+      const row = openRows.find(position => position.id === a.slotId)!;
+      const consent = distributionConsent(row, a.employeeId, requestRows.results, standingRows.results)!;
+      // Conflicts were checked against the bulk-loaded bookings and availability above.
+      // Keep this run bounded to bulk reads instead of two network queries per assignment.
+      assigned += 1;
+      const guard = distributionConsentGuard(consent, row, a.employeeId);
+      writes.push(
+        db.prepare(`UPDATE station_shift_slots AS s SET employee_id=?,status='filled' WHERE s.id=? AND s.status='open' AND s.employee_id IS NULL AND s.role=?
+          AND EXISTS (SELECT 1 FROM station_schedule_entries en JOIN station_shift_types t ON t.id=en.shift_type_id WHERE en.id=s.entry_id AND en.entry_date=? AND en.shift_type_id=? AND t.active=1
+            AND COALESCE(NULLIF(s.start_time,''),t.start_time)=? AND COALESCE(NULLIF(s.end_time,''),t.end_time)=? AND (${guard.sql}))
+          AND EXISTS (SELECT 1 FROM employees e LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1 AND COALESCE(TRIM(ep.end_date),'')='')`)
+          .bind(a.employeeId, a.slotId, row.role, row.entryDate, row.shiftTypeId, row.startTime, row.endTime, ...guard.values, a.employeeId).expectChanges(1),
+        db.prepare("UPDATE employee_profiles SET station_hours_this_period=station_hours_this_period+?,updated_at=CURRENT_TIMESTAMP WHERE employee_id=?").bind(a.hours, a.employeeId).expectChanges(1),
+        db.prepare("UPDATE station_shift_claims SET status='approved',reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP WHERE slot_id=? AND employee_id=? AND role=? AND status='pending'").bind(actor, a.slotId, a.employeeId, row.role),
+      );
+    }
+    if (writes.length > 2000) return bad("Choose a shorter date range so all assignments can be saved together.");
+    try { await db.batch(writes); }
+    catch (error) {
+      if (error instanceof Error && error.message.includes("SAVE_CONFLICT")) return bad("A shift, request, or recurring assignment changed. Nothing from this run was saved. Refresh and run again.", 409);
+      throw error;
+    }
+    return ok({ assigned, unfilled: openRows.length - assigned });
   }
-  return ok({ assigned: assignments.length });
+  return ok({ assigned: 0, unfilled: openRows.length });
 }
 
 async function buildOtCallList(db: Db, payload: Record<string, unknown>, requireAdmin: () => void) {

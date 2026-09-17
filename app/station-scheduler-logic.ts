@@ -206,7 +206,21 @@ export type DistributionEmployee = {
   crossTrained: boolean;  // earns the custom weight when true
 };
 
-export type OpenSlot = { slotId: string; date: string; role: string; hours: number };
+export type OpenSlot = { slotId: string; date: string; role: string; hours: number; startTime?: string; endTime?: string };
+
+export type DistributionBooking = { employeeId: string; date: string; startTime: string; endTime: string };
+export function distributionOverlaps(a: { date: string; startTime: string; endTime: string }, b: { date: string; startTime: string; endTime: string }) {
+  const window = (slot: typeof a) => {
+    const base = Date.parse(`${slot.date}T00:00:00Z`) / 60000;
+    const minute = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
+    const start = base + minute(slot.startTime);
+    let end = base + minute(slot.endTime);
+    if (end <= start) end += 1440;
+    return [start, end];
+  };
+  const [startA, endA] = window(a), [startB, endB] = window(b);
+  return startA < endB && startB < endA;
+}
 
 export type DistributionAssignment = {
   slotId: string;
@@ -249,6 +263,7 @@ export function autoDistribute(
   weights: DistributionWeights,
   eligibility: Record<string, string[]>,
   busyByDate: Record<string, string[]> = {},
+  existingBookings: DistributionBooking[] = [],
 ): DistributionAssignment[] {
   const byId = new Map(employees.map((e) => [e.employeeId, { ...e }]));
   const busy: Record<string, Set<string>> = {};
@@ -256,12 +271,15 @@ export function autoDistribute(
   const maxSeniority = Math.max(0, ...employees.map((e) => e.seniority));
 
   const assignments: DistributionAssignment[] = [];
+  const bookings = [...existingBookings];
   for (const slot of openSlots) {
     const eligibleIds = new Set(eligibility[slot.slotId] ?? []);
     const dayBusy = (busy[slot.date] ??= new Set());
     const candidates = employees
       .map((e) => byId.get(e.employeeId)!)
-      .filter((e) => eligibleIds.has(e.employeeId) && !dayBusy.has(e.employeeId));
+      .filter((e) => eligibleIds.has(e.employeeId) && !dayBusy.has(e.employeeId)
+        && (!slot.startTime || !slot.endTime || !bookings.some(booking => booking.employeeId === e.employeeId
+          && distributionOverlaps({ date: slot.date, startTime: slot.startTime!, endTime: slot.endTime! }, booking))));
     if (!candidates.length) continue;
     const maxHours = Math.max(0, ...candidates.map((e) => e.hours));
     let best: DistributionEmployee | null = null;
@@ -276,6 +294,7 @@ export function autoDistribute(
     if (!best) continue;
     assignments.push({ slotId: slot.slotId, employeeId: best.employeeId, score: bestScore, hours: slot.hours });
     dayBusy.add(best.employeeId);
+    if (slot.startTime && slot.endTime) bookings.push({ employeeId: best.employeeId, date: slot.date, startTime: slot.startTime, endTime: slot.endTime });
     const record = byId.get(best.employeeId)!;
     record.hours += slot.hours;
   }

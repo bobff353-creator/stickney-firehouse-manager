@@ -7,9 +7,9 @@ import { permissionCatalog, resolveEmployeePermissions } from '../app/permission
 function load(file, dependencies={}, expose='') {
   const source=fs.readFileSync(new URL('../'+file,import.meta.url),'utf8')+expose;
   const code=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
-  const module={exports:{}};
-  new Function('require','module','exports',code)(name=>{if(!(name in dependencies))throw Error('Unstubbed '+file+': '+name);return dependencies[name];},module,module.exports);
-  return module.exports;
+  const loadedModule={exports:{}};
+  new Function('require','module','exports',code)(name=>{if(!(name in dependencies))throw Error('Unstubbed '+file+': '+name);return dependencies[name];},loadedModule,loadedModule.exports);
+  return loadedModule.exports;
 }
 const catalog=load('app/permissions.ts');
 const shared=load('app/server-permissions.ts',{'./permissions':catalog});
@@ -43,7 +43,7 @@ function fixture({admin=0,overrides={},linked=true,duplicate=false}={}) {
   const deps={'../../../db/bootstrap':bootstrap,'../../permissions':catalog,'../../server-permissions':shared,'../../required-confirmation-policy':load('app/required-confirmation-policy.ts'),'../../lib/operational-signals':{readOperationalSignal:async()=>null}};
   const api=load('app/api/permissions/route.ts',deps);
   const payroll=load('app/api/payroll/route.ts',{...deps,'../../employee-names':load('app/employee-names.ts'),'../../payroll-rounding':{},'../../payroll-calculation':{}},'\nexport {getViewer as testViewer};');
-  const scheduler=load('app/api/station-scheduler/route.ts',{...deps,'../../staffing-eligibility':{staffingRoles:()=>[]},'../../schedule-time':{},'../../station-scheduler-logic':{},'../../scheduler-reminders':{},'../../scheduler-push-worker':{},'../../cad-push':{},'../../scheduler-member-view':{}},'\nexport {viewer as testViewer};');
+  const scheduler=load('app/api/station-scheduler/route.ts',{...deps,'../../staffing-eligibility':{staffingRoles:()=>[]},'../../schedule-time':{},'../../station-scheduler-logic':{},'../../station-distribution':{},'../../scheduler-reminders':{},'../../scheduler-push-worker':{},'../../cad-push':{},'../../scheduler-member-view':{}},'\nexport {viewer as testViewer};');
   const hydrants=load('app/api/field-hydrants/route.ts',{...deps,'../../hydrant-flow':{}},'\nexport {access as testAccess};');
   const command=load('app/api/command-center/route.ts',{...deps,'../../command-center-analytics':{buildPayrollDetails:()=>[],buildStaffingDetails:()=>[]}});
   const request=(method='GET',body)=>new Request('https://portal.test/api/permissions',{method,headers:{'oai-authenticated-user-email':employee.email,'content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});

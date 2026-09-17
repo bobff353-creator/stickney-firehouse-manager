@@ -1150,11 +1150,13 @@ function DistributionScreen({ data, act, busy }: { data: Data; act: (b: Record<s
       </section>
       <section>
         <h3>Run auto-distribution</h3>
-        <p className="muted">Fills existing open positions between these dates, including both dates. Uses eligible, available members and leaves filled positions unchanged. Build repeating shifts in Shift Builder first.</p>
+        <p><strong>Only requested shifts or saved recurring assignments.</strong> A member must have a pending request for that exact position, or a matching recurring assignment in Roster &amp; Assignments (Red, Black, or Gold, including groups 1 and 2).</p>
+        <p className="muted">Recurring assignments must match the saved shift, position, date, and hours. Marking a day available does not request a shift. Qualifications, time off, and assignment conflicts still apply. Weights rank only eligible members.</p>
+        <p className="muted">This saves assignments to future open positions within both dates. Filled positions stay unchanged. Positions without an eligible requester or recurring member stay open. Build repeating shifts in Shift Builder first.</p>
         <label className="row"><span>From date</span><input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} /></label>
         <label className="row"><span>End date</span><input type="date" min={fromDate || undefined} value={endDate} onChange={(e) => setEndDate(e.target.value)} /></label>
         {!validRange && <p role="alert">Choose both dates. End date must be on or after From date.</p>}
-        <button disabled={busy || !validRange} onClick={async () => { const r = await act({ action: "runAutoDistribution", fromDate, endDate }) as { assigned?: number } | null; if (r) alert(`Assigned ${r.assigned ?? 0} open slot(s) from ${fromDate} through ${endDate}.`); }}>Build assignments</button>
+        <button disabled={busy || !validRange} onClick={async () => { const r = await act({ action: "runAutoDistribution", fromDate, endDate }) as { assigned?: number; unfilled?: number } | null; if (r) alert(`Saved ${r.assigned ?? 0} assignment(s) from ${fromDate} through ${endDate}. ${r.unfilled ?? 0} position(s) remain open. Only requested shifts or matching recurring assignments were used.`); }}>Save eligible assignments</button>
       </section>
     </div>
   );
