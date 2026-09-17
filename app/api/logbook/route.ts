@@ -110,6 +110,7 @@ export async function GET(request: Request) {
       }
     }
     let apparatusChecks: Awaited<ReturnType<typeof completedApparatusChecksForDate>> = [];
+    let apparatusChecksAvailable = false;
     const fleetRequirements = await fleetRequirementsForDate(request, db, date);
     const departmentId = request.headers.get("x-department-id")?.trim() || "";
     if (departmentId) {
@@ -119,6 +120,7 @@ export async function GET(request: Request) {
           departmentId,
           date,
         );
+        apparatusChecksAvailable = true;
       } catch (error) {
         console.error("Daily Log fleet projection failed", error);
       }
@@ -133,6 +135,7 @@ export async function GET(request: Request) {
       recentNotes: recentNotes.results,
       addresses: addresses.results.map((row) => String((row as { address: string }).address)),
       apparatusChecks,
+      apparatusChecksAvailable,
       fleetVerificationAvailable: fleetRequirements.available,
       incompleteFleetChecks: fleetRequirements.incomplete,
       operationalDay: {

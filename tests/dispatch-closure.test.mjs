@@ -24,8 +24,10 @@ test("Daily Log saves and dashboard refreshes clear matching active dispatches",
   assert.equal(dashboard.includes("AND NOT EXISTS (SELECT 1 FROM daily_log_calls"), true);
 });
 
-test("Daily Log offers an explicit Done action that records Time In", async () => {
+test("Daily Log explicitly records return time without overwriting an existing time", async () => {
   const dailyLog = await readFile(new URL("../app/daily-log.tsx", import.meta.url), "utf8");
-  assert.equal(dailyLog.includes('title="Set Time In to now and close this active call"'), true);
-  assert.match(dailyLog, />\s*Done\s*<\/button>/);
+  assert.equal(dailyLog.includes('title="Record the current Central time as the return time"'), true);
+  assert.match(dailyLog, />\s*Record return time\s*<\/button>/);
+  assert.match(dailyLog, /disabled=\{Boolean\(call.timeIn\)/);
+  assert.match(dailyLog, /updateCall\(call.id, \{ timeIn: nowTime\(\) \}\)/);
 });

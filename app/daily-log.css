@@ -1,0 +1,121 @@
+/* Daily Log only: keep the portal shell and operational behavior intact. */
+.workspace:has(.logbook-page) { padding-top: 14px; }
+.workspace:has(.logbook-page) > .workspace-wayfinding { margin-bottom: 8px; }
+.workspace:has(.logbook-page) > .admin-tools { margin-bottom: 10px; gap: 8px; }
+.workspace:has(.logbook-page) > .admin-tools button { min-height: 36px; padding-top: 6px; padding-bottom: 6px; }
+.logbook-page.logbook-page { gap: 10px; --log-scroll-offset: 155px; }
+.logbook-page .log-compact-heading { margin: 0; padding: 6px 0; align-items: center; gap: 16px; }
+.logbook-page .log-compact-heading > div:first-child { display: grid; gap: 4px; line-height: 1.4; }
+.logbook-page .log-compact-heading h2 { font-size: clamp(24px, 2.6vw, 30px); line-height: 1.2; letter-spacing: -.025em; }
+.logbook-page .log-compact-heading p { margin: 0; font-size: 14px; color: #476073; }
+.logbook-page .log-compact-heading small { color: #476073; font-size: 12px; }
+.logbook-page .log-date-actions { flex-shrink: 0; gap: 10px; }
+.logbook-page .log-date-actions input { min-height: 44px; }
+.logbook-page button, .logbook-page select { cursor: pointer; }
+.logbook-page button:disabled { cursor: not-allowed; }
+.logbook-page :focus-visible { outline: 3px solid #1677b8; outline-offset: 3px; }
+.logbook-page .log-print, .logbook-page .log-sticky-tools button, .logbook-page .log-call-summary button, .logbook-page .log-call-editing button, .logbook-page .log-note-composer button, .logbook-page .log-note-entry button, .logbook-page .log-prior-open button, .logbook-page .apparatus-check-log > .section-header button { min-height: 44px; padding: 8px 12px; border: 1px solid #a9becb; border-radius: 7px; color: #173e59; background: #f6f9fb; font: inherit; font-size: 13px; font-weight: 750; }
+.logbook-page .log-sticky-tools { position: sticky; top: 74px; z-index: 10; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 8px 12px; border: 1px solid #b9cdd9; border-radius: 9px; background: #f5f9fc; box-shadow: 0 3px 10px #15365712; }
+.log-sticky-tools nav { display: flex; flex-wrap: wrap; gap: 4px; }
+.log-sticky-tools nav a { display: inline-flex; align-items: center; padding: 8px 12px; min-height: 44px; border-radius: 6px; color: #173e59; text-decoration: none; font-weight: 800; font-size: 14px; }
+.log-sticky-tools nav a:hover { background: #e0edf5; }
+.log-save-status { display: grid; gap: 3px; max-width: 460px; border-left: 3px solid #277c57; padding-left: 10px; color: #1d6449; font-size: 13px; }
+.log-save-status small { color: #476073; font-size: 11px; }
+.log-save-status.pending { border-color: #aa720f; color: #77500c; }
+.log-save-status.attention { border-color: #ac372d; color: #8d2821; }
+.logbook-page .record-credibility { margin: 0; box-shadow: none; }
+.logbook-page .record-details-toggle { min-height: 36px; padding: 8px 14px; }
+.logbook-page .logbook-fields { gap: 16px; }
+.log-section { scroll-margin-top: var(--log-scroll-offset); min-width: 0; }
+.log-section-intro { margin: 0 0 10px; }
+.log-section-intro h2, .logbook-page .section-header h2 { margin: 0; font-size: 22px; }
+.log-section-intro p, .logbook-page .section-header p { margin: 4px 0 0; color: #476073; font-size: 14px; }
+.logbook-page .shift-card-grid { display: flex; flex-direction: column; gap: 8px; }
+.logbook-page .shift-card { width: 100%; margin: 0; padding: 0; box-shadow: none; overflow: hidden; }
+.logbook-page .shift-card > summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; padding: 12px 16px; min-height: 58px; cursor: pointer; background: #f3f7fa; color: #173e59; list-style: none; }
+.logbook-page .shift-card > summary::-webkit-details-marker { display: none; }
+.logbook-page .shift-card > summary > span:first-child { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.logbook-page .shift-card > summary > span:nth-child(2) { margin-left: auto; color: #476073; font-size: 13px; }
+.logbook-page .shift-card > summary > b { font-size: 12px; min-width: 78px; text-align: right; }
+.logbook-page .shift-card em { padding: 3px 7px; border-radius: 5px; background: #dceef8; font-size: 11px; font-style: normal; }
+.logbook-page .log-shift-body { padding: 12px 16px; }
+.logbook-page .shift-title { margin-bottom: 10px; }
+.logbook-page .shift-title h3 { font-size: 15px; }
+.logbook-page .shift-title button { width: auto; padding: 8px 12px; font-size: 13px; min-height: 44px; }
+.logbook-page .officer-actions { margin-top: 10px; padding-top: 10px; }
+.logbook-page .calls-card, .logbook-page .apparatus-check-log, .logbook-page .notes-card { padding: 16px; }
+.logbook-page .log-call-group { display: grid; gap: 8px; min-width: 0; }
+.log-call-group:empty { display: none; }
+.log-call-group h3 { margin: 8px 0 0; font-size: 15px; }
+.log-call-group h3 span { color: #476073; }
+.log-call-summary, .log-call-editing { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; }
+.log-call-summary > div { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.log-call-summary small { color: #476073; }
+.log-call-editing { background: #e8f2f8; font-size: 13px; }
+.logbook-page .call-row { display: grid; grid-template-columns: 28px minmax(110px, 1fr) minmax(140px, 1fr) minmax(140px, 1fr) minmax(110px, 1fr); align-items: start; gap: 10px; }
+.logbook-page .call-address { grid-column: 2 / 4; }
+.logbook-page .call-type { grid-column: 4 / 6; }
+.logbook-page .call-row .remove-call { grid-column: 2 / 6; justify-self: end; position: static; width: auto; height: auto; min-height: 40px; padding: 8px 12px; border-radius: 6px; font-size: 12px; }
+.logbook-page .call-row .time-now { display: flex; flex-direction: column; gap: 4px; }
+.logbook-page .time-now input { border-radius: 6px; width: 100%; }
+.logbook-page .time-now button { border-radius: 6px; min-height: 38px; padding: 6px; white-space: normal; }
+.logbook-page .time-now button:disabled { background: #edf1f4; color: #657784; opacity: .65; }
+.logbook-page .log-required-checks { padding: 12px; margin-bottom: 12px; border-radius: 8px; border: 1px solid #d7c397; background: #fffbf1; }
+.logbook-page .log-required-checks h3, .logbook-page .apparatus-check-log > h3 { margin: 0 0 10px; font-size: 16px; }
+.logbook-page .log-required-checks a { margin-top: 6px; }
+.log-attention { padding: 12px; border: 1px solid #d7c397; border-radius: 7px; color: #785613; background: #fff9e9; }
+.log-next { display: inline-block; margin-top: 12px; padding: 8px 0; color: #175a81; font-weight: 750; scroll-margin-top: var(--log-scroll-offset); }
+.log-empty { padding: 12px; background: #f0f5f8; border-radius: 6px; color: #476073; }
+.logbook-page .notes-card { display: grid; gap: 14px; }
+.log-note-composer { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 10px; padding: 14px; background: #f3f7fa; border: 1px solid #ccdae3; border-radius: 8px; }
+.log-note-composer label { min-width: 0; }
+.log-note-composer select { width: 100%; padding: 10px; border: 1px solid #a9becb; border-radius: 6px; color: #173e59; background: white; min-height: 44px; }
+.log-note-composer button { grid-column: 2; justify-self: start; }
+.log-note-composer > small { grid-column: 1 / -1; color: #476073; }
+.log-note-entries { display: grid; gap: 10px; }
+.log-note-entry, .log-prior-open article { padding: 12px; border: 1px solid #ccdbe4; border-radius: 7px; }
+.log-note-entry.open { border-left: 4px solid #c18a24; background: #fffbf2; }
+.log-note-entry header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.log-note-entry time { color: #476073; font-size: 12px; }
+.log-note-entry p, .log-prior-open p, .logbook-page .notes-scroll p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.log-prior-open { display: grid; gap: 10px; }
+.log-prior-open h3, .log-prior-open p { margin: 0; }
+.log-prior-open article p { margin: 8px 0; }
+.log-handoff-next { padding: 14px; border: 1px solid #b9cdd9; background: #f3f8fb; border-radius: 8px; display: grid; gap: 5px; }
+.log-handoff-next a { color: #175a81; font-weight: 750; }
+@media (max-width: 800px) {
+  .logbook-page.logbook-page { --log-scroll-offset: 225px; }
+  .logbook-page .log-compact-heading { align-items: stretch; flex-direction: column; }
+  .logbook-page .log-date-actions { flex-direction: row; align-items: end; flex-wrap: wrap; }
+  .logbook-page .log-sticky-tools { top: 68px; padding: 6px 8px; }
+  .log-sticky-tools nav { width: 100%; }
+  .log-sticky-tools nav a { font-size: 12px; padding: 7px; }
+  .log-save-status { width: 100%; max-width: none; font-size: 12px; }
+  .log-save-status small { font-size: 11px; }
+  .logbook-page .shift-card > summary > span:nth-child(2) { width: 100%; order: 3; margin: 0; }
+  .logbook-page .shift-card > summary > b { margin-left: auto; }
+  .logbook-page .call-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .logbook-page .call-row .call-number { display: none; }
+  .logbook-page .call-row > label { grid-column: auto; }
+  .logbook-page .call-row .call-address { grid-column: 1 / -1; }
+  .logbook-page .call-row .remove-call { grid-column: 2; }
+  .log-note-composer { grid-template-columns: minmax(0, 1fr); }
+  .log-note-composer button { grid-column: 1; }
+}
+@media (max-width: 480px) {
+  .logbook-page .log-shift-body { padding: 10px; }
+  .logbook-page .log-sticky-tools { top: 64px; }
+  .logbook-page .log-sticky-tools nav button { padding: 6px; font-size: 12px; }
+  .logbook-page .log-call-summary { align-items: start; }
+  .logbook-page .log-call-summary button { flex-shrink: 0; }
+  .logbook-page input:not([type=checkbox]), .logbook-page select, .logbook-page textarea { font-size: 16px; }
+  .logbook-page .log-note-entry header { flex-direction: column; }
+}
+@media print {
+  .logbook-page .no-print, .logbook-page .log-next { display: none !important; }
+  .logbook-page .shift-card::details-content { content-visibility: visible !important; }
+  .logbook-page .shift-card > .log-shift-body { display: block !important; }
+  .logbook-page .shift-card, .logbook-page .call-entry, .logbook-page .log-note-entry { break-inside: avoid; }
+  .logbook-page .log-compact-heading { display: flex; flex-direction: row; }
+  .logbook-page .log-compact-heading h2 { font-size: 24px; }
+}

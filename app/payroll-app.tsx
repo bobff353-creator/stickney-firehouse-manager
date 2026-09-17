@@ -1133,7 +1133,7 @@ export default function PayrollApp({
           </section></div>}
 
           {activeNav === "My Timesheet" && !selectedEmployee && <div className="content-card action-empty-state"><div><h2>No timesheet available for this period</h2><p>Your account may not be linked to an employee on this payroll. Try another pay period or ask a payroll administrator to check the account link.</p></div></div>}
-          {activeNav === "Daily Log" && <DailyLog employees={data.employees} onPayrollSynced={() => { void loadPayroll(periodStart); }} />}
+          {activeNav === "Daily Log" && <DailyLog employees={data.employees} onHome={() => navigate(homePage)} onPayrollSynced={() => { void loadPayroll(periodStart); }} />}
           {activeNav === "Employees" && !data.viewer.canManageEmployees && <EmployeeDirectory key={navigationVersion} initialSearch={employeeSearch} />}
           {activeNav === "Employees" && data.viewer.canManageEmployees && <section className="employee-page">
             <div className="standard-page-header"><div><span className="page-icon"><Icon name="users" size={25}/></span><div><p className="eyebrow">Personnel administration</p><h1>Employees</h1><p>Manage employment, contact, access, driver status, and emergency information.</p></div></div><button type="button" className="primary-action" disabled={!access.permissions.includes("permissions.manage")} title="Creating an account requires Manage permissions access." onClick={() => editEmployee()}>Add Employee</button></div>

@@ -5,6 +5,10 @@ import { CALLBACK_QUALIFYING_CALL_TYPES } from "./callback-rules";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { holidayForDate } from "./holidays";
 import ConfirmDialog from "./confirm-dialog";
+import DailyLogNotes from "./daily-log-notes";
+import { callIsComplete, currentLogShift, readLogNotes } from "./daily-log-workflow";
+import { confirmLeavingWork, useUnsavedWork } from "./use-unsaved-work";
+import "./daily-log.css";
 import { RecordCredibility, type Revision } from "./record-credibility";
 import { compareEmployeeNames, formatEmployeeName } from "./employee-names";
 import { formatMilitaryTime, normalizeMilitaryTime } from "./military-time";
@@ -111,6 +115,7 @@ type LogPayload = {
   recentNotes: RecentNote[];
   addresses: string[];
   apparatusChecks?: ApparatusCheck[];
+  apparatusChecksAvailable?: boolean;
   fleetVerificationAvailable?: boolean;
   incompleteFleetChecks?: RequiredFleetCheck[];
   canUnlock?: boolean;
@@ -197,8 +202,8 @@ const cleanEquipment = () =>
   ) as Record<string, { status: string; detail: string }>;
 
 function nowTime() {
-  const d = new Date();
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const { minutes } = chicagoOperationalContext();
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 }
 function clientId() {
   return `row-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -410,9 +415,11 @@ function CallbackPanel({ call, logDate }: { call: CallRow; logDate: string }) {
 export default function DailyLog({
   employees,
   onPayrollSynced,
+  onHome,
 }: {
   employees: LogEmployee[];
   onPayrollSynced?: () => void;
+  onHome?: () => void;
 }) {
   const [logDate, setLogDate] = useState(
     () => chicagoOperationalContext().operationalDate,
@@ -424,6 +431,13 @@ export default function DailyLog({
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [recentNotes, setRecentNotes] = useState<RecentNote[]>([]);
   const [apparatusChecks, setApparatusChecks] = useState<ApparatusCheck[]>([]);
+  const [apparatusChecksAvailable, setApparatusChecksAvailable] = useState(false);
+  const [checksRefreshing, setChecksRefreshing] = useState(false);
+  const [expandedShifts, setExpandedShifts] = useState<string[]>(() => [currentLogShift()]);
+  const [editingCalls, setEditingCalls] = useState<string[]>([]);
+  const [removeCall, setRemoveCall] = useState<CallRow | null>(null);
+  const [saveError, setSaveError] = useState(false);
+  const [deviceDraftSaved, setDeviceDraftSaved] = useState(false);
   const [incompleteFleetChecks, setIncompleteFleetChecks] = useState<
     RequiredFleetCheck[]
   >([]);
@@ -461,6 +475,7 @@ export default function DailyLog({
   const [saveConflict, setSaveConflict] = useState(false);
   const latestSave = useRef({ logDate, staffing, calls, shiftNotes });
   const readOnly = loading || loadError || loadedDate !== logDate || (locked && !adminUnlocked) || saveConflict;
+  useUnsavedWork(dirty, saving);
   const holiday = useMemo(() => holidayForDate(logDate), [logDate]);
   useEffect(() => {
     latestSave.current = { logDate, staffing, calls, shiftNotes };
@@ -473,6 +488,10 @@ export default function DailyLog({
     setLoadedDate(null);
     setLastSynced(null);
     setMessage("");
+    setSaveError(false);
+    setDeviceDraftSaved(false);
+    setEditingCalls([]);
+    setRemoveCall(null);
     loaded.current = false;
     autosaveAuthorized.current = false;
     try {
@@ -482,9 +501,9 @@ export default function DailyLog({
       if (!response.ok) throw new Error(data.error || "Unable to load log");
       const stored = window.localStorage.getItem(draftKey(date));
       const draft = stored ? (JSON.parse(stored) as OfflineDraft) : null;
-      const serverTime = data.log?.updatedAt
-        ? new Date(data.log.updatedAt).getTime()
-        : 0;
+      const updatedAt = data.log?.updatedAt;
+      const serverUpdatedAt = updatedAt ? new Date(/(?:Z|[+-]\d{2}:?\d{2})$/i.test(updatedAt) ? updatedAt : `${updatedAt.replace(" ", "T")}Z`) : null;
+      const serverTime = serverUpdatedAt?.getTime() ?? 0;
       const restore = Boolean(draft && new Date(draft.savedAt).getTime() > serverTime);
       const conflict = Boolean(restore && draft?.expectedVersion !== data.log?.saveVersion);
       savedVersions.current.set(date, restore ? draft?.expectedVersion : data.log?.saveVersion);
@@ -493,15 +512,7 @@ export default function DailyLog({
         ...row,
         actingOfficer: Boolean(row.actingOfficer),
       }));
-      for (const shift of shiftSections)
-        for (
-          let i = rows.filter((row) => row.shiftKey === shift.key).length;
-          i < 4;
-          i += 1
-        )
-          rows.push(blankStaff(shift.key, shift.defaultIn, shift.defaultOut));
       const callRows = [...(restore ? draft!.calls : data.calls)];
-      while (callRows.length < 2) callRows.push(blankCall());
       setStaffing(rows);
       setCalls(callRows);
       setShiftNotes(restore ? draft!.shiftNotes : (data.log?.shiftNotes ?? ""));
@@ -510,6 +521,7 @@ export default function DailyLog({
       setApprovals(data.approvals ?? []);
       setRecentNotes(data.recentNotes ?? []);
       setApparatusChecks(data.apparatusChecks ?? []);
+      setApparatusChecksAvailable(Boolean(data.apparatusChecksAvailable));
       setIncompleteFleetChecks(data.incompleteFleetChecks ?? []);
       setFleetVerificationAvailable(Boolean(data.fleetVerificationAvailable));
       const serverLocked = Boolean(data.log?.locked),
@@ -519,12 +531,11 @@ export default function DailyLog({
       setAdminUnlocked(serverUnlocked);
       setCanUnlock(Boolean(data.canUnlock));
       setDirty(restore);
+      setDeviceDraftSaved(restore);
       setSchedulePrefilled(!restore && Boolean(data.schedulePrefilled));
       if (restore) setMessage("Unsaved work restored from this device");
       if (conflict) setMessage("Your local draft differs from the saved log. Automatic saving is paused to protect the other changes.");
-      setLastSynced(
-        data.log?.updatedAt ? new Date(data.log.updatedAt) : new Date(),
-      );
+      setLastSynced(serverUpdatedAt ?? new Date());
       setLoadedDate(date);
       window.setTimeout(() => {
         if (request === loadRequest.current) loaded.current = true;
@@ -541,6 +552,18 @@ export default function DailyLog({
   }, []);
 
   useEffect(() => {
+    let collapsed: HTMLDetailsElement[] = [];
+    const beforePrint = () => {
+      collapsed = Array.from(document.querySelectorAll<HTMLDetailsElement>(".logbook-page .shift-card:not([open])"));
+      collapsed.forEach(section => { section.open = true; });
+    };
+    const afterPrint = () => { collapsed.forEach(section => { section.open = false; }); collapsed = []; };
+    window.addEventListener("beforeprint", beforePrint);
+    window.addEventListener("afterprint", afterPrint);
+    return () => { afterPrint(); window.removeEventListener("beforeprint", beforePrint); window.removeEventListener("afterprint", afterPrint); };
+  }, []);
+
+  useEffect(() => {
     const timer = window.setTimeout(() => {
       void loadLog(logDate);
     }, 0);
@@ -554,15 +577,15 @@ export default function DailyLog({
   useEffect(() => {
     const timer = window.setInterval(() => {
       const operationalDate = chicagoOperationalContext().operationalDate;
-      if (operationalDate !== currentDay.current) {
+      if (operationalDate !== currentDay.current && !dirty && !saveInFlight.current && confirmLeavingWork()) {
         currentDay.current = operationalDate;
         setLogDate(operationalDate);
-      } else if (!locked && dailyLogDateIsAutoLocked(logDate)) {
+      } else if (!dirty && !saveInFlight.current && !locked && dailyLogDateIsAutoLocked(logDate)) {
         void loadLog(logDate);
       }
     }, 30000);
     return () => window.clearInterval(timer);
-  }, [loadLog, locked, logDate]);
+  }, [dirty, loadLog, locked, logDate]);
   useEffect(() => {
     const update = () => setIsOnline(window.navigator.onLine);
     update();
@@ -583,6 +606,7 @@ export default function DailyLog({
       }
       saveInFlight.current = true;
       setSaving(true);
+      setSaveError(false);
       if (!silent) setMessage("");
       try {
         do {
@@ -600,12 +624,12 @@ export default function DailyLog({
             ),
             shiftNotes: current.shiftNotes,
           };
-          window.localStorage.setItem(
+          try { window.localStorage.setItem(
             draftKey(current.logDate),
             JSON.stringify({ ...payload, savedAt: new Date().toISOString() }),
-          );
+          ); setDeviceDraftSaved(true); } catch { setDeviceDraftSaved(false); }
           if (!window.navigator.onLine) {
-            setMessage("Saved on this device · waiting to sync");
+            setMessage("Offline · keep this page open until syncing is confirmed");
             return;
           }
           const response = await fetch("/api/logbook", {
@@ -630,8 +654,9 @@ export default function DailyLog({
           if (latestSave.current.logDate !== current.logDate) return;
           setSchedulePrefilled(false);
           if (versionAtStart === editVersion.current) {
-            window.localStorage.removeItem(draftKey(current.logDate));
+            try { window.localStorage.removeItem(draftKey(current.logDate)); } catch { /* The server save is still confirmed. */ }
             setDirty(false);
+            setDeviceDraftSaved(false);
           } else {
             saveAgain.current = true;
           }
@@ -648,6 +673,7 @@ export default function DailyLog({
         );
         onPayrollSynced?.();
       } catch (error) {
+        setSaveError(true);
         setMessage(
           error instanceof Error ? error.message : "Unable to save log",
         );
@@ -664,25 +690,22 @@ export default function DailyLog({
       void saveLog(true);
     }, 900);
     return () => window.clearTimeout(timer);
-  }, [dirty, readOnly, saveLog]);
+  }, [calls, dirty, isOnline, readOnly, saveLog, shiftNotes, staffing]);
   useEffect(() => {
     if (!dirty || readOnly) return;
-    window.localStorage.setItem(
+    const timer = window.setTimeout(() => { try { window.localStorage.setItem(
       draftKey(logDate),
       JSON.stringify({
         savedAt: new Date().toISOString(),
+        expectedVersion: savedVersions.current.get(logDate),
         logDate,
         staffing: staffing.filter((row) => row.employeeId),
         calls,
         shiftNotes,
       }),
-    );
-  }, [calls, dirty, logDate, readOnly, shiftNotes, staffing]);
-  useEffect(() => {
-    if (!isOnline || !dirty || readOnly) return;
-    const timer = window.setTimeout(() => void saveLog(true), 250);
+    ); setDeviceDraftSaved(true); } catch { setDeviceDraftSaved(false); setSaveError(true); setMessage("This device could not keep a recovery draft. Keep this page open until the server save succeeds."); } }, 0);
     return () => window.clearTimeout(timer);
-  }, [dirty, isOnline, readOnly, saveLog]);
+  }, [calls, dirty, logDate, readOnly, shiftNotes, staffing]);
 
   const activeEmployees = useMemo(
     () =>
@@ -699,8 +722,23 @@ export default function DailyLog({
     if (!loaded.current) return;
     editVersion.current += 1;
     if (saveInFlight.current) saveAgain.current = true;
+    setDeviceDraftSaved(false);
     setDirty(true);
   };
+  function changeLogDate(date: string) {
+    if (!date || date === logDate || !confirmLeavingWork()) return;
+    loadRequest.current += 1;
+    loaded.current = false;
+    autosaveAuthorized.current = false;
+    setExpandedShifts([date === chicagoOperationalContext().operationalDate ? currentLogShift() : "morning"]);
+    setLogDate(date);
+  }
+  function addCall() {
+    const call = blankCall();
+    setCalls(current => [...current, call]);
+    setEditingCalls(current => [...current, call.id]);
+    markDirty();
+  }
   function selectStaffEmployee(id: string, employeeId: string) {
     setStaffing((current) => {
       const rows = current.map((row) =>
@@ -745,6 +783,9 @@ export default function DailyLog({
     markDirty();
   }
   function updateCall(id: string, patch: Partial<CallRow>) {
+    if (readOnly) return;
+    const existing = calls.find(call => call.id === id);
+    if (existing && callIsComplete(existing) && !editingCalls.includes(id)) return;
     setCalls((rows) =>
       rows.map((row) => (row.id === id ? { ...row, ...patch } : row)),
     );
@@ -762,27 +803,41 @@ export default function DailyLog({
       );
     updateCall(id, { [field]: normalized });
   }
-  async function refreshFleetRequirements() {
+  async function refreshFleetRequirements(includeHistory = false) {
+    const requestedDate = logDate;
+    setChecksRefreshing(true);
     try {
       const response = await fetch(
-        `/api/logbook?date=${encodeURIComponent(logDate)}&fleetRequirementsOnly=1`,
+        `/api/logbook?date=${encodeURIComponent(logDate)}${includeHistory ? "" : "&fleetRequirementsOnly=1"}`,
         { cache: "no-store" },
       );
       const result = (await response.json()) as {
         fleetVerificationAvailable?: boolean;
         incompleteFleetChecks?: RequiredFleetCheck[];
+        apparatusChecks?: ApparatusCheck[];
+        apparatusChecksAvailable?: boolean;
         error?: string;
       };
       if (!response.ok)
         throw new Error(result.error || "Unable to verify Fleet check status.");
       const available = Boolean(result.fleetVerificationAvailable);
       const incomplete = result.incompleteFleetChecks ?? [];
+      if (latestSave.current.logDate !== requestedDate) return { available: false, incomplete: [] as RequiredFleetCheck[] };
       setFleetVerificationAvailable(available);
       setIncompleteFleetChecks(incomplete);
+      if (includeHistory) {
+        setApparatusChecks(result.apparatusChecks ?? []);
+        setApparatusChecksAvailable(Boolean(result.apparatusChecksAvailable));
+      }
       return { available, incomplete };
     } catch {
-      setFleetVerificationAvailable(false);
+      if (latestSave.current.logDate === requestedDate) {
+        setFleetVerificationAvailable(false);
+        if (includeHistory) setApparatusChecksAvailable(false);
+      }
       return { available: false, incomplete: [] as RequiredFleetCheck[] };
+    } finally {
+      setChecksRefreshing(false);
     }
   }
   async function openHandoff(
@@ -790,6 +845,7 @@ export default function DailyLog({
     shiftTitle: string,
     mode: "in" | "out",
   ) {
+    if (dirty || saving) { setMessage("Wait for all changes to save before officer sign-off. If saving needs attention, resolve it first."); return; }
     if (mode === "out") {
       setMessage("Checking required Fleet inspections…");
       const requirements = await refreshFleetRequirements();
@@ -921,61 +977,34 @@ export default function DailyLog({
     <section
       className={`logbook-page ${readOnly ? "is-locked" : "is-editable"}`}
     >
-      <div className="logbook-heading standard-page-header">
-        <div>
-          <span className="page-icon" aria-hidden="true">
-            ▣
-          </span>
-          <div>
-            <p className="eyebrow">Stickney Fire Department</p>
-            <h2>Daily Logbook</h2>
-            <p>
-              Automatically saved staffing, responses, equipment checks, and
-              officer handoffs.
-            </p>
-          </div>
-        </div>
+      <header className="logbook-heading log-compact-heading">
+        <div><h2>Daily Logbook</h2><p>Review staffing → record activity → check equipment → hand off.</p><small>LOG-{logDate.replaceAll("-", "")} · {locked && !adminUnlocked ? "Locked" : adminUnlocked ? "Unlocked for correction" : "Editable"} · {approvals.filter(item => item.signOutAt).length} of 3 shifts signed off</small></div>
         <div className="log-date-actions">
           <label>
             <span>Log date</span>
             <input
               type="date"
               value={logDate}
-              onChange={(event) => {
-                if (!event.target.value) return;
-                loadRequest.current += 1;
-                loaded.current = false;
-                autosaveAuthorized.current = false;
-                setLogDate(event.target.value);
-              }}
+              onChange={(event) => changeLogDate(event.target.value)}
             />
           </label>
-          <div
-            className={`autosave-state ${loadError ? "pending" : loading || loadedDate !== logDate ? "saving" : !isOnline ? "offline" : saving ? "saving" : dirty ? "pending" : "saved"}`}
-          >
-            <strong>
-              {loadError ? "Not loaded" : loading || loadedDate !== logDate ? "Loading…" : !isOnline
-                ? "Offline"
-                : saving
-                  ? "Saving…"
-                  : dirty
-                    ? "Save pending"
-                    : "Saved"}
-            </strong>
-            <small>
-              Last synced{" "}
-              {lastSynced
-                ? lastSynced.toLocaleTimeString("en-US", {
-                    hour: "numeric",
-                    minute: "2-digit",
-                  })
-                : "—"}
-            </small>
-          </div>
+          <button type="button" className="log-print no-print" onClick={() => window.print()}>Print / Save PDF</button>
+        </div>
+      </header>
+      <div className="log-sticky-tools no-print">
+        <nav aria-label="Daily Log sections">
+          {onHome && <button type="button" onClick={onHome}>← Home</button>}
+          {[["log-staffing", "Staffing"], ["log-calls", "Calls"], ["log-checks", "Checks"], ["log-notes", "Notes & Handoff"]].map(([id, label]) => <a key={id} href={`#${id}`} onClick={event => { event.preventDefault(); const section = document.getElementById(id); section?.scrollIntoView({ block: "start" }); section?.focus({ preventScroll: true }); }}>{label}</a>)}
+        </nav>
+        <div className={`log-save-status ${saveError || saveConflict || loadError ? "attention" : loading || loadedDate !== logDate || dirty || !isOnline || schedulePrefilled ? "pending" : "saved"}`} role="status" aria-live="polite">
+          <strong>{loading ? "Loading log…" : loadError || loadedDate !== logDate ? "Not loaded" : saveConflict ? "Needs attention · conflicting changes" : saveError ? "Needs attention · save unconfirmed" : saving ? "Saving…" : dirty ? deviceDraftSaved ? "Saved on this device · waiting to sync" : "Changes not yet saved" : schedulePrefilled ? "Review scheduled staffing" : !isOnline ? "Offline · showing last saved log" : "Saved to server"}</strong>
+          <small>{lastSynced ? `Last server save ${lastSynced.toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit" })} Central` : "No server save confirmed"} · Saving is not officer sign-off.</small>
+          {saveError && !saveConflict && !readOnly && <button type="button" disabled={saving} onClick={() => void saveLog()}>Retry save</button>}
         </div>
       </div>
       {loadedDate === logDate && logAudit && (
         <RecordCredibility
+          compact
           audit={{
             recordNumber: `LOG-${logDate.replaceAll("-", "")}`,
             status: readOnly
@@ -1088,7 +1117,10 @@ export default function DailyLog({
         onConfirm={() => void adminUnlock()}
       />
 
+      <ConfirmDialog open={Boolean(removeCall)} title="Remove this call from the log?" description={`Call ${removeCall?.reportNumber || "without a report number"}${removeCall?.address ? ` at ${removeCall.address}` : ""} will be removed from this daily log. This does not delete the original CAD incident.`} confirmLabel="Remove call" tone="danger" onCancel={() => setRemoveCall(null)} onConfirm={() => { if (readOnly || !removeCall) return; setCalls(current => current.filter(call => call.id !== removeCall.id)); setRemoveCall(null); markDirty(); }} />
       <fieldset className="logbook-fields" disabled={readOnly} hidden={loadedDate !== logDate}>
+        <section id="log-staffing" className="log-section" aria-labelledby="log-staffing-title" tabIndex={-1}>
+        <div className="log-section-intro"><h2 id="log-staffing-title">Staffing</h2><p>Review who actually worked. AO means Acting Officer pay for the selected time.</p></div>
         <div className="shift-card-grid">
           {shiftSections.map((shift) => {
             const rows = staffing.filter((row) => row.shiftKey === shift.key);
@@ -1097,11 +1129,16 @@ export default function DailyLog({
               (item) => item.shiftKey === shift.key,
             );
             return (
-              <article className="content-card shift-card" key={shift.key}>
+              <details className="content-card shift-card" key={shift.key} open={expandedShifts.includes(shift.key)}>
+                <summary onClick={event => { event.preventDefault(); setExpandedShifts(current => current.includes(shift.key) ? current.filter(key => key !== shift.key) : [...current, shift.key]); }}>
+                  <span><strong>{shift.title}</strong>{logDate === chicagoOperationalContext().operationalDate && currentLogShift() === shift.key && <em>Current shift</em>}</span>
+                  <span>{rows.filter(row => row.employeeId).length} people · {approval?.signOutAt ? "Signed off" : approval?.signInAt ? "Officer signed in" : "Officer not signed in"}</span>
+                  <b className="no-print">{expandedShifts.includes(shift.key) ? "Collapse −" : "View / edit +"}</b>
+                </summary>
+                <div className="log-shift-body">
                 <div className="shift-title">
                   <div>
-                    <span>Staffing</span>
-                    <h3>{shift.title}</h3>
+                      <h3>Review staffing &amp; times</h3>
                   </div>
                   <button
                     aria-label={`Add person to ${shift.title}`}
@@ -1117,7 +1154,7 @@ export default function DailyLog({
                       markDirty();
                     }}
                   >
-                    ＋
+                    ＋ Add person
                   </button>
                 </div>
                 <div className="staff-labels">
@@ -1127,6 +1164,7 @@ export default function DailyLog({
                   <span>Out</span>
                 </div>
                 <div className="staff-rows">
+                  {!rows.length && <p className="log-empty">No staffing recorded for this shift. Choose Add person to record who worked.</p>}
                   {rows.map((row) => {
                     const employee = activeEmployees.find(
                       (item) => item.id === row.employeeId,
@@ -1195,11 +1233,12 @@ export default function DailyLog({
                             </option>
                           ))}
                         </select>
-                        {rows.length > 4 && (
+                        {(
                           <button
                             className="remove-row"
                             aria-label="Remove staffing row"
                             onClick={() => {
+                              if (row.employeeId && !window.confirm("Remove this person from this shift? This changes recorded staffing and hours.")) return;
                               setStaffing((current) =>
                                 current.filter((item) => item.id !== row.id),
                               );
@@ -1264,26 +1303,25 @@ export default function DailyLog({
                     </div> : <span>Fleet checklist status is temporarily unavailable</span>}
                   </div>
                 ) : null}
-              </article>
+                </div>
+              </details>
             );
           })}
         </div>
+        <a className="log-next no-print" href="#log-calls">Next: Calls &amp; Responses →</a>
+        </section>
 
-        <article className="content-card calls-card">
+        <article id="log-calls" className="content-card calls-card log-section" tabIndex={-1}>
           <div className="section-header">
             <div>
               <h2>Calls & Responses</h2>
               <p>
-                Times use four-digit military format. Tap Now for Time Out or
-                Done to record the current Time In.
+                Use four-digit military time. Completed calls stay protected until you choose Edit call.
               </p>
             </div>
             <button
               className="add-call"
-              onClick={() => {
-                setCalls((current) => [...current, blankCall()]);
-                markDirty();
-              }}
+              onClick={addCall}
             >
               ＋ Add Call
             </button>
@@ -1293,9 +1331,17 @@ export default function DailyLog({
               <option key={address} value={address} />
             ))}
           </datalist>
+          {!calls.length && <p className="log-empty">No calls recorded for this date. CAD calls appear when the log is loaded; use Add Call for a manual entry.</p>}
           <div className="call-list">
-            {calls.map((call, index) => (
+            {[false, true].map(completed => <section className="log-call-group" key={String(completed)} aria-label={completed ? "Completed calls" : "Active calls and drafts"}>
+            {calls.some(call => callIsComplete(call) === completed) && <h3>{completed ? "Completed calls" : "Active calls & drafts"} <span>{calls.filter(call => callIsComplete(call) === completed).length}</span></h3>}
+            {calls.filter(call => callIsComplete(call) === completed).map((call, index) => (
               <div className="call-entry" key={call.id}>
+              {completed && !editingCalls.includes(call.id) ? <div className="log-call-summary">
+                <div><strong>{call.reportNumber || "No report #"} · {call.callType}</strong><span>{call.address || "No address recorded"}</span><small>Out {formatMilitaryTime(call.timeOut) || "—"} · Returned {formatMilitaryTime(call.timeIn)} · {call.respondingUnits || "No units recorded"}</small></div>
+                <button type="button" className="no-print" onClick={() => setEditingCalls(current => [...current, call.id])}>Edit call</button>
+              </div> : <>
+              {completed && <div className="log-call-editing"><strong>Editing completed call · changes save automatically</strong><button type="button" onClick={() => setEditingCalls(current => current.filter(id => id !== call.id))}>Finish editing</button></div>}
               <div className="call-row">
                 <div className="call-number">{index + 1}</div>
                 <label className="call-report">
@@ -1334,11 +1380,13 @@ export default function DailyLog({
                       }
                     />
                     <button
+                      disabled={Boolean(call.timeOut)}
+                      title={call.timeOut ? "Edit the time field to correct an existing departure time" : "Record the current Central time"}
                       onClick={() =>
                         updateCall(call.id, { timeOut: nowTime() })
                       }
                     >
-                      Now
+                      Set departure now
                     </button>
                   </div>
                 </label>
@@ -1369,10 +1417,11 @@ export default function DailyLog({
                       }
                     />
                     <button
-                      title="Set Time In to now and close this active call"
+                      disabled={Boolean(call.timeIn) || !call.timeOut || !normalizeMilitaryTime(call.timeOut)}
+                      title="Record the current Central time as the return time"
                       onClick={() => updateCall(call.id, { timeIn: nowTime() })}
                     >
-                      Done
+                      Record return time
                     </button>
                   </div>
                 </label>
@@ -1416,38 +1465,33 @@ export default function DailyLog({
                     ))}
                   </select>
                 </label>
-                {calls.length > 1 && (
+                {(
                   <button
                     className="remove-call"
-                    aria-label={`Remove call ${index + 1}`}
-                    onClick={() => {
-                      setCalls((current) =>
-                        current.filter((item) => item.id !== call.id),
-                      );
-                      markDirty();
-                    }}
+                    aria-label={`Remove call ${call.reportNumber || index + 1}`}
+                    onClick={() => setRemoveCall(call)}
                   >
-                    ×
+                    Remove call
                   </button>
                 )}
               </div>
+              </>}
               {call.reportNumber && call.timeOut && (
                 <CallbackPanel call={call} logDate={logDate} />
               )}
               </div>
             ))}
+            </section>)}
           </div>
           <button
             className="add-call bottom"
-            onClick={() => {
-              setCalls((current) => [...current, blankCall()]);
-              markDirty();
-            }}
+            onClick={addCall}
           >
             ＋ Add Another Call
           </button>
+          <a className="log-next no-print" href="#log-checks">Next: Fleet &amp; Inventory Checks →</a>
         </article>
-        <article className="content-card apparatus-check-log">
+        <article id="log-checks" className="content-card apparatus-check-log log-section" tabIndex={-1}>
           <div className="section-header">
             <div>
               <h2>Fleet &amp; Inventory Checks</h2>
@@ -1456,8 +1500,11 @@ export default function DailyLog({
                 Fleet.
               </p>
             </div>
-            <b>{apparatusChecks.length} completed</b>
+            <button type="button" className="no-print" disabled={checksRefreshing} onClick={() => void refreshFleetRequirements(true)}>{checksRefreshing ? "Checking…" : "Refresh check status"}</button>
           </div>
+          {!fleetVerificationAvailable ? <p className="log-attention">Required check status is unavailable—not confirmed complete. Retry when connected.</p> : <section className="log-required-checks"><h3>{incompleteFleetChecks.length ? `${incompleteFleetChecks.length} required ${incompleteFleetChecks.length === 1 ? "check needs" : "checks need"} attention` : "No outstanding required checks reported"}</h3>{incompleteFleetChecks.map(check => <a key={`${check.apparatusId}-${check.checkType}-${check.startTime}`} href={`/inventory?apparatus=${encodeURIComponent(check.apparatusId)}&check=${encodeURIComponent(check.checkType)}`} target="_blank" rel="noreferrer"><span><strong>{check.unit} · {check.checkType.replaceAll("_", " ")}</strong><small>{check.startTime}–{check.endTime} · {check.status === "in_progress" ? "In progress" : "Pending"}</small></span><b>Open check ↗</b></a>)}{incompleteFleetChecks.length > 0 && <small>Opens in a new tab. Return here and refresh status when finished.</small>}</section>}
+          <h3>Completed checks{apparatusChecksAvailable ? ` · ${apparatusChecks.length}` : ""}</h3>
+          {!apparatusChecksAvailable && <p className="log-attention">Completed check history could not be verified. This does not mean no checks were completed.</p>}
           {apparatusChecks.length ? (
             <div>
               {apparatusChecks.map((check) => (
@@ -1487,26 +1534,15 @@ export default function DailyLog({
                 </a>
               ))}
             </div>
-          ) : (
+          ) : apparatusChecksAvailable ? (
             <p className="apparatus-check-empty">
               No Fleet or Inventory checks were completed on this log date.
             </p>
-          )}
+          ) : null}
+          <a className="log-next no-print" href="#log-notes">Next: Notes &amp; Handoff →</a>
         </article>
-        <article className="content-card notes-card">
-          <label>
-            <span>Shift notes</span>
-            <textarea
-              rows={5}
-              placeholder="Equipment issues, coverage changes, station activity, follow-up items…"
-              value={shiftNotes}
-              onChange={(event) => {
-                setShiftNotes(event.target.value);
-                markDirty();
-              }}
-            />
-          </label>
-        </article>
+        <DailyLogNotes key={logDate} value={shiftNotes} onChange={value => { setShiftNotes(value); markDirty(); }} recentNotes={recentNotes} onOpenDate={changeLogDate} readOnly={readOnly} />
+        <div className="log-handoff-next no-print"><strong>Ready to hand off?</strong><span>Saved entries do not sign off a shift. Return to your staffing section and choose Officer Sign Out.</span><a href="#log-staffing">Review staffing &amp; officer sign-off ↑</a></div>
       </fieldset>
 
       {handoff && (
@@ -1553,6 +1589,7 @@ export default function DailyLog({
                   shift.
                 </p>
                 <div className="notes-scroll">
+                  {readLogNotes(shiftNotes).entries.some(entry => entry.status === "Open") && <article className="log-attention"><strong>Open items on this log</strong>{readLogNotes(shiftNotes).entries.filter(entry => entry.status === "Open").map(entry => <p key={entry.id}><b>{entry.category}:</b> {entry.text}</p>)}</article>}
                   {recentNotes.length ? (
                     recentNotes.map((item, index) => (
                       <article key={`${item.logDate}-${index}`}>
