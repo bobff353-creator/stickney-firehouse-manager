@@ -7,7 +7,7 @@ import { webPushPublicConfig } from "../../cad-push";
 import { shiftHasNotStarted } from "../../scheduler-member-view";
 import { ensureDatabase } from "../../../db/bootstrap";
 import { normalizeScheduleTime } from "../../schedule-time";
-import { distributionConsent, distributionConsentGuard, type DistributionPosition, type DistributionRequest, type DistributionStanding } from "../../station-distribution";
+import { distributionConsent, distributionConsentGuard, type DistributionPosition, type DistributionAvailability, type DistributionTimeOff } from "../../station-distribution";
 import {
   autoDistribute,
   buildCallList,
@@ -831,19 +831,10 @@ async function runAutoDistribution(db: Db, payload: Record<string, unknown>, req
   const openRows = (await db.prepare("SELECT s.id,s.role,s.is_extra isExtra,en.entry_date entryDate,en.shift_type_id shiftTypeId,t.active shiftActive,t.anchor_date anchorDate,t.repeat_every_days repeatEveryDays,t.start_time shiftStartTime,t.end_time shiftEndTime,COALESCE(NULLIF(s.start_time,''),t.start_time) startTime,COALESCE(NULLIF(s.end_time,''),t.end_time) endTime FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id WHERE s.status='open' AND s.employee_id IS NULL AND t.active=1 AND date(en.entry_date)>=date(?) AND date(en.entry_date)<=date(?) ORDER BY en.entry_date,s.sort_order,s.id").bind(fromDate, endDate).all<DistributionPosition>()).results
     .filter(row => shiftHasNotStarted(row.entryDate, row.startTime, new Date()));
   if (!openRows.length) return ok({ assigned: 0, unfilled: 0 });
-  const [requestRows, standingRows] = await Promise.all([
-    db.prepare("SELECT c.id,c.slot_id slotId,c.employee_id employeeId,c.role,c.status FROM station_shift_claims c JOIN station_shift_slots s ON s.id=c.slot_id JOIN station_schedule_entries en ON en.id=s.entry_id WHERE c.status='pending' AND en.entry_date>=? AND en.entry_date<=?").bind(fromDate, endDate).all<DistributionRequest>(),
-    db.prepare("SELECT id,employee_id employeeId,shift_type_id shiftTypeId,role,active FROM station_standing_assignments WHERE active=1").all<DistributionStanding>(),
+  const [availabilityRows, timeOffRows] = await Promise.all([
+    db.prepare("SELECT employee_id employeeId,availability_date availabilityDate,status,all_day allDay,start_time startTime,end_time endTime FROM station_availability WHERE date(availability_date)>=date(?,'-1 day') AND date(availability_date)<=date(?,'1 day')").bind(fromDate, endDate).all<DistributionAvailability>(),
+    db.prepare("SELECT employee_id employeeId,off_date offDate FROM station_unavailability WHERE date(off_date)>=date(?) AND date(off_date)<=date(?,'1 day')").bind(fromDate, endDate).all<DistributionTimeOff>(),
   ]);
-
-  const unavailable = new Map<string, Set<string>>();
-  for (const row of (await db.prepare("SELECT employee_id employeeId,off_date offDate FROM station_unavailability").all<{ employeeId: string; offDate: string }>()).results) {
-    (unavailable.get(row.offDate) ?? unavailable.set(row.offDate, new Set()).get(row.offDate)!).add(row.employeeId);
-  }
-  const availabilityByDate = new Map<string, AvailabilityWindow[]>();
-  for (const row of (await db.prepare("SELECT employee_id employeeId,availability_date availabilityDate,all_day allDay,start_time startTime,end_time endTime FROM station_availability WHERE status='unavailable'").all<AvailabilityWindow & { availabilityDate: string }>()).results) {
-    (availabilityByDate.get(row.availabilityDate) ?? availabilityByDate.set(row.availabilityDate, []).get(row.availabilityDate)!).push(row);
-  }
 
   const openSlots: OpenSlot[] = openRows.map((r) => ({ slotId: r.id, date: r.entryDate, role: r.role, startTime: r.startTime, endTime: r.endTime, hours: shiftHours(r.startTime, r.endTime) }));
   const distEmployees: DistributionEmployee[] = employees.map((e) => ({
@@ -853,9 +844,7 @@ async function runAutoDistribution(db: Db, payload: Record<string, unknown>, req
   const eligibility: Record<string, string[]> = {};
   for (const row of openRows) {
     eligibility[row.id] = employees.filter((e) => {
-      if (!distributionConsent(row, e.id, requestRows.results, standingRows.results)) return false;
-      if (unavailable.get(row.entryDate)?.has(e.id)) return false;
-      if (availabilityByDate.get(row.entryDate)?.some((window) => window.employeeId === e.id && availabilityBlocksShift(window, row.startTime, row.endTime))) return false;
+      if (!distributionConsent(row, e.id, availabilityRows.results, timeOffRows.results)) return false;
       return isGeneralOneDayPosition(row.role) || eligibleForRole(row.role, e);
     }).map((e) => e.id);
   }
@@ -866,7 +855,7 @@ async function runAutoDistribution(db: Db, payload: Record<string, unknown>, req
   const bookings = (await db.prepare("SELECT s.employee_id employeeId,en.entry_date date,COALESCE(NULLIF(s.start_time,''),t.start_time) startTime,COALESCE(NULLIF(s.end_time,''),t.end_time) endTime FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id WHERE s.status='filled' AND s.employee_id IS NOT NULL AND date(en.entry_date)>=date(?,'-1 day') AND date(en.entry_date)<=date(?,'1 day')").bind(fromDate, endDate).all<DistributionBooking>()).results;
   const assignments = autoDistribute(openSlots, distEmployees, weights, eligibility, busyByDate, bookings);
   if (assignments.length) {
-    // One atomic save: a changed/withdrawn request must not leave assignments or hours half-saved.
+    // One atomic save: changed availability must not leave assignments or hours half-saved.
     if (assignments.length > 500) return bad("Choose a shorter date range (up to 500 assignments per run).");
     const writes: Array<ReturnType<Db["prepare"]>> = [];
     const selectedEmployees = [...new Set(assignments.map(a => a.employeeId))].sort();
@@ -880,11 +869,11 @@ async function runAutoDistribution(db: Db, payload: Record<string, unknown>, req
     let assigned = 0;
     for (const a of assignments) {
       const row = openRows.find(position => position.id === a.slotId)!;
-      const consent = distributionConsent(row, a.employeeId, requestRows.results, standingRows.results)!;
+      const consent = distributionConsent(row, a.employeeId, availabilityRows.results, timeOffRows.results)!;
       // Conflicts were checked against the bulk-loaded bookings and availability above.
       // Keep this run bounded to bulk reads instead of two network queries per assignment.
       assigned += 1;
-      const guard = distributionConsentGuard(consent, row, a.employeeId);
+      const guard = distributionConsentGuard(consent, a.employeeId);
       writes.push(
         db.prepare(`UPDATE station_shift_slots AS s SET employee_id=?,status='filled' WHERE s.id=? AND s.status='open' AND s.employee_id IS NULL AND s.role=?
           AND EXISTS (SELECT 1 FROM station_schedule_entries en JOIN station_shift_types t ON t.id=en.shift_type_id WHERE en.id=s.entry_id AND en.entry_date=? AND en.shift_type_id=? AND t.active=1
@@ -898,7 +887,7 @@ async function runAutoDistribution(db: Db, payload: Record<string, unknown>, req
     if (writes.length > 2000) return bad("Choose a shorter date range so all assignments can be saved together.");
     try { await db.batch(writes); }
     catch (error) {
-      if (error instanceof Error && error.message.includes("SAVE_CONFLICT")) return bad("A shift, request, or recurring assignment changed. Nothing from this run was saved. Refresh and run again.", 409);
+      if (error instanceof Error && error.message.includes("SAVE_CONFLICT")) return bad("A shift, availability, time off, or employee qualification changed. Nothing from this run was saved. Refresh and run again.", 409);
       throw error;
     }
     return ok({ assigned, unfilled: openRows.length - assigned });

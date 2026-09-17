@@ -885,7 +885,7 @@ function AvailabilityScreen({ data, isAdmin, act, busy }: { data: Data; isAdmin:
       <div>
         <span className="section-kicker">Employee scheduling</span>
         <h3>{isAdmin ? "Department availability" : "My availability"}</h3>
-        <p className="muted">Mark the days and times you can or cannot work. This does not request an open shift or remove an assignment. To change a shift you already work, offer a trade.</p>
+        <p className="muted">Mark the days and times you can or cannot work. Auto-Distribution can assign you only within your saved Available times. Blank days are not available for auto-distribution. Saving availability does not assign a shift or remove an existing assignment. To change a shift you already work, offer a trade.</p>
       </div>
       {isAdmin && <label><span>Employee</span><select value={memberId} onChange={(event) => { setMemberId(event.target.value); setPicked([]); }}>
         {data.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name} — {employee.rank}</option>)}
@@ -922,6 +922,7 @@ function AvailabilityScreen({ data, isAdmin, act, busy }: { data: Data; isAdmin:
           <button type="button" className={status === "unavailable" ? "current unavailable" : ""} aria-pressed={status === "unavailable"} onClick={() => setStatus("unavailable")}><b>Unavailable</b><small>Do not schedule me</small></button>
         </div>
         <label className="availability-all-day chip"><input type="checkbox" checked={allDay} onChange={(event) => setAllDay(event.target.checked)} />All day</label>
+        <p className="muted">All day means midnight to midnight on each selected date. For an overnight shift, enter its From and To times (for example, 18:00–06:00), or mark both dates Available all day. Times are Central.</p>
         {!allDay && <div className="availability-times">
           <label><span>From</span><input type="time" step="900" value={startTime} onChange={(event) => setStartTime(event.target.value)} /></label>
           <label><span>To</span><input type="time" step="900" value={endTime} onChange={(event) => setEndTime(event.target.value)} /></label>
@@ -1150,13 +1151,13 @@ function DistributionScreen({ data, act, busy }: { data: Data; act: (b: Record<s
       </section>
       <section>
         <h3>Run auto-distribution</h3>
-        <p><strong>Only requested shifts or saved recurring assignments.</strong> A member must have a pending request for that exact position, or a matching recurring assignment in Roster &amp; Assignments (Red, Black, or Gold, including groups 1 and 2).</p>
-        <p className="muted">Recurring assignments must match the saved shift, position, date, and hours. Marking a day available does not request a shift. Qualifications, time off, and assignment conflicts still apply. Weights rank only eligible members.</p>
-        <p className="muted">This saves assignments to future open positions within both dates. Filled positions stay unchanged. Positions without an eligible requester or recurring member stay open. Build repeating shifts in Shift Builder first.</p>
+        <p><strong>Only members with saved Available times.</strong> Auto-Distribution reads Department availability / My Availability. The full shift must fit within the member’s saved Available days and times. Blank days never count as available.</p>
+        <p className="muted">Shift requests and recurring Red, Black, or Gold membership do not bypass availability. Qualifications, time off, and assignment conflicts still apply. Weights rank only eligible members.</p>
+        <p className="muted">This saves assignments to future open positions within both dates. Filled positions stay unchanged, including earlier automatic assignments. Positions without an available, qualified member stay open. Build repeating shifts in Shift Builder first.</p>
         <label className="row"><span>From date</span><input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} /></label>
         <label className="row"><span>End date</span><input type="date" min={fromDate || undefined} value={endDate} onChange={(e) => setEndDate(e.target.value)} /></label>
         {!validRange && <p role="alert">Choose both dates. End date must be on or after From date.</p>}
-        <button disabled={busy || !validRange} onClick={async () => { const r = await act({ action: "runAutoDistribution", fromDate, endDate }) as { assigned?: number; unfilled?: number } | null; if (r) alert(`Saved ${r.assigned ?? 0} assignment(s) from ${fromDate} through ${endDate}. ${r.unfilled ?? 0} position(s) remain open. Only requested shifts or matching recurring assignments were used.`); }}>Save eligible assignments</button>
+        <button disabled={busy || !validRange} onClick={async () => { const r = await act({ action: "runAutoDistribution", fromDate, endDate }) as { assigned?: number; unfilled?: number } | null; if (r) alert(`Saved ${r.assigned ?? 0} assignment(s) from ${fromDate} through ${endDate}. ${r.unfilled ?? 0} position(s) remain open. Only saved Available days and times were used. Existing assignments were not changed.`); }}>Assign from saved availability</button>
       </section>
     </div>
   );
