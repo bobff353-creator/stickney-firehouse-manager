@@ -689,7 +689,7 @@ export default function Respond({
     [view, setView] = useState<RightView>("cad"),
     [selected, setSelected] = useState<QuickItem | null>(null);
   const [monitorMode, setMonitorMode] = useState(false);
-  const [selectedReportNumber, setSelectedReportNumber] = useState(initialReportNumber);
+  const [selectedReportNumber, setSelectedReportNumber] = useState(() => initialReportNumber || (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('report') || '' : ''));
   const [selectionNotice, setSelectionNotice] = useState("");
   const locations=useApparatusLocations(Boolean(apparatus)||monitorMode,data?.activeCall?.respondingUnits||'');
   const [vehicleMapOpen,setVehicleMapOpen]=useState(false);

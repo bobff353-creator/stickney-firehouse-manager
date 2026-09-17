@@ -21,12 +21,12 @@ export default function RespondDeviceSettingsPage({ onSaved }: { onSaved: (setti
     const timer = window.setTimeout(() => {
       const stored = readRespondDeviceSettings(window.localStorage);
       setDraft(stored);
-      void fetch("/api/digital-twin", { cache: "no-store", signal: controller.signal })
+      void fetch("/api/suite-context", { cache: "no-store", signal: controller.signal })
         .then(async (response) => {
           if (!response.ok) return;
-          const payload = await response.json() as { apparatus?: Array<{ name?: unknown }> };
+          const payload = await response.json() as { apparatus?: Array<{ unitNumber?: unknown }> };
           const units = [...new Set((payload.apparatus ?? [])
-            .map((item) => normalizeFleetApparatusName(item.name))
+            .map((item) => normalizeFleetApparatusName(item.unitNumber))
             .filter(Boolean))]
             .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
           if (units.length) setFleetUnits(units);

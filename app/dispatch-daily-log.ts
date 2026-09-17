@@ -13,21 +13,27 @@ export type DailyLogDispatch = {
 };
 
 export async function projectDispatchIntoDailyLog(db: Database, incident: DailyLogDispatch) {
+  await db.batch(dispatchDailyLogStatements(db, incident));
+}
+
+export function dispatchDailyLogStatements(db: Database, incident: DailyLogDispatch, cisAuthoritative = false) {
   const logDate = chicagoOperationalContext(new Date(incident.dispatchedAt)).operationalDate;
   const callId = `dispatch:${incident.reportNumber}`;
 
-  await db.batch([
-    db.prepare("INSERT OR IGNORE INTO daily_logs (log_date, created_by, updated_by) VALUES (?, 'CAD email', 'CAD email')").bind(logDate),
-    db.prepare("UPDATE daily_log_calls SET time_out = ?, responding_units = ?, address = ?, call_type = ? WHERE log_date = ? AND report_number = ?").bind(
+  return [
+    db.prepare("INSERT OR IGNORE INTO daily_logs (log_date, created_by, updated_by) SELECT ?, 'CAD email', 'CAD email' WHERE ?=1 OR NOT EXISTS (SELECT 1 FROM dispatch_incidents WHERE incident_id=? AND source_system='CIS CAD')").bind(logDate, cisAuthoritative ? 1 : 0, incident.reportNumber),
+    db.prepare("UPDATE daily_log_calls SET time_out = ?, responding_units = ?, address = ?, call_type = ? WHERE log_date = ? AND report_number = ? AND (?=1 OR NOT EXISTS (SELECT 1 FROM dispatch_incidents WHERE incident_id=? AND source_system='CIS CAD'))").bind(
       incident.timeOut,
       incident.respondingUnits,
       incident.address,
       incident.callType,
       logDate,
       incident.reportNumber,
+      cisAuthoritative ? 1 : 0,
+      incident.reportNumber,
     ),
     db.prepare(
-      "INSERT INTO daily_log_calls (id, log_date, report_number, time_out, time_in, responding_units, address, call_type, sort_order) SELECT ?, ?, ?, ?, '', ?, ?, ?, COALESCE((SELECT MAX(sort_order) + 1 FROM daily_log_calls WHERE log_date = ?), 0) WHERE NOT EXISTS (SELECT 1 FROM daily_log_calls WHERE log_date = ? AND report_number = ?)"
+      "INSERT INTO daily_log_calls (id, log_date, report_number, time_out, time_in, responding_units, address, call_type, sort_order) SELECT ?, ?, ?, ?, '', ?, ?, ?, COALESCE((SELECT MAX(sort_order) + 1 FROM daily_log_calls WHERE log_date = ?), 0) WHERE NOT EXISTS (SELECT 1 FROM daily_log_calls WHERE log_date = ? AND report_number = ?) AND (?=1 OR NOT EXISTS (SELECT 1 FROM dispatch_incidents WHERE incident_id=? AND source_system='CIS CAD'))"
     ).bind(
       callId,
       logDate,
@@ -39,6 +45,8 @@ export async function projectDispatchIntoDailyLog(db: Database, incident: DailyL
       logDate,
       logDate,
       incident.reportNumber,
+      cisAuthoritative ? 1 : 0,
+      incident.reportNumber,
     ),
-  ]);
+  ];
 }

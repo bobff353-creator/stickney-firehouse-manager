@@ -119,9 +119,10 @@ export async function POST(request: Request) {
       databaseSecret,
     );
     const timeOut = chicagoMilitaryTime(incident.dispatchedAt);
-    await db.prepare(
-      "WITH cad_push_enabled AS MATERIALIZED (SELECT enable_cad_push_outbox()) INSERT INTO dispatch_incidents (incident_id, resend_email_id, call_type, category, address, city, narrative, responding_units, longitude, latitude, dispatched_at, time_out, attachment_count, source_payload, received_at, active) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 1 FROM cad_push_enabled ON CONFLICT(incident_id) DO UPDATE SET call_type=excluded.call_type, category=excluded.category, address=excluded.address, city=excluded.city, narrative=excluded.narrative, responding_units=excluded.responding_units, longitude=excluded.longitude, latitude=excluded.latitude, dispatched_at=excluded.dispatched_at, time_out=excluded.time_out, attachment_count=excluded.attachment_count, source_payload=excluded.source_payload, received_at=CURRENT_TIMESTAMP"
+    const persisted = await db.prepare(
+      "WITH cad_push_enabled AS MATERIALIZED (SELECT enable_cad_push_outbox()) INSERT INTO dispatch_incidents (incident_id, resend_email_id, call_type, category, address, city, narrative, responding_units, longitude, latitude, dispatched_at, time_out, attachment_count, source_payload, received_at, active) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 1 FROM cad_push_enabled ON CONFLICT(incident_id) DO UPDATE SET call_type=excluded.call_type, category=excluded.category, address=excluded.address, city=excluded.city, narrative=excluded.narrative, responding_units=excluded.responding_units, longitude=excluded.longitude, latitude=excluded.latitude, dispatched_at=excluded.dispatched_at, time_out=excluded.time_out, attachment_count=excluded.attachment_count, source_payload=excluded.source_payload, received_at=CURRENT_TIMESTAMP WHERE dispatch_incidents.source_system <> 'CIS CAD'"
     ).bind(incident.incidentId, event.data?.email_id || "", incident.callType, incident.category, incident.address, incident.city, incident.narrative, incident.units, incident.longitude, incident.latitude, incident.dispatchedAt, timeOut, attachmentCount, JSON.stringify(incident)).run();
+    if (persisted.meta.changes === 0) return Response.json({ accepted: true, ignored: true, reason: 'CIS is authoritative for this incident.' });
     scheduleCadPushDelivery(incident.incidentId);
     await projectDispatchIntoDailyLog(db, {
       reportNumber: incident.incidentId,

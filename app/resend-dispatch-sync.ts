@@ -63,8 +63,8 @@ export async function syncRecentResendDispatches(db: Database) {
     if (!incident) continue;
     const timeOut = chicagoMilitaryTime(incident.dispatchedAt);
     const attachmentCount = Array.isArray(email.attachments) ? email.attachments.length : 0;
-    await db.prepare(
-      "WITH cad_push_enabled AS MATERIALIZED (SELECT enable_cad_push_outbox()) INSERT INTO dispatch_incidents (incident_id, resend_email_id, call_type, category, address, city, narrative, responding_units, longitude, latitude, dispatched_at, time_out, attachment_count, source_payload, received_at, cleared_at, active) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, NULL, 1 FROM cad_push_enabled ON CONFLICT(incident_id) DO UPDATE SET resend_email_id=excluded.resend_email_id, call_type=excluded.call_type, category=excluded.category, address=excluded.address, city=excluded.city, narrative=excluded.narrative, responding_units=excluded.responding_units, longitude=excluded.longitude, latitude=excluded.latitude, dispatched_at=excluded.dispatched_at, time_out=excluded.time_out, attachment_count=excluded.attachment_count, source_payload=excluded.source_payload, received_at=CURRENT_TIMESTAMP, cleared_at=NULL, active=1"
+    const persisted = await db.prepare(
+      "WITH cad_push_enabled AS MATERIALIZED (SELECT enable_cad_push_outbox()) INSERT INTO dispatch_incidents (incident_id, resend_email_id, call_type, category, address, city, narrative, responding_units, longitude, latitude, dispatched_at, time_out, attachment_count, source_payload, received_at, cleared_at, active) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, NULL, 1 FROM cad_push_enabled ON CONFLICT(incident_id) DO UPDATE SET resend_email_id=excluded.resend_email_id, call_type=excluded.call_type, category=excluded.category, address=excluded.address, city=excluded.city, narrative=excluded.narrative, responding_units=excluded.responding_units, longitude=excluded.longitude, latitude=excluded.latitude, dispatched_at=excluded.dispatched_at, time_out=excluded.time_out, attachment_count=excluded.attachment_count, source_payload=excluded.source_payload, received_at=CURRENT_TIMESTAMP, cleared_at=NULL, active=1 WHERE dispatch_incidents.source_system <> 'CIS CAD'"
     ).bind(
       incident.incidentId,
       emailId,
@@ -81,6 +81,7 @@ export async function syncRecentResendDispatches(db: Database) {
       attachmentCount,
       JSON.stringify({ source: "resend-text", emailId, incident }),
     ).run();
+    if (persisted.meta.changes === 0) continue;
     scheduleCadPushDelivery(incident.incidentId);
     await projectDispatchIntoDailyLog(db, {
       reportNumber: incident.incidentId,

@@ -13,6 +13,12 @@ export type CisCadIncident = {
   dispatchedAt: string;
   timeOut: string;
   timeIn: string;
+  agency: string;
+  eventAt: string;
+  sequence: number | null;
+  unitId: string;
+  unitAction: "add" | "remove" | "";
+  present: string[];
 };
 
 export type CisCadParseResult =
@@ -51,7 +57,7 @@ function flatten(value: unknown, result = new Map<string, string>()) {
   )) {
     const normalizedKey = key(rawKey);
     const text = scalar(child);
-    if (text && !result.has(normalizedKey)) result.set(normalizedKey, text);
+    if (!result.has(normalizedKey)) result.set(normalizedKey, text);
     if (child && typeof child === "object" && !Array.isArray(child))
       flatten(child, result);
   }
@@ -67,15 +73,16 @@ function field(values: Map<string, string>, aliases: string[]) {
 }
 
 function number(value: string) {
+  if (!value.trim()) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function eventType(value: string, timeIn: string): CisCadIncident["eventType"] {
+function eventType(value: string, unitId: string): CisCadIncident["eventType"] {
   const normalized = value.toLowerCase();
+  if (unitId || /unit|available|en.?route|on.?scene/.test(normalized)) return "update";
   if (
-    timeIn ||
-    /\b(clear|cleared|close|closed|complete|completed|cancel|cancelled|canceled|available)\b/.test(
+    /\b(clear|cleared|close|closed|complete|completed|cancel|cancelled|canceled)\b/.test(
       normalized,
     )
   )
@@ -86,7 +93,8 @@ function eventType(value: string, timeIn: string): CisCadIncident["eventType"] {
 }
 
 function validDate(value: string) {
-  if (!value) return "";
+  // Vendor must supply an offset. Never interpret a dispatch timestamp in the server's timezone.
+  if (!value || !/(Z|[+-]\d{2}:?\d{2})$/i.test(value)) return "";
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString();
 }
@@ -139,6 +147,12 @@ function normalize(values: Map<string, string>): CisCadParseResult {
     "incidentStatus",
     "eventType",
   ]);
+  const unitId = field(values, ["unitId", "unitIdentifier"]);
+  const explicitIncidentStatus = field(values, ["incidentStatus"]);
+  const unitStatus = field(values, ["unitStatus", "unitAction"]) || status;
+  const kind = explicitIncidentStatus && eventType(explicitIncidentStatus, '') === 'close' ? 'close' : eventType(status, unitId);
+  const eventAt = validDate(field(values, ["eventAt", "eventTimestamp", "updatedAt", "messageTimestamp"]));
+  const sequence = number(field(values, ["sequence", "eventSequence", "sequenceNumber"]));
   const format = "json" as const;
 
   if (!incidentId)
@@ -147,13 +161,15 @@ function normalize(values: Map<string, string>): CisCadParseResult {
       error: "No stable CIS incident or call number was found.",
       format,
     };
-  if (!dispatchedAt)
+  if (incidentId.length > 128 || field(values, ['eventId', 'messageId', 'transactionId', 'sequenceId', 'updateId']).length > 128)
+    return { ok: false, error: 'Incident and event identifiers must be at most 128 characters.', format };
+  if (!dispatchedAt && kind === "new")
     return {
       ok: false,
       error: "No valid dispatch date and time was found.",
       format,
     };
-  if (!callType && !address)
+  if (!callType && !address && kind === "new")
     return {
       ok: false,
       error: "The message has neither a call type nor an incident address.",
@@ -172,8 +188,14 @@ function normalize(values: Map<string, string>): CisCadParseResult {
         "sequenceId",
         "updateId",
       ]),
-      eventType: eventType(status, timeIn),
-      callType: callType || "CAD incident",
+      eventType: kind,
+      callType,
+      agency: field(values, ["agencyId", "agencyCode", "agency", "departmentCode"]),
+      eventAt,
+      sequence: sequence !== null && Number.isSafeInteger(sequence) && sequence >= 0 ? sequence : null,
+      unitId,
+      unitAction: unitId && /available|clear|remove|cancel/.test(unitStatus.toLowerCase()) ? "remove" : unitId && /assign|dispatch|add/.test(unitStatus.toLowerCase()) ? "add" : "",
+      present: Array.from(values.keys()),
       category: field(values, [
         "category",
         "serviceType",
@@ -222,7 +244,7 @@ function parseXml(body: string) {
       .replace(/&lt;/g, "<")
       .replace(/&gt;/g, ">")
       .trim();
-    if (value && !values.has(key(name))) values.set(key(name), value);
+    if (!values.has(key(name))) values.set(key(name), value);
   }
   return values;
 }
@@ -230,7 +252,7 @@ function parseXml(body: string) {
 function parseText(body: string) {
   const values = new Map<string, string>();
   for (const line of body.split(/\r?\n/)) {
-    const match = line.match(/^\s*([^:=]{2,60})\s*[:=]\s*(.+?)\s*$/);
+    const match = line.match(/^\s*([^:=]{2,60})\s*[:=]\s*(.*?)\s*$/);
     if (match) values.set(key(match[1]), match[2]);
   }
   return values;

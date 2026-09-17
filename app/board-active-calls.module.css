@@ -1,0 +1,3 @@
+.selector { display: grid; gap: 4px; margin-top: 6px; font-size: 11px; color: #fff; }
+.selector select { min-height: 38px; max-width: 100%; width: 100%; padding: 5px; color: #fff; background: #193b4b; border: 1px solid #a6bdc9; border-radius: 4px; }
+.summary a { color: #bfe7ff; font-weight: 700; font-size: 12px; margin-top: 8px; }

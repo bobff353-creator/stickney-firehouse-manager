@@ -126,7 +126,7 @@ test('durable CAD queue: actual migration and delivery worker against local Post
  });
  await t.test('actual authenticated bridge -> SQL adapter -> atomic insert -> immediate worker -> batched acknowledgement',async()=>{
    await reset(); await pg.exec(`SET search_path=firehouse,public;
-     ALTER TABLE firehouse.dispatch_incidents ADD COLUMN resend_email_id text,ADD COLUMN category text,ADD COLUMN address text,ADD COLUMN city text,ADD COLUMN responding_units text,ADD COLUMN longitude float8,ADD COLUMN latitude float8,ADD COLUMN dispatched_at text,ADD COLUMN attachment_count bigint,ADD COLUMN source_payload text,ADD COLUMN received_at text,ADD COLUMN cleared_at text;`);
+     ALTER TABLE firehouse.dispatch_incidents ADD COLUMN resend_email_id text,ADD COLUMN category text,ADD COLUMN address text,ADD COLUMN city text,ADD COLUMN responding_units text,ADD COLUMN longitude float8,ADD COLUMN latitude float8,ADD COLUMN dispatched_at text,ADD COLUMN attachment_count bigint,ADD COLUMN source_payload text,ADD COLUMN received_at text,ADD COLUMN cleared_at text,ADD COLUMN source_system text DEFAULT 'CAD email';`);
    const counters={rpc:0,sends:0,acks:0},callbacks=[];
    const client={async rpc(name,args){counters.rpc++;try {
      async function execute(connection,sql,mode){
@@ -180,9 +180,15 @@ test('all CAD entry points schedule durable delivery after the commit, before Da
  for(const file of ['app/api/cad/cis/route.ts','app/api/dispatch-bridge/route.ts','app/api/resend-dispatch/route.ts','app/resend-dispatch-sync.ts']) {
    const source=readFileSync(new URL('../'+file,import.meta.url),'utf8');
    assert.doesNotMatch(source,/sendCadPushNotifications|incidentAlreadyStored/);
-   assert.match(source,/enable_cad_push_outbox\(\)/);
-   if(!file.includes('/cis/')) assert.match(source,/WITH cad_push_enabled AS MATERIALIZED.*FROM cad_push_enabled ON CONFLICT/);
-   assert.ok(source.indexOf('scheduleCadPushDelivery(',source.indexOf('export'))<source.indexOf('await projectDispatchIntoDailyLog'));
+   if(file.includes('/cis/')) {
+     const ingest=readFileSync('app/cis-cad-ingest.ts','utf8');
+     assert.match(ingest,/enable_cad_push_outbox\(\)/);
+     assert.ok(ingest.indexOf('dispatchDailyLogStatements(db')<ingest.indexOf('await db.batch(statements)'),'CIS log and outbox commit together');
+     assert.ok(source.indexOf('await ingestCisDelivery(')<source.indexOf('scheduleCadPushDelivery(pushIncidentId)'));
+   } else {
+     assert.match(source,/WITH cad_push_enabled AS MATERIALIZED.*FROM cad_push_enabled ON CONFLICT/);
+     assert.ok(source.indexOf('scheduleCadPushDelivery(',source.indexOf('export'))<source.indexOf('await projectDispatchIntoDailyLog'));
+   }
  }
  const worker=readFileSync(new URL('../app/cad-push-worker.ts',import.meta.url),'utf8');
  assert.match(worker,/after\(async/); assert.match(worker,/firehouse_server_sql/);

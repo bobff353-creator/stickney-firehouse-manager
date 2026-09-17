@@ -50,25 +50,24 @@ export async function GET(request: Request) {
       .run();
     const activeDispatches = await db
       .prepare(
-        "SELECT incident_id reportNumber,call_type callType,category,address,city,narrative,responding_units respondingUnits,longitude,latitude,dispatched_at dispatchedAt,time_out timeOut,source_system source,received_at receivedAt FROM dispatch_incidents WHERE active=1 AND cleared_at IS NULL AND datetime(dispatched_at)>=datetime('now','-12 hours') AND NOT EXISTS (SELECT 1 FROM daily_log_calls WHERE trim(daily_log_calls.report_number)=trim(dispatch_incidents.incident_id) AND trim(daily_log_calls.time_in)<>'') ORDER BY datetime(dispatched_at) DESC LIMIT 24",
+        "SELECT incident_id reportNumber,call_type callType,category,address,city,narrative,responding_units respondingUnits,longitude,latitude,dispatched_at dispatchedAt,time_out timeOut,source_system source,received_at receivedAt FROM dispatch_incidents WHERE active=1 AND cleared_at IS NULL AND (source_system='CIS CAD' OR datetime(dispatched_at)>=datetime('now','-12 hours')) AND NOT EXISTS (SELECT 1 FROM daily_log_calls WHERE trim(daily_log_calls.report_number)=trim(dispatch_incidents.incident_id) AND trim(daily_log_calls.time_in)<>'') ORDER BY datetime(dispatched_at) DESC",
       )
       .all<Row>();
     let availableCalls =
       activeDispatches.results.filter((call) =>
         respondingUnitsIncludeUnit(call.respondingUnits, apparatus),
       );
-    if (!availableCalls.length) {
+    {
       const date = chicagoOperationalContext().operationalDate;
       const dailyLogCalls = await db
         .prepare(
-          "SELECT report_number reportNumber,call_type callType,'' category,address,'' city,'' narrative,responding_units respondingUnits,NULL longitude,NULL latitude,log_date dispatchedAt,time_out timeOut,'Daily Log' source,log_date receivedAt FROM daily_log_calls WHERE log_date=? AND trim(time_out)<>'' AND trim(time_in)='' ORDER BY sort_order DESC LIMIT 24",
+          "SELECT report_number reportNumber,call_type callType,'' category,address,'' city,'' narrative,responding_units respondingUnits,NULL longitude,NULL latitude,log_date dispatchedAt,time_out timeOut,'Daily Log' source,log_date receivedAt FROM daily_log_calls WHERE log_date=? AND trim(time_out)<>'' AND trim(time_in)='' AND NOT EXISTS (SELECT 1 FROM dispatch_incidents WHERE trim(dispatch_incidents.incident_id)=trim(daily_log_calls.report_number)) ORDER BY sort_order DESC",
         )
         .bind(date)
         .all<Row>();
-      availableCalls =
-        dailyLogCalls.results.filter((call) =>
+      availableCalls = [...availableCalls, ...dailyLogCalls.results.filter((call) =>
           respondingUnitsIncludeUnit(call.respondingUnits, apparatus),
-        );
+        )];
     }
     // Selection is only from the already-authorized, active apparatus-filtered pool.
     // Never look up an arbitrary report or write CAD status when changing views.
@@ -99,8 +98,9 @@ export async function GET(request: Request) {
     const [recentRows, recentLocationRows] = await Promise.all([
       db
         .prepare(
-          "SELECT report_number reportNumber,call_type callType,address,responding_units respondingUnits,time_out timeOut,time_in timeIn,log_date logDate FROM daily_log_calls WHERE trim(time_in)<>'' ORDER BY log_date DESC,sort_order DESC,id DESC LIMIT 25",
+          "SELECT report_number reportNumber,call_type callType,address,responding_units respondingUnits,time_out timeOut,time_in timeIn,log_date logDate FROM daily_log_calls WHERE trim(time_in)<>'' AND (?='' OR upper(responding_units) ~ ?) ORDER BY log_date DESC,sort_order DESC,id DESC LIMIT 25",
         )
+        .bind(apparatus, `(^|[^A-Z0-9-])${apparatus}([^A-Z0-9-]|$)`)
         .all<Row>(),
       db
         .prepare(

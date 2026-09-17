@@ -65,7 +65,7 @@ test('load failure leaves an existing local draft untouched', async () => {
 test('unverified date has no editable form and exposes recovery instead of Saved', () => {
   assert.match(source, /readOnly = loading \|\| loadError \|\| loadedDate !== logDate/);
   assert.match(source, /hidden=\{loadedDate !== logDate\}/);
-  assert.match(source, /loadError \? "Not loaded"/);
+  assert.match(source, /loadError \|\| loadedDate !== logDate \? "Not loaded"/);
   assert.match(source, /Retry loading log/);
   assert.match(source, /Unlock could not be confirmed/);
 });

@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import CisRoutingSettings from './cis-routing-settings';
+import type { CisSettings } from './cis-cad-routing';
 
 type Receipt = {
   id: string;
@@ -23,6 +25,8 @@ type Status = {
   failedCount: number;
   receipts: Receipt[];
   liveVerified: boolean;
+  settings: CisSettings;
+  fleet: Array<{ unitNumber: string; name: string }>;
   error?: string;
 };
 
@@ -50,6 +54,7 @@ export default function CadIntegrationSettings() {
   const [sample, setSample] = useState(samplePayload);
   const [sampleResult, setSampleResult] = useState<Record<string, unknown> | null>(null);
   const [validating, setValidating] = useState(false);
+  const [routingSaved, setRoutingSaved] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -57,7 +62,7 @@ export default function CadIntegrationSettings() {
     try {
       const response = await fetch("/api/cad/cis", { cache: "no-store" });
       const payload = await response.json() as Status;
-      if (!response.ok) throw new Error(payload.error || "Unable to load the CAD integration.");
+      if (!response.ok) { if (response.status === 401 || response.status === 403) setData(null); throw new Error(payload.error || "Unable to load the CAD integration."); }
       setData(payload);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to load the CAD integration.");
@@ -98,7 +103,7 @@ export default function CadIntegrationSettings() {
     window.setTimeout(() => setCopied(false), 1800);
   }
 
-  const stage = data?.liveVerified ? "Live verified" : data?.secretConfigured ? "Credentials configured" : "Prebuilt";
+  const stage = data?.settings.mode === 'live' ? 'Live mode · verification pending' : data?.settings.mode === 'shadow' ? 'Shadow test · no operational writes' : 'CIS disabled · CAD email unchanged';
   return (
     <section className="cad-settings-page">
       <div className="standard-page-header">
@@ -126,12 +131,15 @@ export default function CadIntegrationSettings() {
           <p>This address is prebuilt, but it must not be given to CIS as a production destination until their approved authentication method and the site’s public network path are confirmed.</p>
           <dl>
             <div><dt>Authentication</dt><dd>Bearer secret or HMAC-SHA256 adapter</dd></div>
-            <div><dt>Maximum message</dt><dd>256 KB</dd></div>
-            <div><dt>Duplicate protection</dt><dd>SHA-256 receipt fingerprint</dd></div>
+            <div><dt>Maximum message</dt><dd>64 KB</dd></div>
+            <div><dt>Duplicate protection</dt><dd>Incident + event ID (or body fingerprint), isolated by test/live mode</dd></div>
             <div><dt>Raw message retention</dt><dd>Stored for audit and mapping repair</dd></div>
           </dl>
         </article>
       </section>
+
+      {routingSaved && <p role="status">✓ Routing settings saved. Existing CAD email remains available.</p>}
+      {data && <CisRoutingSettings key={data.settings.revision} saved={data.settings} fleet={data.fleet} secretConfigured={data.secretConfigured} onSaved={() => { setRoutingSaved(true); void load(); }} />}
 
       <section className="content-card cad-sample-card">
         <div className="section-header"><div><h2>Validate a sanitized CIS sample</h2><p>This checks field mapping only. It does not create an active call or contact the dispatch network.</p></div><button className="primary-action compact" onClick={() => void validateSample()} disabled={validating}>{validating ? "Checking…" : "Validate sample"}</button></div>

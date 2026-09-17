@@ -124,7 +124,7 @@ test('a distinct new call gets a fresh 90 seconds; Return now cancels the previo
 test('the actual alert opens its own report and keeps the board mounted for later incoming calls', () => {
   assert.match(shell, /shouldOpenBoardRespondAlert\(activeNav, visibleNav, respondDeviceSettings, call\)/);
   assert.match(shell, /<Respond key=\{respondAlertCallId\} initialReportNumber=\{respondAlertCallId\} apparatus=\{respondDeviceSettings.mode === "apparatus" \? respondDeviceSettings.apparatus : ""\}/);
-  assert.match(respond, /\[selectedReportNumber, setSelectedReportNumber\] = useState\(initialReportNumber\)/);
+  assert.match(respond, /\[selectedReportNumber, setSelectedReportNumber\] = useState\(\(\) => initialReportNumber \|\|/);
   assert.match(shell, /onClick=\{\(\) => setRespondAlertCallId\(""\)\}>Return now/);
   assert.match(shell, /activeNav === "Operations Board" && visibleNav.includes\("Operations Board"\) && <OperationsBoard/);
   assert.match(shell, /respondAlertCallId && activeNav === "Operations Board" && visibleNav.includes\("Operations Board"\) && visibleNav.includes\("Respond"\)/);

@@ -17,7 +17,8 @@ export async function seedRecentCalls(pg) {
   INSERT INTO daily_log_calls VALUES ('blank','BLANK','Not completed','Fixture','TEST','1300','  ', '2026-10-01',101);`);
 }
 export async function recentCallRows(pg) {
-  const { rows } = await pg.query(recentCallQuery);
+  let parameter = 0;
+  const { rows } = await pg.query(recentCallQuery.replace(/\?/g, () => `$${++parameter}`), ['', '']);
   // The production SQL adapter restores camel-case aliases; reproduce that JSON
   // shape here without initializing any hosted connection or credentials.
   return rows.map(row => ({reportNumber:row.reportnumber, callType:row.calltype,

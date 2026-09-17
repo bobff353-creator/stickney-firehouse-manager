@@ -1,8 +1,14 @@
 import { hasPermission } from "../../../server-permissions";
 import { ensureDatabase } from "../../../../db/bootstrap";
 import { parseCisCadPayload } from "../../../cis-cad";
-import { projectDispatchIntoDailyLog } from "../../../dispatch-daily-log";
+import { ingestCisDelivery } from "../../../cis-cad-ingest";
+import { readCisSettings, saveCisSettings } from "../../../cis-cad-store";
+import { reduceCisEvent, validateCisSettings } from "../../../cis-cad-routing";
 import { scheduleCadPushDelivery } from "../../../cad-push-worker";
+import { createPostgresD1Adapter } from '../../../../db/postgres-adapter';
+import { getSupabaseSystemClient } from '../../../supabase-system';
+import { GET as getFleetContext } from '../../suite-context/route';
+import { normalizeFleetApparatusName } from '../../../respond-device';
 
 type RuntimeEnv = {
   CIS_CAD_WEBHOOK_SECRET?: string;
@@ -24,13 +30,11 @@ async function runtime() {
   return process.env as RuntimeEnv;
 }
 
-async function sha256(value: string) {
-  const bytes = new Uint8Array(
-    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)),
-  );
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
-    "",
-  );
+async function routingFleet(request: Request) {
+  const response = await getFleetContext(new Request(new URL('/api/suite-context', request.url), { headers: request.headers }));
+  if (!response.ok) throw new Error('Current department Fleet records are unavailable. No mappings were saved.');
+  const payload = await response.json() as { apparatus: Array<{ unitNumber: string; name: string }> };
+  return payload.apparatus.map(row => ({ unitNumber: normalizeFleetApparatusName(row.unitNumber), name: row.name })).filter(row => row.unitNumber);
 }
 
 async function authenticated(request: Request, body: string, secret: string) {
@@ -63,16 +67,6 @@ async function authenticated(request: Request, body: string, secret: string) {
   return safeEqual(digest, provided);
 }
 
-function chicagoMilitaryTime(value: string) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Chicago",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(new Date(value));
-  return `${parts.find((part) => part.type === "hour")?.value || "00"}${parts.find((part) => part.type === "minute")?.value || "00"}`;
-}
-
 export async function GET(request: Request) {
   try {
     const db = await ensureDatabase();
@@ -82,6 +76,8 @@ export async function GET(request: Request) {
         { status: 403 },
       );
     const env = await runtime();
+    const { settings } = await readCisSettings(db);
+    const fleet = await routingFleet(request);
     const receipts = await db
       .prepare(
         "SELECT id, external_incident_id AS incidentId, event_type AS eventType, payload_format AS payloadFormat, status, error_message AS errorMessage, duplicate_of AS duplicateOf, received_at AS receivedAt, processed_at AS processedAt FROM cad_inbound_receipts WHERE provider = 'cis' ORDER BY datetime(received_at) DESC LIMIT 12",
@@ -109,6 +105,9 @@ export async function GET(request: Request) {
         failedCount: Number(failed?.count ?? 0),
         receipts: receipts.results,
         liveVerified: false,
+        settings,
+        fleet,
+        readiness: "App-side controls available. Vendor message contract and end-to-end live delivery remain unverified.",
       },
       { headers: { "cache-control": "no-store" } },
     );
@@ -150,7 +149,9 @@ export async function PUT(request: Request) {
       sample,
       String(payload.contentType || "application/json"),
     );
-    return Response.json(result, {
+    const { settings } = await readCisSettings(db);
+    const routing = result.ok ? reduceCisEvent(null, result.incident, settings) : null;
+    return Response.json({ ...result, routing, writes: false, notifications: false }, {
       status: result.ok ? 200 : 422,
       headers: { "cache-control": "no-store" },
     });
@@ -162,137 +163,42 @@ export async function PUT(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
-  const receiptId = crypto.randomUUID();
-  let body = "";
+export async function PATCH(request: Request) {
   try {
-    const declaredLength = Number(request.headers.get("content-length") || "0");
-    if (declaredLength > 262_144)
-      return Response.json(
-        { error: "Payload is larger than 256 KB.", receiptId },
-        { status: 413 },
-      );
-    body = await request.text();
-    if (!body || body.length > 262_144)
-      return Response.json(
-        { error: "Payload must be between 1 byte and 256 KB.", receiptId },
-        { status: 413 },
-      );
-
-    const env = await runtime();
-    if (!env.CIS_CAD_WEBHOOK_SECRET)
-      return Response.json(
-        { error: "CIS CAD delivery is not configured.", receiptId },
-        { status: 503 },
-      );
-    if (!(await authenticated(request, body, env.CIS_CAD_WEBHOOK_SECRET)))
-      return Response.json(
-        { error: "Invalid CIS CAD authentication.", receiptId },
-        { status: 401 },
-      );
-
     const db = await ensureDatabase();
-    const payloadHash = await sha256(body);
-    const prior = await db
-      .prepare(
-        "SELECT id FROM cad_inbound_receipts WHERE provider = 'cis' AND dedupe_key = ? LIMIT 1",
-      )
-      .bind(payloadHash)
-      .first<{ id: string }>();
-    if (prior)
-      return Response.json({
-        accepted: true,
-        duplicate: true,
-        receiptId: prior.id,
-      });
-
-    const contentType = request.headers.get("content-type") || "text/plain";
-    const parsed = parseCisCadPayload(body, contentType);
-    if (!parsed.ok) {
-      await db
-        .prepare(
-          "INSERT INTO cad_inbound_receipts (id, provider, dedupe_key, payload_format, raw_payload, status, error_message, received_at, processed_at) VALUES (?, 'cis', ?, ?, ?, 'rejected', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-        )
-        .bind(receiptId, payloadHash, parsed.format, body, parsed.error)
-        .run();
-      return Response.json(
-        { accepted: false, receiptId, error: parsed.error },
-        { status: 422 },
-      );
+    if (!await isAdmin(request, db)) return Response.json({ error: "Administrator access is required." }, { status: 403 });
+    const raw = await request.text();
+    if (raw.length > 20000) return Response.json({ error: "Configuration is too large." }, { status: 413 });
+    const body = JSON.parse(raw);
+    const fleet = await routingFleet(request);
+    const settings = validateCisSettings(body.settings, fleet.map(row => row.unitNumber));
+    if (settings.mode === "live" && (!process.env.CIS_CAD_WEBHOOK_SECRET || body.confirmLive !== true || !settings.units.length)) {
+      return Response.json({ error: "Live delivery requires the hosted webhook secret, approved unit mappings and explicit confirmation after vendor testing." }, { status: 400 });
     }
-
-    const incident = parsed.incident;
-    const active = incident.eventType === "close" ? 0 : 1;
-    const timeOut =
-      incident.timeOut || chicagoMilitaryTime(incident.dispatchedAt);
-    const receipt = db
-      .prepare(
-        "INSERT INTO cad_inbound_receipts (id, provider, dedupe_key, external_event_id, external_incident_id, event_type, payload_format, raw_payload, normalized_payload, status, received_at, processed_at) VALUES (?, 'cis', ?, ?, ?, ?, ?, ?, ?, 'accepted', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT(provider,dedupe_key) DO NOTHING",
-      )
-      .bind(
-        receiptId,
-        payloadHash,
-        incident.eventId,
-        incident.incidentId,
-        incident.eventType,
-        parsed.format,
-        body,
-        JSON.stringify(incident),
-      );
-    const upsert = db
-      .prepare(
-        "INSERT INTO dispatch_incidents (incident_id, resend_email_id, call_type, category, address, city, narrative, responding_units, longitude, latitude, dispatched_at, time_out, attachment_count, source_payload, source_system, received_at, cleared_at, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 'CIS CAD', CURRENT_TIMESTAMP, CASE WHEN ? = 0 THEN CURRENT_TIMESTAMP ELSE NULL END, ?) ON CONFLICT(incident_id) DO UPDATE SET call_type=excluded.call_type, category=excluded.category, address=excluded.address, city=excluded.city, narrative=excluded.narrative, responding_units=excluded.responding_units, longitude=excluded.longitude, latitude=excluded.latitude, dispatched_at=excluded.dispatched_at, time_out=excluded.time_out, source_payload=excluded.source_payload, source_system='CIS CAD', received_at=CURRENT_TIMESTAMP, cleared_at=CASE WHEN excluded.active=0 THEN CURRENT_TIMESTAMP ELSE NULL END, active=excluded.active",
-      )
-      .bind(
-        incident.incidentId,
-        `cis-${incident.incidentId}`,
-        incident.callType,
-        incident.category,
-        incident.address,
-        incident.city,
-        incident.narrative,
-        incident.respondingUnits,
-        incident.longitude,
-        incident.latitude,
-        incident.dispatchedAt,
-        timeOut,
-        JSON.stringify(incident),
-        active,
-        active,
-      );
-    const receiptResults = await db.batch<{ id?: string }>([
-      db.prepare('SELECT enable_cad_push_outbox()'), receipt, upsert,
-      db.prepare("SELECT id FROM cad_inbound_receipts WHERE provider = 'cis' AND dedupe_key = ? LIMIT 1").bind(payloadHash).batchFirst(),
-    ]);
-    const savedReceiptId = receiptResults[3]?.id || receiptId;
-    if (active) {
-      scheduleCadPushDelivery(incident.incidentId);
-      await projectDispatchIntoDailyLog(db, {
-        reportNumber: incident.incidentId,
-        dispatchedAt: incident.dispatchedAt,
-        timeOut,
-        respondingUnits: incident.respondingUnits,
-        address: incident.address,
-        callType: incident.callType,
-      });
-    }
-    return Response.json({
-      accepted: true,
-      duplicate: savedReceiptId !== receiptId,
-      receiptId: savedReceiptId,
-      incidentId: incident.incidentId,
-      eventType: incident.eventType,
-    });
+    const saved = await saveCisSettings(db, settings, request.headers.get("oai-authenticated-user-email") || "");
+    return Response.json({ settings: saved }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    return Response.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to process CIS CAD delivery.",
-        receiptId,
-      },
-      { status: 500 },
-    );
+    return Response.json({ error: error instanceof Error ? error.message : "Settings were not saved." }, { status: 400 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    // Bounded payload also stays below the signed database executor's query limit.
+    if (Number(request.headers.get("content-length") || "0") > 65536) return Response.json({ error: "Payload is larger than 64 KB." }, { status: 413 });
+    const body = await request.text();
+    if (!body || Buffer.byteLength(body, "utf8") > 65536) return Response.json({ error: "Payload must be between 1 byte and 64 KB." }, { status: 413 });
+    const env = await runtime();
+    if (!env.CIS_CAD_WEBHOOK_SECRET) return Response.json({ error: "CIS CAD delivery is not configured." }, { status: 503 });
+    if (!await authenticated(request, body, env.CIS_CAD_WEBHOOK_SECRET)) return Response.json({ error: "Invalid CIS CAD authentication." }, { status: 401 });
+    const databaseSecret = process.env.FIREHOUSE_DATABASE_SECRET?.replace(/[\uFEFF\r\n]/g, '').trim().replace(/^['"]|['"]$/g, '');
+    if (!databaseSecret) return Response.json({ error: 'CIS server database access is not configured.' }, { status: 503 });
+    const db = createPostgresD1Adapter(getSupabaseSystemClient, 'firehouse_server_sql', databaseSecret);
+    const { httpStatus, pushIncidentId, ...result } = await ingestCisDelivery(db, body, request.headers.get("content-type") || "text/plain");
+    if (pushIncidentId) scheduleCadPushDelivery(pushIncidentId);
+    return Response.json(result, { status: httpStatus, headers: { "cache-control": "no-store" } });
+  } catch {
+    // Do not expose database details or payloads to an external sender.
+    return Response.json({ accepted: false, error: "Unable to commit CIS delivery. Retry this delivery." }, { status: 503 });
   }
 }
