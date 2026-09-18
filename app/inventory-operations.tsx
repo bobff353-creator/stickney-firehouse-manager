@@ -414,9 +414,16 @@ export default function InventoryOperations({
   const [editorSection, setEditorSection] = useState("basics");
   const directorySummaryRef = useRef<HTMLElement>(null);
   const builderTopRef = useRef<HTMLElement>(null);
+  const scheduleEditorRef = useRef<HTMLDetailsElement>(null);
   useEffect(() => { if (selectedDirectoryEquipment) directorySummaryRef.current?.scrollIntoView({block:"start", behavior:"smooth"}); }, [selectedDirectoryEquipment]);
   const openEquipmentEditor = (item: Row) => { if (item.scba_asset_kind) { onAir(); return; } setEditorSection("basics"); setEditingEquipment(item); };
-  const changeBuilderTask = (task: string) => { setBuilderTask(task); builderTopRef.current?.scrollIntoView({block:"start",behavior:"auto"}); };
+  const changeBuilderTask = (task: string) => {
+    setBuilderTask(task);
+    window.requestAnimationFrame(() => {
+      const target = task === "schedules" ? scheduleEditorRef.current : builderTopRef.current;
+      target?.scrollIntoView({ block: "start", behavior: "auto" });
+    });
+  };
   const [duplicatesOnly, setDuplicatesOnly] = useState(false);
   const [repairPath, setRepairPath] = useState<"notice" | "work" | null>(null);
   const [noticeSaveState, setNoticeSaveState] = useState<"unsaved" | "saving" | "saved" | "failed" | null>(null);
@@ -424,6 +431,12 @@ export default function InventoryOperations({
   const [maintenanceApparatusId, setMaintenanceApparatusId] = useState("all");
   const [selectedMaintenanceOrder, setSelectedMaintenanceOrder] = useState<Row | null>(null);
   const [selectedReportCheck, setSelectedReportCheck] = useState<Row | null>(null);
+  const reportDetailRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!selectedReportCheck) return;
+    reportDetailRef.current?.scrollIntoView({ block: "start", behavior: "auto" });
+    reportDetailRef.current?.focus({ preventScroll: true });
+  }, [selectedReportCheck]);
   const [checkReviewNotes, setCheckReviewNotes] = useState<Record<string, string>>({});
   const [checkSearch, setCheckSearch] = useState("");
   const [checkResultFilter, setCheckResultFilter] = useState<"pending" | "all" | "completed" | "failed">("pending");
@@ -632,6 +645,7 @@ export default function InventoryOperations({
         if (!response.ok || !result.checkId) throw new Error(result.error || "The apparatus inspection could not be opened.");
         await load();
         setSelectedCheckId(result.checkId);
+        setSubmittedCheck(false);
         setInspectionMenuOpen(false);
         setMessage("Apparatus duty opened. Progress is shared with the crew and saves item by item.");
       } catch (caught) {
@@ -657,7 +671,15 @@ export default function InventoryOperations({
       if (!response.ok) throw new Error(result.error || "The change could not be saved.");
       const refreshed = await load({ background: view === "air", fresh: true });
       if (payload.action === "complete_check") setSubmittedCheck(true);
+      if (payload.action === "start_check") setSubmittedCheck(false);
       const confirmations: Record<string, string> = {
+        start_check: "Inspection opened. Progress saves item by item.",
+        record_scba_entry: "Air-pack entry saved. Progress has been refreshed.",
+        review_check: "Review decision saved. The report status has been refreshed.",
+        adjust_stock: "Stock quantity saved.",
+        request_restock: "Restock request saved for administrator approval.",
+        approve_restock: "Restock request approved.",
+        fulfill_restock: "Restock request marked fulfilled.",
         create_notice: "Repair notice saved with the selected assignees. Follow it in All repair records.",
         create_work_order: "Work order opened. Follow progress and add service documents in Maintenance history.",
         complete_check: "Inspection submitted for administrator review. Find the saved report in Reports.",
@@ -1118,7 +1140,7 @@ export default function InventoryOperations({
             <header><div><span>APPARATUS INVENTORY</span><h2>Choose the apparatus to inventory</h2></div><b>{inventoryChecks.length} apparatus</b></header>
             {inventoryChecks.length ? renderCheckCards(inventoryChecks, () => "INVENTORY CHECK") : <div className="ops-empty"><strong>No apparatus inventory checks are configured.</strong><p>An administrator can assign equipment to the Inventory check in Admin Configuration.</p></div>}
           </section>
-          {canSetup ? <details className="ops-card inspection-scheduler-card" open={view === "builder"}><summary>Admin: change when checks are due</summary>
+          {canSetup ? <details ref={scheduleEditorRef} className="ops-card inspection-scheduler-card" open={view === "builder"}><summary>Admin: change when checks are due</summary>
             <header><div><span>ADMIN INSPECTION SCHEDULER</span><h2>Set required day and completion window</h2><p>Set Start time and Due by for each check. The due time assigns its Daily Log shift: after 06:00 through 12:00 morning, after 12:00 through 18:00 afternoon, and after 18:00 through 06:00 overnight. Required checks block only that shift’s sign-out.</p></div><b>{data.inspectionSchedules.filter((item) => item.active !== false).length} active</b></header>
             <form key={`${selectedApparatusId}-${templateType}`} className="inspection-schedule-form" onSubmit={(event) => {
               const form = new FormData(event.currentTarget);
@@ -1233,7 +1255,7 @@ export default function InventoryOperations({
 
           {selectedReportCheck ? (() => {
             const summary = reportSummaryFor(selectedReportCheck);
-            return <section className="ops-card inventory-report-detail inventory-report-print-host">
+            return <section ref={reportDetailRef} tabIndex={-1} aria-label="Selected check report" className="ops-card inventory-report-detail inventory-report-print-host">
               <header><div><span>STICKNEY FIRE DEPARTMENT · CHECK REPORT</span><h2>{value(selectedReportCheck, "apparatus_name")} · {formatStatus(selectedReportCheck.check_type)}</h2></div><button type="button" onClick={() => setSelectedReportCheck(null)}>Close</button></header>
               <div className="report-metadata"><span><b>Report ID</b>{value(selectedReportCheck, "id")}</span><span><b>Started</b>{formatDate(selectedReportCheck.started_at)}</span><span><b>Completed</b>{formatDate(selectedReportCheck.completed_at)}</span><span><b>Completed by</b>{value(selectedReportCheck, "started_by") || "Not recorded"}</span><span><b>Approval</b>{formatStatus(selectedReportCheck.review_status)}</span><span><b>Reviewed by</b>{value(selectedReportCheck, "reviewed_by") || "Pending"}</span></div>
               {value(selectedReportCheck, "review_notes") ? <blockquote>{value(selectedReportCheck, "review_notes")}</blockquote> : null}
@@ -1283,6 +1305,8 @@ export default function InventoryOperations({
                   return (
                     <button key={id} type="button" disabled={Boolean(busy) || unavailable || notNeeded || !canCheck} onClick={() => {
                       if (inProgress) {
+                        setSubmittedCheck(false);
+                        setMessage("");
                         setSelectedCheckId(value(inProgress, "id"));
                         setInspectionMenuOpen(false);
                         return;

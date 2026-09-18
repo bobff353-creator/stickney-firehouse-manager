@@ -33,6 +33,20 @@
 .inventory-app-shell.inventory-portal-refresh .report-metadata b { font-size:12px; }
 .inventory-app-shell.inventory-portal-refresh .inventory-report-detail footer { font-size:12px; }
 .inventory-app-shell.inventory-portal-refresh .inventory-report-detail { scroll-margin-top:80px; }
+.inventory-app-shell.inventory-portal-refresh .inspection-scheduler-card { scroll-margin-top:80px; }
+/* A wide repair lane must not set the minimum width of the entire page. */
+.inventory-app-shell.inventory-portal-refresh :is(.inventory-ops,.ops-card,.repair-board,.repair-column,.maintenance-timeline,.maintenance-timeline>article,.maintenance-actions,.maintenance-actions>form) { min-width:0; }
+.inventory-app-shell.inventory-portal-refresh .maintenance-timeline :is(h3,p,dd) { overflow-wrap:anywhere; }
+.inventory-app-shell.inventory-portal-refresh .maintenance-timeline dt { font-size:11px; }
+.inventory-app-shell.inventory-portal-refresh .maintenance-timeline :is(dd,article>p) { font-size:14px; line-height:1.5; }
+.inventory-app-shell.inventory-portal-refresh .maintenance-actions button { background:#fff; color:#173a58; }
+.inventory-app-shell.inventory-portal-refresh :is(.maintenance-timeline article>header>b,.repair-column>header span,.repair-column article>span) { color:#173a58; }
+@media(max-width:820px) {
+ .inventory-app-shell.inventory-portal-refresh .repair-board { grid-template-columns:minmax(0,1fr); }
+ .inventory-app-shell.inventory-portal-refresh :is(.maintenance-actions,.maintenance-actions>form) { grid-template-columns:minmax(0,1fr); }
+ .inventory-app-shell.inventory-portal-refresh .maintenance-actions :is(input,select,button) { min-width:0; max-width:100%; box-sizing:border-box; }
+ .inventory-app-shell.inventory-portal-refresh .maintenance-timeline article>header { flex-wrap:wrap; }
+}
 @media screen and (max-width:980px) {
  .inventory-app-shell.inventory-portal-refresh .inventory-report-detail table { display:block; min-width:0; width:100%; }
  .inventory-app-shell.inventory-portal-refresh .inventory-report-detail thead { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
@@ -80,7 +94,7 @@
   .inventory-task-focused .inventory-command-header { margin-bottom:10px; }
   .inventory-task-focused .active-inspection-title { position:sticky; top:64px; z-index:4; background:#e9f2f7; border-bottom:1px solid #abc3d3; padding:8px; }
   .inventory-task-focused .active-inspection-title small { font-size:12px; }
-  .inventory-app-shell.inventory-portal-refresh.inventory-task-focused .check-completion-bar { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); position:sticky; bottom:calc(76px + env(safe-area-inset-bottom)); padding:10px; gap:8px; min-width:0; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-task-focused .check-completion-bar { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); position:static; padding:10px; gap:8px; min-width:0; }
   .inventory-task-focused .check-completion-bar > div { min-width:0; grid-column:1/-1; }
   .inventory-task-focused .check-completion-bar button:only-of-type { grid-column:1/-1; }
   .inventory-task-focused .check-completion-bar button { width:100%; min-width:0; }
@@ -134,6 +148,14 @@
  .inventory-app-shell.inventory-portal-refresh .inventory-ops :is(.ops-card,.equipment-record-summary,.equipment-record-button) { background:#10272d; color:#edf5f6; border-color:#526b72; }
  .inventory-app-shell.inventory-portal-refresh .inventory-ops :is(.check-row,.check-location-group) { background:#0c2026; color:#edf5f6; }
  .inventory-app-shell.inventory-portal-refresh .inventory-ops :is(.check-row:hover,.check-location-group>header,.check-worklist-tools) { background:#17343d; color:#edf5f6; }
+ .inventory-app-shell.inventory-portal-refresh .inventory-ops .ops-empty { background:#17343d; color:#edf5f6; border-color:#526b72; }
+ .inventory-app-shell.inventory-portal-refresh .inventory-ops .ops-empty p { color:#c5d5dc; }
+ .inventory-app-shell.inventory-portal-refresh .inventory-ops .ops-card .ops-form :is(label,legend) { color:#c5d5dc; }
+ .inventory-app-shell.inventory-portal-refresh .inventory-ops .ops-card .ops-form :is(input,select,textarea) { background:#fff; color:#173a58; color-scheme:light; }
+ .inventory-app-shell.inventory-portal-refresh .inventory-ops .stock-grid :is(.stock-low,.stock-expiring) { color:#173a58; }
+ .inventory-app-shell.inventory-portal-refresh .inventory-ops .stock-grid :is(.stock-low,.stock-expiring) small { color:#466273; }
+ .inventory-app-shell.inventory-portal-refresh .inventory-ops .ops-list article>span { color:#173a58; }
+ .inventory-app-shell.inventory-portal-refresh .inventory-ops .ops-list article :is(p,small) { color:#c5d5dc; }
  .inventory-app-shell.inventory-portal-refresh .inventory-ops .ops-card :is(h2,h3) { color:#edf5f6; }
  .inventory-app-shell.inventory-portal-refresh .inventory-ops .ops-card>header span,
  .inventory-app-shell.inventory-portal-refresh .inventory-ops :is(.check-worklist-tools,.inspection-schedule-form,.inspection-schedule-list,.scba-template-editor) :is(label,legend),

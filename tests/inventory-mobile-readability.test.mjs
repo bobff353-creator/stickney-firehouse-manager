@@ -77,3 +77,20 @@ test("working apparatus picker has explicit readable colors instead of dark-mode
   assert.match(styles, /\.builder-apparatus-picker option \{ background:#fff; color:#173a58; \}/);
   assert.match(styles, /\.builder-apparatus-picker select:focus-visible \{ outline:3px/);
 });
+
+test("inspection progress and empty states pair text with their actual surface in dark mode", async () => {
+  const [workflow, inventory] = await Promise.all([
+    readFile(new URL("../app/workflow-usability.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/inventory/usability.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(workflow, /\.workflow-sticky-check\.check-progress-summary \{[^}]*background:#fff; color:#173b53;/);
+  assert.match(workflow, /\.workflow-sticky-check\.check-progress-summary > button \{[^}]*background:#edf4f8; color:#173b53;/);
+  assert.match(inventory, /\.inventory-app-shell\.inventory-portal-refresh \.inventory-ops \.ops-empty \{ background:#17343d; color:#edf5f6;/);
+  assert.match(inventory, /\.inventory-app-shell\.inventory-portal-refresh \.inventory-ops \.ops-empty p \{ color:#c5d5dc;/);
+  assert.match(inventory, /\.ops-card \.ops-form :is\(input,select,textarea\) \{ background:#fff; color:#173a58; color-scheme:light;/);
+  assert.match(inventory, /\.stock-grid :is\(\.stock-low,\.stock-expiring\) \{ color:#173a58;/);
+  assert.match(inventory, /\.ops-list article>span \{ color:#173a58;/);
+  assert.match(inventory, /\.inventory-app-shell\.inventory-portal-refresh\.inventory-task-focused \.check-completion-bar \{[^}]*position:static;/);
+  assert.match(inventory, /\.repair-board \{ grid-template-columns:minmax\(0,1fr\);/);
+  assert.match(inventory, /\.maintenance-actions :is\(input,select,button\) \{ min-width:0; max-width:100%; box-sizing:border-box;/);
+});

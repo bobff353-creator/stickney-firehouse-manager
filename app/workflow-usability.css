@@ -20,7 +20,9 @@
 .respond-context-line small { font-size:11px; }
 .respond-context-line button { margin-left:auto; min-height:36px; padding:4px 10px; }
 .respond-page.monitor-view .respond-context-line, .respond-page:fullscreen .respond-context-line { top:0; }
-.workflow-sticky-check.check-progress-summary { position:sticky; top:76px; z-index:12; padding:10px 12px; background:#fff; border:1px solid #98b2c3; box-shadow:0 3px 8px #10283d1c; scroll-margin-top:150px; }
+.workflow-sticky-check.check-progress-summary { position:sticky; top:76px; z-index:12; padding:10px 12px; background:#fff; color:#173b53; border:1px solid #98b2c3; box-shadow:0 3px 8px #10283d1c; scroll-margin-top:150px; }
+.workflow-sticky-check.check-progress-summary > button { padding:8px 12px; border:1px solid #87a6ba; border-radius:6px; background:#edf4f8; color:#173b53; }
+.workflow-sticky-check.check-progress-summary > small { color:#466273; }
 .workflow-sticky-check .workflow-save-status { padding:5px 8px; }
 #check-completion { scroll-margin-top:230px; }
 .check-completion-bar .check-review-summary { display:flex; flex-wrap:wrap; gap:8px; }

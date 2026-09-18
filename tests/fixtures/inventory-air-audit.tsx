@@ -63,7 +63,7 @@ window.fetch=async(input,init)=>{
   if(body.action==='record_scba_entry'){Object.assign(data.scbaEntries.find((item:any)=>item.id===body.entryId),{result:body.result,harness_number:body.harnessNumber,cylinder_number:body.cylinderNumber,psi:body.psi,notes:body.notes,checked_at:new Date().toISOString(),checked_by:'Preview member'});return Response.json({ok:true});}
   return Response.json({error:'Unsupported fictional save'},{status:409});
  }
- if(url.startsWith('/api/permissions'))return Response.json({viewerPermissions:['inventory.view','inventory.check',...(admin?['inventory.setup.manage','inventory.repairs.manage']:[])],revision:'fixture',identity:'fictional',employees:[]});
+ if(url.startsWith('/api/permissions'))return Response.json({viewerPermissions:['inventory.view','inventory.check',...(admin?['inventory.setup.manage','inventory.repairs.manage']:[])],revision:'fixture',identity:'fictional',confirmation:{required:false,version:null,exempt:false},employees:[]});
  if((document.getElementById('fail-read') as HTMLInputElement)?.checked && url.startsWith('/api/operations'))return Response.json({error:'Simulated reconnect failure'},{status:503});
  if(url.startsWith('/api/operations'))return Response.json(data);
  if(url.startsWith('/api/digital-twin'))return Response.json({...data,photos:[],hotspots:[]});

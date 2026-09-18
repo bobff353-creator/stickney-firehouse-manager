@@ -7,6 +7,24 @@ const route = await readFile(new URL("../app/api/operations/route.ts", import.me
 const styles = await readFile(new URL("../app/inventory/inventory.css", import.meta.url), "utf8");
 const usabilityStyles = await readFile(new URL("../app/inventory/usability.css", import.meta.url), "utf8");
 
+test("starting or resuming a check clears the prior submission notice", () => {
+  assert.match(operations, /if \(payload.action === "start_check"\) setSubmittedCheck\(false\)/);
+  assert.match(operations, /if \(inProgress\) \{\s*setSubmittedCheck\(false\);\s*setMessage\(""\)/);
+  assert.match(operations, /setSelectedCheckId\(result.checkId\);\s*setSubmittedCheck\(false\)/);
+  assert.match(operations, /record_scba_entry: "Air-pack entry saved/);
+});
+
+test("opening a report moves it into view and gives it keyboard focus", () => {
+  assert.match(operations, /reportDetailRef.current\?\.scrollIntoView\(\{ block: "start", behavior: "auto" \}\)/);
+  assert.match(operations, /reportDetailRef.current\?\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(operations, /ref=\{reportDetailRef\} tabIndex=\{-1\} aria-label="Selected check report"/);
+});
+
+test("due-date navigation targets the schedule editor after it renders", () => {
+  assert.match(operations, /task === "schedules" \? scheduleEditorRef.current : builderTopRef.current/);
+  assert.match(operations, /ref=\{scheduleEditorRef\} className="ops-card inspection-scheduler-card"/);
+});
+
 test("active checks are grouped, searchable, filterable, and show progress", () => {
   assert.match(operations, /check-progress-summary/);
   assert.match(operations, /Find an item/);
