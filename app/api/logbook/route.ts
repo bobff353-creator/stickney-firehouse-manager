@@ -159,6 +159,10 @@ export async function POST(request: Request) {
     const date = cleanDate(String(body.logDate ?? ""), operational.operationalDate);
     const action = String(body.action ?? "save");
     if (!await hasPermission(request, db, "daily_log.manage")) return Response.json({ error: "Daily Log editing is not enabled for this account." }, { status: 403 });
+    const parsedDate = new Date(`${date}T12:00:00Z`);
+    if (body.logDate !== date || !Number.isFinite(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date) return Response.json({ error: "Choose a valid Daily Log date before saving." }, { status: 400 });
+    if (!["save", "handoff", "adminUnlock"].includes(action)) return Response.json({ error: "Unsupported Daily Log action." }, { status: 400 });
+    if (action === "save" && (!Array.isArray(body.staffing) || !Array.isArray(body.calls) || typeof body.shiftNotes !== "string" || body.staffing.some(row => !row || typeof row !== "object" || !shifts.includes(String(row.shiftKey ?? ""))) || body.calls.some(row => !row || typeof row !== "object"))) return Response.json({ error: "The complete Daily Log is required. No staffing, calls, notes, or payroll were changed. Reload and retry." }, { status: 400 });
     const actor = actorFor(request);
     await db.prepare("UPDATE daily_logs SET locked = 1, locked_by = COALESCE(locked_by, 'System · 7:00 AM Lock'), locked_at = COALESCE(locked_at, CURRENT_TIMESTAMP) WHERE log_date < ?").bind(operational.lockBeforeDate).run();
     const existing = await db.prepare("SELECT locked, admin_unlocked AS adminUnlocked FROM daily_logs WHERE log_date = ?").bind(date).first<{ locked: number; adminUnlocked: number }>();

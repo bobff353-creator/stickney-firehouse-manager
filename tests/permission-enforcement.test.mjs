@@ -122,6 +122,12 @@ test('delegated employee editing cannot promote accounts or change login identit
  const response=await f.payroll.POST(f.request('POST',{action:'saveEmployee',id:f.employee.id,lastName:'Member',firstName:'Fictional',payScaleId:'changed',email:'other@example.invalid',isAdmin:true}));
  assert.equal(response.status,403);assert.match((await response.json()).error,/Manage permissions access/);assert.equal(f.batches,0);
 });
+
+test('delegated employee editors cannot remove login accounts without permission management',async()=>{
+ const f=fixture({overrides:{'employees.manage':'allow'}});
+ const response=await f.payroll.POST(f.request('POST',{action:'deleteEmployee',employeeId:f.employee.id}));
+ assert.equal(response.status,403); assert.equal(f.batches,0);
+});
 test('permission management cannot disguise a protected recovery owner as restricted',async()=>{
   const f=fixture({admin:1});f.employee.email='bobff353@gmail.com';
   assert.equal((await f.api.PUT(f.request('PUT',{scope:'employee',employeeId:f.employee.id,revision:f.revision,overrides:{'permissions.manage':'deny'}}))).status,409);

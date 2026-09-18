@@ -45,7 +45,9 @@ function periodEnd(start: string) {
 }
 
 function cleanStart(value: string | null) {
-  return /^\d{4}-\d{2}-(11|26)$/.test(value ?? "") ? value! : "2026-07-11";
+  const start = value || "2026-07-11";
+  const parsed = new Date(`${start}T12:00:00Z`);
+  return /^\d{4}-\d{2}-(11|26)$/.test(start) && Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === start ? start : null;
 }
 
 export async function GET(request: Request) {
@@ -55,6 +57,7 @@ export async function GET(request: Request) {
     if (!viewer.canViewOwn) return Response.json({ error: "Your login must be linked to exactly one current employee record. Ask an administrator to check Employee Information." }, { status: 403 });
     const url = new URL(request.url);
     const start = cleanStart(url.searchParams.get("period"));
+    if (!start) return Response.json({ error: "Select a valid payroll period starting on the 11th or 26th." }, { status: 400 });
     const end = periodEnd(start);
     await db.prepare("INSERT OR IGNORE INTO pay_periods (start_date, end_date, status) VALUES (?, ?, 'draft')").bind(start, end).run();
 
@@ -123,6 +126,7 @@ export async function POST(request: Request) {
 
     if (action === "saveEntry") {
       const periodStart = cleanStart(String(payload.periodStart ?? ""));
+      if (!payload.periodStart || !periodStart) return Response.json({ error: "Select a valid payroll period before saving." }, { status: 400 });
       const employeeId = String(payload.employeeId ?? "");
       const workDate = String(payload.workDate ?? "");
       const category = String(payload.category ?? "");
@@ -159,19 +163,22 @@ export async function POST(request: Request) {
       const overtimeThreshold = Number(payload.overtimeThreshold);
       const dpwMultiplier = Number(payload.dpwMultiplier);
       const effectiveDate = String(payload.effectiveDate ?? "");
-      if (![overtimeThreshold, dpwMultiplier].every(Number.isFinite)) return Response.json({ error: "Invalid payroll rules" }, { status: 400 });
-      if (!/^\d{4}-\d{2}-(11|26)$/.test(effectiveDate)) return Response.json({ error: "Rate effective date must be the first day of a payroll period—the 11th or 26th." }, { status: 400 });
-      await db.prepare("UPDATE payroll_settings SET overtime_threshold = ?, acting_officer_premium = ?, dpw_multiplier = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1").bind(overtimeThreshold, ACTING_OFFICER_STIPEND_PER_HOUR, dpwMultiplier).run();
+      if ([payload.overtimeThreshold, payload.dpwMultiplier].some(value => value == null || value === "") || ![overtimeThreshold, dpwMultiplier].every(value => Number.isFinite(value) && value >= 0)) return Response.json({ error: "Payroll rules must be valid nonnegative numbers." }, { status: 400 });
+      if (!effectiveDate || !cleanStart(effectiveDate)) return Response.json({ error: "Rate effective date must be the first day of a payroll period—the 11th or 26th." }, { status: 400 });
       const scales = Array.isArray(payload.payScales) ? payload.payScales as Array<Record<string, unknown>> : [];
+      if (!scales.length || scales.some(scale => !scale || !scale.id || scale.regularRate == null || scale.regularRate === "" || !Number.isFinite(Number(scale.regularRate)) || Number(scale.regularRate) < 0) || new Set(scales.map(scale => scale.id)).size !== scales.length) return Response.json({ error: "Every pay scale must have one valid, nonnegative pay rate. No rates were saved." }, { status: 400 });
+      // Validate the complete request before constructing one atomic write.
+      // A later bad rate or failed insert must not leave earlier rates/settings saved.
+      const writes = [db.prepare("UPDATE payroll_settings SET overtime_threshold = ?, acting_officer_premium = ?, dpw_multiplier = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1").bind(overtimeThreshold, ACTING_OFFICER_STIPEND_PER_HOUR, dpwMultiplier).expectChanges(1)];
       for (const scale of scales) {
         const regularRate = Number(scale.regularRate);
-        if (!Number.isFinite(regularRate) || regularRate < 0) return Response.json({ error: "Every pay rate must be a valid amount." }, { status: 400 });
         const premiumRate = roundPayrollToCent(regularRate * 1.5);
         const payScaleId = String(scale.id);
-        await db.prepare("INSERT INTO pay_rate_history (id, pay_scale_id, effective_date, regular_rate, overtime_rate, holiday_rate, created_by) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(pay_scale_id, effective_date) DO UPDATE SET regular_rate = excluded.regular_rate, overtime_rate = excluded.overtime_rate, holiday_rate = excluded.holiday_rate, created_by = excluded.created_by, created_at = CURRENT_TIMESTAMP").bind(crypto.randomUUID(), payScaleId, effectiveDate, regularRate, premiumRate, premiumRate, viewer.displayName).run();
-        await db.prepare("UPDATE pay_scales SET regular_rate = (SELECT regular_rate FROM pay_rate_history WHERE pay_scale_id = ? AND date(effective_date) <= date('now') ORDER BY effective_date DESC LIMIT 1), overtime_rate = (SELECT overtime_rate FROM pay_rate_history WHERE pay_scale_id = ? AND date(effective_date) <= date('now') ORDER BY effective_date DESC LIMIT 1), holiday_rate = (SELECT holiday_rate FROM pay_rate_history WHERE pay_scale_id = ? AND date(effective_date) <= date('now') ORDER BY effective_date DESC LIMIT 1) WHERE id = ?").bind(payScaleId, payScaleId, payScaleId, payScaleId).run();
+        writes.push(db.prepare("INSERT INTO pay_rate_history (id, pay_scale_id, effective_date, regular_rate, overtime_rate, holiday_rate, created_by) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(pay_scale_id, effective_date) DO UPDATE SET regular_rate = excluded.regular_rate, overtime_rate = excluded.overtime_rate, holiday_rate = excluded.holiday_rate, created_by = excluded.created_by, created_at = CURRENT_TIMESTAMP").bind(crypto.randomUUID(), payScaleId, effectiveDate, regularRate, premiumRate, premiumRate, viewer.displayName));
+        writes.push(db.prepare("UPDATE pay_scales SET regular_rate = COALESCE((SELECT regular_rate FROM pay_rate_history WHERE pay_scale_id = ? AND date(effective_date) <= date('now') ORDER BY effective_date DESC LIMIT 1), regular_rate), overtime_rate = COALESCE((SELECT overtime_rate FROM pay_rate_history WHERE pay_scale_id = ? AND date(effective_date) <= date('now') ORDER BY effective_date DESC LIMIT 1), overtime_rate), holiday_rate = COALESCE((SELECT holiday_rate FROM pay_rate_history WHERE pay_scale_id = ? AND date(effective_date) <= date('now') ORDER BY effective_date DESC LIMIT 1), holiday_rate) WHERE id = ?").bind(payScaleId, payScaleId, payScaleId, payScaleId).expectChanges(1));
       }
-      await addRevision(db, effectiveDate, "Rates updated", `Pay rates saved effective ${effectiveDate}`, viewer.displayName);
+      writes.push(db.prepare("INSERT INTO record_revisions (id, record_type, record_id, revision_number, action, summary, actor) SELECT ?, 'payroll', ?, COALESCE(MAX(revision_number), 0) + 1, 'Rates updated', ?, ? FROM record_revisions WHERE record_type = 'payroll' AND record_id = ?").bind(crypto.randomUUID(), effectiveDate, `Pay rates saved effective ${effectiveDate}`, viewer.displayName, effectiveDate));
+      await db.batch(writes);
       return Response.json({ ok: true, effectiveDate });
     }
 
@@ -207,6 +214,7 @@ export async function POST(request: Request) {
     }
 
     if (action === "deleteEmployee") {
+      if (!viewer.canManagePermissions) return Response.json({ error: "Manage permissions access is required to remove an employee account." }, { status: 403 });
       const employeeId = String(payload.employeeId ?? "");
       if (!employeeId) return Response.json({ error: "Employee is required" }, { status: 400 });
       const employee = await db.prepare("SELECT name FROM employees WHERE id = ? AND active = 1").bind(employeeId).first<{ name: string }>();
@@ -225,6 +233,7 @@ export async function POST(request: Request) {
 
     if (action === "setPeriodStatus") {
       const periodStart = cleanStart(String(payload.periodStart ?? ""));
+      if (!payload.periodStart || !periodStart) return Response.json({ error: "Select a valid payroll period before changing its status." }, { status: 400 });
       const status = String(payload.status ?? "draft");
       if (!['draft', 'reviewed', 'finalized'].includes(status)) return Response.json({ error: "Invalid status" }, { status: 400 });
       await db.prepare("INSERT INTO pay_periods (start_date, end_date, status, created_by, updated_by, updated_at, finalized_by, finalized_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CASE WHEN ? = 'finalized' THEN ? END, CASE WHEN ? = 'finalized' THEN CURRENT_TIMESTAMP END) ON CONFLICT(start_date) DO UPDATE SET status = excluded.status, updated_by = excluded.updated_by, updated_at = CURRENT_TIMESTAMP, finalized_by = CASE WHEN excluded.status = 'finalized' THEN excluded.updated_by ELSE pay_periods.finalized_by END, finalized_at = CASE WHEN excluded.status = 'finalized' THEN CURRENT_TIMESTAMP ELSE pay_periods.finalized_at END").bind(periodStart, periodEnd(periodStart), status, viewer.displayName, viewer.displayName, status, viewer.displayName, status).run();

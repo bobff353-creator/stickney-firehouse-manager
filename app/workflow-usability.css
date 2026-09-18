@@ -69,3 +69,37 @@
   .log-handoff-next button { width:100%; min-height:44px; }
 }
 @media print { .workflow-save-status, .respond-context-line, .scheduler-job-chooser, .workflow-payroll-review { display:none !important; } .workflow-sticky-check.check-progress-summary { position:static; } }
+
+/* Keep payroll forms and shared wayfinding readable in the full dark cascade. */
+.payroll-rules-fields { min-width:0; margin:0; padding:0; border:0; }
+.settings-layout .input-unit input, .settings-layout .rate-row input,
+.settings-layout .rate-effective-control input { min-height:44px; font-size:16px; }
+.settings-layout .input-unit, .settings-layout .rate-row label { color:#173e59; }
+.settings-layout .input-unit b, .settings-layout .rate-row label b { color:#466173; }
+.logbook-page .log-note-composer, .logbook-page .log-note-entry.open,
+.logbook-page .log-handoff-next, .logbook-page .log-required-checks { color:#173e59; }
+.logbook-page .log-note-composer label>span { color:#173e59; }
+@media (prefers-color-scheme:dark) {
+  .workspace-wayfinding, .workspace-wayfinding [aria-current],
+  .workspace-guide:not([open]) summary { color:#d5e6f0; }
+  .workspace-guide[open] { color:#173e59; }
+  .topbar .topbar-context>strong, .topbar .profile-copy>strong { color:#eef4f7; }
+  .settings-layout .section-header h2, .settings-layout .settings-grid label>span,
+  .settings-layout .rate-row>strong { color:#eef4f7; }
+  .settings-layout .settings-grid small { color:#c8d5dc; }
+  .settings-layout .rate-effective-control label>span, .settings-layout .rate-head { color:#173e59; }
+  .settings-layout .rate-effective-control small { color:#466173; }
+  .settings-layout .input-unit, .settings-layout .rate-row label { background:#f8fafb; color:#173e59; }
+  .settings-layout input { color-scheme:light; color:#173e59; background:#f8fafb; }
+  .logbook-page .section-header h2, .logbook-page .log-compact-heading h2,
+  .logbook-page .shift-title h3, .logbook-page .apparatus-check-log>h3 { color:#eef4f7; }
+  .logbook-page.logbook-page .section-header p, .logbook-page .log-compact-heading p,
+  .logbook-page .log-empty { color:#c8d5dc; }
+}
+
+/* Critical station status must remain readable across the room. */
+.operations-board.tv-display .board-summary>article>span { font-size:12px; line-height:1.3; }
+.operations-board.tv-display .board-summary>article>small,
+.operations-board.tv-display .board-clock>small { font-size:14px; line-height:1.35; }
+.operations-board.tv-display .board-clock .board-attention { color:#ffe094; }
+.operations-board.tv-display .board-clock .board-attention i { background:#f5bc44; }

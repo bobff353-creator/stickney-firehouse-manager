@@ -14,6 +14,7 @@ import "../../app/workflow-usability.css";
 
 // Actual client UI, fictional responses only. No credentials or production writes.
 const params = new URLSearchParams(location.search);
+if (!['localhost','127.0.0.1'].includes(location.hostname)) throw new Error('Fictional fixtures are local only');
 if(params.has('preplan-location-audit')) {
   const gps=params.get('gps');
   Object.defineProperty(navigator,'geolocation',{configurable:true,value:gps==='missing'?undefined:{
@@ -66,6 +67,7 @@ const payloads: Record<string, unknown> = {
   "/api/permissions": { viewerPermissions: null, catalog: [{ key: "dashboard.view", label: "Home", group: "General" }], ranks: ["Firefighter"], rankSettings: { Firefighter: ["dashboard.view"] }, overrides: {}, employees: employees.map(item => ({ ...item, isAdmin: 0, effectivePermissions: ["dashboard.view", "documents.view", "scheduling.view", "inventory.view"] })) },
   "/api/alerts": { alerts: [] },
   "/api/dashboard": briefing,
+  "/api/live-operations": { dashboard: {ok:true,status:200,payload:briefing}, duties: {ok:true,status:200,payload:{currentDuty:null,dailyFleetChecks:[]}}, fleet: {ok:true,status:200,payload:{apparatus:[]}} },
   "/api/department-schedule": { items: [], upcomingShifts: [], assignments: [], shifts: [], employees: [], entries: [], slots: [] },
   "/api/command-center": { daily: [], responseTypeDaily: [], callTiming: [], staffingDetails: [], payrollDetails: [], fiscalYear: { startDate: date, endDate: date, payToDate: 0 }, generatedAt: now },
   "/api/activity": { events: [] },
@@ -90,6 +92,16 @@ const payloads: Record<string, unknown> = {
   },
 };
 payloads["/api/logbook"] = payloads["/api/daily-log"];
+const threePassKey = 'three-pass-fictional-records-v1';
+let threePassRecords: Record<string, unknown> = {};
+if (params.has('three-pass')) {
+  try { threePassRecords = JSON.parse(sessionStorage.getItem(threePassKey) || '{}'); } catch { /* Start clean. */ }
+  if (threePassRecords.payroll) Object.assign(payroll, threePassRecords.payroll);
+  if (threePassRecords.logbook) payloads['/api/logbook'] = threePassRecords.logbook;
+}
+function persistThreePass() {
+  sessionStorage.setItem(threePassKey, JSON.stringify({payroll,logbook:payloads['/api/logbook']}));
+}
 if (params.has("handoff-audit")) Object.assign(payloads["/api/logbook"] as object, {
   fleetVerificationAvailable:true, incompleteFleetChecks:[],
   approvals:[{shiftKey:"morning",signInAt:now,signInOfficerId:employees[1].id,signInOfficerName:employees[1].name}],
@@ -148,6 +160,37 @@ window.fetch = async (input, init) => {
   const url = new URL(String(input), location.origin);
   const method = init?.method ?? "GET";
   startupRequests.push(method + ' ' + url.pathname + url.search);
+  if (params.has('three-pass') && ['/api/payroll','/api/logbook'].includes(url.pathname)) {
+    if (method === 'GET') {
+      if (params.has('read-error')) return Response.json({error:'Fictional unavailable service. Retry safely.'},{status:503});
+      if (url.pathname === '/api/payroll') {
+        const start=url.searchParams.get('period') || payroll.period.startDate;
+        const endDate=new Date(`${start}T12:00:00Z`);
+        if(start.endsWith('-11')) endDate.setUTCDate(25); else endDate.setUTCMonth(endDate.getUTCMonth()+1,10);
+        return Response.json({...payroll,viewer,employees:isAdmin?employees:[employee],period:{...payroll.period,startDate:start,endDate:endDate.toISOString().slice(0,10)}});
+      }
+      return Response.json(payloads['/api/logbook']);
+    }
+    if (!isAdmin) return Response.json({error:'Fictional permission denied'},{status:403});
+    if(failWrite){failWrite=false;return Response.json({error:'Simulated save failure. No fictional records changed.'},{status:503});}
+    const body=JSON.parse(String(init?.body||'{}')); writes++;
+    if (url.pathname==='/api/logbook' && (body.action ?? 'save')==='save') {
+      const previous=payloads['/api/logbook'] as {log:{saveVersion:number}};
+      if(body.expectedVersion!==previous.log.saveVersion) return Response.json({error:'Fictional version conflict'},{status:409});
+      payloads['/api/logbook']={...previous,staffing:body.staffing,calls:body.calls,log:{...previous.log,shiftNotes:body.shiftNotes,updatedAt:new Date().toISOString(),saveVersion:previous.log.saveVersion+1}};
+      persistThreePass();return Response.json({ok:true,saveVersion:previous.log.saveVersion+1});
+    }
+    if (url.pathname==='/api/payroll') {
+      if(body.action==='saveEntry') {
+        const entries=payroll.entries as Array<{employeeId:string;workDate:string;category:string;hours:number}>;
+        Object.assign(payroll,{entries:[...entries.filter(entry=>!(entry.employeeId===body.employeeId&&entry.workDate===body.workDate&&entry.category===body.category)),body]});
+      } else if(body.action==='setPeriodStatus') payroll.period.status=body.status;
+      else if(body.action==='saveRules') Object.assign(payroll,{settings:{overtimeThreshold:body.overtimeThreshold,actingOfficerPremium:1,dpwMultiplier:body.dpwMultiplier},payScales:body.payScales});
+      else return Response.json({error:'Fictional mutation not supported'},{status:400});
+      persistThreePass();return Response.json({ok:true});
+    }
+    return Response.json({error:'Fictional mutation not supported'},{status:400});
+  }
   if(params.has('handoff-audit') && url.pathname==='/api/logbook' && method==='POST') {
     const body=JSON.parse(String(init?.body||'{}'));
     if(body.action!=='handoff')return Response.json({error:'Fixture permits only officer handoff.'},{status:409});

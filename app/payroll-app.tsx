@@ -231,10 +231,14 @@ export default function PayrollApp({
   const [savingCells, setSavingCells] = useState<Set<string>>(new Set());
   const savingCellIds = useRef(new Set<string>());
   const originalCellValues = useRef(new Map<string, number>());
+  const [dirtyCellCount, setDirtyCellCount] = useState(0);
   const [failedCells, setFailedCells] = useState<Record<string, { hours: number; message: string }>>({});
   const [toast, setToast] = useState("");
   const [rulesDraft, setRulesDraft] = useState<PayrollData["settings"] | null>(null);
   const [scaleDraft, setScaleDraft] = useState<PayScale[]>([]);
+  const [rulesSaving, setRulesSaving] = useState(false);
+  const rulesSaveInFlight = useRef(false);
+  const [rulesSaveError, setRulesSaveError] = useState("");
   const [rateEffectiveDate, setRateEffectiveDate] = useState(currentPeriodStart);
   const [employeeDraft, setEmployeeDraft] = useState<EmployeeForm>(emptyEmployee);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -280,14 +284,19 @@ export default function PayrollApp({
   const [respondAlertSeconds, setRespondAlertSeconds] = useState(RESPOND_ALERT_DURATION_SECONDS);
   const employeeDirty = profileOpen && (JSON.stringify(employeeDraft) !== employeeBaseline || Boolean(employeePhotoFile) || removeEmployeePhoto);
   useUnsavedWork(employeeDirty, employeeSaving);
+  const rulesDirty = Boolean(data && rulesDraft && (JSON.stringify(rulesDraft) !== JSON.stringify(data.settings) || JSON.stringify(scaleDraft) !== JSON.stringify(data.payScales)));
+  useUnsavedWork(activeNav === "Rates & Rules" && rulesDirty, rulesSaving);
 
+  const payrollLoadRequest = useRef(0);
   const loadPayroll = useCallback(async (start: string) => {
     if (savingCellIds.current.size || originalCellValues.current.size) return;
+    const request = ++payrollLoadRequest.current;
     setLoading(true);
     setError("");
     try {
       const response = await fetch(`/api/payroll?period=${start}`);
       const payload = await response.json() as PayrollData & { error?: string };
+      if (request !== payrollLoadRequest.current) return;
       if (!response.ok) throw new Error(payload.error || "Unable to load payroll");
       if (savingCellIds.current.size || originalCellValues.current.size) return;
       setData(payload);
@@ -299,9 +308,10 @@ export default function PayrollApp({
 
 
     } catch (caught) {
+      if (request !== payrollLoadRequest.current) return;
       setError(caught instanceof Error ? caught.message : "Unable to load payroll");
     } finally {
-      setLoading(false);
+      if (request === payrollLoadRequest.current) setLoading(false);
     }
   }, []);
 
@@ -498,6 +508,7 @@ export default function PayrollApp({
     const cell = `${employeeId}-${workDate}-${category}`;
     if (savingCellIds.current.has(cell)) return;
     if (!originalCellValues.current.has(cell)) originalCellValues.current.set(cell, entryValue(employeeId, workDate, category));
+    setDirtyCellCount(originalCellValues.current.size);
     setData((current) => {
       if (!current) return current;
       const remaining = current.entries.filter((entry) => !(entry.employeeId === employeeId && entry.workDate === workDate && entry.category === category));
@@ -525,6 +536,7 @@ export default function PayrollApp({
     } finally {
       savingCellIds.current.delete(cell);
       originalCellValues.current.delete(cell);
+      setDirtyCellCount(originalCellValues.current.size);
       setSavingCells((current) => { const next = new Set(current); next.delete(cell); return next; });
     }
   }
@@ -595,15 +607,21 @@ export default function PayrollApp({
   }
 
   async function saveRules() {
-    if (!rulesDraft) return;
+    if (!rulesDraft || rulesSaveInFlight.current) return;
+    rulesSaveInFlight.current = true;
+    setRulesSaving(true);
+    setRulesSaveError("");
     try {
       await post({ action: "saveRules", ...rulesDraft, effectiveDate: rateEffectiveDate, payScales: scaleDraft });
+      setData(current => current ? { ...current, settings: rulesDraft, payScales: scaleDraft } : current);
       await loadPayroll(periodStart);
       setToast(`Rates saved effective ${rateEffectiveDate}`);
-    } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to save rules"); }
+    } catch (caught) { setRulesSaveError(caught instanceof Error ? caught.message : "Unable to save rules"); }
+    finally { rulesSaveInFlight.current = false; setRulesSaving(false); }
   }
 
   function changeRateEffectiveDate(value: string) {
+    if (rulesDirty && !confirmLeavingWork()) return;
     setRateEffectiveDate(value);
     if (!data) return;
     setScaleDraft(data.payScales.map((scale) => {
@@ -736,6 +754,11 @@ export default function PayrollApp({
   }
 
   async function deleteEmployee() {
+    if (!viewerPermissions.includes("permissions.manage")) {
+      setError("Manage permissions access is required to remove an employee account.");
+      setEmployeeToDelete(null);
+      return;
+    }
     if (!employeeToDelete) return;
     setDeletingEmployee(true);
     try {
@@ -1116,7 +1139,7 @@ export default function PayrollApp({
 
           {(activeNav === "Timesheets" || activeNav === "My Timesheet") && selectedEmployee && selectedSummary && <div className={data.period.status === "finalized" ? "record-finalized" : "record-editable"}>{data.period.status === "finalized" && <div className="record-state-banner finalized"><span className="state-lock" aria-hidden="true">🔒</span><div><strong>Finalized timesheet · Read only</strong><span>This timesheet belongs to a closed payroll period.</span></div></div>}<section className="content-card timesheet-card">
             <div className="section-header"><div>{activeNav === "Timesheets" && isPayrollManagerView ? <><label htmlFor="employee-select">Employee</label><select id="employee-select" value={selectedEmployee.id} onChange={(event) => setSelectedEmployeeId(event.target.value)}>{payrollEmployees.map((employee) => <option value={employee.id} key={employee.id}>{displayName(employee.name)} — {employee.rank}</option>)}</select></> : <><p className="eyebrow">My timesheet</p><h2>{displayName(selectedEmployee.name)}</h2><p>{selectedEmployee.rank} · Read only</p></>}</div><span className={`status-pill ${selectedSummary.status.toLowerCase().replace(" ", "-")}`}>{selectedSummary.status}</span></div>
-            <SaveStatus state={savingCells.size ? "saving" : Object.keys(failedCells).length ? "failed" : originalCellValues.current.size ? "unsaved" : "saved"} detail={Object.keys(failedCells).length ? "Retry the highlighted hour entries below. Finalization is separate from saving." : "Hours save when you leave an edited cell. Review and finalization are separate actions."} /><div className="mini-summary"><div><span>Paid hours</span><strong>{selectedSummary.hours.toFixed(1)}</strong></div><div><span>Hourly rate</span><strong>{formatMoney(selectedEmployee.regularRate)}<small>/hr</small></strong></div><div><span>Overtime</span><strong>{selectedSummary.overtimeHours.toFixed(1)}</strong></div><div><span>Holiday</span><strong>{selectedSummary.holidayHours.toFixed(1)}</strong></div><div><span>Gross pay</span><strong>{formatMoney(selectedSummary.gross)}</strong></div></div>
+            <SaveStatus state={savingCells.size ? "saving" : Object.keys(failedCells).length ? "failed" : dirtyCellCount ? "unsaved" : "saved"} detail={Object.keys(failedCells).length ? "Retry the highlighted hour entries below. Finalization is separate from saving." : "Hours save when you leave an edited cell. Review and finalization are separate actions."} /><div className="mini-summary"><div><span>Paid hours</span><strong>{selectedSummary.hours.toFixed(1)}</strong></div><div><span>Hourly rate</span><strong>{formatMoney(selectedEmployee.regularRate)}<small>/hr</small></strong></div><div><span>Overtime</span><strong>{selectedSummary.overtimeHours.toFixed(1)}</strong></div><div><span>Holiday</span><strong>{selectedSummary.holidayHours.toFixed(1)}</strong></div><div><span>Gross pay</span><strong>{formatMoney(selectedSummary.gross)}</strong></div></div>
             {selectedSummary.issues.length > 0 && <div className="validation-box"><strong>Check these entries</strong>{selectedSummary.issues.map((issue) => <span key={issue}>• {issue}</span>)}</div>}
             <div className="timesheet-phone-day"><label><span>Day to review</span><input type="date" min={data.period.startDate} max={data.period.endDate} value={timesheetDay >= data.period.startDate && timesheetDay <= data.period.endDate ? timesheetDay : data.period.startDate} onChange={event => { setTimesheetDay(event.target.value); setAllTimesheetDays(false); }} /></label><button type="button" className="quiet-button" aria-pressed={allTimesheetDays} onClick={() => setAllTimesheetDays(value => !value)}>{allTimesheetDays ? "Show selected day" : "Show whole period"}</button></div>
             <div className="entry-grid-wrap"><table className="entry-grid"><thead><tr><th>Date</th>{categoryColumns.map((column) => <th key={column.key} title={column.label}>{column.short}</th>)}<th>Total</th></tr></thead><tbody>
@@ -1187,10 +1210,12 @@ export default function PayrollApp({
             </section>
           </section>}
 
-          {activeNav === "Rates & Rules" && rulesDraft && <section className="settings-layout">
+          {activeNav === "Rates & Rules" && rulesDraft && <fieldset className="settings-layout payroll-rules-fields" disabled={rulesSaving}>
+              <legend className="sr-only">Payroll rates and rules</legend>
+              <SaveStatus state={rulesSaving ? "saving" : rulesSaveError ? "failed" : rulesDirty ? "unsaved" : "saved"} detail={rulesSaveError || "Review the effective date, then save all rates together."} onRetry={() => void saveRules()} />
               <article className="content-card rules-card"><div className="section-header"><div><h2>Payroll rules</h2><p>Set the rules used to calculate payroll. Review the effective date before saving.</p></div></div><div className="settings-grid"><label><span>Overtime threshold</span><div className="input-unit"><input type="number" min="0" step="1" value={rulesDraft.overtimeThreshold} onChange={(event) => setRulesDraft({ ...rulesDraft, overtimeThreshold: safeNumber(event.target.value) })} /><b>hours</b></div></label><label><span>Acting Officer stipend</span><div className="input-unit"><b>$</b><input type="number" value={ACTING_OFFICER_STIPEND_PER_HOUR.toFixed(2)} readOnly aria-readonly="true" /><b>/ AO hr</b></div><small>Straight stipend only—never multiplied for overtime or holidays.</small></label><label><span>DPW multiplier</span><div className="input-unit"><input type="number" min="1" step="0.05" value={rulesDraft.dpwMultiplier} onChange={(event) => setRulesDraft({ ...rulesDraft, dpwMultiplier: safeNumber(event.target.value) })} /><b>× rate</b></div></label></div></article>
-            <article className="content-card"><div className="section-header"><div><h2>Pay rates</h2><p>Rates are saved by effective date, so closed and earlier payroll periods never change.</p></div></div><div className="rate-effective-control"><label><span>Effective pay-period date *</span><input type="date" required value={rateEffectiveDate} onChange={(event) => changeRateEffectiveDate(event.target.value)} /></label><small>Select the first day of a payroll period: the 11th or 26th. Existing history before this date remains unchanged.</small></div><div className="rate-list"><div className="rate-head"><span>Pay scale</span><span>Straight Time / Normal</span><span>Overtime · 1.5×</span><span>Holiday · 1.5×</span></div>{scaleDraft.map((scale, index) => <div className="rate-row" key={scale.id}><strong>{scale.label}</strong><label><span className="mobile-rate-label">Straight Time / Normal</span><b>$</b><input aria-label={`${scale.label} Straight Time / Normal Rate`} type="number" min="0" step="0.01" value={scale.regularRate} onChange={(event) => changeBaseRate(index, safeNumber(event.target.value))} /></label><label className="calculated-rate"><span className="mobile-rate-label">Overtime · 1.5×</span><b>$</b><input aria-label={`${scale.label} Overtime Rate`} readOnly value={scale.overtimeRate.toFixed(2)} /><em>Auto</em></label><label className="calculated-rate"><span className="mobile-rate-label">Holiday · 1.5×</span><b>$</b><input aria-label={`${scale.label} Holiday Rate`} readOnly value={scale.holidayRate.toFixed(2)} /><em>Auto</em></label></div>)}</div><button className="primary-action save-rules" onClick={() => void saveRules()}>Save Rates Effective {rateEffectiveDate}</button><div className="rate-history"><h3>Rate history</h3>{data.rateHistory.filter((rate, index, rows) => rows.findIndex((item) => item.effectiveDate === rate.effectiveDate) === index).slice(0, 8).map((rate) => <div key={rate.effectiveDate}><strong>{rate.effectiveDate}</strong><span>{data.rateHistory.filter((item) => item.effectiveDate === rate.effectiveDate).length} pay scales</span></div>)}</div></article>
-          </section>}
+            <article className="content-card"><div className="section-header"><div><h2>Pay rates</h2><p>Rates apply from the selected date forward. Backdated changes can affect calculated payroll; review historical periods before changing an earlier date.</p></div></div><div className="rate-effective-control"><label><span>Effective pay-period date *</span><input type="date" required value={rateEffectiveDate} onChange={(event) => changeRateEffectiveDate(event.target.value)} /></label><small>Select the first day of a payroll period: the 11th or 26th. Existing history before this date remains unchanged.</small></div><div className="rate-list"><div className="rate-head"><span>Pay scale</span><span>Straight Time / Normal</span><span>Overtime · 1.5×</span><span>Holiday · 1.5×</span></div>{scaleDraft.map((scale, index) => <div className="rate-row" key={scale.id}><strong>{scale.label}</strong><label><span className="mobile-rate-label">Straight Time / Normal</span><b>$</b><input aria-label={`${scale.label} Straight Time / Normal Rate`} type="number" min="0" step="0.01" value={scale.regularRate} onChange={(event) => changeBaseRate(index, safeNumber(event.target.value))} /></label><label className="calculated-rate"><span className="mobile-rate-label">Overtime · 1.5×</span><b>$</b><input aria-label={`${scale.label} Overtime Rate`} readOnly value={scale.overtimeRate.toFixed(2)} /><em>Auto</em></label><label className="calculated-rate"><span className="mobile-rate-label">Holiday · 1.5×</span><b>$</b><input aria-label={`${scale.label} Holiday Rate`} readOnly value={scale.holidayRate.toFixed(2)} /><em>Auto</em></label></div>)}</div><button className="primary-action save-rules" onClick={() => void saveRules()}>Save Rates Effective {rateEffectiveDate}</button><div className="rate-history"><h3>Rate history</h3>{data.rateHistory.filter((rate, index, rows) => rows.findIndex((item) => item.effectiveDate === rate.effectiveDate) === index).slice(0, 8).map((rate) => <div key={rate.effectiveDate}><strong>{rate.effectiveDate}</strong><span>{data.rateHistory.filter((item) => item.effectiveDate === rate.effectiveDate).length} pay scales</span></div>)}</div></article>
+          </fieldset>}
         </>)}
       </section>
       <footer className="portal-footer"><div className="footer-identity"><img src="/stickney-fd-patch.png?v=3" alt="Official Stickney Fire Department patch" width="56" height="56" /><div><strong>Stickney Fire Department Operations Portal</strong><span>Stickney, Illinois</span><a href="tel:+17089747721">Cicero Consolidated Dispatch · (708) 974-7721</a></div></div><div className="footer-links"><button onClick={() => navigate(homePage)}>{portalPageLabel(homePage)}</button>{visibleNav.includes("Employee Contacts") && <button onClick={() => navigate("Employee Contacts")}>Employee contacts</button>}{visibleNav.includes("Phone Numbers") && <button onClick={() => navigate("Phone Numbers")}>Important phone numbers</button>}<span>For portal help, contact your department administrator.</span></div><p>© {new Date().getFullYear()} Stickney Fire Department · Official department system · Authorized use only</p></footer>

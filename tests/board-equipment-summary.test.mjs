@@ -50,7 +50,7 @@ test('summary is TV-only, follows issue detection, and adds no requests or timer
   const board = readFileSync('app/operations-board.tsx', 'utf8');
   const equipment = board.split('\n').find(line => line.includes('hidden={rotation !== "equipment"}'));
   assert.match(equipment, /data\?\.equipmentIssues.length \? data.equipmentIssues.map/);
-  assert.match(equipment, /: tvMode \? <BoardEquipmentSummary/);
+  assert.match(equipment, /: tvMode \|\| !data \? <BoardEquipmentSummary/);
   assert.match(equipment, /delayed=\{feedDegraded\}/);
   assert.doesNotMatch(source, /fetch\(|setInterval|setTimeout|useEffect/);
 });

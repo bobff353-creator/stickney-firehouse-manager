@@ -182,7 +182,7 @@
   .timesheet-card .entry-grid tbody, .timesheet-card .entry-grid tfoot { display: block; }
   .timesheet-card .entry-grid tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid #a9becd; padding: 10px; gap: 8px; }
   .timesheet-card .entry-grid tbody tr[data-day-visible=false] { display: none; }
-  .timesheet-card .entry-grid td { display: grid; position: static; width: auto; min-width: 0; padding: 8px; background: #fff; color: #12354a; white-space: normal; text-align: left; }
+  .timesheet-card .entry-grid td { display: grid; position: static; width: auto; min-width: 0; height: auto; min-height: 52px; padding: 8px; background: #fff; color: #12354a; white-space: normal; text-align: left; }
   .timesheet-card .entry-grid td:first-child { grid-column: 1 / -1; font-weight: 700; }
   .timesheet-card .entry-grid td[data-label]::before { content: attr(data-label); font-size: 13px; font-weight: 650; padding-bottom: 5px; }
   .timesheet-card .entry-grid td input { width: 100%; min-height: 44px; font-size: 16px; text-align: left; border: 1px solid #93adbe; border-radius: 4px; color: #12354a; background: #f6f9fb; }

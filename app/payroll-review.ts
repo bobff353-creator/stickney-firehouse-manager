@@ -14,8 +14,8 @@ export function payrollReviewIssues(entries: Entry[], staffing: ReviewStaffing[]
       let start = minutes(row.timeIn), end = minutes(row.timeOut);
       if (!Number.isFinite(start) || !Number.isFinite(end)) { issues.push(`${date}: incomplete or invalid staffing time`); continue; }
       if (start === end) issues.push(`${date}: identical in/out times count as 24 hours; verify the tour`);
-      if (row.shiftKey === "overnight" && start < 360) start += 1440;
       if (end <= start) end += 1440;
+      if (row.shiftKey === "overnight" && start < 360) { start += 1440; end += 1440; }
       intervals.push([start,end]);
     }
     intervals.sort((a,b)=>a[0]-b[0]);

@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import ts from 'typescript';
 import { webcrypto } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
+import { roundPayrollToCent } from '../app/payroll-rounding.ts';
 
 // Runs the actual migration and adapter against an isolated PostgreSQL engine.
 // No production credentials, records, or network requests are used.
@@ -43,6 +44,51 @@ async function setup() {
   const db=sandbox.exports.createPostgresD1Adapter(async()=>client,'firehouse_sql','test-only');
   return {pg,db,calls};
 }
+
+test('payroll rate validation and database failures never partially save settings or rates',async()=>{
+  const {pg,db}=await setup();
+  try {
+    await pg.exec(`
+      CREATE TABLE firehouse.employees(id text PRIMARY KEY,name text,active int);
+      CREATE TABLE firehouse.employee_profiles(employee_id text,email text,is_admin int);
+      CREATE TABLE firehouse.payroll_settings(id int PRIMARY KEY,overtime_threshold numeric,acting_officer_premium numeric,dpw_multiplier numeric,updated_at text);
+      CREATE TABLE firehouse.pay_scales(id text PRIMARY KEY,regular_rate numeric NOT NULL,overtime_rate numeric NOT NULL,holiday_rate numeric NOT NULL);
+      CREATE TABLE firehouse.pay_rate_history(id text PRIMARY KEY,pay_scale_id text REFERENCES firehouse.pay_scales(id),effective_date text,regular_rate numeric,overtime_rate numeric,holiday_rate numeric,created_by text,created_at text,UNIQUE(pay_scale_id,effective_date));
+      CREATE TABLE firehouse.record_revisions(id text PRIMARY KEY,record_type text,record_id text,revision_number int,action text,summary text,actor text);
+      INSERT INTO firehouse.payroll_settings VALUES(1,106,1,1.5,NULL);
+      INSERT INTO firehouse.pay_scales VALUES('first',20,30,30),('second',22,33,33);
+    `);
+    let allowed=true;
+    const route=fs.readFileSync(new URL('../app/api/payroll/route.ts',import.meta.url),'utf8').replace(/^import[\s\S]*?;\r?\n/gm,'');
+    const context={exports:{},Error,Response,URL,crypto:webcrypto,ensureDatabase:async()=>db,roundPayrollToCent,ACTING_OFFICER_STIPEND_PER_HOUR:1,permissionsForEmail:async()=>new Set(allowed?['payroll.manage']:[])};
+    vm.runInNewContext(ts.transpileModule(route,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,context);
+    const body={action:'saveRules',overtimeThreshold:100,dpwMultiplier:2,effectiveDate:'2099-01-11',payScales:[{id:'first',regularRate:24},{id:'second',regularRate:25}]};
+    const post=body=>context.exports.POST(new Request('https://fixture.test/api/payroll',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}));
+    const unchanged=async()=>{
+      assert.equal(Number((await pg.query('SELECT overtime_threshold FROM firehouse.payroll_settings')).rows[0].overtime_threshold),106);
+      assert.equal((await pg.query('SELECT count(*)::int AS n FROM firehouse.pay_rate_history')).rows[0].n,0);
+      assert.equal((await pg.query('SELECT count(*)::int AS n FROM firehouse.record_revisions')).rows[0].n,0);
+    };
+    for (const change of [
+      {payScales:[body.payScales[0],{id:'second',regularRate:-1}]},
+      {payScales:[body.payScales[0],{id:'second',regularRate:''}]},
+      {payScales:[body.payScales[0],body.payScales[0]]},
+      {overtimeThreshold:-1},{dpwMultiplier:null},{effectiveDate:'2026-13-11'},
+    ]) {assert.equal((await post({...body,...change})).status,400); await unchanged();}
+    assert.equal((await post({...body,payScales:[body.payScales[0],{id:'missing',regularRate:25}]})).status,500);
+    await unchanged();
+    allowed=false; assert.equal((await post(body)).status,403); await unchanged(); allowed=true;
+    assert.equal((await post(body)).status,200);
+    assert.equal((await pg.query('SELECT count(*)::int AS n FROM firehouse.pay_rate_history')).rows[0].n,2);
+    // Future rates do not null out current pay scales with no older history.
+    assert.equal(Number((await pg.query("SELECT regular_rate FROM firehouse.pay_scales WHERE id='first'")).rows[0].regular_rate),20);
+    assert.equal(Number((await pg.query("SELECT overtime_rate FROM firehouse.pay_rate_history WHERE pay_scale_id='first'")).rows[0].overtime_rate),36);
+    for (const action of ['saveEntry','setPeriodStatus']) {
+      assert.equal((await post({action,periodStart:'2026-13-11'})).status,400);
+      assert.equal((await post({action})).status,400);
+    }
+  } finally {await pg.close();}
+});
 
 test('batch rolls back earlier writes when a later statement fails',async()=>{
   const {pg,db,calls}=await setup();
@@ -172,6 +218,18 @@ test('actual Daily Log and payroll entry routes reject stale, finalized and unau
     const response=await context.exports.POST(request(body));
     assert.equal(response.status,200,JSON.stringify(await response.clone().json()));
     const version=(await response.json()).saveVersion;
+    for (const invalid of [
+      {...body,expectedVersion:version,staffing:undefined},
+      {...body,expectedVersion:version,calls:null},
+      {...body,expectedVersion:version,shiftNotes:undefined},
+      {...body,expectedVersion:version,staffing:[{...body.staffing[0],shiftKey:'unknown'}]},
+      {...body,expectedVersion:version,action:'typo'},
+      {...body,expectedVersion:version,logDate:'2026-02-30'},
+    ]) {
+      assert.equal((await context.exports.POST(request(invalid))).status,400);
+      assert.equal((await pg.query('SELECT shift_notes FROM firehouse.daily_logs')).rows[0].shift_notes,'first saved');
+      assert.equal(Number((await pg.query('SELECT hours FROM firehouse.time_entries')).rows[0].hours),6);
+    }
     assert.equal((await context.exports.POST(request({...body,shiftNotes:'stale attempt'}))).status,409);
     assert.equal((await context.exports.POST(request({action:'handoff',logDate:body.logDate,shiftKey:'morning',mode:'in',officerId:'member',reviewedNotes:true},'someone-else@example.test'))).status,403);
     await pg.exec("UPDATE firehouse.pay_periods SET status='finalized'");

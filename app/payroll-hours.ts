@@ -14,6 +14,7 @@ export type DailyLogPayrollTotal = {
 
 export function workedHours(timeIn: string, timeOut: string) {
   const minutes = (value: string) => {
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) return Number.NaN;
     const [hours, mins] = value.split(":").map(Number);
     if (!Number.isInteger(hours) || !Number.isInteger(mins) || hours < 0 || hours > 23 || mins < 0 || mins > 59) return Number.NaN;
     return hours * 60 + mins;

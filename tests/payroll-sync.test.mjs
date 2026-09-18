@@ -12,6 +12,13 @@ test("overnight and partial tours calculate correctly", () => {
   assert.equal(workedHours("bad", "06:00"), 0);
 });
 
+test("partial or extra staffing time fragments cannot generate paid hours", () => {
+  for (const time of ["06:", ":00", "6:0", "06:00:99", " 06:00", "24:00"]) {
+    assert.equal(workedHours(time, "12:00"), 0, time);
+    assert.equal(workedHours("06:00", time), 0, time);
+  }
+});
+
 test("only employees actually present in the Daily Log receive hours", () => {
   const totals = dailyLogPayrollTotals([
     { employeeId: "delgatto-eric", timeIn: "06:00", timeOut: "06:00", shiftKey: "morning" },

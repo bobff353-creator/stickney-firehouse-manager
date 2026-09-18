@@ -17,3 +17,11 @@ test('overnight tours and AO warnings',()=>{
  assert.deepEqual(payrollReviewIssues([],[{...row('18:00','06:00'),shiftKey:'overnight'}]),[]);
  assert.match(payrollReviewIssues([{workDate:'2026-09-03',category:'actingOfficer',hours:6}],[]).join(' '),/acting-officer/);
 });
+
+test('after-midnight overnight full tours remain 24 hours for overlap review',()=>{
+ const result=payrollReviewIssues([], [
+   {...row('01:00','01:00'),shiftKey:'overnight'},
+   {...row('02:00','04:00'),shiftKey:'overnight'},
+ ]).join(' ');
+ assert.match(result,/identical/); assert.match(result,/overlapping/);
+});
