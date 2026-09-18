@@ -1,0 +1,33 @@
+/* Hide setup chrome without unmounting location sharing or live subscriptions. */
+.respond-page.monitor-view .apparatus-location-panel,
+.respond-overview-page.monitor-view > .respond-title,
+.respond-page.monitor-view > .respond-context-line:not(.stale) { display: none; }
+
+/* A stale-data warning must remain visible even on an unattended screen. */
+.respond-page.monitor-view > .respond-context-line.stale { position: static; flex-shrink: 0; }
+.respond-page.monitor-view > .respond-context-line.stale > :not(.respond-context-freshness):not(button) { display: none; }
+
+.respond-page.monitor-view > .respond-monitor-exit {
+  position: fixed;
+  z-index: 40;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid #91a8b7;
+  border-radius: 8px;
+  background: #fff;
+  color: #173f57;
+  box-shadow: 0 2px 8px #10283d40;
+  font-size: 14px;
+  font-weight: 900;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .15s;
+}
+/* Do not cover navigation or the call selector when an incident is open. */
+.respond-page.respond-active-call.monitor-view > .respond-monitor-exit { top: auto; bottom: max(12px, env(safe-area-inset-bottom)); }
+.respond-page.monitor-view > .respond-monitor-exit.is-visible,
+.respond-page.monitor-view > .respond-monitor-exit:focus-visible { opacity: 1; pointer-events: auto; }
+.respond-page.monitor-view > .respond-monitor-exit:focus-visible { outline: 3px solid #eab33a; outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { .respond-page.monitor-view > .respond-monitor-exit { transition: none; } }

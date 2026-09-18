@@ -163,7 +163,8 @@ test('request revision is scoped to apparatus and selected report, with rapid fa
 
 test('Monitor View keeps an exit while a selected call is loading or fails',()=>{
   const transientViews=client.slice(client.indexOf('if (!data && !error)'),client.indexOf('if (!call)'));
-  assert.equal((transientViews.match(/monitorMode && <button onClick=\{\(\) => void toggleMonitor\(\)\}>Exit Monitor<\/button>/g)||[]).length,2);
+  assert.equal((transientViews.match(/\{monitorExit\}/g)||[]).length,2);
+  assert.match(client, /const monitorExit = monitorMode \? <RespondMonitorExit onExit=\{\(\) => void toggleMonitor\(\)\}/);
 });
 
 test('unchanged full validation advances the cheap revision without replacing the selected packet',async()=>{

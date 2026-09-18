@@ -19,13 +19,12 @@ const render = (props = {}) => renderToStaticMarkup(React.createElement(exports.
   apparatus, confirmedAt: '2026-09-15T17:00:00Z', delayed: false, ...props,
 }));
 
-test('clear equipment reports show actual fleet status, not a fleet-wide all-clear', () => {
+test('TV equipment reports do not duplicate the persistent apparatus status row', () => {
   const copy = structuredClone(apparatus), html = render();
   assert.match(html, /No equipment issues reported/);
-  assert.match(html, /<dt>Available<\/dt><dd>2<\/dd>/);
-  assert.match(html, /<dt>Committed to call<\/dt><dd>1<\/dd>/);
-  assert.match(html, /<dt>Other status<\/dt><dd>2<\/dd>/);
-  assert.match(html, /Equipment reports and fleet availability are separate/);
+  assert.doesNotMatch(html, /Fleet status summary|<dl|Unit TEST-|equipment-fleet-units/);
+  assert.match(html, /Fleet availability is shown in Apparatus status below/);
+  assert.match(html, /Confirmed/);
   assert.deepEqual(apparatus, copy);
 });
 
@@ -35,7 +34,7 @@ test('missing equipment data cannot display a confirmed all-clear', () => {
     assert.match(html, /Equipment status not confirmed/);
     assert.doesNotMatch(html, /No equipment issues reported|Fleet status summary|✓/);
   }
-  assert.match(render({ apparatus: [] }), /No apparatus status is available/);
+  assert.match(render({ apparatus: [] }), /No equipment issues reported/);
   assert.doesNotMatch(render({ apparatus: [] }), /Fleet status summary/);
 });
 

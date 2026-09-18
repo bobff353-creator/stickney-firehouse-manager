@@ -42,6 +42,7 @@ import RespondOverviewMap, {
   type RespondOverview,
 } from "./respond-overview-map";
 import { useApparatusLocations } from './use-apparatus-locations';
+import RespondMonitorExit from './respond-monitor-exit';
 
 type Point = { lat: number; lng: number };
 type Feature = {
@@ -1146,30 +1147,31 @@ export default function Respond({
   const contextLine = <aside className={`respond-context-line${freshness.warning ? " stale" : ""}`} aria-label="Response context" role={freshness.warning ? "alert" : "status"}>
     <strong>{apparatus ? `Calls for apparatus ${apparatus}` : "Viewing all department calls"}</strong>
     <span>{call ? `Incident ${call.reportNumber} · ${call.callType || "Type not reported"}` : "No selected incident"}</span>
-    <span>{freshness.label}</span>
+    <span className="respond-context-freshness">{freshness.label}</span>
     <span>Last successful update: {savedTimeLabel(lastRefresh, "not yet received")}{lastRefresh ? " Central" : ""}</span>
     <small>CAD delivery: {call?.receivedAt ? `last incident received ${savedTimeLabel(call.receivedAt)}` : "no incident receipt in this view"}. Upstream CAD connection is not independently verified.</small>
     {freshness.warning && <button type="button" onClick={() => void load()}>Retry updates</button>}
   </aside>;
+  const monitorExit = monitorMode ? <RespondMonitorExit onExit={() => void toggleMonitor()} /> : null;
   if (!data && !error)
     return (
       <section ref={pageRef} className={`respond-page${monitorMode ? " monitor-view" : ""}`} aria-busy="true">
+        {monitorExit}
         <div className="respond-empty">
           <strong>{selectedReportNumber ? "Opening selected call…" : "Loading active response…"}</strong>
           <span>Checking current CAD and preplan records.</span>
-          {monitorMode && <button onClick={() => void toggleMonitor()}>Exit Monitor</button>}
         </div>
       </section>
     );
   if (error && !data)
     return (
       <section ref={pageRef} className={`respond-page${monitorMode ? " monitor-view" : ""}`}>
+        {monitorExit}
         <div className="respond-empty danger">
           <strong>Respond could not load</strong>
           <span>{error}</span>
           <button onClick={() => void load()}>Try again</button>
           {selectedReportNumber && <button onClick={() => selectActiveCall("")}>Return to latest active call</button>}
-          {monitorMode && <button onClick={() => void toggleMonitor()}>Exit Monitor</button>}
         </div>
       </section>
     );
@@ -1189,6 +1191,7 @@ export default function Respond({
         ref={pageRef}
         className={`respond-page respond-overview-page${monitorMode ? " monitor-view" : ""}`}
       >
+        {monitorExit}
         {contextLine}
         <header className="respond-title">
           <div>
@@ -1206,9 +1209,7 @@ export default function Respond({
           </div>
           <div className="respond-title-actions">
             <small><i /> {updatesAvailable ? liveConnected ? "Live · updates when records change" : "Backup updates · checks every 10 seconds" : "Updates interrupted"}</small>
-            <button onClick={() => void toggleMonitor()}>
-              {monitorMode ? "Exit full screen" : "Open full screen"}
-            </button>
+            {!monitorMode && <button onClick={() => void toggleMonitor()}>Open full screen</button>}
           </div>
         </header>
         {selectionNotice && <p className="respond-selection-notice" role="status">{selectionNotice}</p>}
@@ -1269,6 +1270,7 @@ export default function Respond({
       ref={pageRef}
       className={`respond-page respond-active-call${monitorMode ? " monitor-view" : ""}`}
     >
+      {monitorExit}
       {contextLine}
       {apparatus && (
         <div className="respond-apparatus-strip">
@@ -1323,13 +1325,13 @@ export default function Respond({
           </div>
         </dl>
         <div className="respond-call-actions">
-          <button
+          {!monitorMode && <button
             className="respond-monitor"
             onClick={() => void toggleMonitor()}
             data-test-safe
           >
-            {monitorMode ? "Exit Monitor" : "Monitor View"}
-          </button>
+            Monitor View
+          </button>}
           <a
             className="respond-nav"
             href={googleNavigation(call)}

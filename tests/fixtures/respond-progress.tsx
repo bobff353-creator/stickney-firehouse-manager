@@ -10,6 +10,7 @@ import '../../app/workflow-usability.css';
 const params = new URLSearchParams(location.search);
 const compactPreview = params.has('compact');
 const multiCallPreview = params.has('calls');
+const monitorPreview = params.has('monitor');
 let clearedPreviewCall = false, addedPreviewCall = false;
 const previewNotes = Array.from({ length: 12 }, (_, index) => `Preview dispatch note ${index + 1}: Fictional layout verification only. This longer line checks that all notes remain readable without being clipped.`).join('\n\n') + '\n\nEND OF PREVIEW DISPATCH NOTES';
 const previewPhoto = params.get('photo');
@@ -23,6 +24,7 @@ const audit = { errors: [] as string[], requests: [] as string[], writes: 0, nav
   { id: 'fixture-h3', hydrantNumber: '', address: 'Preview only — south entrance', distanceFeet: 352, serviceStatus: 'unknown' },
 ] : [] };
 Object.assign(window, { progressAudit: audit });
+if (monitorPreview) audit.noCall = true;
 window.addEventListener('error', event => audit.errors.push(event.message));
 window.addEventListener('unhandledrejection', event => audit.errors.push(String(event.reason)));
 const originalSet = Storage.prototype.setItem;
@@ -32,7 +34,10 @@ window.fetch = async (input, init) => {
   if (url.origin !== location.origin) throw new Error('External traffic blocked in fixture');
   audit.requests.push(url.pathname + url.search);
   if ((init?.method || 'GET') !== 'GET') { audit.writes++; throw new Error('No operational writes allowed in fixture'); }
-  if (url.pathname === '/api/apparatus-locations') return Response.json({ error: 'Locations disconnected in this progress fixture' }, { status: 403 });
+  if (url.pathname === '/api/apparatus-locations') {
+    if (monitorPreview) return Response.json({ departmentId: 'fixture-a', userId: 'fixture-viewer', canManage: true, units: [], topic: 'fixture-locations', serverTime: new Date().toISOString(), expiresAt: new Date(Date.now() + 60000).toISOString() });
+    return Response.json({ error: 'Locations disconnected in this progress fixture' }, { status: 403 });
+  }
   if (url.pathname === '/api/maps-config') return Response.json({ configured: false });
   if (url.pathname !== '/api/respond') throw new Error(`Unexpected API ${url.pathname}`);
   if (audit.hold) await new Promise<void>(resolve => { audit.pending = resolve; });
@@ -76,6 +81,10 @@ function Fixture() {
       <label>Preview device <select aria-label="Preview device" value={unit} onChange={event => setUnit(event.target.value)}><option value="">Department view</option><option>1204</option><option>1205</option><option>1208</option></select></label>
       <button onClick={() => window.dispatchEvent(new Event('online'))}>Refresh fixture</button>
       <button onClick={() => setMounted(value => !value)}>Toggle Respond</button>
+      {monitorPreview && <>
+        <button onClick={() => { audit.noCall = !audit.noCall; window.dispatchEvent(new Event('online')); }}>Toggle fictional call</button>
+        <button onClick={() => { window.setTimeout(() => { audit.failed = !audit.failed; window.dispatchEvent(new Event('online')); }, 5000); }}>Interrupt updates in 5 seconds</button>
+      </>}
       {compactPreview && <button onClick={() => { audit.failed = !audit.failed; window.dispatchEvent(new Event('online')); }}>Toggle interrupted updates</button>}
       {multiCallPreview && <>
         <button onClick={()=>{clearedPreviewCall=true;window.dispatchEvent(new Event('online'));}}>Clear preview call 200</button>

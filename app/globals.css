@@ -1023,24 +1023,17 @@ td strong { font-size: 16px; }
 .tv-display .rotation-slide:has(> .board-empty),.tv-display .rotation-slide:has(> .board-equipment-summary) { grid-template-rows: minmax(0,1fr); align-content: stretch; }
 .tv-display .rotation-slide:has(> .training-board),.tv-display .rotation-slide:has(> .fatality-board),.tv-display .rotation-slide:has(> .current-duty-card) { grid-template-rows: minmax(0,1fr); align-content: stretch; }
 .tv-display .rotation-slide > .board-empty,.tv-display .training-cards-list > .board-empty { box-sizing: border-box; height: 100%; min-height: 0; margin: 0; display: grid; place-content: center; padding: clamp(12px,2vw,28px); font-size: clamp(18px,1.5vw,26px); line-height: 1.45; text-align: center; text-wrap: balance; }
-.board-equipment-summary { box-sizing: border-box; min-height: 0; height: 100%; padding: clamp(10px,1.4vw,24px); display: grid; grid-template-rows: auto minmax(0,1fr) auto; gap: 14px; border: 1px solid #38785b; border-radius: 8px; background: linear-gradient(135deg,#14382d,#132c36); }
+.board-equipment-summary { box-sizing: border-box; min-height: 0; height: 100%; padding: clamp(10px,1.4vw,24px); display: grid; align-content: center; gap: 14px; border: 1px solid #38785b; border-radius: 8px; background: linear-gradient(135deg,#14382d,#132c36); }
 .equipment-clear-heading { display: flex; align-items: center; gap: 12px; }
 .equipment-clear-heading > span { display: grid; place-items: center; flex-shrink: 0; width: 42px; height: 42px; border-radius: 50%; background: #246a4b; color: #cff9e0; font-size: 28px; }
 .operations-board .board-equipment-summary strong { color: #e6faee; font-size: clamp(18px,1.6vw,28px); line-height: 1.2; }
 .operations-board .board-equipment-summary p { margin: 5px 0 0; color: #b6d4cb; font-size: clamp(12px,1vw,16px); line-height: 1.35; }
-.board-equipment-summary dl { min-height: 0; margin: 0; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
-.board-equipment-summary dl > div { min-width: 0; display: flex; flex-direction: column; justify-content: center; padding: 8px; border: 1px solid #3e645b; border-radius: 8px; background: #102a2c; text-align: center; }
-.board-equipment-summary dt { order: 2; color: #c9dfdb; font-size: clamp(11px,1vw,16px); }
-.board-equipment-summary dd { order: 1; margin: 0; color: #fff; font-weight: 900; font-size: clamp(28px,3vw,48px); line-height: 1.15; }
-.board-equipment-summary .equipment-fleet-units { order: 3; display: grid; gap: 6px; margin-top: 16px; color: #b8d9d0; font-size: clamp(12px,1vw,17px); font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
 .board-equipment-summary.unconfirmed { border-color: #a07b40; background: #342e20; align-content: center; }
 .board-equipment-summary.unconfirmed .equipment-clear-heading > span { background: #886428; color: #fff1c5; }
 @container tv-rotation (max-height: 300px) {
   .board-equipment-summary { padding: 10px; gap: 8px; }
   .operations-board .board-equipment-summary strong { font-size: 18px; }
   .operations-board .board-equipment-summary p { font-size: 11px; }
-  .board-equipment-summary dd { font-size: 26px; }
-  .board-equipment-summary .equipment-fleet-units { display: none; }
 }
 .tv-display .fatality-board,.tv-display .fatality-list,.tv-display .training-board,.tv-display .training-course-list { gap: 4px !important; }
 .tv-display .fatality-total { padding: 5px 8px; }
