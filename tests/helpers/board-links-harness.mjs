@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import ts from 'typescript';
 import { PGlite } from '@electric-sql/pglite';
 const require = createRequire(import.meta.url);
-function compile(path, imports) {
+export function compile(path, imports) {
   const source = readFileSync(new URL('../../'+path, import.meta.url), 'utf8');
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   const target = { exports: {} };

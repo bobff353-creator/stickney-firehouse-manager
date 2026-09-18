@@ -20,6 +20,15 @@ window.fetch = async (input, init) => {
   const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, location.href);
   if (url.origin !== location.origin) throw new Error('External browser request blocked in local test');
   audit.requests.push(url.pathname + url.search);
+  if(parameters.has('configuration') && (url.pathname === '/api/board-configuration' || url.pathname.startsWith('/__configuration-') || url.pathname.startsWith('/__links-'))) return nativeFetch(input, { ...init, headers: { ...init?.headers, 'x-fixture-role': parameters.has('member') ? 'member' : 'admin' } });
+  if(parameters.has('configuration') && url.pathname === '/api/permissions') return Response.json({ viewerPermissions: ['operations_board.view', ...(parameters.has('member') ? [] : ['settings.manage'])], revision:'fixture', identity:'fixture@example.invalid' });
+  if(parameters.has('configuration') && url.pathname === '/api/chief-board') {
+    const boardConfiguration = await nativeFetch('/__configuration-state').then(r => r.json());
+    if(url.searchParams.get('configuration-revision') === boardConfiguration.saved.revision) delete boardConfiguration.saved;
+    const boardLinks = await nativeFetch('/__links-state').then(r => r.json());
+    boardLinks.canEdit = !parameters.has('member'); boardConfiguration.canEdit = boardLinks.canEdit;
+    return Response.json({ items: [], officers: [], canEdit: boardLinks.canEdit, boardLinks, boardConfiguration });
+  }
   if(parameters.has('links') && url.pathname.startsWith('/__links-')) return nativeFetch(input, init);
   if(parameters.has('training') && (url.pathname === '/api/training-import' || url.pathname.startsWith('/__training-'))) return nativeFetch(input, { ...init, headers: { ...init?.headers, 'x-fixture-role': parameters.has('member') ? 'member' : 'admin' } });
   if(parameters.has('links') && url.pathname === '/api/board-links') return nativeFetch(input, { ...init, headers: { ...init?.headers, 'x-fixture-role': parameters.has('member') ? 'member' : 'admin' } });
@@ -67,6 +76,8 @@ window.fetch = async (input, init) => {
 };
 function PreviewBoard() {
   const [tvMode, setTvMode] = React.useState(tv);
+  const [fixtureMessage, setFixtureMessage] = React.useState('');
+  if(parameters.has('configuration')) return <>{tvMode && <style>{`#root > p, #root > aside { display:none } body { padding:0!important; margin:0!important; max-width:none!important }`}</style>}{!tvMode && <><p>FICTIONAL LOCAL TEST · no production data</p><button onClick={() => void nativeFetch('/__links-fail-next').then(() => setFixtureMessage('Next database save will fail'))}>Simulate failed save</button><span role="status">{fixtureMessage}</span></>}<main className={tvMode ? 'tv-shell' : ''}><OperationsBoard tvMode={tvMode} onTvModeChange={setTvMode}/></main></>;
   return <><button style={{position:'fixed',bottom:2,right:2,zIndex:2147483647}} onClick={() => setTvMode(value => !value)}>Toggle local TV layout</button><main className={tvMode ? 'tv-shell' : ''}><section className="workspace">{parameters.has('alerts') && !tvMode && <SmartAlerts icon={<span>Notifications</span>} onNavigate={() => {}}/>}<OperationsBoard tvMode={tvMode} onTvModeChange={setTvMode} onNewActiveCall={() => { audit.alerts++; }} /></section></main></>;
 }
 function AuditControls() {

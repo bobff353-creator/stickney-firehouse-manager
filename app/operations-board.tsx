@@ -1,5 +1,6 @@
 "use client";
 import { operationalStatusLabel } from "./workflow-status";
+import './board-configuration.css';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatEmployeeName } from "./employee-names";
@@ -22,6 +23,9 @@ import { boardLinkSections, defaultBoardLinks, isBoardLinkSection, type BoardLin
 import linkStyles from './board-links.module.css';
 import { createConditionalJsonReader } from './conditional-json-reader';
 import { synchronizedSlide } from './board-sync-clock';
+import dynamic from 'next/dynamic';
+const BoardManager = dynamic(() => import('./board-manager'));
+import { announcementIsActive, boardSlideAt, defaultBoardConfiguration, type BoardConfiguration, type BoardConfigurationSignal } from './board-configuration';
 import { BoardEquipmentSummary } from './board-equipment-summary';
 import { onOperationalPush } from './operational-push-refresh';
 import { useOperationalUpdates } from './use-operational-updates';
@@ -47,7 +51,6 @@ type JsonResponse<T> = { ok: boolean; status: number; payload: T | null };
 type BoardBundle = { dashboard?: JsonResponse<BoardData & { nextChangeAt?: number }>; duties?: JsonResponse<{ currentDuty?: CurrentDuty | null; dailyFleetChecks?: DailyFleetCheck[] }>; fleet?: JsonResponse<{ apparatus?: FleetApparatus[] }>; error?: string };
 type Rotation = "equipment" | "duty" | "news" | "fatalities" | "romeoville" | "ifsi" | "nipsta";
 type HeaderRotation = "title" | "today" | "hourly" | "tomorrow";
-const rotationOrder: Rotation[] = ["equipment", "duty", "news", "fatalities", "romeoville", "ifsi", "nipsta"];
 const headerRotationOrder: HeaderRotation[] = ["title", "today", "hourly", "tomorrow"];
 function boardDetourUrl(closure:BoardRoadClosure){const destination=closure.path.at(-1);if(!destination)return "https://www.google.com/maps";return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${destination.lat},${destination.lng}`)}&waypoints=${encodeURIComponent(`${closure.detourLatitude},${closure.detourLongitude}`)}&travelmode=driving`;}
 function boardClosureTime(value:string|null){return value?new Date(value).toLocaleString("en-US",{timeZone:"America/Chicago",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"Until reopened";}
@@ -83,7 +86,20 @@ function TrainingCourses({ provider, today }: { provider: TrainingProvider; toda
   </div>;
 }
 
-export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewActiveCall }: { tvMode?: boolean; onTvModeChange?: (enabled: boolean) => void; onNewActiveCall?: (call: BoardData["activeCalls"][number]) => void }) {
+export default function OperationsBoard({ tvMode: stationTvMode = false, onTvModeChange, onNewActiveCall }: { tvMode?: boolean; onTvModeChange?: (enabled: boolean) => void; onNewActiveCall?: (call: BoardData["activeCalls"][number]) => void }) {
+  const [managerOpen, setManagerOpen] = useState(false);
+  const [configuration, setConfiguration] = useState(defaultBoardConfiguration);
+  const [configurationConfirmed, setConfigurationConfirmed] = useState(false);
+  const [previewConfiguration, setPreviewConfiguration] = useState<BoardConfiguration | null>(null);
+  const [manageNotesRequest, setManageNotesRequest] = useState(0);
+  const activeConfiguration = previewConfiguration ?? configuration;
+  const tvMode = stationTvMode || Boolean(previewConfiguration);
+  const receiveConfiguration = useCallback((signal: BoardConfigurationSignal) => {
+    setConfigurationConfirmed(signal.confirmed);
+    if (signal.confirmed && !signal.canEdit) { setManagerOpen(false); setPreviewConfiguration(null); }
+    if (signal.denied) { setConfiguration(defaultBoardConfiguration()); setManagerOpen(false); setPreviewConfiguration(null); }
+    else if (signal.saved) setConfiguration(signal.saved.configuration);
+  }, []);
   const packetReader = useRef(createConditionalJsonReader());
   const confirmedBundle = useRef<BoardBundle>({});
   const reloadRequested = useRef(false);
@@ -101,7 +117,7 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
   }, []);
   const informational = useBoardFeeds(tvMode, true);
   const news = (informational.feeds.close_calls?.data?.items as CloseCallReport[] | undefined) ?? [];
-  const displayedNews = tvMode ? news.slice(0, 4) : news;
+  const displayedNews = tvMode ? news.slice(0, activeConfiguration.closeCalls === '3' ? 3 : 4) : news;
   const fatalities = informational.feeds.usfa?.data as UsfaData | null | undefined;
   const weather = informational.feeds.weather?.data as WeatherData | null | undefined;
   const trainingProviders = { ...initialTrainingProviders };
@@ -243,22 +259,17 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
     return () => { window.clearInterval(ticker); reloadRequested.current = false; if (reloadTimer.current !== null) window.clearTimeout(reloadTimer.current); loadControllerRef.current?.abort(); };
   }, [load]);
   useEffect(() => {
-    if (rotationPaused || linkEditor || trainingEditor) return;
-    if (tvMode) {
-      const sync = () => {
-        setRotation(rotationOrder[synchronizedSlide(Date.now(), 12000, rotationOrder.length)]);
-        setHeaderRotation(headerRotationOrder[synchronizedSlide(Date.now(), 8000, headerRotationOrder.length)]);
-      };
-      const initial = window.setTimeout(sync, 0);
-      const timer = window.setInterval(sync, 1000);
-      return () => { window.clearTimeout(initial); window.clearInterval(timer); };
-    }
-    const rotate = window.setInterval(() => setRotation(current => rotationOrder[(rotationOrder.indexOf(current) + 1) % rotationOrder.length]), 12000);
-    const rotateHeader = window.setInterval(() => setHeaderRotation(current => headerRotationOrder[(headerRotationOrder.indexOf(current) + 1) % headerRotationOrder.length]), 8000);
-    return () => { window.clearInterval(rotate); window.clearInterval(rotateHeader); };
-  }, [rotationPaused, linkEditor, trainingEditor, tvMode]);
+    if (rotationPaused || linkEditor || trainingEditor || (managerOpen && !previewConfiguration)) return;
+    const sync = () => {
+      setRotation(boardSlideAt(Date.now(), activeConfiguration));
+      setHeaderRotation(headerRotationOrder[synchronizedSlide(Date.now(), 8000, headerRotationOrder.length)]);
+    };
+    const initial = window.setTimeout(sync, 0);
+    const timer = window.setInterval(sync, 1000);
+    return () => { window.clearTimeout(initial); window.clearInterval(timer); };
+  }, [rotationPaused, linkEditor, trainingEditor, managerOpen, previewConfiguration, activeConfiguration]);
   useEffect(() => {
-    if (!tvMode) return;
+    if (!stationTvMode) return;
     let disposed = false;
     const requestWakeLock = async () => {
       const wakeLockManager = (window.navigator as Navigator & { wakeLock?: { request: (type: "screen") => Promise<WakeLockHandle> } }).wakeLock;
@@ -299,9 +310,9 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
       wakeLockRef.current = null;
       if (lock) void lock.release();
     };
-  }, [load, tvMode]);
+  }, [load, stationTvMode]);
   useEffect(() => {
-    if (!tvMode || recoveryReloadRef.current || !window.navigator.onLine) return;
+    if (!stationTvMode || recoveryReloadRef.current || !window.navigator.onLine) return;
     const lastConfirmedAt = lastRefresh?.getTime() ?? boardStartedAtRef.current;
     if (clock.getTime() - lastConfirmedAt < 10 * 60 * 1000) return;
     const previousRecovery = Number(window.localStorage.getItem("stickney-operations-tv-recovery") || 0);
@@ -309,7 +320,7 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
     recoveryReloadRef.current = true;
     window.localStorage.setItem("stickney-operations-tv-recovery", String(Date.now()));
     window.location.reload();
-  }, [clock, lastRefresh, tvMode]);
+  }, [clock, lastRefresh, stationTvMode]);
   const next = useMemo(() => nextOperationsShiftChange(clock), [clock]);
   const today = clock.toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
   const tomorrowDate = new Date(clock.getTime() + 86400000).toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
@@ -361,22 +372,21 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
     setAlertTone(selected);
     window.localStorage.setItem("stickney-call-alert-tone", selected);
   }
-  return <section className={`operations-board${tvMode ? " tv-display" : ""}`}>
+  return <section className={`operations-board${tvMode ? " tv-display" : ""}${previewConfiguration ? ' board-configuration-preview' : ''}${announcementIsActive(activeConfiguration, clock.getTime()) ? ' has-board-announcement' : ''}`}>
     {tvMode && <button type="button" className={`board-exit-tv${tvExitVisible ? " is-visible" : ""}`} onClick={() => void exitTvMode()} aria-label="Exit full-screen TV mode and return to the portal"><span aria-hidden="true">×</span> Exit full screen</button>}
     <div className="board-display-controls">
-      {boardLinks.canEdit && !tvMode && <button type="button" className={linkStyles.editButton} onClick={() => setLinkEditor(isBoardLinkSection(rotation) ? rotation : 'news')}><b aria-hidden="true">+</b> Edit news & training links</button>}
-      {boardLinks.canEdit && !tvMode && <button type="button" className={linkStyles.editButton} onClick={() => setTrainingEditor(isTrainingSource(rotation) ? rotation : 'romeoville')}><b aria-hidden="true">+</b> Manage classes</button>}
+      {boardLinks.canEdit && !tvMode && <button type="button" className={linkStyles.editButton} onClick={() => setManagerOpen(true)}>Manage Live Ops Board</button>}
       {alertPanelOpen && <div className="call-alert-settings"><strong>New-call sound</strong><label><span>Alert tone</span><select value={alertTone} onChange={(event) => selectAlertTone(event.target.value)}>{alertTones.map((tone) => <option value={tone.id} key={tone.id}>{tone.label}</option>)}</select></label><div><button type="button" onClick={() => void playAlert(alertTone)}>Preview</button><button type="button" className={alertEnabled ? "enabled" : ""} onClick={() => void toggleCallAlerts()}>{alertEnabled ? "Disable alerts" : "Enable call alerts"}</button></div><small>Saved on this TV. Sounds only for newly received call numbers.</small></div>}
       <div className="board-control-buttons"><span className={`board-heartbeat ${feedDegraded?"degraded":""}`}><i/>{feedDegraded?"Feed delayed · reconnecting":liveConnected?'Live · updates on changes':`Backup updates · checked ${lastRefresh?.toLocaleTimeString([],{hour:"numeric",minute:"2-digit",second:"2-digit"})}`}</span><button type="button" onClick={()=>setRotationPaused((current)=>!current)}>{rotationPaused?"Resume rotation":"Pause rotation"}</button><button type="button" onClick={() => setAlertPanelOpen((open) => !open)} aria-expanded={alertPanelOpen}>Call sound: {alertEnabled ? "On" : "Off"}</button>{tvMode
         ? <span className="board-station-mode"><i/>24/7 station mode</span>
         : <button type="button" onClick={() => void enterTvMode()} aria-label="Open the Live Operations Board in full-screen TV mode">TV full screen</button>}</div>
     </div>
-    <header className="board-header"><div className="board-header-rotation" aria-live="polite"><p>Stickney Fire Department</p>{headerRotation === "title" ? <div className="board-title-slide"><h1>Live Operations Board</h1><span>{data ? shiftLabel(data.currentShift) : "Loading current shift…"}</span></div> : headerRotation === "hourly" && weather?.hours?.length ? <div className="board-hourly-slide"><span className="weather-day">Berwyn hourly outlook · {savedFeedLabel(informational.feeds.weather, informational.unconfirmed.weather)}</span><h1>{weather.hours.some(hour => Date.parse(hour.time) > clock.getTime()) ? "Next 4 hours" : "Saved hourly outlook"}</h1><div className="board-hourly-grid">{weather.hours.slice(0, 4).map((hour) => <article key={hour.time}><time>{new Date(hour.time).toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric" })}</time><strong>{hour.temperature}°</strong><span>{hour.condition}</span><small>{hour.precipitationChance}% rain · {hour.windSpeed} mph</small></article>)}</div></div> : headerWeather ? <div className="board-weather-slide"><span className="weather-day">{weatherTitle} · {savedFeedLabel(informational.feeds.weather, informational.unconfirmed.weather)}</span><h1>{headerWeather.condition}</h1><div><strong>{headerWeather.high}°</strong><span>High</span><b>{headerWeather.low}°</b><span>Low</span><small>{headerWeather.precipitationChance}% rain · Wind {headerWeather.windGust} mph</small></div>{weather?.detailUrl && <a href={weather.detailUrl} target="_blank" rel="noreferrer">Full Berwyn forecast on Weather.com ↗</a>}</div> : <div className="board-title-slide"><h1>Live Operations Board</h1><span>Weather forecast temporarily unavailable</span></div>}</div><div className="board-clock"><strong>{clock.toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit", second: "2-digit" })}</strong><span>{clock.toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "long", month: "long", day: "numeric" })}</span><small><i/> {liveConnected ? 'Live · updates on changes' : 'Backup updates · every 30 seconds'}</small></div></header>
+    <header className="board-header"><div className="board-header-rotation" aria-live="polite"><p>Stickney Fire Department</p>{headerRotation === "title" ? <div className="board-title-slide"><h1>Live Operations Board</h1><span>{data ? shiftLabel(data.currentShift) : "Loading current shift…"}</span></div> : headerRotation === "hourly" && weather?.hours?.length ? <div className="board-hourly-slide"><span className="weather-day">Berwyn hourly outlook · {savedFeedLabel(informational.feeds.weather, informational.unconfirmed.weather)}</span><h1>{weather.hours.some(hour => Date.parse(hour.time) > clock.getTime()) ? "Next 4 hours" : "Saved hourly outlook"}</h1><div className="board-hourly-grid">{weather.hours.slice(0, 4).map((hour) => <article key={hour.time}><time>{new Date(hour.time).toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric" })}</time><strong>{hour.temperature}°</strong><span>{hour.condition}</span><small>{hour.precipitationChance}% rain · {hour.windSpeed} mph</small></article>)}</div></div> : headerWeather ? <div className="board-weather-slide"><span className="weather-day">{weatherTitle} · {savedFeedLabel(informational.feeds.weather, informational.unconfirmed.weather)}</span><h1>{headerWeather.condition}</h1><div><strong>{headerWeather.high}°</strong><span>High</span><b>{headerWeather.low}°</b><span>Low</span><small>{headerWeather.precipitationChance}% rain · Wind {headerWeather.windGust} mph</small></div>{weather?.detailUrl && <a href={weather.detailUrl} target="_blank" rel="noreferrer">Full Berwyn forecast on Weather.com ↗</a>}</div> : <div className="board-title-slide"><h1>Live Operations Board</h1><span>Weather forecast temporarily unavailable</span></div>}</div><div className="board-clock"><strong>{clock.toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit", second: "2-digit" })}</strong><span>{clock.toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "long", month: "long", day: "numeric" })}</span><small className={feedDegraded ? "board-attention" : ""}><i/> {feedDegraded ? "Data delayed · last confirmed " + (lastRefresh?.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) ?? "not yet") : liveConnected ? 'Live · updates on changes' : 'Backup updates · every 30 seconds'}</small></div></header>
     {error && <div className="board-alert">{error}<button onClick={() => void load()}>Retry</button></div>}
     {Boolean(data?.roadClosures?.length)&&<section className="board-road-closures" aria-label="Active road closures"><header><span>ROAD OUT OF SERVICE</span><strong>{data!.roadClosures.length} active</strong></header><div>{data!.roadClosures.map((closure)=><article key={closure.id}><div><h2>{closure.roadName}</h2><p>{closure.reason||"Department road closure"}</p><small>Expected clear: {boardClosureTime(closure.expectedClearAt)}</small></div><a href={boardDetourUrl(closure)} target="_blank" rel="noreferrer">OPEN DETOUR ↗</a></article>)}</div></section>}
     <div className="board-summary"><article className={data?.staffing.complete ? "clear" : "warning"}><span>Staffing</span><strong>{data?.staffing.filled ?? "—"} / {data?.staffing.required ?? 4}</strong><small>{data?.staffing.complete ? "Complete" : "Coverage needs attention"}</small></article><article className={data?.officerInCharge ? "clear" : "warning"}><span>Officer in charge</span><strong>{data?.officerInCharge ? displayName(data.officerInCharge) : "Not signed in"}</strong><small>Current shift command</small></article><BoardActiveCalls calls={data?.activeCalls ?? []} tvMode={tvMode} now={clock.getTime()} /><article><span>Next shift change</span><strong>{next.label}</strong><small>In {next.remaining}</small></article></div>
     {linkMessage && !tvMode && <p role="status">{linkMessage}</p>}
-    <div className="board-grid redesigned"><ChiefBoardPanel onBoardLinks={receiveBoardLinks} tvMode={tvMode} />
+    <div className="board-grid redesigned"><ChiefBoardPanel onBoardLinks={receiveBoardLinks} onBoardConfiguration={receiveConfiguration} tvMode={tvMode} manageRequest={manageNotesRequest}/>
       <StaffingRotation mode="board" onDuty={data?.onDuty ?? []} newMembers={data?.newMembers ?? []} tvMode={tvMode} />
       <section className={`board-panel equipment rotating-panel ${linkStyles.panel} ${rotation}${rotation === "duty" && dailyChecksNeedAttention ? " daily-check-alert" : ""}`} aria-live="polite">
         <header>
@@ -396,8 +406,21 @@ export default function OperationsBoard({ tvMode = false, onTvModeChange, onNewA
           {!tvMode && isBoardLinkSection(rotation) && <BoardSectionLinks section={boardLinks.settings.sections[rotation]} confirmed={boardLinks.confirmed}/>}
         </div>
       </section></div>
-    <section className="board-panel apparatus apparatus-wide"><header><h2>Apparatus status</h2><span>Fleet + active CAD calls</span></header><div>{data?.apparatus.map((unit) => <article className={unit.status === "Committed to call" ? "committed" : unit.status === "Available" ? "available" : "unknown"} key={unit.unit}><b>Unit {unit.unit}</b><span>{unit.status}</span></article>)}</div><p className="board-source-note">Fleet status with active CAD commitment shown in red.</p></section>
+    <section className="board-panel apparatus apparatus-wide"><header><h2>Apparatus status</h2><span className={dailyChecksNeedAttention || Boolean(data?.equipmentIssues.length) ? "board-attention" : ""}>{feedDegraded ? "Last confirmed information · update delayed" : `${data?.equipmentIssues.length ?? 0} equipment issues · ${dailyFleetChecks.length} pending checks${dailyCheckUrgency === "overdue" ? " · OVERDUE" : ""}`}</span></header><div>{data?.apparatus.map((unit) => <article className={unit.status === "Committed to call" ? "committed" : unit.status === "Available" ? "available" : "unknown"} key={unit.unit}><b>Unit {unit.unit}</b><span>{unit.status}</span></article>)}</div><p className="board-source-note">Fleet status with active CAD commitment shown in red.</p></section>
     {linkEditor && <BoardLinksEditor initialSection={linkEditor} canEdit={boardLinks.canEdit} onClose={() => setLinkEditor(null)} onSaved={(signal, section) => { receiveBoardLinks(signal); setRotation(section); setRotationPaused(true); setLinkMessage('Links saved. This board shows the saved section; other boards receive it on their next board refresh. Select Resume rotation when ready.'); }}/>}
     {trainingEditor && <TrainingSourceEditor initial={trainingEditor} canEdit={boardLinks.canEdit} onClose={() => setTrainingEditor(null)} onEditLinks={id => { setTrainingEditor(null); setLinkEditor(id); }} onSaved={(signal, id) => { receiveBoardLinks(signal); setRotation(id); setRotationPaused(true); setLinkMessage('Classes saved. Other boards receive the update on their existing refresh. Select Resume rotation when ready.'); }}/>}
+    {announcementIsActive(activeConfiguration, clock.getTime()) && <aside className="board-announcement" aria-label="Department announcement"><strong>{activeConfiguration.announcement.title}</strong><p>{activeConfiguration.announcement.body}</p>{!configurationConfirmed && !previewConfiguration && <small>Last saved announcement · settings update unconfirmed</small>}</aside>}
+    {managerOpen && <BoardManager
+      previewing={Boolean(previewConfiguration)}
+      onPreview={draft => { setPreviewConfiguration(draft); setRotationPaused(false); }}
+      onClose={() => setManagerOpen(false)}
+      onPublished={saved => { setConfiguration(saved.configuration); setConfigurationConfirmed(true); }}
+      onContent={kind => {
+        setManagerOpen(false);
+        if (kind === 'notes') setManageNotesRequest(value => value + 1);
+        else if (kind === 'classes') setTrainingEditor('romeoville');
+        else setLinkEditor('news');
+      }}
+    />}
   </section>;
 }

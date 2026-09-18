@@ -5,8 +5,15 @@ import { createServer } from 'vite';
 import react from '@vitejs/plugin-react';
 import { PGlite } from '@electric-sql/pglite';
 import { readFile } from 'node:fs/promises';
-import { boardLinksHarness, store as linkStore } from '../tests/helpers/board-links-harness.mjs';
+import { boardLinksHarness, compile, store as linkStore } from '../tests/helpers/board-links-harness.mjs';
 const links = await boardLinksHarness();
+const configModel = compile('app/board-configuration.ts', {});
+const configStore = compile('app/board-configuration-store.ts', { './board-configuration': configModel });
+const configApi = compile('app/api/board-configuration/route.ts', {
+ '../../../db/bootstrap': { ensureDatabase: async () => links.db },
+ '../../server-permissions': { hasPermission: async request => request.headers.get('x-fixture-role') === 'admin' },
+ '../../board-configuration': configModel, '../../board-configuration-store': configStore,
+});
 const { createFeedReader } = await import('../app/lib/board-feed-reader.ts');
 const { feedGroups, nextFeedSlot } = await import('../app/lib/feed-schedule.ts');
 const pg = new PGlite();
@@ -30,6 +37,13 @@ let databaseReads=0;
 const read=createFeedReader(async sources=>{databaseReads++;return (await pg.query('SELECT * FROM firehouse.board_feed_cache WHERE source=ANY($1)',[sources])).rows;});
 const server=await createServer({configFile:false,root:process.cwd(),plugins:[react(),{name:'isolated-board-cache',configureServer(server){server.middlewares.use(async(req,res,next)=>{
  const url=new URL(req.url,'http://localhost');
+ if(url.pathname==='/api/board-configuration') {
+  let raw='';for await(const chunk of req) raw+=chunk;
+  const handler=configApi[req.method]; if(!handler){res.statusCode=405;return res.end();}
+  const response=await handler(new Request('http://localhost/api/board-configuration',{method:req.method,headers:{'x-fixture-role':String(req.headers['x-fixture-role']||'admin'),'oai-authenticated-user-email':'fixture@example.invalid'},...(raw?{body:raw}:{})}));
+  res.statusCode=response.status;response.headers.forEach((value,key)=>res.setHeader(key,value));return res.end(await response.text());
+ }
+ if(url.pathname==='/__configuration-state') {res.setHeader('Content-Type','application/json');return res.end(JSON.stringify({saved:await configStore.readBoardConfiguration(links.db),confirmed:true,canEdit:true}));}
  if(url.pathname==='/api/board-links'){
   let raw=''; for await(const chunk of req) raw+=chunk;
   const role=String(req.headers['x-fixture-role']||'admin');

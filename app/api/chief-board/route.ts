@@ -5,6 +5,7 @@ import { getPortalStorage } from "../../portal-storage";
 import { boardOfficerQuery, selectBoardOfficer, type BoardOfficer } from "../../board-officers";
 import { readBoardLinks } from '../../board-links-store';
 import { boardLinksSignal } from '../../board-links';
+import { readBoardConfiguration } from '../../board-configuration-store';
 
 const allowedTypes = new Set([
   "image/jpeg", "image/png", "image/webp", "image/gif",
@@ -168,6 +169,10 @@ export async function GET(request: Request) {
     // failures must not prevent Chief Notes, weather or calls from loading.
     const boardLinks = includeLinks ? await readBoardLinks(db).then(settings => boardLinksSignal(settings, new URL(request.url).searchParams.get('links-revision'), canEdit, checkedAt)).catch(() => ({ canEdit: false, confirmed: false, checkedAt })) : undefined;
     const officers = canEdit ? (await db.prepare(boardOfficerQuery).all<BoardOfficer>()).results : [];
+    const boardConfiguration = includeLinks ? await readBoardConfiguration(db).then(saved => ({
+      ...(saved.revision === new URL(request.url).searchParams.get('configuration-revision') ? {} : { saved: { ...saved, previous: null } }),
+      confirmed: true, canEdit,
+    })).catch(() => ({ confirmed: false, canEdit: false })) : undefined;
     const rows = await db.prepare(
       "SELECT id, item_type AS itemType, title, body, officer_employee_id AS officerId, officer_name AS officerName, event_date AS eventDate, starts_at AS startsAt, ends_at AS endsAt, expires_at AS expiresAt, invite_status AS inviteStatus, created_by AS createdBy, created_at AS createdAt FROM chief_board_items WHERE active = 1 AND (expires_at = '' OR datetime(expires_at) > datetime('now')) AND (item_type <> 'event' OR ends_at = '' OR datetime(ends_at) > datetime('now')) ORDER BY CASE WHEN item_type = 'event' THEN 0 ELSE 1 END, CASE WHEN starts_at = '' THEN event_date ELSE starts_at END, created_at DESC LIMIT 20"
     ).all<{ id: string }>();
@@ -184,6 +189,7 @@ export async function GET(request: Request) {
       canEdit,
       officers,
       boardLinks,
+      boardConfiguration,
     }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Unable to load Chief Notes and Events" }, { status: 500 });

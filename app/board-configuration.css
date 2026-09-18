@@ -1,0 +1,13 @@
+.board-announcement{background:#173e53;border-left:5px solid #efbb48;border-radius:8px;padding:10px 16px;margin-top:10px;color:#fff;overflow-wrap:anywhere}
+.board-announcement strong{color:#ffcf6a;font-size:18px}.board-announcement p{margin:4px 0;line-height:1.35;font-size:16px}.board-announcement small{color:#ffdba0}
+.tv-shell .operations-board.has-board-announcement{grid-template-rows:minmax(100px,auto) 78px minmax(0,1fr) 92px auto}
+.tv-shell .operations-board.has-board-announcement:has(.board-road-closures){grid-template-rows:minmax(100px,auto) auto 78px minmax(0,1fr) 92px auto}
+.tv-display .board-announcement{margin:0;padding:6px 12px}.tv-display .board-announcement strong{font-size:clamp(14px,1.3vw,21px)}.tv-display .board-announcement p{font-size:clamp(13px,1.1vw,18px)}
+.operations-board.board-configuration-preview{position:fixed!important;z-index:1400;inset:52px 0 0;width:100vw;height:calc(100dvh - 52px);box-sizing:border-box;margin:0;padding:8px 16px;display:grid;grid-template-rows:minmax(100px,auto) 78px minmax(0,1fr) 92px;gap:6px;overflow:auto}
+.operations-board.board-configuration-preview.has-board-announcement{grid-template-rows:minmax(100px,auto) 78px minmax(0,1fr) 92px auto}
+.operations-board.board-configuration-preview:has(.board-road-closures){grid-template-rows:minmax(100px,auto) auto 78px minmax(0,1fr) 92px}
+.operations-board.board-configuration-preview.has-board-announcement:has(.board-road-closures){grid-template-rows:minmax(100px,auto) auto 78px minmax(0,1fr) 92px auto}
+.board-configuration-preview .board-exit-tv{display:none}
+.board-attention{color:#ffe099!important;font-weight:700}
+.tv-display .apparatus-wide>header>span{font-size:11px;line-height:1.2}
+@media(max-width:700px){.operations-board.board-configuration-preview,.operations-board.board-configuration-preview.has-board-announcement{display:block;padding-top:20px}.board-configuration-preview .board-summary{height:auto;grid-template-columns:1fr 1fr}.board-configuration-preview .board-grid.redesigned{height:auto;display:flex;flex-direction:column}.board-configuration-preview .rotating-panel{min-height:440px!important}.board-configuration-preview .board-header{flex-wrap:wrap}.board-configuration-preview .board-announcement{margin-top:8px}}

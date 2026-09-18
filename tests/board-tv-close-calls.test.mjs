@@ -12,7 +12,7 @@ const slide = board.split('\n').find(line => line.includes('hidden={rotation !==
 assert.ok(selection && slide);
 // Exercise the actual selection and rendered slide, including real excerpts/empty state.
 const compiled = ts.transpileModule(`
-  export function CloseCalls({ tvMode, news, rotation = 'news' }) {
+  export function CloseCalls({ tvMode, news, rotation = 'news', activeConfiguration = { closeCalls: 'auto' } }) {
     ${selection}
     return (${slide});
   }

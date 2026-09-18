@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "./chief-board-panel.module.css";
 import type { BoardOfficer } from "./board-officers";
 import type { BoardLinksSignal } from './board-links';
+import type { BoardConfigurationSignal } from './board-configuration';
 import { synchronizedSlide } from './board-sync-clock';
 import { useOperationalUpdates } from './use-operational-updates';
 import { nextOperationalDeadline } from './operational-deadlines';
@@ -52,7 +53,7 @@ function floodLabel(category: string) {
   return category.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export default function ChiefBoardPanel({ onBoardLinks, tvMode = false }: { onBoardLinks?: (signal: BoardLinksSignal) => void; tvMode?: boolean }) {
+export default function ChiefBoardPanel({ onBoardLinks, onBoardConfiguration, tvMode = false, manageRequest = 0 }: { onBoardLinks?: (signal: BoardLinksSignal) => void; onBoardConfiguration?: (signal: BoardConfigurationSignal) => void; tvMode?: boolean; manageRequest?: number }) {
   const [items, setItems] = useState<ChiefItem[]>([]);
   const [river, setRiver] = useState<RiverGauge | null>(null);
   const [riverError, setRiverError] = useState("");
@@ -69,19 +70,24 @@ export default function ChiefBoardPanel({ onBoardLinks, tvMode = false }: { onBo
   const reloadRequested = useRef(false);
   const reloadTimer = useRef<number | null>(null);
   const linksRevision = useRef<string | null>(null);
+  const configurationRevision = useRef<string | null>(null);
+  const openedManageRequest = useRef(0);
   const load = useCallback(async function loadSnapshot(): Promise<void> {
     if (readRequest.current) { reloadRequested.current = true; return; }
     const controller = new AbortController();
     readRequest.current = controller;
     const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]);
     try {
-      const linksQuery = linksRevision.current === null ? '' : `&links-revision=${encodeURIComponent(linksRevision.current)}`;
+      const linksQuery = (linksRevision.current === null ? '' : `&links-revision=${encodeURIComponent(linksRevision.current)}`) + (configurationRevision.current === null ? '' : `&configuration-revision=${encodeURIComponent(configurationRevision.current)}`);
       const [boardResponse, riverResponse] = await Promise.all([fetch(onBoardLinks ? `/api/chief-board?include-links=1${linksQuery}` : "/api/chief-board", { cache: 'no-store', signal }), fetch("/api/river-gauge", { signal })]);
-      const result = await boardResponse.json() as { items?: ChiefItem[]; canEdit?: boolean; officers?: BoardOfficer[]; error?: string; boardLinks?: BoardLinksSignal };
+      const result = await boardResponse.json() as { items?: ChiefItem[]; canEdit?: boolean; officers?: BoardOfficer[]; error?: string; boardLinks?: BoardLinksSignal; boardConfiguration?: BoardConfigurationSignal };
       const riverResult = await riverResponse.json() as RiverGauge & { error?: string };
       if (controller.signal.aborted) return;
       setReadFailed(!boardResponse.ok || !riverResponse.ok);
       if (result.boardLinks?.settings) linksRevision.current = result.boardLinks.settings.revision;
+      if (result.boardConfiguration?.saved) configurationRevision.current = result.boardConfiguration.saved.revision;
+      if ([401, 403].includes(boardResponse.status)) configurationRevision.current = null;
+      onBoardConfiguration?.(result.boardConfiguration ?? { canEdit: false, confirmed: false, denied: [401, 403].includes(boardResponse.status) });
       if (boardResponse.status === 401 || boardResponse.status === 403) linksRevision.current = null;
       onBoardLinks?.(result.boardLinks ?? { canEdit: false, confirmed: false, denied: boardResponse.status === 401 || boardResponse.status === 403, checkedAt: new Date().toISOString() });
       if (boardResponse.ok) {
@@ -97,6 +103,7 @@ export default function ChiefBoardPanel({ onBoardLinks, tvMode = false }: { onBo
       if (!controller.signal.aborted) {
         setReadFailed(true);
         onBoardLinks?.({ canEdit: false, confirmed: false, checkedAt: new Date().toISOString() });
+        onBoardConfiguration?.({ canEdit: false, confirmed: false });
         setMessage('Chief Notes could not refresh. Displayed notes may be out of date.');
         setRiverError('Live river level could not refresh. Displayed information is not verified.');
       }
@@ -104,7 +111,8 @@ export default function ChiefBoardPanel({ onBoardLinks, tvMode = false }: { onBo
       if (readRequest.current === controller) readRequest.current = null;
       if (reloadRequested.current && !controller.signal.aborted) { reloadRequested.current = false; reloadTimer.current = window.setTimeout(() => void loadSnapshot(), 0); }
     }
-  }, [onBoardLinks]);
+  }, [onBoardLinks, onBoardConfiguration]);
+  useEffect(() => { if (manageRequest && manageRequest !== openedManageRequest.current && canEdit) { openedManageRequest.current = manageRequest; setDraft({ ...emptyDraft }); setSelectedFiles([]); setMessage(''); } }, [manageRequest, canEdit]);
   useOperationalUpdates({ scope: 'board', sections: ['chief'], refresh: load, fallbackMs: 30_000, nextChangeAt: nextOperationalDeadline(items), readFailed });
   useEffect(() => {
     if (!onBoardLinks) return;
@@ -207,7 +215,7 @@ export default function ChiefBoardPanel({ onBoardLinks, tvMode = false }: { onBo
   return <section className="board-panel chief-board-panel" aria-live="polite">
     <header>
       <div><h2>{riverActive ? "Des Plaines River · Lyons" : "Officer Notes & Events"}</h2><span>{current + 1} of {slideCount}</span></div>
-      {canEdit && <div className={styles.headerActions}>{memos.length > 0 && <button type="button" className={styles.editButton} onClick={() => editMemo(item?.itemType === "note" ? item : memos[0])}>Edit memo</button>}<button type="button" className="chief-add-button" aria-label="Add Officer Note or Event" onClick={() => { setDraft({ ...emptyDraft }); setMessage(""); setSelectedFiles([]); }}>+</button></div>}
+      {canEdit && !tvMode && <div className={styles.headerActions}>{memos.length > 0 && <button type="button" className={styles.editButton} onClick={() => editMemo(item?.itemType === "note" ? item : memos[0])}>Edit memo</button>}<button type="button" className="chief-add-button" aria-label="Add Officer Note or Event" onClick={() => { setDraft({ ...emptyDraft }); setMessage(""); setSelectedFiles([]); }}>+</button></div>}
     </header>
     <div className="chief-board-content">
       {riverActive ? river ? <article className={`river-gauge-slide ${river.category}`}>
@@ -229,7 +237,7 @@ export default function ChiefBoardPanel({ onBoardLinks, tvMode = false }: { onBo
         </div>
         <h3>{item.title}</h3>
         <p>{item.body}</p>
-        {canEdit && item.itemType === "note" && <button type="button" className={styles.itemEditButton} onClick={() => editMemo(item)}>Edit this memo</button>}
+        {canEdit && !tvMode && item.itemType === "note" && <button type="button" className={styles.itemEditButton} onClick={() => editMemo(item)}>Edit this memo</button>}
         {!!item.attachments?.length && <div className="chief-attachments">
           {item.attachments.map((attachment) => attachment.contentType.startsWith("image/")
             ? <a key={attachment.id} href={attachment.url} target="_blank" rel="noreferrer" className="chief-photo"><img src={attachment.url} alt={attachment.filename}/></a>
