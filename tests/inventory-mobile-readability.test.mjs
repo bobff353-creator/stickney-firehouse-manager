@@ -57,3 +57,11 @@ test("inventory keeps desktop labels readable and removes the phone stock-table 
   assert.match(styles, /\.inventory-portal-refresh \.mobile-nav\{grid-template-columns:repeat\(4,1fr\);height:auto;min-height:104px\}/);
   assert.match(styles, /\.inventory-portal-refresh \.inventory-command-back \{ min-height: 44px; \}/);
 });
+
+test("phone setup keeps light-surface headings readable and small-screen labels fit", async () => {
+  const styles = await readFile(new URL("../app/inventory/usability.css", import.meta.url), "utf8");
+  assert.match(styles, /\.inventory-app-shell\.inventory-portal-refresh \.capture-head h2,[\s\S]*?\.inventory-app-shell\.inventory-portal-refresh \.builder-section h3 \{ color:#173a58; \}/);
+  const narrowRule = '@media(max-width:360px){.inventory-app-shell .builder-section-nav b{font-size:13px}}';
+  assert.ok(styles.indexOf(narrowRule) > styles.indexOf('.inventory-app-shell .setup-workspace-tabs b,.inventory-app-shell .builder-section-nav b { font-size:14px; }'));
+  assert.match(styles, /\.inventory-app-shell \.inventory-status-strip \{ grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+});

@@ -8,6 +8,7 @@ import { WorkspaceViewMemory } from "./workspace-view-state";
 import { confirmLeavingWork } from "./use-unsaved-work";
 import { RequiredConfirmation } from './required-confirmation';
 import InventoryVinProfile from "./inventory-vin-profile";
+import InventoryCapture from './inventory-capture';
 import { usePermissions, refreshPermissions } from "./use-permissions";
 import {
   FormEvent,
@@ -1063,7 +1064,7 @@ function DigitalTwinBuilder({
   const [viewKey, setViewKey] = useState("driver");
   const [doorState, setDoorState] = useState("closed");
   const [viewLevel, setViewLevel] = useState("exterior");
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoDraft, setPhotoDraft] = useState<{ file: File; preview: string; apparatusId: string } | null>(null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [hotspotPhotoId, setHotspotPhotoId] = useState("");
@@ -1075,16 +1076,21 @@ function DigitalTwinBuilder({
     yBasisPoints: number;
   } | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
-  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [builderStep, setBuilderStep] = useState<"identity" | "compartments" | "photos" | "hotspots">("identity");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraVideoRef = useRef<HTMLVideoElement>(null);
+  const photoFormRef = useRef<HTMLFormElement>(null);
+  useEffect(() => () => { if (photoDraft) URL.revokeObjectURL(photoDraft.preview); }, [photoDraft]);
 
   const unlinkedUnits = suiteApparatus.filter((unit) => (
     !matchingTwin(unit, data.apparatus)
   ));
   const effectiveSourceUnitId = sourceUnitId || unlinkedUnits[0]?.id || "";
   const effectiveApparatusId = apparatusId || data.apparatus[0]?.id || "";
+  const photoFile = photoDraft?.apparatusId === effectiveApparatusId ? photoDraft.file : null;
+  const photoPreview = photoFile ? photoDraft?.preview : '';
+  function setPhotoFile(file: File | null) {
+    setPhotoDraft(file ? { file, preview: URL.createObjectURL(file), apparatusId: effectiveApparatusId } : null);
+  }
   const selectedApparatus = data.apparatus.find((item) => (
     item.id === effectiveApparatusId
   ));
@@ -1134,6 +1140,7 @@ function DigitalTwinBuilder({
       const apparatus = record(result.apparatus);
       const id = text(apparatus?.id, 80) || source.id;
       setApparatusId(id);
+      setPhotoFile(null); setCameraOpen(false); setPhotoCompartmentId('');
       setSourceUnitId("");
       await onReload(id);
       notify("Apparatus added to the department Inventory.");
@@ -1321,18 +1328,7 @@ function DigitalTwinBuilder({
     }
   }
 
-  useEffect(() => {
-    if (cameraVideoRef.current && cameraStream) {
-      cameraVideoRef.current.srcObject = cameraStream;
-    }
-    return () => {
-      cameraStream?.getTracks().forEach((track) => track.stop());
-    };
-  }, [cameraStream]);
-
   function closeCamera() {
-    cameraStream?.getTracks().forEach((track) => track.stop());
-    setCameraStream(null);
     setCameraOpen(false);
   }
 
@@ -1342,61 +1338,15 @@ function DigitalTwinBuilder({
       window.document.getElementById("apparatus-name")?.focus();
       return;
     }
+    if (photoFile && !window.confirm('Replace the photo that has not been saved yet?')) return;
+    setPhotoFile(null);
     if (nextViewKey) setViewKey(nextViewKey);
     if (nextDoorState) setDoorState(nextDoorState);
     if (nextCompartmentId !== undefined) setPhotoCompartmentId(nextCompartmentId);
+    else if (nextViewKey) setPhotoCompartmentId('');
+    if (nextViewKey) setViewLevel(nextCompartmentId ? 'interior' : 'exterior');
     setError("");
-    setPhotoFile(null);
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setError("Live camera is not supported in this browser. Use Choose existing photo instead.");
-      return;
-    }
     setCameraOpen(true);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
-        audio: false,
-      });
-      setCameraStream(stream);
-    } catch {
-      setCameraOpen(false);
-      setError("Camera access was not allowed. Enable camera permission or use Choose existing photo.");
-    }
-  }
-
-  async function captureCameraPhoto() {
-    const video = cameraVideoRef.current;
-    if (!video || !video.videoWidth || !video.videoHeight) {
-      setError("The camera is still starting. Wait for the preview, then try again.");
-      return;
-    }
-    const canvas = window.document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const context = canvas.getContext("2d");
-    if (!context) {
-      setError("The camera image could not be captured.");
-      return;
-    }
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob | null>((resolve) => (
-      canvas.toBlob(resolve, "image/jpeg", 0.92)
-    ));
-    if (!blob) {
-      setError("The camera image could not be captured.");
-      return;
-    }
-    setPhotoFile(new File(
-      [blob],
-      `${viewKey}-${doorState}-${Date.now()}.jpg`,
-      { type: "image/jpeg" },
-    ));
-    closeCamera();
-    notify("Photo captured. Press Save photo for review.");
   }
 
   async function approvePhoto(photoId: string) {
@@ -1510,7 +1460,9 @@ function DigitalTwinBuilder({
             <select
               value={effectiveApparatusId}
               onChange={(event) => {
+                if (photoFile && !window.confirm('Discard the unsaved photo and switch apparatus?')) return;
                 setApparatusId(event.target.value);
+                setPhotoFile(null); setCameraOpen(false); setPhotoCompartmentId('');
                 setHotspotCompartmentId("");
                 setHotspotPhotoId("");
                 setPendingHotspot(null);
@@ -1712,7 +1664,12 @@ function DigitalTwinBuilder({
             );
           })}
         </div>
-        <form className="builder-form photo-upload-form" onSubmit={uploadPhoto}>
+        <form ref={photoFormRef} className="builder-form photo-upload-form" onSubmit={uploadPhoto}>
+          {photoFile && <div className="apparatus-photo-draft" role="status">
+            {photoPreview && <Image src={photoPreview} alt="Unsaved apparatus photo preview" width={480} height={270} unoptimized />}
+            <strong>Photo ready · not saved yet</strong><span>{titleCase(viewKey)} · {titleCase(doorState)}{photoCompartmentId ? ` · ${compartments.find(item => item.id === photoCompartmentId)?.label || 'Compartment'}` : ''}</span>
+            <button type="button" className="secondary" onClick={() => { setPhotoFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}>Discard photo</button>
+          </div>}
           <label>
             View
             <select value={viewKey} onChange={(event) => setViewKey(event.target.value)}>
@@ -1913,32 +1870,11 @@ function DigitalTwinBuilder({
           {busy === "hotspot" ? "Saving hotspot..." : "Save hotspot"}
         </button>
       </section>
-      {cameraOpen ? (
-        <div className="camera-overlay" role="dialog" aria-modal="true" aria-label="Rear camera">
-          <div className="camera-panel">
-            <header>
-              <div>
-                <span className="eyebrow">LIVE REAR CAMERA</span>
-                <h3>{titleCase(viewKey)} · {titleCase(doorState)}</h3>
-              </div>
-              <button type="button" onClick={closeCamera}>Cancel</button>
-            </header>
-            {cameraStream ? (
-              <video ref={cameraVideoRef} autoPlay playsInline muted />
-            ) : (
-              <div className="camera-starting" role="status">Starting camera…</div>
-            )}
-            <button
-              type="button"
-              className="primary camera-shutter"
-              disabled={!cameraStream}
-              onClick={() => void captureCameraPhoto()}
-            >
-              Capture photo
-            </button>
-          </div>
-        </div>
-      ) : null}
+      {cameraOpen ? <InventoryCapture title={`${titleCase(viewKey)} · ${titleCase(doorState)} photo`} mode="photo" onClose={closeCamera} onPhoto={file => {
+        setPhotoFile(file); setBuilderStep('photos'); closeCamera();
+        notify('Photo captured. Review the preview, then select Save photo for review.');
+        requestAnimationFrame(() => photoFormRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+      }} /> : null}
     </div>
   );
 }

@@ -1,0 +1,15 @@
+.inventory-capture-overlay{position:fixed;inset:0;z-index:3000;display:grid;place-items:center;padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom));background:#07161de8;box-sizing:border-box}
+.inventory-capture-dialog{box-sizing:border-box;display:grid;gap:12px;width:min(680px,100%);max-height:100%;overflow:auto;overscroll-behavior:contain;border:1px solid #6f8793;border-radius:16px;padding:20px;background:#102b3a;color:#f4f8fb;color-scheme:dark;font:16px/1.5 Arial,sans-serif}
+.inventory-capture-dialog header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.inventory-capture-dialog h2{font:700 20px/1.3 Arial,sans-serif;margin:0;color:#fff}
+.inventory-capture-dialog p{font-size:15px;line-height:1.5;margin:0;color:#e5eff5}
+.inventory-capture-dialog small{font-size:13px;color:#c4d9e4}
+.inventory-capture-dialog video{display:block;width:100%;min-height:100px;max-height:32dvh;aspect-ratio:16/9;object-fit:contain;background:#000;border-radius:8px}
+.inventory-capture-dialog :is(button,.capture-alternatives label){box-sizing:border-box;display:grid;place-items:center;position:relative;min-width:0;min-height:46px;padding:10px 12px;border:1px solid #8ca9b9;border-radius:8px;background:#244c62;color:#fff;font:700 14px/1.4 Arial,sans-serif;white-space:normal;text-align:center;cursor:pointer}
+.inventory-capture-dialog .capture-primary{background:#d7f0f7;color:#092b3b;font-size:16px}
+.inventory-capture-dialog button:disabled{opacity:.5;cursor:wait}
+.capture-alternatives{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.capture-alternatives input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.inventory-capture-dialog :is(button:focus-visible,label:focus-within){outline:3px solid #ffcd65;outline-offset:2px}
+.inventory-capture-dialog .capture-error{background:#ffe6d8;color:#702512;padding:10px;border-radius:8px}
+@media(max-width:600px){.inventory-capture-dialog{padding:14px}.inventory-capture-dialog header{align-items:start}.inventory-capture-dialog header button{max-width:120px;flex-shrink:0}.inventory-capture-dialog h2{font-size:18px}}

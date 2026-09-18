@@ -1,6 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import InventoryCapture from './inventory-capture';
+import { scannedVin } from './inventory-camera';
 
 type ApparatusVehicleProfile = {
   id: string;
@@ -58,9 +60,6 @@ export default function InventoryVinProfile({ apparatus, onReload, notify }: {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
-  const [scannerMessage, setScannerMessage] = useState("");
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const controlsRef = useRef<{ stop: () => void } | null>(null);
 
   useEffect(() => {
     setVin(apparatus.vin || "");
@@ -69,49 +68,10 @@ export default function InventoryVinProfile({ apparatus, onReload, notify }: {
     setError("");
   }, [apparatus.id, apparatus.vin, apparatus.vin_decoded_json]);
 
-  useEffect(() => {
-    if (!scannerOpen || !videoRef.current) return;
-    let cancelled = false;
-    setScannerMessage("Point the rear camera at the VIN barcode on the dashboard, door label, or apparatus record.");
-    void import("@zxing/browser").then(async ({ BrowserMultiFormatReader }) => {
-      if (cancelled || !videoRef.current) return;
-      const reader = new BrowserMultiFormatReader();
-      try {
-        const controls = await reader.decodeFromConstraints(
-          { audio: false, video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } } },
-          videoRef.current,
-          (result) => {
-            if (!result) return;
-            const scanned = normalizeVin(result.getText());
-            if (scanned.length !== 17) {
-              setScannerMessage(`Scanner read ${scanned.length || "no"} VIN characters. Hold steady and try again.`);
-              return;
-            }
-            setVin(scanned);
-            controlsRef.current?.stop();
-            setScannerOpen(false);
-            setScannerMessage("");
-            notify("VIN scanned. Review it, then select Decode VIN.");
-          },
-        );
-        if (cancelled) controls.stop(); else controlsRef.current = controls;
-      } catch (caught) {
-        setScannerMessage(caught instanceof Error ? `Camera could not start: ${caught.message}` : "Camera could not start. Check camera permission and try again.");
-      }
-    });
-    return () => { cancelled = true; controlsRef.current?.stop(); controlsRef.current = null; };
-  }, [scannerOpen, notify]);
-
-  function closeScanner() {
-    controlsRef.current?.stop();
-    controlsRef.current = null;
-    setScannerOpen(false);
-  }
-
   async function decodeVin() {
     setBusy("decode"); setError("");
     try {
-      const response = await fetch("/api/vin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ vin }) });
+      const response = await fetch("/api/vin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ vin }), signal: AbortSignal.timeout(20000) });
       const result = await response.json() as { decoded?: DecodedVin; error?: string };
       if (!response.ok || !result.decoded) throw new Error(result.error || "The VIN could not be decoded.");
       setVin(result.decoded.vin);
@@ -153,11 +113,11 @@ export default function InventoryVinProfile({ apparatus, onReload, notify }: {
     <p className="vin-truth-note"><strong>Official VIN facts:</strong> NHTSA can identify the chassis, engine, transmission, weight class, fuel and manufacturing data. <strong>Department verified:</strong> oil, tire, maintenance, manual, catalog and ordering details below must be confirmed from the apparatus label, manual or vendor.</p>
     {error ? <div className="vin-error" role="alert">{error}</div> : null}
     <div className="vin-entry-row">
-      <label>17-character VIN<input value={vin} onChange={(event) => setVin(normalizeVin(event.target.value))} inputMode="text" autoCapitalize="characters" autoComplete="off" placeholder="Scan or type VIN" maxLength={17} /><small>{vin.length}/17 characters</small></label>
-      <button type="button" className="secondary" onClick={() => setScannerOpen(true)}>Scan VIN</button>
-      <button type="button" className="primary" disabled={busy === "decode" || vin.length !== 17} onClick={() => void decodeVin()}>{busy === "decode" ? "Decoding…" : "Decode VIN"}</button>
+      <label>17-character VIN<input value={vin} disabled={Boolean(busy)} onChange={(event) => { setVin(normalizeVin(event.target.value)); setDecoded(null); setError(''); }} inputMode="text" autoCapitalize="characters" autoCorrect="off" spellCheck={false} autoComplete="off" placeholder="Scan or type VIN" maxLength={17} /><small>{vin.length}/17 characters · no I, O or Q</small></label>
+      <button type="button" className="secondary" disabled={Boolean(busy)} onClick={() => setScannerOpen(true)}>Scan VIN</button>
+      <button type="button" className="primary" disabled={Boolean(busy) || !scannedVin(vin)} onClick={() => void decodeVin()}>{busy === "decode" ? "Decoding…" : "Decode VIN"}</button>
     </div>
-    {scannerOpen ? <div className="vin-scanner" role="dialog" aria-modal="true" aria-label="Scan apparatus VIN"><video ref={videoRef} autoPlay muted playsInline /><p>{scannerMessage}</p><button type="button" onClick={closeScanner}>Cancel scanner</button></div> : null}
+    {scannerOpen ? <InventoryCapture title="Scan apparatus VIN" mode="vin" onClose={() => setScannerOpen(false)} onCode={code => { setVin(code); setDecoded(null); setError(''); setScannerOpen(false); notify('VIN scanned. Review it, then select Decode VIN.'); }} /> : null}
     {decoded ? <div className="vin-results">
       <header><div><strong>{decoded.modelYear} {decoded.make || decoded.manufacturer} {decoded.model}</strong><small>Source: <a href={decoded.sourceUrl || "https://vpic.nhtsa.dot.gov/decoder/"} target="_blank" rel="noreferrer">NHTSA vPIC</a>. Missing values mean not reported, not necessarily absent.</small></div><button type="button" className="primary" disabled={busy === "save-vin"} onClick={() => void saveVin()}>{busy === "save-vin" ? "Saving…" : "Save decoded specifications"}</button></header>
       <dl>{decodedFields.filter(([key]) => stringValue(decoded[key])).map(([key, label]) => <div key={String(key)}><dt>{label}</dt><dd>{stringValue(decoded[key])}{key === "displacementLiters" ? " L" : ""}</dd></div>)}</dl>

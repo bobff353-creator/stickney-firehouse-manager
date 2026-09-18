@@ -14,7 +14,7 @@ import { useWorkspaceViewState } from "./workspace-view-state";
 import { confirmLeavingWork, useUnsavedWork } from "./use-unsaved-work";
 import InventoryAirSystems from "./inventory-air-systems";
 import { airCheckLines } from "./inventory-air-checks";
-import type { IScannerControls } from "@zxing/browser";
+import InventoryCapture from './inventory-capture';
 import { createConditionalJsonReader } from './conditional-json-reader';
 
 type OperationsView = "due" | "inventory" | "check" | "equipment" | "air" | "reports" | "readiness" | "service" | "stock" | "builder" | "legacy_check" | "legacy_service";
@@ -388,7 +388,6 @@ export default function InventoryOperations({
   const packetReader = useRef(createConditionalJsonReader());
   const [accessRequired, setAccessRequired] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
-  const [scannerMessage, setScannerMessage] = useState("");
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [repairNoticeAssignees, setRepairNoticeAssignees] = useState<string[]>([]);
   const [deficiencyAssignees, setDeficiencyAssignees] = useState<string[]>([]);
@@ -444,8 +443,6 @@ export default function InventoryOperations({
     equipmentEditorRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
     return () => { document.body.style.overflow = previousOverflow; previousFocus?.focus({preventScroll:true}); };
   }, [editingEquipment]);
-  const scannerVideoRef = useRef<HTMLVideoElement>(null);
-  const scannerControlsRef = useRef<IScannerControls | null>(null);
   const requestedCheckOpenedRef = useRef(false);
   const lastScanRequestRef = useRef(0);
 
@@ -457,10 +454,7 @@ export default function InventoryOperations({
   }, [scanRequest]);
 
   const closeScanner = useCallback(() => {
-    scannerControlsRef.current?.stop();
-    scannerControlsRef.current = null;
     setScannerOpen(false);
-    setScannerMessage("");
   }, []);
 
   const fillEquipmentForm = useCallback((scan: ScannedEquipment) => {
@@ -484,55 +478,6 @@ export default function InventoryOperations({
     fill("serialNumber", scan.serialNumber);
     fill("barcode", scan.barcode);
   }, [scannerTarget, setEquipmentSearch]);
-
-  useEffect(() => {
-    if (!scannerOpen || !scannerVideoRef.current) return;
-    let cancelled = false;
-    setScannerMessage("Point the rear camera at the equipment barcode.");
-    void import("@zxing/browser").then(async ({ BrowserMultiFormatReader }) => {
-      if (cancelled || !scannerVideoRef.current) return;
-      const reader = new BrowserMultiFormatReader();
-      try {
-        const controls = await reader.decodeFromConstraints(
-          {
-            audio: false,
-            video: {
-              facingMode: { ideal: "environment" },
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-            },
-          },
-          scannerVideoRef.current,
-          (result) => {
-            if (!result) return;
-            fillEquipmentForm(parseScannedEquipment(result.getText()));
-            setMessage(scannerTarget === "search"
-              ? "Barcode scanned. Matching department equipment is shown below."
-              : scannerTarget === "edit"
-              ? "Barcode scanned. Review the item, then save changes."
-              : "Barcode scanned. Review the filled equipment fields, then add the equipment.");
-            closeScanner();
-          },
-        );
-        if (cancelled) {
-          controls.stop();
-        } else {
-          scannerControlsRef.current = controls;
-        }
-      } catch (caught) {
-        setScannerMessage(
-          caught instanceof Error
-            ? `Camera could not start: ${caught.message}`
-            : "Camera could not start. Check camera permission and try again.",
-        );
-      }
-    });
-    return () => {
-      cancelled = true;
-      scannerControlsRef.current?.stop();
-      scannerControlsRef.current = null;
-    };
-  }, [closeScanner, fillEquipmentForm, scannerOpen, scannerTarget]);
 
   const load = useCallback(async ({ background = false, fresh = false }: { background?: boolean; fresh?: boolean } = {}) => {
     if (background && itemSavePending.current) return false;
@@ -1949,21 +1894,11 @@ export default function InventoryOperations({
           </form>
         </div>
       ) : null}
-      {scannerOpen ? (
-        <div className="camera-overlay" role="dialog" aria-modal="true" aria-label="Equipment barcode scanner">
-          <div className="camera-panel barcode-scanner-panel">
-            <header>
-              <div><span>LIVE BARCODE SCANNER</span><h3>Scan real equipment</h3></div>
-              <button type="button" onClick={closeScanner}>Cancel</button>
-            </header>
-            <div className="barcode-scanner-view">
-              <video ref={scannerVideoRef} autoPlay playsInline muted />
-              <i aria-hidden="true" />
-            </div>
-            <p role="status">{scannerMessage}</p>
-          </div>
-        </div>
-      ) : null}
+      {scannerOpen ? <InventoryCapture title="Equipment barcode scanner" mode="equipment" onClose={closeScanner} onCode={code => {
+        fillEquipmentForm(parseScannedEquipment(code));
+        setMessage(scannerTarget === 'search' ? 'Barcode scanned. Matching department equipment is shown below.' : 'Barcode scanned. Review the filled equipment fields, then save.');
+        closeScanner();
+      }} /> : null}
     </div>
   );
 }
