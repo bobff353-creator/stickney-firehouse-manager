@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
   async headers() {
     return [
       {
@@ -18,6 +19,15 @@ const nextConfig: NextConfig = {
           { key: "Cache-Control", value: "private, no-store, max-age=0" },
           { key: "Pragma", value: "no-cache" },
           { key: "Vary", value: "Cookie" },
+        ],
+      },
+      {
+        // Uploaded files are untrusted, including legacy rows. Keep any script
+        // in a directly opened attachment away from the portal's origin/session.
+        source: "/api/:path(field-preplans/photos|field-preplans/assets|safety-inspections/attachments|chief-board/attachments|employee-photo|digital-twin/media|operations/evidence|operations/documents)/:id",
+        headers: [
+          { key: "Content-Security-Policy", value: "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
         ],
       },
       {

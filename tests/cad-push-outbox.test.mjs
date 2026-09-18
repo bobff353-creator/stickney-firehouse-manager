@@ -13,10 +13,10 @@ function loadTs(path, mocks={}) {
   const compiledModule={exports:{}};
   const require=createRequire(import.meta.url);
   vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,
-    {module:compiledModule,exports:compiledModule.exports,require:name=>mocks[name]??require(name),process,Buffer,console,AbortSignal,Response,Request,TextEncoder,TextDecoder});
+    {module:compiledModule,exports:compiledModule.exports,require:name=>mocks[name]??require(name),process,Buffer,console,AbortSignal,Response,Request,URL,TextEncoder,TextDecoder});
   return compiledModule.exports;
 }
-const cad=loadTs('../app/cad-push.ts');
+const cad=loadTs('../app/cad-push.ts',{'./push-subscription-security':loadTs('../app/push-subscription-security.ts')});
 const {drainCadPush}=loadTs('../app/cad-push-delivery.ts',{'./cad-push':cad});
 
 test('durable CAD queue: actual migration and delivery worker against local PostgreSQL',async t=>{

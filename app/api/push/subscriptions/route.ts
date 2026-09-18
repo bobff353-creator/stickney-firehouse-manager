@@ -5,6 +5,7 @@ import {
   verifyPushRequest,
 } from "../../../lib/inventory-session";
 import { webPushPublicConfig } from "../../../cad-push";
+import { trustedPushEndpoint, validPushKeys } from "../../../push-subscription-security";
 
 type SubscriptionBody = {
   endpoint?: unknown;
@@ -34,11 +35,12 @@ export async function POST(request: Request) {
   if (!config.configured) {
     return Response.json({ error: "Portal phone alerts are not configured yet." }, { status: 503 });
   }
-  const body = await request.json() as SubscriptionBody;
+  const body = await request.json().catch(() => null) as SubscriptionBody | null;
+  if (!body || typeof body !== "object") return Response.json({ error: "Invalid push subscription." }, { status: 400 });
   const endpoint = text(body.endpoint);
   const p256dh = text(body.keys?.p256dh, 2048);
   const auth = text(body.keys?.auth, 2048);
-  if (!endpoint.startsWith("https://") || !p256dh || !auth) {
+  if (!trustedPushEndpoint(endpoint) || !validPushKeys(p256dh, auth)) {
     return Response.json({ error: "The phone did not provide a valid push subscription." }, { status: 400 });
   }
   const db = await ensureDatabase();

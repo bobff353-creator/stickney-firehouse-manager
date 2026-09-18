@@ -1,4 +1,5 @@
 import webpush from "web-push";
+import { assertTrustedPushSubscription } from "./push-subscription-security";
 
 type PushDatabase = {
   prepare(sql: string): {
@@ -69,6 +70,7 @@ export function webPushPublicConfig() {
 }
 
 export async function deliverCadPush(subscription: { endpoint: string; p256dh: string; auth: string }, payload: object, ttl: number) {
+  assertTrustedPushSubscription(subscription);
   const config = runtimeConfig();
   if (!config.configured) throw new Error("Push delivery is not configured");
   webpush.setVapidDetails(config.subject, config.publicKey, config.privateKey);
@@ -78,6 +80,7 @@ export async function deliverCadPush(subscription: { endpoint: string; p256dh: s
 
 // Non-emergency reminders have their own queue/worker and normal priority.
 export async function deliverSchedulerPush(subscription: { endpoint: string; p256dh: string; auth: string }, payload: object, ttl: number) {
+  assertTrustedPushSubscription(subscription);
   const config = runtimeConfig();
   if (!config.configured) throw new Error("Push delivery is not configured");
   webpush.setVapidDetails(config.subject, config.publicKey, config.privateKey);
@@ -104,6 +107,7 @@ export async function sendCadPushNotifications(
 
     await Promise.all(rows.results.map(async (subscription) => {
       try {
+        assertTrustedPushSubscription(subscription);
         await webpush.sendNotification(
           {
             endpoint: subscription.endpoint,

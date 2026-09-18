@@ -7,6 +7,7 @@ import { derivePortalPassword } from "../../../lib/portal-pin-password";
 import { getSupabaseAdminClient } from "../../../supabase-admin";
 import { getPublicSupabaseConfig } from "../../../supabase-config";
 import { getSupabaseSystemClient } from "../../../supabase-system";
+import { sameOriginAuthRequest } from "../../../request-security";
 
 const pinCookie = "__Secure-firehouse-pin";
 const unlockSeconds = 30 * 60;
@@ -30,6 +31,7 @@ function safeMatch(expected: string, supplied: string) {
 }
 
 export async function POST(request: Request) {
+  if (!sameOriginAuthRequest(request)) return Response.json({ error: "Open activation from the department portal." }, { status: 403 });
   const payload = await request.json().catch(() => ({})) as {
     email?: unknown;
     employeeNumber?: unknown;

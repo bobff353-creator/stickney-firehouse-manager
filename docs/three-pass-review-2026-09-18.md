@@ -1,5 +1,7 @@
 # Three-pass app review — September 18, 2026
 
+Release follow-up: this review's code was committed and pushed as `8fbc73d6b65be2ec5acced64461f5aad09e4f417` on September 18. Vercel reported READY and the main production alias was verified. The local-only statements below describe the original review handoff; the subsequent security review is documented separately.
+
 ## Scope and safeguards
 
 Reviewed the production-linked source at `D:\stickney-scheduler-member-release`, branch `codex/scheduler-member-release`, remote `bobff353-creator/stickney-firehouse-manager`, Vercel project `prj_RTtTvD39FwyEGUovkPg8wxrdJCtF`. Read the README, existing usability audit, member walkthrough and fixture guidance. No applicable AGENTS.md was present.

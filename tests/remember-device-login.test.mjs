@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import test from 'node:test';
+import {sameOriginAuthRequest} from '../app/request-security.ts';
 const read=p=>readFileSync(new URL(p,import.meta.url),'utf8');
 const helper=ts.transpileModule(read('../app/remember-device.ts'),{compilerOptions:{module:ts.ModuleKind.ESNext}}).outputText;
 const remember=await import(`data:text/javascript;base64,${Buffer.from(helper).toString('base64')}`);
@@ -23,11 +24,12 @@ function harness({verified=true,rpcError=null,loginAllowed=true}={}) {
     '../../../supabase-system':{getSupabaseSystemClient:()=>{}},
     '../../../remember-device':remember,
     '../../../login-response':loginResponse,
+    '../../../request-security':{sameOriginAuthRequest},
   };
   const exports={};vm.runInNewContext(compiled,{exports,Response,process:{env:{PAYROLL_DEPARTMENT_ID:'verified-department',FIREHOUSE_DATABASE_SECRET:'fixture-only',PORTAL_PIN_PASSWORD_PEPPER:'fixture-only'}},require:n=>{assert.ok(n in modules,n);return modules[n];}});
   return {post:exports.POST,calls,cookies};
 }
-const req=rememberDevice=>new Request('https://portal.test/api/auth/login',{method:'POST',body:JSON.stringify({email:'member@example.test',pin:'1234',rememberDevice})});
+const req=rememberDevice=>new Request('https://portal.test/api/auth/login',{method:'POST',headers:{origin:'https://portal.test'},body:JSON.stringify({email:'member@example.test',pin:'1234',rememberDevice})});
 test('login requires explicit true and returns only secure cookies after successful verification',async()=>{
   for(const choice of [undefined,false,'true',true]) {
     const h=harness(),response=await h.post(req(choice));assert.equal(response.status,200);

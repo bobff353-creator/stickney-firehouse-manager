@@ -7,6 +7,7 @@ import { getPublicSupabaseConfig } from "../../../supabase-config";
 import { getSupabaseSystemClient } from "../../../supabase-system";
 import { rememberedCookieSeconds } from "../../../remember-device";
 import { loginServiceUnavailable } from "../../../login-response";
+import { sameOriginAuthRequest } from "../../../request-security";
 
 const pinCookie = "__Secure-firehouse-pin";
 const unlockSeconds = 30 * 60;
@@ -38,6 +39,7 @@ function cleanSecret(value: string | undefined) {
 }
 
 export async function POST(request: Request) {
+  if (!sameOriginAuthRequest(request)) return Response.json({ error: "Open sign-in from the department portal." }, { status: 403 });
   const payload = await request.json().catch(() => ({})) as { email?: unknown; pin?: unknown; rememberDevice?: unknown };
   const rememberDevice = payload.rememberDevice === true;
   const email = String(payload.email ?? "").trim().toLowerCase();

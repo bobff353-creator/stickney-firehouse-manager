@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import ts from 'typescript';
 import {pinLoginError,loginServiceUnavailable} from '../app/login-response.ts';
+import {sameOriginAuthRequest} from '../app/request-security.ts';
 
 test('HTML/JSON server errors never blame the PIN or expose internal credentials',()=>{
  for(const status of [500,502,503,504])for(const payload of [{},{error:'Invalid database credential SECRET'},null,'<html>Error</html>']){
@@ -27,9 +28,10 @@ test('a database verification failure returns 503 without invoking Auth or faile
   '../../../../db/postgres-adapter':{createPostgresD1Adapter(){return{prepare(sql){calls.push(sql);return{bind(){return{first(){throw Error('Invalid portal database credential SECRET');}};}};}};}},
   '../../../lib/portal-pin-password':{},'../../../supabase-config':{},'../../../supabase-system':{},'../../../remember-device':{},
   '../../../login-response':{loginServiceUnavailable},
+  '../../../request-security':{sameOriginAuthRequest},
  };
  runInNewContext(output,{exports,require(name){assert.ok(name in deps,name);return deps[name];},Response,console:{error(...args){logs.push(args);}},process:{env:{PAYROLL_DEPARTMENT_ID:'test-department',FIREHOUSE_DATABASE_SECRET:'server-secret-fixture',PORTAL_PIN_PASSWORD_PEPPER:'fixture-pepper'}}});
- const response=await exports.POST(new Request('https://preview.example.invalid/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:'member@example.invalid',pin:'1234'})}));
+ const response=await exports.POST(new Request('https://preview.example.invalid/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json',origin:'https://preview.example.invalid'},body:JSON.stringify({email:'member@example.invalid',pin:'1234'})}));
  assert.equal(response.status,503);assert.equal((await response.json()).error,loginServiceUnavailable);
  assert.equal(calls.length,1);assert.match(calls[0],/verify_portal_login/);
  assert.equal(response.headers.get('cache-control'),'private, no-store');
