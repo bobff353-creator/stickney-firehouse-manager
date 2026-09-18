@@ -15,6 +15,18 @@
 .inventory-app-shell .builder-section :is(label,legend,p) { font-size:14px; line-height:1.5; }
 .inventory-app-shell .builder-section :is(input,select,textarea) { box-sizing:border-box; min-width:0; max-width:100%; font-size:16px; min-height:44px; }
 .inventory-app-shell .builder-section button { font-size:14px; min-height:44px; white-space:normal; }
+/* This standalone picker is outside .builder-form; never inherit dark-mode text
+   colors or a transparent native-select background onto the white setup card. */
+.inventory-app-shell.inventory-portal-refresh .builder-apparatus-picker {
+ display:grid; gap:8px; min-width:0; padding:12px; border:1px solid #b8cbd8;
+ border-radius:8px; background:#edf5f9; color:#173a58; font-size:14px; font-weight:700; color-scheme:light;
+}
+.inventory-app-shell.inventory-portal-refresh .builder-apparatus-picker select {
+ width:100%; min-width:0; min-height:48px; padding:10px 12px; border:1px solid #9aafbf;
+ border-radius:6px; background:#fff; color:#173a58; color-scheme:light; font-size:16px; line-height:1.4;
+}
+.inventory-app-shell.inventory-portal-refresh .builder-apparatus-picker option { background:#fff; color:#173a58; }
+.inventory-app-shell.inventory-portal-refresh .builder-apparatus-picker select:focus-visible { outline:3px solid #007f94; outline-offset:2px; }
 .inventory-app-shell .required-photo-grid :is(b,span,small) { font-size:12px; line-height:1.5; }
 .inventory-app-shell.inventory-portal-refresh .check-item-copy>small { color:#4b6370; font-size:12px; line-height:1.5; }
 .inventory-app-shell.inventory-portal-refresh .report-metadata span { font-size:14px; line-height:1.5; }

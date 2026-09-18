@@ -1455,7 +1455,7 @@ function DigitalTwinBuilder({
           <p>Only real department apparatus entered here will be displayed. Operational status always comes from Fleet.</p>
         </div>
         {data.apparatus.length > 0 ? (
-          <label>
+          <label className="builder-apparatus-picker">
             Working apparatus
             <select
               value={effectiveApparatusId}

@@ -65,3 +65,15 @@ test("phone setup keeps light-surface headings readable and small-screen labels 
   assert.ok(styles.indexOf(narrowRule) > styles.indexOf('.inventory-app-shell .setup-workspace-tabs b,.inventory-app-shell .builder-section-nav b { font-size:14px; }'));
   assert.match(styles, /\.inventory-app-shell \.inventory-status-strip \{ grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
 });
+
+test("working apparatus picker has explicit readable colors instead of dark-mode inheritance", async () => {
+  const [styles, source] = await Promise.all([
+    readFile(new URL("../app/inventory/usability.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/inventory-live.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(source, /<label className="builder-apparatus-picker">\s*Working apparatus/);
+  assert.match(styles, /\.inventory-app-shell\.inventory-portal-refresh \.builder-apparatus-picker \{[^}]*display:grid;[^}]*background:#edf5f9; color:#173a58;[^}]*color-scheme:light;/);
+  assert.match(styles, /\.builder-apparatus-picker select \{[^}]*min-height:48px;[^}]*background:#fff; color:#173a58; color-scheme:light; font-size:16px;/);
+  assert.match(styles, /\.builder-apparatus-picker option \{ background:#fff; color:#173a58; \}/);
+  assert.match(styles, /\.builder-apparatus-picker select:focus-visible \{ outline:3px/);
+});
