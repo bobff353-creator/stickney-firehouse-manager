@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const source = readFileSync('app/respond.tsx', 'utf8');
 const css = readFileSync('app/globals.css', 'utf8');
+const monitorCss = readFileSync('app/respond-monitor.css', 'utf8');
 const active = source.slice(source.indexOf('className={`respond-page respond-active-call'));
 
 test('active Respond removes duplicate shortcuts and routine status but retains real error alerts', () => {
@@ -28,12 +29,14 @@ test('box card keeps its title and number with a clear path to full instructions
   assert.doesNotMatch(box, /accessNotes/);
 });
 
-test('Monitor View uses scrollable content flow instead of clipping a fixed number of rows', () => {
-  assert.match(css, /\.respond-active-call\.monitor-view\{[^}]*display:flex;flex-direction:column;[^}]*height:100dvh;overflow-y:auto/);
-  assert.match(css, /\.respond-active-call\.monitor-view>\*\{flex-shrink:0\}/);
-  assert.match(css, /\.respond-active-call\.monitor-view>\.respond-grid\{[^}]*min-height:280px;overflow:visible/);
+test('station Monitor View fits the viewport while long notes remain independently readable', () => {
+  assert.match(monitorCss, /@media \(min-width: 900px\) and \(min-height: 500px\)/);
+  assert.match(monitorCss, /\.respond-page\.respond-active-call\.monitor-view \{[^}]*height: 100dvh; overflow: hidden/);
+  assert.match(monitorCss, /> \.respond-grid \{ flex: 1 1 0;[^}]*grid-template-rows: minmax\(0, 1fr\)/);
+  assert.match(monitorCss, /\.respond-context-body \{ min-height: 0; max-height: none/);
+  assert.match(css, /\.respond-page\.monitor-view \.respond-intel-list,\.respond-page\.monitor-view \.respond-context-body\{overflow:auto\}/);
   assert.match(css, /\.respond-active-call\.monitor-view \.respond-primary-media img\{[^}]*object-fit:contain/);
-  assert.match(css, /@media\(max-height:500px\)\{\.respond-active-call\.monitor-view>\.respond-callbar\{position:static\}/);
+  assert.match(monitorCss, /> \.respond-quick.open,[^]*?> \.respond-hazmat-detail \{ position: fixed;[^}]*overflow: auto/);
 });
 
 test('compact summaries wrap instead of truncating locations or hiding hydrants', () => {

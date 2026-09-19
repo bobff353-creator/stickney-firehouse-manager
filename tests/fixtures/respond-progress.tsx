@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import Respond from '../../app/respond';
 import { respondingUnitsIncludeUnit } from '../../app/respond-device';
+import { constructionProfile, occupancyProfile } from '../../app/preplans/profiles';
 import '../../app/globals.css';
 import '../../app/mobile-usability.css';
 import '../../app/portal-usability.css';
@@ -18,6 +19,12 @@ const previewWidth = previewPhoto === 'portrait' ? 600 : 1200;
 const previewHeight = previewPhoto === 'portrait' ? 1200 : 600;
 const previewImage = 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${previewWidth}" height="${previewHeight}" viewBox="0 0 ${previewWidth} ${previewHeight}"><rect x="4" y="4" width="${previewWidth-8}" height="${previewHeight-8}" fill="#eaf2f5" stroke="#176d83" stroke-width="8"/><text x="20" y="45" font-size="24">PREVIEW ONLY — TOP EDGE</text><text x="20" y="${previewHeight-25}" font-size="24">BOTTOM EDGE — MUST REMAIN VISIBLE</text></svg>`);
 const previewPreplan = previewPhoto ? { id: 'fixture-plan', businessName: 'Fictional preview building', address: 'Preview only — not a property', latitude: 0, longitude: 0, footprint: [], footprintSquareFeet: 0, floorCount: 1, constructionType: '', suggestedFireFlowGpm: 0, suggestedFireFlowDuration: 0, contactInfo: '', construction: '', accessInfo: '', alarmSystem: '', knoxBox: '', riser: '', fdc: '', sprinklerSystem: '', status: 'published', updatedAt: new Date().toISOString(), features: [], photos: [{ id: 'fixture-photo', side: 'A', caption: 'Fictional image sizing check', url: previewImage, illustrations: [] }] } : null;
+const previewOperational = params.has('operational') ? {
+  levels: params.has('levels') ? [{id:'ground',name:'Ground floor',shortLabel:'Ground',isDefault:1},{id:'upper',name:'Upper floor',shortLabel:'Upper',isDefault:0}] : [],
+  spaces: [], hazmat: [], hazmatZones: [], assets: [], hoseLays: [],
+  construction: constructionProfile({}), occupancy: occupancyProfile({}),
+  alerts: [{id:'fixture-alert',title:'Fictional shutter access note',severity:'warning',message:'PREVIEW ONLY. This long published entry note verifies that critical information stays readable while the photo and CAD notes remain on screen. Check the marked front entrance; the other entrance requires a separate key. No real location or instructions are used.'}],
+} : null;
 const audit = { errors: [] as string[], requests: [] as string[], writes: 0, navigations: [] as string[], reportNumber: 'FIXTURE-100', departmentId: 'fixture-a', assigned: '1204, 1205', failed: false, noCall: false, hold: false, pending: null as null | (() => void), hydrants: params.has('hydrants') ? [
   { id: 'fixture-h1', hydrantNumber: '106', address: '  Preview only — Oak Avenue at West Sample Street, northeast corner  ', distanceFeet: 126, serviceStatus: 'in_service' },
   { id: 'fixture-h2', hydrantNumber: '107', address: '  ', distanceFeet: 256, serviceStatus: 'out_of_service' },
@@ -57,16 +64,16 @@ window.fetch = async (input, init) => {
       activeCalls:eligible,selectionUnavailable:Boolean(requested&&!chosen),
       activeCall:active?{...active,city:'Preview only',narrative:`Notes for ${active.reportNumber}`,source:'Fictional fixture',timeOut:'1200',dispatchedAt:new Date().toISOString(),latitude:null,longitude:null}:null,
       preplan:active&&previewPreplan?{...previewPreplan,id:'plan-'+active.reportNumber,businessName:'Building for '+active.reportNumber,address:active.address}:null,
-      cadUpdates:active?[{eventType:'Preview dispatch',status:'test',narrative:`Notes for ${active.reportNumber}`,receivedAt:new Date().toISOString(),respondingUnits:active.respondingUnits}]:[],
+      cadUpdates:active?[{eventType:'Preview dispatch',status:'test',narrative:`Notes for ${active.reportNumber}${compactPreview ? '\n\n'+previewNotes : ''}`,receivedAt:new Date().toISOString(),respondingUnits:active.respondingUnits}]:[],
       recentCalls:[],boxCard:active?{id:'box-'+active.reportNumber,title:'Box for '+active.reportNumber,boxNumber:active.reportNumber,address:'Preview only'}:null,
-      nearestHydrants:active?[{id:'hydrant-'+active.reportNumber,address:'Hydrant for '+active.reportNumber,distanceFeet:100,serviceStatus:'in_service'}]:[],
-      operational:null,overview:{apparatus:null,preplans:[],hydrants:[],roadClosures:[]},
+      nearestHydrants:active?(audit.hydrants.length ? audit.hydrants : [{id:'hydrant-'+active.reportNumber,address:'Hydrant for '+active.reportNumber,distanceFeet:100,serviceStatus:'in_service'}]):[],
+      operational:previewOperational,overview:{apparatus:null,preplans:[],hydrants:[],roadClosures:[]},
     });
   }
   return Response.json({
     departmentId: audit.departmentId, apparatusFilter: url.searchParams.get('apparatus'), generatedAt: new Date().toISOString(),
     activeCall: audit.noCall ? null : { reportNumber: audit.reportNumber, callType: 'FICTIONAL TEST CALL', category: 'Test', address: 'Preview only — not an incident', city: 'Stickney', narrative: compactPreview ? previewNotes : '', respondingUnits: audit.assigned, longitude: null, latitude: null, dispatchedAt: new Date().toISOString(), timeOut: '1200', source: 'Fixture', receivedAt: new Date().toISOString() },
-    preplan: previewPreplan, match: null, cadUpdates: compactPreview ? [{ eventType: 'Preview dispatch', status: 'test', receivedAt: new Date().toISOString(), narrative: previewNotes, respondingUnits: audit.assigned }] : [], recentCalls: [], boxCard: compactPreview ? { id: 'fixture-box', title: 'Preview structure fire — East of Sample Avenue', boxNumber: 'PREVIEW-E', address: 'Preview only', accessNotes: 'Full preview instructions stay on the box card. '.repeat(12) } : null, nearestHydrants: audit.hydrants, operational: null,
+    preplan: previewPreplan, match: null, cadUpdates: compactPreview ? [{ eventType: 'Preview dispatch', status: 'test', receivedAt: new Date().toISOString(), narrative: previewNotes, respondingUnits: audit.assigned }] : [], recentCalls: [], boxCard: compactPreview ? { id: 'fixture-box', title: 'Preview structure fire — East of Sample Avenue', boxNumber: 'PREVIEW-E', address: 'Preview only', accessNotes: 'Full preview instructions stay on the box card. '.repeat(12) } : null, nearestHydrants: audit.hydrants, operational: previewOperational,
     overview: { apparatus: null, preplans: [], hydrants: [], roadClosures: [] },
   });
 };

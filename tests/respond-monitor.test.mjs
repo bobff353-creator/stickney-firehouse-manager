@@ -49,3 +49,35 @@ test('GPS pairing, displayed vehicles, and CAD call filtering are explicitly dis
   assert.match(panel, /does not choose which CAD calls Respond receives/);
   assert.match(panel, /Respond Device Modes → Apparatus Respond → Assigned apparatus/);
 });
+
+test('monitor hides secondary sections without removing saved records from normal Respond', () => {
+  for (const section of ['respond-attachments', 'respond-hose-lays', 'respond-level-switcher', 'apparatus-map-only']) {
+    assert.ok(css.includes(`.respond-page.respond-active-call.monitor-view > .${section}`));
+    assert.ok(respond.includes(`className="${section}"`));
+  }
+  assert.match(respond, /aria-label="Monitor preplan level"/);
+  assert.match(respond, /monitorMode && \(data\?\.operational\?\.levels.length \?\? 0\) > 1/);
+  assert.match(respond, /status === "on_scene" && !monitorMode/);
+});
+
+test('apparatus map is a keyboard-accessible tactical tab sharing the current location model', () => {
+  assert.match(respond, /"D",\s*"apparatus",/);
+  assert.match(respond, /item === "apparatus" \? "Apparatus"/);
+  assert.match(respond, /view === "apparatus" && <RespondOverviewMap locationModel=\{locations\} apparatusOnly respondingUnits=\{call.respondingUnits\}/);
+  assert.match(respond, /onKeyDown=\{\(event\) => moveContextTab\(event, item\)\}/);
+  assert.match(css, /\.respond-context > nav:has\(#respond-tab-apparatus\)/);
+});
+
+test('monitor building facts stay readable in a compact two-row grid', () => {
+  assert.match(css, /\.respond-quick-building h2 \{[^}]*font-size: 11px; line-height: 14px/);
+  assert.match(css, /\.respond-quick-building dl \{[^}]*grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
+  assert.match(css, /\.respond-quick-building dd \{[^}]*font-size: 12px/);
+  assert.match(css, /\.respond-operational-banner \{[^}]*overflow: auto/);
+  assert.doesNotMatch(css, /\.respond-operational-banner[^{}]*\{[^}]*text-overflow|line-clamp/);
+});
+
+test('compact monitor keeps its assigned unit visible and preserves touch targets', () => {
+  assert.match(respond, /monitorMode && apparatus \? ` · UNIT \$\{apparatus\}`/);
+  assert.match(css, /\.respond-callbar dl \{ grid-column: auto; grid-row: auto/);
+  assert.match(css, /@media \(pointer: coarse\)[^]*?min-height: 44px/);
+});

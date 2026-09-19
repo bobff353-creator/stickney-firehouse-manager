@@ -288,7 +288,7 @@ type QuickItem = {
   locationDescription?: string;
   verifiedAt?: string;
 };
-type RightView = "cad" | "floorplan" | "footprint" | "B" | "C" | "D";
+type RightView = "cad" | "floorplan" | "footprint" | "B" | "C" | "D" | "apparatus";
 const respondViews: RightView[] = [
   "cad",
   "floorplan",
@@ -296,6 +296,7 @@ const respondViews: RightView[] = [
   "B",
   "C",
   "D",
+  "apparatus",
 ];
 
 const featureLabels: Record<string, string> = {
@@ -983,7 +984,7 @@ export default function Respond({
       setProgressError("Progress was not saved. Browser storage is unavailable; please try again.");
       return;
     }
-    if (status === "on_scene") {
+    if (status === "on_scene" && !monitorMode) {
       window.requestAnimationFrame(() =>
         arrivalRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
       );
@@ -1284,7 +1285,7 @@ export default function Respond({
       <header className="respond-callbar">
         <div className="respond-call-heading">
           <div>
-            <span>ACTIVE CALL · {call.source || "CAD"}</span>
+            <span>ACTIVE CALL · {call.source || "CAD"}{monitorMode && apparatus ? ` · UNIT ${apparatus}` : ""}</span>
             <h1>{call.callType || call.category || "Call type not reported"}</h1>
             <p>
               {[call.address, call.city].filter(Boolean).join(", ") ||
@@ -2087,7 +2088,13 @@ export default function Respond({
               <span>PRIMARY VIEW</span>
               <h2>Alpha / A Side</h2>
             </div>
-            {plan && <span className="record-badge">{plan.status}</span>}
+            {monitorMode && (data?.operational?.levels.length ?? 0) > 1 ? (
+              <label className="respond-monitor-level">Level
+                <select aria-label="Monitor preplan level" value={selectedLevel?.id || ""} onChange={event => { setSelectedLevelId(event.target.value); closeQuickInformation(false); }}>
+                  {data?.operational?.levels.map(level => <option key={level.id} value={level.id}>{level.shortLabel || level.name}</option>)}
+                </select>
+              </label>
+            ) : plan && <span className="record-badge">{plan.status}</span>}
           </header>
           <div className="respond-primary-media">
             {alpha ? (
@@ -2134,7 +2141,7 @@ export default function Respond({
                     ? "Floor Plan"
                     : item === "footprint"
                       ? "Footprint"
-                      : `${item} Side`}
+                      : item === "apparatus" ? "Apparatus" : `${item} Side`}
               </button>
             ))}
           </nav>
@@ -2145,6 +2152,7 @@ export default function Respond({
             tabIndex={0}
             className="respond-context-body"
           >
+            {view === "apparatus" && <RespondOverviewMap locationModel={locations} apparatusOnly respondingUnits={call.respondingUnits} overview={{apparatus:null,preplans:[],hydrants:[],roadClosures:[]}} recentCalls={[]} onNavigate={onNavigate}/>}
             {view === "cad" && (
               <>
                 <header>

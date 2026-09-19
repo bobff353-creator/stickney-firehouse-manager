@@ -31,3 +31,104 @@
 .respond-page.monitor-view > .respond-monitor-exit:focus-visible { opacity: 1; pointer-events: auto; }
 .respond-page.monitor-view > .respond-monitor-exit:focus-visible { outline: 3px solid #eab33a; outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) { .respond-page.monitor-view > .respond-monitor-exit { transition: none; } }
+
+/* Keep the incident screen focused; these full sections remain in normal Respond. */
+.respond-page.respond-active-call.monitor-view > .respond-attachments,
+.respond-page.respond-active-call.monitor-view > .respond-hose-lays,
+.respond-page.respond-active-call.monitor-view > .respond-level-switcher,
+.respond-page.respond-active-call.monitor-view > .apparatus-map-only { display: none; }
+
+.respond-context > nav:has(#respond-tab-apparatus) { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.respond-context-body:has(> .apparatus-only-map) { display: flex; min-height: 0; }
+.respond-context-body > .apparatus-only-map { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.respond-context-body > .apparatus-only-map .respond-map-layout { flex: 1; min-height: 180px; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+.respond-context-body > .apparatus-only-map .respond-overview-map { min-height: 180px; }
+.respond-context-body > .apparatus-only-map .respond-call-rail { display: none; }
+.respond-context-body > .apparatus-only-map .respond-map-key { display: none; }
+.respond-monitor-level { display: flex; align-items: center; gap: 5px; color: #173f57; font-size: 11px; font-weight: 800; }
+.respond-monitor-level select { max-width: 150px; min-height: 32px; padding: 3px 6px; background: #fff; color: #173f57; border: 1px solid #91a8b7; border-radius: 5px; }
+
+/* Station monitors and landscape tablets: size to the viewport, not a long page.
+   Long notes keep their own readable detail area rather than being clipped. */
+@media (min-width: 900px) and (min-height: 500px) {
+  .respond-page.respond-active-call.monitor-view { padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); gap: 5px; height: 100dvh; overflow: hidden; }
+  .respond-page.respond-active-call.monitor-view > .respond-callbar { position: static; padding: 7px 12px; gap: 10px; grid-template-columns: minmax(0, 1fr) auto auto; }
+  .respond-page.respond-active-call.monitor-view .respond-call-heading { gap: 12px; }
+  .respond-page.respond-active-call.monitor-view .respond-call-heading > div > span { display: block; line-height: 14px; }
+  .respond-page.respond-active-call.monitor-view .respond-callbar h1 { margin: 2px 0; font-size: clamp(22px, 2.3vw, 32px); }
+  .respond-page.respond-active-call.monitor-view .respond-callbar p { font-size: 14px; }
+  .respond-page.respond-active-call.monitor-view .respond-callbar dl { grid-column: auto; grid-row: auto; gap: 12px; font-size: 13px; }
+  .respond-page.respond-active-call.monitor-view .respond-call-actions { grid-column: auto; grid-row: auto; }
+  .respond-page.respond-active-call.monitor-view .respond-call-selector { min-width: 150px; max-width: 240px; }
+  .respond-page.respond-active-call.monitor-view .respond-call-selector select { min-height: 36px; font-size: 12px; }
+  .respond-page.respond-active-call.monitor-view .respond-call-actions > .respond-nav { min-height: 40px; padding: 0 10px; font-size: 12px; }
+  /* The same unit remains visible in the active-call heading. */
+  .respond-page.respond-active-call.monitor-view > .respond-apparatus-strip { display: none; }
+  .respond-page.respond-active-call.monitor-view .respond-progress-panel { padding: 5px 10px; gap: 3px 12px; }
+  .respond-page.respond-active-call.monitor-view .respond-progress-panel > div:first-child > strong { font-size: 13px; }
+  .respond-page.respond-active-call.monitor-view .respond-progress-panel > div:first-child > span { display: none; }
+  .respond-page.respond-active-call.monitor-view .respond-progress-steps button { min-height: 34px; padding: 3px 6px; font-size: 12px; }
+  .respond-page.respond-active-call.monitor-view .respond-progress-note { text-align: left; font-size: 9px; }
+  .respond-page.respond-active-call.monitor-view > .respond-operational-banner { box-sizing: border-box; margin: 0; padding: 5px 8px; max-height: 110px; overflow: auto; flex-shrink: 1; }
+  .respond-page.respond-active-call.monitor-view > .respond-operational-banner:not(:has(article)):not(:has(.respond-room-match-action)) { display: none; }
+  .respond-page.respond-active-call.monitor-view .respond-operational-banner > header { margin-bottom: 3px; }
+  .respond-page.respond-active-call.monitor-view .respond-operational-banner > header > strong { display: none; }
+  .respond-page.respond-active-call.monitor-view .respond-operational-banner > div { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 5px; }
+  .respond-page.respond-active-call.monitor-view .respond-operational-banner article { padding: 4px 7px; }
+  .respond-page.respond-active-call.monitor-view .respond-operational-banner article span { line-height: 1.3; }
+  .respond-page.respond-active-call.monitor-view > .respond-quick-building { margin: 0; padding: 5px 8px; max-height: 150px; overflow: auto; flex-shrink: 1; }
+  .respond-page.respond-active-call.monitor-view .respond-quick-building > header { display: flex; align-items: center; gap: 8px; min-height: 14px; padding: 0; }
+  .respond-page.respond-active-call.monitor-view .respond-quick-building > header > span { display: none; }
+  .respond-page.respond-active-call.monitor-view .respond-quick-building h2 { margin: 0; font-size: 11px; line-height: 14px; font-weight: 850; }
+  .respond-page.respond-active-call.monitor-view .respond-quick-building dl { margin: 4px 0; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+  .respond-page.respond-active-call.monitor-view .respond-quick-building dl > div { padding: 4px 6px; border-radius: 4px; }
+  .respond-page.respond-active-call.monitor-view .respond-quick-building dt { font-size: 9px; line-height: 1.15; }
+  .respond-page.respond-active-call.monitor-view .respond-quick-building dd { margin: 2px 0 0; font-size: 12px; line-height: 1.25; }
+  .respond-page.respond-active-call.monitor-view .respond-quick-building > p { font-size: 9px; line-height: 1.2; }
+  .respond-page.respond-active-call.monitor-view > .respond-glance { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 5px; }
+  .respond-page.respond-active-call.monitor-view .respond-glance > article { padding: 4px 8px; gap: 1px 8px; }
+  .respond-page.respond-active-call.monitor-view .respond-glance > article > strong { font-size: 13px; }
+  .respond-page.respond-active-call.monitor-view .respond-glance > article > small { font-size: 10px; }
+  .respond-page.respond-active-call.monitor-view .respond-glance > article > button { min-height: 36px; padding: 0 8px; font-size: 10px; }
+  .respond-page.respond-active-call.monitor-view .respond-hydrant-summary b { font-size: 12px; }
+  .respond-page.respond-active-call.monitor-view .respond-hydrant-summary small { font-size: 10px; }
+  .respond-page.respond-active-call.monitor-view > .respond-grid { flex: 1 1 0; height: auto; min-height: 150px; overflow: hidden; grid-template-columns: minmax(130px, .45fr) minmax(0, 1.5fr) minmax(300px, 1fr); grid-template-rows: minmax(0, 1fr); gap: 6px; }
+  .respond-page.respond-active-call.monitor-view .respond-grid > .respond-context { grid-column: auto; min-height: 0; }
+  .respond-page.respond-active-call.monitor-view .respond-intel > header,
+  .respond-page.respond-active-call.monitor-view .respond-alpha > header,
+  .respond-page.respond-active-call.monitor-view .respond-context-body > header { padding: 5px 8px; }
+  .respond-page.respond-active-call.monitor-view .respond-intel h2,
+  .respond-page.respond-active-call.monitor-view .respond-alpha h2,
+  .respond-page.respond-active-call.monitor-view .respond-context-body h2 { font-size: 14px; line-height: 1.2; margin: 0; }
+  .respond-page.respond-active-call.monitor-view .respond-intel header > span,
+  .respond-page.respond-active-call.monitor-view .respond-alpha header > div > span,
+  .respond-page.respond-active-call.monitor-view .respond-context-body > header > span { display: none; }
+  .respond-page.respond-active-call.monitor-view .respond-intel header p { margin: 3px 0 0; font-size: 10px; }
+  .respond-page.respond-active-call.monitor-view .respond-building-stats { display: none; }
+  .respond-page.respond-active-call.monitor-view .respond-intel-list button { padding: 5px 7px; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 4px; font-size: 11px; }
+  .respond-page.respond-active-call.monitor-view .respond-intel-list .respond-empty.compact { margin: 5px; padding: 6px; font-size: 11px; line-height: 1.3; }
+  .respond-page.respond-active-call.monitor-view .respond-intel-list .respond-empty.compact strong { font-size: 12px; }
+  .respond-page.respond-active-call.monitor-view .respond-primary-media { min-height: 0; overflow: hidden; }
+  .respond-page.respond-active-call.monitor-view .respond-alpha footer { padding: 4px 8px; gap: 8px; font-size: 11px; }
+  .respond-page.respond-active-call.monitor-view .respond-alpha footer span { font-size: 9px; }
+  .respond-page.respond-active-call.monitor-view .respond-context > nav { padding: 3px; gap: 1px; }
+  .respond-page.respond-active-call.monitor-view .respond-context > nav button { min-height: 36px; padding: 2px; font-size: 9px; }
+  .respond-page.respond-active-call.monitor-view .respond-context-body { min-height: 0; max-height: none; }
+  .respond-page.respond-active-call.monitor-view .cad-update { margin: 5px; padding: 6px; font-size: 13px; }
+  .respond-page.respond-active-call.monitor-view .cad-update p { margin: 5px 0; }
+  .respond-page.respond-active-call.monitor-view > .respond-quick.open,
+  .respond-page.respond-active-call.monitor-view > .respond-hazmat-detail { position: fixed; inset: auto 16px 16px; z-index: 45; max-height: calc(100dvh - 40px); overflow: auto; margin: 0; box-shadow: 0 0 0 100vmax #07131ca6; }
+  .respond-page.respond-active-call.monitor-view > .respond-context-line.stale,
+  .respond-page.respond-active-call.monitor-view > .respond-offline-banner,
+  .respond-page.respond-active-call.monitor-view > .respond-update-warning { padding: 4px 8px; font-size: 11px; line-height: 1.25; }
+  .respond-page.respond-active-call.monitor-view .respond-context-line.stale button { min-height: 28px; padding: 3px 8px; }
+}
+
+@media (max-width: 650px) { .respond-context > nav:has(#respond-tab-apparatus) { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (pointer: coarse) {
+  .respond-page.respond-active-call.monitor-view .respond-progress-steps button,
+  .respond-page.respond-active-call.monitor-view .respond-context > nav button,
+  .respond-page.respond-active-call.monitor-view .respond-glance > article > button,
+  .respond-page.respond-active-call.monitor-view .respond-call-selector select,
+  .respond-page.respond-active-call.monitor-view .respond-monitor-level select { min-height: 44px; }
+}
