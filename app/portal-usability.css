@@ -64,6 +64,37 @@
 .portal-task-groups button strong { display: flex; justify-content: space-between; gap: 8px; }
 .portal-task-groups small { font-size: 14px; line-height: 1.45; color: #4a6172; }
 .workspace-wayfinding :focus-visible, .portal-task-directory :focus-visible { outline: 3px solid #177ca8; outline-offset: 2px; }
+.workspace-orientation-actions { margin-left:auto; }
+.workspace-task-shortcuts { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:8px; margin-bottom:16px; }
+.workspace-task-shortcuts button { padding:12px; min-height:48px; border:1px solid #aebfcb; border-radius:8px; background:#eef5f9; color:#173e59; text-align:left; font-weight:650; }
+.workspace-orientation-actions + .workspace-guide { margin-left:0; }
+.workspace-help-tabs,.workspace-related,.preplan-reader-tabs,.preplan-directory-controls { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0; }
+.workspace-help-tabs button[aria-pressed=true],.preplan-reader-tabs button[aria-pressed=true],.preplan-directory-controls button[aria-pressed=true] { background:#163e56; color:#fff; border-color:#163e56; }
+.workspace-help-answer { min-height:64px; }
+.workspace-help-answer p { font-size:15px; max-width:80ch; color:#27485d; }
+.workspace-related { align-items:center; border-top:1px solid #ccdae2; padding-top:12px; }
+.workspace-related > span { font-weight:700; font-size:13px; }
+.workspace-related button { font-size:13px; }
+.workspace-setup-actions { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); gap:8px; margin-top:12px; }
+.workspace-setup-actions button { text-align:left; display:grid; gap:6px; }
+.workspace-setup-actions small { font-weight:400; line-height:1.5; }
+.workspace-tools-dialog { width:min(920px,calc(100vw - 24px)); max-height:90dvh; padding:0; border:1px solid #aebfcb; border-radius:16px; color:#173e59; background:#f4f7fa; }
+.workspace-tools-dialog::backdrop { background:#08263799; }
+.workspace-tools-dialog > header { position:sticky; top:0; z-index:2; display:flex; justify-content:space-between; align-items:center; gap:16px; padding:20px; background:#fff; border-bottom:1px solid #ccd9e2; }
+.workspace-tools-dialog h2 { margin:0; font-size:23px; }
+.workspace-tools-dialog > header p { margin:6px 0 0; font-size:14px; }
+.workspace-tools-dialog .portal-task-directory { margin:12px; }
+.preplan-reader-tabs { position:sticky; top:76px; z-index:3; padding:10px 0; background:#f5f8fb; border-bottom:1px solid #c5d5df; }
+.preplan-reader-tabs button,.preplan-directory-controls button { min-height:44px; padding:10px 14px; border:1px solid #aebfcb; border-radius:8px; background:#fff; color:#173e59; font:inherit; font-weight:650; cursor:pointer; }
+.preplan-record-view [hidden] { display:none !important; }
+.field-preplan-header { padding:18px; border:1px solid #bacbd6; border-radius:12px; background:#f6f9fc; color:#173e59; }
+.field-preplan-header h1 { color:#173e59; }
+.field-preplan-header p,.field-preplan-actions label { color:#425f72; }
+.field-map-toolbar,.field-map-layout > aside > header { color:#173e59; }
+.preplan-record-grid:has(> [hidden]) { grid-template-columns:minmax(0,1fr); }
+.preplan-directory-controls { margin:0; padding:10px 0; }
+@media(max-width:600px) { .workspace-tools-dialog > header { align-items:flex-start; padding:14px; } .workspace-help-tabs { display:grid; grid-template-columns:1fr 1fr; } .preplan-reader-tabs { top:64px; display:grid; grid-template-columns:1fr 1fr; } .workspace-tools-dialog .portal-task-directory { padding:12px; } }
+@media print { .preplan-record-view [hidden] { display:block !important; } .workspace-tools-dialog,.preplan-directory-controls { display:none !important; } }
 .portal-roster-search { display: grid; gap: 6px; padding: 16px; font-weight: 650; }
 .employee-profile-form .employee-form-footer { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; padding: 16px; }
 .portal-inline-status { margin: 8px 16px; padding: 12px; border: 1px solid #cbd9e2; border-radius: 6px; }

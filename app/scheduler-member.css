@@ -33,8 +33,9 @@
 .scheduler-request-confirm { max-width: 360px; }
 .scheduler button:focus-visible { outline: 3px solid #8fd6ff; outline-offset: 3px; }
 @media (max-width: 700px) {
-  .scheduler .scheduler-member-tabs, .scheduler .scheduler-admin-tabs { display: none; }
-  .scheduler label.scheduler-mobile-picker:not(.chip) { display: flex; align-items: center; gap: 10px; margin: 8px 0 12px; }
+  .scheduler .scheduler-member-tabs, .scheduler .scheduler-admin-tabs { display: flex; flex-wrap: nowrap; overflow-x:auto; gap:6px; padding-bottom:8px; }
+  .scheduler .scheduler-tabs button { flex:0 0 auto; min-height:44px; }
+  .scheduler label.scheduler-mobile-picker:not(.chip) { display: none; }
   .scheduler .scheduler-mobile-picker > span { flex: 0 0 auto; font-size: 12px; font-weight: 700; }
   .scheduler .scheduler-mobile-picker select { min-width: 0; width: 100%; min-height: 44px; padding: 8px 10px; font-size: 16px; }
   .scheduler .scheduler-member-tabs button { white-space: normal; font-size: 14px; }

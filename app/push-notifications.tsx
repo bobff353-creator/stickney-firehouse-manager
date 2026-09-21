@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-type PushState = "checking" | "unsupported" | "unconfigured" | "off" | "on" | "blocked";
+type PushState = "checking" | "unsupported" | "unconfigured" | "off" | "on" | "blocked" | "unavailable";
 
 function applicationServerKey(value: string) {
   const padding = "=".repeat((4 - value.length % 4) % 4);
@@ -44,7 +44,7 @@ export default function PushNotifications() {
         }
       } catch (caught) {
         if (!cancelled) {
-          setState("off");
+          setState("unavailable");
           setMessage(caught instanceof Error ? caught.message : "Unable to check CAD alerts");
         }
       }
@@ -94,11 +94,12 @@ export default function PushNotifications() {
       const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.getSubscription();
       if (subscription) {
-        await fetch("/api/push/subscriptions", {
+        const response = await fetch("/api/push/subscriptions", {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ endpoint: subscription.endpoint }),
         });
+        if (!response.ok) throw new Error("Phone alerts could not be turned off. Try again when connected.");
         await subscription.unsubscribe();
       }
       setState("off");
@@ -125,7 +126,7 @@ export default function PushNotifications() {
     }
   }
 
-  const label = state === "on" ? "Portal phone alerts on" : state === "checking" ? "Checking phone alerts..." : "Portal phone alerts off";
+  const label = state === "on" ? "Portal phone alerts on" : state === "checking" ? "Checking phone alerts..." : state === "unavailable" ? "Phone-alert status unavailable" : "Portal phone alerts off";
   return <section className={`push-notification-control ${state}`} aria-label="Portal phone notifications">
     <div><strong>{label}</strong><small>CAD calls and enabled schedule reminders, based on your access. Turning off stops both on this device.</small></div>
     {state === "on" ? <div className="push-notification-actions"><button type="button" disabled={busy} onClick={() => void sendTest()}>Send test</button><button type="button" disabled={busy} onClick={() => void disable()}>Turn off</button></div>

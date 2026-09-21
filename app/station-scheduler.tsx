@@ -114,13 +114,12 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
   const [previewMember, setPreviewMember] = useState(false);
   const previewReturn = useRef("overview");
   const navigationRef = useRef<HTMLDivElement>(null);
-  const [jobChooserOpen, setJobChooserOpen] = useState(false);
+  const [jobChooserOpen, setJobChooserOpen] = useState(true);
   const navigationRequested = useRef(false);
   const setTab = useCallback((next: string) => {
     if (!confirmLeavingWork()) return;
     navigationRequested.current = true;
     setTabState(next);
-    setJobChooserOpen(false);
   }, [setTabState]);
   useEffect(() => {
     if (!navigationRequested.current) return;
@@ -235,7 +234,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
       {notice && <div className="success" role="status"><p>{notice}</p>{!isAdmin && !previewMember && <button type="button" onClick={() => setTab("myrequests")}>View my request status →</button>}</div>}
       <div ref={navigationRef} className="scheduler-navigation-anchor">
       <details className="scheduler-job-chooser" open={jobChooserOpen} onToggle={event => setJobChooserOpen(event.currentTarget.open)}>
-      <summary>Change scheduling job · {tabs.find(([id]) => id === tab)?.[1] || "Choose a task"}</summary>
+      <summary>Schedule sections · {tabs.find(([id]) => id === tab)?.[1] || "Choose a task"}</summary>
       {isAdmin && <nav className="scheduler-task-groups" aria-label="Scheduling task groups">{taskGroups.map(group => <button type="button" key={group.label} aria-pressed={group === activeGroup} onClick={() => { if (!confirmLeavingWork()) return; setTabState(group.ids[0]); }}>{group.label}</button>)}</nav>}
       <label className="scheduler-mobile-picker"><span>{isAdmin ? "Admin tools" : "Scheduling"}</span><select aria-label="Choose scheduling screen" value={tab} onChange={(event) => setTab(event.target.value)}>
         {visibleTabs.map(([id, label]) => <option key={id} value={id}>{label}</option>)}

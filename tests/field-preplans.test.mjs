@@ -117,8 +117,8 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(page, /At current location/);
   assert.match(page, /Search the entire department/);
   assert.match(page, /aria-label="Search all preplans and hydrants"/);
-  assert.match(page, /normalizedQuery\?true:isOnMap/);
-  assert.match(page, /normalizedQuery\?"Department search results":"Records in this map view"/);
+  assert.match(page, /normalizedQuery\|\|recordScope===\"all\"\?true:isOnMap/);
+  assert.match(page, /normalizedQuery\?"Department search results":recordScope==="all"\?"All department records":"Records in this map view"/);
   assert.match(page, /No department preplans or hydrants match this search/);
   assert.match(page, /onPointerMove/);
   assert.match(page, /onDoubleClick/);

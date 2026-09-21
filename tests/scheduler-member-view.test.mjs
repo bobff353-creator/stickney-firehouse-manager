@@ -17,7 +17,7 @@ test('calendar department view changes visibility without changing edit permissi
   assert.ok(calendar.includes('{isAdmin && <AssignmentEditor'));
   assert.ok(calendar.includes('const canTrade = !isAdmin && slot.status === "filled" && slot.employeeId === myId'));
 });
-test('mobile navigation uses one labeled picker and scrolls only after a requested screen change', async () => {
+test('mobile sections stay visible and scroll only after a requested screen change', async () => {
   const component = await readFile(new URL('../app/station-scheduler.tsx', import.meta.url), 'utf8');
   const styles = await readFile(new URL('../app/scheduler-member.css', import.meta.url), 'utf8');
   assert.ok(component.includes('aria-label="Choose scheduling screen"'));
@@ -28,7 +28,9 @@ test('mobile navigation uses one labeled picker and scrolls only after a request
   assert.ok(component.includes('scrollIntoView({ block: "start", behavior: "instant" })'));
   assert.ok(styles.includes('.scheduler label.scheduler-mobile-picker:not(.chip) { display: none; }'));
   const mobile = styles.split('@media (max-width: 700px)')[1];
-  assert.ok(mobile.includes('.scheduler .scheduler-admin-tabs { display: none; }'));
+  assert.ok(mobile.includes('overflow-x:auto'));
+  assert.ok(component.includes('useState(true)'));
+  assert.ok(!component.includes('setJobChooserOpen(false)'));
   assert.ok(mobile.includes('min-height: 44px'));
 });
 test('open requests exclude started shifts using Central time in summer and winter', () => {
