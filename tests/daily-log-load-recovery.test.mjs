@@ -14,6 +14,7 @@ function harness(fetch) {
   const timers = [];
   const scope = { fetch, Error, Date, Map, Boolean, JSON, parseSavedTime, useCallback: fn => fn,
     loadRequest: { current: 0 }, loaded: { current: false }, autosaveAuthorized: { current: false },
+    saveRetryRequired: { current: false },
     savedVersions: { current: new Map() }, draftKey: date => date,
     shiftSections: [], blankCall: () => ({ id: 'blank' }),
     window: { localStorage: { getItem: () => null }, setTimeout: fn => timers.push(fn) },

@@ -1,6 +1,7 @@
 "use client";
 import { fleetChecksForShift } from "./fleet-check-shift";
 import { parseSavedTime, savedTimeLabel } from "./workflow-status";
+import { requestDailyLogSave } from "./daily-log-save-request";
 import { SaveStatus } from "./save-status";
 import { useWorkspaceViewState } from "./workspace-view-state";
 import { CALLBACK_QUALIFYING_CALL_TYPES } from "./callback-rules";
@@ -453,6 +454,7 @@ export default function DailyLog({
   const [loadedDate, setLoadedDate] = useState<string | null>(null);
   const loadRequest = useRef(0);
   const [saving, setSaving] = useState(false);
+  const [saveSlow, setSaveSlow] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState("");
   const [handoff, setHandoff] = useState<Handoff | null>(null);
@@ -474,6 +476,7 @@ export default function DailyLog({
   const currentDay = useRef(chicagoOperationalContext().operationalDate);
   const saveInFlight = useRef(false);
   const saveAgain = useRef(false);
+  const saveRetryRequired = useRef(false);
   const autosaveAuthorized = useRef(false);
   const editVersion = useRef(0);
   const savedVersions = useRef(new Map<string, number | undefined>());
@@ -495,6 +498,7 @@ export default function DailyLog({
     setMessage("");
     setSaveError(false);
     setDeviceDraftSaved(false);
+    saveRetryRequired.current = false;
     setEditingCalls([]);
     setRemoveCall(null);
     loaded.current = false;
@@ -590,9 +594,12 @@ export default function DailyLog({
       }
     }, 30000);
     return () => window.clearInterval(timer);
-  }, [dirty, loadLog, locked, logDate]);
+  }, [dirty, loadLog, locked, logDate, setLogDate]);
   useEffect(() => {
-    const update = () => setIsOnline(window.navigator.onLine);
+    const update = () => {
+      setIsOnline(window.navigator.onLine);
+      if (window.navigator.onLine) saveRetryRequired.current = false;
+    };
     update();
     window.addEventListener("online", update);
     window.addEventListener("offline", update);
@@ -605,14 +612,21 @@ export default function DailyLog({
   const saveLog = useCallback(
     async (silent = false) => {
       if (!loaded.current || !autosaveAuthorized.current) return;
-      if (saveInFlight.current) {
-        saveAgain.current = true;
-        return;
-      }
+      // A second click or debounce timer is not another edit. The running
+      // save checks editVersion before deciding whether another save is needed.
+      if (saveInFlight.current) return;
+      const dateAtStart = latestSave.current.logDate;
+      const loadAtStart = loadRequest.current;
+      const isCurrentSave = () => latestSave.current.logDate === dateAtStart && loadRequest.current === loadAtStart;
       saveInFlight.current = true;
       setSaving(true);
+      setSaveSlow(false);
       setSaveError(false);
+      saveRetryRequired.current = false;
+      // Schedule confirmation also needs unsaved-work and offline protection.
+      setDirty(true);
       if (!silent) setMessage("");
+      let confirmed = false;
       try {
         do {
           saveAgain.current = false;
@@ -637,33 +651,31 @@ export default function DailyLog({
             setMessage("Offline · keep this page open until syncing is confirmed");
             return;
           }
-          const response = await fetch("/api/logbook", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(payload),
+          const { response, result } = await requestDailyLogSave(payload, () => {
+            if (isCurrentSave()) setSaveSlow(true);
           });
-          const result = (await response.json()) as {
-            saveVersion?: number;
-            error?: string;
-            payrollEmployeesUpdated?: number;
-          };
+          if (!isCurrentSave()) return;
+          setSaveSlow(false);
           if (response.status === 409) {
-            if (latestSave.current.logDate !== current.logDate) return;
             autosaveAuthorized.current = false;
             setSaveConflict(true);
-            window.localStorage.setItem(draftKey(current.logDate), JSON.stringify({ ...latestSave.current, expectedVersion: payload.expectedVersion, savedAt: new Date().toISOString() }));
+            try { window.localStorage.setItem(draftKey(current.logDate), JSON.stringify({ ...latestSave.current, expectedVersion: payload.expectedVersion, savedAt: new Date().toISOString() })); } catch { setDeviceDraftSaved(false); }
           }
           if (!response.ok)
             throw new Error(result.error || "Unable to save log");
+          if (!Number.isSafeInteger(result.saveVersion) || result.saveVersion! < 0)
+            throw new Error("The server did not confirm a saved version. Keep this page open and retry.");
           savedVersions.current.set(current.logDate, result.saveVersion);
-          if (latestSave.current.logDate !== current.logDate) return;
           setSchedulePrefilled(false);
-          if (versionAtStart === editVersion.current) {
+          saveAgain.current = versionAtStart !== editVersion.current;
+          if (!saveAgain.current) {
             try { window.localStorage.removeItem(draftKey(current.logDate)); } catch { /* The server save is still confirmed. */ }
             setDirty(false);
             setDeviceDraftSaved(false);
           } else {
-            saveAgain.current = true;
+            // New edits must reference the just-confirmed version, even if the
+            // connection disappears before their follow-up save can run.
+            try { window.localStorage.setItem(draftKey(current.logDate), JSON.stringify({ ...latestSave.current, expectedVersion: result.saveVersion, savedAt: new Date().toISOString() })); setDeviceDraftSaved(true); } catch { setDeviceDraftSaved(false); }
           }
           setLastSynced(new Date());
         } while (
@@ -671,13 +683,19 @@ export default function DailyLog({
           window.navigator.onLine &&
           autosaveAuthorized.current
         );
+        if (saveAgain.current) {
+          setMessage("Newer changes are waiting to sync. Keep this page open until saving is confirmed.");
+          return;
+        }
+        confirmed = true;
         setMessage(
           silent
             ? "All changes saved · Timesheets updated"
             : "Daily log and timesheets saved",
         );
-        onPayrollSynced?.();
       } catch (error) {
+        if (!isCurrentSave()) return;
+        saveRetryRequired.current = true;
         setSaveError(true);
         setMessage(
           error instanceof Error ? error.message : "Unable to save log",
@@ -685,14 +703,19 @@ export default function DailyLog({
       } finally {
         saveInFlight.current = false;
         setSaving(false);
+        setSaveSlow(false);
       }
+      // A payroll-screen refresh cannot turn a confirmed log save into an error.
+      if (confirmed) onPayrollSynced?.();
     },
     [onPayrollSynced],
   );
   useEffect(() => {
     if (!dirty || readOnly) return;
     const timer = window.setTimeout(() => {
-      void saveLog(true);
+      // A failed request waits for Retry, a new edit, or reconnection. A local
+      // recovery-storage failure must NOT stop the server save from running.
+      if (!saveRetryRequired.current) void saveLog(true);
     }, 900);
     return () => window.clearTimeout(timer);
   }, [calls, dirty, isOnline, readOnly, saveLog, shiftNotes, staffing]);
@@ -727,6 +750,8 @@ export default function DailyLog({
     if (!loaded.current) return;
     editVersion.current += 1;
     if (saveInFlight.current) saveAgain.current = true;
+    saveRetryRequired.current = false;
+    setSaveError(false);
     setDeviceDraftSaved(false);
     setDirty(true);
   };
@@ -1011,9 +1036,9 @@ export default function DailyLog({
         <nav aria-label="Daily Log sections">
           {[["log-staffing", "Staffing"], ["log-calls", "Calls"], ["log-checks", "Checks"], ["log-notes", "Notes & Handoff"]].map(([id, label]) => <a key={id} href={`#${id}`} onClick={event => { event.preventDefault(); const section = document.getElementById(id); section?.scrollIntoView({ block: "start" }); section?.focus({ preventScroll: true }); }}>{label}</a>)}
         </nav>
-        <div className={`log-save-status ${saveError || saveConflict || loadError ? "attention" : loading || loadedDate !== logDate || dirty || !isOnline || schedulePrefilled ? "pending" : "saved"}`} role="status" aria-live="polite">
-          <strong>{loading ? "Loading log…" : loadError || loadedDate !== logDate ? "Not loaded" : saveConflict ? "Needs attention · conflicting changes" : saveError ? "Save failed — Retry" : saving ? "Saving…" : dirty ? deviceDraftSaved ? "Saved on this device · waiting to sync" : "Unsaved changes" : schedulePrefilled ? "Review scheduled staffing" : !isOnline ? "Offline · showing last saved log" : "Saved to server"}</strong>
-          <small>{lastSynced ? `Last server save ${savedTimeLabel(lastSynced)} Central` : "Saved time unavailable · not proof of a failed save"} · Saving is not officer sign-off.</small>
+        <div className={`log-save-status ${saveError || saveConflict || loadError ? "attention" : loading || loadedDate !== logDate || saving || dirty || !isOnline || schedulePrefilled ? "pending" : "saved"}`} role="status" aria-live="polite">
+          <strong>{loading ? "Loading log…" : loadError || loadedDate !== logDate ? "Not loaded" : saveConflict ? "Needs attention · conflicting changes" : saveError ? "Save not confirmed — Retry" : saving ? saveSlow ? "Saving is taking longer than usual…" : "Saving…" : dirty ? deviceDraftSaved ? "Saved on this device · waiting to sync" : "Unsaved changes" : schedulePrefilled ? "Staffing needs confirmation" : !isOnline ? "Offline · showing last saved log" : "Saved to server"}</strong>
+          <small>{saving ? deviceDraftSaved ? "Recovery draft saved on this device. Waiting for the server." : "Keep this page open until the server confirms saving." : schedulePrefilled && !dirty && !saveError ? "Scheduled staffing is not saved yet. Use Confirm & Save Staffing below." : lastSynced ? `Last server save ${savedTimeLabel(lastSynced)} Central` : "No server save confirmed in this view."} · Saving is not officer sign-off.</small>
           {saveError && !saveConflict && !readOnly && <button type="button" disabled={saving} onClick={() => void saveLog()}>Retry save</button>}
         </div>
       </div>
@@ -1082,8 +1107,8 @@ export default function DailyLog({
               who actually worked. It remains fully editable.
             </span>
           </div>
-          <button onClick={() => void saveLog()}>
-            Confirm &amp; Save Staffing
+          <button disabled={saving} onClick={() => void saveLog()}>
+            {saving ? "Saving staffing…" : "Confirm & Save Staffing"}
           </button>
         </div>
       )}

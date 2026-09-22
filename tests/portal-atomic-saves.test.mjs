@@ -6,6 +6,8 @@ import ts from 'typescript';
 import { webcrypto } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
 import { roundPayrollToCent } from '../app/payroll-rounding.ts';
+import { dailyLogPayrollEntries, dailyLogPayrollTotals } from '../app/payroll-hours.ts';
+import { completedDispatchReportNumbers } from '../app/dispatch-closure.ts';
 
 // Runs the actual migration and adapter against an isolated PostgreSQL engine.
 // No production credentials, records, or network requests are used.
@@ -33,16 +35,18 @@ async function setup() {
     CREATE FUNCTION public.firehouse_server_sql(p_sql text,p_mode text DEFAULT 'all',p_secret text DEFAULT NULL) RETURNS jsonb LANGUAGE sql AS $$ SELECT public.firehouse_sql(p_sql,p_mode,p_secret) $$;`);
   await pg.exec(migration);
   const calls=[];
+  const batches=[];
   const client={async rpc(name,args) {
     calls.push(name);
     try {
       const batch=name.endsWith('_batch');
+      if (batch) batches.push(args.p_statements);
       const {rows}=await pg.query(batch ? `SELECT public.${name}($1::jsonb,$2) AS result` : `SELECT public.${name}($1,$2,$3) AS result`,batch ? [JSON.stringify(args.p_statements),args.p_secret] : [args.p_sql,args.p_mode,args.p_secret]);
       return {data:rows[0].result,error:null};
     } catch(error) { return {data:null,error}; }
   }};
   const db=sandbox.exports.createPostgresD1Adapter(async()=>client,'firehouse_sql','test-only');
-  return {pg,db,calls};
+  return {pg,db,calls,batches};
 }
 
 test('payroll rate validation and database failures never partially save settings or rates',async()=>{
@@ -245,4 +249,79 @@ test('actual Daily Log and payroll entry routes reject stale, finalized and unau
     assert.equal((await payrollContext.exports.POST(request(payrollBody))).status,200);
     assert.equal(Number((await pg.query('SELECT hours FROM firehouse.time_entries')).rows[0].hours),12);
   } finally {await pg.close();}
+});
+
+test('bulk Daily Log save preserves every row, hours, manual entries and atomic rollback with bounded statements', async () => {
+  const { pg, db, batches } = await setup();
+  try {
+    await pg.exec(`
+      ALTER TABLE firehouse.pay_periods ADD updated_by text, ADD updated_at text;
+      ALTER TABLE firehouse.time_entries ADD employee_id text, ADD work_date text, ADD category text, ADD updated_at text;
+      ALTER TABLE firehouse.time_entries ADD UNIQUE(employee_id,work_date,category);
+      ALTER TABLE firehouse.daily_logs ADD locked int DEFAULT 0, ADD locked_by text, ADD locked_at text, ADD admin_unlocked int DEFAULT 0, ADD updated_by text, ADD updated_at text;
+      ALTER TABLE firehouse.daily_log_staffing ADD shift_key text, ADD employee_id text, ADD time_in text, ADD time_out text, ADD acting_officer int, ADD sort_order int;
+      ALTER TABLE firehouse.daily_log_calls ADD report_number text, ADD time_out text, ADD time_in text, ADD responding_units text, ADD address text, ADD call_type text, ADD sort_order int;
+      CREATE TABLE firehouse.employee_profiles(employee_id text,is_dpw int DEFAULT 0);
+      CREATE TABLE firehouse.dispatch_incidents(incident_id text,active int,cleared_at text);
+      CREATE TABLE firehouse.record_revisions(id text PRIMARY KEY,record_type text,record_id text,revision_number int,action text,summary text,actor text);
+      INSERT INTO firehouse.employee_profiles VALUES('dpw',1);
+      INSERT INTO firehouse.daily_logs(log_date) VALUES('2026-09-07');
+      INSERT INTO firehouse.daily_logs(log_date,locked,locked_by,locked_at,admin_unlocked) VALUES('2026-09-06',1,'Officer','existing timestamp',1);
+      INSERT INTO firehouse.dispatch_incidents VALUES(' report-0 ',1,NULL),('report-1',1,NULL),('keep-active',1,NULL);
+      INSERT INTO firehouse.pay_periods(start_date,end_date,status) VALUES('2026-08-26','2026-09-10','draft');
+      INSERT INTO firehouse.time_entries(id,period_start,hours,employee_id,work_date,category) VALUES('manual','2026-08-26',2,'member','2026-09-07','callback');
+    `);
+    let allowed = true;
+    const context = { exports: {}, Error, Response, URL, crypto: webcrypto, console: { error() {} }, ensureDatabase: async () => db,
+      hasPermission: async () => allowed,
+      chicagoOperationalContext: () => ({ operationalDate: '2026-09-07', lockBeforeDate: '2026-09-07' }),
+      completedDispatchReportNumbers, holidayForDate: () => ({ name: 'Fixture holiday' }), dailyLogPayrollEntries, dailyLogPayrollTotals,
+    };
+    const route = fs.readFileSync(new URL('../app/api/logbook/route.ts', import.meta.url), 'utf8').replace(/^import[\s\S]*?;\r?\n/gm, '');
+    vm.runInNewContext(ts.transpileModule(route, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, context);
+    const body = { logDate: '2026-09-07', expectedVersion: 0, shiftNotes: "Officer's fixture notes",
+      staffing: [
+        { id: 'staff-1', employeeId: 'member', shiftKey: 'morning', timeIn: '06:00', timeOut: '12:00', actingOfficer: true },
+        { id: 'staff-2', employeeId: 'member', shiftKey: 'overnight', timeIn: '18:00', timeOut: '06:00' },
+        { id: 'staff-3', employeeId: 'dpw', shiftKey: 'afternoon', timeIn: '12:00', timeOut: '18:00' },
+      ],
+      calls: Array.from({ length: 205 }, (_, i) => ({ id: `call-${i}`, reportNumber: `report-${i}`, timeOut: '09:00', timeIn: i < 2 ? '09:45' : '', respondingUnits: 'Fixture unit', address: `Fixture ${i} Officer's Lane`, callType: 'EMS' })),
+    };
+    const post = payload => context.exports.POST(new Request('https://fixture.test/api/logbook', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) }));
+    const response = await post(body);
+    assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
+    const version = (await response.json()).saveVersion;
+    assert.ok(version > 0);
+    // 205 calls use three inserts, not 205 independently authorized statements.
+    assert.equal(batches[0].filter(s => /INSERT INTO daily_log_calls/.test(s.sql)).length, 3);
+    assert.equal(batches[0].length, 14);
+    const calls = (await pg.query('SELECT * FROM firehouse.daily_log_calls ORDER BY sort_order')).rows;
+    assert.equal(calls.length, 205);
+    assert.equal(calls[204].address, "Fixture 204 Officer's Lane");
+    const payroll = async () => (await pg.query('SELECT employee_id,category,hours::float8 AS hours FROM firehouse.time_entries ORDER BY employee_id,category')).rows;
+    const expectedPayroll = [
+      { employee_id: 'dpw', category: 'dailyLogDpw', hours: 6 },
+      { employee_id: 'member', category: 'actingOfficer', hours: 6 },
+      { employee_id: 'member', category: 'callback', hours: 2 },
+      { employee_id: 'member', category: 'holiday', hours: 18 },
+    ];
+    assert.deepEqual(await payroll(), expectedPayroll);
+    assert.deepEqual((await pg.query('SELECT active FROM firehouse.dispatch_incidents ORDER BY incident_id')).rows.map(r => r.active), [0, 1, 0]);
+    const history = (await pg.query("SELECT save_version,admin_unlocked,locked_at FROM firehouse.daily_logs WHERE log_date='2026-09-06'")).rows[0];
+    assert.equal(Number(history.save_version), 0, 'Already-locked historical rows are not rewritten');
+    assert.equal(history.admin_unlocked, 1);
+    assert.equal(history.locked_at, 'existing timestamp');
+    // Fail after log/call writes. The transaction must restore all of them.
+    await pg.exec('ALTER TABLE firehouse.time_entries ADD CONSTRAINT fixture_reject_large_hours CHECK(hours<=20)');
+    const failed = await post({ ...body, expectedVersion: version, shiftNotes: 'Must roll back', staffing: [{ ...body.staffing[0], timeOut: '06:00' }] });
+    assert.equal(failed.status, 500);
+    assert.deepEqual(await payroll(), expectedPayroll);
+    assert.equal((await pg.query("SELECT shift_notes FROM firehouse.daily_logs WHERE log_date='2026-09-07'")).rows[0].shift_notes, body.shiftNotes);
+    assert.equal((await pg.query('SELECT count(*)::int n FROM firehouse.daily_log_calls')).rows[0].n, 205);
+    assert.equal((await post({ ...body, expectedVersion: 0 })).status, 409);
+    allowed = false; assert.equal((await post({ ...body, expectedVersion: version })).status, 403); allowed = true;
+    await pg.exec("UPDATE firehouse.pay_periods SET status='finalized'");
+    assert.equal((await post({ ...body, expectedVersion: version, staffing: [], calls: [] })).status, 409);
+    assert.deepEqual(await payroll(), expectedPayroll);
+  } finally { await pg.close(); }
 });

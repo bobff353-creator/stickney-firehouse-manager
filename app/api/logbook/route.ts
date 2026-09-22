@@ -12,6 +12,16 @@ import { createInventorySupabaseClient } from "../../lib/supabase-server";
 
 const shifts = ["morning", "afternoon", "overnight"];
 const actorFor = (request: Request) => request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() || "System";
+// Fewer statements/auth checks inside the same atomic transaction. Query text
+// is supplied only by this route; every record value still goes through bind.
+function insertRows(db: Awaited<ReturnType<typeof ensureDatabase>>, query: string, tuple: string, rows: (string | number | null)[][]) {
+  const statements = [];
+  for (let offset = 0; offset < rows.length; offset += 100) {
+    const chunk = rows.slice(offset, offset + 100);
+    statements.push(db.prepare(`${query} VALUES ${chunk.map(() => tuple).join(", ")}`).bind(...chunk.flat()));
+  }
+  return statements;
+}
 async function addRevision(db: Awaited<ReturnType<typeof ensureDatabase>>, id: string, action: string, summary: string, actor: string) { await db.prepare("INSERT INTO record_revisions (id, record_type, record_id, revision_number, action, summary, actor) SELECT ?, 'dailyLog', ?, COALESCE(MAX(revision_number), 0) + 1, ?, ?, ? FROM record_revisions WHERE record_type = 'dailyLog' AND record_id = ?").bind(crypto.randomUUID(), id, action, summary, actor, id).run(); }
 
 function cleanDate(value: string | null, fallback: string) {
@@ -82,7 +92,7 @@ export async function GET(request: Request) {
         await projectDispatchIntoDailyLog(db, incident);
       }
     }
-    await db.prepare("UPDATE daily_logs SET locked = 1, locked_by = COALESCE(locked_by, 'System · 7:00 AM Lock'), locked_at = COALESCE(locked_at, CURRENT_TIMESTAMP) WHERE log_date < ?").bind(operational.lockBeforeDate).run();
+    await db.prepare("UPDATE daily_logs SET locked = 1, locked_by = COALESCE(locked_by, 'System · 7:00 AM Lock'), locked_at = COALESCE(locked_at, CURRENT_TIMESTAMP) WHERE log_date < ? AND (locked = 0 OR locked_by IS NULL OR locked_at IS NULL)").bind(operational.lockBeforeDate).run();
     // Read the version BEFORE the related rows. A concurrent change during
     // loading then makes this snapshot stale, never eligible to overwrite it.
     const snapshot = await db.prepare("SELECT save_version AS saveVersion FROM daily_logs WHERE log_date = ?").bind(date).first<{ saveVersion: number }>();
@@ -164,7 +174,7 @@ export async function POST(request: Request) {
     if (!["save", "handoff", "adminUnlock"].includes(action)) return Response.json({ error: "Unsupported Daily Log action." }, { status: 400 });
     if (action === "save" && (!Array.isArray(body.staffing) || !Array.isArray(body.calls) || typeof body.shiftNotes !== "string" || body.staffing.some(row => !row || typeof row !== "object" || !shifts.includes(String(row.shiftKey ?? ""))) || body.calls.some(row => !row || typeof row !== "object"))) return Response.json({ error: "The complete Daily Log is required. No staffing, calls, notes, or payroll were changed. Reload and retry." }, { status: 400 });
     const actor = actorFor(request);
-    await db.prepare("UPDATE daily_logs SET locked = 1, locked_by = COALESCE(locked_by, 'System · 7:00 AM Lock'), locked_at = COALESCE(locked_at, CURRENT_TIMESTAMP) WHERE log_date < ?").bind(operational.lockBeforeDate).run();
+    await db.prepare("UPDATE daily_logs SET locked = 1, locked_by = COALESCE(locked_by, 'System · 7:00 AM Lock'), locked_at = COALESCE(locked_at, CURRENT_TIMESTAMP) WHERE log_date < ? AND (locked = 0 OR locked_by IS NULL OR locked_at IS NULL)").bind(operational.lockBeforeDate).run();
     const existing = await db.prepare("SELECT locked, admin_unlocked AS adminUnlocked FROM daily_logs WHERE log_date = ?").bind(date).first<{ locked: number; adminUnlocked: number }>();
 
     if (action === "adminUnlock") {
@@ -222,17 +232,19 @@ export async function POST(request: Request) {
       db.prepare("DELETE FROM daily_log_staffing WHERE log_date = ?").bind(date),
       db.prepare("DELETE FROM daily_log_calls WHERE log_date = ?").bind(date),
     ];
-    for (const [index, row] of staffing.entries()) {
-      const shiftKey = String(row.shiftKey ?? "");
-      if (!shifts.includes(shiftKey)) continue;
-      logWrites.push(db.prepare("INSERT INTO daily_log_staffing (id, log_date, shift_key, employee_id, time_in, time_out, acting_officer, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").bind(String(row.id || crypto.randomUUID()), date, shiftKey, String(row.employeeId ?? "") || null, String(row.timeIn ?? ""), String(row.timeOut ?? ""), row.actingOfficer ? 1 : 0, index));
-    }
-    for (const [index, row] of calls.entries()) {
-      const callType = String(row.callType ?? "EMS");
-      logWrites.push(db.prepare("INSERT INTO daily_log_calls (id, log_date, report_number, time_out, time_in, responding_units, address, call_type, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(String(row.id || crypto.randomUUID()), date, String(row.reportNumber ?? ""), String(row.timeOut ?? ""), String(row.timeIn ?? ""), String(row.respondingUnits ?? ""), String(row.address ?? ""), callType || "Special", index));
-    }
-    for (const reportNumber of completedDispatchReportNumbers(calls)) {
-      logWrites.push(db.prepare("UPDATE dispatch_incidents SET active = 0, cleared_at = COALESCE(cleared_at, CURRENT_TIMESTAMP) WHERE trim(incident_id) = trim(?)").bind(reportNumber));
+    logWrites.push(...insertRows(db,
+      "INSERT INTO daily_log_staffing (id, log_date, shift_key, employee_id, time_in, time_out, acting_officer, sort_order)",
+      "(?, ?, ?, ?, ?, ?, ?, ?)",
+      staffing.map((row, index) => [String(row.id || crypto.randomUUID()), date, String(row.shiftKey), String(row.employeeId ?? "") || null, String(row.timeIn ?? ""), String(row.timeOut ?? ""), row.actingOfficer ? 1 : 0, index]),
+    ));
+    logWrites.push(...insertRows(db,
+      "INSERT INTO daily_log_calls (id, log_date, report_number, time_out, time_in, responding_units, address, call_type, sort_order)",
+      "(?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      calls.map((row, index) => [String(row.id || crypto.randomUUID()), date, String(row.reportNumber ?? ""), String(row.timeOut ?? ""), String(row.timeIn ?? ""), String(row.respondingUnits ?? ""), String(row.address ?? ""), String(row.callType ?? "EMS") || "Special", index]),
+    ));
+    const completedReports = completedDispatchReportNumbers(calls);
+    if (completedReports.length) {
+      logWrites.push(db.prepare(`UPDATE dispatch_incidents SET active = 0, cleared_at = COALESCE(cleared_at, CURRENT_TIMESTAMP) WHERE trim(incident_id) IN (${completedReports.map(() => "?").join(", ")})`).bind(...completedReports.map(report => report.trim())));
     }
     const holiday = holidayForDate(date);
     const totals = dailyLogPayrollTotals(staffing, holiday);
@@ -245,9 +257,11 @@ export async function POST(request: Request) {
       // callback, and DPW entries remain untouched.
       db.prepare("DELETE FROM time_entries WHERE work_date = ? AND category IN ('shift', 'holiday', 'actingOfficer', 'dailyLogDpw')").bind(date),
     ];
-    for (const entry of dailyLogPayrollEntries(totals, dpwEmployees)) {
-      payrollWrites.push(db.prepare("INSERT INTO time_entries (id, employee_id, period_start, work_date, category, hours, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)").bind(crypto.randomUUID(), entry.employeeId, periodStart, date, entry.category, entry.hours));
-    }
+    payrollWrites.push(...insertRows(db,
+      "INSERT INTO time_entries (id, employee_id, period_start, work_date, category, hours, updated_at)",
+      "(?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
+      dailyLogPayrollEntries(totals, dpwEmployees).map(entry => [crypto.randomUUID(), entry.employeeId, periodStart, date, entry.category, entry.hours]),
+    ));
     payrollWrites.push(db.prepare("INSERT INTO record_revisions (id, record_type, record_id, revision_number, action, summary, actor) SELECT ?, 'dailyLog', ?, COALESCE(MAX(revision_number), 0) + 1, 'Saved', ?, ? FROM record_revisions WHERE record_type = 'dailyLog' AND record_id = ?").bind(crypto.randomUUID(), date, `Staffing, calls, and notes updated; ${totals.size} payroll record(s) synchronized`, actor, date));
     // The period guard and optimistic version check run INSIDE the transaction.
     // Even an empty staffing list must not bypass finalized-period protection.
@@ -261,6 +275,6 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Daily Log save failed", error);
     if (error instanceof Error && /SAVE_CONFLICT|PAYROLL_FINALIZED/.test(error.message)) return Response.json({ error: "This log changed, was locked, or its payroll period was finalized. Your draft is retained on this device. Reload and review the saved record before trying again." }, { status: 409 });
-    return Response.json({ error: "The Daily Log and payroll were not saved. No partial changes were applied; please try again." }, { status: 500 });
+    return Response.json({ error: "The server could not confirm the Daily Log and payroll save. Keep your draft and retry. If it already completed, reload and review the saved record when prompted." }, { status: 500 });
   }
 }
