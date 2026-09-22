@@ -1,0 +1,41 @@
+.inventory-ops [hidden] { display: none !important; }
+.inventory-ops .check-journey { padding: 14px; border: 1px solid #a7bbc9; border-radius: 12px; background: #eef5fa; color: #163a50; margin: 12px 0; }
+.inventory-ops .check-journey-path { font-size: 14px; margin: 0 0 10px; color: #34556c; }
+.inventory-ops .check-journey label { display: grid; gap: 6px; font-weight: 700; }
+.inventory-ops .check-journey select { width: 100%; min-height: 48px; background: white; color: #163a50; font-size: 16px; }
+.inventory-ops .check-journey-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 10px; }
+.inventory-ops .check-journey-actions button { min-height: 48px; white-space: normal; max-width: 100%; }
+.inventory-ops .check-journey-actions span { font-size: 14px; }
+.inventory-ops .check-step-heading { scroll-margin-top: 160px; outline-offset: 5px; }
+.inventory-ops .check-review-sections { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+.inventory-ops .check-review-sections button { text-align: left; display: grid; gap: 5px; padding: 14px; min-height: 64px; white-space: normal; }
+.inventory-ops .check-review-issues { display: grid; gap: 10px; }
+.inventory-ops .check-review-issues article, .inventory-ops .check-known-issue { padding: 12px; border-left: 4px solid #a14c00; background: #fff5e7; color: #603800; }
+.inventory-ops .check-review-issues p { margin: 6px 0; }
+.inventory-ops .ops-save-receipt { padding: 12px 16px; border: 1px solid #72a68f; border-radius: 10px; background: #edf8f1; color: #194c34; overflow-wrap: anywhere; }
+.inventory-ops .ops-save-receipt small { display: block; margin-top: 5px; }
+.inventory-ops .check-draft-warning { padding: 12px; background: #fff3d5; color: #603800; }
+.inventory-ops .stock-workflow-tools { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; margin: 16px 0; }
+.inventory-ops .stock-workflow-tools label { display: grid; gap: 6px; flex: 1 1 240px; }
+.inventory-ops .stock-workflow-tools input, .inventory-ops .stock-workflow-tools select, .inventory-ops .stock-lot-picker select { min-height: 48px; width: 100%; color: #163a50; background: #fff; font-size: 16px; }
+.inventory-ops .stock-lot-picker { display: grid; gap: 6px; grid-column: 1 / -1; min-width: 0; }
+.inventory-ops .stock-lot-detail, .inventory-ops .stock-lot-warning { grid-column: 1 / -1; margin: 0; overflow-wrap: anywhere; }
+.inventory-ops .stock-lot-warning { padding: 10px; border-radius: 6px; background: #fff2dc; color: #713311 !important; }
+.inventory-ops .stock-grid > article :is(small, span) { color: inherit; opacity: 1; }
+.inventory-ops .check-review-issues article :is(p, small, strong), .inventory-ops .check-known-issue p { color: inherit !important; }
+.inventory-ops .check-job-filter { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.inventory-ops .check-job-filter button { min-height: 48px; }
+.inventory-ops .check-job-filter button[aria-pressed=true] { background: #205d80; color: #fff; }
+.inventory-ops .active-inspection-title { background: #eef5fa; color: #244c62; border-radius: 8px; padding: 12px; }
+.inventory-ops .active-inspection-title :is(span, small) { color: #244c62 !important; opacity: 1; font-size: 13px; }
+.inventory-ops .scba-entry-fields { border: 0; margin: 0; padding: 0; min-width: 0; }
+@media (max-width: 600px) {
+  .inventory-ops .check-journey-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .inventory-ops .check-journey-actions span { grid-column: 1 / -1; grid-row: 1; }
+  .inventory-ops .check-journey-actions button { width: 100%; padding: 10px; font-size: 14px; }
+  .inventory-ops .check-progress-summary.workflow-sticky-check { position: static; }
+  .inventory-ops .workflow-sticky-check .workflow-save-status small { display: block; color: inherit; }
+  .inventory-ops .check-review-sections { grid-template-columns: 1fr; }
+  .inventory-ops .check-worklist-tools { grid-template-columns: 1fr; }
+  .inventory-ops .stock-actions { display: flex; flex-wrap: wrap; }
+}

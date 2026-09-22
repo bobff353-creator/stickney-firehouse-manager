@@ -856,16 +856,15 @@ export default function Inventory360({
           <div className="page-heading compact">
             <div>
               <span className="eyebrow">APPARATUS AND EQUIPMENT CHECKS</span>
-              <h1>Complete the real department check.</h1>
-              <p>Add equipment once, then record every pass, missing item, damaged item, or not-applicable result.</p>
+              <h1>Check one section at a time.</h1>
+              <p>Record results, review issues, then submit. Saved crew progress is shared.</p>
             </div>
             <div className="heading-actions">
-              <button className="secondary" onClick={() => setView(selectedCheckType === "air_pack" ? "air" : "fleet")}>{selectedCheckType === "air_pack" ? "Back to Air Packs & Bottles" : "Back to fleet"}</button>
+              <button className="secondary" onClick={() => setView(selectedCheckType === "air_pack" ? "air" : "fleet")}>{selectedCheckType === "air_pack" ? "Back to Air Packs & Bottles" : "Back to apparatus checks"}</button>
               {canSetup ? <button className="primary" onClick={() => setView("setup")}>Admin Configuration</button> : null}
             </div>
           </div>
-          {selectedCheckType === "air_pack" ? <div className="air-check-return"><button type="button" className="secondary" onClick={() => setView("air")}>← Back to Air Packs &amp; Bottles</button></div> : null}
-          <InventoryOperations onRecords={receiveOperations} key={`${selectedApparatusId}-${selectedCheckType}`} view="check" onSetup={() => setView("setup")} onReports={() => setView("reports")} initialApparatusId={selectedApparatusId} initialCheckType={selectedCheckType} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+          <InventoryOperations onRecords={receiveOperations} key={`${selectedApparatusId}-${selectedCheckType}`} view="check" onSetup={() => setView("setup")} onRepairs={() => setView("service")} onReports={() => setView("reports")} initialApparatusId={selectedApparatusId} initialCheckType={selectedCheckType} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
         </section>
       ) : null}
 

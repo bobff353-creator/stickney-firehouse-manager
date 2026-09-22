@@ -68,7 +68,7 @@ export default function InventoryAirSystems({ data, busy, canSetup, canManageRep
   uploadPhoto: (asset: AirRow, file: File) => Promise<void>;
   onRepairs: () => void;
 }) {
-  const [tab, setTab] = useState("pack");
+  const [tab, setTab] = useState("checks");
   const [search, setSearch] = useState("");
   const [rigFilter, setRigFilter] = useState("");
   const [showRetired, setShowRetired] = useState(false);
@@ -117,9 +117,13 @@ export default function InventoryAirSystems({ data, busy, canSetup, canManageRep
       {tab === "checks" ? <div className="air-check-grid">{data.apparatus.filter(eligible).map(rig => {
         const id = val(rig, "id"), template = data.scbaTemplates.find(item => item.apparatus_id === id);
         const lines = airCheckLines(template, data.equipment, id);
+        const active = data.checks.find(check => check.apparatus_id === id && check.check_type === "air_pack" && check.status === "in_progress");
+        const entries = active ? data.scbaEntries.filter(entry => entry.check_id === active.id) : [];
+        const remaining = entries.filter(entry => entry.result === "pending").length;
         const schedules = data.inspectionSchedules.filter(item => item.apparatus_id === id && item.check_type === "air_pack" && item.active !== false);
         return <section className="air-record" key={id}><h3>{val(rig, "name")}</h3><p>{lines.filter(line => line.equipment_id).length} registered items · {lines.filter(line => !line.equipment_id).length} unlinked checklist positions</p>{schedules.length ? schedules.map(schedule => <p key={val(schedule, "id")}>{days[Number(schedule.day_of_week)]} · {val(schedule, "start_time").slice(0, 5)}–{val(schedule, "end_time").slice(0, 5)}{schedule.feeds_operations_board === false ? " · Operations Board feed is off" : " · Operations Board"}</p>) : <p className="air-warning">No weekly schedule. This location will not appear as due until an admin sets a day.</p>}
-          {canCheck && lines.length ? <button className="ops-primary" type="button" onClick={() => onOpenCheck(id)}>Start / resume air check</button> : !lines.length ? <p>No air checklist is configured yet.</p> : <p>You have read-only access to checks.</p>}
+          {active && <p>{entries.length ? `${entries.length - remaining} of ${entries.length} results saved · ${remaining} remaining` : "Open the existing check to verify its entries."} · Submission is a separate step.</p>}
+          {canCheck && (lines.length || active) ? <button className="ops-primary" type="button" disabled={busy} onClick={() => onOpenCheck(id)}>{active ? entries.length && !remaining ? "Review & submit air check" : "Resume air check" : "Start air check"}</button> : !lines.length ? <p>No air checklist is configured yet.</p> : <p>You have read-only access to checks.</p>}
           <details><summary>Preview next check · no results saved</summary>{lines.map((line, index) => <p key={`${line.slot}-${index}`}><strong>{line.label}</strong><br />{line.equipment_id ? line.location : "Existing position — no individual ID linked yet"}</p>)}</details>
           {canSetup ? <details><summary>Customize weekly checklist & schedule</summary>{renderTemplate(rig)}{(schedules.length ? schedules : [undefined]).map(schedule => <AirScheduleEditor key={val(schedule, "id") || "new"} apparatusId={id} schedule={schedule} busy={busy} onSave={onSave} />)}</details> : null}
         </section>;

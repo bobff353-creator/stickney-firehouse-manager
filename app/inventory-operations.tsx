@@ -16,6 +16,8 @@ import InventoryAirSystems from "./inventory-air-systems";
 import { airCheckLines } from "./inventory-air-checks";
 import InventoryCapture from './inventory-capture';
 import { createConditionalJsonReader } from './conditional-json-reader';
+import InventoryCheckJourney from "./inventory-check-journey";
+import { canSubmitInspection, initialCheckSection, stockExpiryDays } from "./inventory-check-flow";
 
 type OperationsView = "due" | "inventory" | "check" | "equipment" | "air" | "reports" | "readiness" | "service" | "stock" | "builder" | "legacy_check" | "legacy_service";
 type Row = Record<string, string | number | boolean | string[] | null>;
@@ -241,11 +243,12 @@ function EmployeeNotifyPicker({
   };
 
   return <fieldset className={`employee-notify-picker ${className}`.trim()}>
-    <legend>Employees to notify</legend>
+    <legend>Assign this repair notice</legend>
     <div className="employee-notify-summary">
-      <div><strong>{selectedIds.length ? `${selectedIds.length} selected` : "No employees selected"}</strong><span>Recipients receive this repair notice.</span></div>
+      <div><strong>{selectedIds.length ? `${selectedIds.length} selected` : "No employees selected"}</strong><span>Selected employees see an assigned notice in the app. This does not send an email, text, or push notification.</span></div>
       {selectedIds.length ? <button type="button" onClick={() => onChange([])}>Clear</button> : null}
     </div>
+    <p>For an urgent safety problem, also contact the officer using your department procedure. Saving a notice is not confirmation that someone has read it.</p>
     {selectedEmployees.length ? <div className="employee-notify-selected" aria-label="Selected employees">{selectedEmployees.map((employee) => <span key={employee.id}>{employee.name}<button type="button" aria-label={`Remove ${employee.name}`} onClick={() => toggleEmployee(employee.id)}>×</button></span>)}</div> : null}
     {employees.length ? <details className="employee-notify-directory">
       <summary><span>Choose employees</span><small>{employees.length} available</small></summary>
@@ -309,38 +312,53 @@ function ScbaEntryEditor({
   busy,
   canCheck,
   onSave,
+  onDirty = () => {},
 }: {
   entry: Row;
   busy: boolean;
   canCheck: boolean;
   onSave: (payload: Record<string, unknown>) => Promise<boolean>;
+  onDirty?: (id: string, dirty: boolean) => void;
 }) {
   const savedResult = value(entry, "result") || "pending";
-  const [result, setResult] = useState(savedResult === "pending" ? "pass" : savedResult);
   const isPack = value(entry, "section") === "pack";
+  const revision = JSON.stringify([entry.checked_at, entry.result, entry.harness_number, entry.cylinder_number, entry.psi, entry.notes]);
+  const readDraft = () => ({ revision, dirty: false, harnessNumber: value(entry, "asset_number") || value(entry, "harness_number"), cylinderNumber: (!isPack && value(entry, "asset_number")) || value(entry, "cylinder_number"), psi: value(entry, "psi"), result: savedResult === "pending" ? "pass" : savedResult, notes: value(entry, "notes") });
+  const [draft, setDraft] = useState(readDraft);
+  // Refresh untouched fields only. A crew refresh must never discard a local edit.
+  if (!draft.dirty && draft.revision !== revision) setDraft(readDraft());
+  const result = draft.result;
+  const conflict = draft.dirty && draft.revision !== revision;
+  const edit = (field: "harnessNumber" | "cylinderNumber" | "psi" | "result" | "notes", text: string) => {
+    setDraft(current => ({ ...current, [field]: text, dirty: true }));
+    onDirty(value(entry, "id"), true);
+  };
   const isNotApplicable = result === "not_applicable";
-  return <form className={`scba-entry result-${savedResult}`} onSubmit={(event) => {
+  return <form className={`scba-entry result-${savedResult}`} onSubmit={async (event) => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    void onSave({
+    if (busy || conflict || !canCheck) return;
+    const saved = await onSave({
       action: "record_scba_entry",
       entryId: value(entry, "id"),
-      harnessNumber: form.get("harnessNumber"),
-      cylinderNumber: form.get("cylinderNumber"),
-      psi: form.get("psi"),
+      harnessNumber: draft.harnessNumber,
+      cylinderNumber: draft.cylinderNumber,
+      psi: draft.psi,
       result,
-      notes: form.get("notes"),
+      notes: draft.notes,
     });
+    if (saved) { setDraft(current => ({ ...current, dirty: false })); onDirty(value(entry, "id"), false); }
   }}>
     <header><div><span>{formatStatus(entry.section)}</span><h4>{value(entry, "label")}</h4>{entry.location_snapshot ? <small>{value(entry, "location_snapshot")}</small> : null}</div><b>{formatStatus(savedResult)}</b></header>
-    <div className="scba-entry-fields">
-      {isPack ? <label><span>Harness number</span><input name="harnessNumber" defaultValue={value(entry, "asset_number") || value(entry, "harness_number")} readOnly={Boolean(entry.asset_number)} required={!isNotApplicable} /></label> : null}
-      <label><span>Cylinder number</span><input name="cylinderNumber" defaultValue={(!isPack && value(entry, "asset_number")) || value(entry, "cylinder_number")} readOnly={Boolean(entry.asset_number) && !isPack} required={!isNotApplicable} /></label>
-      <label><span>PSI (fill to 4500)</span><input name="psi" type="number" inputMode="numeric" min="0" max="6000" defaultValue={value(entry, "psi")} required={!isNotApplicable} placeholder="4500" /></label>
-      <label><span>{isPack ? "Electronics operational" : "Condition"}</span><select value={result} onChange={(event) => setResult(event.target.value)}><option value="pass">Pass</option><option value="failed">Issue</option><option value="not_applicable">N/A</option></select></label>
-    </div>
-    <label className="scba-entry-notes"><span>Deficiency / note</span><textarea name="notes" rows={2} defaultValue={value(entry, "notes")} required={result === "failed"} placeholder={result === "failed" ? "Describe the issue" : "Optional note"} /></label>
-    <footer>{value(entry, "checked_at") ? <small>Saved {formatDate(entry.checked_at)} by {value(entry, "checked_by") || "department crew"}</small> : <small>Not checked yet</small>}<button className="ops-primary" disabled={busy || !canCheck}>{savedResult === "pending" ? "Save entry" : "Update entry"}</button></footer>
+    {conflict && <p className="check-draft-warning" role="alert">Another saved version arrived while you were editing. Your draft is still here. <button type="button" disabled={busy} onClick={() => { if (window.confirm("Discard this local draft and load the saved crew entry?")) { setDraft(readDraft()); onDirty(value(entry, "id"), false); } }}>Discard draft &amp; load crew entry</button></p>}
+    <fieldset disabled={busy || !canCheck} className="scba-entry-fields">
+      {isPack ? <label><span>Harness number</span><input name="harnessNumber" value={draft.harnessNumber} onChange={event => edit("harnessNumber", event.target.value)} readOnly={Boolean(entry.asset_number)} required={!isNotApplicable} /></label> : null}
+      <label><span>Cylinder number</span><input name="cylinderNumber" value={draft.cylinderNumber} onChange={event => edit("cylinderNumber", event.target.value)} readOnly={Boolean(entry.asset_number) && !isPack} required={!isNotApplicable} /></label>
+      <label><span>PSI (fill to 4500)</span><input name="psi" type="number" inputMode="numeric" min="0" max="6000" value={draft.psi} onChange={event => edit("psi", event.target.value)} required={!isNotApplicable} placeholder="4500" /></label>
+      <label><span>{isPack ? "Electronics operational" : "Condition"}</span><select value={result} onChange={(event) => edit("result", event.target.value)}><option value="pass">Pass</option><option value="failed">Issue</option><option value="not_applicable">N/A</option></select></label>
+    </fieldset>
+    <label className="scba-entry-notes"><span>Deficiency / note</span><textarea name="notes" rows={2} value={draft.notes} disabled={busy || !canCheck} onChange={event => edit("notes", event.target.value)} required={result === "failed"} placeholder={result === "failed" ? "Describe the issue" : "Optional note"} /></label>
+    {draft.dirty && <small className="check-draft-warning">Unsaved changes — select Save entry before submitting.</small>}
+    <footer>{value(entry, "checked_at") ? <small>Saved {formatDate(entry.checked_at)} by {value(entry, "checked_by") || "department crew"}</small> : <small>Not checked yet</small>}<button className="ops-primary" disabled={busy || conflict || !canCheck}>{savedResult === "pending" ? "Save entry" : "Update entry"}</button></footer>
   </form>;
 }
 
@@ -377,6 +395,14 @@ export default function InventoryOperations({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
+  const [saveReceipt, setSaveReceipt] = useState<{ at: number; reference: string } | null>(null);
+  const mutationPending = useRef(false);
+  const [scbaDirty, setScbaDirty] = useState<Record<string, boolean>>({});
+  const [journey, setJourney] = useState<{ checkId: string; section: string } | null>(null);
+  const [stockSearch, setStockSearch] = useState("");
+  const [stockAttention, setStockAttention] = useState(false);
+  const [selectedStockLots, setSelectedStockLots] = useState<Record<string, string>>({});
+  const [dueType, setDueType] = useState("all");
   const [submittedCheck, setSubmittedCheck] = useState(false);
   const [error, setError] = useState("");
   const [itemSaveError, setItemSaveError] = useState<{ name: string; message: string } | null>(null);
@@ -658,18 +684,24 @@ export default function InventoryOperations({
   }, [data, initialCheckType, load, loading, selectedApparatusId]);
 
   async function action(name: string, payload: Record<string, unknown>) {
+    if (mutationPending.current || itemSavePending.current) return false;
+    mutationPending.current = true;
     setBusy(name);
     setError("");
     setMessage("");
+    setSaveReceipt(null);
     try {
       const response = await fetch("/api/operations", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(20000),
       });
-      const result = await response.json().catch(() => ({})) as { error?: string };
+      const result = await response.json() as { error?: string; checkId?: string };
       if (!response.ok) throw new Error(result.error || "The change could not be saved.");
-      const refreshed = await load({ background: view === "air", fresh: true });
+      setSaveReceipt({ at: Date.now(), reference: String(result.checkId || payload.checkId || payload.entryId || payload.lotId || "") });
+      // Keep every form mounted while reconciling a successful mutation.
+      const refreshed = await load({ background: true, fresh: true });
       if (payload.action === "complete_check") setSubmittedCheck(true);
       if (payload.action === "start_check") setSubmittedCheck(false);
       const confirmations: Record<string, string> = {
@@ -680,7 +712,7 @@ export default function InventoryOperations({
         request_restock: "Restock request saved for administrator approval.",
         approve_restock: "Restock request approved.",
         fulfill_restock: "Restock request marked fulfilled.",
-        create_notice: "Repair notice saved with the selected assignees. Follow it in All repair records.",
+        create_notice: `Repair notice saved. Assigned in-app to ${(payload.assignedEmployeeNames as string[] | undefined)?.join(", ") || "the selected employees"}. No email, text, or push was sent. Follow it in All repair records.`,
         create_work_order: "Work order opened. Follow progress and add service documents in Maintenance history.",
         complete_check: "Inspection submitted for administrator review. Find the saved report in Reports.",
         update_equipment: "Equipment changes saved. Existing inspection history is retained.",
@@ -694,21 +726,23 @@ export default function InventoryOperations({
       setMessage(refreshed ? (confirmations[String(payload.action)] || `${name.replaceAll("_", " ")} saved. The records below have been refreshed.`) : "Your change was saved, but the refreshed records could not be loaded. Retry the refresh before reviewing the saved preview.");
       return true;
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "The change could not be saved.");
+      setError(caught instanceof TypeError || caught instanceof SyntaxError || (caught instanceof DOMException && ["TimeoutError", "AbortError"].includes(caught.name)) ? "Save confirmation was not received. Refresh and check the record before trying again; the server may have saved it. Do not repeat a stock adjustment until you verify the quantity." : caught instanceof Error ? caught.message : "The change could not be saved.");
       return false;
     } finally {
+      mutationPending.current = false;
       setBusy("");
     }
   }
 
   async function recordCheckItems(name: string, payload: Record<string, unknown>) {
-    if (itemSavePending.current) return false;
+    if (itemSavePending.current || mutationPending.current) return false;
     itemSavePending.current = true;
     itemSaveGeneration.current += 1;
     setBusy(name);
     setError("");
     setItemSaveError(null);
     setMessage("");
+    setSaveReceipt(null);
     try {
       const response = await fetch("/api/operations", {
         method: "POST",
@@ -732,6 +766,7 @@ export default function InventoryOperations({
         }),
       }));
       setLastSyncedAt(Date.now());
+      setSaveReceipt({ at: Date.now(), reference: String(payload.checkId || savedItems[0]?.check_id || "") });
       setMessage(savedItems.length > 1 ? `${savedItems.length} inventory items passed.` : "Inventory item saved.");
       return true;
     } catch (caught) {
@@ -814,11 +849,26 @@ export default function InventoryOperations({
     const reading = numericReadings[value(item, "id")];
     return reading !== undefined && numericReadingInputValue(reading) !== numericReadingInputValue(item.numeric_reading);
   });
-  useUnsavedWork(unsavedReadings || noticeSaveState === "unsaved" || noticeSaveState === "failed", noticeSaveState === "saving" || (unsavedReadings && Boolean(busy)));
+  const unsavedScba = activeScbaEntries.some(item => scbaDirty[value(item, "id")]);
+  const unsavedCheck = unsavedReadings || unsavedScba;
+  useUnsavedWork(unsavedCheck || noticeSaveState === "unsaved" || noticeSaveState === "failed", Boolean(busy) || noticeSaveState === "saving");
   const pendingItems = activeChecklistRows.filter((item) => value(item, "result") === "pending").length;
   const completedItems = activeChecklistRows.length - pendingItems;
   const checkProgress = activeChecklistRows.length ? Math.round((completedItems / activeChecklistRows.length) * 100) : 0;
   const checkCompartments = [...new Set(activeItems.map((item) => value(item, "compartment_label") || "Location not assigned"))];
+  const sectionNames = activeCheckType === "air_pack" ? ["pack", "rit", "spare"] : checkCompartments;
+  const checkSections = sectionNames.map(id => {
+    const rows = activeChecklistRows.filter(item => activeCheckType === "air_pack" ? value(item, "section") === id : (value(item, "compartment_label") || "Location not assigned") === id);
+    return { id, label: activeCheckType === "air_pack" ? ({ pack: "SCBA packs", rit: "R.I.T. bag", spare: "Spare bottles" }[id] || id) : id, total: rows.length, pending: rows.filter(item => value(item, "result") === "pending").length };
+  }).filter(section => section.total > 0);
+  const checkId = value(activeCheck || {}, "id");
+  const currentSection = journey?.checkId === checkId ? journey.section : initialCheckSection(checkSections);
+  // Pin the initial section once; incoming crew results never navigate for the user.
+  if (activeCheck && journey?.checkId !== checkId) setJourney({ checkId, section: currentSection });
+  const changeCheckSection = (section: string) => {
+    setJourney({ checkId, section }); setCheckSearch(""); setCheckResultFilter(checkSections.find(item => item.id === section)?.pending === 0 ? "all" : "pending"); setCheckCompartmentFilter("all");
+    window.requestAnimationFrame(() => { const heading = document.getElementById("check-step-heading"); heading?.focus({ preventScroll: true }); heading?.scrollIntoView({ block: "start" }); });
+  };
   const filteredActiveItems = activeItems.filter((item) => {
     const result = value(item, "result");
     const failed = ["failed", "missing", "damaged"].includes(result);
@@ -874,6 +924,7 @@ export default function InventoryOperations({
         <div className="check-item-copy">
           <strong>{value(item, "equipment_name")}{Number(item.quantity_required || 1) > 1 ? ` × ${item.quantity_required}` : ""}</strong>
           <small>{compartment}</small>
+          {!preview && data.workOrders.some(order => value(order, "equipment_id") === value(item, "equipment_id") && !["completed", "closed", "cancelled"].includes(value(order, "status"))) && <details className="check-known-issue"><summary>Existing repair — review before reporting again</summary>{data.workOrders.filter(order => value(order, "equipment_id") === value(item, "equipment_id") && !["completed", "closed", "cancelled"].includes(value(order, "status"))).map(order => <p key={value(order, "id")}>{value(order, "summary")} · {formatStatus(order.status)}</p>)}<button type="button" onClick={() => { if (confirmLeavingWork()) onRepairs(); }}>Open Repairs</button></details>}
           {value(item, "source_form") ? <details className="check-item-details"><summary>Details</summary><p>{value(item, "source_form")}</p></details> : null}
           {pendingLocationChange ? <small className="location-change-pending">Wrong location reported · awaiting administrator review</small> : null}
         </div>
@@ -941,6 +992,11 @@ export default function InventoryOperations({
     }
     return [...grouped.values()];
   }, [data.stock]);
+  const visibleStockRows = stockRows.filter(item => {
+    const matches = [value(item.row, "name"), value(item.row, "sku"), value(item.row, "barcode"), ...item.lots.map(lot => `${value(lot, "lot_number")} ${value(lot, "location_id")}`)].join(" ").toLowerCase().includes(stockSearch.trim().toLowerCase());
+    const attention = item.total <= Number(item.row.reorder_point || 0) || item.lots.some(lot => { const days = stockExpiryDays(lot.expires_at); return Number(lot.quantity_on_hand) > 0 && days !== null && days <= 30; });
+    return matches && (!stockAttention || attention);
+  });
   const equipmentMatches = useMemo(() => {
     const query = equipmentSearch.trim().toLowerCase();
     const apparatusName = (item: Row) => value(data.apparatus.find((row) => value(row, "id") === value(item, "apparatus_id")) || {}, "name");
@@ -1101,9 +1157,10 @@ export default function InventoryOperations({
   return (
     <div className="inventory-ops">
       {message ? <div className="ops-message" role="status">{message}</div> : null}
+      {saveReceipt && <div className="ops-save-receipt" role="status">Server confirmed {formatDate(saveReceipt.at)}{saveReceipt.reference && <small>Record: {saveReceipt.reference}</small>}<small>Saved results are not submission, approval, or confirmation that equipment is safe to use.</small></div>}
       {submittedCheck && onReports && <div className="ops-message"><strong>Submitted · awaiting administrator review</strong><p>Submission is not approval. Review the saved report and its status next.</p><button type="button" onClick={onReports}>View saved reports →</button></div>}
       {error ? <div className="ops-message ops-error" role="alert">{error}</div> : null}
-      {refreshError ? <div className="ops-message ops-error" role="alert">Live refresh unavailable. Previously loaded records may be out of date. {refreshError} <button type="button" onClick={() => void load()}>Retry refresh</button></div> : null}
+      {refreshError ? <div className="ops-message ops-error" role="alert">Live refresh unavailable. Previously loaded records may be out of date. {refreshError} <button type="button" disabled={Boolean(busy)} onClick={() => void load({ background: true, fresh: true })}>Retry refresh</button></div> : null}
       {view === "air" ? <InventoryAirSystems data={data} busy={Boolean(busy)} canSetup={canSetup} canManageRepairs={canManageRepairs} canCheck={canCheck} onSave={action} onOpenCheck={id => onOpenUnit?.(id, "air_pack")} onRepairs={onRepairs}
         renderTemplate={apparatus => { const template = data.scbaTemplates.find(item => item.apparatus_id === apparatus.id); return <ScbaTemplateEditor key={`${apparatus.id}-${template?.updated_at}`} apparatus={apparatus} template={template} busy={Boolean(busy)} onSave={payload => action("air-template", payload)} />; }}
         uploadDocument={uploadMaintenanceDocument} uploadPhoto={async (asset, file) => { await uploadEquipmentPhoto(asset, file); await load({ background: true, fresh: true }); }} /> : null}
@@ -1111,13 +1168,15 @@ export default function InventoryOperations({
 
       {view === "due" ? (
         <>
+          <nav className="check-job-filter" aria-label="Choose a check job">{[["all", "All due checks"], ["daily", "Daily"], ["weekly", "Weekly"], ["air_pack", "Air packs & bottles"]].map(([id, label]) => <button key={id} type="button" aria-pressed={dueType === id} onClick={() => setDueType(id)}>{label}</button>)}</nav>
           <section className="ops-card due-now-card">
-            <header><div><span>APPARATUS CHECKS DUE NOW</span><h2>{dueChecks.length ? `${dueChecks.length} required check${dueChecks.length === 1 ? "" : "s"}` : "All required checks are complete"}</h2></div><b title="All unfinished apparatus and air-pack checks, including earlier dates; Inventory counts are separate.">{data.checks.filter((check) => value(check, "status") === "in_progress" && value(check, "check_type") !== "inventory" && !routineCheckNotNeeded(data.apparatus.find((apparatus) => value(apparatus, "id") === value(check, "apparatus_id")), value(check, "check_type"))).length} in progress</b></header>
+            <header><div><span>APPARATUS CHECKS DUE NOW</span><h2>{dueChecks.length ? `${dueChecks.length} required check${dueChecks.length === 1 ? "" : "s"}` : "No scheduled checks due now"}</h2></div><b title="All unfinished apparatus and air-pack checks, including earlier dates; Inventory counts are separate.">{data.checks.filter((check) => value(check, "status") === "in_progress" && value(check, "check_type") !== "inventory" && !routineCheckNotNeeded(data.apparatus.find((apparatus) => value(apparatus, "id") === value(check, "apparatus_id")), value(check, "check_type"))).length} in progress</b></header>
             <p className="muted">In progress includes unfinished apparatus and air-pack checks from all dates. Inventory counts are listed separately below.</p>
-            {dueChecks.length ? renderCheckCards(dueChecks, (checkType) => `${formatStatus(checkType)} · DUE TODAY`) : <div className="ops-empty due-clear"><strong>No required apparatus checks are waiting.</strong><p>Completed scheduled checks fall off this list automatically.</p></div>}
+            {dueChecks.filter(item => dueType === "all" || item.checkType === dueType).length ? renderCheckCards(dueChecks.filter(item => dueType === "all" || item.checkType === dueType), (checkType) => `${formatStatus(checkType)} · DUE TODAY`) : <div className="ops-empty due-clear"><strong>No checks waiting in this view.</strong><p>Completed scheduled checks fall off this list automatically. Choose All due checks to see other jobs; unscheduled templates are available in Apparatus checks.</p></div>}
             {notNeededChecks.length ? <div className="due-check-exemptions" role="status"><strong>Not needed — apparatus Out of Service</strong><div>{notNeededChecks.map((check) => <span key={`${check.apparatusId}-${check.checkType}`}>{check.name} · {formatStatus(check.checkType)}</span>)}</div><small>These checks will resume automatically when Fleet returns the apparatus to service.</small></div> : null}
           </section>
-          <section className="ops-card service-reminders" aria-label="Service reminders">
+          <details className="ops-card service-reminders" aria-label="Service reminders">
+            <summary>Equipment service reminders · {serviceReminders(data.equipment).length}</summary>
             <header><div><span>PLAN EQUIPMENT SERVICE</span><h2>Service reminders</h2></div></header>
             <p>Upcoming and overdue service for saved equipment schedules. Reminders stay here until an administrator updates Last serviced after completion. Weekly checks are separate.</p>
             <div className="service-reminder-list">{serviceReminders(data.equipment).filter(({ item }) => !unitSearch || `${item.name} ${data.apparatus.find(rig => rig.id === item.apparatus_id)?.name}`.toLowerCase().includes(unitSearch.toLowerCase())).map(({ item, due, reminder, status }) => <article key={value(item, "id")} className="service-reminder" data-status={status}>
@@ -1126,7 +1185,7 @@ export default function InventoryOperations({
               {canSetup ? <button type="button" onClick={() => { openEquipmentEditor(item); if (!item.scba_asset_kind) setEditorSection("asset"); }}>{item.scba_asset_kind ? "Open Air Packs & Bottles" : "Edit service schedule"}</button> : <small>Contact an inventory administrator to update the service record.</small>}
             </article>)}</div>
             {!serviceReminders(data.equipment).length ? <p>No service reminders are due. Set an item’s service schedule under Asset details or Air Packs &amp; Bottles.</p> : null}
-          </section>
+          </details>
           <section className="ops-card inventory-checks-card">
             <header><div><span>SEPARATE INVENTORY CHECKS</span><h2>Inventory by apparatus</h2></div><b>{inventoryChecks.length} apparatus</b></header>
             {inventoryChecks.length ? renderCheckCards(inventoryChecks, () => "INVENTORY CHECK") : <div className="ops-empty"><strong>No apparatus inventory checks are configured.</strong><p>An administrator can assign equipment to the Inventory check in Admin Configuration.</p></div>}
@@ -1278,6 +1337,8 @@ export default function InventoryOperations({
           ) : (
             <label className="unit-picker">Apparatus
               <select value={selectedApparatusId} onChange={(event) => {
+                if (!confirmLeavingWork()) return;
+                setScbaDirty({}); setNumericReadings({}); setJourney(null);
                 setSelectedApparatusId(event.target.value);
                 setSelectedCheckId("");
                 setInspectionMenuOpen(true);
@@ -1336,7 +1397,7 @@ export default function InventoryOperations({
           {activeCheck && !inspectionMenuOpen ? (
             <div className="check-worklist">
               <div className="inspection-workflow-actions">
-                <button type="button" onClick={() => setInspectionMenuOpen(true)}>Back to inspection types</button>
+                <button type="button" onClick={() => { if (confirmLeavingWork()) { setInspectionMenuOpen(true); setScbaDirty({}); setNumericReadings({}); } }}>Back to inspection types</button>
                 <button type="button" disabled={Boolean(busy)} onClick={() => void load({ background: true })}>Refresh crew progress</button>
               </div>
               <div className="active-inspection-title">
@@ -1348,23 +1409,26 @@ export default function InventoryOperations({
                 <strong>Apparatus {value(selectedApparatus || {}, "name")} · {formatStatus(activeCheck.check_type)}</strong>
                 <div><strong>{completedItems} of {activeChecklistRows.length} completed</strong><span>{pendingItems} remaining</span></div>
                 <div className="check-progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={checkProgress}><i style={{ width: `${checkProgress}%` }} /></div>
-                <SaveStatus state={busy ? "saving" : itemSaveError || error ? "failed" : unsavedReadings ? "unsaved" : "saved"} detail={unsavedReadings ? "Select Save reading for each changed reading before submitting." : pendingItems ? `${checkProgress}% recorded · continue with remaining items` : "All results recorded · submission is still required"} />
-                <button type="button" onClick={() => document.getElementById("check-completion")?.scrollIntoView({ block: "center" })}>{pendingItems ? "Go to remaining items / submission" : "Review & submit"}</button>
+                <SaveStatus state={busy ? "saving" : itemSaveError || error ? "failed" : unsavedCheck || !completedItems ? "unsaved" : "saved"} detail={unsavedCheck ? "Save each changed reading or air-pack entry before submitting." : pendingItems ? `${checkProgress}% recorded · continue with remaining items` : "All results recorded · submission is still required"} />
+                <button type="button" disabled={Boolean(busy)} onClick={() => changeCheckSection("review")}>Review &amp; submit</button>
               </section>
+              <InventoryCheckJourney sections={checkSections} current={currentSection} onChange={changeCheckSection} busy={Boolean(busy)} />
+              <h3 id="check-step-heading" className="check-step-heading" tabIndex={-1}>{currentSection === "review" ? "Review this inspection" : currentSection === "all" ? "All inspection sections" : checkSections.find(section => section.id === currentSection)?.label}</h3>
+              <div hidden={currentSection === "review"}>
               {value(activeCheck, "check_type") === "air_pack" ? <div className="scba-check-worklist">
                 <div className="scba-check-guidance"><strong>Weekly SCBA readiness</strong><span>Record the harness, cylinder, 4500-PSI reading, and operational result. RIT and spare-cylinder rows follow the saved rig template.</span></div>
                 {(["pack", "rit", "spare"] as const).map((section) => {
                   const entries = activeScbaEntries.filter((entry) => value(entry, "section") === section);
                   if (!entries.length) return null;
-                  return <section className="scba-check-section" key={section}><header><div><span>SCBA CHECK</span><h3>{section === "pack" ? "SCBA packs" : section === "rit" ? "R.I.T. bag" : "Spare bottles"}</h3></div><b>{entries.filter((entry) => value(entry, "result") !== "pending").length} / {entries.length}</b></header><div className="scba-entry-list">{entries.map((entry) => <ScbaEntryEditor key={`${value(entry, "id")}-${value(entry, "checked_at")}`} entry={entry} busy={Boolean(busy)} canCheck={canCheck} onSave={(payload) => action(`scba-${value(entry, "id")}`, payload)} />)}</div></section>;
+                  return <section className="scba-check-section" hidden={currentSection !== "all" && currentSection !== section} key={section}><header><div><span>SCBA CHECK</span><h3>{section === "pack" ? "SCBA packs" : section === "rit" ? "R.I.T. bag" : "Spare bottles"}</h3></div><b>{entries.filter((entry) => value(entry, "result") !== "pending").length} / {entries.length}</b></header><div className="scba-entry-list">{entries.map((entry) => <ScbaEntryEditor key={value(entry, "id")} entry={entry} busy={Boolean(busy)} canCheck={canCheck} onDirty={(id, dirty) => setScbaDirty(current => ({ ...current, [id]: dirty }))} onSave={(payload) => action(`scba-${value(entry, "id")}`, payload)} />)}</div></section>;
                 })}
               </div> : <>
-              <div className="check-worklist-tools">
+              <div className="check-worklist-tools" hidden={currentSection !== "all"}>
                 <label>Find an item<input type="search" value={checkSearch} onChange={(event) => setCheckSearch(event.target.value)} placeholder="Search equipment or location" /></label>
                 <label>Show<select value={checkResultFilter} onChange={(event) => setCheckResultFilter(event.target.value as typeof checkResultFilter)}><option value="pending">Pending</option><option value="all">All items</option><option value="completed">Completed</option><option value="failed">Issues</option></select></label>
                 <label>Location<select value={checkCompartmentFilter} onChange={(event) => setCheckCompartmentFilter(event.target.value)}><option value="all">All locations</option>{checkCompartments.map((label) => <option key={label} value={label}>{label}</option>)}</select></label>
               </div>
-              {canSetup ? <details className="ops-card cabinet-order-editor">
+              {canSetup ? <details className="ops-card cabinet-order-editor" hidden={currentSection !== "all"}>
                 <summary>Edit cabinet names &amp; order</summary>
                 <p>Set the order to match your walk around the apparatus. Lower numbers are checked first. Save each cabinet after editing. This applies to current and future checks; saved inspection results stay intact.</p>
                 {selectedCompartments.map((cabinet) => <form key={`${value(cabinet, "id")}-${value(cabinet, "label")}-${value(cabinet, "sort_order")}`} className="ops-form" onSubmit={(event) => {
@@ -1393,7 +1457,7 @@ export default function InventoryOperations({
               {groupedActiveItems.length ? groupedActiveItems.map(([label, items]) => {
                 const pendingStandardItems = items.filter((item) => value(item, "result") === "pending" && !isNumericReadingItem(item));
                 return (
-                  <section className="check-location-group" key={label}>
+                  <section className="check-location-group" hidden={currentSection !== "all" && currentSection !== label} key={label}>
                     <header>
                       <div><span>LOCATION</span><h3>{label}</h3><small>{items.length} shown</small></div>
                       {value(activeCheck, "check_type") === "inventory" && pendingStandardItems.length > 1 ? <button type="button" disabled={Boolean(busy) || !canCheck} onClick={() => setBulkPassGroup({ label, itemIds: pendingStandardItems.map((item) => value(item, "id")) })}>Pass remaining in this location</button> : null}
@@ -1402,14 +1466,28 @@ export default function InventoryOperations({
                   </section>
                 );
               }) : <div className="ops-empty check-filter-empty"><strong>{!pendingItems && activeChecklistRows.length ? "All items have a saved result" : "No items match these filters"}</strong><p>{!pendingItems && activeChecklistRows.length ? "Review your results, then submit this check for administrator review below." : "Change the search, status, or location to see more checklist items."}</p><button type="button" onClick={() => { setCheckSearch(""); setCheckResultFilter(!pendingItems ? "all" : "pending"); setCheckCompartmentFilter("all"); }}>{!pendingItems && activeChecklistRows.length ? "Review all results" : "Clear filters"}</button></div>}
+              {currentSection !== "all" && !groupedActiveItems.some(([label]) => label === currentSection) && groupedActiveItems.length > 0 && <div className="ops-empty"><strong>This section has no remaining items.</strong><p>Continue to the next section, or review the saved results here.</p><button type="button" onClick={() => setCheckResultFilter("all")}>Show saved results in this section</button></div>}
               </>}
+              </div>
+              <div hidden={currentSection !== "review"}>
+                <div className="check-review-sections">{checkSections.map(section => <button type="button" key={section.id} disabled={Boolean(busy)} onClick={() => changeCheckSection(section.id)}><strong>{section.label}</strong><span>{section.total - section.pending} of {section.total} recorded · {section.pending ? `${section.pending} remaining` : "Review saved results"}</span></button>)}</div>
+                {unsavedCheck && <p role="alert" className="check-draft-warning">There are unsaved readings or air-pack entries. Return to their sections and save them before submitting.</p>}
+                {refreshError && <p role="alert" className="check-draft-warning">Refresh crew progress successfully before submitting so you can review the latest saved results.</p>}
+                <div className="check-review-issues">{activeChecklistRows.filter(item => ["failed", "missing", "damaged"].includes(value(item, "result"))).map(item => {
+                  const notices = data.exceptions.filter(notice => value(notice, "check_item_id") === value(item, "id"));
+                  const names = [...new Set(notices.flatMap(notice => Array.isArray(notice.assigned_employee_names) ? notice.assigned_employee_names.map(String) : []))];
+                  return <article key={value(item, "id")}><strong>{value(item, "equipment_name") || value(item, "label")} · {formatStatus(item.result)}</strong><p>{value(item, "notes") || "Review this issue in the saved report."}</p><small>{names.length ? `Assigned in-app: ${names.join(", ")}` : "No named notice assignee is recorded on this result. The submitted check goes to the administrator review queue."} No email, text, or push delivery is confirmed.</small></article>;
+                })}</div>
               <div className="check-completion-bar" id="check-completion">
                 <div className="check-review-summary" aria-label="Submission review"><span>{value(selectedApparatus || {}, "name")} · {formatStatus(activeCheck.check_type)}</span><span>{completedItems} of {activeChecklistRows.length} saved</span><span>{activeChecklistRows.filter(item => ["failed", "missing", "damaged"].includes(value(item, "result"))).length} results with issues</span></div>
                 <div><strong>{pendingItems ? `${pendingItems} items still need a result` : "Ready for administrator review"}</strong><small>{pendingItems ? "Finish the remaining locations before completing this inspection." : "Submitting creates a printable report and sends this check to the approval queue."}</small></div>
-                {pendingItems > 0 && <button type="button" onClick={() => { setCheckSearch(""); setCheckResultFilter("pending"); setCheckCompartmentFilter("all"); window.requestAnimationFrame(() => document.querySelector<HTMLElement>(".check-row.result-pending, .scba-check-worklist")?.scrollIntoView({ block: "center", behavior: "smooth" })); }}>Show remaining items ↑</button>}
+                <p>Next: administrators review the saved report in Reports &amp; approvals. Submission does not change Fleet status or prove a repair is complete. Contact the officer separately about urgent problems.</p>
+                {pendingItems > 0 && <button type="button" onClick={() => changeCheckSection(initialCheckSection(checkSections))}>Show remaining items ↑</button>}
                 {!canCheck && <span role="status">Check permission is required to record or submit results.</span>}
-                <button className="ops-primary" disabled={Boolean(busy) || unsavedReadings || pendingItems > 0 || !canCheck} onClick={() => void action("complete", { action: "complete_check", checkId: value(activeCheck, "id") })}>Submit {formatStatus(activeCheck.check_type)} check</button>
+                <button className="ops-primary" disabled={!canSubmitInspection(activeChecklistRows.length, pendingItems, unsavedCheck || Boolean(refreshError), Boolean(busy), canCheck)} onClick={() => { if (canSubmitInspection(activeChecklistRows.length, pendingItems, unsavedCheck || Boolean(refreshError), Boolean(busy), canCheck)) void action("complete", { action: "complete_check", checkId: value(activeCheck, "id") }); }}>Submit {formatStatus(activeCheck.check_type)} check</button>
               </div>
+              </div>
+              <InventoryCheckJourney footer sections={checkSections} current={currentSection} onChange={changeCheckSection} busy={Boolean(busy)} />
             </div>
           ) : null}
         </section>
@@ -1555,6 +1633,7 @@ export default function InventoryOperations({
 
       {view === "service" ? (
         <>
+          {!canManageRepairs && <section className="ops-card"><h2>Need to report a problem?</h2><p>{canCheck ? "During a check, choose Issue on the affected item, add the required note and photo, and choose the employees to assign the in-app notice to." : "You have read-only access. Contact your officer or an inventory administrator to record the problem."} Standalone repair notices and maintenance changes require repair-management access. For urgent safety problems, contact the officer directly using department procedure.</p></section>}
           {canManageRepairs && <section className="ops-card"><h2>Start a repair or service request</h2><p>Report a new deficiency to assign employees and create its repair record. Use a work order for planned service or maintenance. For an issue already reported by an inspection, update its existing record below instead.</p><div className="repair-start-actions"><button type="button" className="ops-primary" aria-pressed={repairPath === "notice"} onClick={() => changeRepairPath(repairPath === "notice" ? null : "notice")}>Report a problem</button><button type="button" aria-pressed={repairPath === "work"} onClick={() => changeRepairPath(repairPath === "work" ? null : "work")}>Plan service / maintenance</button></div></section>}
           {canManageRepairs && repairPath === "notice" ? <section className="ops-card">
             <header><div><span>ASSIGN A REPAIR NOTICE</span><h2>Notify selected employees about a fleet deficiency</h2></div></header>
@@ -1680,7 +1759,9 @@ export default function InventoryOperations({
 
       {view === "stock" ? (
         <>
-          {canSetup ? <section className="ops-card">
+          <section className="ops-card"><header><div><span>MEDS &amp; STATION STOCK</span><h2>Find supply → Choose lot → Record use or receipt</h2></div></header><p>Use the actual package lot and location. Restock requests go to administrators for approval; requesting or approving stock does not add it to the shelf. No external notification is sent from this screen.</p><div className="stock-workflow-tools"><label>Find a supply, barcode, lot or location<input type="search" value={stockSearch} onChange={event => setStockSearch(event.target.value)} placeholder="Search supplies" /></label><label>Show<select value={stockAttention ? "attention" : "all"} onChange={event => setStockAttention(event.target.value === "attention")}><option value="all">All supplies</option><option value="attention">Low stock / expiring within 30 days</option></select></label></div></section>
+          {canSetup ? <details className="ops-card">
+            <summary>Admin: add a supply record</summary>
             <header><div><span>ADD SUPPLY</span><h2>Create a real station stock record</h2></div></header>
             <form className="ops-form ops-form-wide" onSubmit={(event) => {
               const form = new FormData(event.currentTarget);
@@ -1699,18 +1780,25 @@ export default function InventoryOperations({
               <label className="stock-expiration-toggle"><input name="expirationTracked" type="checkbox" /> Track expiration alerts</label>
               <button className="ops-primary" disabled={Boolean(busy)}>Add supply</button>
             </form>
-          </section> : null}
+          </details> : null}
           <section className="ops-card">
             <header><div><span>STATION STOCK</span><h2>Current quantities</h2></div><b>{stockRows.length} supplies</b></header>
-            {stockRows.length ? <div className="stock-grid">{stockRows.map((item) => {
-              const lot = item.lots[0];
+            {visibleStockRows.length ? <div className="stock-grid">{visibleStockRows.map((item) => {
+              const selectedLot = selectedStockLots[value(item.row, "id")] || (item.lots.length === 1 ? value(item.lots[0], "lot_id") : "");
+              const lot = item.lots.find(row => value(row, "lot_id") === selectedLot);
               const belowPar = item.total <= Number(item.row.reorder_point || 0);
-              const expiration = lot && value(lot, "expires_at") ? new Date(`${value(lot, "expires_at")}T12:00:00`) : null;
-              const daysToExpiration = expiration ? Math.ceil((expiration.getTime() - Date.now()) / 86_400_000) : null;
+              const daysToExpiration = stockExpiryDays(lot?.expires_at);
               const expirationAlert = daysToExpiration !== null && daysToExpiration <= 30;
+              const lotsNeedingAttention = item.lots.filter(row => { const days = stockExpiryDays(row.expires_at); return Number(row.quantity_on_hand) > 0 && days !== null && days <= 30; });
               const openRequest = data.restockRequests.find((request) => value(request, "stock_item_id") === value(item.row, "id") && value(request, "transaction_type") !== "restock_fulfilled");
-              return <article key={value(item.row, "id")} className={`${belowPar ? "stock-low" : ""} ${expirationAlert ? "stock-expiring" : ""}`}><div><strong>{value(item.row, "name")}</strong><small>{value(item.row, "sku") || "No SKU"} · {value(item.row, "unit")}</small>{lot ? <small>Lot {value(lot, "lot_number") || "not recorded"} · Expires {value(lot, "expires_at") || "not tracked"}</small> : null}</div><b>{item.total}</b><span>{expirationAlert ? daysToExpiration !== null && daysToExpiration < 0 ? "EXPIRED" : `EXPIRES IN ${daysToExpiration} DAYS` : belowPar ? "REORDER" : `PAR ${value(item.row, "par_level")}`}</span>{lot ? <div className="stock-actions"><button type="button" disabled={Boolean(busy) || Number(lot.quantity_on_hand || 0) <= 0 || !canCheck} onClick={() => void action(`use-${value(lot, "lot_id")}`, { action: "adjust_stock", lotId: value(lot, "lot_id"), delta: -1, reason: "Used from station stock" })}>− Use 1</button><button type="button" disabled={Boolean(busy) || !canCheck} onClick={() => void action(`receive-${value(lot, "lot_id")}`, { action: "adjust_stock", lotId: value(lot, "lot_id"), delta: 1, reason: "Received into station stock" })}>+ Receive 1</button></div> : null}<button type="button" className="restock-request-button" disabled={Boolean(busy) || !canCheck || Boolean(openRequest)} onClick={() => void action(`restock-${value(item.row, "id")}`, { action: "request_restock", stockItemId: value(item.row, "id"), quantity: Math.max(1, Number(item.row.par_level || 1) - item.total), reason: `Restock ${value(item.row, "name")} to par` })}>{openRequest ? formatStatus(openRequest.transaction_type) : "Request restock"}</button></article>;
-            })}</div> : <div className="ops-empty"><strong>No stock records yet</strong><p>Add the first real supply and its current on-hand quantity.</p></div>}
+              return <article key={value(item.row, "id")} className={`${belowPar ? "stock-low" : ""} ${expirationAlert ? "stock-expiring" : ""}`}>
+                <div><strong>{value(item.row, "name")}</strong><small>{value(item.row, "sku") || "No SKU"} · {value(item.row, "unit")}</small></div><b>{item.total} total</b><span>{belowPar ? "REORDER" : `PAR ${value(item.row, "par_level")}`}</span>
+                {lotsNeedingAttention.length > 0 && <p className="stock-lot-warning">{lotsNeedingAttention.length} lot(s) expired or expiring within 30 days. Check the lot dates before use.</p>}
+                <label className="stock-lot-picker">Lot &amp; location<select value={selectedLot} disabled={Boolean(busy)} onChange={event => setSelectedStockLots(current => ({ ...current, [value(item.row, "id")]: event.target.value }))}><option value="">Choose the actual lot</option>{item.lots.map(row => <option key={value(row, "lot_id")} value={value(row, "lot_id")}>{value(row, "lot_number") || "Lot not recorded"} · {value(row, "location_id") || "Location not recorded"} · {value(row, "quantity_on_hand")} on hand · Exp {value(row, "expires_at") || "not recorded"}</option>)}</select></label>
+                {lot ? <><p className="stock-lot-detail">Selected lot: {value(lot, "quantity_on_hand")} {value(item.row, "unit")} · Expires {value(lot, "expires_at") || "not recorded"}</p>{expirationAlert && <p className="stock-lot-warning">{daysToExpiration! < 0 ? "EXPIRED" : `Expires in ${daysToExpiration} days`} — follow department policy; this screen does not authorize use.</p>}<div className="stock-actions">{([-1, 1] as const).map(delta => <button key={delta} type="button" disabled={Boolean(busy) || !canCheck || (delta < 0 && Number(lot.quantity_on_hand || 0) <= 0)} onClick={() => { if (window.confirm(`${delta < 0 ? "Record use of" : "Receive"} 1 ${value(item.row, "unit")} of ${value(item.row, "name")}, lot ${value(lot, "lot_number") || "not recorded"}, at ${value(lot, "location_id") || "unrecorded location"}? Only confirm if this physical movement occurred.`)) void action(`stock-${value(lot, "lot_id")}`, { action: "adjust_stock", lotId: value(lot, "lot_id"), delta, reason: delta < 0 ? "Used from station stock" : "Received into station stock" }); }}>{delta < 0 ? "− Use 1" : "+ Receive 1"}</button>)}</div></> : <p className="stock-lot-detail">Choose a lot before recording a quantity change.</p>}
+                <button type="button" className="restock-request-button" disabled={Boolean(busy) || !canCheck || Boolean(openRequest)} onClick={() => void action(`restock-${value(item.row, "id")}`, { action: "request_restock", stockItemId: value(item.row, "id"), quantity: Math.max(1, Number(item.row.par_level || 1) - item.total), reason: `Restock ${value(item.row, "name")} to par` })}>{openRequest ? formatStatus(openRequest.transaction_type) : "Request restock"}</button>
+              </article>;
+            })}</div> : <div className="ops-empty"><strong>{stockRows.length ? "No supplies match these filters" : "No stock records yet"}</strong><p>{stockRows.length ? "Clear the search or show All supplies to see more records." : "An administrator can add the first supply and its actual on-hand quantity."}</p></div>}
           </section>
           {canSetup ? <section className="ops-card restock-approval-card">
             <header><div><span>RESTOCK APPROVALS</span><h2>Request to fulfillment</h2></div><b>{data.restockRequests.filter((item) => value(item, "transaction_type") !== "restock_fulfilled").length} open</b></header>

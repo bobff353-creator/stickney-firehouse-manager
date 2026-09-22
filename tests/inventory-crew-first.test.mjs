@@ -16,7 +16,8 @@ test("Inventory opens on crew work and keeps setup administrator-only", async ()
     assert.match(shell, new RegExp(label.replace("&", "&")));
   }
   assert.match(shell, /view === "setup" && canSetup/);
-  assert.match(operations, /No required apparatus checks are waiting/);
+  assert.match(operations, /No checks waiting in this view/);
+  assert.match(operations, /Choose All due checks to see other jobs/);
   for (const stage of ["New", "Assigned", "In Repair", "Waiting Parts", "Completed"]) {
     assert.match(operations, new RegExp(stage));
   }

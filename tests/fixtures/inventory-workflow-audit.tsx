@@ -18,20 +18,21 @@ import '../../app/suite-theme.css';
 import '../../app/workflow-usability.css';
 
 if (!['127.0.0.1', 'localhost'].includes(location.hostname)) throw Error('Local fixtures only');
-const key='fictional-inventory-workflow-v1';
+const key='fictional-inventory-workflow-v2';
 const rig={id:'fixture-engine',name:'TEST ONLY Engine',asset_type:'engine',status:'in_service'};
 const cabinet={id:'fixture-cabinet',apparatus_id:rig.id,label:'Driver side cabinet',side:'driver',sort_order:1};
 const base={apparatus_id:rig.id,compartment_id:cabinet.id,compartment_label:cabinet.label,quantity_required:1,check_types:['daily','weekly','inventory'],equipment_category:'equipment',response_type:'pass_fail',service_status:'in_service',updated_at:'2026-09-17T12:00:00Z'};
 const equipment=[
  {...base,id:'fixture-mileage',name:'TEST Odometer',response_type:'mileage',item_order:0},
  {...base,id:'fixture-radio',name:'TEST Portable radio',barcode:'TEST-RADIO',item_order:1},
- {...base,id:'fixture-light',name:'TEST Hand light',item_order:2},
+ {...base,id:'fixture-light',name:'TEST Hand light',compartment_label:'Rear compartment',item_order:2},
  {...base,id:'fixture-pack',name:'TEST Air pack',asset_number:'TEST-PACK-001',equipment_category:'air_pack',scba_asset_kind:'pack',scba_check_slot:'pack:Officer seat',check_types:['air_pack']},
  {...base,id:'fixture-bottle',name:'TEST Spare cylinder',asset_number:'TEST-BOTTLE-001',equipment_category:'air_pack',scba_asset_kind:'bottle',scba_check_slot:'spare:Spare #1',check_types:['air_pack'],hydro_test_date:'2025-01-01',hydro_due_date:'2030-01-01'},
 ];
 const template={id:'fixture-template',apparatus_id:rig.id,active:true,pack_positions:['Officer seat'],include_rit:true,spare_bottle_count:1};
 const initial={configured:true,apparatus:[rig,{...rig,id:'fixture-ambulance',name:'TEST ONLY Ambulance',asset_type:'ambulance'}],compartments:[cabinet],equipment,retiredEquipment:[],checks:[],checkItems:[],exceptions:[],workOrders:[],workOrderDocuments:[],inspectionSchedules:[],stock:[{id:'fixture-stock',name:'TEST Gloves',unit:'boxes',par_level:5,reorder_point:2,lot_id:'fixture-lot',quantity_on_hand:2,lot_number:'TEST-LOT'}],restockRequests:[],locationChanges:[],scbaTemplates:[template],scbaEntries:[],photos:[],hotspots:[]};
 const data:any=JSON.parse(sessionStorage.getItem(key)||JSON.stringify(initial));
+if (!data.stock.some((row:any)=>row.lot_id==='fixture-lot-2')) data.stock.push({...data.stock[0],lot_id:'fixture-lot-2',lot_number:'TEST-LOT-2',quantity_on_hand:3,location_id:'TEST cabinet B',expires_at:'2020-01-01'});
 const admin=new URLSearchParams(location.search).get('role')!=='member';
 let writes=0;
 const stamp=()=>new Date().toISOString();
@@ -42,6 +43,7 @@ window.fetch=async(input,init)=>{
  const url=String(input);
  if(!url.startsWith('/api/'))throw Error('External fetch blocked by local inventory audit');
  if(init?.method==='POST'){
+  if((document.getElementById('slow-save') as HTMLInputElement).checked) await new Promise(resolve=>setTimeout(resolve,2500));
   const fail=document.getElementById('fail-save') as HTMLInputElement;
   if(fail.checked){fail.checked=false;return bad('Simulated save failure. Your edits were not saved.',503);}
   if(init.body instanceof FormData) return bad('Photo storage is not simulated by this workflow fixture.');
@@ -122,4 +124,4 @@ window.fetch=async(input,init)=>{
 const reportError=(message:string)=>{const target=document.getElementById('audit-errors');if(target)target.textContent+=message;};
 window.addEventListener('error',e=>reportError(e.message));
 window.addEventListener('unhandledrejection',e=>reportError(String(e.reason)));
-createRoot(document.getElementById('root')!).render(<><aside style={{padding:8,background:'#fff4be',color:'#172b3b',font:'14px Arial'}}>FICTIONAL LOCAL TEST ONLY · no real inspections saved<br/><span id="audit-writes">Test writes: 0</span><label><input id="fail-save" type="checkbox"/>Fail next save</label><button onClick={()=>{sessionStorage.removeItem(key);location.reload();}}>Reset fictional test records</button><span id="audit-errors" role="alert"/></aside><Inventory departmentId="fixture" departmentName="FICTIONAL TEST DEPARTMENT" permissions={admin?['inventory.check','inventory.repairs.manage','inventory.setup.manage']:['inventory.check']}/></>);
+createRoot(document.getElementById('root')!).render(<><aside style={{padding:8,background:'#fff4be',color:'#172b3b',font:'14px Arial'}}>FICTIONAL LOCAL TEST ONLY · no real inspections saved<br/><span id="audit-writes">Test writes: 0</span><label><input id="fail-save" type="checkbox"/>Fail next save</label><label><input id="slow-save" type="checkbox"/>Slow saves</label><button onClick={()=>{sessionStorage.removeItem(key);location.reload();}}>Reset fictional test records</button><span id="audit-errors" role="alert"/></aside><Inventory departmentId="fixture" departmentName="FICTIONAL TEST DEPARTMENT" permissions={admin?['inventory.check','inventory.repairs.manage','inventory.setup.manage']:['inventory.check']}/></>);
