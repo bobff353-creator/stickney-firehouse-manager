@@ -628,6 +628,7 @@ export default function Inventory360({
       </header>
 
       <section ref={workspaceHeadingRef} className="inventory-command-header" aria-labelledby="inventory-workspace-title">
+        {view === "due" && <Link className="inventory-command-back" href="/?page=dashboard&display=portal" prefetch={false} onClick={event => { if (!confirmLeavingWork()) event.preventDefault(); }}>← Back to portal home</Link>}
         {view !== "due" && view !== "check" && <button className="inventory-command-back" type="button" onClick={() => setView("due")}>← Back to inventory home</button>}
         <div className="inventory-command-hero">
           <div>

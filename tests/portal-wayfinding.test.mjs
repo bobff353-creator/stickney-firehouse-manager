@@ -65,7 +65,7 @@ test('failed account actions return to their original form and do not grant acce
   const code = source('auth-gateway.tsx');
   assert.match(code, /if \(actionPendingRef.current\) return/);
   assert.match(code, /catch \{\s*setMode\(returnMode\)/);
-  for (const action of ['signIn', 'activateNewUser', 'createPin', 'unlockWithPin', 'resetPin']) assert.ok(code.includes(`runAuthAction(() => ${action}(event)`));
+  for (const action of ['signIn', 'createPin', 'unlockWithPin', 'resetPin']) assert.ok(code.includes(`runAuthAction(() => ${action}(event)`));
   assert.match(source('reset-password/page.tsx'), /finally \{ setSaving\(false\); \}/);
   assert.match(source('accept-invite/page.tsx'), /finally \{ setSaving\(false\); \}/);
 });

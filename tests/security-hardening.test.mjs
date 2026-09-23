@@ -62,8 +62,8 @@ test('sign-in and activation require a same-origin browser request before readin
     for (const headers of [{}, { origin: 'https://evil.test' }, { origin: 'https://fixture.test', 'sec-fetch-site': 'cross-site' }]) {
       assert.equal((await api.POST(new Request('https://fixture.test/api/auth/login', { method: 'POST', headers, body: '{}' }))).status, 403);
     }
-    // Valid portal request reaches ordinary input validation, not the CSRF denial.
-    assert.equal((await api.POST(new Request('https://fixture.test/api/auth/login', { method: 'POST', headers: { origin: 'https://fixture.test' }, body: '{}' }))).status, 400);
+    // Login reaches input validation. Retired self-activation remains closed.
+    assert.equal((await api.POST(new Request('https://fixture.test/api/auth/login', { method: 'POST', headers: { origin: 'https://fixture.test' }, body: '{}' }))).status, path.includes('/activate/') ? 403 : 400);
   }
 });
 

@@ -2,7 +2,7 @@ import { ensureDatabase } from "../../../db/bootstrap";
 import { hasPermission } from "../../server-permissions";
 import { getPublicSupabaseConfig } from "../../supabase-config";
 import { getSupabaseBackupHealth } from "../../lib/supabase-backup-health";
-import { summarizeHealth, type HealthCheck } from "../../system-health-model";
+import { nonnegativeMeasurement, releaseIdentity, summarizeHealth, type HealthCheck } from "../../system-health-model";
 
 const unavailable = (id: string, label: string, detail: string): HealthCheck => ({
   id,
@@ -14,8 +14,8 @@ const unavailable = (id: string, label: string, detail: string): HealthCheck => 
 });
 
 function formatBytes(value: unknown) {
-  const bytes = Number(value);
-  if (!Number.isFinite(bytes) || bytes < 0) return "Unavailable";
+  const bytes = nonnegativeMeasurement(value);
+  if (bytes === null) return "Unavailable";
   if (bytes < 1024) return `${Math.round(bytes)} B`;
   const units = ["KB", "MB", "GB", "TB"];
   let amount = bytes / 1024;
@@ -78,7 +78,11 @@ export async function GET(request: Request) {
     providerUsage = await db.prepare(
       "SELECT database_bytes AS databaseBytes, storage_bytes AS storageBytes, object_count AS objectCount, bucket_count AS bucketCount, auth_user_count AS authUserCount FROM system_health_usage()",
     ).first<ProviderUsage>();
-    if (!providerUsage) throw new Error("Provider usage was not returned.");
+    if (!providerUsage || Object.values(providerUsage).length !== 5
+      || Object.values(providerUsage).some(value => nonnegativeMeasurement(value) === null)) {
+      providerUsage = null;
+      throw new Error("Valid provider usage was not returned.");
+    }
 
     const authUserCount = Number(providerUsage.authUserCount ?? 0);
     checks.push({
@@ -97,14 +101,14 @@ export async function GET(request: Request) {
     const bucketCount = Number(providerUsage.bucketCount ?? 0);
     checks.push({
       id: "file-storage",
-      label: "File storage",
+      label: "File inventory",
       state: "healthy",
-      value: "Online",
-      detail: `${Number.isFinite(bucketCount) ? bucketCount : 0} storage bucket${bucketCount === 1 ? "" : "s"} reachable. Stored-object usage is verified separately below.`,
+      value: "Metadata available",
+      detail: `${bucketCount} storage bucket${bucketCount === 1 ? "" : "s"} listed in the database. This counts file metadata; it does not test opening, uploading, or restoring a file.`,
       verifiedAt: checkedAt,
     });
   } else {
-    checks.push({ id: "file-storage", label: "File storage", state: "warning", value: "Unavailable", detail: "The server-side storage health check is not available.", verifiedAt: checkedAt });
+    checks.push({ id: "file-storage", label: "File inventory", state: "warning", value: "Unavailable", detail: "Storage metadata could not be read.", verifiedAt: checkedAt });
   }
 
   if (providerUsage) {
@@ -127,7 +131,7 @@ export async function GET(request: Request) {
       label: "File storage used",
       state: "healthy",
       value: formatBytes(providerUsage.storageBytes),
-      detail: `${Number.isFinite(objectCount) ? objectCount : 0} stored object${objectCount === 1 ? "" : "s"} measured live. Plan capacity remains in the provider billing dashboard.`,
+      detail: `${objectCount} stored object${objectCount === 1 ? "" : "s"} counted from storage metadata. This excludes files hosted by other services. Plan capacity remains in the provider billing dashboard.`,
       verifiedAt: checkedAt,
     });
   } else {
@@ -166,18 +170,18 @@ export async function GET(request: Request) {
     checks.push(unavailable("failed-logins", "Failed portal logins · last 24 hours", "The private portal login audit feed is not available."));
   }
 
-  const commit = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) || "local";
-  const environment = process.env.VERCEL_ENV || "local";
+  const { commit, environment } = releaseIdentity(process.env);
   const branch = process.env.VERCEL_GIT_COMMIT_REF?.trim();
   const repository = process.env.VERCEL_GIT_REPO_SLUG?.trim();
   checks.push({
     id: "deployment",
     label: "Application deployment",
-    state: environment === "production" ? "healthy" : "warning",
-    value: environment === "production" ? `Production · ${commit}` : "Test preview",
-    statusLabel: environment === "production" ? "Verified" : "Preview",
+    state: environment === "production" && commit ? "healthy" : "warning",
+    value: environment === "production" ? `Production · ${commit ?? "source revision unavailable"}` : "Test preview",
+    statusLabel: environment === "production" && commit ? "Revision reported" : environment === "production" ? "Needs attention" : "Preview",
     detail: environment === "production"
-      ? `${repository ? `GitHub repository ${repository}` : "Git-connected source"}${branch ? ` · branch ${branch}` : ""}. This commit is serving the current request.`
+      ? commit ? `Release metadata reports revision ${commit}${repository ? ` · repository ${repository}` : ""}${branch ? ` · branch ${branch}` : ""}. Compare this revision with the release record before rollback.`
+        : "Production responded, but source revision metadata is missing. Check the deployment release record; this response does not prove which commit was deployed."
       : "This is a test deployment, not the live production release. Preview status is expected during migration testing.",
     verifiedAt: checkedAt,
   });

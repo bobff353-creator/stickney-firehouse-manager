@@ -85,8 +85,9 @@ test('TV pagination groups saved assignments before dividing into pages and reta
 test('typed readings cannot be presented as saved or submitted before explicit confirmation',()=>{
   const source=fs.readFileSync('app/inventory-operations.tsx','utf8');
   assert.match(source,/reading !== undefined && numericReadingInputValue\(reading\) !== numericReadingInputValue\(item.numeric_reading\)/);
-  assert.match(source,/unsavedReadings \? "unsaved" : "saved"/);
-  assert.match(source,/disabled=\{Boolean\(busy\) \|\| unsavedReadings \|\| pendingItems > 0 \|\| !canCheck\}/);
+  assert.match(source,/const unsavedCheck = unsavedReadings \|\| unsavedScba/);
+  assert.match(source,/unsavedCheck \|\| !completedItems \? "unsaved" : "saved"/);
+  assert.match(source,/disabled=\{!canSubmitInspection\(activeChecklistRows.length, pendingItems, unsavedCheck \|\| Boolean\(refreshError\), Boolean\(busy\), canCheck\)\}/);
   assert.match(source,/setNoticeSaveState\(saved \? "saved" : "failed"\)/);
 });
 

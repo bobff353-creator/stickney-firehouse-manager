@@ -114,28 +114,18 @@ test("administrators send employee-bound invitations that confirm email before P
   assert.match(pinRoute, /timingSafeEqual/);
 });
 
-test("new employees self-activate with roster email and employee number before choosing a PIN", () => {
-  assert.match(gateway, /New User — Create Login/);
+test("new employees use an administrator invitation and verify their email before access", () => {
   assert.match(gateway, /Create your login/);
-  assert.match(gateway, /Employee number/);
-  assert.match(gateway, /Enter private PIN again/);
-  assert.match(gateway, /fetch\("\/api\/auth\/activate"/);
-  assert.match(proxy, /"\/api\/auth\/activate"/);
-  assert.match(supabaseAdmin, /SUPABASE_SECRET_KEY/);
-  assert.match(supabaseAdmin, /decoded\.role === "service_role"/);
+  assert.match(gateway, /Start with an invitation/);
+  assert.match(gateway, /Request a new email link/);
+  assert.doesNotMatch(gateway, /fetch\("\/api\/auth\/activate"/);
+  assert.match(activationRoute, /VERIFIED_INVITATION_REQUIRED/);
+  assert.doesNotMatch(activationRoute, /createUser|email_confirm|activate_roster_portal_user|signInWithPassword/);
+  assert.match(inviteRoute, /hasPermission\(request, db, "employees\.manage"\)/);
+  assert.match(acceptInvite, /accept_department_invite/);
+  assert.match(confirmation, /verifyOtp/);
   assert.match(supabaseAdmin, /import "server-only"/);
-  assert.match(activationRoute, /employee_profiles/);
-  assert.match(activationRoute, /timingSafeEqual/);
-  assert.match(activationRoute, /portal_activation_attempts/);
-  assert.match(activationRoute, /admin\.auth\.admin\.createUser/);
-  assert.match(activationRoute, /email_confirm: true/);
-  assert.match(activationRoute, /activate_roster_portal_user/);
-  assert.match(activationRoute, /signInWithPassword/);
-  assert.doesNotMatch(gateway, /SUPABASE_SECRET_KEY|derivePortalPassword/);
-  assert.match(activationMigration, /CREATE TABLE IF NOT EXISTS firehouse\.portal_activation_attempts/);
-  assert.match(activationMigration, /REVOKE ALL ON TABLE firehouse\.portal_activation_attempts/);
   assert.match(activationMigration, /GRANT EXECUTE ON FUNCTION public\.activate_roster_portal_user[\s\S]*TO service_role/);
-  assert.match(activationMigration, /extensions\.crypt\(p_pin, extensions\.gen_salt\('bf', 12\)\)/);
 });
 
 test("Supabase authentication emails use the signed Resend hook instead of the two-per-hour demo mailer", () => {

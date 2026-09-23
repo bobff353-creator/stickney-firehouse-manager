@@ -16,7 +16,7 @@ test("system health is admin-only and uses live service checks", () => {
   assert.match(route, /FROM system_health_usage\(\)/);
   assert.match(route, /Authenticated accounts/);
   assert.match(route, /department-protected health function/);
-  assert.match(route, /VERCEL_GIT_COMMIT_SHA/);
+  assert.match(route, /releaseIdentity\(process.env\)/);
   assert.match(route, /VERCEL_GIT_COMMIT_REF/);
   assert.match(route, /VERCEL_GIT_REPO_SLUG/);
   assert.match(providerHealthMigration, /SECURITY DEFINER/);

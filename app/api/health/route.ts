@@ -1,4 +1,5 @@
 import { getPublicSupabaseConfig } from "../../supabase-config";
+import { releaseIdentity } from "../../system-health-model";
 
 function projectRef(url: string) {
   const hostname = new URL(url).hostname.toLowerCase();
@@ -10,8 +11,7 @@ export async function GET() {
   const { url } = getPublicSupabaseConfig();
   return Response.json({
     application: "stickney-firehouse-manager",
-    environment: process.env.VERCEL_ENV || "local",
-    commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) || "local",
+    ...releaseIdentity(process.env),
     supabaseConfiguration: "configured",
     supabaseProjectRef: projectRef(url),
   }, {

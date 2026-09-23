@@ -1078,7 +1078,7 @@ export default function PayrollApp({
           {activeNav === "Phone Numbers" && <PhoneNumbers key={navigationVersion} />}
           {activeNav === "CAD Integration" && viewerPermissions.includes("settings.manage") && <CadIntegrationSettings />}
           {activeNav === "Departments" && viewerPermissions.includes("settings.manage") && <DepartmentSettings />}
-          {activeNav === "System Health" && viewerPermissions.includes("settings.manage") && <SystemHealth />}
+          {activeNav === "System Health" && viewerPermissions.includes("settings.manage") && <SystemHealth permissions={viewerPermissions} />}
 
           {activeNav === "Employee Contacts" && <EmployeeDirectory key={navigationVersion} contacts initialSearch={employeeSearch} />}
 
@@ -1219,7 +1219,7 @@ export default function PayrollApp({
           </fieldset>}
         </>)}
       </section>
-      <footer className="portal-footer"><div className="footer-identity"><img src="/stickney-fd-patch.png?v=3" alt="Official Stickney Fire Department patch" width="56" height="56" /><div><strong>Stickney Fire Department Operations Portal</strong><span>Stickney, Illinois</span><a href="tel:+17089747721">Cicero Consolidated Dispatch · (708) 974-7721</a></div></div><div className="footer-links"><button onClick={() => navigate(homePage)}>{portalPageLabel(homePage)}</button>{visibleNav.includes("Employee Contacts") && <button onClick={() => navigate("Employee Contacts")}>Employee contacts</button>}{visibleNav.includes("Phone Numbers") && <button onClick={() => navigate("Phone Numbers")}>Important phone numbers</button>}<span>For portal help, contact your department administrator.</span></div><p>© {new Date().getFullYear()} Stickney Fire Department · Official department system · Authorized use only</p></footer>
+      <footer className="portal-footer"><div className="footer-identity"><img src="/stickney-fd-patch.png?v=3" alt="Official Stickney Fire Department patch" width="56" height="56" /><div><strong>Stickney Fire Department Operations Portal</strong><span>Stickney, Illinois</span><a href="tel:+17089747721">Cicero Consolidated Dispatch · (708) 974-7721</a></div></div><div className="footer-links"><button onClick={() => navigate(homePage)}>{portalPageLabel(homePage)}</button>{visibleNav.includes("Employee Contacts") && <button onClick={() => navigate("Employee Contacts")}>Employee contacts</button>}{visibleNav.includes("Phone Numbers") && <button onClick={() => navigate("Phone Numbers")}>Important phone numbers</button>}<span>For portal help, contact your department administrator.</span></div><p>© {new Date().getFullYear()} Stickney Fire Department · Authorized use only</p></footer>
     </main></WorkspaceViewMemory>
   );
 }

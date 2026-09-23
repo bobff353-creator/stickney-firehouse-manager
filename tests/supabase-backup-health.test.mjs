@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import { getSupabaseBackupHealth, interpretSupabaseBackups, supabaseProjectRef } from '../app/lib/supabase-backup-health.ts';
-import { summarizeHealth } from '../app/system-health-model.ts';
+import { nonnegativeMeasurement, releaseIdentity, summarizeHealth } from '../app/system-health-model.ts';
 
 const ref='abcdefghijklmnopqrst';
 const now=Date.parse('2026-09-15T02:00:00Z');
@@ -82,12 +82,12 @@ test('provider denial, throttling, timeout, invalid JSON and malformed schema ca
   }
 });
 
-test('summary never claims services are online if a core check failed and excludes unconfigured independent backups',()=>{
+test('summary includes unconfigured independent backups in readiness',()=>{
   const checks=['database','users','file-storage','database-usage','storage-usage','database-backup'].map(id=>({id,state:'healthy'}));
   checks.push({id:'file-backup',state:'unavailable'},{id:'deployment',state:'warning'});
-  assert.equal(summarizeHealth(checks,recent).state,'healthy');
+  assert.equal(summarizeHealth(checks,recent).state,'attention');
   checks[5].state='unavailable';
-  assert.match(summarizeHealth(checks,recent).label,/online · database backup status needs attention/);
+  assert.match(summarizeHealth(checks,recent).label,/recovery readiness needs attention/);
   checks[0].state='warning';
   assert.doesNotMatch(summarizeHealth(checks,recent).label,/online/);
 });
@@ -101,7 +101,7 @@ function routeHarness(allowed){
     '../../server-permissions':{hasPermission:async(_r,_db,p)=>{assert.equal(p,'settings.manage');return allowed}},
     '../../supabase-config':{getPublicSupabaseConfig:()=>({url:options.supabaseUrl})},
     '../../lib/supabase-backup-health':{getSupabaseBackupHealth:async(o)=>{providerCalls++;assert.equal(o.projectRef,ref);return {id:'database-backup',state:'healthy',value:'fixture-only'}}},
-    '../../system-health-model':{summarizeHealth},
+    '../../system-health-model':{nonnegativeMeasurement,releaseIdentity,summarizeHealth},
   };
   const exports={};vm.runInNewContext(code,{exports,Response,Date,process:{env:{SUPABASE_BACKUP_PROJECT_REF:ref,SUPABASE_BACKUP_ACCESS_TOKEN:token,VERCEL_ENV:'preview'}},require:n=>{assert.ok(n in modules,n);return modules[n]}});
   return {get:exports.GET,calls:()=>providerCalls};

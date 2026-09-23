@@ -212,7 +212,7 @@ export default function AuthGateway({
       email: email.trim(),
       options: { shouldCreateUser: false, emailRedirectTo: callback.toString() },
     });
-    setMessage(error ? error.message : "One-time activation or upgrade email sent. Open it and enter your existing PIN once; future logins will use email and PIN only.");
+    setMessage(error ? error.message : "Email link requested. Check your inbox and spam folder. If you have not been invited, ask your department administrator. Opening a verified link is followed by the department access and PIN checks.");
   }
 
   async function unlockWithPin(event: FormEvent<HTMLFormElement>) {
@@ -298,43 +298,6 @@ export default function AuthGateway({
     setPinConfirmation("");
     setMessage("");
     setMode("authorized");
-  }
-
-  async function activateNewUser(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!/^\d{4,6}$/.test(employeeNumber)) {
-      setMessage("Enter your 4 to 6 digit employee number.");
-      return;
-    }
-    if (!/^\d{4,6}$/.test(pin)) {
-      setMessage("Choose a new private PIN containing 4 to 6 digits.");
-      return;
-    }
-    if (employeeNumber === pin) {
-      setMessage("Choose a private PIN that is different from your employee number.");
-      return;
-    }
-    if (pin !== pinConfirmation) {
-      setMessage("The two private PIN entries do not match.");
-      return;
-    }
-    setMode("checking");
-    setMessage("Creating your secure employee login...");
-    const response = await fetch("/api/auth/activate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email.trim().toLowerCase(), employeeNumber, pin }),
-    });
-    const payload = await response.json().catch(() => ({})) as { error?: string };
-    if (!response.ok) {
-      setMode("new-user");
-      setMessage(payload.error || "Your employee login could not be created.");
-      return;
-    }
-    setPin("");
-    setPinConfirmation("");
-    setEmployeeNumber("");
-    window.location.reload();
   }
 
   async function signOut() {
@@ -465,16 +428,18 @@ export default function AuthGateway({
           <span className="login-app-mark" aria-hidden="true">SFD</span>
           <p className="login-eyebrow">NEW EMPLOYEE</p>
           <h1>Create your login</h1>
-          <p>Use the Stickney email and employee number already saved on your employee record. Then choose the private PIN you will use from now on.</p>
-          <form onSubmit={event => { event.preventDefault(); void runAuthAction(() => activateNewUser(event), "new-user"); }}>
-            <label>Stickney email<input autoFocus type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
-            <label>Employee number<input type="password" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={employeeNumber} onChange={(event) => setEmployeeNumber(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
-            <label>New private PIN<input type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
-            <label>Enter private PIN again<input type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pinConfirmation} onChange={(event) => setPinConfirmation(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
+          <p>Start with an invitation from your department administrator. Your employee number alone cannot open an account.</p>
+          <ol className="login-activation-steps">
+            <li>Ask an administrator to open Employees, select your record, and send an app invitation to your Stickney email.</li>
+            <li>Open the invitation in your email to verify your address.</li>
+            <li>Follow the invitation to confirm your employee number and choose a private PIN.</li>
+          </ol>
+          <form onSubmit={event => { event.preventDefault(); void runAuthAction(emailSignInLink, "new-user"); }}>
+            <label>Already invited? Enter your email<input autoFocus type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
             {message ? <p className="login-message" role="status">{message}</p> : null}
-            <button className="login-primary" type="submit" disabled={actionPending}>Create login and open app</button>
+            <button className="login-primary" type="submit" disabled={actionPending}>{actionPending ? "Requesting link…" : "Request a new email link"}</button>
           </form>
-          <small className="pin-security-note">Your employee number is checked once and is never saved as your private PIN.</small>
+          <small className="pin-security-note">A new link does not grant department access. An administrator invitation is still required.</small>
           <button type="button" className="login-secondary login-back-button" onClick={() => { setMessage(""); setPin(""); setPinConfirmation(""); setEmployeeNumber(""); setMode("sign-in"); }}>Back to Sign In</button>
         </section>
       </main>
@@ -521,7 +486,7 @@ export default function AuthGateway({
         </form>
         <div className="login-divider"><span>NEW EMPLOYEE?</span></div>
         <button type="button" className="login-secondary login-new-user-button" onClick={() => { setMessage(""); setPin(""); setMode("new-user"); }}>New User — Create Login</button>
-        <p className="login-invite-note">Your administrator must first save your Stickney email and employee number on your active employee record.</p>
+        <p className="login-invite-note">Your administrator saves your active employee record and sends an invitation to your Stickney email. Open that email to set up your private PIN.</p>
         <button type="button" className="login-link-button" onClick={() => void emailSignInLink()}>Email me a one-time sign-in link</button>
       </section>
     </main>
