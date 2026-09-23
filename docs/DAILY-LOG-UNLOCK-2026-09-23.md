@@ -12,3 +12,11 @@ Verification:
 - Scoped lint and the production build are recorded with the release receipt.
 
 Existing open screens need the updated application and a fresh saved version. Never discard a pending draft to reload: retain or export it and use the existing conflict review controls when needed.
+
+## Release receipt
+
+- Application source pushed: `9b585f245b904fc32c2f1904e9f73c553770387e` on `codex/daily-log-unlock-version-20260923`.
+- Scoped ESLint and `npm run build` passed. Test, lint and build logs are under `outputs/daily-log-unlock-*.log`.
+- Production deployment `dpl_sDHBouYNRhpjJpbcyQL3YKdvtZ3e` was verified READY with the matching source SHA and the `stickney-firehouse-manager.vercel.app` alias.
+- The open production screen was checked for pending edits before refresh and returned to September 21, 2026. It displayed `Unlocked for correction`, `Saved to server`, and enabled staffing controls. The last saved timestamp remained 5:43 PM Central.
+- No operational log or payroll entries were edited during live verification. Save behavior was exercised with fictional browser records and the database integration tests above.
