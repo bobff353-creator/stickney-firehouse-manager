@@ -141,3 +141,56 @@ test('permission revision is atomic, no-op stable, and includes identity/rank ch
   for(const sql of ["UPDATE firehouse.employee_profiles SET email='changed@example.invalid'","UPDATE firehouse.employee_profiles SET employee_number='4321'","UPDATE firehouse.employee_profiles SET is_admin=1","UPDATE firehouse.employees SET active=0","UPDATE firehouse.pay_scales SET label='Captain'"]){const before=await revision();await db.exec(sql);assert.notEqual(await revision(),before,sql);}
  }finally{await db.close();}
 });
+
+test('inventory reads authorize once per statement while retaining server, member, and tenant boundaries',async(t)=>{
+ const db=await fixture();try{
+  const otherDepartment='00000000-0000-4000-8000-000000000002';
+  const inventoryTables=tables.filter(name=>name.startsWith('inventory_'));
+  for(const name of inventoryTables){
+   await db.exec(`DROP POLICY original_access ON public.${name};
+    CREATE POLICY ${name}_select ON public.${name} FOR SELECT TO authenticated USING(private.inventory_can_access(department_id));
+    CREATE POLICY ${name}_insert ON public.${name} FOR INSERT TO authenticated WITH CHECK(private.inventory_can_write(department_id));`);
+  }
+  await db.query('INSERT INTO public.inventory_equipment SELECT n,$1 FROM generate_series(1,1000) n',[department]);
+  await db.query('INSERT INTO public.inventory_equipment VALUES(1001,$1)',[otherDepartment]);
+  const untouched=async()=> (await db.query("SELECT tablename,policyname,cmd,roles,qual,with_check FROM pg_policies WHERE schemaname='public' AND cmd<>'SELECT' ORDER BY tablename,policyname")).rows;
+  const beforePolicies=await untouched();
+  await identity(db,true);
+  const before=(await db.query('SELECT id FROM public.inventory_equipment ORDER BY id')).rows;
+  assert.equal(before.length,1000);
+  const baseline=(await db.query('EXPLAIN (ANALYZE,FORMAT JSON) SELECT id FROM public.inventory_equipment')).rows[0]['QUERY PLAN'][0];
+  await db.exec('RESET ROLE');
+  const optimization=fs.readFileSync(new URL('../supabase/migrations/20260923221610_inventory_read_authorization_once.sql',import.meta.url),'utf8');
+  await db.exec(optimization);
+  await db.exec(optimization); // Re-running does not widen policies or add duplicates.
+  assert.deepEqual(await untouched(),beforePolicies);
+  const policies=(await db.query("SELECT qual FROM pg_policies WHERE schemaname='public' AND cmd='SELECT'")).rows;
+  assert.equal(policies.length,inventoryTables.length);
+  assert.ok(policies.every(row=>row.qual.includes('SELECT private.inventory_can_access')));
+  await identity(db,true);
+  assert.deepEqual((await db.query('SELECT id FROM public.inventory_equipment ORDER BY id')).rows,before);
+  const optimized=(await db.query('EXPLAIN (ANALYZE,FORMAT JSON) SELECT id FROM public.inventory_equipment')).rows[0]['QUERY PLAN'][0];
+  const nodes=[];
+  function walk(plan){nodes.push(plan);for(const child of plan.Plans??[])walk(child);}
+  walk(optimized.Plan);
+  assert.ok(nodes.some(node=>node['Parent Relationship']==='InitPlan' && node['Actual Loops']===1));
+  t.diagnostic(`Fictional 1,000-item fixture: before ${baseline['Execution Time']} ms; after ${optimized['Execution Time']} ms.`);
+  await identity(db,false);
+  assert.equal((await db.query('SELECT count(*)::int n FROM public.inventory_equipment')).rows[0].n,0,'browser without server verification denied');
+  await db.exec('RESET ROLE');
+  for(const permission of ['inventory.view','operations_board.view','daily_log.view','documents.view']){
+   await db.query("INSERT INTO firehouse.employee_permission_overrides VALUES('member',$1,'deny',NULL)",[permission]);
+  }
+  await identity(db,true);
+  assert.equal((await db.query('SELECT count(*)::int n FROM public.inventory_equipment')).rows[0].n,0,'new request sees permission revocation');
+  await db.exec('RESET ROLE');
+  await db.exec("DELETE FROM firehouse.employee_permission_overrides; UPDATE public.department_memberships SET status='inactive'");
+  await identity(db,true);
+  assert.equal((await db.query('SELECT count(*)::int n FROM public.inventory_equipment')).rows[0].n,0,'inactive membership denied');
+  await db.exec('RESET ROLE');
+  await db.query("INSERT INTO public.department_memberships VALUES($1,$2,'active','user')",[otherDepartment,user]);
+  await identity(db,true);
+  assert.deepEqual((await db.query('SELECT id FROM public.inventory_equipment')).rows,[{id:1001}],'other tenant still uses its own active membership');
+  await assert.rejects(db.query('INSERT INTO public.inventory_equipment VALUES(1002,$1)',[department]),/row-level security/);
+ }finally{await db.close();}
+});

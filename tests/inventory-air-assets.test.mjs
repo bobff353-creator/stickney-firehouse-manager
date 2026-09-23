@@ -167,6 +167,8 @@ test('request input is allowlisted and rejects malformed dates, lengths, and inv
  assert.throws(()=>input({asset_number:' '.repeat(10)}),/unique ID/);
  assert.throws(()=>input({asset_number:'x'.repeat(81)}),/80 characters/);
  assert.equal(airSaveError({code:'23505'}).status,409);
+ assert.equal(airSaveError({code:'PT409'}).status,409);
+ assert.equal(airSaveError({code:'40001'}).status,409);
  assert.equal(airSaveError({code:'42501'}).status,403);
  const api=fs.readFileSync(new URL('../app/api/operations/route.ts',import.meta.url),'utf8');
  assert.match(api,/verifyInventoryRequest\(request\)/); assert.match(api,/sameOriginInventoryRequest\(request\)/);

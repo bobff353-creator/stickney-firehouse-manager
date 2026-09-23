@@ -25,7 +25,7 @@ export function airAssetInput(input: unknown): Record<string, string | number | 
 
 export function airSaveError(error: { code?: string; message?: string }) {
   if (error.code === "23505") return { status: 409, error: "That ID, barcode, or checklist position is already assigned. Choose a different one." };
-  if (error.code === "40001") return { status: 409, error: "This record changed on another screen. Reopen it before saving." };
+  if (error.code === "PT409" || error.code === "40001") return { status: 409, error: "This record changed on another screen. Reopen it before saving." };
   if (error.code === "42501") return { status: 403, error: "Your current Inventory permission does not allow this change." };
   if (error.code === "P0001") return { status: 400, error: error.message || "Review the air asset details." };
   if (error.code?.startsWith("22") || error.code === "23514") return { status: 400, error: "Review the dates and numbers. The record was not saved." };

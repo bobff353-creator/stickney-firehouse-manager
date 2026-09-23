@@ -34,6 +34,9 @@ async function setup() {
     END $$;
     CREATE FUNCTION public.firehouse_server_sql(p_sql text,p_mode text DEFAULT 'all',p_secret text DEFAULT NULL) RETURNS jsonb LANGUAGE sql AS $$ SELECT public.firehouse_sql(p_sql,p_mode,p_secret) $$;`);
   await pg.exec(migration);
+  await pg.exec(`CREATE FUNCTION public.inventory_save_air_asset(uuid,uuid,timestamp with time zone,jsonb)
+    RETURNS jsonb LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'Fixture stale asset' USING ERRCODE='40001'; END $$;`);
+  await pg.exec(fs.readFileSync(new URL('../supabase/migrations/20260923215051_nonretryable_save_conflicts.sql',import.meta.url),'utf8'));
   const calls=[];
   const batches=[];
   const client={async rpc(name,args) {
@@ -48,6 +51,24 @@ async function setup() {
   const db=sandbox.exports.createPostgresD1Adapter(async()=>client,'firehouse_sql','test-only');
   return {pg,db,calls,batches};
 }
+
+test('stale saves return nonretryable HTTP conflict and atomically roll back both batch wrappers',async()=>{
+  const {pg}=await setup();
+  try {
+    for(const rpc of ['firehouse_sql_batch','firehouse_server_sql_batch']) {
+      const statements=[
+        {sql:"INSERT INTO pay_periods VALUES ('fixture-period','fixture-end','draft')",mode:'run'},
+        {sql:"UPDATE pay_periods SET status='changed' WHERE start_date='missing'",mode:'run',requiredChanges:1},
+      ];
+      await assert.rejects(pg.query(`SELECT public.${rpc}($1::jsonb,$2)`,[JSON.stringify(statements),'test-only']),error=>error.code==='PT409'&&/SAVE_CONFLICT/.test(error.message));
+      assert.equal((await pg.query('SELECT count(*)::int n FROM firehouse.pay_periods')).rows[0].n,0);
+      await assert.rejects(pg.query(`SELECT public.${rpc}($1::jsonb,$2)`,[JSON.stringify(statements),'wrong-secret']),/Denied/);
+    }
+    await assert.rejects(pg.query('SELECT public.inventory_save_air_asset(null,null,null,null)'),error=>error.code==='PT409');
+    const identity=(await pg.query("SELECT prosecdef FROM pg_proc WHERE proname IN ('firehouse_sql_batch','firehouse_server_sql_batch')")).rows;
+    assert.ok(identity.every(row=>!row.prosecdef));
+  }finally{await pg.close();}
+});
 
 test('payroll rate validation and database failures never partially save settings or rates',async()=>{
   const {pg,db}=await setup();
