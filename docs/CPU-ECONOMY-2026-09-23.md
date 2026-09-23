@@ -21,6 +21,14 @@ The migrations were created through the Supabase CLI. Their filenames were align
 - Scoped ESLint and the production Next.js build passed.
 - Live inventory contained 1,630 equipment rows and 1,544 check item rows before and after. The hash of all policies outside the optimized SELECT policies remained `a43e85c62c1e204d1588f08f0b9cadfc`.
 - The signed-in production Inventory screen loaded and refreshed real records: 9 apparatus, 14 unfinished checks, and the existing shared progress. No operational check was submitted or altered to test this release.
+- A subsequent live statistics interval contained 38 executions of each large read: equipment averaged **21.87 ms**, and check items averaged **6.30 ms**. This is the delta in total execution time divided by the delta in call count, ending at 22:19 UTC, after both fixes were applied. It is not an end-to-end page time or CPU measurement. No matching runaway batch was active at that check.
+
+## Production release receipt
+
+- Source pushed on `codex/cpu-economy-20260923`: `3050154c28513f4385913a1c443d998ad1d29acf`.
+- Vercel deployment `dpl_7NKgopCYt854RmLMZf9pTJKkkrQZ` reached READY and owns the `stickney-firehouse-manager.vercel.app` production alias.
+- The authenticated live System Health screen reported `Production · 3050154c2851` and Database Online at 17:20 America/Chicago. Its separate backup-readiness warnings remained visible.
+- The later documentation-only commit records this receipt and does not change the deployed application revision.
 
 ## Cost and operational boundaries
 
