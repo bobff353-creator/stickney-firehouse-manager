@@ -192,6 +192,7 @@
  .inventory-app-shell .inventory-command-hero p{font-size:14px;line-height:1.5}
  .inventory-app-shell .inventory-command-header { padding-top:12px; }
  .inventory-app-shell .inventory-command-back { display:none; }
+ .inventory-app-shell a.inventory-command-back { display:inline-flex;align-items:center;min-height:44px; }
  .inventory-app-shell .inventory-command-hero { min-height:0; padding:16px; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; }
  .inventory-app-shell .inventory-command-hero h1 { font-size:25px; line-height:1.15; }
  .inventory-app-shell .inventory-command-hero>div>span { display:none; }
