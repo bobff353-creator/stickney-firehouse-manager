@@ -78,4 +78,14 @@ Acceptance walkthrough: member finds a shift and understands pending versus assi
 
 ## Release receipt
 
-Before this change, the verified production deployment was `dpl_FcUVPTxgngTAJcoDM8iGWR7AZUFW` at revision `169e2be4e74831de0da3cc43fa795b75ea8bb3de`. Deployment of the reviewed revision and live verification will be recorded after publishing. The prior deployment remains the application rollback candidate, subject to a fresh compatibility check.
+Before this change, the verified production deployment was `dpl_FcUVPTxgngTAJcoDM8iGWR7AZUFW` at revision `169e2be4e74831de0da3cc43fa795b75ea8bb3de`.
+
+- Released source: `4ce2dd4e77025861f4d7bc6ffcfcade29376a1f2`, pushed on `codex/chief-review-20260923`. Main changes are commit `dcca7138d5451de7d60a85812b17fb2b567b83d5`; the follow-up fixes an existing mobile rule that hid the new return link.
+- Final Vercel deployment: `dpl_DPTAcBxu4v2AAgp8PFLHzpqJfyTZ`, READY, production, no alias error. URL: `https://stickney-firehouse-manager-9s5vvrr02-fire-pre-plan-pro.vercel.app`.
+- Verified live alias: `https://stickney-firehouse-manager.vercel.app`. Public health reports `production`, revision `4ce2dd4e7702`, and the existing dedicated Supabase project.
+- Live protection checks: unsigned activation returns 403 `VERIFIED_INVITATION_REQUIRED`; signed-out system health returns 401. No account was created or changed.
+- Signed-in verification: actual recovery status stays at Needs attention; file metadata is accurately labeled; the deployment revision is shown; the handoff guide displays all four real recovery findings. The narrow-screen Inventory return link is visible and its click returns to the Home briefing.
+- Validation: local production build and scoped ESLint passed; Vercel built both production releases successfully. Final follow-up changes only the mobile CSS visibility rule. The invitation/wayfinding rerun passed all 28 tests after the last wording adjustment. Regression results and test-scope limits remain as recorded above.
+- The previous production deployment remains an application rollback candidate, subject to a fresh compatibility check. It also contains the retired unsafe activation path, so a rollback would reintroduce that risk. Prefer a forward fix. No database migration was made.
+
+This receipt is a documentation-only follow-up; it does not change the deployed application revision.
