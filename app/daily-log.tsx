@@ -2,6 +2,8 @@
 import { fleetChecksForShift } from "./fleet-check-shift";
 import { parseSavedTime, savedTimeLabel } from "./workflow-status";
 import { requestDailyLogSave } from "./daily-log-save-request";
+import DailyLogRecoveryReview from "./daily-log-recovery-review";
+import { backupLogRecovery, logDifferences, logSnapshot, type LogSnapshot } from "./daily-log-recovery";
 import { SaveStatus } from "./save-status";
 import { useWorkspaceViewState } from "./workspace-view-state";
 import { CALLBACK_QUALIFYING_CALL_TYPES } from "./callback-rules";
@@ -481,6 +483,8 @@ export default function DailyLog({
   const editVersion = useRef(0);
   const savedVersions = useRef(new Map<string, number | undefined>());
   const [saveConflict, setSaveConflict] = useState(false);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [recoveryReview, setRecoveryReview] = useState<{ date: string; request: number; draft: LogSnapshot; draftVersion: number | undefined; server: LogPayload; saved: LogSnapshot } | null>(null);
   const latestSave = useRef({ logDate, staffing, calls, shiftNotes });
   const readOnly = loading || loadError || loadedDate !== logDate || (locked && !adminUnlocked) || saveConflict;
   useUnsavedWork(dirty, saving || handoffSaving);
@@ -501,6 +505,7 @@ export default function DailyLog({
     saveRetryRequired.current = false;
     setEditingCalls([]);
     setRemoveCall(null);
+    setRecoveryReview(null);
     loaded.current = false;
     autosaveAuthorized.current = false;
     try {
@@ -512,8 +517,15 @@ export default function DailyLog({
       const draft = stored ? (JSON.parse(stored) as OfflineDraft) : null;
       const updatedAt = data.log?.updatedAt;
       const serverUpdatedAt = parseSavedTime(updatedAt);
-      const serverTime = serverUpdatedAt?.getTime() ?? 0;
-      const restore = Boolean(draft && new Date(draft.savedAt).getTime() > serverTime);
+      // An older draft can contain unsaved work even if someone saved later.
+      // Compare actual content rather than trusting either device's clock.
+      const serverSnapshot = { staffing: data.staffing, calls: data.calls, shiftNotes: data.log?.shiftNotes ?? "" };
+      const restore = Boolean(draft && logDifferences(draft, serverSnapshot).length);
+      if (draft && !restore) {
+        // A confirmed matching copy is no longer pending. Do not let it
+        // reappear as a conflict after somebody makes a later valid edit.
+        try { if (window.localStorage.getItem(draftKey(date)) === stored) window.localStorage.removeItem(draftKey(date)); } catch { /* Matching data is already on the server. */ }
+      }
       const conflict = Boolean(restore && draft?.expectedVersion !== data.log?.saveVersion);
       savedVersions.current.set(date, restore ? draft?.expectedVersion : data.log?.saveVersion);
       setSaveConflict(conflict);
@@ -543,7 +555,7 @@ export default function DailyLog({
       setDeviceDraftSaved(restore);
       setSchedulePrefilled(!restore && Boolean(data.schedulePrefilled));
       if (restore) setMessage("Unsaved work restored from this device");
-      if (conflict) setMessage("Your local draft differs from the saved log. Automatic saving is paused to protect the other changes.");
+      if (conflict) setMessage("Your draft and the saved log differ. Review the changes below to resume editing.");
       setLastSynced(serverUpdatedAt);
       setLoadedDate(date);
       window.setTimeout(() => {
@@ -755,6 +767,52 @@ export default function DailyLog({
     setDeviceDraftSaved(false);
     setDirty(true);
   };
+  async function reviewDraftChanges() {
+    if (reviewLoading || saveInFlight.current) return;
+    const requestedDate = logDate, request = loadRequest.current;
+    setReviewLoading(true);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/logbook?date=${encodeURIComponent(requestedDate)}`, { cache: "no-store", signal: AbortSignal.timeout(30_000) });
+      const server = await response.json() as LogPayload;
+      if (requestedDate !== latestSave.current.logDate || request !== loadRequest.current) return;
+      if (!response.ok) throw new Error(server.error || "Unable to load the saved log. Your draft is still here; retry when connected.");
+      if (!Number.isSafeInteger(server.log?.saveVersion) || server.log.saveVersion < 0) throw new Error("The saved version could not be verified. Your draft is still here; retry.");
+      setRecoveryReview({ date: requestedDate, request, draft: logSnapshot(latestSave.current), draftVersion: savedVersions.current.get(requestedDate), server, saved: logSnapshot({ staffing: server.staffing, calls: server.calls, shiftNotes: server.log.shiftNotes }) });
+    } catch (error) {
+      if (requestedDate === latestSave.current.logDate && request === loadRequest.current) setMessage(error instanceof Error ? error.message : "Unable to compare the saved log. Your draft is still here; retry.");
+    } finally { setReviewLoading(false); }
+  }
+  async function applyReviewedChanges(result: LogSnapshot) {
+    const review = recoveryReview;
+    if (!review || review.date !== latestSave.current.logDate || review.request !== loadRequest.current || saveInFlight.current) return;
+    const server = review.server;
+    const changed = logDifferences(result, review.saved).length > 0;
+    if (changed && server.log.locked && !server.log.adminUnlocked) throw new Error("This log has been locked. Go back and have an administrator unlock it, then review your draft again.");
+    try {
+      backupLogRecovery(window.localStorage, review.date, review.draft, review.draftVersion, review.saved, server.log.saveVersion);
+      // Write the reviewed draft BEFORE replacing anything on screen. If the
+      // device cannot store it, leave the original draft and choices intact.
+      if (changed) window.localStorage.setItem(draftKey(review.date), JSON.stringify({ ...result, logDate: review.date, expectedVersion: server.log.saveVersion, savedAt: new Date().toISOString() }));
+      else window.localStorage.removeItem(draftKey(review.date));
+    } catch { throw new Error("This device could not keep the recovery backup. Your draft and choices are still here. Free some browser storage, or go back and download a copy before trying again."); }
+    latestSave.current = { ...result, logDate: review.date };
+    savedVersions.current.set(review.date, server.log.saveVersion);
+    autosaveAuthorized.current = !server.log.locked || Boolean(server.log.adminUnlocked);
+    saveRetryRequired.current = false;
+    setStaffing(result.staffing); setCalls(result.calls); setShiftNotes(result.shiftNotes);
+    setLogAudit(server.log); setApprovals(server.approvals ?? []);
+    setLocked(Boolean(server.log.locked)); setAdminUnlocked(Boolean(server.log.adminUnlocked)); setCanUnlock(Boolean(server.canUnlock));
+    setLastSynced(parseSavedTime(server.log.updatedAt));
+    setSaveConflict(false); setSaveError(false); setDirty(changed); setDeviceDraftSaved(changed);
+    setRecoveryReview(null);
+    if (changed) {
+      editVersion.current += 1;
+      await saveLog();
+    } else {
+      setMessage(server.log.locked && !server.log.adminUnlocked ? "Saved log loaded. An administrator must unlock it before editing." : "Review complete · you can continue editing. Your previous draft is backed up on this device.");
+    }
+  }
   function changeLogDate(date: string) {
     if (!date || date === logDate || !confirmLeavingWork()) return;
     loadRequest.current += 1;
@@ -972,7 +1030,7 @@ export default function DailyLog({
     const response = await fetch("/api/logbook", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ action: "adminUnlock", logDate: requestedDate, expectedVersion: savedVersions.current.get(requestedDate) }),
+      body: JSON.stringify({ action: "adminUnlock", logDate: requestedDate, expectedVersion: recoveryReview?.date === requestedDate ? recoveryReview.server.log.saveVersion : savedVersions.current.get(requestedDate) }),
     });
     const result = (await response.json().catch(() => ({}))) as {
       error?: string;
@@ -989,12 +1047,14 @@ export default function DailyLog({
       savedVersions.current.set(requestedDate, result.saveVersion);
       autosaveAuthorized.current = true;
       setAdminUnlocked(true);
+      setRecoveryReview(current => current?.date === requestedDate ? { ...current, server: { ...current.server, log: { ...current.server.log, adminUnlocked: 1, saveVersion: result.saveVersion! } } } : current);
       setUnlockConfirmOpen(false);
       setMessage("Administrator editing enabled · changes save automatically");
     } else {
       if (response.status === 409) {
         autosaveAuthorized.current = false;
         setSaveConflict(true);
+        setRecoveryReview(null);
         setUnlockConfirmOpen(false);
       }
       setMessage(result.error || "Unable to unlock this log.");
@@ -1041,6 +1101,7 @@ export default function DailyLog({
             <input
               type="date"
               value={logDate}
+              disabled={reviewLoading || saving}
               onChange={(event) => changeLogDate(event.target.value)}
             />
           </label>
@@ -1092,7 +1153,7 @@ export default function DailyLog({
           </div>
         </div>
       )}
-      {loadedDate === logDate && locked && !adminUnlocked && (
+      {loadedDate === logDate && locked && !adminUnlocked && !recoveryReview && (
         <div className="locked-banner">
           <div>
             <strong>🔒 Daily log locked</strong>
@@ -1144,23 +1205,18 @@ export default function DailyLog({
         This date could not be loaded. Editing is disabled; any device draft is kept unchanged. Unlock the portal if requested, then retry.
         <button type="button" onClick={() => void loadLog(logDate)}>Retry loading log</button>
       </div>}
-      {loadedDate === logDate && saveConflict && <div className="admin-banner" role="alert">
-        Saving is paused. Keep a copy of your draft before loading the current saved log.
-        <button onClick={() => {
+      {loadedDate === logDate && saveConflict && !recoveryReview && <section className="log-recovery-banner no-print" aria-label="Recover unsaved changes">
+        <div><h2>Your changes need a quick review</h2><p>Your draft is still here. Compare it with the saved log, choose what to keep, then save. You do not need to retype your changes.</p></div>
+        <div className="log-recovery-actions"><button type="button" className="recovery-primary" disabled={reviewLoading || saving} onClick={() => void reviewDraftChanges()}>{reviewLoading ? "Loading saved version…" : "Review changes & continue"}</button>
+        <button type="button" onClick={() => {
           const draft = JSON.stringify({ ...latestSave.current, expectedVersion: savedVersions.current.get(logDate), savedAt: new Date().toISOString() });
           if (draft) {
             const url = URL.createObjectURL(new Blob([draft], { type: "application/json" }));
             const link = document.createElement("a"); link.href = url; link.download = `daily-log-draft-${logDate}.json`; link.click(); URL.revokeObjectURL(url);
           }
-        }}>Download my draft</button>
-        <button onClick={() => {
-          if (!window.confirm("Load the saved log? Your current draft will be kept as a backup on this device, but will not be automatically applied.")) return;
-          const draft = window.localStorage.getItem(draftKey(logDate));
-          if (draft) window.localStorage.setItem(`${draftKey(logDate)}:backup:${Date.now()}`, draft);
-          window.localStorage.removeItem(draftKey(logDate));
-          void loadLog(logDate);
-        }}>Load saved log</button>
-      </div>}
+        }}>Download a backup (optional)</button></div>
+      </section>}
+      {loadedDate === logDate && recoveryReview?.date === logDate && <DailyLogRecoveryReview draft={recoveryReview.draft} saved={recoveryReview.saved} employees={employees} locked={Boolean(recoveryReview.server.log.locked && !recoveryReview.server.log.adminUnlocked)} canUnlock={Boolean(recoveryReview.server.canUnlock)} onUnlock={() => setUnlockConfirmOpen(true)} onApply={applyReviewedChanges} onBack={() => setRecoveryReview(null)} />}
       <ConfirmDialog
         open={unlockConfirmOpen}
         title="Unlock this finalized log?"
@@ -1173,7 +1229,7 @@ export default function DailyLog({
       />
 
       <ConfirmDialog open={Boolean(removeCall)} title="Remove this call from the log?" description={`Call ${removeCall?.reportNumber || "without a report number"}${removeCall?.address ? ` at ${removeCall.address}` : ""} will be removed from this daily log. This does not delete the original CAD incident.`} confirmLabel="Remove call" tone="danger" onCancel={() => setRemoveCall(null)} onConfirm={() => { if (readOnly || !removeCall) return; setCalls(current => current.filter(call => call.id !== removeCall.id)); setRemoveCall(null); markDirty(); }} />
-      <fieldset className="logbook-fields" disabled={readOnly} hidden={loadedDate !== logDate}>
+      <fieldset className="logbook-fields" disabled={readOnly} hidden={loadedDate !== logDate || Boolean(recoveryReview)}>
         <section id="log-staffing" className="log-section" aria-labelledby="log-staffing-title" tabIndex={-1}>
         <div className="log-section-intro"><h2 id="log-staffing-title">Staffing</h2><p>Review who actually worked. AO means Acting Officer pay for the selected time.</p></div>
         <div className="shift-card-grid">

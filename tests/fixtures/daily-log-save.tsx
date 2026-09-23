@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import DailyLog from '../../app/daily-log';
+import { chicagoOperationalContext } from '../../app/operational-day';
 import '../../app/globals.css';
 import '../../app/mobile-usability.css';
 import '../../app/portal-usability.css';
@@ -10,8 +11,17 @@ type Mode = 'success' | 'slow' | 'timeout' | 'failure';
 let mode: Mode = 'success';
 let posts = 0, version = 0;
 let saved: { staffing: unknown[]; calls: unknown[]; shiftNotes: string } | null = null;
-const startsLocked = new URLSearchParams(location.search).get('locked') === '1';
+const params = new URLSearchParams(location.search);
+const startsLocked = params.get('locked') === '1';
 let unlocked = false;
+const recovery = params.get('recovery');
+if (recovery) {
+  version = 3;
+  saved = { staffing: [{ id: 'fixture-staff', employeeId: 'fixture-member', shiftKey: 'morning', timeIn: '06:00', timeOut: '12:00', actingOfficer: false }], calls: [{ id: 'fixture-call', reportNumber: 'FICTIONAL-1', timeOut: '0900', timeIn: '0930', respondingUnits: 'TEST', address: 'Fictional saved address', callType: 'EMS' }], shiftNotes: 'Fictional saved notes' };
+  const date = chicagoOperationalContext().operationalDate;
+  const draft = recovery === 'matching' ? saved : { ...saved, staffing: [{ ...saved.staffing[0] as object, timeIn: '06:15' }], shiftNotes: 'Fictional unsaved note to keep' };
+  localStorage.setItem(`sfd-daily-log-draft:${date}`, JSON.stringify({ ...draft, logDate: date, expectedVersion: 1, savedAt: '2026-01-01T00:00:00Z' }));
+}
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, location.href);
   if (url.origin !== location.origin || url.pathname !== '/api/logbook') throw new Error('Unexpected API blocked in isolated fixture');
@@ -51,6 +61,7 @@ function Preview() {
         <option value="success">Success</option><option value="slow">Slow (12 seconds)</option><option value="timeout">No response (30 seconds)</option><option value="failure">Server failure</option>
       </select></label>
       <output>Save requests: {requestCount}</output>
+      {recovery && <><button type="button" onClick={() => { if (saved) { saved = { ...saved, shiftNotes: 'Fictional newer change during review' }; version++; } }}>Simulate another saved update</button><p>Server notes: {saved?.shiftNotes} · Version: {version}</p></>}
     </aside>
     <DailyLog employees={[{ id: 'fixture-member', name: 'Example, Member', rank: 'Firefighter' }]} />
   </main>;

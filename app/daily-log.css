@@ -83,6 +83,23 @@
 .log-prior-open article p { margin: 8px 0; }
 .log-handoff-next { padding: 14px; border: 1px solid #b9cdd9; background: #f3f8fb; border-radius: 8px; display: grid; gap: 5px; }
 .log-handoff-next a { color: #175a81; font-weight: 750; }
+.log-recovery-banner, .log-recovery-review { padding: 18px; border: 1px solid #d7c397; background: #fffbf2; color: #173e59; border-radius: 10px; display: grid; gap: 14px; min-width: 0; }
+.log-recovery-banner h2, .log-recovery-review h2 { margin: 0; font-size: 21px; color: #173e59; scroll-margin-top: calc(var(--log-scroll-offset) + 20px); }
+.log-recovery-banner p, .log-recovery-review p { margin: 0; line-height: 1.5; }
+.log-recovery-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.log-recovery-actions > span { margin-right: auto; font-weight: 700; }
+.logbook-page .log-recovery-actions button, .log-recovery-review button { min-height: 44px; padding: 10px 14px; font: inherit; font-weight: 700; border: 1px solid #8ca6b8; border-radius: 7px; background: #fff; color: #173e59; }
+.logbook-page button.recovery-primary { color: #fff; background: #155c81; border-color: #155c81; }
+.logbook-page .log-recovery-actions button:disabled { opacity: .55; }
+.log-recovery-difference { padding: 12px; min-width: 0; border: 1px solid #c5d5df; border-radius: 8px; background: #fff; }
+.log-recovery-difference legend { font-weight: 750; font-size: 15px; color: #173e59; padding: 0 5px; overflow-wrap: anywhere; }
+.log-recovery-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.log-recovery-options label { display: grid; gap: 10px; align-content: start; padding: 12px; border: 2px solid #d9e3ea; border-radius: 8px; cursor: pointer; min-width: 0; }
+.log-recovery-options label.selected { border-color: #17678e; background: #edf7fd; }
+.log-recovery-options label > span:first-child { display: flex; align-items: center; gap: 8px; font-weight: 750; color: #173e59; }
+.logbook-page .log-recovery-options input[type=radio] { width: 20px; height: 20px; min-height: 20px; flex-shrink: 0; accent-color: #155c81; }
+.log-recovery-value { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.6; color: #233e50; }
+@media (max-width: 600px) { .log-recovery-options { grid-template-columns: minmax(0, 1fr); } .log-recovery-banner, .log-recovery-review { padding: 12px; } .log-recovery-actions > span { width: 100%; } }
 @media (max-width: 800px) {
   .logbook-page.logbook-page { --log-scroll-offset: 225px; }
   .logbook-page .log-compact-heading { align-items: stretch; flex-direction: column; }

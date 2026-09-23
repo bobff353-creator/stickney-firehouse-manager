@@ -4,6 +4,7 @@ import test from 'node:test';
 import vm from 'node:vm';
 import ts from 'typescript';
 import { parseSavedTime } from '../app/workflow-status.ts';
+import { logDifferences } from '../app/daily-log-recovery.ts';
 
 const source = readFileSync(new URL('../app/daily-log.tsx', import.meta.url), 'utf8');
 const start = source.indexOf('const loadLog = useCallback(');
@@ -12,7 +13,7 @@ const compiled = ts.transpileModule(source.slice(start, end), { compilerOptions:
 function harness(fetch) {
   const state = {};
   const timers = [];
-  const scope = { fetch, Error, Date, Map, Boolean, JSON, parseSavedTime, useCallback: fn => fn,
+  const scope = { fetch, Error, Date, Map, Boolean, JSON, parseSavedTime, logDifferences, useCallback: fn => fn,
     loadRequest: { current: 0 }, loaded: { current: false }, autosaveAuthorized: { current: false },
     saveRetryRequired: { current: false },
     savedVersions: { current: new Map() }, draftKey: date => date,
@@ -66,8 +67,30 @@ test('load failure leaves an existing local draft untouched', async () => {
 });
 test('unverified date has no editable form and exposes recovery instead of Saved', () => {
   assert.match(source, /readOnly = loading \|\| loadError \|\| loadedDate !== logDate/);
-  assert.match(source, /hidden=\{loadedDate !== logDate\}/);
+  assert.match(source, /hidden=\{loadedDate !== logDate \|\| Boolean\(recoveryReview\)\}/);
   assert.match(source, /loadError \|\| loadedDate !== logDate \? "Not loaded"/);
   assert.match(source, /Retry loading log/);
   assert.match(source, /Unlock could not be confirmed/);
+});
+
+test('older unsaved draft is retained when another editor saved more recently', async () => {
+  const h = harness(async () => ({ ok: true, json: async () => ({ log: { saveVersion: 8, updatedAt: '2026-09-23T22:00:00Z', shiftNotes: 'Other editor', locked: 0 }, staffing: [], calls: [] }) }));
+  h.scope.window.localStorage.getItem = () => JSON.stringify({ savedAt: '2026-09-22T10:00:00Z', expectedVersion: 7, staffing: [], calls: [], shiftNotes: 'Unsaved correction' });
+  await h.load('2026-09-22');
+  assert.equal(h.state.setSaveConflict, true);
+  assert.equal(h.state.setShiftNotes, 'Unsaved correction');
+  assert.equal(h.scope.autosaveAuthorized.current, false);
+});
+
+test('matching draft adopts current version without a conflict or another write', async () => {
+  const h = harness(async () => ({ ok: true, json: async () => ({ log: { saveVersion: 8, updatedAt: '2026-09-23T22:00:00Z', shiftNotes: 'Already saved', locked: 1, adminUnlocked: 1 }, staffing: [], calls: [] }) }));
+  h.scope.window.localStorage.getItem = () => JSON.stringify({ savedAt: '2099-01-01', expectedVersion: 7, staffing: [], calls: [], shiftNotes: 'Already saved' });
+  const removed = [];
+  h.scope.window.localStorage.removeItem = key => removed.push(key);
+  await h.load('2026-09-22');
+  assert.equal(h.state.setSaveConflict, false);
+  assert.equal(h.state.setDirty, false);
+  assert.equal(h.scope.savedVersions.current.get('2026-09-22'), 8);
+  assert.equal(h.scope.autosaveAuthorized.current, true);
+  assert.deepEqual(removed, ['2026-09-22']);
 });
