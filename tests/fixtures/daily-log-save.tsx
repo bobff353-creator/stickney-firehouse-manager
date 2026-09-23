@@ -10,16 +10,23 @@ type Mode = 'success' | 'slow' | 'timeout' | 'failure';
 let mode: Mode = 'success';
 let posts = 0, version = 0;
 let saved: { staffing: unknown[]; calls: unknown[]; shiftNotes: string } | null = null;
+const startsLocked = new URLSearchParams(location.search).get('locked') === '1';
+let unlocked = false;
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, location.href);
   if (url.origin !== location.origin || url.pathname !== '/api/logbook') throw new Error('Unexpected API blocked in isolated fixture');
   if ((init?.method || 'GET') === 'GET') return Response.json({
-    log: { logDate: url.searchParams.get('date'), saveVersion: version, locked: 0, adminUnlocked: 0, updatedAt: saved ? new Date().toISOString() : null, shiftNotes: saved?.shiftNotes || '', revisions: [] },
+    log: { logDate: url.searchParams.get('date'), saveVersion: version, locked: startsLocked ? 1 : 0, adminUnlocked: unlocked ? 1 : 0, updatedAt: saved ? new Date().toISOString() : null, shiftNotes: saved?.shiftNotes || '', revisions: [] },
     staffing: saved?.staffing || [{ id: 'fixture-staff', employeeId: 'fixture-member', shiftKey: 'morning', timeIn: '06:00', timeOut: '12:00', actingOfficer: false }],
-    calls: saved?.calls || [], schedulePrefilled: !saved, approvals: [], recentNotes: [], addresses: [], apparatusChecks: [], apparatusChecksAvailable: true,
-    fleetVerificationAvailable: true, incompleteFleetChecks: [], canUnlock: false,
+    calls: saved?.calls || [], schedulePrefilled: !saved && !startsLocked, approvals: [], recentNotes: [], addresses: [], apparatusChecks: [], apparatusChecksAvailable: true,
+    fleetVerificationAvailable: true, incompleteFleetChecks: [], canUnlock: startsLocked,
   });
   const body = JSON.parse(String(init?.body));
+  if (body.action === 'adminUnlock' && startsLocked) {
+    if (body.expectedVersion !== version) return Response.json({ error: 'Fixture version changed. Reload and review.' }, { status: 409 });
+    unlocked = true; version++;
+    return Response.json({ ok: true, adminUnlocked: true, autosaveEnabled: true, saveVersion: version });
+  }
   if (body.action && body.action !== 'save') throw new Error('Operational approvals blocked in fixture');
   posts++; window.dispatchEvent(new Event('fixture-request'));
   if (mode === 'timeout') return new Promise<Response>((_, reject) => init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true }));

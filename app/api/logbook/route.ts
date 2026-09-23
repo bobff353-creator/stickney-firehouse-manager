@@ -22,7 +22,6 @@ function insertRows(db: Awaited<ReturnType<typeof ensureDatabase>>, query: strin
   }
   return statements;
 }
-async function addRevision(db: Awaited<ReturnType<typeof ensureDatabase>>, id: string, action: string, summary: string, actor: string) { await db.prepare("INSERT INTO record_revisions (id, record_type, record_id, revision_number, action, summary, actor) SELECT ?, 'dailyLog', ?, COALESCE(MAX(revision_number), 0) + 1, ?, ?, ? FROM record_revisions WHERE record_type = 'dailyLog' AND record_id = ?").bind(crypto.randomUUID(), id, action, summary, actor, id).run(); }
 
 function cleanDate(value: string | null, fallback: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value ?? "") ? value! : fallback;
@@ -179,9 +178,16 @@ export async function POST(request: Request) {
 
     if (action === "adminUnlock") {
       if (!await hasPermission(request, db, "permissions.manage")) return Response.json({ error: "Administrator permission is required to unlock a closed Daily Log." }, { status: 403 });
-      await db.prepare("UPDATE daily_logs SET locked = 1, admin_unlocked = 1, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE log_date = ?").bind(actor, date).run();
-      await addRevision(db, date, "Unlocked", "Administrator edit access granted", actor);
-      return Response.json({ ok: true, adminUnlocked: true, autosaveEnabled: true });
+      const expectedVersion = Number(body.expectedVersion);
+      if (body.expectedVersion == null || !Number.isSafeInteger(expectedVersion) || expectedVersion < 0) return Response.json({ error: "Reload the Daily Log before unlocking so its saved version can be checked." }, { status: 409 });
+      // Unlock itself advances save_version. Return that exact version inside
+      // the same transaction; never bless a concurrent editor's newer rows.
+      const unlocked = await db.batch<{ saveVersion: number }>([
+        db.prepare("UPDATE daily_logs SET locked = 1, admin_unlocked = 1, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE log_date = ? AND save_version = ?").bind(actor, date, expectedVersion).expectChanges(1),
+        db.prepare("INSERT INTO record_revisions (id, record_type, record_id, revision_number, action, summary, actor) SELECT ?, 'dailyLog', ?, COALESCE(MAX(revision_number), 0) + 1, 'Unlocked', 'Administrator edit access granted', ? FROM record_revisions WHERE record_type = 'dailyLog' AND record_id = ?").bind(crypto.randomUUID(), date, actor, date),
+        db.prepare("SELECT save_version AS saveVersion FROM daily_logs WHERE log_date = ?").bind(date).batchFirst(),
+      ]);
+      return Response.json({ ok: true, adminUnlocked: true, autosaveEnabled: true, saveVersion: unlocked.at(-1)?.saveVersion });
     }
     if ((date < operational.lockBeforeDate || existing?.locked) && !existing?.adminUnlocked) return Response.json({ error: "This daily log is locked. An administrator must unlock it before changes can be made." }, { status: 423 });
 

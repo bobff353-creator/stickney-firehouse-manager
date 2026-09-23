@@ -965,23 +965,38 @@ export default function DailyLog({
   }
   async function adminUnlock() {
     if (unlocking) return;
+    const requestedDate = logDate;
+    const requestAtStart = loadRequest.current;
     setUnlocking(true);
     try {
     const response = await fetch("/api/logbook", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ action: "adminUnlock", logDate }),
+      body: JSON.stringify({ action: "adminUnlock", logDate: requestedDate, expectedVersion: savedVersions.current.get(requestedDate) }),
     });
     const result = (await response.json().catch(() => ({}))) as {
       error?: string;
       adminUnlocked?: boolean;
+      saveVersion?: number;
     };
+    if (latestSave.current.logDate !== requestedDate || loadRequest.current !== requestAtStart) return;
     if (response.ok && result.adminUnlocked === true) {
+      if (!Number.isSafeInteger(result.saveVersion) || result.saveVersion! < 0) {
+        setUnlockConfirmOpen(false);
+        setMessage("The unlocked version could not be confirmed. Reload this log before editing.");
+        return;
+      }
+      savedVersions.current.set(requestedDate, result.saveVersion);
       autosaveAuthorized.current = true;
       setAdminUnlocked(true);
       setUnlockConfirmOpen(false);
       setMessage("Administrator editing enabled · changes save automatically");
     } else {
+      if (response.status === 409) {
+        autosaveAuthorized.current = false;
+        setSaveConflict(true);
+        setUnlockConfirmOpen(false);
+      }
       setMessage(result.error || "Unable to unlock this log.");
     }
     } catch {

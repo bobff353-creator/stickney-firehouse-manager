@@ -272,6 +272,56 @@ test('actual Daily Log and payroll entry routes reject stale, finalized and unau
   } finally {await pg.close();}
 });
 
+test('administrator unlock returns the exact new version so corrections save and stale unlocks cannot advance a draft', async () => {
+ const {pg,db}=await setup();try{
+  await pg.exec(`
+   ALTER TABLE firehouse.pay_periods ADD updated_by text, ADD updated_at text;
+   ALTER TABLE firehouse.time_entries ADD employee_id text, ADD work_date text, ADD category text, ADD updated_at text;
+   ALTER TABLE firehouse.time_entries ADD UNIQUE(employee_id,work_date,category);
+   ALTER TABLE firehouse.daily_logs ADD locked int DEFAULT 0, ADD locked_by text, ADD locked_at text, ADD admin_unlocked int DEFAULT 0, ADD updated_by text, ADD updated_at text;
+   ALTER TABLE firehouse.daily_log_staffing ADD shift_key text, ADD employee_id text, ADD time_in text, ADD time_out text, ADD acting_officer int, ADD sort_order int;
+   ALTER TABLE firehouse.daily_log_calls ADD report_number text, ADD time_out text, ADD time_in text, ADD responding_units text, ADD address text, ADD call_type text, ADD sort_order int;
+   CREATE TABLE firehouse.employee_profiles(employee_id text,is_dpw int DEFAULT 0);
+   CREATE TABLE firehouse.dispatch_incidents(incident_id text,active int,cleared_at text);
+   CREATE TABLE firehouse.record_revisions(id text PRIMARY KEY,record_type text,record_id text,revision_number int,action text,summary text,actor text);
+   INSERT INTO firehouse.daily_logs(log_date,shift_notes,locked,locked_by,locked_at) VALUES('2026-09-06','original',1,'System','existing lock');
+  `);
+  let admin=true;
+  const context={exports:{},Error,Response,URL,crypto:webcrypto,console:{error(){}},ensureDatabase:async()=>db,
+   hasPermission:async(_request,_db,permission)=>permission!=='permissions.manage'||admin,
+   chicagoOperationalContext:()=>({operationalDate:'2026-09-07',lockBeforeDate:'2026-09-07'}),
+   completedDispatchReportNumbers,holidayForDate:()=>null,dailyLogPayrollEntries,dailyLogPayrollTotals};
+  const route=fs.readFileSync(new URL('../app/api/logbook/route.ts',import.meta.url),'utf8').replace(/^import[\s\S]*?;\r?\n/gm,'');
+  vm.runInNewContext(ts.transpileModule(route,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,context);
+  const request=body=>new Request('https://fixture.test/api/logbook',{method:'POST',headers:{'content-type':'application/json','oai-authenticated-user-email':'fixture@example.test'},body:JSON.stringify({logDate:'2026-09-06',...body})});
+  const result=await context.exports.POST(request({action:'adminUnlock',expectedVersion:0}));
+  assert.equal(result.status,200);
+  const unlocked=await result.json();
+  assert.equal(unlocked.saveVersion,1,'unlock must return its database-triggered version');
+  const correction={expectedVersion:unlocked.saveVersion,shiftNotes:'corrected fixture note',staffing:[{id:'fixture-staff',employeeId:'fixture-member',shiftKey:'morning',timeIn:'06:15',timeOut:'12:00'}],calls:[{id:'fixture-call',reportNumber:'fixture-1',timeOut:'0900',timeIn:'0945',respondingUnits:'Fixture rig',address:'Fictional address',callType:'EMS'}]};
+  const corrected=await context.exports.POST(request(correction));
+  assert.equal(corrected.status,200,JSON.stringify(await corrected.clone().json()));
+  assert.equal((await pg.query('SELECT shift_notes FROM firehouse.daily_logs')).rows[0].shift_notes,'corrected fixture note');
+  assert.equal((await pg.query('SELECT time_in FROM firehouse.daily_log_staffing')).rows[0].time_in,'06:15');
+  assert.equal((await pg.query('SELECT time_in FROM firehouse.daily_log_calls')).rows[0].time_in,'0945');
+  assert.equal(Number((await pg.query('SELECT hours FROM firehouse.time_entries')).rows[0].hours),5.75);
+  const snapshot=async()=>(await pg.query('SELECT row_to_json(d) AS record FROM firehouse.daily_logs d')).rows;
+  const saved=await snapshot();
+  for(const expectedVersion of [0,undefined,-1,'bad']){
+   assert.equal((await context.exports.POST(request({action:'adminUnlock',expectedVersion}))).status,409);
+   assert.deepEqual(await snapshot(),saved);
+  }
+  admin=false;
+  assert.equal((await context.exports.POST(request({action:'adminUnlock',expectedVersion:(await corrected.clone().json()).saveVersion}))).status,403);
+  admin=true;
+  await pg.exec("UPDATE firehouse.daily_logs SET admin_unlocked=0; ALTER TABLE firehouse.record_revisions ADD CONSTRAINT fixture_revision_failure CHECK(action<>'Unlocked') NOT VALID;");
+  const beforeFailure=await snapshot();
+  const version=beforeFailure[0].record.save_version;
+  assert.equal((await context.exports.POST(request({action:'adminUnlock',expectedVersion:version}))).status,500);
+  assert.deepEqual(await snapshot(),beforeFailure,'failed audit insert rolls back unlock and version together');
+ }finally{await pg.close();}
+});
+
 test('bulk Daily Log save preserves every row, hours, manual entries and atomic rollback with bounded statements', async () => {
   const { pg, db, batches } = await setup();
   try {
