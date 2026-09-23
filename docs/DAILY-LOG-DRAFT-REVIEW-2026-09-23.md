@@ -15,3 +15,10 @@ Verification:
 - No actual Daily Log, staffing, call, note or payroll record was changed during verification. No database migration or paid infrastructure change is required.
 
 Existing conflict screens need the updated application loaded. The existing device draft key is unchanged, so the new review can read those drafts.
+
+## Production receipt
+
+- Source: `150a0b3316df66c5b58a4b693dfe7fb9e3eefd1f`, pushed on `codex/daily-log-draft-review-20260923`.
+- Deployment: `dpl_2GbYFY7QScntZ1bavsBYao1ePrqa`, verified READY with the matching SHA and `stickney-firehouse-manager.vercel.app` alias; no alias error.
+- 40 targeted tests passed. The final draft cleanup and original-version backup adjustments also passed all 19 affected recovery/load tests. Scoped lint passed; Vercel built the final committed source successfully.
+- After checking for unsaved work, the open production page was refreshed and returned to September 21. It showed `Unlocked for correction` and `Saved to server`, with the unchanged 5:43 PM Central saved timestamp. No browser errors or warnings were reported.
