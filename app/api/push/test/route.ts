@@ -23,7 +23,7 @@ export async function POST(request: Request) {
 
   if (!session.context.grants.includes('field_preplans.view')) {
     const rows=await db.prepare('SELECT endpoint,p256dh,auth FROM push_subscriptions WHERE active=1 AND user_id=? AND department_id=? ORDER BY created_at LIMIT 10').bind(session.context.user.id,session.context.department.id).all<{endpoint:string;p256dh:string;auth:string}>();
-    const payload={eventId:crypto.randomUUID(),kind:'scheduler',title:'TEST schedule notification',body:'Personal device test only. No schedule changed.',url:'/?page=scheduling',tag:'scheduler-device-test'};
+    const payload={eventId:crypto.randomUUID(),kind:'scheduler',title:'TEST schedule notification',body:'Personal device test only. No schedule changed.',url:'/?page=scheduling&display=portal',tag:'scheduler-device-test'};
     const results=await Promise.allSettled(rows.results.map(subscription=>deliverSchedulerPush(subscription,payload,300)));
     return Response.json({configured:true,delivered:results.filter(result=>result.status==='fulfilled').length,failed:results.filter(result=>result.status==='rejected').length,preview:payload});
   }

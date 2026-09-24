@@ -1184,7 +1184,7 @@ function RemindersScreen({ data, act, busy }: { data: Data; act: (b: Record<stri
     <div className="scheduler-grid">
       <section className="wide scheduler-reminders">
         <h3>Reminder rules</h3>
-        <p>Choose when to remind members, turn on Push notification, then save each rule. On their device, members open the notification bell → Portal phone alerts → Enable.</p>
+        <p>Choose when to remind members, turn on Push notification, then save each rule. On their device, members open the notification bell → Push notification settings → Enable push.</p>
         {data.pushConfigured === false && <p role="alert">Push delivery is not configured on this server. Rules can be saved, but notifications cannot be sent yet.</p>}
         <p className="muted">New activity sends after saving. Timed reminders are checked every 5 minutes. Enabling a rule does not send old reminders. A push is a reminder, not a confirmed shift assignment.</p>
         {data.reminderRules.map((rule) => <ReminderRuleEditor key={rule.id} rule={rule} act={act} busy={busy} />)}

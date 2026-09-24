@@ -104,19 +104,45 @@ self.addEventListener("push", (event) => {
   }
 });
 
+function notificationTarget(data = {}) {
+  const fallback = new URL(data.kind === "scheduler" ? "/?page=scheduling" : "/?page=respond", self.location.origin);
+  let target = fallback;
+  try {
+    const requested = new URL(data.url || fallback.href, self.location.origin);
+    if (requested.origin === self.location.origin) target = requested;
+  } catch { /* Older or malformed notifications still open their own module. */ }
+  target.searchParams.set("display", "portal");
+  if (target.searchParams.get("page") === "respond") {
+    // Previously queued CAD alerts used call=, while Respond reads report=.
+    const report = target.searchParams.get("report") || target.searchParams.get("call") || data.incidentId;
+    if (report && report !== "TEST") target.searchParams.set("report", report);
+    else target.searchParams.delete("report");
+    target.searchParams.delete("call");
+  }
+  return target;
+}
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const target = new URL(event.notification.data?.url || "/?page=respond", self.location.origin).href;
-  event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clients) => {
-    // A routine reminder must not navigate an apparatus/TV off its live call.
-    const existing = clients.find((client) => {
-      const url = new URL(client.url);
-      return url.origin === self.location.origin && (event.notification.data?.kind !== "scheduler" || url.searchParams.get("page") === "scheduling");
+  const target = notificationTarget(event.notification.data || {});
+  event.waitUntil((async () => {
+    let clients = [];
+    try { clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true }); } catch { /* Open a fresh window below. */ }
+    // Keep TV boards and unrelated forms on their current screen.
+    const matching = clients.filter((client) => {
+      try {
+        const url = new URL(client.url);
+        return url.origin === target.origin && url.pathname === target.pathname &&
+          url.searchParams.get("display") === "portal" && url.searchParams.get("page") === target.searchParams.get("page");
+      } catch { return false; }
     });
+    const existing = matching.find(client => client.url === target.href) || matching[0];
     if (existing) {
-      if ("navigate" in existing) await existing.navigate(target);
-      return existing.focus();
+      try {
+        const opened = existing.url === target.href ? existing : await existing.navigate(target.href);
+        if (opened) return await opened.focus();
+      } catch { /* Closed tabs or failed navigation must not swallow the tap. */ }
     }
-    return self.clients.openWindow(target);
-  }));
+    return self.clients.openWindow(target.href);
+  })());
 });

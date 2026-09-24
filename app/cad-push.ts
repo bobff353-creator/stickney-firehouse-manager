@@ -52,7 +52,7 @@ export function buildCadPushPayload(incident: CadPushIncident) {
     badge: "/icons/notification-badge-v1.png",
     tag: `cad-${callNumber}`,
     incidentId: callNumber,
-    url: `/?page=respond&call=${encodeURIComponent(callNumber)}`,
+    url: `/?page=respond&display=portal&report=${encodeURIComponent(callNumber)}`,
   };
 }
 

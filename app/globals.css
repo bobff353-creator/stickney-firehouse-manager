@@ -183,7 +183,13 @@ button { cursor: pointer; }
 .notification-button { position: relative; width: 42px; height: 42px; padding: 0; border: 1px solid #c8d2d9; border-radius: 8px; background: white; color: #415d72; display: grid; place-items: center; }
 .notification-button > span { position: absolute; top: -5px; right: -5px; min-width: 19px; height: 19px; padding: 0 5px; border: 2px solid white; border-radius: 999px; background: var(--red); color: white; display: grid; place-items: center; font-size: 9px; font-weight: 900; }
 .smart-alerts { position: relative; }
-.alert-popover { position: absolute; z-index: 80; top: 52px; right: 0; width: min(420px, calc(100vw - 24px)); max-height: min(620px, calc(100vh - 90px)); border: 1px solid #becbd3; border-radius: 11px; background: white; box-shadow: 0 18px 48px rgba(9,30,45,.25); overflow: hidden; }
+.alert-popover { position: absolute; z-index: 80; top: 52px; right: 0; width: min(420px, calc(100vw - 24px)); max-height: min(620px, calc(100vh - 90px)); border: 1px solid #becbd3; border-radius: 11px; background: white; box-shadow: 0 18px 48px rgba(9,30,45,.25); overflow-y: auto; }
+.alert-push-settings { padding: 12px; border-bottom: 1px solid #dce4e8; display: grid; gap: 9px; }
+.alert-push-settings h3 { margin: 0; color: #153d5b; font-size: 14px; }
+.alert-push-settings .quiet-button { min-height: 40px; font-size: 12px; }
+.alert-push-settings .push-notification-control { grid-template-columns: 1fr; }
+.alert-push-settings .push-notification-control small { font-size: 12px; }
+.alert-push-settings .push-notification-control button { min-height: 40px; font-size: 12px; }
 .alert-popover > header { padding: 15px 16px; border-bottom: 1px solid #dce4e8; background: #f5f8fa; display: flex; justify-content: space-between; align-items: center; }
 .alert-popover header div { display: grid; gap: 2px; }
 .alert-popover header strong { color: #153d5b; font-size: 16px; }

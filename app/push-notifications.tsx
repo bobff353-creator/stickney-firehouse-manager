@@ -31,7 +31,7 @@ export default function PushNotifications() {
       try {
         const response = await fetch("/api/push/subscriptions", { cache: "no-store" });
         const payload = await response.json() as { configured?: boolean; publicKey?: string; error?: string };
-        if (!response.ok) throw new Error(payload.error || "Unable to check CAD alerts");
+        if (!response.ok) throw new Error(payload.error || "Unable to check push notifications");
         if (!payload.configured || !payload.publicKey) {
           if (!cancelled) setState("unconfigured");
           return;
@@ -45,7 +45,7 @@ export default function PushNotifications() {
       } catch (caught) {
         if (!cancelled) {
           setState("unavailable");
-          setMessage(caught instanceof Error ? caught.message : "Unable to check CAD alerts");
+          setMessage(caught instanceof Error ? caught.message : "Unable to check push notifications");
         }
       }
     })();
@@ -81,7 +81,7 @@ export default function PushNotifications() {
       setState("on");
       setMessage("Portal phone alerts are on for this device. Call alerts and enabled schedule reminders follow your access permissions.");
     } catch (caught) {
-      setMessage(caught instanceof Error ? caught.message : "Unable to enable CAD alerts");
+      setMessage(caught instanceof Error ? caught.message : "Unable to enable push notifications");
     } finally {
       setBusy(false);
     }
@@ -103,9 +103,9 @@ export default function PushNotifications() {
         await subscription.unsubscribe();
       }
       setState("off");
-      setMessage("CAD phone alerts are off for this device.");
+      setMessage("Push notifications are off for this device.");
     } catch (caught) {
-      setMessage(caught instanceof Error ? caught.message : "Unable to turn off CAD alerts");
+      setMessage(caught instanceof Error ? caught.message : "Unable to turn off push notifications");
     } finally {
       setBusy(false);
     }
@@ -118,7 +118,7 @@ export default function PushNotifications() {
       const response = await fetch("/api/push/test", { method: "POST" });
       const payload = await response.json() as { delivered?: number; error?: string };
       if (!response.ok) throw new Error(payload.error || "Unable to send the test alert");
-      setMessage(payload.delivered ? "Test alert sent to your registered devices." : "No registered device received the test.");
+      setMessage(payload.delivered ? "Test sent to your registered devices. Check for it, then tap it to open the related screen." : "No registered device received the test.");
     } catch (caught) {
       setMessage(caught instanceof Error ? caught.message : "Unable to send the test alert");
     } finally {
@@ -126,11 +126,11 @@ export default function PushNotifications() {
     }
   }
 
-  const label = state === "on" ? "Portal phone alerts on" : state === "checking" ? "Checking phone alerts..." : state === "unavailable" ? "Phone-alert status unavailable" : "Portal phone alerts off";
-  return <section className={`push-notification-control ${state}`} aria-label="Portal phone notifications">
-    <div><strong>{label}</strong><small>CAD calls and enabled schedule reminders, based on your access. Turning off stops both on this device.</small></div>
+  const label = state === "on" ? "Push notifications on · this device" : state === "checking" ? "Checking phone alerts..." : state === "unavailable" ? "Phone-alert status unavailable" : "Push notifications off · this device";
+  return <section className={`push-notification-control ${state}`} aria-label="Push notifications on this device">
+    <div><strong>{label}</strong><small>Controls this device only. Includes CAD calls and enabled schedule reminders, based on your access. Tap an alert to open its screen.</small></div>
     {state === "on" ? <div className="push-notification-actions"><button type="button" disabled={busy} onClick={() => void sendTest()}>Send test</button><button type="button" disabled={busy} onClick={() => void disable()}>Turn off</button></div>
-      : state === "off" ? <button type="button" disabled={busy || !publicKey} onClick={() => void enable()}>{busy ? "Working..." : "Enable"}</button>
+      : state === "off" ? <button type="button" disabled={busy || !publicKey} onClick={() => void enable()}>{busy ? "Working..." : "Enable push"}</button>
       : null}
     {state === "blocked" && <p>Notifications are blocked. Allow them in the phone’s notification settings, then reopen the installed app.</p>}
     {state === "unsupported" && <p>This browser does not support background phone alerts.</p>}
