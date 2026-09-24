@@ -98,6 +98,23 @@
 .portal-roster-search { display: grid; gap: 6px; padding: 16px; font-weight: 650; }
 .employee-profile-form .employee-form-footer { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; padding: 16px; }
 .portal-inline-status { margin: 8px 16px; padding: 12px; border: 1px solid #cbd9e2; border-radius: 6px; }
+.employee-profile-form .employee-fields input, .employee-profile-form .employee-fields select, .employee-profile-form .notes-field textarea { color: #17324d; -webkit-text-fill-color: #17324d; background: #fff; color-scheme: light; }
+.employee-profile-form .employee-fields input:disabled, .employee-profile-form .employee-fields select:disabled { color: #526777; -webkit-text-fill-color: #526777; opacity: 1; background: #edf1f4; }
+.employee-pay-scale { grid-column: 1 / -1; padding: 16px; border: 1px solid #9cb9ce; border-radius: 8px; background: #f0f7fb; color: #17324d; display: grid; gap: 12px; scroll-margin-top: 130px; }
+.employee-pay-scale label { max-width: 640px; }
+.employee-pay-scale p, .employee-pay-scale small { margin: 0; color: #405b70; font-size: 13px; line-height: 1.5; }
+.employee-pay-summary { display: flex; flex-wrap: wrap; gap: 14px 40px; margin: 0; }
+.employee-pay-summary dt { font-size: 12px; color: #405b70; }
+.employee-pay-summary dd { margin: 4px 0 0; color: #17324d; font-weight: 800; font-size: 21px; }
+.employee-pay-scale button { justify-self: start; min-height: 44px; }
+.employee-pay-scale button:disabled { opacity: 1; color: #526777; background: #e5edf3; }
+.employee-roster-rate { display: block; margin-top: 4px; color: #405b70; font-weight: 650; white-space: nowrap; }
+.employee-rate-context { grid-column: 1 / -1; padding: 16px; background: #eff7fc; border: 1px solid #7ba6c6; border-radius: 8px; color: #17324d; display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center; }
+.employee-rate-context p { margin: 6px 0; }
+.rate-row.selected-employee-scale { background: #e8f4fc; outline: 2px solid #397ba8; outline-offset: -2px; }
+.rate-scale-members { display: block; margin-top: 5px; color: #405b70; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.payroll-rules-fields .rate-row { color: #17324d; }
+.payroll-rules-fields .rate-row input { color: #17324d; -webkit-text-fill-color: #17324d; color-scheme: light; }
 .payroll-open-timesheet { color: #164867; background: none; border: 0; padding: 8px 0; min-height: 44px; font: inherit; text-align: left; text-decoration: underline; }
 .resource-reader-back { margin-bottom: 12px; }
 .resource-reader-focus { scroll-margin-top: 100px; }
