@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { formatPhoneNumber } from "./phone-format";
 import { compareEmployeeNames, formatEmployeeName } from "./employee-names";
 
 type ContactEmployee = {
@@ -36,7 +37,7 @@ export default function EmployeeContacts({ employees, initialSearch = "", direct
         <tbody>{alphabetical.map((employee) => <tr key={employee.id}>
           <td data-label="Rank"><strong>{employee.rank}</strong></td>
           <td data-label="Name">{formatEmployeeName(employee.name)}</td>
-          {!directoryOnly && <td data-label="Cell Number">{employee.phone ? <a className="employee-call-link" href={phoneHref(employee.phone)}>{employee.phone}</a> : "Not provided"}</td>}
+          {!directoryOnly && <td data-label="Cell Number">{employee.phone ? <a className="employee-call-link" href={phoneHref(employee.phone)}>{formatPhoneNumber(employee.phone)}</a> : "Not provided"}</td>}
         </tr>)}</tbody>
       </table></div>
     </section>
