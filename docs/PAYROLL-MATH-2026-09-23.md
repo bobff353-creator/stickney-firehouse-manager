@@ -24,4 +24,11 @@ The existing saved overtime threshold remains in use. This change does not alter
 
 Fictional tests cover the two reported examples, all ranks, overtime boundaries, zero thresholds, AO rates, mixed DPW/holiday/overtime, and fractional hours/rates. A matrix of 70 combinations reconciles calculation totals, each CSV hours-times-rate line, and command-center costs. Existing Daily Log, historical rate, save failure, lost-response, retry, concurrency, finalized-period, and atomic rollback checks are retained. Browser preview uses fictional data with all application requests blocked.
 
-Release receipt will be appended after deployment and authenticated live verification.
+## Release receipt
+
+- Source commit `5c58400eb3d1ea9c929a5cdf4dbb93e88f47eab4` pushed on `codex/payroll-math-breakdown-20260923`.
+- Vercel deployment `dpl_9bGPUDxPCcyPzBt7rvPgkdYaMyhb` confirmed READY, no alias error, on https://stickney-firehouse-manager.vercel.app/.
+- Production build and targeted ESLint passed. Twenty calculation/export/analytics/rounding tests passed (including the 70-case reconciliation matrix). Thirty-six existing save-safety, historical-rate, review, and sync checks passed after updating the atomic test fixture to the required DPW multiplier.
+- Authenticated production verification confirmed Raygoza: 39 hours, $20/hour, $780 gross; DelGatto: 43 worked hours at $23 plus 6 AO hours at $1, $995 gross. Each live breakdown showed the exact recorded category hours and calculated amounts.
+- Command Center loaded its real records successfully through the updated server query and shared cost calculation.
+- No real employee, hour, rate, or period-state forms were submitted. Existing employee edits in another tab were preserved. The corrected Raygoza timesheet was left open separately.
