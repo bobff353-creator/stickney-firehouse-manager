@@ -13,4 +13,10 @@ Employee input text and rate row text use explicit dark colors on their light ba
 - Fictional browser fixture verified duplicate-rank selection, correct edit target, unsaved-change gating, permissions, and 343-pixel mobile layout. It blocks application requests.
 - Production data was read only; no employee assignment, rate, administrator access, or payroll was changed.
 
-Deployment and live verification receipt will be appended after publication.
+## Release receipt
+
+- Source commit: `20158741219be78cc20effdf397ad4ec25df66cc`, pushed to `codex/employee-rank-pay-scale-20260923`.
+- Vercel deployment: `dpl_7zTYH6364h3WpwMnoQ57b8hehziX`, confirmed READY with no alias error.
+- Production alias: https://stickney-firehouse-manager.vercel.app/
+- Authenticated live verification confirmed Babinec's roster and editor show Deputy Chief, $29.72/hr, for September 11-25, 2026. Edit this pay scale opens the matching highlighted row, identifies Babinec, and retains the effective-date/save controls. Back to employee roster returns the filtered employee row.
+- No production forms were saved during verification. The updated employee pay section was left open for the user.
