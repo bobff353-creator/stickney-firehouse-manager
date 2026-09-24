@@ -1,6 +1,7 @@
 import { hasAnyPermission } from "../../server-permissions";
 import { hasPermission } from "../../server-permissions";
 import { ensureDatabase } from "../../../db/bootstrap";
+import { normalize24HourTime } from "../../military-time";
 
 
 const isOfficer = (rank: string) => /(chief|captain|lieutenant)/i.test(rank);
@@ -60,9 +61,10 @@ export async function POST(request: Request) {
     const action = String(payload.action ?? "submit");
 
     if (action === "submit") {
-      const workDate = String(payload.workDate ?? ""), requestingOfficerId = String(payload.requestingOfficerId ?? ""), approverId = String(payload.approverId ?? ""), startTime = String(payload.startTime ?? ""), endTime = String(payload.endTime ?? ""), workType = String(payload.workType ?? "").trim(), description = String(payload.description ?? "").trim();
+      const workDate = String(payload.workDate ?? ""), requestingOfficerId = String(payload.requestingOfficerId ?? ""), approverId = String(payload.approverId ?? ""), startTime = normalize24HourTime(String(payload.startTime ?? "")), endTime = normalize24HourTime(String(payload.endTime ?? "")), workType = String(payload.workType ?? "").trim(), description = String(payload.description ?? "").trim();
       const employeeIds = [...new Set(Array.isArray(payload.employeeIds) ? payload.employeeIds.map(String).filter(Boolean) : [])];
       const totalHours = Number(payload.totalHours);
+      if (startTime === null || endTime === null) return Response.json({ error: "Enter valid 24-hour times, such as 0830 or 08:30." }, { status: 400 });
       if ((startTime && !endTime) || (!startTime && endTime)) return Response.json({ error: "Enter both optional times or leave both blank." }, { status: 400 });
       if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate) || !requestingOfficerId || !approverId || !workType || !description || !payload.certified || employeeIds.length === 0 || !Number.isFinite(totalHours) || totalHours <= 0) return Response.json({ error: "Complete every required field, enter total time, select at least one member, and certify the sheet." }, { status: 400 });
       const validEmployees = await db.prepare(`SELECT COUNT(*) AS count FROM employees WHERE active = 1 AND id IN (${employeeIds.map(() => "?").join(",")})`).bind(...employeeIds).first<{ count: number }>();

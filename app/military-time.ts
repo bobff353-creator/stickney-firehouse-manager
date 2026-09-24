@@ -31,3 +31,11 @@ export function formatMilitaryTime(value: string) {
   const normalized = normalizeMilitaryTime(value);
   return normalized === null ? value : normalized.replace(":", "");
 }
+
+/** Accept military digits or a 24-hour clock without guessing from other text. */
+export function normalize24HourTime(value: string) {
+  const input = value.trim();
+  if (!input) return "";
+  if (!/^(?:\d{3,4}|\d{1,2}:\d{2})$/.test(input)) return null;
+  return normalizeMilitaryTime(input);
+}

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatEmployeeName } from "./employee-names";
 import { workedHours } from "./payroll-hours";
+import { normalize24HourTime } from "./military-time";
 
 type Person = { id: string; name: string; rank: string; isAdmin?: number };
 type Detail = { id: string; workDate: string; requestingOfficerName: string; approverId: string; approverName: string; startTime: string; endTime: string; totalHours: number; workType: string; description: string; status: string; rejectionNote?: string; members: Person[] };
@@ -30,14 +31,22 @@ export default function WorkDetails({ onPayrollChanged }: WorkDetailsProps) {
   useEffect(() => { void load().catch((caught) => setError(caught instanceof Error ? caught.message : "Unable to load work details")); }, [load]);
   const hours = Number(form.totalHours);
   function setOptionalTime(field: "startTime" | "endTime", value: string) {
-    const next = { ...form, [field]: value };
-    if (next.startTime && next.endTime) next.totalHours = workedHours(next.startTime, next.endTime).toFixed(2);
-    setForm(next);
+    setForm((current) => {
+      const next = { ...current, [field]: value };
+      const start = normalize24HourTime(next.startTime), end = normalize24HourTime(next.endTime);
+      if (start && end) next.totalHours = workedHours(start, end).toFixed(2);
+      return next;
+    });
+  }
+  function finishTime(field: "startTime" | "endTime", input: HTMLInputElement) {
+    const normalized = normalize24HourTime(input.value);
+    input.setCustomValidity(normalized === null ? "Enter a valid 24-hour time, such as 0830 or 08:30." : "");
+    if (normalized !== null) setForm((current) => ({ ...current, [field]: normalized }));
   }
   const filtered = useMemo(() => (data?.employees ?? []).filter((person) => `${person.name} ${person.rank}`.toLowerCase().includes(search.toLowerCase())), [data, search]);
   const selectedNames = (data?.employees ?? []).filter((person) => selected.includes(person.id)).map((person) => formatEmployeeName(person.name));
   async function post(payload: Record<string, unknown>) { const response = await fetch("/api/work-details", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) }); const result = await response.json() as { error?: string; periodStart?: string }; if (!response.ok) throw new Error(result.error || "Unable to save work detail"); return result; }
-  async function submit(event: React.FormEvent) { event.preventDefault(); setBusy(true); setError(""); try { await post({ action: "submit", ...form, employeeIds: selected }); setForm({ ...initialForm(), requestingOfficerId: data?.officers[0]?.id || "", approverId: data?.approvers[0]?.id || "" }); setSelected([]); setMessage("Work detail submitted for approval"); await load(); } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to submit work detail"); } finally { setBusy(false); } }
+  async function submit(event: React.FormEvent) { event.preventDefault(); const startTime = normalize24HourTime(form.startTime), endTime = normalize24HourTime(form.endTime); if (startTime === null || endTime === null) { setError("Enter valid 24-hour times, such as 0830 or 08:30."); return; } if (Boolean(startTime) !== Boolean(endTime)) { setError("Enter both optional times or leave both blank."); return; } setBusy(true); setError(""); try { await post({ action: "submit", ...form, startTime, endTime, employeeIds: selected }); setForm({ ...initialForm(), requestingOfficerId: data?.officers[0]?.id || "", approverId: data?.approvers[0]?.id || "" }); setSelected([]); setMessage("Work detail submitted for approval"); await load(); } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to submit work detail"); } finally { setBusy(false); } }
   async function review(id: string, action: "approve" | "reject") { let note = ""; if (action === "reject") { note = window.prompt("Reason for rejection")?.trim() ?? ""; if (!note) return; } setBusy(true); setError(""); try { const result = await post({ action, id, note }); if (action === "approve" && result.periodStart) onPayrollChanged?.(result.periodStart); setMessage(action === "approve" ? "Approved hours were added to payroll and the timesheet was refreshed" : "Work detail rejected"); await load(); } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to review work detail"); } finally { setBusy(false); } }
   return <div className="work-detail-page">
     <section className="content-card work-detail-form-card"><div className="section-header"><div><p className="eyebrow">Payroll workflow</p><h2>New Work Detail Sheet</h2><p>Hours enter employee timesheets only after approval.</p></div><span className="count-badge">{data?.requests.filter((item) => item.status === "pending").length ?? 0} pending</span></div>
@@ -47,8 +56,8 @@ export default function WorkDetails({ onPayrollChanged }: WorkDetailsProps) {
         <label><span>Date *</span><input type="date" required value={form.workDate} onChange={(event) => setForm({ ...form, workDate: event.target.value })}/></label>
         <label><span>Requesting officer *</span><select required value={form.requestingOfficerId} onChange={(event) => setForm({ ...form, requestingOfficerId: event.target.value })}><option value="">Select officer</option>{data?.officers.map((person) => <option key={person.id} value={person.id}>{formatEmployeeName(person.name)} - {person.rank}</option>)}</select></label>
         <label><span>Send for approval to *</span><select required value={form.approverId} onChange={(event) => setForm({ ...form, approverId: event.target.value })}><option value="">Select approver</option>{data?.approvers.map((person) => <option key={person.id} value={person.id}>{formatEmployeeName(person.name)} - {person.rank}</option>)}</select></label>
-        <label><span>Start time <small>(optional)</small></span><input type="time" value={form.startTime} onChange={(event) => setOptionalTime("startTime", event.target.value)}/></label>
-        <label><span>End time <small>(optional)</small></span><input type="time" value={form.endTime} onChange={(event) => setOptionalTime("endTime", event.target.value)}/></label>
+        <label><span>Start time <small>(optional · 24-hour)</small></span><input type="text" inputMode="numeric" placeholder="08:30" aria-describedby="work-detail-time-help" value={form.startTime} onChange={(event) => { event.currentTarget.setCustomValidity(""); setOptionalTime("startTime", event.target.value); }} onBlur={(event) => finishTime("startTime", event.currentTarget)}/><small id="work-detail-time-help">Military time: enter 0830 or 08:30.</small></label>
+        <label><span>End time <small>(optional · 24-hour)</small></span><input type="text" inputMode="numeric" placeholder="17:00" aria-describedby="work-detail-end-time-help" value={form.endTime} onChange={(event) => { event.currentTarget.setCustomValidity(""); setOptionalTime("endTime", event.target.value); }} onBlur={(event) => finishTime("endTime", event.currentTarget)}/><small id="work-detail-end-time-help">An earlier end time means the next day.</small></label>
         <label className="total-time"><span>Total time *</span><input type="number" required min="0.01" step="0.01" inputMode="decimal" value={form.totalHours} onChange={(event) => setForm({ ...form, totalHours: event.target.value })} placeholder="Hours for each employee"/></label>
         <label><span>Type of work *</span><select required value={form.workType} onChange={(event) => setForm({ ...form, workType: event.target.value })}><option value="">Select work type</option><option>Station maintenance</option><option>Apparatus maintenance</option><option>Training support</option><option>Public education</option><option>Inspection support</option><option>Administrative assignment</option><option>Special event</option><option>Other</option></select></label>
         <label className="work-description"><span>Description of work *</span><textarea required rows={4} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Describe the assignment and work completed."/></label>
