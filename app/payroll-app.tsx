@@ -39,7 +39,7 @@ import { compareEmployeeNames, employeeNameFromParts, formatEmployeeName, splitE
 import { roundPayrollToCent } from "./payroll-rounding";
 import { ACTING_OFFICER_STIPEND_PER_HOUR, summarizePayroll } from "./payroll-calculation";
 import PayrollPayBreakdown from "./payroll-pay-breakdown";
-import { payrollExportRows } from "./payroll-export";
+import { buildPayrollReference, payrollReferenceCsv } from "./payroll-reference-export";
 import EmployeePayScale, { payScaleLabel } from "./employee-pay-scale";
 const WorkDetails = dynamic(() => import("./work-details"), { loading: () => <ModuleLoading /> });
 const StationScheduler = dynamic(() => import("./station-scheduler"), { loading: () => <ModuleLoading /> });
@@ -272,6 +272,8 @@ export default function PayrollApp({
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [finalizeConfirmOpen, setFinalizeConfirmOpen] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
+  const [exportingPayroll, setExportingPayroll] = useState(false);
+  const payrollExportInFlight = useRef(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
   const [deletingEmployee, setDeletingEmployee] = useState(false);
   const [invitingEmail, setInvitingEmail] = useState("");
@@ -530,46 +532,42 @@ export default function PayrollApp({
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function exportCsv() {
-    if (!data) return;
-    const rows: Array<Array<string | number>> = [
-      [`${periodLabel(data.period.startDate, data.period.endDate)} Payroll`],
-      ["Name", "Rank", "Shift", "Drill", "Work Detail", "Call Back", "Acting Officer allowance hours", "Holiday", "DPW", "Hours at rate", "Rate", "Pay"],
-    ];
-    employeeSummaries.forEach((summary) => {
-      const employeeEntries = data.entries.filter((entry) => entry.employeeId === summary.employee.id);
-      rows.push(...payrollExportRows({
-        name: displayName(summary.employee.name),
-        rank: summary.employee.rank,
-        regularRate: summary.employee.regularRate,
-        overtimeRate: summary.employee.overtimeRate,
-        holidayRate: summary.employee.holidayRate,
-        isDpw: summary.employee.isDpw,
-      }, employeeEntries, data.settings.overtimeThreshold, data.settings.dpwMultiplier, data.settings.actingOfficerPremium));
-    });
-    const exportedColumnTotal = (column: number) => rows.slice(2).reduce((sum, row) => sum + Number(row[column]), 0).toFixed(2);
-    rows.push([
-      "Totals",
-      "",
-      exportedColumnTotal(2),
-      exportedColumnTotal(3),
-      exportedColumnTotal(4),
-      exportedColumnTotal(5),
-      exportedColumnTotal(6),
-      exportedColumnTotal(7),
-      exportedColumnTotal(8),
-      "",
-      "",
-      grossPayroll.toFixed(2),
-    ]);
-    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `Stickney-Payroll-${data.period.startDate}-to-${data.period.endDate}.csv`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-    setToast("Payroll exported");
+  async function exportPayroll(format: "xlsx" | "csv") {
+    if (!data || payrollExportInFlight.current) return;
+    if (loading || data.period.startDate !== periodStart || savingCellIds.current.size || originalCellValues.current.size || Object.keys(failedCells).length) {
+      setError("Finish loading and resolve unsaved hours before exporting payroll.");
+      return;
+    }
+    payrollExportInFlight.current = true;
+    setExportingPayroll(true);
+    try {
+      const report = buildPayrollReference(data.period, employeeSummaries.map(({ employee }) => ({
+        employee,
+        entries: data.entries.filter(entry => entry.employeeId === employee.id),
+      })), data.settings);
+      const filename = `Stickney-Payroll-${data.period.startDate}-to-${data.period.endDate}.${format}`;
+      let blob: Blob;
+      if (format === "xlsx") {
+        const { payrollExcelBytes } = await import("./payroll-excel");
+        blob = new Blob([await payrollExcelBytes(report)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      } else {
+        blob = new Blob([payrollReferenceCsv(report)], { type: "text/csv;charset=utf-8" });
+      }
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+      setToast(`${format === "xlsx" ? "Excel" : "CSV"} download started · ${report.employeeCount} employees`);
+    } catch (caught) {
+      setError(caught instanceof Error ? `Payroll export failed: ${caught.message}` : "Payroll export failed. Try again.");
+    } finally {
+      payrollExportInFlight.current = false;
+      setExportingPayroll(false);
+    }
   }
 
   async function setPeriodStatus(status: PayrollData["period"]["status"]) {
@@ -1104,9 +1102,11 @@ export default function PayrollApp({
                 <label className="search-box"><Icon name="search" /><span className="sr-only">Search employees</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search employees…" /></label>
                 <div className="toolbar-actions">
                   <label className="select-button"><Icon name="filter" /><span className="sr-only">Filter status</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">All statuses</option><option value="entered">Entered (not approval)</option><option value="review">Needs review</option><option value="not-started">Not started</option></select></label>
-                  <button onClick={exportCsv}><Icon name="export" /> Export CSV</button>
+                  <button className="payroll-excel-button" disabled={exportingPayroll || loading} onClick={() => void exportPayroll("xlsx")}><Icon name="export" /> {exportingPayroll ? "Preparing download…" : "Export Excel"}</button>
+                  <button disabled={exportingPayroll || loading} onClick={() => void exportPayroll("csv")}>CSV</button>
                 </div>
               </div>
+<p className="payroll-export-help">Excel matches the department payroll sheets, with colored pay rows and totals. Downloads include everyone on this payroll.</p>
 <div className="review-bar workflow-payroll-review"><span><strong>{readyCount}</strong> entered · <strong>{reviewCount}</strong> need review · <strong>{payrollEmployees.length - readyCount - reviewCount}</strong> not started</span><div>{data.period.status !== "finalized" ? <><button className="quiet-button" disabled={reviewSaving} onClick={() => void markPayrollReviewed()}>{reviewSaving ? "Saving review…" : "Mark Reviewed"}</button><button className="finalize-button" disabled={reviewCount > 0} onClick={() => setFinalizeConfirmOpen(true)}>Finalize Payroll</button></> : <span className="closed-confirmation">✓ Payroll closed</span>}</div></div>
               <div className="table-wrap payroll-table">
                 <table><thead><tr><th>Employee</th><th>Rank</th><th className="number">Hours</th><th className="number">Gross Pay</th><th>Status</th></tr></thead><tbody>
