@@ -37,7 +37,8 @@ const CommandCenter = dynamic(() => import("./command-center"), { loading: () =>
 const DailyDuties = dynamic(() => import("./daily-duties"), { loading: () => <ModuleLoading /> });
 import { compareEmployeeNames, employeeNameFromParts, formatEmployeeName, splitEmployeeName } from "./employee-names";
 import { roundPayrollToCent } from "./payroll-rounding";
-import { ACTING_OFFICER_STIPEND_PER_HOUR, calculateGrossPay, workDetailRateForRank } from "./payroll-calculation";
+import { ACTING_OFFICER_STIPEND_PER_HOUR, summarizePayroll } from "./payroll-calculation";
+import PayrollPayBreakdown from "./payroll-pay-breakdown";
 import { payrollExportRows } from "./payroll-export";
 import EmployeePayScale, { payScaleLabel } from "./employee-pay-scale";
 const WorkDetails = dynamic(() => import("./work-details"), { loading: () => <ModuleLoading /> });
@@ -438,33 +439,12 @@ export default function PayrollApp({
   }, [data]);
 
   const summaryFor = useCallback((employee: Employee) => {
-    if (!data) return { hours: 0, regularHours: 0, overtimeHours: 0, holidayHours: 0, actingHours: 0, dpwHours: 0, gross: 0, status: "Not started" as const, issues: [] as string[] };
+    if (!data) return { ...summarizePayroll(employee, [], { overtimeThreshold: 0, actingOfficerPremium: 0, dpwMultiplier: 1.5 }), status: "Not started" as const, issues: [] as string[] };
     const employeeEntries = data.entries.filter((entry) => entry.employeeId === employee.id);
-    const total = (category: Category) => employeeEntries.filter((entry) => entry.category === category).reduce((sum, entry) => sum + entry.hours, 0);
-    const workDetailHours = total("workDetail");
-    const baseHours = total("shift") + total("drill") + total("callback");
-    const overtimeHours = Math.max(baseHours - data.settings.overtimeThreshold, 0);
-    const regularHours = Math.max(baseHours - overtimeHours, 0);
-    const holidayHours = total("holiday");
-    const actingHours = total("actingOfficer");
-    const dpwHours = total("dpw");
-    const gross = calculateGrossPay({
-      regularHours,
-      overtimeHours,
-      workDetailHours,
-      holidayHours,
-      actingOfficerHours: actingHours,
-      dpwHours,
-      regularRate: employee.regularRate,
-      overtimeRate: employee.overtimeRate,
-      workDetailRate: workDetailRateForRank(employee.rank, employee.regularRate, employee.overtimeRate),
-      holidayRate: employee.holidayRate,
-      dpwMultiplier: data.settings.dpwMultiplier,
-    });
+    const calculation = summarizePayroll(employee, employeeEntries, data.settings);
     const issues = payrollReviewIssues(employeeEntries, (data.reviewStaffing || []).filter(row => row.employeeId === employee.id));
-    const hours = baseHours + workDetailHours + holidayHours + dpwHours;
     const status = employeeEntries.length === 0 ? "Not started" as const : issues.length ? "Review" as const : "Entered" as const;
-    return { hours, regularHours, overtimeHours, workDetailHours, holidayHours, actingHours, dpwHours, gross, status, issues };
+    return { ...calculation, status, issues };
   }, [data]);
 
   const payrollEmployees = useMemo(() => (data?.employees ?? []).filter((employee) => {
@@ -554,7 +534,7 @@ export default function PayrollApp({
     if (!data) return;
     const rows: Array<Array<string | number>> = [
       [`${periodLabel(data.period.startDate, data.period.endDate)} Payroll`],
-      ["Name", "Rank", "Shift", "Drill", "Work Detail", "Call Back", "Acting Officer", "Holiday", "Total", "Rate", "Pay"],
+      ["Name", "Rank", "Shift", "Drill", "Work Detail", "Call Back", "Acting Officer allowance hours", "Holiday", "DPW", "Hours at rate", "Rate", "Pay"],
     ];
     employeeSummaries.forEach((summary) => {
       const employeeEntries = data.entries.filter((entry) => entry.employeeId === summary.employee.id);
@@ -565,18 +545,19 @@ export default function PayrollApp({
         overtimeRate: summary.employee.overtimeRate,
         holidayRate: summary.employee.holidayRate,
         isDpw: summary.employee.isDpw,
-      }, employeeEntries, data.settings.overtimeThreshold, data.settings.dpwMultiplier));
+      }, employeeEntries, data.settings.overtimeThreshold, data.settings.dpwMultiplier, data.settings.actingOfficerPremium));
     });
-    const categoryTotal = (category: Category) => data.entries.filter((entry) => entry.category === category).reduce((sum, entry) => sum + entry.hours, 0);
+    const exportedColumnTotal = (column: number) => rows.slice(2).reduce((sum, row) => sum + Number(row[column]), 0).toFixed(2);
     rows.push([
       "Totals",
       "",
-      categoryTotal("shift").toFixed(2),
-      categoryTotal("drill").toFixed(2),
-      categoryTotal("workDetail").toFixed(2),
-      categoryTotal("callback").toFixed(2),
-      categoryTotal("actingOfficer").toFixed(2),
-      categoryTotal("holiday").toFixed(2),
+      exportedColumnTotal(2),
+      exportedColumnTotal(3),
+      exportedColumnTotal(4),
+      exportedColumnTotal(5),
+      exportedColumnTotal(6),
+      exportedColumnTotal(7),
+      exportedColumnTotal(8),
       "",
       "",
       grossPayroll.toFixed(2),
@@ -1143,7 +1124,8 @@ export default function PayrollApp({
 
           {(activeNav === "Timesheets" || activeNav === "My Timesheet") && selectedEmployee && selectedSummary && <div className={data.period.status === "finalized" ? "record-finalized" : "record-editable"}>{data.period.status === "finalized" && <div className="record-state-banner finalized"><span className="state-lock" aria-hidden="true">🔒</span><div><strong>Finalized timesheet · Read only</strong><span>This timesheet belongs to a closed payroll period.</span></div></div>}<section className="content-card timesheet-card">
             <div className="section-header"><div>{activeNav === "Timesheets" && isPayrollManagerView ? <><label htmlFor="employee-select">Employee</label><select id="employee-select" value={selectedEmployee.id} onChange={(event) => setSelectedEmployeeId(event.target.value)}>{payrollEmployees.map((employee) => <option value={employee.id} key={employee.id}>{displayName(employee.name)} — {employee.rank}</option>)}</select></> : <><p className="eyebrow">My timesheet</p><h2>{displayName(selectedEmployee.name)}</h2><p>{selectedEmployee.rank} · Read only</p></>}</div><span className={`status-pill ${selectedSummary.status.toLowerCase().replace(" ", "-")}`}>{selectedSummary.status}</span></div>
-            <SaveStatus state={savingCells.size ? "saving" : Object.keys(failedCells).length ? "failed" : dirtyCellCount ? "unsaved" : "saved"} detail={Object.keys(failedCells).length ? "Retry the highlighted hour entries below. Finalization is separate from saving." : "Hours save when you leave an edited cell. Review and finalization are separate actions."} /><div className="mini-summary"><div><span>Paid hours</span><strong>{selectedSummary.hours.toFixed(1)}</strong></div><div><span>Hourly rate</span><strong>{formatMoney(selectedEmployee.regularRate)}<small>/hr</small></strong></div><div><span>Overtime</span><strong>{selectedSummary.overtimeHours.toFixed(1)}</strong></div><div><span>Holiday</span><strong>{selectedSummary.holidayHours.toFixed(1)}</strong></div><div><span>Gross pay</span><strong>{formatMoney(selectedSummary.gross)}</strong></div></div>
+            <SaveStatus state={savingCells.size ? "saving" : Object.keys(failedCells).length ? "failed" : dirtyCellCount ? "unsaved" : "saved"} detail={Object.keys(failedCells).length ? "Retry the highlighted hour entries below. Finalization is separate from saving." : "Hours save when you leave an edited cell. Review and finalization are separate actions."} /><div className="mini-summary"><div><span>Worked hours</span><strong>{selectedSummary.hours.toFixed(2)}</strong></div><div><span>Hourly rate</span><strong>{formatMoney(selectedEmployee.regularRate)}<small>/hr</small></strong></div><div><span>Overtime</span><strong>{selectedSummary.overtimeHours.toFixed(2)}</strong></div><div><span>Holiday</span><strong>{selectedSummary.holidayHours.toFixed(2)}</strong></div><div><span>Gross pay</span><strong>{formatMoney(selectedSummary.gross)}</strong></div></div>
+            <PayrollPayBreakdown lines={selectedSummary.lines} gross={selectedSummary.gross} baseRate={selectedEmployee.regularRate} overtimeThreshold={data.settings.overtimeThreshold} isDpw={Boolean(selectedEmployee.isDpw)} />
             {selectedSummary.issues.length > 0 && <div className="validation-box"><strong>Check these entries</strong>{selectedSummary.issues.map((issue) => <span key={issue}>• {issue}</span>)}</div>}
             <div className="timesheet-phone-day"><label><span>Day to review</span><input type="date" min={data.period.startDate} max={data.period.endDate} value={timesheetDay >= data.period.startDate && timesheetDay <= data.period.endDate ? timesheetDay : data.period.startDate} onChange={event => { setTimesheetDay(event.target.value); setAllTimesheetDays(false); }} /></label><button type="button" className="quiet-button" aria-pressed={allTimesheetDays} onClick={() => setAllTimesheetDays(value => !value)}>{allTimesheetDays ? "Show selected day" : "Show whole period"}</button></div>
             <div className="entry-grid-wrap"><table className="entry-grid"><thead><tr><th>Date</th>{categoryColumns.map((column) => <th key={column.key} title={column.label}>{column.short}</th>)}<th>Total</th></tr></thead><tbody>
@@ -1154,10 +1136,10 @@ export default function PayrollApp({
                   const value = entryValue(selectedEmployee.id, date, column.key);
                   const canEditEntry = activeNav === "Timesheets" && isPayrollManagerView && data.period.status !== "finalized";
                   return <td key={column.key} data-label={column.label}><input aria-label={`${column.label} hours for ${dayLabel(date)}`} aria-invalid={Boolean(failedCells[cell])} type="number" min="0" max="48" step="0.25" value={value || ""} readOnly={!canEditEntry || savingCells.has(cell)} className={`${savingCells.has(cell) ? "saving" : ""}${canEditEntry ? "" : " timesheet-readonly"}`} onChange={(event) => { if (canEditEntry) changeEntry(selectedEmployee.id, date, column.key, safeNumber(event.target.value)); }} onBlur={(event) => { if (canEditEntry && originalCellValues.current.has(cell)) void saveEntry(selectedEmployee.id, date, column.key, safeNumber(event.target.value)); }} />{failedCells[cell] && <div role="alert"><small>{failedCells[cell].message} Last loaded value shown. Attempted: {failedCells[cell].hours} hours.</small>{canEditEntry && <button disabled={savingCells.has(cell)} onClick={() => void saveEntry(selectedEmployee.id, date, column.key, failedCells[cell].hours)}>Retry {failedCells[cell].hours} hours</button>}</div>}</td>;
-                })}<td data-label="Daily total">{rowTotal.toFixed(1)}</td></tr>;
+                })}<td data-label="Daily total">{rowTotal.toFixed(2)}</td></tr>;
               })}
-            </tbody><tfoot><tr><td>Period totals</td>{categoryColumns.map((column) => <td key={column.key} data-label={column.label}>{data.entries.filter((entry) => entry.employeeId === selectedEmployee.id && entry.category === column.key).reduce((sum, entry) => sum + entry.hours, 0).toFixed(1)}</td>)}<td data-label="Paid hours">{selectedSummary.hours.toFixed(1)}</td></tr></tfoot></table></div>
-            <p className="helper-note">{data.period.status === "finalized" ? "This finalized timesheet is read only. Reopening a closed payroll period requires a separate administrator workflow." : activeNav === "Timesheets" && isPayrollManagerView ? `Acting Officer pay is a straight $${ACTING_OFFICER_STIPEND_PER_HOUR.toFixed(2)} per AO hour and never receives overtime or holiday multipliers. DPW hours use the configured DPW multiplier. Daily totals over 24 hours are allowed for callbacks and overlapping pay categories. Entries save when you leave a field.` : "This timesheet is read only. Contact an administrator with payroll access if an entry needs to be corrected."}</p>
+            </tbody><tfoot><tr><td>Period totals</td>{categoryColumns.map((column) => <td key={column.key} data-label={column.label}>{data.entries.filter((entry) => entry.employeeId === selectedEmployee.id && entry.category === column.key).reduce((sum, entry) => sum + entry.hours, 0).toFixed(2)}</td>)}<td data-label="Paid hours">{selectedSummary.hours.toFixed(2)}</td></tr></tfoot></table></div>
+            <p className="helper-note">{data.period.status === "finalized" ? "This finalized timesheet is read only. Reopening a closed payroll period requires a separate administrator workflow." : activeNav === "Timesheets" && isPayrollManagerView ? `Acting Officer pay is a straight $${data.settings.actingOfficerPremium.toFixed(2)} per AO hour and never receives overtime or holiday multipliers. DPW hours receive 1.5× once, without an additional overtime or holiday multiplier. Daily totals over 24 hours are allowed for callbacks and overlapping pay categories. Entries save when you leave a field.` : "This timesheet is read only. Contact an administrator with payroll access if an entry needs to be corrected."}</p>
           </section></div>}
 
           {activeNav === "My Timesheet" && !selectedEmployee && <div className="content-card action-empty-state"><div><h2>No timesheet available for this period</h2><p>Your account may not be linked to an employee on this payroll. Try another pay period or ask a payroll administrator to check the account link.</p></div></div>}
@@ -1218,7 +1200,7 @@ export default function PayrollApp({
               <legend className="sr-only">Payroll rates and rules</legend>
               {employeeRateContext && <section className="employee-rate-context" aria-label="Selected employee pay scale"><div><strong>Pay scale for {employeeRateContext.name}</strong><p>{data.payScales.find(scale => scale.id === employeeRateContext.scaleId)?.label} · The matching scale is highlighted below. Review the effective date before saving.</p><small>Changing a scale affects every employee assigned to it. Administrator access stays separate.</small></div><button type="button" className="quiet-button" onClick={() => navigate("Employees", { query: employeeRateContext.name })}>Back to employee roster</button></section>}
               <SaveStatus state={rulesSaving ? "saving" : rulesSaveError ? "failed" : rulesDirty ? "unsaved" : "saved"} detail={rulesSaveError || "Review the effective date, then save all rates together."} onRetry={() => void saveRules()} />
-              <article className="content-card rules-card"><div className="section-header"><div><h2>Payroll rules</h2><p>Set the rules used to calculate payroll. Review the effective date before saving.</p></div></div><div className="settings-grid"><label><span>Overtime threshold</span><div className="input-unit"><input type="number" min="0" step="1" value={rulesDraft.overtimeThreshold} onChange={(event) => setRulesDraft({ ...rulesDraft, overtimeThreshold: safeNumber(event.target.value) })} /><b>hours</b></div></label><label><span>Acting Officer stipend</span><div className="input-unit"><b>$</b><input type="number" value={ACTING_OFFICER_STIPEND_PER_HOUR.toFixed(2)} readOnly aria-readonly="true" /><b>/ AO hr</b></div><small>Straight stipend only—never multiplied for overtime or holidays.</small></label><label><span>DPW multiplier</span><div className="input-unit"><input type="number" min="1" step="0.05" value={rulesDraft.dpwMultiplier} onChange={(event) => setRulesDraft({ ...rulesDraft, dpwMultiplier: safeNumber(event.target.value) })} /><b>× rate</b></div></label></div></article>
+              <article className="content-card rules-card"><div className="section-header"><div><h2>Payroll rules</h2><p>Set the rules used to calculate payroll. Review the effective date before saving.</p></div></div><div className="settings-grid"><label><span>Overtime threshold</span><div className="input-unit"><input type="number" min="0" step="1" value={rulesDraft.overtimeThreshold} onChange={(event) => setRulesDraft({ ...rulesDraft, overtimeThreshold: safeNumber(event.target.value) })} /><b>hours</b></div></label><label><span>Acting Officer stipend</span><div className="input-unit"><b>$</b><input type="number" value={ACTING_OFFICER_STIPEND_PER_HOUR.toFixed(2)} readOnly aria-readonly="true" /><b>/ AO hr</b></div><small>Straight stipend only—never multiplied for overtime or holidays.</small></label><label><span>DPW multiplier</span><div className="input-unit"><input type="number" value={1.5} readOnly aria-readonly="true" /><b>× rate</b></div></label></div></article>
             <article className="content-card"><div className="section-header"><div><h2>Pay rates</h2><p>Rates apply from the selected date forward. Backdated changes can affect calculated payroll; review historical periods before changing an earlier date.</p></div></div><div className="rate-effective-control"><label><span>Effective pay-period date *</span><input type="date" required value={rateEffectiveDate} onChange={(event) => changeRateEffectiveDate(event.target.value)} /></label><small>Select the first day of a payroll period: the 11th or 26th. Existing history before this date remains unchanged.</small></div><div className="rate-list"><div className="rate-head"><span>Pay scale</span><span>Straight Time / Normal</span><span>Overtime · 1.5×</span><span>Holiday · 1.5×</span></div>{scaleDraft.map((scale, index) => <div className={`rate-row${employeeRateContext?.scaleId === scale.id ? " selected-employee-scale" : ""}`} key={scale.id}><div><strong>{payScaleLabel(scale, true)}</strong><small className="rate-scale-members">Assigned to: {data.employees.filter(employee => employee.payScaleId === scale.id).slice(0, 3).map(employee => displayName(employee.name)).join(", ") || "No employees"}{data.employees.filter(employee => employee.payScaleId === scale.id).length > 3 ? ` and ${data.employees.filter(employee => employee.payScaleId === scale.id).length - 3} more` : ""}</small></div><label><span className="mobile-rate-label">Straight Time / Normal</span><b>$</b><input aria-label={`${scale.label} Straight Time / Normal Rate`} type="number" min="0" step="0.01" value={scale.regularRate} onChange={(event) => changeBaseRate(index, safeNumber(event.target.value))} /></label><label className="calculated-rate"><span className="mobile-rate-label">Overtime · 1.5×</span><b>$</b><input aria-label={`${scale.label} Overtime Rate`} readOnly value={scale.overtimeRate.toFixed(2)} /><em>Auto</em></label><label className="calculated-rate"><span className="mobile-rate-label">Holiday · 1.5×</span><b>$</b><input aria-label={`${scale.label} Holiday Rate`} readOnly value={scale.holidayRate.toFixed(2)} /><em>Auto</em></label></div>)}</div><button className="primary-action save-rules" onClick={() => void saveRules()}>Save Rates Effective {rateEffectiveDate}</button><div className="rate-history"><h3>Rate history</h3>{data.rateHistory.filter((rate, index, rows) => rows.findIndex((item) => item.effectiveDate === rate.effectiveDate) === index).slice(0, 8).map((rate) => <div key={rate.effectiveDate}><strong>{rate.effectiveDate}</strong><span>{data.rateHistory.filter((item) => item.effectiveDate === rate.effectiveDate).length} pay scales</span></div>)}</div></article>
           </fieldset>}
         </>)}

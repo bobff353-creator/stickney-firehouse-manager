@@ -87,7 +87,7 @@ test('payroll rate validation and database failures never partially save setting
     const route=fs.readFileSync(new URL('../app/api/payroll/route.ts',import.meta.url),'utf8').replace(/^import[\s\S]*?;\r?\n/gm,'');
     const context={exports:{},Error,Response,URL,crypto:webcrypto,ensureDatabase:async()=>db,roundPayrollToCent,ACTING_OFFICER_STIPEND_PER_HOUR:1,permissionsForEmail:async()=>new Set(allowed?['payroll.manage']:[])};
     vm.runInNewContext(ts.transpileModule(route,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,context);
-    const body={action:'saveRules',overtimeThreshold:100,dpwMultiplier:2,effectiveDate:'2099-01-11',payScales:[{id:'first',regularRate:24},{id:'second',regularRate:25}]};
+    const body={action:'saveRules',overtimeThreshold:100,dpwMultiplier:1.5,effectiveDate:'2099-01-11',payScales:[{id:'first',regularRate:24},{id:'second',regularRate:25}]};
     const post=body=>context.exports.POST(new Request('https://fixture.test/api/payroll',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}));
     const unchanged=async()=>{
       assert.equal(Number((await pg.query('SELECT overtime_threshold FROM firehouse.payroll_settings')).rows[0].overtime_threshold),106);
@@ -98,7 +98,7 @@ test('payroll rate validation and database failures never partially save setting
       {payScales:[body.payScales[0],{id:'second',regularRate:-1}]},
       {payScales:[body.payScales[0],{id:'second',regularRate:''}]},
       {payScales:[body.payScales[0],body.payScales[0]]},
-      {overtimeThreshold:-1},{dpwMultiplier:null},{effectiveDate:'2026-13-11'},
+      {overtimeThreshold:-1},{dpwMultiplier:null},{dpwMultiplier:2.25},{effectiveDate:'2026-13-11'},
     ]) {assert.equal((await post({...body,...change})).status,400); await unchanged();}
     assert.equal((await post({...body,payScales:[body.payScales[0],{id:'missing',regularRate:25}]})).status,500);
     await unchanged();

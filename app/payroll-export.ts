@@ -1,85 +1,27 @@
-import { ACTING_OFFICER_STIPEND_PER_HOUR, workDetailRateForRank } from "./payroll-calculation.ts";
+import { ACTING_OFFICER_STIPEND_PER_HOUR, summarizePayroll, type PayrollEntry, type PayrollEmployee } from "./payroll-calculation.ts";
+import { roundPayrollToCent } from "./payroll-rounding.ts";
 
-export type PayrollExportEmployee = {
-  name: string;
-  rank: string;
-  regularRate: number;
-  overtimeRate: number;
-  holidayRate: number;
-  isDpw?: number | boolean;
-};
+export type PayrollExportEmployee = PayrollEmployee & { name: string; overtimeRate: number; holidayRate: number };
+export type PayrollExportEntry = PayrollEntry;
 
-export type PayrollExportEntry = {
-  category: "shift" | "drill" | "workDetail" | "callback" | "actingOfficer" | "holiday" | "dpw";
-  hours: number;
-};
-
-function numberCell(value: number) {
-  return Number(value.toFixed(2));
-}
-
-function moneyCell(value: number) {
-  return value.toFixed(2);
-}
-
-export function payrollExportRows(
-  employee: PayrollExportEmployee,
-  entries: PayrollExportEntry[],
-  overtimeThreshold: number,
-  dpwMultiplier: number,
-) {
-  const total = (category: PayrollExportEntry["category"]) =>
-    entries.filter((entry) => entry.category === category).reduce((sum, entry) => sum + entry.hours, 0);
-
-  const shift = total("shift");
-  const drill = total("drill");
-  const workDetail = total("workDetail");
-  const callback = total("callback");
-  const actingOfficer = total("actingOfficer");
-  const holiday = total("holiday");
-  const dpw = total("dpw");
-  const baseHours = shift + drill + callback;
-  const overtimeHours = Math.max(baseHours - overtimeThreshold, 0);
-  const regularHours = Math.max(baseHours - overtimeHours, 0);
-  const rows: Array<Array<string | number>> = [];
-
-  rows.push([
-    employee.name,
+export function payrollExportRows(employee: PayrollExportEmployee, entries: PayrollExportEntry[], overtimeThreshold: number, dpwMultiplier: number, actingOfficerPremium = ACTING_OFFICER_STIPEND_PER_HOUR) {
+  const summary = summarizePayroll(employee, entries, { overtimeThreshold, dpwMultiplier, actingOfficerPremium });
+  // Keep the familiar hour columns, but never mix different rates in one Pay row.
+  const regularShift = Math.min(summary.totals.shift, summary.regularHours);
+  const regularDrill = Math.min(summary.totals.drill, Math.max(0, summary.regularHours - regularShift));
+  const regularCallback = roundPayrollToCent(Math.max(0, summary.regularHours - regularShift - regularDrill));
+  return summary.lines.filter(line => line.hours > 0 || (line.key === "regular" && summary.lines.every(item => item.hours === 0))).map(line => [
+    line.key === "regular" ? employee.name : `${employee.name} (${line.label})`,
     employee.rank,
-    numberCell(shift),
-    numberCell(drill),
-    numberCell(workDetail),
-    numberCell(callback),
-    0,
-    numberCell(holiday),
-    numberCell(regularHours + workDetail + holiday + dpw),
-    moneyCell(employee.regularRate),
-    moneyCell(regularHours * employee.regularRate + workDetail * workDetailRateForRank(employee.rank, employee.regularRate, employee.overtimeRate) + holiday * employee.holidayRate + dpw * employee.regularRate * dpwMultiplier),
+    line.key === "regular" ? regularShift : line.key === "overtime" ? roundPayrollToCent(summary.totals.shift - regularShift) : 0,
+    line.key === "regular" ? regularDrill : line.key === "overtime" ? roundPayrollToCent(summary.totals.drill - regularDrill) : 0,
+    line.key === "workDetail" ? line.hours : 0,
+    line.key === "regular" ? regularCallback : line.key === "overtime" ? roundPayrollToCent(summary.totals.callback - regularCallback) : 0,
+    line.key === "actingOfficer" ? line.hours : 0,
+    line.key === "holiday" ? line.hours : 0,
+    line.key === "dpw" ? line.hours : 0,
+    line.hours,
+    Number(line.rate.toFixed(4)).toFixed(line.rate === roundPayrollToCent(line.rate) ? 2 : 4),
+    line.amount.toFixed(2),
   ]);
-
-  if (overtimeHours > 0) {
-    rows.push([
-      `${employee.name} (Overtime)`,
-      `${employee.rank} Overtime`,
-      0, 0, 0, 0, 0, 0,
-      numberCell(overtimeHours),
-      moneyCell(employee.overtimeRate),
-      moneyCell(overtimeHours * employee.overtimeRate),
-    ]);
-  }
-
-  if (actingOfficer > 0) {
-    rows.push([
-      `${employee.name} (Acting Officer)`,
-      "Acting Officer",
-      0, 0, 0, 0,
-      numberCell(actingOfficer),
-      0,
-      numberCell(actingOfficer),
-      moneyCell(ACTING_OFFICER_STIPEND_PER_HOUR),
-      moneyCell(actingOfficer * ACTING_OFFICER_STIPEND_PER_HOUR),
-    ]);
-  }
-
-  return rows;
 }

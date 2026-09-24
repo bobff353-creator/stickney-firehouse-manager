@@ -30,12 +30,12 @@ test("payroll detail uses effective rates, 106-hour overtime, DPW, and AO stipen
   ], { overtimeThreshold: 106, actingOfficerPremium: 1, dpwMultiplier: 1.5 });
 
   assert.equal(rows[1].overtimeHours, 4);
-  assert.equal(rows[1].cost, 360);
+  assert.equal(rows[1].cost, 240);
   assert.equal(rows[2].category, "dpw");
-  assert.equal(rows[2].cost, 90);
+  assert.equal(rows[2].cost, 60);
   assert.equal(rows[3].cost, 6);
-  assert.equal(rows[4].cost, 180);
-  assert.equal(rows[4].overtimeHours, 0, "Work Detail premium does not inflate displayed overtime hours");
+  assert.equal(rows[4].cost, 80);
+  assert.equal(rows[4].overtimeHours, 0, "Straight-time Work Detail does not inflate overtime hours");
 });
 
 test("Captain Work Detail analytics use the Captain straight-time rate", () => {

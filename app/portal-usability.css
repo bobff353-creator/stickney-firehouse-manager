@@ -250,3 +250,14 @@
   .resource-page .policy-toc { display: none; }
   .resource-page .policy-reader { display: block !important; }
 }
+.pay-calculation { margin: 16px 0; padding: 18px; border: 1px solid #a8c0d1; border-radius: 8px; background: #f4f9fc; color: #17324d; }
+.pay-calculation h3 { margin: 0 0 8px; color: #17324d; }
+.pay-calculation p { color: #405b70; font-size: 13px; line-height: 1.5; }
+.pay-calculation-line, .pay-calculation-total { display: flex; gap: 16px; justify-content: space-between; padding: 12px 0; border-top: 1px solid #cfdee7; align-items: center; }
+.pay-calculation-line > div { min-width: 0; }
+.pay-calculation-line span { display: block; margin-top: 5px; color: #405b70; font-size: 14px; line-height: 1.5; }
+.pay-calculation-line b, .pay-calculation-total strong { color: #17324d; font-variant-numeric: tabular-nums; }
+.pay-calculation-line b { white-space: nowrap; }
+.pay-calculation-total { border-top: 2px solid #91aebe; font-size: 18px; }
+.timesheet-card #employee-select, .timesheet-card .entry-grid input { color: #17324d; -webkit-text-fill-color: #17324d; color-scheme: light; background: #fff; }
+.timesheet-card .entry-grid thead th, .timesheet-card .entry-grid td:first-child, .timesheet-card .entry-grid tfoot td { color: #17324d; background: #edf4f8; }

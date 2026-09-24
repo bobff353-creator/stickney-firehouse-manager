@@ -164,6 +164,7 @@ export async function POST(request: Request) {
       const dpwMultiplier = Number(payload.dpwMultiplier);
       const effectiveDate = String(payload.effectiveDate ?? "");
       if ([payload.overtimeThreshold, payload.dpwMultiplier].some(value => value == null || value === "") || ![overtimeThreshold, dpwMultiplier].every(value => Number.isFinite(value) && value >= 0)) return Response.json({ error: "Payroll rules must be valid nonnegative numbers." }, { status: 400 });
+      if (dpwMultiplier !== 1.5) return Response.json({ error: "DPW pay is the regular rate × 1.5 once, without another overtime or holiday multiplier." }, { status: 400 });
       if (!effectiveDate || !cleanStart(effectiveDate)) return Response.json({ error: "Rate effective date must be the first day of a payroll period—the 11th or 26th." }, { status: 400 });
       const scales = Array.isArray(payload.payScales) ? payload.payScales as Array<Record<string, unknown>> : [];
       if (!scales.length || scales.some(scale => !scale || !scale.id || scale.regularRate == null || scale.regularRate === "" || !Number.isFinite(Number(scale.regularRate)) || Number(scale.regularRate) < 0) || new Set(scales.map(scale => scale.id)).size !== scales.length) return Response.json({ error: "Every pay scale must have one valid, nonnegative pay rate. No rates were saved." }, { status: 400 });

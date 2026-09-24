@@ -1,5 +1,6 @@
 import { holidayForDate } from "./holidays.ts";
-import { ACTING_OFFICER_STIPEND_PER_HOUR, workDetailRateForRank } from "./payroll-calculation.ts";
+import { summarizePayroll, type PayrollCategory } from "./payroll-calculation.ts";
+import { roundPayrollToCent } from "./payroll-rounding.ts";
 
 export type StaffingSourceRow = {
   date: string;
@@ -49,6 +50,7 @@ export type PayrollSourceRow = {
   regularRate: number;
   overtimeRate: number;
   holidayRate: number;
+  isDpw?: number | boolean;
 };
 
 export type RateHistoryRow = {
@@ -82,7 +84,7 @@ function normalizedCategory(category: string) {
 
 function effectiveRate(row: PayrollSourceRow, history: RateHistoryRow[]) {
   const match = history
-    .filter((rate) => rate.payScaleId === row.payScaleId && rate.effectiveDate <= row.date)
+    .filter((rate) => rate.payScaleId === row.payScaleId && rate.effectiveDate <= row.periodStart)
     .sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))[0];
   return {
     regularRate: Number(match?.regularRate ?? row.regularRate ?? 0),
@@ -96,35 +98,24 @@ export function buildPayrollDetails(
   history: RateHistoryRow[],
   settings: PayrollSettings,
 ): PayrollDetail[] {
-  const running = new Map<string, number>();
-  const threshold = Number(settings.overtimeThreshold || 106);
-  const dpwMultiplier = Number(settings.dpwMultiplier || 1.5);
-  const aoPremium = Number(settings.actingOfficerPremium || ACTING_OFFICER_STIPEND_PER_HOUR);
+  const running = new Map<string, Map<PayrollCategory, number>>();
 
   return rows.map((row) => {
-    const category = normalizedCategory(row.category);
+    const sourceCategory = normalizedCategory(row.category) as PayrollCategory;
+    const category = row.isDpw && sourceCategory !== "actingOfficer" ? "dpw" : sourceCategory;
     const hours = Number(row.hours || 0);
     const rates = effectiveRate(row, history);
-    let cost = 0;
-    let overtimeHours = 0;
-    let overtimeCost = 0;
-
-    if (category === "actingOfficer") {
-      cost = hours * aoPremium;
-    } else if (category === "holiday") {
-      cost = hours * rates.holidayRate;
-    } else if (category === "dpw") {
-      cost = hours * rates.regularRate * dpwMultiplier;
-    } else if (category === "workDetail") {
-      cost = hours * workDetailRateForRank(row.rank, rates.regularRate, rates.overtimeRate);
-    } else {
-      const key = `${row.employeeId}:${row.periodStart}`;
-      const before = running.get(key) || 0;
-      overtimeHours = Math.max(0, before + hours - threshold) - Math.max(0, before - threshold);
-      running.set(key, before + hours);
-      overtimeCost = overtimeHours * rates.regularRate * 1.5;
-      cost = (hours - overtimeHours) * rates.regularRate + overtimeCost;
-    }
+    const key = `${row.employeeId}:${row.periodStart}`;
+    const totals = running.get(key) ?? new Map<PayrollCategory, number>();
+    const calculate = () => summarizePayroll({ rank: row.rank, regularRate: rates.regularRate, isDpw: row.isDpw }, [...totals].map(([category, hours]) => ({ category, hours })), settings);
+    const before = calculate();
+    totals.set(sourceCategory, (totals.get(sourceCategory) ?? 0) + hours);
+    running.set(key, totals);
+    const after = calculate();
+    // Allocate rounded period pay to days without accumulating rounding drift.
+    const cost = roundPayrollToCent(after.gross - before.gross);
+    const overtimeHours = roundPayrollToCent(after.overtimeHours - before.overtimeHours);
+    const overtimeCost = roundPayrollToCent(after.lines.find(line => line.key === "overtime")!.amount - before.lines.find(line => line.key === "overtime")!.amount);
 
     return {
       employeeId: row.employeeId,
