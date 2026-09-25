@@ -30,6 +30,8 @@ export default function AuthGateway({
   const [employeeNumber, setEmployeeNumber] = useState("");
   const [message, setMessage] = useState("");
   const accessCheckRef = useRef<Promise<void> | null>(null);
+  const activeUserIdRef = useRef<string | null>(null);
+  const verifiedUserIdRef = useRef<string | null>(null);
   const identityAttemptRef = useRef(0);
   const sessionGenerationRef = useRef(0);
   const pinLoginRef = useRef(false);
@@ -40,6 +42,8 @@ export default function AuthGateway({
     identityAttemptRef.current++;
     sessionGenerationRef.current++;
     accessCheckRef.current = null;
+    activeUserIdRef.current = null;
+    verifiedUserIdRef.current = null;
   }, []);
 
   async function runAuthAction(action: () => Promise<void>, returnMode: Mode) {
@@ -54,7 +58,14 @@ export default function AuthGateway({
   }
 
   const checkAccess = useCallback(async (nextUser: User, blocking = true) => {
+    if (activeUserIdRef.current !== nextUser.id) {
+      invalidateSession();
+      activeUserIdRef.current = nextUser.id;
+    }
+    // Only a previously verified account can refresh without unmounting its work.
+    blocking = blocking || verifiedUserIdRef.current !== nextUser.id;
     if (accessCheckRef.current) return accessCheckRef.current;
+    if (blocking) verifiedUserIdRef.current = null;
     const generation = sessionGenerationRef.current;
     const request = (async () => {
       setUser(nextUser);
@@ -66,6 +77,7 @@ export default function AuthGateway({
           const payload = await response.json() as { pinConfigured?: boolean; pinUnlocked?: boolean };
           if (generation !== sessionGenerationRef.current) return;
           if (!payload.pinConfigured) {
+            verifiedUserIdRef.current = null;
             setPin("");
             setPinConfirmation("");
             setMode("set-pin");
@@ -73,11 +85,13 @@ export default function AuthGateway({
             return;
           }
           if (payload.pinConfigured && !payload.pinUnlocked) {
+            verifiedUserIdRef.current = null;
             setPin("");
             setMode("pin");
             setMessage("");
             return;
           }
+          verifiedUserIdRef.current = nextUser.id;
           setMode("authorized");
           setMessage("");
           return;
@@ -85,6 +99,7 @@ export default function AuthGateway({
         const payload = await response.json().catch(() => ({})) as { error?: string };
         if (generation !== sessionGenerationRef.current) return;
         if (response.status === 403) {
+          verifiedUserIdRef.current = null;
           clearAccessCache();
           setMode("waiting");
           setMessage(payload.error || "A department administrator must approve access.");
@@ -97,6 +112,7 @@ export default function AuthGateway({
           }
           return;
         }
+        invalidateSession();
         clearAccessCache();
         await getSupabaseBrowserClient().auth.signOut({ scope: "local" });
         setUser(null);
@@ -116,7 +132,7 @@ export default function AuthGateway({
     } finally {
       if (accessCheckRef.current === request) accessCheckRef.current = null;
     }
-  }, []);
+  }, [invalidateSession]);
 
   const verifyIdentity = useCallback(async () => {
     const attempt = ++identityAttemptRef.current;
@@ -126,6 +142,7 @@ export default function AuthGateway({
       if (error && !definitiveAuthFailure(error)) throw error;
       if (!error && data.user) void checkAccess(data.user, true);
       else {
+        invalidateSession();
         clearAccessCache();
         setMode("sign-in");
       }
@@ -134,7 +151,7 @@ export default function AuthGateway({
       setMode("unavailable");
       setMessage("Secure access is temporarily unavailable. Your login has not been removed. Reconnect and retry to verify access.");
     }
-  }, [checkAccess]);
+  }, [checkAccess, invalidateSession]);
 
   useEffect(() => {
     if (mode !== "unavailable") return;
@@ -161,7 +178,11 @@ export default function AuthGateway({
       }
       if (event === "SIGNED_IN") {
         if (pinLoginRef.current) return;
-        void checkAccess(session.user, true);
+        if (verifiedUserIdRef.current === session.user.id) {
+          void checkAccess(session.user, false);
+        } else {
+          void checkAccess(session.user, true);
+        }
       } else if (event === "USER_UPDATED" || event === "TOKEN_REFRESHED") {
         void checkAccess(session.user, false);
       }
@@ -234,6 +255,7 @@ export default function AuthGateway({
     }
     setPin("");
     setMessage("");
+    verifiedUserIdRef.current = user?.id ?? null;
     setMode("authorized");
   }
 
@@ -261,6 +283,7 @@ export default function AuthGateway({
     setPin("");
     setPinConfirmation("");
     setMessage("");
+    verifiedUserIdRef.current = user?.id ?? null;
     setMode("authorized");
   }
 
@@ -297,6 +320,7 @@ export default function AuthGateway({
     setPin("");
     setPinConfirmation("");
     setMessage("");
+    verifiedUserIdRef.current = user?.id ?? null;
     setMode("authorized");
   }
 

@@ -6,3 +6,6 @@ export function getSupabaseBrowserClient(){return{auth:{
   onAuthStateChange(callback:typeof listener){listener=callback;return{data:{subscription:{unsubscribe(){listener=null;}}}};},
   async signOut(){audit.signouts++;listener?.('SIGNED_OUT',null);return{};},
 }};}
+export function emitRecoveryEvent(event='SIGNED_IN',differentAccount=false){
+  listener?.(event,{user:{id:differentAccount?'different-fictional-member':'fictional-member',email:'fixture@example.invalid'}});
+}
