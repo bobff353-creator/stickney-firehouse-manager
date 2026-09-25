@@ -1,3 +1,4 @@
+import { inspectionPilotAccess } from "../../fire-inspections/access";
 import { trainingPilotAccess } from "../../training/access";
 import { ensureDatabase } from "../../../db/bootstrap";
 import { parseConfirmationStatus } from '../../required-confirmation-policy';
@@ -21,6 +22,7 @@ export async function GET(request: Request) {
     const before = await revision(db);
     const viewerPermissions: string[] = [...await permissionsForEmail(email, db)];
     if (trainingPilotAccess(email)) viewerPermissions.push("training.pilot");
+    if (inspectionPilotAccess(email)) viewerPermissions.push("inspections.pilot");
     if (!viewerPermissions.length) return json({ error: "Your login is not linked to an active employee. Ask an administrator to check your employee email.", viewerPermissions: [] }, 403);
     const canManage = viewerPermissions.includes("permissions.manage");
     const isOwner = ownerAdminEmails.includes(email);

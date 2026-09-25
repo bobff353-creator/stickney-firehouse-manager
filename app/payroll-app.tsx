@@ -54,6 +54,7 @@ const RespondDeviceSettingsPage = dynamic(() => import("./respond-device-setting
 const DepartmentSettings = dynamic(() => import("./department-settings"), { loading: () => <ModuleLoading /> });
 const SystemHealth = dynamic(() => import("./system-health"), { loading: () => <ModuleLoading /> });
 const RoadClosures = dynamic(() => import("./road-closures"), { loading: () => <ModuleLoading /> });
+const FireInspectionsWorkspace = dynamic(() => import("./fire-inspections/workspace"), { loading: () => <ModuleLoading /> });
 const TrainingWorkspace = dynamic(() => import("./training/workspace"), { loading: () => <ModuleLoading /> });
 const SafetyInspections = dynamic(() => import("./safety-inspections"), { loading: () => <ModuleLoading /> });
 import { defaultRespondDeviceSettings, readRespondDeviceSettings, RESPOND_ALERT_DURATION_SECONDS, shouldOpenBoardRespondAlert, type RespondDeviceSettings } from "./respond-device";
@@ -91,7 +92,7 @@ type IconName = "home" | "log" | "box" | "users" | "phone" | "payroll" | "clock"
 type NavItem = PortalPage;
 const adminNavItems: NavItem[] = ["Dashboard", "Command Center", "Operations Board", "Activity Timeline", "Respond", "Command Board", "Field Preplans", "Road Closures", "Safety Inspections", "Scheduling", "Payroll", "Work Details", "Daily Log", "Timesheets", "Callback Reviews", "My Timesheet", "Employees", "Employee Contacts", "Policies", "Box Cards", "Holiday Policy", "EMS", "Daily Duties", "Inventory", "Phone Numbers", "Rates & Rules", "Departments", "System Health", "Permissions", "CAD Integration", "Respond Device Modes", "Test View"];
 const employeeNavItems: NavItem[] = ["Dashboard", "Operations Board", "Respond", "Command Board", "Field Preplans", "Road Closures", "Safety Inspections", "Scheduling", "My Timesheet", "Policies", "Box Cards", "EMS", "Daily Duties", "Inventory"];
-const navIcons: Record<NavItem, IconName> = { Training: "document", Dashboard: "home", "Command Center": "rates", "Operations Board": "log", "Activity Timeline": "clock", Respond: "log", "Command Board": "warning", "Field Preplans": "search", "Road Closures": "warning", "Safety Inspections": "document", Scheduling: "clock", Payroll: "payroll", "Work Details": "document", "Daily Log": "log", Timesheets: "clock", "Callback Reviews": "log", "My Timesheet": "clock", Employees: "users", "Employee Contacts": "phone", Policies: "document", "Box Cards": "box", "Holiday Policy": "holiday", EMS: "document", "Daily Duties": "clock", Inventory: "box", "Phone Numbers": "phone", "Rates & Rules": "rates", Departments: "settings", "System Health": "warning", Permissions: "settings", "CAD Integration": "settings", "Respond Device Modes": "settings", "Test View": "users" };
+const navIcons: Record<NavItem, IconName> = { "Fire Inspections": "document", Training: "document", Dashboard: "home", "Command Center": "rates", "Operations Board": "log", "Activity Timeline": "clock", Respond: "log", "Command Board": "warning", "Field Preplans": "search", "Road Closures": "warning", "Safety Inspections": "document", Scheduling: "clock", Payroll: "payroll", "Work Details": "document", "Daily Log": "log", Timesheets: "clock", "Callback Reviews": "log", "My Timesheet": "clock", Employees: "users", "Employee Contacts": "phone", Policies: "document", "Box Cards": "box", "Holiday Policy": "holiday", EMS: "document", "Daily Duties": "clock", Inventory: "box", "Phone Numbers": "phone", "Rates & Rules": "rates", Departments: "settings", "System Health": "warning", Permissions: "settings", "CAD Integration": "settings", "Respond Device Modes": "settings", "Test View": "users" };
 function navigationForViewer(_viewer: PayrollData["viewer"] | undefined, permissions: string[] | null) {
   return portalNavigationForPermissions(permissions);
 }
@@ -1042,6 +1043,7 @@ export default function PayrollApp({
           {activeNav === "Field Preplans" && <FieldPreplans />}
           {activeNav === "Road Closures" && <RoadClosures />}
           {activeNav === "Training" && !testMember && <TrainingWorkspace />}
+          {activeNav === "Fire Inspections" && !testMember && <FireInspectionsWorkspace />}
           {activeNav === "Safety Inspections" && <SafetyInspections readOnly={Boolean(testMember)} />}
           {activeNav === "Respond Device Modes" && viewerPermissions.includes("settings.manage") && <RespondDeviceSettingsPage onSaved={(settings) => {
             setRespondDeviceSettings(settings);

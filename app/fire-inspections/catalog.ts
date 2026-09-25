@@ -1,0 +1,30 @@
+export const IFSTA_URL = 'https://moodle.ifsta.org/mod/lti/view.php?id=7536353';
+export type CheckDefinition = { id: string; section: string; label: string; source: string };
+const groups: [string, string, string[]][] = [
+  ['Access', 'IFSTA 9th ed., ch. 7; J&B ch. 5 slides 5–7; ch. 6 slides 27–28', ['Address identification', 'Fire lanes and apparatus access', 'Hydrant and FDC access', 'Key box and entry arrangements']],
+  ['Occupancy', 'IFSTA 9th ed., ch. 3–5; J&B ch. 4 slides 26–27', ['Actual use and occupancy classification', 'Changes in use, layout, or tenant', 'Occupant load and posted documentation', 'Construction and fire-resistance features']],
+  ['Egress', 'IFSTA 9th ed., ch. 6', ['Exit routes and obstructions', 'Exit doors and hardware', 'Exit signs and emergency lighting', 'Stairs, corridors, and exit discharge']],
+  ['Building systems', 'IFSTA 9th ed., ch. 4, 8', ['Electrical panels, wiring, and covers', 'Heating, ventilation, and utility access', 'Fire doors and rated penetrations', 'Combustible storage and housekeeping']],
+  ['Water systems', 'IFSTA 9th ed., ch. 10–11; J&B ch. 7 slides 10–22', ['Sprinkler system and control valves', 'Riser and standpipe identification', 'FDC identification and condition', 'Inspection, testing, and maintenance reports', 'Impairments and documented interim measures']],
+  ['Alarms', 'IFSTA 9th ed., ch. 13; J&B ch. 7 slides 16–22', ['Panel location and displayed condition', 'Detection and notification devices', 'Monitoring and responsible contacts', 'Alarm test report and unresolved deficiencies']],
+  ['Extinguishers', 'IFSTA 9th ed., ch. 12', ['Location, access, and identification', 'Condition and service documentation']],
+  ['Cooking / special suppression', 'IFSTA 9th ed., ch. 12; J&B ch. 7 slides 15, 18–22', ['Hood and duct cleaning documentation', 'Suppression service report and deficiencies', 'Manual activation and appliance arrangement', 'Listed system and contractor information']],
+  ['Hazardous materials', 'IFSTA 9th ed., ch. 9; J&B ch. 6 slides 30–32', ['Material inventory and safety data sheets', 'Storage, labeling, and compatibility', 'Processes, permits, and specialist review']],
+  ['Plans / permits', 'IFSTA 9th ed., ch. 14–16; J&B ch. 5 slides 5–10', ['Approved plans and permit scope', 'Changes from approved plans', 'Acceptance tests and supporting documents']],
+  ['Visit / follow-up', 'IFSTA 9th ed., ch. 16 pp. 543, 561–562; J&B ch. 6 slides 19, 35–37; ch. 11 slides 10–14', ['Prior findings and correction evidence', 'Representative and inspection access', 'Results discussed with representative', 'Written findings and follow-up plan']],
+];
+// Original observation prompts, not code text or automatic compliance determinations.
+export const inspectionChecks: CheckDefinition[] = groups.flatMap(([section, source, labels], group) => labels.map((label, i) => ({ id: `check-${group + 1}-${i + 1}`, section, label, source })));
+export const inspectionSections = groups.map(g => g[0]);
+export const starterSections = ['Access', 'Occupancy', 'Egress', 'Building systems', 'Extinguishers', 'Visit / follow-up'];
+export const inspectionTypes = ['Routine fire / life safety', 'New business', 'Reinspection', 'Complaint', 'Construction / plan review', 'System acceptance', 'Special event', 'Other'];
+export const quickReferences = [
+  { title: 'Prepare for a visit', tags: 'history permits occupancy contacts tools access', text: 'Review the property history, applicable code edition, permits, and earlier findings. Record the actual use and the representative you meet.', source: 'IFSTA 9th ed., ch. 16 pp. 543, 561–562; J&B ch. 6 slides 18–20' },
+  { title: 'Record an actionable finding', tags: 'violation correction citation deadline report', text: 'Keep the observed condition, its precise location, the applicable code section and edition, the requested correction, and the follow-up date together. A checklist item alone is not an enforceable citation.', source: 'IFSTA 9th ed., ch. 16 p. 562; J&B ch. 6 slides 19, 35–37' },
+  { title: 'Something is outside the checklist', tags: 'unusual special hazard custom expert', text: 'Add a custom observation. Record what needs research or specialist review instead of guessing a requirement or marking it acceptable.', source: 'IFSTA 9th ed., ch. 16 p. 561; J&B ch. 6 slides 24, 30–32' },
+  { title: 'Reinspect a correction', tags: 'follow up fail resolved evidence photograph', text: 'Open the prior findings, record new evidence and the date reviewed, then decide whether each issue remains open or is corrected. Preserve the original inspection.', source: 'IFSTA 9th ed., ch. 16 pp. 543, 561–562' },
+  { title: 'A system needs attention', tags: 'sprinkler alarm impairment service report contractor test', text: 'Record the system, report date, contractor, and unresolved deficiencies. Use the applicable standard, approved plans, and department procedure to determine the next action.', source: 'J&B ch. 7 slides 10, 18–25; IFSTA 9th ed., ch. 10–13' },
+  { title: 'A hood is present', tags: 'kitchen cooking suppression six months cleaning', text: 'Track hood cleaning and suppression-system service separately. Choose a department-approved visit interval; the six-month scheduling option is not a statement that every hood has the same service or cleaning requirement.', source: 'J&B ch. 7 slides 18–25; IFSTA 9th ed., ch. 12' },
+  { title: 'A change in occupancy or use', tags: 'business tenant construction load classification plans', text: 'Record both the observed use and the approved information available. Flag differences for review and retain the supporting plans or permits.', source: 'J&B ch. 4 slides 26–27; ch. 5 slides 5–10; IFSTA 9th ed., ch. 5, 14' },
+  { title: 'Finish without losing the history', tags: 'signatures report record retention archive', text: 'Review findings with the representative, document receipt or refusal, and retain the report, photos, and follow-up record. A saved report does not prove an email was delivered.', source: 'IFSTA 9th ed., ch. 16 pp. 561–562; J&B ch. 11 slides 5, 10–14' },
+];
