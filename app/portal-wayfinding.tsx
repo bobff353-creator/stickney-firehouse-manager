@@ -1,5 +1,5 @@
 "use client";
-import { useId, useRef, useState } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { useWorkspaceViewState } from "./workspace-view-state";
 import { portalPageLabel, type PortalPage, type PortalRecord } from "./portal-navigation";
 import { portalWorkflows } from "./portal-workflows";
@@ -7,7 +7,7 @@ import { useWorkspaceTaskNavigation } from "./workspace-task-navigation";
 import { matchesWorkspace, workspaceHelp } from "./workspace-help";
 import { availableAdminTasks } from "./admin-tasks";
 
-export function WorkspaceGuide({ page, backLabel, onBack, returnLabel, onReturn, allowedPages = [], permissions = [], onNavigate }: { page: PortalPage; home: PortalPage; backLabel?: string; onBack: () => void; returnLabel?: string; onReturn?: () => void; allowedPages?: readonly PortalPage[]; permissions?: readonly string[]; onNavigate: (page: PortalPage, record?: PortalRecord) => void }) {
+export function WorkspaceGuide({ page, backLabel, onBack, returnLabel, onReturn, allowedPages = [], permissions = [], onNavigate, setupTools }: { page: PortalPage; home: PortalPage; backLabel?: string; onBack: () => void; returnLabel?: string; onReturn?: () => void; allowedPages?: readonly PortalPage[]; permissions?: readonly string[]; onNavigate: (page: PortalPage, record?: PortalRecord) => void; setupTools?: ReactNode }) {
   const guide = portalWorkflows[page];
   const help = workspaceHelp[page];
   const toolsDialog = useRef<HTMLDialogElement>(null);
@@ -16,17 +16,18 @@ export function WorkspaceGuide({ page, backLabel, onBack, returnLabel, onReturn,
   const setup = availableAdminTasks(permissions, allowedPages).filter(task => task.page === page);
   const taskReturn = useWorkspaceTaskNavigation(page);
   const destination = taskReturn?.label || returnLabel || backLabel;
-  return <div className="workspace-wayfinding no-print" data-test-safe>
-    <nav aria-label="Workspace navigation">
+  return <div className={`workspace-wayfinding no-print${page === "Dashboard" ? " home-wayfinding" : ""}`} data-test-safe>
+    {page !== "Dashboard" && <nav aria-label="Workspace navigation">
       {destination && <button type="button" disabled={taskReturn?.disabled} onClick={taskReturn?.onBack ?? (returnLabel && onReturn ? onReturn : onBack)}>← Back to {destination}</button>}
       <span className="workspace-section">{guide.group} →</span>
       <span aria-current={taskReturn ? undefined : "page"}>{portalPageLabel(page)}</span>
       {taskReturn?.record && <span>→ {taskReturn.record}</span>}
       {taskReturn && <span aria-current="page">→ {taskReturn.task || "Current task"}</span>}
-    </nav>
+    </nav>}
     <div className="workspace-orientation-actions"><button type="button" onClick={() => toolsDialog.current?.showModal()}>All tools</button></div>
+    {setupTools}
     <details className="workspace-guide" key={page} onToggle={event => { if (!event.currentTarget.open) setHelpSection("Start & next"); }}>
-      <summary>How to use this screen</summary>
+      <summary aria-label="Help: next steps, saving and notifications">Help</summary>
       <div className="workspace-help-content"><strong>{guide.purpose}</strong>
         <div className="workspace-help-tabs" role="group" aria-label="Help topics">{["Start & next", "Save & change", "Set up", "Notify"].map(label => <button key={label} type="button" aria-pressed={helpSection === label} onClick={() => setHelpSection(label)}>{label}</button>)}</div>
         <div className="workspace-help-answer" aria-live="polite">

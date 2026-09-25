@@ -467,11 +467,11 @@ export default function AuthGateway({
           <span><b>Firehouse Manager</b><small>Department Operations Portal</small></span>
         </div>
         <div>
-          <p className="login-eyebrow">SECURE DEPARTMENT ACCESS</p>
-          <h1>One verified account.<br />Your authorized department.</h1>
-          <p>Payroll, staffing, daily logs, policies, box cards, apparatus, scheduling, and field operations stay protected behind your confirmed email and department membership.</p>
+          <p className="login-eyebrow">STICKNEY FIRE DEPARTMENT</p>
+          <h1>Your firehouse.<br />One place to get things done.</h1>
+          <p>See your schedule, complete vehicle checks, record your shift, and find response information.</p>
         </div>
-        <small>Department records are separated from unapproved accounts.</small>
+        <small>Sign in to open the tools available to your department account.</small>
       </section>
       <section className="login-card">
         <p className="login-eyebrow">WELCOME BACK</p>

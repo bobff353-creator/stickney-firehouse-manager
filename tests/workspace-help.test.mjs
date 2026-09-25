@@ -17,6 +17,7 @@ test('crew vocabulary finds the actual tools without inventing new modules', () 
     assert.ok(matchesWorkspace(page, query), `${query}: ${page}`);
   }
   assert.equal(matchesWorkspace('Payroll', 'hydrant'), false);
+  assert.ok(matchesWorkspace('Policies', 'policy'));
   assert.equal(matchesWorkspace('Inventory', 'meds nonexistent'), false);
   assert.ok(matchesWorkspace('Scheduling', '  CALENDAR   TRADE  '));
 });

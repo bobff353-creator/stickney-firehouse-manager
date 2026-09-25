@@ -1,4 +1,59 @@
 /* Shared workflow language; warning/destructive controls keep their own styling. */
+.workspace-wayfinding { align-items:center; gap:8px; }
+.workspace-wayfinding > .admin-tools { margin:0; }
+.workspace-wayfinding > .workspace-guide { margin-left:0; }
+.workspace-wayfinding .workspace-guide > summary { text-decoration:none; border:1px solid #aec2d0; background:#fff; color:#173e59; font-weight:650; }
+.workspace-wayfinding .workspace-guide[open] { order:5; }
+.workspace-wayfinding .admin-task-dialog .admin-help { margin-top:16px; }
+.workspace-wayfinding.home-wayfinding { justify-content:flex-end; margin-bottom:12px; }
+.workspace-wayfinding.home-wayfinding .workspace-orientation-actions { margin-left:0; }
+.role-dashboard.home-clear-start { gap:18px; }
+.role-dashboard.home-clear-start .dashboard-welcome { margin:0; padding:18px 20px; }
+.role-dashboard.home-clear-start .dashboard-welcome h1 { font-size:28px; }
+.home-clear-start .home-task-start { margin:0; }
+.home-clear-start .home-task-start h2 { font-size:21px; margin:0 0 12px; }
+.home-clear-start .chief-quick-access { grid-template-columns:repeat(3,minmax(0,1fr)); margin:0; gap:10px; }
+.home-clear-start .chief-quick-access button { min-height:90px; padding:14px; border-top:1px solid #b1c6d1; border-left:4px solid #267095; border-radius:9px; cursor:pointer; }
+.home-clear-start .chief-quick-access button strong { font-size:18px; }
+.home-clear-start .chief-quick-access button small { font-size:14px; line-height:1.4; color:#405e70; }
+.home-clear-start .chief-quick-access .home-more-tools { border-left-color:#7d93a2; background:#edf3f7; }
+.home-clear-start .chief-quick-access :focus-visible { outline:3px solid #177ca8; outline-offset:3px; }
+.home-clear-start .home-current-work { margin:4px 0 0; }
+.home-current-work > header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px; }
+.home-current-work > header h2 { margin:0; }
+.home-briefing-status { display:flex; flex-wrap:wrap; gap:4px 10px; font-size:12px; color:#405e70; }
+.home-briefing-status.stale { color:#9f352b; }
+.home-current-work > .error-banner { display:flex; grid-template-columns:none; margin-bottom:12px; }
+.home-briefing-details { min-width:0; border:1px solid #b6c9d5; border-radius:10px; background:#fff; color:#173e59; }
+.home-briefing-details > summary { padding:16px; min-height:48px; cursor:pointer; font-weight:700; }
+.home-briefing-details > .command-status-grid,.home-briefing-details > .dashboard-metrics { margin:0; padding:16px; }
+.home-clear-start .workspace-tools-dialog > header button { min-height:44px; border:1px solid #aec2d0; border-radius:7px; padding:8px 12px; background:#fff; color:#173e59; font:inherit; font-weight:650; cursor:pointer; }
+@media(max-width:700px) {
+  .workspace-wayfinding:not(.home-wayfinding) > nav { flex-basis:100%; }
+  .workspace-wayfinding .workspace-orientation-actions { margin-left:0; }
+  .workspace-wayfinding.home-wayfinding { justify-content:flex-start; }
+  .workspace-wayfinding > .admin-tools > button,.workspace-wayfinding .workspace-guide > summary,.workspace-orientation-actions > button { padding:10px; font-size:13px; }
+  .workspace:has(> .home-clear-start) { padding-top:14px; }
+  .role-dashboard.home-clear-start { gap:16px; }
+  .role-dashboard.home-clear-start .dashboard-welcome { padding:12px; }
+  .role-dashboard.home-clear-start .dashboard-welcome .eyebrow { font-size:11px; line-height:16px; margin:0 0 4px; }
+  .role-dashboard.home-clear-start .dashboard-welcome h1 { font-size:25px; }
+  .role-dashboard.home-clear-start .dashboard-welcome p:last-child { font-size:13px; line-height:18px; }
+  .home-clear-start .home-task-start h2 { font-size:18px; margin-bottom:10px; }
+  .home-clear-start .chief-quick-access { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .home-clear-start .chief-quick-access button { min-height:76px; padding:10px; gap:6px; }
+  .home-clear-start .chief-quick-access button strong { font-size:16px; }
+  .home-clear-start .chief-quick-access button strong > span { display:none; }
+  .home-clear-start .chief-quick-access button small { font-size:12px; }
+  .home-briefing-details > .command-status-grid,.home-briefing-details > .dashboard-metrics { padding:10px; }
+}
+@media(prefers-color-scheme:dark) {
+  .home-clear-start .home-task-start h2,.home-clear-start .home-current-work > header h2 { color:#eef4f7; }
+  .home-clear-start .home-briefing-status { color:#c8d5dc; }
+  .home-clear-start .home-briefing-status.stale { color:#ffd08b; }
+  .home-clear-start .home-briefing-details > summary { color:#173e59; }
+}
+@media print { .home-clear-start .home-briefing-details { border:0; } .home-clear-start .home-briefing-details > * { display:block; } .home-clear-start .home-briefing-details > summary { display:none; } }
 .workflow-save-status { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; padding:8px 10px; border:1px solid #b4c7d4; border-radius:6px; background:#f2f6f9; color:#173b53; font-size:13px; }
 .workflow-save-status small { flex-basis:100%; }
 .workflow-save-status.failed { border-color:#b33a3a; background:#fff0ec; color:#842c24; }

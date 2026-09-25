@@ -24,10 +24,10 @@ export default function RoleDashboard({ data, onNavigate, allowedPages }: { data
   const [resourceCounts, setResourceCounts] = useState<{ policies: number | null; boxCards: number | null }>({ policies: null, boxCards: null });
   const [refreshing, setRefreshing] = useState(false);
   const requestInFlight = useRef(false);
+  const toolsDialog = useRef<HTMLDialogElement>(null);
   const ownEmployee = data.employees.find((employee) => employee.id === data.viewer.employeeId);
   const rank = ownEmployee?.rank.toLowerCase() ?? "";
   const isOfficer = !data.viewer.isAdmin && ["chief", "captain", "lieutenant"].some((title) => rank.includes(title));
-  const role = data.viewer.isAdmin ? "Administrator" : isOfficer ? "Officer" : "Employee";
 
   const load = useCallback(async () => {
     if (requestInFlight.current) return;
@@ -55,26 +55,30 @@ export default function RoleDashboard({ data, onNavigate, allowedPages }: { data
     { page: "Respond" as PortalPage, title: briefing ? `${briefing.activeCalls?.length ?? 0} active calls` : "Active calls", detail: briefing?.activeCalls?.[0] ? `${briefing.activeCalls[0].callType} · ${briefing.activeCalls[0].address}` : briefing ? "Open response information" : "Waiting for verified briefing" },
     ...(!data.viewer.isAdmin && !isOfficer ? [{ page: "Scheduling" as PortalPage, title: "Your next shift", detail: nextShift ? `${nextShift.workDate} · ${nextShift.startTime}–${nextShift.endTime} · ${nextShift.role}` : data.viewer.employeeId ? (!briefing ? "Waiting for verified schedule" : briefingError ? "Schedule refresh unavailable" : "No upcoming assignment in the loaded schedule") : "Link your account to an employee to show your next shift" }] : []),
     { page: "Daily Log" as PortalPage, title: briefing?.officerInCharge ? "Open shift log" : "Officer sign-in", detail: briefing?.officerInCharge ? `OIC: ${displayName(briefing.officerInCharge)}` : "Review staffing and sign in for this shift" },
-    { page: "Inventory" as PortalPage, title: briefing?.checksDue == null ? "Checks due or unfinished" : `${briefing.checksDue} required checks outstanding`, detail: "Open Due Now · unfinished Inventory counts stay separate" },
+    { page: "Inventory" as PortalPage, title: briefing?.checksDue == null ? "Check what is due" : `${briefing.checksDue} checks to complete`, detail: "Choose a vehicle and open its due checks" },
     ...(data.viewer.isAdmin || isOfficer ? [{ page: "Daily Log" as PortalPage, title: "Review & hand off", detail: `${briefing?.approvals.logs ?? "—"} shift handoff actions outstanding` }] : []),
     ...(data.viewer.isAdmin ? [{ page: "Payroll" as PortalPage, title: "Review payroll", detail: `${briefing?.approvals.payroll ?? "—"} periods awaiting review or finalization` }] : []),
     ...(data.viewer.isAdmin || isOfficer ? [{ page: "Scheduling" as PortalPage, title: "Your next shift", detail: nextShift ? `${nextShift.workDate} · ${nextShift.startTime}–${nextShift.endTime}` : data.viewer.employeeId ? (!briefing ? "Waiting for verified schedule" : briefingError ? "Schedule refresh unavailable" : "No upcoming assignment in the loaded schedule") : "Account is not linked to an employee" }] : []),
   ].filter(task => allowedPages.includes(task.page));
 
-  return <section className="role-dashboard">
-    <div className="dashboard-welcome"><div><p className="eyebrow">{role} dashboard</p><h1>Your shift, at a glance</h1><p>Operational briefing for {displayName(data.viewer.displayName)}.</p></div><div className={`dashboard-live${briefingError ? " stale" : ""}`} role="status"><i/><strong>{briefingError ? "Update unavailable" : !briefing ? "Loading" : refreshing ? "Refreshing" : "Latest briefing"}</strong><small>{briefing ? `Last received ${savedTimeLabel(briefing.asOf)}` : "Status not yet verified"}</small></div></div>
-    {briefingError && <div className="error-banner" role="alert"><span>{briefingError}{briefing ? " Showing the last received briefing below." : ""}</span><button disabled={refreshing} onClick={() => void load()}>{refreshing ? "Retrying…" : "Retry briefing"}</button></div>}
-    <section className="home-current-work" aria-labelledby="current-work-title"><h2 id="current-work-title">Current work · {role}</h2><div>{currentWork.map(task => <button key={task.title} type="button" onClick={() => onNavigate(task.page)}><strong>{task.title} →</strong><span>{task.detail}</span></button>)}</div></section>
-    <section className="home-task-start" aria-labelledby="home-task-title"><h2 id="home-task-title">Task shortcuts</h2><p>Start another task using your authorized tools.</p><div className="chief-quick-access" aria-label="Start a common task" data-test-safe>{([
-      ["Respond", "Open Respond", "See the incident map and response records"],
-      ["Daily Log", "Open Daily Log", "Sign in as officer, record the shift, or review handoff"],
-      ["Scheduling", "View my schedule or trade", "See all scheduled members, request a shift, or offer a trade"],
-      ["Inventory", "Start or resume a check", "Choose a rig. Saved results reload before you continue"],
-      ["Field Preplans", "Find a preplan or hydrant", "Search a building, address, or hydrant number"],
+  return <section className="role-dashboard home-clear-start">
+    <div className="dashboard-welcome"><div><p className="eyebrow">Stickney Fire Department</p><h1>Firehouse Manager</h1><p>Schedules, vehicle checks, calls and records. One place.</p></div></div>
+    <section className="home-task-start" aria-labelledby="home-task-title"><h2 id="home-task-title">What do you need to do?</h2><div className="chief-quick-access" aria-label="Start a common task" data-test-safe>{([
+      ["Daily Log", "Daily Log", "Record staffing, calls & handoff"],
+      ["Inventory", "Vehicle Checks", "Start a check or find equipment"],
+      ["Scheduling", "Schedule", "View shifts, availability & trades"],
+      ["Respond", "Respond", "Open calls & response information"],
+      ["Field Preplans", "Preplans", "Find a building or hydrant"],
     ] as Array<[PortalPage,string,string]>).filter(([page]) => allowedPages.includes(page)).map(([page,label,detail]) => <button key={page} onClick={() => onNavigate(page)}><strong>{label}<span aria-hidden="true">→</span></strong><small>{detail}</small></button>)}
+      <button type="button" className="home-more-tools" onClick={() => toolsDialog.current?.showModal()}><strong>All tools<span aria-hidden="true">→</span></strong><small>Search everything available to you</small></button>
     </div></section>
+    <dialog ref={toolsDialog} className="workspace-tools-dialog" aria-labelledby="home-tools-title" onClick={event => { if (event.target === toolsDialog.current) toolsDialog.current?.close(); }} data-test-safe><header><div><h2 id="home-tools-title">Find your next task</h2><p>Choose a tool to open it.</p></div><button type="button" autoFocus onClick={() => toolsDialog.current?.close()}>Back to Home</button></header><TaskDirectory allowedPages={allowedPages} onNavigate={page => { toolsDialog.current?.close(); onNavigate(page); }} /></dialog>
+    <section className="home-current-work" aria-labelledby="current-work-title"><header><h2 id="current-work-title">Today at a glance</h2><div className={`home-briefing-status${briefingError ? " stale" : ""}`} role="status"><strong>{briefingError ? "Update unavailable" : !briefing ? "Loading briefing" : refreshing ? "Refreshing briefing" : "Latest briefing"}</strong><span>{briefing ? `Last received ${savedTimeLabel(briefing.asOf)}` : "Status not yet verified"}</span></div></header>
+    {briefingError && <div className="error-banner" role="alert"><span>{briefingError}{briefing ? " Showing the last received briefing below." : ""}</span><button disabled={refreshing} onClick={() => void load()}>{refreshing ? "Retrying…" : "Retry briefing"}</button></div>}
+    <div>{currentWork.map(task => <button key={task.title} type="button" onClick={() => onNavigate(task.page)}><strong>{task.title} →</strong><span>{task.detail}</span></button>)}</div></section>
     {!briefing && <div className="briefing-unavailable" role="status">{briefingError ? "Staffing, equipment, and approval status are unavailable." : "Checking staffing, equipment, and approvals…"} No all-clear is shown until records arrive.</div>}
 
+    <details className="home-briefing-details"><summary>More detail · staffing, handoff & totals</summary>
     {briefing && <section className="command-status-grid" aria-label={briefingError ? "Last received department status — not current" : "Current department status"}>
       <StaffingRotation mode="dashboard" onDuty={briefing?.onDuty ?? []} newMembers={briefing?.newMembers ?? []} onOpenDailyLog={allowedPages.includes("Daily Log") ? () => onNavigate("Daily Log") : undefined} />
       <article className="command-card oic"><header><span className="command-icon">★</span><div><small>Officer in charge</small><h2>{briefing?.officerInCharge ? displayName(briefing.officerInCharge) : "Not signed in"}</h2></div></header><p>{briefing ? shiftLabel(briefing.currentShift) : "Current shift"}</p>{!briefing?.officerInCharge && <strong className="command-warning">Officer sign-in required</strong>}{allowedPages.includes("Daily Log") && <button className="command-next-action" onClick={() => onNavigate("Daily Log")}>{briefing.officerInCharge ? "Open shift log →" : "Open officer sign-in →"}</button>}</article>
@@ -85,6 +89,6 @@ export default function RoleDashboard({ data, onNavigate, allowedPages }: { data
     </section>}
 
     <div className="dashboard-metrics employee-metrics"><article><span>{data.viewer.isAdmin ? "Payroll status" : "Pay period hours"}</span><strong>{data.viewer.isAdmin ? data.period.status : ownHours.toFixed(1)}</strong><small>{data.period.startDate} – {data.period.endDate}</small></article><article><span>{data.viewer.isAdmin ? "Calculated gross" : "Calculated pay"}</span><strong>{money(data.viewer.isAdmin ? data.grossPayroll : data.employeeGross)}</strong><small>Current period</small></article><article><span>Policies</span><strong>{resourceCounts.policies ?? "—"}</strong><small>Available to review</small></article><article><span>Box Cards</span><strong>{resourceCounts.boxCards ?? "—"}</strong><small>Available to search</small></article></div>
-    <details className="home-all-tools"><summary>All tools · search the full directory</summary><TaskDirectory allowedPages={allowedPages} onNavigate={onNavigate} /></details>
+    </details>
   </section>;
 }
