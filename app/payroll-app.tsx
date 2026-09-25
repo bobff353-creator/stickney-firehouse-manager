@@ -54,6 +54,7 @@ const RespondDeviceSettingsPage = dynamic(() => import("./respond-device-setting
 const DepartmentSettings = dynamic(() => import("./department-settings"), { loading: () => <ModuleLoading /> });
 const SystemHealth = dynamic(() => import("./system-health"), { loading: () => <ModuleLoading /> });
 const RoadClosures = dynamic(() => import("./road-closures"), { loading: () => <ModuleLoading /> });
+const TrainingWorkspace = dynamic(() => import("./training/workspace"), { loading: () => <ModuleLoading /> });
 const SafetyInspections = dynamic(() => import("./safety-inspections"), { loading: () => <ModuleLoading /> });
 import { defaultRespondDeviceSettings, readRespondDeviceSettings, RESPOND_ALERT_DURATION_SECONDS, shouldOpenBoardRespondAlert, type RespondDeviceSettings } from "./respond-device";
 
@@ -90,7 +91,7 @@ type IconName = "home" | "log" | "box" | "users" | "phone" | "payroll" | "clock"
 type NavItem = PortalPage;
 const adminNavItems: NavItem[] = ["Dashboard", "Command Center", "Operations Board", "Activity Timeline", "Respond", "Command Board", "Field Preplans", "Road Closures", "Safety Inspections", "Scheduling", "Payroll", "Work Details", "Daily Log", "Timesheets", "Callback Reviews", "My Timesheet", "Employees", "Employee Contacts", "Policies", "Box Cards", "Holiday Policy", "EMS", "Daily Duties", "Inventory", "Phone Numbers", "Rates & Rules", "Departments", "System Health", "Permissions", "CAD Integration", "Respond Device Modes", "Test View"];
 const employeeNavItems: NavItem[] = ["Dashboard", "Operations Board", "Respond", "Command Board", "Field Preplans", "Road Closures", "Safety Inspections", "Scheduling", "My Timesheet", "Policies", "Box Cards", "EMS", "Daily Duties", "Inventory"];
-const navIcons: Record<NavItem, IconName> = { Dashboard: "home", "Command Center": "rates", "Operations Board": "log", "Activity Timeline": "clock", Respond: "log", "Command Board": "warning", "Field Preplans": "search", "Road Closures": "warning", "Safety Inspections": "document", Scheduling: "clock", Payroll: "payroll", "Work Details": "document", "Daily Log": "log", Timesheets: "clock", "Callback Reviews": "log", "My Timesheet": "clock", Employees: "users", "Employee Contacts": "phone", Policies: "document", "Box Cards": "box", "Holiday Policy": "holiday", EMS: "document", "Daily Duties": "clock", Inventory: "box", "Phone Numbers": "phone", "Rates & Rules": "rates", Departments: "settings", "System Health": "warning", Permissions: "settings", "CAD Integration": "settings", "Respond Device Modes": "settings", "Test View": "users" };
+const navIcons: Record<NavItem, IconName> = { Training: "document", Dashboard: "home", "Command Center": "rates", "Operations Board": "log", "Activity Timeline": "clock", Respond: "log", "Command Board": "warning", "Field Preplans": "search", "Road Closures": "warning", "Safety Inspections": "document", Scheduling: "clock", Payroll: "payroll", "Work Details": "document", "Daily Log": "log", Timesheets: "clock", "Callback Reviews": "log", "My Timesheet": "clock", Employees: "users", "Employee Contacts": "phone", Policies: "document", "Box Cards": "box", "Holiday Policy": "holiday", EMS: "document", "Daily Duties": "clock", Inventory: "box", "Phone Numbers": "phone", "Rates & Rules": "rates", Departments: "settings", "System Health": "warning", Permissions: "settings", "CAD Integration": "settings", "Respond Device Modes": "settings", "Test View": "users" };
 function navigationForViewer(_viewer: PayrollData["viewer"] | undefined, permissions: string[] | null) {
   return portalNavigationForPermissions(permissions);
 }
@@ -388,7 +389,7 @@ export default function PayrollApp({
     setGlobalSearchError("");
     try {
       const searchableScreens = testMember
-        ? adminNavItems.filter((item) => !navPermission[item] || testMember.effectivePermissions.includes(navPermission[item]!))
+        ? adminNavItems.filter((item) => item !== "Training" && (!navPermission[item] || testMember.effectivePermissions.includes(navPermission[item]!)))
         : navigationForViewer(data?.viewer, viewerPermissions);
       const sources = [
         { url: "/api/resources?type=policy", page: "Policies" }, { url: "/api/resources?type=boxCard", page: "Box Cards" },
@@ -472,7 +473,7 @@ export default function PayrollApp({
   }), [employeeSummaries, search, statusFilter]);
 
   const globalSearchResults = useMemo(() => {
-    const permittedPages = testMember ? adminNavItems.filter(page => !navPermission[page] || testMember.effectivePermissions.includes(navPermission[page]!)) : data?.viewer ? navigationForViewer(data.viewer, viewerPermissions) : employeeNavItems;
+    const permittedPages = testMember ? adminNavItems.filter(page => page !== "Training" && (!navPermission[page] || testMember.effectivePermissions.includes(navPermission[page]!))) : data?.viewer ? navigationForViewer(data.viewer, viewerPermissions) : employeeNavItems;
     const screens: GlobalSearchItem[] = permittedPages.map(page => ({ id: `screen-${page}`, type: "Screen", title: portalPageLabel(page), detail: portalWorkflows[page].purpose, page }));
     const employeeItems: GlobalSearchItem[] = (data?.employees ?? []).flatMap((employee) => [
       ...(data?.viewer.isAdmin ? [{ id: `employee-${employee.id}`, type: "Employee" as const, title: displayName(employee.name), detail: [employee.rank, employee.employeeNumber, employee.driverStatus].filter(Boolean).join(" · "), page: "Employees" as const, record: { query: employee.name } }] : []),
@@ -1040,6 +1041,7 @@ export default function PayrollApp({
           {activeNav === "Command Board" && <IncidentCommandBoard />}
           {activeNav === "Field Preplans" && <FieldPreplans />}
           {activeNav === "Road Closures" && <RoadClosures />}
+          {activeNav === "Training" && !testMember && <TrainingWorkspace />}
           {activeNav === "Safety Inspections" && <SafetyInspections readOnly={Boolean(testMember)} />}
           {activeNav === "Respond Device Modes" && viewerPermissions.includes("settings.manage") && <RespondDeviceSettingsPage onSaved={(settings) => {
             setRespondDeviceSettings(settings);
