@@ -11,571 +11,1065 @@
     "jprs": [
       {
         "id": "6.1.2-1",
-        "page": 4
+        "page": 4,
+        "taskPage": 12,
+        "topics": [
+          "PPE"
+        ]
       },
       {
         "id": "6.1.2-2",
-        "page": 4
+        "page": 4,
+        "taskPage": 13,
+        "topics": [
+          "PPE"
+        ]
       },
       {
         "id": "6.2.2-1",
-        "page": 4
+        "page": 4,
+        "taskPage": 14,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "6.2.2-2",
-        "page": 4
+        "page": 4,
+        "taskPage": 15,
+        "topics": [
+          "Communication"
+        ]
       },
       {
         "id": "6.2.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 16,
+        "topics": []
       },
       {
         "id": "6.3.1-1",
-        "page": 4
+        "page": 4,
+        "taskPage": 17,
+        "topics": [
+          "SCBA"
+        ]
       },
       {
         "id": "6.3.1-2",
-        "page": 4
+        "page": 4,
+        "taskPage": 18,
+        "topics": [
+          "SCBA"
+        ]
       },
       {
         "id": "6.3.1-3",
-        "page": 4
+        "page": 4,
+        "taskPage": 19,
+        "topics": [
+          "SCBA"
+        ]
       },
       {
         "id": "6.3.1-4",
-        "page": 4
+        "page": 4,
+        "taskPage": 20,
+        "topics": [
+          "SCBA"
+        ]
       },
       {
         "id": "6.3.1-5",
-        "page": 4
+        "page": 4,
+        "taskPage": 21,
+        "topics": [
+          "SCBA"
+        ]
       },
       {
         "id": "6.3.1-6",
-        "page": 4
+        "page": 4,
+        "taskPage": 22,
+        "topics": [
+          "Water"
+        ]
       },
       {
         "id": "6.3.1-7",
-        "page": 4
+        "page": 4,
+        "taskPage": 23,
+        "topics": [
+          "Water"
+        ]
       },
       {
         "id": "6.3.1-8",
-        "page": 4
+        "page": 4,
+        "taskPage": 24,
+        "topics": []
       },
       {
         "id": "6.3.1-9",
-        "page": 4
+        "page": 4,
+        "taskPage": 25,
+        "topics": [
+          "SCBA"
+        ]
       },
       {
         "id": "6.3.1-10",
-        "page": 4
+        "page": 4,
+        "taskPage": 26,
+        "topics": [
+          "SCBA",
+          "Fire"
+        ]
       },
       {
         "id": "6.3.2-1",
-        "page": 4
+        "page": 4,
+        "taskPage": 27,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "6.3.2-2",
-        "page": 4
+        "page": 4,
+        "taskPage": 28,
+        "topics": [
+          "PPE"
+        ]
       },
       {
         "id": "6.3.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 29,
+        "topics": []
       },
       {
         "id": "6.3.4-1",
-        "page": 5
+        "page": 5,
+        "taskPage": 30,
+        "topics": []
       },
       {
         "id": "6.3.4-2",
-        "page": 5
+        "page": 5,
+        "taskPage": 31,
+        "topics": []
       },
       {
         "id": "6.3.4-3",
-        "page": 5
+        "page": 5,
+        "taskPage": 32,
+        "topics": []
       },
       {
         "id": "6.3.4-4",
-        "page": 5
+        "page": 5,
+        "taskPage": 33,
+        "topics": []
       },
       {
         "id": "6.3.4-5",
-        "page": 5
+        "page": 5,
+        "taskPage": 34,
+        "topics": []
       },
       {
         "id": "6.3.4-6",
-        "page": 5
+        "page": 5,
+        "taskPage": 35,
+        "topics": []
       },
       {
         "id": "6.3.4-7",
-        "page": 5
+        "page": 5,
+        "taskPage": 36,
+        "topics": []
       },
       {
         "id": "6.3.4-8",
-        "page": 5
+        "page": 5,
+        "taskPage": 37,
+        "topics": []
       },
       {
         "id": "6.3.4-9",
-        "page": 5
+        "page": 5,
+        "taskPage": 38,
+        "topics": []
       },
       {
         "id": "6.3.4-10",
-        "page": 5
+        "page": 5,
+        "taskPage": 39,
+        "topics": []
       },
       {
         "id": "6.3.4-11",
-        "page": 5
+        "page": 5,
+        "taskPage": 40,
+        "topics": []
       },
       {
         "id": "6.3.4-12",
-        "page": 5
+        "page": 5,
+        "taskPage": 41,
+        "topics": []
       },
       {
         "id": "6.3.4-13",
-        "page": 5
+        "page": 5,
+        "taskPage": 42,
+        "topics": []
       },
       {
         "id": "6.3.4-14",
-        "page": 5
+        "page": 5,
+        "taskPage": 43,
+        "topics": []
       },
       {
         "id": "6.3.4-15",
-        "page": 5
+        "page": 5,
+        "taskPage": 44,
+        "topics": []
       },
       {
         "id": "6.3.4-16",
-        "page": 5
+        "page": 5,
+        "taskPage": 45,
+        "topics": []
       },
       {
         "id": "6.3.4-17",
-        "page": 5
+        "page": 5,
+        "taskPage": 46,
+        "topics": []
       },
       {
         "id": "6.3.4-18",
-        "page": 5
+        "page": 5,
+        "taskPage": 47,
+        "topics": []
       },
       {
         "id": "6.3.4-19",
-        "page": 5
+        "page": 5,
+        "taskPage": 48,
+        "topics": [
+          "Collapse"
+        ]
       },
       {
         "id": "6.3.5",
-        "page": 5
+        "page": 5,
+        "taskPage": 49,
+        "topics": [
+          "Hose",
+          "Rescue"
+        ]
       },
       {
         "id": "6.3.6-1",
-        "page": 6
+        "page": 6,
+        "taskPage": 50,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "6.3.6-2",
-        "page": 6
+        "page": 6,
+        "taskPage": 51,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "6.3.6-3",
-        "page": 6
+        "page": 6,
+        "taskPage": 52,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "6.3.6-4",
-        "page": 6
+        "page": 6,
+        "taskPage": 53,
+        "topics": [
+          "Ladders",
+          "Fire"
+        ]
       },
       {
         "id": "6.3.6-5",
-        "page": 6
+        "page": 6,
+        "taskPage": 54,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "6.3.6-6",
-        "page": 6
+        "page": 6,
+        "taskPage": 56,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "6.3.6-7",
-        "page": 6
+        "page": 6,
+        "taskPage": 58,
+        "topics": [
+          "Ladders"
+        ]
       },
       {
         "id": "6.3.7",
-        "page": 6
+        "page": 6,
+        "taskPage": 59,
+        "topics": [
+          "Vehicle",
+          "Fire"
+        ]
       },
       {
         "id": "6.3.8-1",
-        "page": 6
+        "page": 6,
+        "taskPage": 60,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "6.3.8-2",
-        "page": 6
+        "page": 6,
+        "taskPage": 61,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "6.3.8-3",
-        "page": 6
+        "page": 6,
+        "taskPage": 62,
+        "topics": []
       },
       {
         "id": "6.3.8-4",
-        "page": 6
+        "page": 6,
+        "taskPage": 63,
+        "topics": []
       },
       {
         "id": "6.3.8-5",
-        "page": 6
+        "page": 6,
+        "taskPage": 64,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "6.3.8-6",
-        "page": 6
+        "page": 6,
+        "taskPage": 65,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "6.3.9-1",
-        "page": 6
+        "page": 6,
+        "taskPage": 66,
+        "topics": [
+          "Search"
+        ]
       },
       {
         "id": "6.3.9-2",
-        "page": 6
+        "page": 6,
+        "taskPage": 68,
+        "topics": [
+          "Search"
+        ]
       },
       {
         "id": "6.3.9-3",
-        "page": 6
+        "page": 6,
+        "taskPage": 70,
+        "topics": [
+          "Search"
+        ]
       },
       {
         "id": "6.3.9-4",
-        "page": 6
+        "page": 6,
+        "taskPage": 71,
+        "topics": []
       },
       {
         "id": "6.3.9-5",
-        "page": 6
+        "page": 6,
+        "taskPage": 72,
+        "topics": []
       },
       {
         "id": "6.3.9-6",
-        "page": 6
+        "page": 6,
+        "taskPage": 73,
+        "topics": [
+          "Rescue"
+        ]
       },
       {
         "id": "6.3.9-7",
-        "page": 6
+        "page": 6,
+        "taskPage": 74,
+        "topics": [
+          "Rescue"
+        ]
       },
       {
         "id": "6.3.9-8",
-        "page": 6
+        "page": 6,
+        "taskPage": 75,
+        "topics": [
+          "Fire",
+          "Safety"
+        ]
       },
       {
         "id": "6.3.9-9",
-        "page": 6
+        "page": 6,
+        "taskPage": 77,
+        "topics": [
+          "Fire",
+          "Safety"
+        ]
       },
       {
         "id": "6.3.10-1",
-        "page": 7
+        "page": 7,
+        "taskPage": 78,
+        "topics": [
+          "Hose",
+          "Fire"
+        ]
       },
       {
         "id": "6.3.10-2",
-        "page": 7
+        "page": 7,
+        "taskPage": 79,
+        "topics": [
+          "Hose",
+          "Fire"
+        ]
       },
       {
         "id": "6.3.10-3",
-        "page": 7
+        "page": 7,
+        "taskPage": 80,
+        "topics": [
+          "Hose",
+          "Fire"
+        ]
       },
       {
         "id": "6.3.10-4",
-        "page": 7
+        "page": 7,
+        "taskPage": 81,
+        "topics": [
+          "Hose",
+          "Fire"
+        ]
       },
       {
         "id": "6.3.10-5",
-        "page": 7
+        "page": 7,
+        "taskPage": 82,
+        "topics": [
+          "Hose"
+        ]
       },
       {
         "id": "6.3.10-6",
-        "page": 7
+        "page": 7,
+        "taskPage": 83,
+        "topics": [
+          "Hose"
+        ]
       },
       {
         "id": "6.3.10-7",
-        "page": 7
+        "page": 7,
+        "taskPage": 84,
+        "topics": [
+          "Hose"
+        ]
       },
       {
         "id": "6.3.10-8",
-        "page": 7
+        "page": 7,
+        "taskPage": 85,
+        "topics": []
       },
       {
         "id": "6.3.10-9",
-        "page": 7
+        "page": 7,
+        "taskPage": 86,
+        "topics": [
+          "Hose"
+        ]
       },
       {
         "id": "6.3.10-10",
-        "page": 7
+        "page": 7,
+        "taskPage": 87,
+        "topics": [
+          "Hose"
+        ]
       },
       {
         "id": "6.3.10-11",
-        "page": 7
+        "page": 7,
+        "taskPage": 88,
+        "topics": [
+          "Hose"
+        ]
       },
       {
         "id": "6.3.10-12",
-        "page": 7
+        "page": 7,
+        "taskPage": 89,
+        "topics": [
+          "Hose",
+          "Fire"
+        ]
       },
       {
         "id": "6.3.10-13",
-        "page": 7
+        "page": 7,
+        "taskPage": 90,
+        "topics": []
       },
       {
         "id": "6.3.10-14",
-        "page": 7
+        "page": 7,
+        "taskPage": 91,
+        "topics": []
       },
       {
         "id": "6.3.10-15",
-        "page": 7
+        "page": 7,
+        "taskPage": 92,
+        "topics": [
+          "Ladders"
+        ]
       },
       {
         "id": "6.3.10-16",
-        "page": 7
+        "page": 7,
+        "taskPage": 93,
+        "topics": [
+          "Ladders"
+        ]
       },
       {
         "id": "6.3.10-17",
-        "page": 7
+        "page": 7,
+        "taskPage": 94,
+        "topics": []
       },
       {
         "id": "6.3.10-18",
-        "page": 7
+        "page": 7,
+        "taskPage": 95,
+        "topics": [
+          "Hose"
+        ]
       },
       {
         "id": "6.3.10-19",
-        "page": 7
+        "page": 7,
+        "taskPage": 96,
+        "topics": []
       },
       {
         "id": "6.3.10-20",
-        "page": 7
+        "page": 7,
+        "taskPage": 97,
+        "topics": []
       },
       {
         "id": "6.3.10-21",
-        "page": 7
+        "page": 7,
+        "taskPage": 98,
+        "topics": []
       },
       {
         "id": "6.3.11",
-        "page": 7
+        "page": 7,
+        "taskPage": 99,
+        "topics": []
       },
       {
         "id": "6.3.12-1",
-        "page": 8
+        "page": 8,
+        "taskPage": 100,
+        "topics": [
+          "Ventilation"
+        ]
       },
       {
         "id": "6.3.12-2",
-        "page": 8
+        "page": 8,
+        "taskPage": 101,
+        "topics": [
+          "Ventilation"
+        ]
       },
       {
         "id": "6.3.12-3",
-        "page": 8
+        "page": 8,
+        "taskPage": 102,
+        "topics": []
       },
       {
         "id": "6.3.12-4",
-        "page": 8
+        "page": 8,
+        "taskPage": 103,
+        "topics": []
       },
       {
         "id": "6.3.12-5",
-        "page": 8
+        "page": 8,
+        "taskPage": 104,
+        "topics": []
       },
       {
         "id": "6.3.12-6",
-        "page": 8
+        "page": 8,
+        "taskPage": 105,
+        "topics": [
+          "Ladders"
+        ]
       },
       {
         "id": "6.3.13",
-        "page": 8
+        "page": 8,
+        "taskPage": 106,
+        "topics": []
       },
       {
         "id": "6.3.14-1",
-        "page": 8
+        "page": 8,
+        "taskPage": 107,
+        "topics": []
       },
       {
         "id": "6.3.14-2",
-        "page": 8
+        "page": 8,
+        "taskPage": 108,
+        "topics": []
       },
       {
         "id": "6.3.14-3",
-        "page": 8
+        "page": 8,
+        "taskPage": 109,
+        "topics": []
       },
       {
         "id": "6.3.14-4",
-        "page": 8
+        "page": 8,
+        "taskPage": 110,
+        "topics": []
       },
       {
         "id": "6.3.14-5",
-        "page": 8
+        "page": 8,
+        "taskPage": 111,
+        "topics": [
+          "Water"
+        ]
       },
       {
         "id": "6.3.14-6",
-        "page": 8
+        "page": 8,
+        "taskPage": 112,
+        "topics": [
+          "Water"
+        ]
       },
       {
         "id": "6.3.14-7",
-        "page": 8
+        "page": 8,
+        "taskPage": 113,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "6.3.14-8",
-        "page": 8
+        "page": 8,
+        "taskPage": 114,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "6.3.14-9",
-        "page": 8
+        "page": 8,
+        "taskPage": 115,
+        "topics": []
       },
       {
         "id": "6.3.14-10",
-        "page": 8
+        "page": 8,
+        "taskPage": 116,
+        "topics": []
       },
       {
         "id": "6.3.14-11",
-        "page": 8
+        "page": 8,
+        "taskPage": 117,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "6.3.14-12",
-        "page": 8
+        "page": 8,
+        "taskPage": 118,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "6.3.15-1",
-        "page": 9
+        "page": 9,
+        "taskPage": 119,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "6.3.15-2",
-        "page": 9
+        "page": 9,
+        "taskPage": 120,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "6.3.15-3",
-        "page": 9
+        "page": 9,
+        "taskPage": 121,
+        "topics": [
+          "Pump"
+        ]
       },
       {
         "id": "6.3.15-4",
-        "page": 9
+        "page": 9,
+        "taskPage": 122,
+        "topics": []
       },
       {
         "id": "6.3.15-5",
-        "page": 9
+        "page": 9,
+        "taskPage": 123,
+        "topics": [
+          "Hose",
+          "Fire"
+        ]
       },
       {
         "id": "6.3.15-6",
-        "page": 9
+        "page": 9,
+        "taskPage": 124,
+        "topics": [
+          "Hose"
+        ]
       },
       {
         "id": "6.3.15-7",
-        "page": 9
+        "page": 9,
+        "taskPage": 125,
+        "topics": [
+          "Hose"
+        ]
       },
       {
         "id": "6.3.16-1",
-        "page": 9
+        "page": 9,
+        "taskPage": 126,
+        "topics": [
+          "Water",
+          "Fire"
+        ]
       },
       {
         "id": "6.3.16-2",
-        "page": 9
+        "page": 9,
+        "taskPage": 127,
+        "topics": [
+          "Hazmat",
+          "Fire"
+        ]
       },
       {
         "id": "6.3.17",
-        "page": 9
+        "page": 9,
+        "taskPage": 128,
+        "topics": []
       },
       {
         "id": "6.3.18-1",
-        "page": 9
+        "page": 9,
+        "taskPage": 129,
+        "topics": []
       },
       {
         "id": "6.3.18-2",
-        "page": 9
+        "page": 9,
+        "taskPage": 130,
+        "topics": []
       },
       {
         "id": "6.3.19",
-        "page": 9
+        "page": 9,
+        "taskPage": 131,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "6.3.20-1",
-        "page": 9
+        "page": 9,
+        "taskPage": 132,
+        "topics": [
+          "Rope"
+        ]
       },
       {
         "id": "6.3.20-2",
-        "page": 9
+        "page": 9,
+        "taskPage": 133,
+        "topics": []
       },
       {
         "id": "6.3.20-3",
-        "page": 9
+        "page": 9,
+        "taskPage": 134,
+        "topics": []
       },
       {
         "id": "6.3.20-4",
-        "page": 9
+        "page": 9,
+        "taskPage": 135,
+        "topics": [
+          "Ladders"
+        ]
       },
       {
         "id": "6.3.20-5",
-        "page": 9
+        "page": 9,
+        "taskPage": 136,
+        "topics": [
+          "Hose"
+        ]
       },
       {
         "id": "6.3.20-6",
-        "page": 9
+        "page": 9,
+        "taskPage": 137,
+        "topics": []
       },
       {
         "id": "6.3.21",
-        "page": 9
+        "page": 9,
+        "taskPage": 138,
+        "topics": []
       },
       {
         "id": "6.5.1-1",
-        "page": 10
+        "page": 10,
+        "taskPage": 139,
+        "topics": [
+          "SCBA",
+          "Inspection"
+        ]
       },
       {
         "id": "6.5.1-2",
-        "page": 10
+        "page": 10,
+        "taskPage": 140,
+        "topics": [
+          "SCBA",
+          "Inspection"
+        ]
       },
       {
         "id": "6.5.1-3",
-        "page": 10
+        "page": 10,
+        "taskPage": 141,
+        "topics": [
+          "SCBA"
+        ]
       },
       {
         "id": "6.5.1-4",
-        "page": 10
+        "page": 10,
+        "taskPage": 142,
+        "topics": [
+          "SCBA",
+          "Maintenance"
+        ]
       },
       {
         "id": "6.5.1-5",
-        "page": 10
+        "page": 10,
+        "taskPage": 143,
+        "topics": [
+          "Inspection",
+          "Equipment",
+          "Maintenance"
+        ]
       },
       {
         "id": "6.5.1-6",
-        "page": 10
+        "page": 10,
+        "taskPage": 144,
+        "topics": [
+          "Rope",
+          "Safety"
+        ]
       },
       {
         "id": "6.5.1-7",
-        "page": 10
+        "page": 10,
+        "taskPage": 145,
+        "topics": [
+          "Rope",
+          "Fire",
+          "Maintenance"
+        ]
       },
       {
         "id": "6.5.1-8",
-        "page": 10
+        "page": 10,
+        "taskPage": 146,
+        "topics": [
+          "Rope",
+          "Fire",
+          "Inspection"
+        ]
       },
       {
         "id": "6.5.1-9",
-        "page": 10
+        "page": 10,
+        "taskPage": 147,
+        "topics": [
+          "Ladders",
+          "Inspection",
+          "Maintenance"
+        ]
       },
       {
         "id": "6.5.2-1",
-        "page": 10
+        "page": 10,
+        "taskPage": 148,
+        "topics": [
+          "Hose"
+        ]
       },
       {
         "id": "6.5.2-2",
-        "page": 10
+        "page": 10,
+        "taskPage": 149,
+        "topics": [
+          "Hose"
+        ]
       },
       {
         "id": "6.5.2-3",
-        "page": 10
+        "page": 10,
+        "taskPage": 150,
+        "topics": [
+          "Hose"
+        ]
       },
       {
         "id": "6.5.2-4",
-        "page": 10
+        "page": 10,
+        "taskPage": 151,
+        "topics": [
+          "Hose"
+        ]
       },
       {
         "id": "6.5.2-5",
-        "page": 10
+        "page": 10,
+        "taskPage": 152,
+        "topics": [
+          "Hose",
+          "Maintenance"
+        ]
       },
       {
         "id": "6.5.2-6",
-        "page": 10
+        "page": 10,
+        "taskPage": 153,
+        "topics": [
+          "Hose",
+          "Inspection"
+        ]
       },
       {
         "id": "6.5.2-7",
-        "page": 10
+        "page": 10,
+        "taskPage": 154,
+        "topics": [
+          "Hose"
+        ]
       },
       {
         "id": "6.5.2-8",
-        "page": 10
+        "page": 10,
+        "taskPage": 155,
+        "topics": [
+          "Hose"
+        ]
       },
       {
         "id": "6.5.2-9",
-        "page": 10
+        "page": 10,
+        "taskPage": 156,
+        "topics": [
+          "Hose"
+        ]
       },
       {
         "id": "6.5.2-10",
-        "page": 10
+        "page": 10,
+        "taskPage": 157,
+        "topics": [
+          "Hose"
+        ]
       },
       {
         "id": "6.5.2-11",
-        "page": 10
+        "page": 10,
+        "taskPage": 158,
+        "topics": [
+          "Hose"
+        ]
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -592,135 +1086,252 @@
     "jprs": [
       {
         "id": "7.1.2-1",
-        "page": 4
+        "page": 4,
+        "taskPage": 6,
+        "topics": []
       },
       {
         "id": "7.1.2-2",
-        "page": 4
+        "page": 4,
+        "taskPage": 7,
+        "topics": [
+          "Command"
+        ]
       },
       {
         "id": "7.1.2-3",
-        "page": 4
+        "page": 4,
+        "taskPage": 8,
+        "topics": [
+          "Command"
+        ]
       },
       {
         "id": "7.2.1",
-        "page": 4
+        "page": 4,
+        "taskPage": 9,
+        "topics": [
+          "Communication"
+        ]
       },
       {
         "id": "7.2.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 10,
+        "topics": [
+          "Fire",
+          "Command"
+        ]
       },
       {
         "id": "7.3.1-1",
-        "page": 4
+        "page": 4,
+        "taskPage": 12,
+        "topics": []
       },
       {
         "id": "7.3.1-2",
-        "page": 4
+        "page": 4,
+        "taskPage": 13,
+        "topics": []
       },
       {
         "id": "7.3.1-3",
-        "page": 4
+        "page": 4,
+        "taskPage": 14,
+        "topics": []
       },
       {
         "id": "7.3.1-4",
-        "page": 4
+        "page": 4,
+        "taskPage": 15,
+        "topics": []
       },
       {
         "id": "7.3.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 16,
+        "topics": []
       },
       {
         "id": "7.3.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 17,
+        "topics": []
       },
       {
         "id": "7.3.4",
-        "page": 4
+        "page": 4,
+        "taskPage": 19,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "7.3.5",
-        "page": 4
+        "page": 4,
+        "taskPage": 20,
+        "topics": [
+          "Fire",
+          "Investigation"
+        ]
       },
       {
         "id": "7.4.1-1",
-        "page": 5
+        "page": 5,
+        "taskPage": 21,
+        "topics": [
+          "Vehicle",
+          "Command"
+        ]
       },
       {
         "id": "7.4.1-2",
-        "page": 5
+        "page": 5,
+        "taskPage": 23,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "7.4.1-3",
-        "page": 5
+        "page": 5,
+        "taskPage": 24,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "7.4.1-4",
-        "page": 5
+        "page": 5,
+        "taskPage": 25,
+        "topics": []
       },
       {
         "id": "7.4.1-5",
-        "page": 5
+        "page": 5,
+        "taskPage": 26,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "7.4.1-6",
-        "page": 5
+        "page": 5,
+        "taskPage": 27,
+        "topics": [
+          "Rescue",
+          "Medical"
+        ]
       },
       {
         "id": "7.4.1-7",
-        "page": 5
+        "page": 5,
+        "taskPage": 28,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "7.4.1-8",
-        "page": 5
+        "page": 5,
+        "taskPage": 29,
+        "topics": []
       },
       {
         "id": "7.4.1-9",
-        "page": 5
+        "page": 5,
+        "taskPage": 30,
+        "topics": [
+          "Collapse"
+        ]
       },
       {
         "id": "7.4.1-10",
-        "page": 5
+        "page": 5,
+        "taskPage": 31,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "7.4.2-1",
-        "page": 5
+        "page": 5,
+        "taskPage": 32,
+        "topics": []
       },
       {
         "id": "7.4.2-2",
-        "page": 5
+        "page": 5,
+        "taskPage": 33,
+        "topics": [
+          "Rescue",
+          "Equipment"
+        ]
       },
       {
         "id": "7.5.1-1",
-        "page": 5
+        "page": 5,
+        "taskPage": 34,
+        "topics": [
+          "Alarm",
+          "Maintenance"
+        ]
       },
       {
         "id": "7.5.1-2",
-        "page": 5
+        "page": 5,
+        "taskPage": 35,
+        "topics": [
+          "Fire",
+          "Safety"
+        ]
       },
       {
         "id": "7.5.2-1",
-        "page": 5
+        "page": 5,
+        "taskPage": 36,
+        "topics": [
+          "Training"
+        ]
       },
       {
         "id": "7.5.2-2",
-        "page": 5
+        "page": 5,
+        "taskPage": 37,
+        "topics": [
+          "Fire",
+          "Safety"
+        ]
       },
       {
         "id": "7.5.2-3",
-        "page": 5
+        "page": 5,
+        "taskPage": 38,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "7.5.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 39,
+        "topics": []
       },
       {
         "id": "7.5.4",
-        "page": 5
+        "page": 5,
+        "taskPage": 41,
+        "topics": []
       },
       {
         "id": "7.5.5",
-        "page": 5
+        "page": 5,
+        "taskPage": 42,
+        "topics": [
+          "Hose",
+          "Fire"
+        ]
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -737,43 +1348,77 @@
     "jprs": [
       {
         "id": "12.2.1",
-        "page": 4
+        "page": 4,
+        "taskPage": 5,
+        "topics": [
+          "Communication"
+        ]
       },
       {
         "id": "12.2.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 6,
+        "topics": [
+          "Communication"
+        ]
       },
       {
         "id": "12.3.1",
-        "page": 4
+        "page": 4,
+        "taskPage": 7,
+        "topics": []
       },
       {
         "id": "12.4.1",
-        "page": 4
+        "page": 4,
+        "taskPage": 8,
+        "topics": []
       },
       {
         "id": "12.4.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 9,
+        "topics": []
       },
       {
         "id": "12.4.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 10,
+        "topics": [
+          "Water",
+          "Pump"
+        ]
       },
       {
         "id": "12.4.4",
-        "page": 4
+        "page": 4,
+        "taskPage": 11,
+        "topics": []
       },
       {
         "id": "12.4.5",
-        "page": 4
+        "page": 4,
+        "taskPage": 12,
+        "topics": [
+          "Pump"
+        ]
       },
       {
         "id": "12.4.6",
-        "page": 4
+        "page": 4,
+        "taskPage": 13,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "12.4.7",
-        "page": 4
+        "page": 4,
+        "taskPage": 14,
+        "topics": [
+          "Water",
+          "Fire"
+        ]
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -790,139 +1435,265 @@
     "jprs": [
       {
         "id": "12.4.3-1",
-        "page": 4
+        "page": 4,
+        "taskPage": 6,
+        "topics": []
       },
       {
         "id": "12.4.3-2",
-        "page": 4
+        "page": 4,
+        "taskPage": 7,
+        "topics": [
+          "Hose",
+          "Fire"
+        ]
       },
       {
         "id": "12.4.3-3",
-        "page": 4
+        "page": 4,
+        "taskPage": 8,
+        "topics": [
+          "Hose",
+          "Fire"
+        ]
       },
       {
         "id": "12.4.3-4",
-        "page": 4
+        "page": 4,
+        "taskPage": 9,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "12.4.4-1",
-        "page": 4
+        "page": 4,
+        "taskPage": 10,
+        "topics": [
+          "Hose"
+        ]
       },
       {
         "id": "12.4.4-2",
-        "page": 4
+        "page": 4,
+        "taskPage": 11,
+        "topics": [
+          "Hose"
+        ]
       },
       {
         "id": "12.4.4-3",
-        "page": 4
+        "page": 4,
+        "taskPage": 12,
+        "topics": [
+          "Hose"
+        ]
       },
       {
         "id": "12.4.4-4",
-        "page": 4
+        "page": 4,
+        "taskPage": 13,
+        "topics": [
+          "Hose",
+          "Pump"
+        ]
       },
       {
         "id": "12.4.4-5",
-        "page": 4
+        "page": 4,
+        "taskPage": 14,
+        "topics": [
+          "Hose",
+          "Pump"
+        ]
       },
       {
         "id": "12.4.4-6",
-        "page": 4
+        "page": 4,
+        "taskPage": 15,
+        "topics": []
       },
       {
         "id": "12.4.4-7",
-        "page": 4
+        "page": 4,
+        "taskPage": 16,
+        "topics": [
+          "Hose",
+          "Pump"
+        ]
       },
       {
         "id": "12.4.4-8",
-        "page": 4
+        "page": 4,
+        "taskPage": 17,
+        "topics": [
+          "Hose",
+          "Pump"
+        ]
       },
       {
         "id": "12.4.4-9",
-        "page": 4
+        "page": 4,
+        "taskPage": 18,
+        "topics": []
       },
       {
         "id": "12.4.4-10",
-        "page": 4
+        "page": 4,
+        "taskPage": 19,
+        "topics": []
       },
       {
         "id": "12.4.4-11",
-        "page": 4
+        "page": 4,
+        "taskPage": 20,
+        "topics": []
       },
       {
         "id": "12.4.4-12",
-        "page": 4
+        "page": 4,
+        "taskPage": 21,
+        "topics": [
+          "Pump"
+        ]
       },
       {
         "id": "12.4.4-13",
-        "page": 4
+        "page": 4,
+        "taskPage": 22,
+        "topics": [
+          "Pump"
+        ]
       },
       {
         "id": "12.4.4-14",
-        "page": 4
+        "page": 4,
+        "taskPage": 23,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "12.4.4-15",
-        "page": 4
+        "page": 4,
+        "taskPage": 24,
+        "topics": [
+          "Pump"
+        ]
       },
       {
         "id": "12.4.4-16",
-        "page": 4
+        "page": 4,
+        "taskPage": 25,
+        "topics": [
+          "Pump"
+        ]
       },
       {
         "id": "12.4.4-17",
-        "page": 4
+        "page": 4,
+        "taskPage": 26,
+        "topics": []
       },
       {
         "id": "12.4.4-18",
-        "page": 4
+        "page": 4,
+        "taskPage": 27,
+        "topics": []
       },
       {
         "id": "12.4.4-19",
-        "page": 4
+        "page": 4,
+        "taskPage": 28,
+        "topics": [
+          "Water"
+        ]
       },
       {
         "id": "12.4.4-20",
-        "page": 4
+        "page": 4,
+        "taskPage": 29,
+        "topics": [
+          "Water"
+        ]
       },
       {
         "id": "12.4.4-21",
-        "page": 4
+        "page": 4,
+        "taskPage": 30,
+        "topics": [
+          "Fire",
+          "Pump"
+        ]
       },
       {
         "id": "12.4.4-22",
-        "page": 4
+        "page": 4,
+        "taskPage": 31,
+        "topics": []
       },
       {
         "id": "12.4.4-23",
-        "page": 5
+        "page": 5,
+        "taskPage": 32,
+        "topics": []
       },
       {
         "id": "12.4.4-24",
-        "page": 5
+        "page": 5,
+        "taskPage": 33,
+        "topics": [
+          "Fire",
+          "Pump"
+        ]
       },
       {
         "id": "12.4.4-25",
-        "page": 5
+        "page": 5,
+        "taskPage": 34,
+        "topics": [
+          "Water"
+        ]
       },
       {
         "id": "12.4.5",
-        "page": 5
+        "page": 5,
+        "taskPage": 35,
+        "topics": [
+          "Water"
+        ]
       },
       {
         "id": "12.4.6-1",
-        "page": 5
+        "page": 5,
+        "taskPage": 36,
+        "topics": [
+          "Water"
+        ]
       },
       {
         "id": "12.4.6-2",
-        "page": 5
+        "page": 5,
+        "taskPage": 37,
+        "topics": []
       },
       {
         "id": "12.4.6-3",
-        "page": 5
+        "page": 5,
+        "taskPage": 38,
+        "topics": [
+          "Water",
+          "Fire"
+        ]
       },
       {
         "id": "12.4.7",
-        "page": 5
+        "page": 5,
+        "taskPage": 39,
+        "topics": [
+          "Hose",
+          "Fire"
+        ]
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -939,95 +1710,162 @@
     "jprs": [
       {
         "id": "4.2.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 7,
+        "topics": []
       },
       {
         "id": "4.2.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 8,
+        "topics": []
       },
       {
         "id": "4.2.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 9,
+        "topics": [
+          "Training"
+        ]
       },
       {
         "id": "4.2.4",
-        "page": 5
+        "page": 5,
+        "taskPage": 10,
+        "topics": []
       },
       {
         "id": "4.2.5",
-        "page": 5
+        "page": 5,
+        "taskPage": 11,
+        "topics": []
       },
       {
         "id": "4.2.6",
-        "page": 5
+        "page": 5,
+        "taskPage": 12,
+        "topics": []
       },
       {
         "id": "4.3.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 13,
+        "topics": [
+          "Planning",
+          "Safety"
+        ]
       },
       {
         "id": "4.3.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 14,
+        "topics": []
       },
       {
         "id": "4.3.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 15,
+        "topics": []
       },
       {
         "id": "4.4.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 16,
+        "topics": []
       },
       {
         "id": "4.4.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 17,
+        "topics": []
       },
       {
         "id": "4.4.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 18,
+        "topics": []
       },
       {
         "id": "4.4.4",
-        "page": 5
+        "page": 5,
+        "taskPage": 19,
+        "topics": []
       },
       {
         "id": "4.4.5",
-        "page": 5
+        "page": 5,
+        "taskPage": 20,
+        "topics": []
       },
       {
         "id": "4.5.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 21,
+        "topics": [
+          "Collapse",
+          "Fire",
+          "Inspection"
+        ]
       },
       {
         "id": "4.5.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 22,
+        "topics": [
+          "Alarm"
+        ]
       },
       {
         "id": "4.5.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 23,
+        "topics": []
       },
       {
         "id": "4.6.1",
-        "page": 6
+        "page": 6,
+        "taskPage": 24,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "4.6.2",
-        "page": 6
+        "page": 6,
+        "taskPage": 25,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "4.6.3",
-        "page": 6
+        "page": 6,
+        "taskPage": 26,
+        "topics": []
       },
       {
         "id": "4.7.1",
-        "page": 6
+        "page": 6,
+        "taskPage": 27,
+        "topics": [
+          "Safety"
+        ]
       },
       {
         "id": "4.7.2",
-        "page": 6
+        "page": 6,
+        "taskPage": 28,
+        "topics": [
+          "Investigation"
+        ]
       },
       {
         "id": "4.7.3",
-        "page": 6
+        "page": 6,
+        "taskPage": 29,
+        "topics": [
+          "Medical"
+        ]
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -1044,31 +1882,60 @@
     "jprs": [
       {
         "id": "4.2.1",
-        "page": 17
+        "page": 17,
+        "taskPage": 17,
+        "topics": [
+          "Communication",
+          "Training",
+          "Safety"
+        ]
       },
       {
         "id": "4.4.5",
-        "page": 17
+        "page": 17,
+        "taskPage": 17,
+        "topics": [
+          "Communication",
+          "Training",
+          "Safety"
+        ]
       },
       {
         "id": "4.6.3",
-        "page": 17
+        "page": 17,
+        "taskPage": 17,
+        "topics": [
+          "Communication",
+          "Training",
+          "Safety"
+        ]
       },
       {
         "id": "4.2.2",
-        "page": 18
+        "page": 18,
+        "taskPage": 18,
+        "topics": []
       },
       {
         "id": "4.2.6",
-        "page": 18
+        "page": 18,
+        "taskPage": 18,
+        "topics": []
       },
       {
         "id": "4.2.3",
-        "page": 19
+        "page": 19,
+        "taskPage": 19,
+        "topics": [
+          "Training",
+          "Safety"
+        ]
       },
       {
         "id": "4.2.4",
-        "page": 20
+        "page": 20,
+        "taskPage": 20,
+        "topics": []
       },
       {
         "id": "4.2.5",
@@ -1076,63 +1943,143 @@
       },
       {
         "id": "4.3.1",
-        "page": 21
+        "page": 21,
+        "taskPage": 21,
+        "topics": []
       },
       {
         "id": "4.3.2",
-        "page": 22
+        "page": 22,
+        "taskPage": 22,
+        "topics": []
       },
       {
         "id": "4.3.3",
-        "page": 23
+        "page": 23,
+        "taskPage": 23,
+        "topics": []
       },
       {
         "id": "4.4.1",
-        "page": 24
+        "page": 24,
+        "taskPage": 24,
+        "topics": [
+          "Communication",
+          "Maintenance"
+        ]
       },
       {
         "id": "4.4.2",
-        "page": 24
+        "page": 24,
+        "taskPage": 24,
+        "topics": [
+          "Communication",
+          "Maintenance"
+        ]
       },
       {
         "id": "4.4.3",
-        "page": 25
+        "page": 25,
+        "taskPage": 25,
+        "topics": [
+          "Rope"
+        ]
       },
       {
         "id": "4.4.4",
-        "page": 26
+        "page": 26,
+        "taskPage": 26,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "4.5.1",
-        "page": 27
+        "page": 27,
+        "taskPage": 27,
+        "topics": [
+          "Rope",
+          "Collapse",
+          "Fire",
+          "Alarm",
+          "Inspection",
+          "Planning",
+          "Safety"
+        ]
       },
       {
         "id": "4.5.2",
-        "page": 27
+        "page": 27,
+        "taskPage": 27,
+        "topics": [
+          "Rope",
+          "Collapse",
+          "Fire",
+          "Alarm",
+          "Inspection",
+          "Planning",
+          "Safety"
+        ]
       },
       {
         "id": "4.5.3",
-        "page": 29
+        "page": 29,
+        "taskPage": 29,
+        "topics": [
+          "Rope",
+          "Investigation"
+        ]
       },
       {
         "id": "4.6.1",
-        "page": 30
+        "page": 30,
+        "taskPage": 30,
+        "topics": [
+          "Communication",
+          "Command",
+          "Planning"
+        ]
       },
       {
         "id": "4.6.2",
-        "page": 30
+        "page": 30,
+        "taskPage": 30,
+        "topics": [
+          "Communication",
+          "Command",
+          "Planning"
+        ]
       },
       {
         "id": "4.7.1",
-        "page": 31
+        "page": 31,
+        "taskPage": 31,
+        "topics": [
+          "Communication",
+          "Investigation",
+          "Training",
+          "Safety"
+        ]
       },
       {
         "id": "4.7.2",
-        "page": 31
+        "page": 31,
+        "taskPage": 31,
+        "topics": [
+          "Communication",
+          "Investigation",
+          "Training",
+          "Safety"
+        ]
       },
       {
         "id": "4.7.3",
-        "page": 32
+        "page": 32,
+        "taskPage": 32,
+        "topics": [
+          "Fire",
+          "Medical"
+        ]
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -1149,127 +2096,249 @@
     "jprs": [
       {
         "id": "5.2.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 7,
+        "topics": [
+          "Command"
+        ]
       },
       {
         "id": "5.2.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 8,
+        "topics": []
       },
       {
         "id": "5.2.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 9,
+        "topics": []
       },
       {
         "id": "5.2.4",
-        "page": 5
+        "page": 5,
+        "taskPage": 10,
+        "topics": [
+          "Fire",
+          "Safety"
+        ]
       },
       {
         "id": "5.2.5",
-        "page": 5
+        "page": 5,
+        "taskPage": 11,
+        "topics": []
       },
       {
         "id": "5.2.6",
-        "page": 5
+        "page": 5,
+        "taskPage": 12,
+        "topics": []
       },
       {
         "id": "5.2.7",
-        "page": 5
+        "page": 5,
+        "taskPage": 13,
+        "topics": [
+          "Safety"
+        ]
       },
       {
         "id": "5.2.8",
-        "page": 5
+        "page": 5,
+        "taskPage": 14,
+        "topics": [
+          "Vehicle",
+          "Safety"
+        ]
       },
       {
         "id": "5.2.9",
-        "page": 5
+        "page": 5,
+        "taskPage": 15,
+        "topics": [
+          "Communication"
+        ]
       },
       {
         "id": "5.2.10",
-        "page": 5
+        "page": 5,
+        "taskPage": 16,
+        "topics": []
       },
       {
         "id": "5.2.11",
-        "page": 5
+        "page": 5,
+        "taskPage": 17,
+        "topics": [
+          "Safety"
+        ]
       },
       {
         "id": "5.2.12",
-        "page": 5
+        "page": 5,
+        "taskPage": 18,
+        "topics": []
       },
       {
         "id": "5.2.13",
-        "page": 5
+        "page": 5,
+        "taskPage": 19,
+        "topics": [
+          "Safety"
+        ]
       },
       {
         "id": "5.2.14",
-        "page": 5
+        "page": 5,
+        "taskPage": 20,
+        "topics": []
       },
       {
         "id": "5.2.15",
-        "page": 5
+        "page": 5,
+        "taskPage": 21,
+        "topics": []
       },
       {
         "id": "5.3.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 22,
+        "topics": []
       },
       {
         "id": "5.3.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 23,
+        "topics": [
+          "Collapse",
+          "Fire",
+          "Communication",
+          "Safety"
+        ]
       },
       {
         "id": "5.3.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 24,
+        "topics": [
+          "Collapse",
+          "Safety"
+        ]
       },
       {
         "id": "5.3.4",
-        "page": 5
+        "page": 5,
+        "taskPage": 25,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "5.3.5",
-        "page": 5
+        "page": 5,
+        "taskPage": 26,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "5.3.6",
-        "page": 5
+        "page": 5,
+        "taskPage": 27,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "5.4.1",
-        "page": 6
+        "page": 6,
+        "taskPage": 28,
+        "topics": [
+          "Search",
+          "Rescue",
+          "Training"
+        ]
       },
       {
         "id": "5.4.2",
-        "page": 6
+        "page": 6,
+        "taskPage": 29,
+        "topics": [
+          "Planning",
+          "Safety"
+        ]
       },
       {
         "id": "5.4.3",
-        "page": 6
+        "page": 6,
+        "taskPage": 30,
+        "topics": [
+          "Search",
+          "Rescue",
+          "Safety"
+        ]
       },
       {
         "id": "5.5.1",
-        "page": 6
+        "page": 6,
+        "taskPage": 31,
+        "topics": [
+          "Hazmat",
+          "Training",
+          "Safety"
+        ]
       },
       {
         "id": "5.5.2",
-        "page": 6
+        "page": 6,
+        "taskPage": 32,
+        "topics": [
+          "Planning",
+          "Safety"
+        ]
       },
       {
         "id": "5.5.3",
-        "page": 6
+        "page": 6,
+        "taskPage": 33,
+        "topics": [
+          "Hazmat",
+          "Safety"
+        ]
       },
       {
         "id": "5.5.4",
-        "page": 6
+        "page": 6,
+        "taskPage": 34,
+        "topics": [
+          "Hazmat",
+          "Communication",
+          "Safety"
+        ]
       },
       {
         "id": "5.6.1",
-        "page": 6
+        "page": 6,
+        "taskPage": 35,
+        "topics": [
+          "Investigation",
+          "Safety"
+        ]
       },
       {
         "id": "5.7.1",
-        "page": 6
+        "page": 6,
+        "taskPage": 36,
+        "topics": []
       },
       {
         "id": "5.7.2",
-        "page": 6
+        "page": 6,
+        "taskPage": 37,
+        "topics": [
+          "Communication"
+        ]
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -1286,163 +2355,354 @@
     "jprs": [
       {
         "id": "4.2.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 8,
+        "topics": [
+          "Planning",
+          "Safety"
+        ]
       },
       {
         "id": "4.2.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 9,
+        "topics": [
+          "Planning",
+          "Safety"
+        ]
       },
       {
         "id": "4.2.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 10,
+        "topics": [
+          "Training",
+          "Planning",
+          "Safety"
+        ]
       },
       {
         "id": "4.2.4",
-        "page": 5
+        "page": 5,
+        "taskPage": 11,
+        "topics": [
+          "Planning",
+          "Safety"
+        ]
       },
       {
         "id": "4.2.5",
-        "page": 5
+        "page": 5,
+        "taskPage": 12,
+        "topics": [
+          "Planning",
+          "Medical"
+        ]
       },
       {
         "id": "4.3.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 13,
+        "topics": [
+          "Safety"
+        ]
       },
       {
         "id": "4.3.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 14,
+        "topics": [
+          "Communication",
+          "Inspection",
+          "Safety"
+        ]
       },
       {
         "id": "4.4.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 15,
+        "topics": [
+          "Fire",
+          "Safety"
+        ]
       },
       {
         "id": "4.4.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 16,
+        "topics": [
+          "Fire",
+          "Training",
+          "Safety"
+        ]
       },
       {
         "id": "4.4.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 17,
+        "topics": [
+          "Fire",
+          "Training",
+          "Safety"
+        ]
       },
       {
         "id": "4.5.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 18,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "4.5.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 19,
+        "topics": [
+          "Training",
+          "Safety"
+        ]
       },
       {
         "id": "4.5.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 20,
+        "topics": [
+          "Vehicle",
+          "Safety"
+        ]
       },
       {
         "id": "4.5.4",
-        "page": 5
+        "page": 5,
+        "taskPage": 21,
+        "topics": [
+          "Safety"
+        ]
       },
       {
         "id": "4.6.1",
-        "page": 6
+        "page": 6,
+        "taskPage": 22,
+        "topics": [
+          "Investigation",
+          "Safety"
+        ]
       },
       {
         "id": "4.6.2",
-        "page": 6
+        "page": 6,
+        "taskPage": 23,
+        "topics": [
+          "Communication",
+          "Investigation"
+        ]
       },
       {
         "id": "4.6.3",
-        "page": 6
+        "page": 6,
+        "taskPage": 24,
+        "topics": [
+          "Safety"
+        ]
       },
       {
         "id": "4.6.4",
-        "page": 6
+        "page": 6,
+        "taskPage": 25,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "4.7.1",
-        "page": 6
+        "page": 6,
+        "taskPage": 26,
+        "topics": []
       },
       {
         "id": "4.7.2",
-        "page": 6
+        "page": 6,
+        "taskPage": 27,
+        "topics": [
+          "Fire",
+          "Inspection",
+          "Maintenance"
+        ]
       },
       {
         "id": "4.7.3",
-        "page": 6
+        "page": 6,
+        "taskPage": 28,
+        "topics": [
+          "Safety",
+          "Maintenance"
+        ]
       },
       {
         "id": "4.7.4",
-        "page": 6
+        "page": 6,
+        "taskPage": 29,
+        "topics": [
+          "Fire",
+          "Communication"
+        ]
       },
       {
         "id": "4.8.1",
-        "page": 6
+        "page": 6,
+        "taskPage": 30,
+        "topics": [
+          "Fire",
+          "Safety"
+        ]
       },
       {
         "id": "4.8.2",
-        "page": 6
+        "page": 6,
+        "taskPage": 31,
+        "topics": [
+          "Safety",
+          "PPE"
+        ]
       },
       {
         "id": "4.8.3",
-        "page": 6
+        "page": 6,
+        "taskPage": 32,
+        "topics": []
       },
       {
         "id": "4.8.4",
-        "page": 6
+        "page": 6,
+        "taskPage": 33,
+        "topics": [
+          "Vehicle",
+          "Fire",
+          "Planning"
+        ]
       },
       {
         "id": "4.8.5",
-        "page": 6
+        "page": 6,
+        "taskPage": 34,
+        "topics": [
+          "Vehicle",
+          "Fire",
+          "Planning"
+        ]
       },
       {
         "id": "4.8.6",
-        "page": 6
+        "page": 6,
+        "taskPage": 35,
+        "topics": [
+          "PPE",
+          "Maintenance"
+        ]
       },
       {
         "id": "4.9.1",
-        "page": 7
+        "page": 7,
+        "taskPage": 36,
+        "topics": [
+          "Fire",
+          "Inspection",
+          "Safety"
+        ]
       },
       {
         "id": "4.9.2",
-        "page": 7
+        "page": 7,
+        "taskPage": 37,
+        "topics": [
+          "Fire",
+          "Inspection",
+          "Safety"
+        ]
       },
       {
         "id": "4.10.1",
-        "page": 7
+        "page": 7,
+        "taskPage": 38,
+        "topics": [
+          "Fire",
+          "Maintenance"
+        ]
       },
       {
         "id": "4.10.2",
-        "page": 7
+        "page": 7,
+        "taskPage": 39,
+        "topics": [
+          "Fire",
+          "Maintenance"
+        ]
       },
       {
         "id": "4.11.1",
-        "page": 7
+        "page": 7,
+        "taskPage": 40,
+        "topics": [
+          "Fire",
+          "Communication",
+          "Safety"
+        ]
       },
       {
         "id": "4.11.2",
-        "page": 7
+        "page": 7,
+        "taskPage": 41,
+        "topics": [
+          "Safety"
+        ]
       },
       {
         "id": "4.11.3",
-        "page": 7
+        "page": 7,
+        "taskPage": 42,
+        "topics": []
       },
       {
         "id": "4.11.4",
-        "page": 7
+        "page": 7,
+        "taskPage": 43,
+        "topics": [
+          "Fire",
+          "Medical"
+        ]
       },
       {
         "id": "4.11.5",
-        "page": 7
+        "page": 7,
+        "taskPage": 44,
+        "topics": [
+          "Safety"
+        ]
       },
       {
         "id": "4.12.1",
-        "page": 7
+        "page": 7,
+        "taskPage": 45,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "4.12.2",
-        "page": 7
+        "page": 7,
+        "taskPage": 46,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "4.12.3",
-        "page": 7
+        "page": 7,
+        "taskPage": 47,
+        "topics": [
+          "Fire"
+        ]
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -1459,67 +2719,115 @@
     "jprs": [
       {
         "id": "5.2.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 7,
+        "topics": []
       },
       {
         "id": "5.2.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 8,
+        "topics": []
       },
       {
         "id": "5.2.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 9,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "5.3.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 10,
+        "topics": [
+          "Safety"
+        ]
       },
       {
         "id": "5.3.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 11,
+        "topics": []
       },
       {
         "id": "5.4.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 12,
+        "topics": []
       },
       {
         "id": "5.4.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 13,
+        "topics": []
       },
       {
         "id": "5.4.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 14,
+        "topics": [
+          "Collapse"
+        ]
       },
       {
         "id": "5.4.4",
-        "page": 5
+        "page": 5,
+        "taskPage": 15,
+        "topics": []
       },
       {
         "id": "5.4.5",
-        "page": 5
+        "page": 5,
+        "taskPage": 16,
+        "topics": [
+          "Communication"
+        ]
       },
       {
         "id": "5.4.6",
-        "page": 5
+        "page": 5,
+        "taskPage": 17,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "5.5.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 18,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "5.6.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 19,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "5.6.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 20,
+        "topics": []
       },
       {
         "id": "5.6.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 21,
+        "topics": [
+          "Communication"
+        ]
       },
       {
         "id": "5.7.1",
-        "page": 6
+        "page": 6,
+        "taskPage": 22,
+        "topics": []
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -1536,59 +2844,107 @@
     "jprs": [
       {
         "id": "5.2.1",
-        "page": 16
+        "page": 16,
+        "taskPage": 16,
+        "topics": []
       },
       {
         "id": "5.2.2",
-        "page": 17
+        "page": 17,
+        "taskPage": 17,
+        "topics": []
       },
       {
         "id": "5.2.3",
-        "page": 18
+        "page": 18,
+        "taskPage": 18,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "5.3.1",
-        "page": 19
+        "page": 19,
+        "taskPage": 19,
+        "topics": []
       },
       {
         "id": "5.4.1",
-        "page": 20
+        "page": 20,
+        "taskPage": 20,
+        "topics": []
       },
       {
         "id": "5.4.2",
-        "page": 21
+        "page": 21,
+        "taskPage": 21,
+        "topics": []
       },
       {
         "id": "5.4.3",
-        "page": 22
+        "page": 22,
+        "taskPage": 22,
+        "topics": [
+          "Collapse"
+        ]
       },
       {
         "id": "5.4.4",
-        "page": 23
+        "page": 23,
+        "taskPage": 23,
+        "topics": []
       },
       {
         "id": "5.4.5",
-        "page": 24
+        "page": 24,
+        "taskPage": 24,
+        "topics": [
+          "Fire",
+          "Communication"
+        ]
       },
       {
         "id": "5.4.6",
-        "page": 25
+        "page": 25,
+        "taskPage": 25,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "5.6.1",
-        "page": 27
+        "page": 27,
+        "taskPage": 27,
+        "topics": [
+          "Inspection",
+          "Planning",
+          "Safety"
+        ]
       },
       {
         "id": "5.6.2",
-        "page": 28
+        "page": 28,
+        "taskPage": 28,
+        "topics": [
+          "Communication"
+        ]
       },
       {
         "id": "5.6.3",
-        "page": 29
+        "page": 29,
+        "taskPage": 29,
+        "topics": [
+          "Communication",
+          "Planning"
+        ]
       },
       {
         "id": "5.7.1",
-        "page": 30
+        "page": 30,
+        "taskPage": 30,
+        "topics": [
+          "Communication"
+        ]
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -1605,147 +2961,263 @@
     "jprs": [
       {
         "id": "6.2.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 8,
+        "topics": []
       },
       {
         "id": "6.2.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 9,
+        "topics": []
       },
       {
         "id": "6.2.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 10,
+        "topics": []
       },
       {
         "id": "6.2.4",
-        "page": 5
+        "page": 5,
+        "taskPage": 11,
+        "topics": [
+          "Collapse"
+        ]
       },
       {
         "id": "6.2.5",
-        "page": 5
+        "page": 5,
+        "taskPage": 12,
+        "topics": []
       },
       {
         "id": "6.2.6",
-        "page": 5
+        "page": 5,
+        "taskPage": 13,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "6.2.7",
-        "page": 5
+        "page": 5,
+        "taskPage": 14,
+        "topics": [
+          "Training"
+        ]
       },
       {
         "id": "6.3.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 15,
+        "topics": [
+          "Safety"
+        ]
       },
       {
         "id": "6.4.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 16,
+        "topics": []
       },
       {
         "id": "6.4.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 17,
+        "topics": []
       },
       {
         "id": "6.4.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 18,
+        "topics": [
+          "Collapse"
+        ]
       },
       {
         "id": "6.4.4",
-        "page": 5
+        "page": 5,
+        "taskPage": 19,
+        "topics": [
+          "Maintenance"
+        ]
       },
       {
         "id": "6.4.5",
-        "page": 5
+        "page": 5,
+        "taskPage": 20,
+        "topics": []
       },
       {
         "id": "6.4.6",
-        "page": 5
+        "page": 5,
+        "taskPage": 21,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "6.5.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 22,
+        "topics": [
+          "Inspection"
+        ]
       },
       {
         "id": "6.5.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 23,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "6.6.1",
-        "page": 6
+        "page": 6,
+        "taskPage": 24,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "6.6.2",
-        "page": 6
+        "page": 6,
+        "taskPage": 25,
+        "topics": []
       },
       {
         "id": "6.6.3",
-        "page": 6
+        "page": 6,
+        "taskPage": 26,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "6.7.1",
-        "page": 6
+        "page": 6,
+        "taskPage": 27,
+        "topics": []
       },
       {
         "id": "6.8.1",
-        "page": 6
+        "page": 6,
+        "taskPage": 28,
+        "topics": [
+          "Fire",
+          "Planning"
+        ]
       },
       {
         "id": "7.2.1",
-        "page": 6
+        "page": 6,
+        "taskPage": 29,
+        "topics": []
       },
       {
         "id": "7.2.2",
-        "page": 6
+        "page": 6,
+        "taskPage": 30,
+        "topics": []
       },
       {
         "id": "7.2.3",
-        "page": 6
+        "page": 6,
+        "taskPage": 31,
+        "topics": [
+          "Training"
+        ]
       },
       {
         "id": "7.2.4",
-        "page": 6
+        "page": 6,
+        "taskPage": 32,
+        "topics": []
       },
       {
         "id": "7.2.5",
-        "page": 6
+        "page": 6,
+        "taskPage": 33,
+        "topics": []
       },
       {
         "id": "7.3.1",
-        "page": 6
+        "page": 6,
+        "taskPage": 34,
+        "topics": []
       },
       {
         "id": "7.3.2",
-        "page": 6
+        "page": 6,
+        "taskPage": 35,
+        "topics": []
       },
       {
         "id": "7.4.1",
-        "page": 7
+        "page": 7,
+        "taskPage": 36,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "7.4.2",
-        "page": 7
+        "page": 7,
+        "taskPage": 37,
+        "topics": [
+          "Training"
+        ]
       },
       {
         "id": "7.4.3",
-        "page": 7
+        "page": 7,
+        "taskPage": 38,
+        "topics": [
+          "Safety"
+        ]
       },
       {
         "id": "7.4.4",
-        "page": 7
+        "page": 7,
+        "taskPage": 39,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "7.4.5",
-        "page": 7
+        "page": 7,
+        "taskPage": 40,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "7.6.1",
-        "page": 7
+        "page": 7,
+        "taskPage": 41,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "7.6.2",
-        "page": 7
+        "page": 7,
+        "taskPage": 42,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "7.7.1",
-        "page": 7
+        "page": 7,
+        "taskPage": 43,
+        "topics": [
+          "Safety",
+          "Maintenance"
+        ]
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -1762,287 +3234,600 @@
     "jprs": [
       {
         "id": "4.2.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 10,
+        "topics": [
+          "Planning",
+          "Safety"
+        ]
       },
       {
         "id": "4.2.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 11,
+        "topics": [
+          "Planning",
+          "Safety"
+        ]
       },
       {
         "id": "4.2.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 12,
+        "topics": [
+          "Training",
+          "Planning",
+          "Safety"
+        ]
       },
       {
         "id": "4.2.4",
-        "page": 5
+        "page": 5,
+        "taskPage": 13,
+        "topics": [
+          "Planning",
+          "Safety"
+        ]
       },
       {
         "id": "4.2.5",
-        "page": 5
+        "page": 5,
+        "taskPage": 14,
+        "topics": [
+          "Planning",
+          "Medical"
+        ]
       },
       {
         "id": "4.3.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 15,
+        "topics": [
+          "Safety"
+        ]
       },
       {
         "id": "4.3.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 16,
+        "topics": [
+          "Communication",
+          "Inspection",
+          "Safety"
+        ]
       },
       {
         "id": "4.4.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 17,
+        "topics": [
+          "Fire",
+          "Safety"
+        ]
       },
       {
         "id": "4.4.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 18,
+        "topics": [
+          "Fire",
+          "Training",
+          "Safety"
+        ]
       },
       {
         "id": "4.4.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 19,
+        "topics": [
+          "Fire",
+          "Training",
+          "Safety"
+        ]
       },
       {
         "id": "4.5.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 20,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "4.5.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 21,
+        "topics": [
+          "Training",
+          "Safety"
+        ]
       },
       {
         "id": "4.5.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 22,
+        "topics": [
+          "Vehicle",
+          "Safety"
+        ]
       },
       {
         "id": "4.5.4",
-        "page": 5
+        "page": 5,
+        "taskPage": 23,
+        "topics": [
+          "Safety"
+        ]
       },
       {
         "id": "4.6.1",
-        "page": 6
+        "page": 6,
+        "taskPage": 24,
+        "topics": [
+          "Investigation",
+          "Safety"
+        ]
       },
       {
         "id": "4.6.2",
-        "page": 6
+        "page": 6,
+        "taskPage": 25,
+        "topics": [
+          "Communication",
+          "Investigation"
+        ]
       },
       {
         "id": "4.6.3",
-        "page": 6
+        "page": 6,
+        "taskPage": 26,
+        "topics": [
+          "Safety"
+        ]
       },
       {
         "id": "4.6.4",
-        "page": 6
+        "page": 6,
+        "taskPage": 27,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "4.7.1",
-        "page": 6
+        "page": 6,
+        "taskPage": 28,
+        "topics": []
       },
       {
         "id": "4.7.2",
-        "page": 6
+        "page": 6,
+        "taskPage": 29,
+        "topics": [
+          "Fire",
+          "Inspection",
+          "Maintenance"
+        ]
       },
       {
         "id": "4.7.3",
-        "page": 6
+        "page": 6,
+        "taskPage": 30,
+        "topics": [
+          "Safety",
+          "Maintenance"
+        ]
       },
       {
         "id": "4.7.4",
-        "page": 6
+        "page": 6,
+        "taskPage": 31,
+        "topics": [
+          "Fire",
+          "Communication"
+        ]
       },
       {
         "id": "4.8.1",
-        "page": 6
+        "page": 6,
+        "taskPage": 32,
+        "topics": [
+          "Fire",
+          "Safety"
+        ]
       },
       {
         "id": "4.8.2",
-        "page": 6
+        "page": 6,
+        "taskPage": 33,
+        "topics": [
+          "Safety",
+          "PPE"
+        ]
       },
       {
         "id": "4.8.3",
-        "page": 6
+        "page": 6,
+        "taskPage": 34,
+        "topics": []
       },
       {
         "id": "4.8.4",
-        "page": 6
+        "page": 6,
+        "taskPage": 35,
+        "topics": [
+          "Vehicle",
+          "Fire",
+          "Planning"
+        ]
       },
       {
         "id": "4.8.5",
-        "page": 6
+        "page": 6,
+        "taskPage": 36,
+        "topics": [
+          "Vehicle",
+          "Fire",
+          "Planning"
+        ]
       },
       {
         "id": "4.8.6",
-        "page": 6
+        "page": 6,
+        "taskPage": 37,
+        "topics": [
+          "PPE",
+          "Maintenance"
+        ]
       },
       {
         "id": "4.9.1",
-        "page": 7
+        "page": 7,
+        "taskPage": 38,
+        "topics": [
+          "Fire",
+          "Inspection",
+          "Safety"
+        ]
       },
       {
         "id": "4.9.2",
-        "page": 7
+        "page": 7,
+        "taskPage": 39,
+        "topics": [
+          "Fire",
+          "Inspection",
+          "Safety"
+        ]
       },
       {
         "id": "4.10.1",
-        "page": 7
+        "page": 7,
+        "taskPage": 40,
+        "topics": [
+          "Fire",
+          "Maintenance"
+        ]
       },
       {
         "id": "4.10.2",
-        "page": 7
+        "page": 7,
+        "taskPage": 41,
+        "topics": [
+          "Fire",
+          "Maintenance"
+        ]
       },
       {
         "id": "4.11.1",
-        "page": 7
+        "page": 7,
+        "taskPage": 42,
+        "topics": [
+          "Fire",
+          "Communication",
+          "Safety"
+        ]
       },
       {
         "id": "4.11.2",
-        "page": 7
+        "page": 7,
+        "taskPage": 43,
+        "topics": [
+          "Safety"
+        ]
       },
       {
         "id": "4.11.3",
-        "page": 7
+        "page": 7,
+        "taskPage": 44,
+        "topics": []
       },
       {
         "id": "4.11.4",
-        "page": 7
+        "page": 7,
+        "taskPage": 45,
+        "topics": [
+          "Fire",
+          "Medical"
+        ]
       },
       {
         "id": "4.11.5",
-        "page": 7
+        "page": 7,
+        "taskPage": 46,
+        "topics": [
+          "Safety"
+        ]
       },
       {
         "id": "4.12.1",
-        "page": 7
+        "page": 7,
+        "taskPage": 47,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "4.12.2",
-        "page": 7
+        "page": 7,
+        "taskPage": 48,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "4.12.3",
-        "page": 7
+        "page": 7,
+        "taskPage": 49,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "5.2.1",
-        "page": 8
+        "page": 8,
+        "taskPage": 51,
+        "topics": [
+          "Command"
+        ]
       },
       {
         "id": "5.2.2",
-        "page": 8
+        "page": 8,
+        "taskPage": 52,
+        "topics": []
       },
       {
         "id": "5.2.3",
-        "page": 8
+        "page": 8,
+        "taskPage": 53,
+        "topics": []
       },
       {
         "id": "5.2.4",
-        "page": 8
+        "page": 8,
+        "taskPage": 54,
+        "topics": [
+          "Fire",
+          "Safety"
+        ]
       },
       {
         "id": "5.2.5",
-        "page": 8
+        "page": 8,
+        "taskPage": 55,
+        "topics": []
       },
       {
         "id": "5.2.6",
-        "page": 8
+        "page": 8,
+        "taskPage": 56,
+        "topics": []
       },
       {
         "id": "5.2.7",
-        "page": 8
+        "page": 8,
+        "taskPage": 57,
+        "topics": [
+          "Safety"
+        ]
       },
       {
         "id": "5.2.8",
-        "page": 8
+        "page": 8,
+        "taskPage": 58,
+        "topics": [
+          "Vehicle",
+          "Safety"
+        ]
       },
       {
         "id": "5.2.9",
-        "page": 8
+        "page": 8,
+        "taskPage": 59,
+        "topics": [
+          "Communication"
+        ]
       },
       {
         "id": "5.2.10",
-        "page": 8
+        "page": 8,
+        "taskPage": 60,
+        "topics": []
       },
       {
         "id": "5.2.11",
-        "page": 8
+        "page": 8,
+        "taskPage": 61,
+        "topics": [
+          "Safety"
+        ]
       },
       {
         "id": "5.2.12",
-        "page": 8
+        "page": 8,
+        "taskPage": 62,
+        "topics": []
       },
       {
         "id": "5.2.13",
-        "page": 8
+        "page": 8,
+        "taskPage": 63,
+        "topics": [
+          "Safety"
+        ]
       },
       {
         "id": "5.2.14",
-        "page": 8
+        "page": 8,
+        "taskPage": 64,
+        "topics": []
       },
       {
         "id": "5.2.15",
-        "page": 8
+        "page": 8,
+        "taskPage": 65,
+        "topics": []
       },
       {
         "id": "5.3.1",
-        "page": 8
+        "page": 8,
+        "taskPage": 66,
+        "topics": []
       },
       {
         "id": "5.3.2",
-        "page": 8
+        "page": 8,
+        "taskPage": 67,
+        "topics": [
+          "Collapse",
+          "Fire",
+          "Communication",
+          "Safety"
+        ]
       },
       {
         "id": "5.3.3",
-        "page": 8
+        "page": 8,
+        "taskPage": 68,
+        "topics": [
+          "Collapse",
+          "Safety"
+        ]
       },
       {
         "id": "5.3.4",
-        "page": 8
+        "page": 8,
+        "taskPage": 69,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "5.3.5",
-        "page": 8
+        "page": 8,
+        "taskPage": 70,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "5.3.6",
-        "page": 8
+        "page": 8,
+        "taskPage": 71,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "5.4.1",
-        "page": 9
+        "page": 9,
+        "taskPage": 72,
+        "topics": [
+          "Search",
+          "Rescue",
+          "Training"
+        ]
       },
       {
         "id": "5.4.2",
-        "page": 9
+        "page": 9,
+        "taskPage": 73,
+        "topics": [
+          "Planning",
+          "Safety"
+        ]
       },
       {
         "id": "5.4.3",
-        "page": 9
+        "page": 9,
+        "taskPage": 74,
+        "topics": [
+          "Search",
+          "Rescue",
+          "Safety"
+        ]
       },
       {
         "id": "5.5.1",
-        "page": 9
+        "page": 9,
+        "taskPage": 75,
+        "topics": [
+          "Hazmat",
+          "Training",
+          "Safety"
+        ]
       },
       {
         "id": "5.5.2",
-        "page": 9
+        "page": 9,
+        "taskPage": 76,
+        "topics": [
+          "Planning",
+          "Safety"
+        ]
       },
       {
         "id": "5.5.3",
-        "page": 9
+        "page": 9,
+        "taskPage": 77,
+        "topics": [
+          "Hazmat",
+          "Safety"
+        ]
       },
       {
         "id": "5.5.4",
-        "page": 9
+        "page": 9,
+        "taskPage": 78,
+        "topics": [
+          "Hazmat",
+          "Communication",
+          "Safety"
+        ]
       },
       {
         "id": "5.6.1",
-        "page": 9
+        "page": 9,
+        "taskPage": 79,
+        "topics": [
+          "Investigation",
+          "Safety"
+        ]
       },
       {
         "id": "5.7.1",
-        "page": 9
+        "page": 9,
+        "taskPage": 80,
+        "topics": []
       },
       {
         "id": "5.7.2",
-        "page": 9
+        "page": 9,
+        "taskPage": 81,
+        "topics": [
+          "Communication"
+        ]
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -2059,59 +3844,104 @@
     "jprs": [
       {
         "id": "4.2.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 5,
+        "topics": []
       },
       {
         "id": "4.2.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 6,
+        "topics": []
       },
       {
         "id": "4.2.4",
-        "page": 4
+        "page": 4,
+        "taskPage": 7,
+        "topics": [
+          "Training"
+        ]
       },
       {
         "id": "4.2.5",
-        "page": 4
+        "page": 4,
+        "taskPage": 8,
+        "topics": [
+          "Communication",
+          "Training"
+        ]
       },
       {
         "id": "4.3.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 9,
+        "topics": [
+          "Training"
+        ]
       },
       {
         "id": "4.3.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 10,
+        "topics": [
+          "Training",
+          "Planning"
+        ]
       },
       {
         "id": "4.4.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 11,
+        "topics": []
       },
       {
         "id": "4.4.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 12,
+        "topics": [
+          "Training"
+        ]
       },
       {
         "id": "4.4.4",
-        "page": 4
+        "page": 4,
+        "taskPage": 13,
+        "topics": []
       },
       {
         "id": "4.4.5",
-        "page": 4
+        "page": 4,
+        "taskPage": 14,
+        "topics": [
+          "Training",
+          "Equipment"
+        ]
       },
       {
         "id": "4.5.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 15,
+        "topics": []
       },
       {
         "id": "4.5.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 16,
+        "topics": []
       },
       {
         "id": "4.5.4",
-        "page": 4
+        "page": 4,
+        "taskPage": 17,
+        "topics": [
+          "Communication"
+        ]
       },
       {
         "id": "4.5.5",
-        "page": 4
+        "page": 4,
+        "taskPage": 18,
+        "topics": []
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -2128,43 +3958,79 @@
     "jprs": [
       {
         "id": "5.2.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 5,
+        "topics": [
+          "Training"
+        ]
       },
       {
         "id": "5.2.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 6,
+        "topics": []
       },
       {
         "id": "5.2.4",
-        "page": 4
+        "page": 4,
+        "taskPage": 7,
+        "topics": [
+          "Training"
+        ]
       },
       {
         "id": "5.2.5",
-        "page": 4
+        "page": 4,
+        "taskPage": 8,
+        "topics": [
+          "Training"
+        ]
       },
       {
         "id": "5.2.6",
-        "page": 4
+        "page": 4,
+        "taskPage": 9,
+        "topics": [
+          "Training"
+        ]
       },
       {
         "id": "5.3.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 10,
+        "topics": [
+          "Training",
+          "Planning"
+        ]
       },
       {
         "id": "5.4.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 11,
+        "topics": [
+          "Training",
+          "Planning"
+        ]
       },
       {
         "id": "5.4.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 12,
+        "topics": [
+          "Training"
+        ]
       },
       {
         "id": "5.5.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 13,
+        "topics": []
       },
       {
         "id": "5.5.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 14,
+        "topics": []
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -2181,67 +4047,110 @@
     "jprs": [
       {
         "id": "6.2.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 5,
+        "topics": [
+          "Training"
+        ]
       },
       {
         "id": "6.2.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 6,
+        "topics": []
       },
       {
         "id": "6.2.4",
-        "page": 4
+        "page": 4,
+        "taskPage": 7,
+        "topics": [
+          "Training"
+        ]
       },
       {
         "id": "6.2.5",
-        "page": 4
+        "page": 4,
+        "taskPage": 8,
+        "topics": [
+          "Training",
+          "Planning"
+        ]
       },
       {
         "id": "6.2.6",
-        "page": 4
+        "page": 4,
+        "taskPage": 9,
+        "topics": []
       },
       {
         "id": "6.2.7",
-        "page": 4
+        "page": 4,
+        "taskPage": 10,
+        "topics": []
       },
       {
         "id": "6.2.8",
-        "page": 4
+        "page": 4,
+        "taskPage": 11,
+        "topics": []
       },
       {
         "id": "6.3.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 12,
+        "topics": []
       },
       {
         "id": "6.3.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 13,
+        "topics": []
       },
       {
         "id": "6.3.4",
-        "page": 4
+        "page": 4,
+        "taskPage": 14,
+        "topics": []
       },
       {
         "id": "6.3.5",
-        "page": 4
+        "page": 4,
+        "taskPage": 15,
+        "topics": []
       },
       {
         "id": "6.3.6",
-        "page": 4
+        "page": 4,
+        "taskPage": 16,
+        "topics": []
       },
       {
         "id": "6.5.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 17,
+        "topics": []
       },
       {
         "id": "6.5.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 18,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "6.5.4",
-        "page": 4
+        "page": 4,
+        "taskPage": 19,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "6.5.5",
-        "page": 4
+        "page": 4,
+        "taskPage": 20,
+        "topics": []
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -2258,67 +4167,119 @@
     "jprs": [
       {
         "id": "4.2.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 5,
+        "topics": []
       },
       {
         "id": "4.2.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 6,
+        "topics": []
       },
       {
         "id": "4.2.4",
-        "page": 4
+        "page": 4,
+        "taskPage": 7,
+        "topics": [
+          "Training"
+        ]
       },
       {
         "id": "4.2.5",
-        "page": 4
+        "page": 4,
+        "taskPage": 8,
+        "topics": [
+          "Communication",
+          "Training"
+        ]
       },
       {
         "id": "5.2.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 9,
+        "topics": [
+          "Training"
+        ]
       },
       {
         "id": "5.2.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 10,
+        "topics": []
       },
       {
         "id": "5.2.4",
-        "page": 4
+        "page": 4,
+        "taskPage": 11,
+        "topics": [
+          "Training"
+        ]
       },
       {
         "id": "5.2.5",
-        "page": 4
+        "page": 4,
+        "taskPage": 12,
+        "topics": [
+          "Training"
+        ]
       },
       {
         "id": "5.2.6",
-        "page": 4
+        "page": 4,
+        "taskPage": 13,
+        "topics": [
+          "Training"
+        ]
       },
       {
         "id": "6.2.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 14,
+        "topics": [
+          "Training"
+        ]
       },
       {
         "id": "6.2.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 15,
+        "topics": []
       },
       {
         "id": "6.2.4",
-        "page": 4
+        "page": 4,
+        "taskPage": 16,
+        "topics": [
+          "Training"
+        ]
       },
       {
         "id": "6.2.5",
-        "page": 4
+        "page": 4,
+        "taskPage": 17,
+        "topics": [
+          "Training",
+          "Planning"
+        ]
       },
       {
         "id": "6.2.6",
-        "page": 4
+        "page": 4,
+        "taskPage": 18,
+        "topics": []
       },
       {
         "id": "6.2.7",
-        "page": 4
+        "page": 4,
+        "taskPage": 19,
+        "topics": []
       },
       {
         "id": "6.2.8",
-        "page": 4
+        "page": 4,
+        "taskPage": 20,
+        "topics": []
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -2335,91 +4296,175 @@
     "jprs": [
       {
         "id": "4.2.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 7,
+        "topics": [
+          "Communication",
+          "Inspection"
+        ]
       },
       {
         "id": "4.2.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 8,
+        "topics": []
       },
       {
         "id": "4.2.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 9,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "4.2.4",
-        "page": 5
+        "page": 5,
+        "taskPage": 10,
+        "topics": [
+          "Investigation"
+        ]
       },
       {
         "id": "4.2.5",
-        "page": 5
+        "page": 5,
+        "taskPage": 11,
+        "topics": [
+          "Inspection"
+        ]
       },
       {
         "id": "4.2.6",
-        "page": 5
+        "page": 5,
+        "taskPage": 12,
+        "topics": []
       },
       {
         "id": "4.3.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 13,
+        "topics": []
       },
       {
         "id": "4.3.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 14,
+        "topics": []
       },
       {
         "id": "4.3.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 15,
+        "topics": [
+          "Inspection"
+        ]
       },
       {
         "id": "4.3.4",
-        "page": 5
+        "page": 5,
+        "taskPage": 16,
+        "topics": []
       },
       {
         "id": "4.3.5",
-        "page": 5
+        "page": 5,
+        "taskPage": 17,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "4.3.6",
-        "page": 5
+        "page": 5,
+        "taskPage": 18,
+        "topics": [
+          "Fire",
+          "Alarm"
+        ]
       },
       {
         "id": "4.3.7",
-        "page": 5
+        "page": 5,
+        "taskPage": 19,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "4.3.8",
-        "page": 5
+        "page": 5,
+        "taskPage": 20,
+        "topics": [
+          "Safety"
+        ]
       },
       {
         "id": "4.3.9",
-        "page": 5
+        "page": 5,
+        "taskPage": 21,
+        "topics": [
+          "Fire",
+          "Planning"
+        ]
       },
       {
         "id": "4.3.10",
-        "page": 5
+        "page": 5,
+        "taskPage": 22,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "4.3.11",
-        "page": 5
+        "page": 5,
+        "taskPage": 23,
+        "topics": [
+          "Inspection"
+        ]
       },
       {
         "id": "4.3.12",
-        "page": 6
+        "page": 6,
+        "taskPage": 24,
+        "topics": [
+          "Inspection"
+        ]
       },
       {
         "id": "4.3.13",
-        "page": 6
+        "page": 6,
+        "taskPage": 25,
+        "topics": [
+          "Hazmat",
+          "Inspection",
+          "Safety"
+        ]
       },
       {
         "id": "4.3.14",
-        "page": 6
+        "page": 6,
+        "taskPage": 26,
+        "topics": [
+          "Fire",
+          "Safety"
+        ]
       },
       {
         "id": "4.3.15",
-        "page": 6
+        "page": 6,
+        "taskPage": 27,
+        "topics": [
+          "Inspection"
+        ]
       },
       {
         "id": "4.3.16",
-        "page": 6
+        "page": 6,
+        "taskPage": 28,
+        "topics": [
+          "Fire"
+        ]
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -2448,95 +4493,172 @@
     "jprs": [
       {
         "id": "5.2.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 7,
+        "topics": []
       },
       {
         "id": "5.2.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 8,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "5.2.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 9,
+        "topics": [
+          "Investigation"
+        ]
       },
       {
         "id": "5.2.4",
-        "page": 5
+        "page": 5,
+        "taskPage": 10,
+        "topics": [
+          "Inspection"
+        ]
       },
       {
         "id": "5.2.5",
-        "page": 5
+        "page": 5,
+        "taskPage": 11,
+        "topics": [
+          "Inspection"
+        ]
       },
       {
         "id": "5.3.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 12,
+        "topics": []
       },
       {
         "id": "5.3.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 13,
+        "topics": []
       },
       {
         "id": "5.3.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 14,
+        "topics": []
       },
       {
         "id": "5.3.4",
-        "page": 5
+        "page": 5,
+        "taskPage": 15,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "5.3.5",
-        "page": 5
+        "page": 5,
+        "taskPage": 16,
+        "topics": []
       },
       {
         "id": "5.3.6",
-        "page": 5
+        "page": 5,
+        "taskPage": 17,
+        "topics": [
+          "Safety"
+        ]
       },
       {
         "id": "5.3.7",
-        "page": 5
+        "page": 5,
+        "taskPage": 18,
+        "topics": [
+          "Planning"
+        ]
       },
       {
         "id": "5.3.8",
-        "page": 5
+        "page": 5,
+        "taskPage": 19,
+        "topics": [
+          "Inspection"
+        ]
       },
       {
         "id": "5.3.9",
-        "page": 5
+        "page": 5,
+        "taskPage": 20,
+        "topics": [
+          "Hazmat",
+          "Inspection",
+          "Safety"
+        ]
       },
       {
         "id": "5.3.10",
-        "page": 5
+        "page": 5,
+        "taskPage": 21,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "5.3.11",
-        "page": 5
+        "page": 5,
+        "taskPage": 22,
+        "topics": [
+          "Inspection"
+        ]
       },
       {
         "id": "5.3.12",
-        "page": 5
+        "page": 5,
+        "taskPage": 23,
+        "topics": [
+          "Ventilation",
+          "Inspection"
+        ]
       },
       {
         "id": "5.4.1",
-        "page": 6
+        "page": 6,
+        "taskPage": 24,
+        "topics": []
       },
       {
         "id": "5.4.2",
-        "page": 6
+        "page": 6,
+        "taskPage": 25,
+        "topics": []
       },
       {
         "id": "5.4.3",
-        "page": 6
+        "page": 6,
+        "taskPage": 26,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "5.4.4",
-        "page": 6
+        "page": 6,
+        "taskPage": 27,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "5.4.5",
-        "page": 6
+        "page": 6,
+        "taskPage": 28,
+        "topics": []
       },
       {
         "id": "5.4.6",
-        "page": 6
+        "page": 6,
+        "taskPage": 29,
+        "topics": []
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -2638,59 +4760,109 @@
     "jprs": [
       {
         "id": "4.2.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 6,
+        "topics": [
+          "Fire",
+          "Safety"
+        ]
       },
       {
         "id": "4.2.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 7,
+        "topics": [
+          "Communication"
+        ]
       },
       {
         "id": "4.2.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 8,
+        "topics": [
+          "Maintenance"
+        ]
       },
       {
         "id": "4.2.4",
-        "page": 5
+        "page": 5,
+        "taskPage": 9,
+        "topics": []
       },
       {
         "id": "4.3.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 10,
+        "topics": [
+          "Fire",
+          "Safety"
+        ]
       },
       {
         "id": "4.4.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 11,
+        "topics": [
+          "Training"
+        ]
       },
       {
         "id": "4.4.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 12,
+        "topics": [
+          "Fire",
+          "Safety"
+        ]
       },
       {
         "id": "4.4.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 13,
+        "topics": [
+          "Training"
+        ]
       },
       {
         "id": "4.4.4",
-        "page": 5
+        "page": 5,
+        "taskPage": 14,
+        "topics": [
+          "Training",
+          "Planning"
+        ]
       },
       {
         "id": "4.4.5",
-        "page": 5
+        "page": 5,
+        "taskPage": 15,
+        "topics": []
       },
       {
         "id": "4.4.6",
-        "page": 5
+        "page": 5,
+        "taskPage": 16,
+        "topics": []
       },
       {
         "id": "4.4.7",
-        "page": 5
+        "page": 5,
+        "taskPage": 17,
+        "topics": [
+          "Communication"
+        ]
       },
       {
         "id": "4.5.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 18,
+        "topics": []
       },
       {
         "id": "4.5.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 19,
+        "topics": []
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -2719,31 +4891,68 @@
     "jprs": [
       {
         "id": "5.2.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 6,
+        "topics": [
+          "Hazmat",
+          "Safety"
+        ]
       },
       {
         "id": "5.3.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 7,
+        "topics": [
+          "Hazmat",
+          "Safety"
+        ]
       },
       {
         "id": "5.4.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 8,
+        "topics": [
+          "Hazmat",
+          "Safety"
+        ]
       },
       {
         "id": "5.5.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 9,
+        "topics": [
+          "Hazmat",
+          "Safety"
+        ]
       },
       {
         "id": "5.6.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 10,
+        "topics": [
+          "Hazmat",
+          "Communication",
+          "Safety"
+        ]
       },
       {
         "id": "6.2.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 11,
+        "topics": [
+          "Hazmat",
+          "Safety",
+          "PPE"
+        ]
       },
       {
         "id": "6.6.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 12,
+        "topics": [
+          "Hazmat",
+          "Safety"
+        ]
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -2776,95 +4985,188 @@
       },
       {
         "id": "7.3.1",
-        "page": 4
+        "page": 4,
+        "taskPage": 10,
+        "topics": [
+          "Hazmat",
+          "Safety"
+        ]
       },
       {
         "id": "7.4.1",
-        "page": 4
+        "page": 4,
+        "taskPage": 11,
+        "topics": [
+          "Hazmat",
+          "Safety",
+          "Maintenance"
+        ]
       },
       {
         "id": "7.5.1",
-        "page": 4
+        "page": 4,
+        "taskPage": 12,
+        "topics": [
+          "Hazmat"
+        ]
       },
       {
         "id": "7.6.1",
-        "page": 4
+        "page": 4,
+        "taskPage": 14,
+        "topics": [
+          "Hazmat",
+          "Communication",
+          "Safety"
+        ]
       },
       {
         "id": "9.2.1-1",
-        "page": 4
+        "page": 4,
+        "taskPage": 15,
+        "topics": [
+          "PPE"
+        ]
       },
       {
         "id": "9.2.1-2",
-        "page": 4
+        "page": 4,
+        "taskPage": 16,
+        "topics": [
+          "PPE"
+        ]
       },
       {
         "id": "9.2.1-3",
-        "page": 4
+        "page": 4,
+        "taskPage": 17,
+        "topics": [
+          "PPE"
+        ]
       },
       {
         "id": "9.2.1-4",
-        "page": 4
+        "page": 4,
+        "taskPage": 18,
+        "topics": [
+          "PPE"
+        ]
       },
       {
         "id": "9.2.1-5",
-        "page": 4
+        "page": 4,
+        "taskPage": 19,
+        "topics": []
       },
       {
         "id": "9.3.1-1",
-        "page": 5
+        "page": 5,
+        "taskPage": 20,
+        "topics": [
+          "Rescue",
+          "Hazmat"
+        ]
       },
       {
         "id": "9.3.1-2",
-        "page": 5
+        "page": 5,
+        "taskPage": 21,
+        "topics": [
+          "Rescue",
+          "Hazmat"
+        ]
       },
       {
         "id": "9.4.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 22,
+        "topics": [
+          "Hazmat"
+        ]
       },
       {
         "id": "9.6.1-1",
-        "page": 5
+        "page": 5,
+        "taskPage": 23,
+        "topics": []
       },
       {
         "id": "9.6.1-2",
-        "page": 5
+        "page": 5,
+        "taskPage": 24,
+        "topics": [
+          "Hazmat",
+          "Safety"
+        ]
       },
       {
         "id": "9.6.1-3",
-        "page": 5
+        "page": 5,
+        "taskPage": 25,
+        "topics": []
       },
       {
         "id": "9.6.1-4",
-        "page": 5
+        "page": 5,
+        "taskPage": 26,
+        "topics": [
+          "Hazmat",
+          "Safety"
+        ]
       },
       {
         "id": "9.6.1-5",
-        "page": 5
+        "page": 5,
+        "taskPage": 27,
+        "topics": [
+          "Hazmat",
+          "Safety"
+        ]
       },
       {
         "id": "9.6.1-6",
-        "page": 5
+        "page": 5,
+        "taskPage": 28,
+        "topics": [
+          "Hazmat",
+          "Safety"
+        ]
       },
       {
         "id": "9.6.1-7",
-        "page": 5
+        "page": 5,
+        "taskPage": 29,
+        "topics": [
+          "Hazmat",
+          "Safety"
+        ]
       },
       {
         "id": "9.6.1-8",
-        "page": 5
+        "page": 5,
+        "taskPage": 31,
+        "topics": [
+          "Hazmat",
+          "Safety"
+        ]
       },
       {
         "id": "9.7.1-1",
-        "page": 5
+        "page": 5,
+        "taskPage": 32,
+        "topics": []
       },
       {
         "id": "9.7.1-2",
-        "page": 5
+        "page": 5,
+        "taskPage": 33,
+        "topics": []
       },
       {
         "id": "9.7.1-3",
-        "page": 5
+        "page": 5,
+        "taskPage": 34,
+        "topics": []
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -2881,47 +5183,106 @@
     "jprs": [
       {
         "id": "7.2.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 7,
+        "topics": [
+          "Hazmat",
+          "Safety"
+        ]
       },
       {
         "id": "7.2.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 9,
+        "topics": [
+          "Hazmat",
+          "Safety"
+        ]
       },
       {
         "id": "7.2.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 10,
+        "topics": [
+          "Hazmat",
+          "Safety"
+        ]
       },
       {
         "id": "7.2.4",
-        "page": 5
+        "page": 5,
+        "taskPage": 11,
+        "topics": [
+          "Hazmat",
+          "Safety"
+        ]
       },
       {
         "id": "7.2.5",
-        "page": 5
+        "page": 5,
+        "taskPage": 12,
+        "topics": [
+          "Hazmat",
+          "Safety"
+        ]
       },
       {
         "id": "7.3.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 13,
+        "topics": [
+          "Hazmat",
+          "Command",
+          "Safety"
+        ]
       },
       {
         "id": "7.3.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 14,
+        "topics": [
+          "Safety",
+          "PPE"
+        ]
       },
       {
         "id": "7.3.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 15,
+        "topics": [
+          "Hazmat",
+          "Safety"
+        ]
       },
       {
         "id": "7.3.4",
-        "page": 5
+        "page": 5,
+        "taskPage": 16,
+        "topics": [
+          "Hazmat",
+          "Planning",
+          "Safety"
+        ]
       },
       {
         "id": "7.4.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 17,
+        "topics": [
+          "Hazmat",
+          "Command",
+          "Safety"
+        ]
       },
       {
         "id": "7.4.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 18,
+        "topics": [
+          "Hazmat",
+          "Safety",
+          "PPE"
+        ]
       },
       {
         "id": "7.4.3",
@@ -2929,19 +5290,39 @@
       },
       {
         "id": "7.4.3.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 19,
+        "topics": [
+          "Hazmat",
+          "Safety"
+        ]
       },
       {
         "id": "7.4.3.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 20,
+        "topics": [
+          "Hazmat",
+          "Safety"
+        ]
       },
       {
         "id": "7.4.3.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 22,
+        "topics": [
+          "Communication",
+          "Safety"
+        ]
       },
       {
         "id": "7.4.3.4",
-        "page": 5
+        "page": 5,
+        "taskPage": 23,
+        "topics": [
+          "Hazmat",
+          "Safety"
+        ]
       },
       {
         "id": "7.4.4",
@@ -2949,19 +5330,42 @@
       },
       {
         "id": "7.4.4.1",
-        "page": 6
+        "page": 6,
+        "taskPage": 25,
+        "topics": [
+          "Rescue",
+          "Hazmat",
+          "Safety"
+        ]
       },
       {
         "id": "7.4.4.2",
-        "page": 6
+        "page": 6,
+        "taskPage": 26,
+        "topics": [
+          "Rescue",
+          "Hazmat",
+          "Safety"
+        ]
       },
       {
         "id": "7.5.1",
-        "page": 6
+        "page": 6,
+        "taskPage": 27,
+        "topics": [
+          "Hazmat",
+          "Communication",
+          "Safety"
+        ]
       },
       {
         "id": "7.6.1",
-        "page": 6
+        "page": 6,
+        "taskPage": 28,
+        "topics": [
+          "Hazmat",
+          "Safety"
+        ]
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -2978,75 +5382,143 @@
     "jprs": [
       {
         "id": "7.2.1",
-        "page": 4
+        "page": 4,
+        "taskPage": 5,
+        "topics": [
+          "Search"
+        ]
       },
       {
         "id": "7.2.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 6,
+        "topics": [
+          "Command"
+        ]
       },
       {
         "id": "7.2.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 7,
+        "topics": []
       },
       {
         "id": "7.2.4",
-        "page": 4
+        "page": 4,
+        "taskPage": 8,
+        "topics": []
       },
       {
         "id": "7.2.5",
-        "page": 4
+        "page": 4,
+        "taskPage": 9,
+        "topics": [
+          "Safety"
+        ]
       },
       {
         "id": "7.2.6",
-        "page": 4
+        "page": 4,
+        "taskPage": 10,
+        "topics": [
+          "SCBA"
+        ]
       },
       {
         "id": "7.2.7",
-        "page": 4
+        "page": 4,
+        "taskPage": 11,
+        "topics": [
+          "Respirators",
+          "Rescue"
+        ]
       },
       {
         "id": "7.2.8",
-        "page": 4
+        "page": 4,
+        "taskPage": 12,
+        "topics": []
       },
       {
         "id": "7.2.9",
-        "page": 4
+        "page": 4,
+        "taskPage": 13,
+        "topics": [
+          "Confined space"
+        ]
       },
       {
         "id": "7.2.10",
-        "page": 4
+        "page": 4,
+        "taskPage": 14,
+        "topics": [
+          "Confined space"
+        ]
       },
       {
         "id": "7.2.11",
-        "page": 4
+        "page": 4,
+        "taskPage": 15,
+        "topics": [
+          "Rescue",
+          "Confined space"
+        ]
       },
       {
         "id": "7.2.12",
-        "page": 4
+        "page": 4,
+        "taskPage": 16,
+        "topics": [
+          "Rescue",
+          "Confined space"
+        ]
       },
       {
         "id": "7.2.13",
-        "page": 4
+        "page": 4,
+        "taskPage": 17,
+        "topics": [
+          "Confined space"
+        ]
       },
       {
         "id": "7.2.14",
-        "page": 4
+        "page": 4,
+        "taskPage": 18,
+        "topics": [
+          "Confined space"
+        ]
       },
       {
         "id": "7.2.15",
-        "page": 4
+        "page": 4,
+        "taskPage": 19,
+        "topics": [
+          "Rescue"
+        ]
       },
       {
         "id": "7.2.16",
-        "page": 4
+        "page": 4,
+        "taskPage": 20,
+        "topics": [
+          "Rescue",
+          "Confined space"
+        ]
       },
       {
         "id": "7.2.17",
-        "page": 4
+        "page": 4,
+        "taskPage": 21,
+        "topics": []
       },
       {
         "id": "7.2.18",
-        "page": 4
+        "page": 4,
+        "taskPage": 22,
+        "topics": [
+          "Rescue"
+        ]
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -3063,27 +5535,56 @@
     "jprs": [
       {
         "id": "7.3.1",
-        "page": 4
+        "page": 4,
+        "taskPage": 5,
+        "topics": [
+          "Search"
+        ]
       },
       {
         "id": "7.3.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 6,
+        "topics": [
+          "Confined space",
+          "Planning"
+        ]
       },
       {
         "id": "7.3.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 7,
+        "topics": [
+          "Respirators",
+          "Rescue"
+        ]
       },
       {
         "id": "7.3.4",
-        "page": 4
+        "page": 4,
+        "taskPage": 8,
+        "topics": [
+          "Rescue",
+          "Collapse"
+        ]
       },
       {
         "id": "7.3.5",
-        "page": 4
+        "page": 4,
+        "taskPage": 9,
+        "topics": [
+          "Confined space",
+          "Safety"
+        ]
       },
       {
         "id": "7.3.6",
-        "page": 4
+        "page": 4,
+        "taskPage": 10,
+        "topics": [
+          "Confined space",
+          "Safety"
+        ]
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -3100,35 +5601,70 @@
     "jprs": [
       {
         "id": "12.2.1",
-        "page": 4
+        "page": 4,
+        "taskPage": 5,
+        "topics": [
+          "Safety"
+        ]
       },
       {
         "id": "12.2.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 6,
+        "topics": [
+          "Planning",
+          "Safety"
+        ]
       },
       {
         "id": "12.2.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 7,
+        "topics": [
+          "Collapse",
+          "Planning"
+        ]
       },
       {
         "id": "12.2.4",
-        "page": 4
+        "page": 4,
+        "taskPage": 8,
+        "topics": [
+          "Trench",
+          "Collapse",
+          "Planning"
+        ]
       },
       {
         "id": "12.2.5",
-        "page": 4
+        "page": 4,
+        "taskPage": 9,
+        "topics": [
+          "Rescue"
+        ]
       },
       {
         "id": "12.2.6",
-        "page": 4
+        "page": 4,
+        "taskPage": 10,
+        "topics": [
+          "Rescue",
+          "Trench"
+        ]
       },
       {
         "id": "12.2.7",
-        "page": 4
+        "page": 4,
+        "taskPage": 11,
+        "topics": []
       },
       {
         "id": "12.2.8",
-        "page": 4
+        "page": 4,
+        "taskPage": 12,
+        "topics": [
+          "Rescue"
+        ]
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -3145,47 +5681,94 @@
     "jprs": [
       {
         "id": "12.3.1",
-        "page": 4
+        "page": 4,
+        "taskPage": 5,
+        "topics": [
+          "Trench",
+          "Collapse",
+          "Planning"
+        ]
       },
       {
         "id": "12.3.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 6,
+        "topics": [
+          "Trench",
+          "Collapse",
+          "Planning"
+        ]
       },
       {
         "id": "12.3.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 7,
+        "topics": [
+          "Collapse",
+          "Planning"
+        ]
       },
       {
         "id": "12.3.4",
-        "page": 4
+        "page": 4,
+        "taskPage": 8,
+        "topics": [
+          "Trench",
+          "Collapse",
+          "Planning"
+        ]
       },
       {
         "id": "12.3.5",
-        "page": 4
+        "page": 4,
+        "taskPage": 9,
+        "topics": [
+          "Trench"
+        ]
       },
       {
         "id": "12.3.6",
-        "page": 4
+        "page": 4,
+        "taskPage": 10,
+        "topics": [
+          "Collapse"
+        ]
       },
       {
         "id": "12.3.7",
-        "page": 4
+        "page": 4,
+        "taskPage": 11,
+        "topics": [
+          "Collapse"
+        ]
       },
       {
         "id": "12.3.8",
-        "page": 4
+        "page": 4,
+        "taskPage": 12,
+        "topics": []
       },
       {
         "id": "12.3.9",
-        "page": 4
+        "page": 4,
+        "taskPage": 13,
+        "topics": [
+          "Collapse"
+        ]
       },
       {
         "id": "12.3.10",
-        "page": 4
+        "page": 4,
+        "taskPage": 14,
+        "topics": []
       },
       {
         "id": "12.3.11",
-        "page": 4
+        "page": 4,
+        "taskPage": 15,
+        "topics": [
+          "Rescue"
+        ]
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -3202,63 +5785,129 @@
     "jprs": [
       {
         "id": "6.2.1",
-        "page": 4
+        "page": 4,
+        "taskPage": 5,
+        "topics": [
+          "Command"
+        ]
       },
       {
         "id": "6.2.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 6,
+        "topics": [
+          "Rescue"
+        ]
       },
       {
         "id": "6.2.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 7,
+        "topics": [
+          "Rescue",
+          "Collapse",
+          "Command",
+          "Planning"
+        ]
       },
       {
         "id": "6.2.4",
-        "page": 4
+        "page": 4,
+        "taskPage": 8,
+        "topics": [
+          "Command",
+          "Planning"
+        ]
       },
       {
         "id": "6.2.5",
-        "page": 4
+        "page": 4,
+        "taskPage": 9,
+        "topics": [
+          "Search",
+          "Collapse"
+        ]
       },
       {
         "id": "6.2.6",
-        "page": 4
+        "page": 4,
+        "taskPage": 10,
+        "topics": [
+          "Collapse"
+        ]
       },
       {
         "id": "6.2.7",
-        "page": 4
+        "page": 4,
+        "taskPage": 11,
+        "topics": [
+          "Rescue",
+          "Collapse"
+        ]
       },
       {
         "id": "6.2.8",
-        "page": 4
+        "page": 4,
+        "taskPage": 12,
+        "topics": [
+          "Rescue",
+          "Collapse"
+        ]
       },
       {
         "id": "6.2.9",
-        "page": 4
+        "page": 4,
+        "taskPage": 13,
+        "topics": [
+          "Collapse"
+        ]
       },
       {
         "id": "6.2.10",
-        "page": 4
+        "page": 4,
+        "taskPage": 14,
+        "topics": []
       },
       {
         "id": "6.2.11",
-        "page": 4
+        "page": 4,
+        "taskPage": 15,
+        "topics": [
+          "Collapse"
+        ]
       },
       {
         "id": "6.2.12",
-        "page": 4
+        "page": 4,
+        "taskPage": 16,
+        "topics": [
+          "Collapse"
+        ]
       },
       {
         "id": "6.2.13",
-        "page": 4
+        "page": 4,
+        "taskPage": 17,
+        "topics": [
+          "Safety",
+          "PPE",
+          "Maintenance"
+        ]
       },
       {
         "id": "6.2.14",
-        "page": 4
+        "page": 4,
+        "taskPage": 18,
+        "topics": [
+          "Rescue",
+          "Maintenance"
+        ]
       },
       {
         "id": "6.2.15",
-        "page": 4
+        "page": 4,
+        "taskPage": 19,
+        "topics": []
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -3275,63 +5924,124 @@
     "jprs": [
       {
         "id": "6.3.1",
-        "page": 4
+        "page": 4,
+        "taskPage": 5,
+        "topics": [
+          "Command"
+        ]
       },
       {
         "id": "6.3.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 6,
+        "topics": [
+          "Rescue"
+        ]
       },
       {
         "id": "6.3.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 7,
+        "topics": [
+          "Rescue",
+          "Collapse",
+          "Command",
+          "Planning"
+        ]
       },
       {
         "id": "6.3.4",
-        "page": 4
+        "page": 4,
+        "taskPage": 8,
+        "topics": [
+          "Rescue",
+          "Collapse",
+          "Command",
+          "Planning"
+        ]
       },
       {
         "id": "6.3.5",
-        "page": 4
+        "page": 4,
+        "taskPage": 9,
+        "topics": [
+          "Search",
+          "Collapse"
+        ]
       },
       {
         "id": "6.3.6",
-        "page": 4
+        "page": 4,
+        "taskPage": 10,
+        "topics": [
+          "Collapse"
+        ]
       },
       {
         "id": "6.3.7",
-        "page": 4
+        "page": 4,
+        "taskPage": 11,
+        "topics": [
+          "Rescue"
+        ]
       },
       {
         "id": "6.3.8",
-        "page": 4
+        "page": 4,
+        "taskPage": 12,
+        "topics": [
+          "Rescue"
+        ]
       },
       {
         "id": "6.3.9",
-        "page": 4
+        "page": 4,
+        "taskPage": 13,
+        "topics": [
+          "Collapse"
+        ]
       },
       {
         "id": "6.3.10",
-        "page": 4
+        "page": 4,
+        "taskPage": 14,
+        "topics": []
       },
       {
         "id": "6.3.11",
-        "page": 4
+        "page": 4,
+        "taskPage": 15,
+        "topics": [
+          "Collapse"
+        ]
       },
       {
         "id": "6.3.12",
-        "page": 4
+        "page": 4,
+        "taskPage": 16,
+        "topics": [
+          "Collapse"
+        ]
       },
       {
         "id": "6.3.13",
-        "page": 4
+        "page": 4,
+        "taskPage": 17,
+        "topics": [
+          "Collapse"
+        ]
       },
       {
         "id": "6.3.14",
-        "page": 4
+        "page": 4,
+        "taskPage": 18,
+        "topics": []
       },
       {
         "id": "6.3.15",
-        "page": 4
+        "page": 4,
+        "taskPage": 19,
+        "topics": []
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -3348,179 +6058,355 @@
     "jprs": [
       {
         "id": "8.1.1",
-        "page": 4
+        "page": 4,
+        "taskPage": 6,
+        "topics": [
+          "Vehicle",
+          "Safety"
+        ]
       },
       {
         "id": "8.1.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 7,
+        "topics": [
+          "Vehicle",
+          "Command"
+        ]
       },
       {
         "id": "8.1.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 7,
+        "topics": [
+          "Vehicle",
+          "Command"
+        ]
       },
       {
         "id": "8.1.4",
-        "page": 4
+        "page": 4,
+        "taskPage": 7,
+        "topics": [
+          "Vehicle",
+          "Command"
+        ]
       },
       {
         "id": "8.1.5",
-        "page": 4
+        "page": 4,
+        "taskPage": 9,
+        "topics": [
+          "Rescue",
+          "Vehicle"
+        ]
       },
       {
         "id": "8.2.1",
-        "page": 4
+        "page": 4,
+        "taskPage": 10,
+        "topics": [
+          "Vehicle",
+          "Command",
+          "Planning"
+        ]
       },
       {
         "id": "8.3.4",
-        "page": 4
+        "page": 4,
+        "taskPage": 10,
+        "topics": [
+          "Vehicle",
+          "Command",
+          "Planning"
+        ]
       },
       {
         "id": "8.3.7",
-        "page": 4
+        "page": 4,
+        "taskPage": 10,
+        "topics": [
+          "Vehicle",
+          "Command",
+          "Planning"
+        ]
       },
       {
         "id": "8.2.2-1",
-        "page": 4
+        "page": 4,
+        "taskPage": 11,
+        "topics": [
+          "Hose",
+          "Vehicle",
+          "Fire"
+        ]
       },
       {
         "id": "8.2.2-2",
-        "page": 4
+        "page": 4,
+        "taskPage": 12,
+        "topics": [
+          "Vehicle",
+          "Fire"
+        ]
       },
       {
         "id": "8.2.3-1",
-        "page": 4
+        "page": 4,
+        "taskPage": 13,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "8.2.3-2",
-        "page": 4
+        "page": 4,
+        "taskPage": 14,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "8.2.3-3",
-        "page": 4
+        "page": 4,
+        "taskPage": 15,
+        "topics": [
+          "Collapse",
+          "Vehicle"
+        ]
       },
       {
         "id": "8.2.3-4",
-        "page": 4
+        "page": 4,
+        "taskPage": 16,
+        "topics": [
+          "Collapse",
+          "Vehicle"
+        ]
       },
       {
         "id": "8.2.3-5",
-        "page": 4
+        "page": 4,
+        "taskPage": 17,
+        "topics": [
+          "Collapse",
+          "Vehicle"
+        ]
       },
       {
         "id": "8.2.3-6",
-        "page": 4
+        "page": 4,
+        "taskPage": 18,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "8.2.4-1",
-        "page": 4
+        "page": 4,
+        "taskPage": 19,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "8.2.4-2",
-        "page": 4
+        "page": 4,
+        "taskPage": 20,
+        "topics": []
       },
       {
         "id": "8.2.5",
-        "page": 4
+        "page": 4,
+        "taskPage": 21,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "8.2.6-1",
-        "page": 4
+        "page": 4,
+        "taskPage": 22,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "8.2.6-2",
-        "page": 4
+        "page": 4,
+        "taskPage": 23,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "8.2.6-3",
-        "page": 4
+        "page": 4,
+        "taskPage": 24,
+        "topics": []
       },
       {
         "id": "8.2.6-4",
-        "page": 4
+        "page": 4,
+        "taskPage": 25,
+        "topics": [
+          "Equipment"
+        ]
       },
       {
         "id": "8.2.6-5",
-        "page": 4
+        "page": 4,
+        "taskPage": 26,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "8.2.6-6",
-        "page": 4
+        "page": 4,
+        "taskPage": 27,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "8.2.6-7",
-        "page": 5
+        "page": 5,
+        "taskPage": 28,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "8.2.6-8",
-        "page": 5
+        "page": 5,
+        "taskPage": 29,
+        "topics": []
       },
       {
         "id": "8.2.6-9",
-        "page": 5
+        "page": 5,
+        "taskPage": 30,
+        "topics": []
       },
       {
         "id": "8.2.6-10",
-        "page": 5
+        "page": 5,
+        "taskPage": 31,
+        "topics": []
       },
       {
         "id": "8.2.6-11",
-        "page": 5
+        "page": 5,
+        "taskPage": 32,
+        "topics": []
       },
       {
         "id": "8.2.6-12",
-        "page": 5
+        "page": 5,
+        "taskPage": 33,
+        "topics": [
+          "Collapse"
+        ]
       },
       {
         "id": "8.2.6-13",
-        "page": 5
+        "page": 5,
+        "taskPage": 34,
+        "topics": []
       },
       {
         "id": "8.2.7",
-        "page": 5
+        "page": 5,
+        "taskPage": 35,
+        "topics": []
       },
       {
         "id": "8.2.8",
-        "page": 5
+        "page": 5,
+        "taskPage": 36,
+        "topics": [
+          "Rescue"
+        ]
       },
       {
         "id": "8.2.9",
-        "page": 5
+        "page": 5,
+        "taskPage": 37,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "8.3.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 38,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "8.3.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 38,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "8.3.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 39,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "8.3.5-1",
-        "page": 5
+        "page": 5,
+        "taskPage": 40,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "8.3.5-2",
-        "page": 5
+        "page": 5,
+        "taskPage": 41,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "8.3.6-1",
-        "page": 5
+        "page": 5,
+        "taskPage": 42,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "8.3.6-2",
-        "page": 5
+        "page": 5,
+        "taskPage": 43,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "8.3.8",
-        "page": 5
+        "page": 5,
+        "taskPage": 44,
+        "topics": [
+          "Collapse",
+          "Vehicle"
+        ]
       },
       {
         "id": "8.3.9",
-        "page": 5
+        "page": 5,
+        "taskPage": 45,
+        "topics": []
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -3537,35 +6423,61 @@
     "jprs": [
       {
         "id": "6.1.1",
-        "page": 4
+        "page": 4,
+        "taskPage": 5,
+        "topics": []
       },
       {
         "id": "6.1.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 6,
+        "topics": []
       },
       {
         "id": "6.1.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 7,
+        "topics": []
       },
       {
         "id": "6.1.4",
-        "page": 4
+        "page": 4,
+        "taskPage": 8,
+        "topics": [
+          "Rope"
+        ]
       },
       {
         "id": "6.1.5",
-        "page": 4
+        "page": 4,
+        "taskPage": 9,
+        "topics": [
+          "Rope"
+        ]
       },
       {
         "id": "6.1.6",
-        "page": 4
+        "page": 4,
+        "taskPage": 10,
+        "topics": [
+          "Rope"
+        ]
       },
       {
         "id": "6.1.7",
-        "page": 4
+        "page": 4,
+        "taskPage": 11,
+        "topics": [
+          "Rope"
+        ]
       },
       {
         "id": "6.1.8",
-        "page": 4
+        "page": 4,
+        "taskPage": 13,
+        "topics": [
+          "Rope"
+        ]
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -3582,43 +6494,78 @@
     "jprs": [
       {
         "id": "4.2.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 6,
+        "topics": []
       },
       {
         "id": "4.2.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 7,
+        "topics": []
       },
       {
         "id": "4.3.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 8,
+        "topics": [
+          "Fire",
+          "Driving"
+        ]
       },
       {
         "id": "4.3.2",
-        "page": 5
+        "page": 5,
+        "taskPage": 9,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "4.3.3",
-        "page": 5
+        "page": 5,
+        "taskPage": 10,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "4.3.4",
-        "page": 5
+        "page": 5,
+        "taskPage": 11,
+        "topics": [
+          "Confined space",
+          "Fire"
+        ]
       },
       {
         "id": "4.3.5",
-        "page": 5
+        "page": 5,
+        "taskPage": 12,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "4.3.6",
-        "page": 5
+        "page": 5,
+        "taskPage": 13,
+        "topics": [
+          "Vehicle",
+          "Driving"
+        ]
       },
       {
         "id": "4.3.7",
-        "page": 5
+        "page": 5,
+        "taskPage": 14,
+        "topics": []
       },
       {
         "id": "5.1.1",
-        "page": 5
+        "page": 5,
+        "taskPage": 15,
+        "topics": []
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -3635,47 +6582,85 @@
     "jprs": [
       {
         "id": "11.2.1-1",
-        "page": 4
+        "page": 4,
+        "taskPage": 5,
+        "topics": []
       },
       {
         "id": "11.2.1-2",
-        "page": 4
+        "page": 4,
+        "taskPage": 6,
+        "topics": []
       },
       {
         "id": "11.2.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 7,
+        "topics": []
       },
       {
         "id": "11.3.1-1",
-        "page": 4
+        "page": 4,
+        "taskPage": 8,
+        "topics": [
+          "Fire",
+          "Driving"
+        ]
       },
       {
         "id": "11.3.1-2",
-        "page": 4
+        "page": 4,
+        "taskPage": 9,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "11.3.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 10,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "11.3.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 11,
+        "topics": [
+          "Vehicle"
+        ]
       },
       {
         "id": "11.3.4",
-        "page": 4
+        "page": 4,
+        "taskPage": 12,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "11.3.5",
-        "page": 4
+        "page": 4,
+        "taskPage": 13,
+        "topics": [
+          "Fire"
+        ]
       },
       {
         "id": "11.3.6",
-        "page": 4
+        "page": 4,
+        "taskPage": 14,
+        "topics": [
+          "Vehicle",
+          "Driving"
+        ]
       },
       {
         "id": "11.3.7",
-        "page": 4
+        "page": 4,
+        "taskPage": 15,
+        "topics": []
       }
     ],
     "reviewedAt": "2026-09-24"
@@ -3692,47 +6677,87 @@
     "jprs": [
       {
         "id": "5.3.1",
-        "page": 4
+        "page": 4,
+        "taskPage": 5,
+        "topics": [
+          "Rescue"
+        ]
       },
       {
         "id": "5.3.2",
-        "page": 4
+        "page": 4,
+        "taskPage": 6,
+        "topics": [
+          "Rescue",
+          "Rope"
+        ]
       },
       {
         "id": "5.3.3",
-        "page": 4
+        "page": 4,
+        "taskPage": 7,
+        "topics": [
+          "Rescue",
+          "Rope"
+        ]
       },
       {
         "id": "5.3.4",
-        "page": 4
+        "page": 4,
+        "taskPage": 8,
+        "topics": []
       },
       {
         "id": "5.3.5",
-        "page": 4
+        "page": 4,
+        "taskPage": 9,
+        "topics": [
+          "Rescue",
+          "Rope"
+        ]
       },
       {
         "id": "5.3.6",
-        "page": 4
+        "page": 4,
+        "taskPage": 10,
+        "topics": [
+          "Rescue",
+          "Rope"
+        ]
       },
       {
         "id": "5.3.7",
-        "page": 4
+        "page": 4,
+        "taskPage": 11,
+        "topics": []
       },
       {
         "id": "5.3.8",
-        "page": 4
+        "page": 4,
+        "taskPage": 12,
+        "topics": []
       },
       {
         "id": "5.3.9",
-        "page": 4
+        "page": 4,
+        "taskPage": 13,
+        "topics": [
+          "Rope"
+        ]
       },
       {
         "id": "5.3.10",
-        "page": 4
+        "page": 4,
+        "taskPage": 14,
+        "topics": [
+          "Rope"
+        ]
       },
       {
         "id": "5.3.11",
-        "page": 4
+        "page": 4,
+        "taskPage": 15,
+        "topics": []
       }
     ],
     "reviewedAt": "2026-09-24"

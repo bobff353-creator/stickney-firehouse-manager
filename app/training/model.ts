@@ -1,4 +1,5 @@
 import { certificationCatalog } from './osfm-catalog';
+import { normalizeOsfmSelections,taskReference } from './osfm-selection';
 
 export const trainingKinds = ['activity','completion','assignment','credential','proficiency','group','resource'] as const;
 export type TrainingKind = typeof trainingKinds[number];
@@ -12,6 +13,7 @@ export type TrainingData = {
   jpr: string; sourcePage: string; evaluator: string; method: string; result: string;
   points: number | null; pointsBasis: string; test: boolean; verified: boolean;
   fields: TrainingField[]; answers: Record<string,string>; attendance: Record<string,number>;
+  osfmTaskIds: string[]; osfmBookHashes: Record<string,string>;
   requiredJprs: string[]; receipt: string; submissionDate: string; reviewNote: string;
 };
 export type TrainingRecord = { id: string; kind: TrainingKind; data: TrainingData; version: number; archived: boolean; createdAt: string; updatedAt: string; updatedBy: string };
@@ -21,7 +23,7 @@ export type TrainingSnapshot = { records: TrainingRecord[]; members: TrainingMem
 export const categories = ['Company training','Driver / operator','Officer development','EMS','Hazardous materials','Technical rescue','Fire prevention / inspection','Instructor development','Health and safety','Compliance','New member onboarding','Facility / live fire','Fire investigation','Communications','Traffic incident management','Mental health','Other'];
 export const todayChicago = () => new Intl.DateTimeFormat('en-CA', { timeZone:'America/Chicago', year:'numeric',month:'2-digit',day:'2-digit' }).format(new Date());
 export function emptyTrainingData(): TrainingData {
-  return { title:'',category:'Company training',description:'',date:'',dueDate:'',startTime:'',hours:null,instructor:'',location:'',employeeIds:[],activityId:'',assignmentId:'',credentialId:'',certificationId:'',status:'draft',delivery:'Hands-on',sourceUrl:'',sourceEdition:'',externalId:'',cycleStart:'',issuedDate:'',credentialNumber:'',jpr:'',sourcePage:'',evaluator:'',method:'Training',result:'Practiced',points:null,pointsBasis:'',test:false,verified:false,fields:[],answers:{},attendance:{},requiredJprs:[],receipt:'',submissionDate:'',reviewNote:'' };
+  return { title:'',category:'Company training',description:'',date:'',dueDate:'',startTime:'',hours:null,instructor:'',location:'',employeeIds:[],activityId:'',assignmentId:'',credentialId:'',certificationId:'',status:'draft',delivery:'Hands-on',sourceUrl:'',sourceEdition:'',externalId:'',cycleStart:'',issuedDate:'',credentialNumber:'',jpr:'',sourcePage:'',evaluator:'',method:'Training',result:'Practiced',points:null,pointsBasis:'',test:false,verified:false,fields:[],answers:{},attendance:{},osfmTaskIds:[],osfmBookHashes:{},requiredJprs:[],receipt:'',submissionDate:'',reviewNote:'' };
 }
 export function validDate(value: string) { const d=new Date(value+'T12:00:00Z');return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(d.getTime()) && d.toISOString().slice(0,10)===value; }
 export function shiftDate(date: string, days: number) { const d=new Date(date+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10); }
@@ -35,6 +37,8 @@ export function normalizeTrainingData(input: unknown): TrainingData {
   }
   out.status=['draft','saved','completed'].includes(String(raw.status))?raw.status as TrainingData['status']:'draft';
   out.test=raw.test===true;out.verified=raw.verified===true;
+  const selection=normalizeOsfmSelections(raw.osfmTaskIds,raw.osfmBookHashes);
+  out.osfmTaskIds=selection.ids;out.osfmBookHashes=selection.fingerprints;
   for(const key of ['hours','points'] as const) { const n=raw[key]; out[key]=n===null||n===undefined||n===''?null:Number(n); if(out[key]!==null && (!Number.isFinite(out[key]) || out[key]!<0 || out[key]!>10000))throw new Error(`Enter a valid ${key} value.`); }
   for(const key of ['employeeIds','requiredJprs'] as const) out[key]=[...new Set((Array.isArray(raw[key])?raw[key]:[]).map(String).map(s=>s.trim()).filter(Boolean))].slice(0,500);
   out.fields=(Array.isArray(raw.fields)?raw.fields:[]).slice(0,40).map((f:Record<string,unknown>)=>({id:String(f.id??'').slice(0,80),label:String(f.label??'').trim().slice(0,160),type:['text','number','date','choice','yes-no'].includes(String(f.type))?f.type as TrainingField['type']:'text',options:(Array.isArray(f.options)?f.options:[]).map(String).map(s=>s.trim().slice(0,120)).filter(Boolean).slice(0,50),required:f.required===true}));
@@ -98,7 +102,7 @@ export function deadlineLabel(due:string,today=todayChicago()) {
 }
 export function csvCell(value:unknown) { let s=String(value??'');if(/^[\s]*[=+@-]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"'; }
 export function trainingCsv(records:TrainingRecord[], members:TrainingMember[]) {
-  const rows:unknown[][]=[['Record ID','Training','Member','Date','Hours','Instructor / provider','Location','Category','Assignment ID','Source','Recorded by']];
-  for(const r of records.filter(r=>r.kind==='completion'&&!r.archived&&!r.data.test&&r.data.status==='completed'))for(const id of r.data.employeeIds)rows.push([r.id,r.data.title,members.find(m=>m.id===id)?.name??id,r.data.date,r.data.attendance[id]??r.data.hours,r.data.instructor,r.data.location,r.data.category,r.data.assignmentId,r.data.sourceUrl,r.updatedBy]);
+  const rows:unknown[][]=[['Record ID','Training','Member','Date','Hours','Instructor / provider','Location','Category','Assignment ID','Source','Recorded by','OSFM tasks / references']];
+  for(const r of records.filter(r=>r.kind==='completion'&&!r.archived&&!r.data.test&&r.data.status==='completed'))for(const id of r.data.employeeIds)rows.push([r.id,r.data.title,members.find(m=>m.id===id)?.name??id,r.data.date,r.data.attendance[id]??r.data.hours,r.data.instructor,r.data.location,r.data.category,r.data.assignmentId,r.data.sourceUrl,r.updatedBy,(r.data.osfmTaskIds??[]).map(id=>taskReference(id)?.label??id).join('; ')]);
   return rows.map(row=>row.map(csvCell).join(',')).join('\r\n');
 }

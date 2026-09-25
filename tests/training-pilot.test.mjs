@@ -36,3 +36,79 @@ test('initial and custom credentials never receive the OSFM recertification grac
 test('test relationships and a wrong certification cannot create real task credit',()=>{const a=record('activity',data({test:true,title:'test/training',status:'saved'}),'test-activity');assert.throws(()=>model.validateTraining('completion',data({activityId:a.id}),[a],[member]));const c=record('credential',data({status:'saved',certificationId:'il-353',cycleStart:'2026-01-01'}),'credential');assert.throws(()=>model.validateTraining('proficiency',data({status:'saved',credentialId:c.id,certificationId:'il-352',jpr:'7.3.1',sourceUrl:'https://sfm.illinois.gov/book.pdf',sourcePage:'4',sourceEdition:'2021'}),[c],[member]));});
 
 test('attachment upload and download deny other accounts before database or storage use',async()=>{const never=async()=>{throw Error('must not reach backend');};const load=loader({[resolve('db/bootstrap.ts')]:{ensureDatabase:never},[resolve('app/supabase-server.ts')]:{getSupabaseServerClient:never}});const upload=load('app/api/training/files/route.ts'),download=load('app/api/training/files/[id]/route.ts');const headers={'oai-authenticated-user-email':'another-admin@example.invalid','x-department-id':'fixture-department'};assert.equal((await upload.POST(new Request('http://localhost/api/training/files',{method:'POST',headers}))).status,403);assert.equal((await download.GET(new Request('http://localhost/api/training/files/private-file',{headers}),{params:Promise.resolve({id:'private-file'})})).status,403);});
+
+function attachmentHarness(){
+  const files=new Map(),metadata=[],operations=[];
+  let failMetadata=false,recordExists=true;
+  const db={prepare(sql){return{bind(...args){return{
+    async first(){operations.push('read');if(sql.includes('training_pilot_records'))return recordExists?{id:'fixture-record'}:null;const row=metadata.find(r=>r.id===args[1]&&r.department===args[0]);return row?{objectKey:row.key,filename:row.filename,contentType:row.type}:null;},
+    async run(){if(failMetadata)throw Error('Simulated metadata failure');const[id,department,recordId,key,filename,type,size]=args;metadata.push({id,department,recordId,key,filename,type,size});return{success:true};},
+  };}};}};
+  const storage={from(bucket){assert.equal(bucket,'stickney-training-pilot');return{
+    async upload(key,bytes,options){operations.push('upload');assert.equal(options.upsert,false);files.set(key,bytes);return{error:null};},
+    async remove(keys){operations.push('remove');for(const key of keys)files.delete(key);return{error:null};},
+    async download(key){operations.push('download');return files.has(key)?{data:new Blob([files.get(key)]),error:null}:{data:null,error:{message:'missing'}};},
+  };}};
+  const load=loader({[resolve('db/bootstrap.ts')]:{ensureDatabase:async()=>db},[resolve('app/supabase-server.ts')]:{getSupabaseServerClient:async()=>({storage})}});
+  const headers={'oai-authenticated-user-email':'bobff353@gmail.com','x-department-id':'fixture-department',origin:'http://localhost'};
+  return{upload:load('app/api/training/files/route.ts'),download:load('app/api/training/files/[id]/route.ts'),files,metadata,operations,
+    request(content='%PDF-1.7\nPublic fictional PDF',type='application/pdf'){const body=new FormData();body.set('recordId','fixture-record');body.set('file',new File([content],'reference.pdf',{type}));return new Request('http://localhost/api/training/files',{method:'POST',headers,body});},
+    readRequest(department='fixture-department'){return new Request('http://localhost/api/training/files/private-file',{headers:{...headers,'x-department-id':department}});},
+    failMetadata(){failMetadata=true;},missingRecord(){recordExists=false;},
+  };
+}
+
+test('private attachment round-trip preserves bytes and department isolation',async()=>{
+  const h=attachmentHarness(),response=await h.upload.POST(h.request());
+  assert.equal(response.status,201,await response.clone().text());
+  const {attachment}=await response.json();assert.equal(h.metadata.length,1);assert.equal(h.files.size,1);
+  assert.ok(h.metadata[0].key.startsWith('fixture-department/fixture-record/'));
+  const downloaded=await h.download.GET(h.readRequest(),{params:Promise.resolve({id:attachment.id})});
+  assert.equal(downloaded.status,200);assert.equal(await downloaded.text(),'%PDF-1.7\nPublic fictional PDF');
+  assert.equal(downloaded.headers.get('cache-control'),'private, no-store');assert.equal(downloaded.headers.get('x-content-type-options'),'nosniff');
+  assert.match(downloaded.headers.get('content-disposition'),/attachment/);
+  assert.equal((await h.download.GET(h.readRequest('other-department'),{params:Promise.resolve({id:attachment.id})})).status,404);
+});
+
+test('attachments reject spoofed file content and missing records before storage upload',async()=>{
+  const h=attachmentHarness();assert.equal((await h.upload.POST(h.request('<html>Not PDF</html>'))).status,400);assert.equal(h.operations.length,0);
+  h.missingRecord();assert.equal((await h.upload.POST(h.request())).status,404);assert.equal(h.files.size,0);
+});
+
+test('failed attachment metadata removes the uploaded object and reports no success',async()=>{
+  const h=attachmentHarness();h.failMetadata();assert.equal((await h.upload.POST(h.request())).status,503);
+  assert.equal(h.files.size,0);assert.equal(h.metadata.length,0);assert.ok(h.operations.includes('remove'));
+});
+
+test('OSFM picker searches certification names, rule numbers, standards and JPR numbers',()=>{
+  const selection=core('app/training/osfm-selection.ts');
+  assert.equal(selection.searchCertifications('').length,37);
+  for(const query of ['141.353','Confined Space Technician','NFPA 1006 7.3.1'])assert.ok(selection.searchCertifications(query).some(c=>c.id==='il-353'),query);
+  assert.ok(selection.searchCertifications('ladders').some(c=>c.id==='il-301'));
+  assert.equal(selection.searchCertifications('nonexistent topic xyz').length,0);
+});
+
+test('selected JPRs remain tied to the correct book and edition without awarding proficiency',()=>{
+  const selection=core('app/training/osfm-selection.ts');
+  const book=selection.osfmBooks.find(b=>b.certificationId==='il-353'&&b.kind==='recertificationBook');
+  const id=selection.taskKey(book,'7.3.1');
+  const normalized=model.normalizeTrainingData(data({osfmTaskIds:[id,id]}));
+  assert.deepEqual(normalized.osfmTaskIds,[id]);assert.equal(normalized.osfmBookHashes[selection.bookKey(book)],book.sha256);
+  assert.equal(selection.taskReference(id).book.edition,'NFPA 1006 (2021)');
+  assert.equal(selection.taskReference(id).page,5);
+  assert.throws(()=>model.normalizeTrainingData(data({osfmTaskIds:['il-353:recertificationBook:99.9.9']})));
+  assert.throws(()=>model.normalizeTrainingData(data({osfmTaskIds:[id],osfmBookHashes:{[selection.bookKey(book)]:'wrong edition hash'}})));
+  const c=record('credential',data({requiredJprs:['7.3.1'],cycleStart:'2026-01-01',sourceUrl:book.url,sourceEdition:book.edition}),'credential');
+  assert.equal(osfm.credentialEvidence(c,[record('completion',normalized)]).documented.length,0);
+  assert.ok(model.trainingCsv([record('completion',normalized)],[member]).includes('JPR 7.3.1'));
+});
+
+test('the full indexed selection fits the saved payload and a selection persists through the API',async()=>{
+  const selection=core('app/training/osfm-selection.ts'),ids=selection.osfmBooks.flatMap(b=>b.jprs.map(j=>selection.taskKey(b,j.id)));
+  assert.equal(ids.length,818);
+  const normalized=model.normalizeTrainingData(data({osfmTaskIds:ids}));assert.ok(JSON.stringify(normalized).length<90000);
+  const h=await harness();try{
+    const r={...record('completion',normalized),version:0};const response=await h.api.POST(h.request(r));assert.equal(response.status,201,await response.clone().text());
+    const saved=await(await h.api.GET(h.request())).json();assert.deepEqual(saved.records[0].data.osfmTaskIds,ids);assert.deepEqual(saved.records[0].data.osfmBookHashes,normalized.osfmBookHashes);
+  }finally{await h.close();}
+});

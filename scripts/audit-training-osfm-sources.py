@@ -5,6 +5,36 @@ from pypdf import PdfReader
 root=Path('work/training-sources'); root.mkdir(parents=True,exist_ok=True)
 catalog_text=Path('app/training/osfm-catalog.ts').read_text(encoding='utf8')
 catalog=json.loads(catalog_text[catalog_text.index('[\n'):catalog_text.rindex(']')+1])
+
+# Search aids inferred from published TASK headings, not copied task instructions.
+topic_patterns={
+ 'Ladders':r'ladder', 'Hose':r'hose|nozzle', 'SCBA':r'SCBA|self.contained',
+ 'Respirators':r'respirator|supplied.air|SARs', 'Search':r'search', 'Rescue':r'rescue|victim',
+ 'Confined space':r'confined space', 'Rope':r'rope|knot|rappel', 'Trench':r'trench',
+ 'Collapse':r'collapse|shor|breach|lift|crib', 'Vehicle':r'vehicle|automobile|extricat',
+ 'Water':r'water|swim|boat|watercraft', 'Hazmat':r'hazardous.material|decontamin|chemical',
+ 'Fire':r'fire|extinguish', 'Ventilation':r'ventilat', 'Forcible entry':r'forcible|force.entry',
+ 'Alarm':r'alarm', 'Communication':r'communicat|radio|report|message',
+ 'Inspection':r'inspect|code|compliance', 'Investigation':r'investigat|evidence',
+ 'Training':r'train|instruct|lesson|teach', 'Command':r'command|incident.action|size.up',
+ 'Planning':r'plan', 'Safety':r'safe|hazard|risk', 'Equipment':r'equipment|tools',
+ 'PPE':r'PPE|protective', 'Driving':r'driv|operat.*apparatus', 'Pump':r'pump',
+ 'Maintenance':r'maintain|maintenance|clean', 'Medical':r'medical|patient|first.aid',
+}
+def enrich_jprs(ids,pages):
+ result=[]
+ for identifier,index_page in ids.items():
+  row={'id':identifier,'page':index_page}
+  for n,text in enumerate(pages):
+   match=re.search(r'\bTASK\s*:\s*(.*?)(?=PERFORMANCE|CONDITIONS|EQUIPMENT|OBJECTIVE|$)',text,re.S|re.I)
+   if not match:continue
+   header=text[max(0,match.start()-450):match.start()]
+   if not re.search(r'(?<![\d.\-])'+re.escape(identifier)+r'(?![\d.\-])',header):continue
+   row['taskPage']=n+1
+   row['topics']=[label for label,pattern in topic_patterns.items() if re.search(pattern,match[1],re.I)]
+   break
+  result.append(row)
+ return result
 def get(pair):
  c,kind,url=pair
  p=root/(c['id']+'-'+kind+'.pdf')
@@ -30,7 +60,7 @@ def get(pair):
      if '□' in line:
       for m in re.finditer(r'(\d+\.\d+\.\d+)',line):ids.setdefault(m[1],n+1)
   (root/(c['id']+'-'+kind+'.txt')).write_text('\n\n'.join(pages),encoding='utf8')
-  return {'certificationId':c['id'],'kind':kind,'url':url,'title':c['title'],'edition':('NFPA '+edition[1]+' ('+edition[2]+')') if edition else 'Check the official book edition','bookDate':cover.group(0).title() if cover else '', 'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'pageCount':len(pages),'jprs':[{'id':i,'page':n} for i,n in ids.items()],'reviewedAt':'2026-09-24'}
+  return {'certificationId':c['id'],'kind':kind,'url':url,'title':c['title'],'edition':('NFPA '+edition[1]+' ('+edition[2]+')') if edition else 'Check the official book edition','bookDate':cover.group(0).title() if cover else '', 'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'pageCount':len(pages),'jprs':enrich_jprs(ids,pages),'reviewedAt':'2026-09-24'}
  except Exception as e:return {'certificationId':c['id'],'kind':kind,'url':url,'error':str(e)}
 jobs=[(c,k,c[k]) for c in catalog for k in ['recertificationBook','initialBook'] if c[k]]
 with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex: rows=list(ex.map(get,jobs))

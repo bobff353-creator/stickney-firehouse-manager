@@ -8,6 +8,10 @@ Three starting actions: Record training, Assign training, Check credentials. Det
 
 Activity forms support text, numbers, dates, choices, yes/no, and optional required fields. Member groups, actual attendance, linked assignment completions, archive/restore, audit history, private files, calendar, filtered CSV/print reports, initial/renewal task books, and department/external credentials are supported. Drafts, archives, and test records never contribute training hours. Test names must be `test/training`.
 
+OSFM task books has a searchable, scrollable picker for all 37 catalog certifications and the 36 verified official books/forms. Search names, rule sections, NFPA standards, JPR numbers, or topic tags. Initial and recertification editions remain separate. The 818 JPR entries have 793 verified individual task-page links; the remaining entries use the published index. Topic tags are search aids inferred from TASK headings, not substitute instructions. The full official book can be read in the PDF preview or opened separately. Missing books remain labeled unverified.
+
+Users can select individual tasks, all shown tasks, or whole-book references and carry them into training, assignments, or reusable activities. IDs and original book fingerprints persist with the record and appear in review/history/CSV. They do not award proficiency or create official credit. Existing records without these optional fields still load safely. Choosing Use this task book creates a credential editor with its official index prefilled.
+
 Vector was reviewed signed in: home, activity builder and components, completion entry, participant filters, assignment timing/email choices, history and credentials. A single template named `test/training` was saved there (activity 3517645), with no assignments or training credit.
 
 This is a private administrative pilot. Employee self-service, outgoing email/push, licensed Vector courses/SCORM, examinations, community forums, and vendor integrations are not implemented. These must not be represented as functioning features. Direct OSFM submission is explicitly NOT CONNECTED.
@@ -42,3 +46,7 @@ Versioned JSON includes IDs, external identifiers, credential dates, source refe
 ## Verification
 
 Focused tests exercise owner denial, non-grantable navigation, dates, exact attendance math, test/draft exclusion, form validation, task cycle/edition matching, handoff boundaries, CSV injection protection, atomic database rollback, retry deduplication, stale versions, archive history, and private attachment denial. Local browser fixtures use fictional members only. Test failed save/retry, report filters, reload, task-book selection/progress, phone layout, and then authenticated production save/read/attachment persistence before claiming live verification.
+
+The live owner account saved and reopened activity `test/training` (8080b864-61eb-4608-9348-f92c8200722c); database and audit persistence were independently confirmed. No employee was assigned or credited. Automated file selection is currently blocked by Chrome despite the reported extension permission; production upload/download remains unverified. Server tests verify byte-preserving upload/download, department isolation, invalid-file denial, and object cleanup after a metadata failure.
+
+Routine same-account SIGNED_IN refreshes now keep the verified tool mounted. New accounts, revoked membership, invalid PIN sessions and sign-out still remove access. Four regression tests exercise these transitions; the fictional browser form retained its draft during refresh and locked after a real denial. This is UI continuity only; server authentication is unchanged.

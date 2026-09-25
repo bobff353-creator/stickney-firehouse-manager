@@ -1,6 +1,6 @@
 import { ensureDatabase } from '../../db/bootstrap';
 import { trainingRequestAllowed } from './access';
-import type { TrainingRecord, TrainingMember, TrainingAttachment } from './model';
+import {emptyTrainingData,type TrainingRecord,type TrainingMember,type TrainingAttachment} from './model';
 export const trainingJson=(value:unknown,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'private, no-store, max-age=0',Vary:'Cookie'}});
 export function trainingBoundary(request:Request,write=false) {
   if(!trainingRequestAllowed(request)||!request.headers.get('x-department-id'))return trainingJson({error:'Training is a private pilot for the designated owner.'},403);
@@ -10,7 +10,7 @@ export function trainingBoundary(request:Request,write=false) {
 }
 export type TrainingDb=Awaited<ReturnType<typeof ensureDatabase>>;
 export type StoredTrainingRow={id:string;kind:TrainingRecord['kind'];payload:string;version:number;archived:number;createdAt:string;updatedAt:string;updatedBy:string};
-export function decodeTraining(row:StoredTrainingRow):TrainingRecord {return {id:row.id,kind:row.kind,data:JSON.parse(row.payload),version:row.version,archived:Boolean(row.archived),createdAt:row.createdAt,updatedAt:row.updatedAt,updatedBy:row.updatedBy};}
+export function decodeTraining(row:StoredTrainingRow):TrainingRecord {return {id:row.id,kind:row.kind,data:{...emptyTrainingData(),...JSON.parse(row.payload)},version:row.version,archived:Boolean(row.archived),createdAt:row.createdAt,updatedAt:row.updatedAt,updatedBy:row.updatedBy};}
 export async function trainingSnapshot(db:TrainingDb,department:string) {
   const [rows,members,attachments]=await Promise.all([
     db.prepare('SELECT id,kind,payload,version,archived,created_at createdAt,updated_at updatedAt,updated_by updatedBy FROM training_pilot_records WHERE department_id=? ORDER BY updated_at DESC LIMIT 10001').bind(department).all<StoredTrainingRow>(),
