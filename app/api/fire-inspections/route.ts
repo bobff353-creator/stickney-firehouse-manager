@@ -1,6 +1,6 @@
 import { ensureDatabase } from '../../../db/bootstrap';
 import { inspectionBoundary,inspectionJson,inspectionSnapshot,decodeInspection,inspectionColumns,type StoredInspection,type InspectionDb } from '../../fire-inspections/server';
-import { normalizeInspection,validateInspection,followUpRecord,blankSignature,type InspectionRecord } from '../../fire-inspections/model';
+import { normalizeInspection,validateInspection,followUpRecord,followUpId,blankSignature,type InspectionRecord } from '../../fire-inspections/model';
 export async function GET(request:Request){
  const denied=inspectionBoundary(request);if(denied)return denied;
  try{const db=await ensureDatabase(),department=request.headers.get('x-department-id')!,id=new URL(request.url).searchParams.get('history');
@@ -12,7 +12,7 @@ function writes(db:InspectionDb,r:InspectionRecord,department:string,actor:strin
  return[r.version?db.prepare('UPDATE fire_inspection_pilot_records SET payload=?,version=version+1,archived=?,updated_at=?,updated_by=? WHERE department_id=? AND id=? AND version=?').bind(payload,archived,time,actor,department,r.id,r.version).expectChanges(1):db.prepare('INSERT INTO fire_inspection_pilot_records(id,department_id,kind,payload,version,archived,created_at,updated_at,updated_by) VALUES(?,?,?,?,1,?,?,?,?)').bind(r.id,department,r.kind,payload,archived,time,time,actor).expectChanges(1),db.prepare('INSERT INTO fire_inspection_pilot_audit(id,department_id,record_id,version,kind,payload,archived,actor,created_at) VALUES(?,?,?,?,?,?,?,?,?)').bind(crypto.randomUUID(),department,r.id,r.version+1,r.kind,payload,archived,actor,time)];
 }
 // Ignore server-generated signature timestamp when recognizing a safe retry.
-function comparable(r:InspectionRecord){return JSON.stringify({...r.data,representative:{...r.data.representative,signedAt:''}});}
+function comparable(r:InspectionRecord){return JSON.stringify({...r.data,representative:{...r.data.representative,signedAt:''},inspectorSignature:{...r.data.inspectorSignature,signedAt:''}});}
 export async function POST(request:Request){
  const denied=inspectionBoundary(request,true);if(denied)return denied;let writing=false;
  try{
@@ -23,24 +23,26 @@ export async function POST(request:Request){
   const currentRow=await db.prepare(`SELECT ${inspectionColumns} FROM fire_inspection_pilot_records WHERE department_id=? AND id=?`).bind(department,id).first<StoredInspection>();
   const current=currentRow?decodeInspection(currentRow):null,r:InspectionRecord={id,version,kind,data,archived:body.archived===true,createdAt:current?.createdAt??time,updatedAt:time,updatedBy:actor};
   if(current&&current.kind!==kind)throw Error('A record cannot change its type.');
-  if(current&&current.version===version+1&&comparable(current)===comparable(r)&&current.archived===r.archived){const children=await db.prepare(`SELECT ${inspectionColumns} FROM fire_inspection_pilot_records WHERE department_id=? AND (id=? OR id=?)`).bind(department,`${id}-routine`,`${id}-reinspection`).all<StoredInspection>();return inspectionJson({saved:true,record:current,followUps:children.results.map(decodeInspection)});}
+  if(current&&current.version===version+1&&comparable(current)===comparable(r)&&current.archived===r.archived){const children=await db.prepare(`SELECT ${inspectionColumns} FROM fire_inspection_pilot_records WHERE department_id=? AND (id=? OR id=?)`).bind(department,followUpId(id,'routine'),followUpId(id,'reinspection')).all<StoredInspection>();return inspectionJson({saved:true,record:current,followUps:children.results.map(decodeInspection)});}
   if((current?.version??0)!==version)return inspectionJson({error:'Another tab changed this record. Your draft remains here. Download it before opening the latest saved version.',code:'SAVE_CONFLICT'},409);
   if(current?.data.status==='Completed'){
    if(comparable(current)!==comparable(r)){
     if(data.status!=='Draft'||!data.changeReason)throw Error('Reopen the completed report with a correction reason before changing it.');
-    data.representative=blankSignature();data.inspectorAttested=false;
+    data.representative=blankSignature();data.inspectorSignature=blankSignature();data.inspectorAttested=false;
    }
   }
   // Parent links, test classification, and the source of a follow-up cannot silently change.
   if(current&&(current.data.parentId!==data.parentId||current.data.followUpKind!==data.followUpKind||current.data.test!==data.test))throw Error('The source inspection and test designation cannot be changed.');
   if(data.parentId){const parent=await db.prepare('SELECT payload FROM fire_inspection_pilot_records WHERE department_id=? AND id=?').bind(department,data.parentId).first<{payload:string}>();if(!parent)throw Error('The source inspection is not available in this department.');if(Boolean(JSON.parse(parent.payload).test)!==data.test)throw Error('A test inspection cannot create a live follow-up.');}
   if(data.propertyId&&!await db.prepare('SELECT id FROM field_preplans WHERE id=?').bind(data.propertyId).first())throw Error('Select a property from this department, or enter a new property.');
-  if(data.representative.state==='Signed')data.representative.signedAt=current&&JSON.stringify({...current.data.representative,signedAt:''})===JSON.stringify({...data.representative,signedAt:''})?current.data.representative.signedAt:time;
-  validateInspection(kind,data);
+  for(const key of ['representative','inspectorSignature'] as const)if(data[key].state==='Signed')data[key].signedAt=current?.data[key]&&JSON.stringify({...current.data[key],signedAt:''})===JSON.stringify({...data[key],signedAt:''})?current.data[key].signedAt:time;
+  for(const reference of [...data.codeBasis,...data.checks.flatMap(c=>c.citations)]){const source=await db.prepare('SELECT payload FROM fire_inspection_code_audit WHERE department_id=? AND code_id=? AND version=?').bind(department,reference.id,reference.version).first<{payload:string}>();if(!source)throw Error('A selected code version is unavailable in this department.');const original=JSON.parse(source.payload);if(Object.keys(original).some(k=>original[k]!==reference[k as keyof typeof reference]))throw Error('The selected code differs from the saved library version. Select it again.');}
+
+  if(!(current?.data.status==='Completed'&&comparable(current)===comparable(r)))validateInspection(kind,data);
   const batch=writes(db,r,department,actor,time),followUps:InspectionRecord[]=[];
   if(kind==='inspection'&&data.status==='Completed'&&current?.data.status!=='Completed'&&!r.archived){
-   for(const [mode,date]of [['routine',data.repeatMonths?data.nextDueDate:''],['reinspection',data.followUpDate]] as const){
-    if(!date)continue;const child=followUpRecord(r,mode,date);
+   for(const [mode,date]of [['routine',data.repeatMonths?data.nextDueDate:''],['reinspection',data.reinspectionDecision==='Not needed'?'':data.followUpDate]] as const){
+    if(!date&&!(mode==='reinspection'&&data.reinspectionDecision==='Needs scheduling'))continue;const child=followUpRecord(r,mode,date);
     if(!await db.prepare('SELECT id FROM fire_inspection_pilot_records WHERE department_id=? AND id=?').bind(department,child.id).first()){batch.push(...writes(db,child,department,actor,time));followUps.push({...child,version:1,createdAt:time,updatedAt:time,updatedBy:actor});}
    }
   }

@@ -9,6 +9,6 @@ export async function GET(request:Request,context:{params:Promise<{id:string}>})
     if(!row)return inspectionJson({error:'Attachment not found.'},404);
     const client=await getSupabaseServerClient(),{data,error}=await client.storage.from('stickney-fire-inspections-pilot').download(row.objectKey);
     if(error||!data)return inspectionJson({error:'The file could not be opened. Retry.'},503);
-    return new Response(data,{headers:{'Content-Type':row.contentType,'Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(row.filename)}`,'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}});
+    return new Response(data,{headers:{'Content-Type':row.contentType,'Content-Disposition':`${new URL(request.url).searchParams.get('inline')==='1'&&row.contentType.startsWith('image/')?'inline':'attachment'}; filename*=UTF-8''${encodeURIComponent(row.filename)}`,'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}});
   }catch{return inspectionJson({error:'The file could not be opened. Retry.'},503);}
 }
