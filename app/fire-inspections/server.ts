@@ -18,5 +18,5 @@ export async function inspectionSnapshot(db:InspectionDb,department:string){
   db.prepare('SELECT id,payload,version,archived,updated_at updatedAt,updated_by updatedBy FROM fire_inspection_code_entries WHERE department_id=? ORDER BY updated_at DESC LIMIT 10001').bind(department).all<{id:string;payload:string;version:number;archived:number;updatedAt:string;updatedBy:string}>(),
  ]);
  if([rows,properties,files,codes].some(x=>x.results.length>10000))throw Error('Add paginated loading before expanding this pilot beyond 10,000 records.');
- return{records:rows.results.map(decodeInspection),properties:properties.results,attachments:files.results,codes:codes.results.map(c=>({...c,archived:Boolean(c.archived),data:JSON.parse(c.payload),payload:undefined}))};
+ return{departmentId:department,records:rows.results.map(decodeInspection),properties:properties.results,attachments:files.results,codes:codes.results.map(c=>({...c,archived:Boolean(c.archived),data:JSON.parse(c.payload),payload:undefined}))};
 }

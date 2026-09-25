@@ -6,6 +6,7 @@ import { IFSTA_URL, quickReferences } from './catalog';
 import CodeLibrary from './code-library';
 import {codeLabel} from './codes';
 import {EvidencePhotos} from './evidence';
+import {inspectionDraftKey,readInspectionDraft} from './draft-backup';
 import ReportDelivery from './report-delivery';
 import './inspections.css';
 const tabs=['Work queue','Calendar','Properties','Checklists','Code library','Quick reference'] as const;
@@ -17,14 +18,17 @@ async function fetchInspections(signal?:AbortSignal):Promise<InspectionSnapshot>
 export default function FireInspectionsWorkspace(){
  const [snapshot,setSnapshot]=useState(blank),[loaded,setLoaded]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[tab,setTab]=useState<Tab>('Work queue');
  const [editing,setEditing]=useState<InspectionRecord|null>(null),[editStep,setEditStep]=useState(0),[selected,setSelected]=useState(''),[query,setQuery]=useState(''),[filter,setFilter]=useState('Active'),[showTests,setShowTests]=useState(false),[showArchived,setShowArchived]=useState(false),[busy,setBusy]=useState(false),[month,setMonth]=useState(todayChicago().slice(0,7));
+ const [recoveredEditing,setRecoveredEditing]=useState(false);
+ const [recovery,setRecovery]=useState<ReturnType<typeof readInspectionDraft>>(null);
  const [codeEditing,setCodeEditing]=useState(false);
  const [history,setHistory]=useState<{version:number;payload:string;actor:string;createdAt:string;archived:number}[]|null>(null);
- const receive=useCallback((j:InspectionSnapshot)=>{setSnapshot(j);setLoaded(true);setError('');},[]);
+ const receive=useCallback((j:InspectionSnapshot)=>{setSnapshot(j);setLoaded(true);setError('');try{setRecovery(readInspectionDraft(sessionStorage.getItem(inspectionDraftKey(j.departmentId||'local-fixture'))));}catch{}},[]);
  const load=useCallback(()=>fetchInspections().then(receive).catch(e=>setError(e.message)),[receive]);
  useEffect(()=>{const c=new AbortController();void fetchInspections(c.signal).then(j=>{if(!c.signal.aborted){receive(j);const p=new URLSearchParams(window.location.search),view=p.get('inspectionTab');if(tabs.includes(view as Tab))setTab(view as Tab);setSelected(p.get('inspectionRecord')||'');}}).catch(e=>{if(!c.signal.aborted)setError(e.message);});return()=>c.abort();},[receive]);
  function route(t:Tab,id=''){setTab(t);setSelected(id);setEditing(null);setQuery('');setError('');setNotice('');setHistory(null);const u=new URL(location.href);u.searchParams.set('inspectionTab',t);if(id)u.searchParams.set('inspectionRecord',id);else u.searchParams.delete('inspectionRecord');window.history.replaceState(window.history.state,'',u);}
- function edit(r:InspectionRecord,step=0){setEditing(r);setEditStep(step);setNotice('');setError('');}
- async function save(r:InspectionRecord,keepEditing=false):Promise<InspectionRecord>{const response=await fetch('/api/fire-inspections',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)}),j=await response.json();if(!response.ok||!j.saved||!j.record)throw Error(j.error||'The server did not confirm the save. Retry with your draft still here.');const saved=[j.record,...(j.followUps||[])];setSnapshot(s=>({...s,records:[...saved,...s.records.filter(old=>!saved.some(n=>n.id===old.id))]}));if(keepEditing)return j.record;setEditing(null);route(r.kind==='template'?'Checklists':'Work queue',r.id);setNotice(`Saved · version ${j.record.version}${j.followUps?.length?` · ${j.followUps.length} follow-up(s) available below`:''}.`);return j.record;}
+ function clearBackup(){try{sessionStorage.removeItem(inspectionDraftKey(snapshot.departmentId||'local-fixture'));}catch{}setRecovery(null);}
+ function edit(r:InspectionRecord,step=0,recovered=false){setRecoveredEditing(recovered);setEditing(r);setEditStep(step);setNotice('');setError('');}
+ async function save(r:InspectionRecord,keepEditing=false):Promise<InspectionRecord>{const response=await fetch('/api/fire-inspections',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)}),j=await response.json();if(!response.ok||!j.saved||!j.record)throw Error(j.error||'The server did not confirm the save. Retry with your draft still here.');const saved=[j.record,...(j.followUps||[])];setSnapshot(s=>({...s,records:[...saved,...s.records.filter(old=>!saved.some(n=>n.id===old.id))]}));clearBackup();if(keepEditing)return j.record;setEditing(null);route(r.kind==='template'?'Checklists':'Work queue',r.id);setNotice(`Saved · version ${j.record.version}${j.followUps?.length?` · ${j.followUps.length} follow-up(s) available below`:''}.`);return j.record;}
  async function mutate(r:InspectionRecord){setBusy(true);setError('');try{await save(r);}catch(e){setError(e instanceof Error?e.message:'Save failed.');}finally{setBusy(false);}}
  const records=snapshot.records.filter(r=>r.archived===showArchived&&(showTests||!r.data.test));
  const inspections=records.filter(r=>r.kind==='inspection');
@@ -38,7 +42,8 @@ export default function FireInspectionsWorkspace(){
  if(!loaded)return <section className="fi-workspace"><h2>Fire Inspections</h2><p>{error||'Loading your private inspection workspace…'}</p>{error&&<button onClick={load}>Retry loading</button>}</section>;
  return <section className="fi-workspace" aria-label="Private fire inspections">
   <header className="fi-heading fi-top"><div><span className="fi-eyebrow">FIRE PREVENTION · PRIVATE PILOT</span><h1>Fire Inspections</h1><p>Schedule a visit. Record what you find. Know what happens next.</p></div><span className="fi-badge">Only bobff353@gmail.com</span></header>
-  {editing?<InspectionEditor key={editing.id+':'+editing.version} initial={editing} snapshot={snapshot} initialStep={editStep} onSave={save} onUpload={uploadTarget} onCancel={()=>{setEditing(null);}}/>:<>
+  {editing?<InspectionEditor key={editing.id+':'+editing.version} initial={editing} snapshot={snapshot} initialStep={editStep} recovered={recoveredEditing} onSave={save} onUpload={uploadTarget} onCancel={()=>{clearBackup();setEditing(null);}}/>:<>
+  {recovery&&<div className="fi-note"><strong>Unsaved inspection available on this tab</strong><p>{recovery.record.data.title||'Untitled inspection'}. Continue the draft to review and save it. A newer saved version will still be protected from overwriting.</p><div className="fi-actions"><button onClick={()=>{edit(recovery.record,recovery.step,true);setRecovery(null);}}>Continue recovered draft</button><button onClick={()=>{if(window.confirm('Discard this browser draft? Saved inspections stay unchanged.'))clearBackup();}}>Discard browser draft</button></div></div>}
   <nav className="fi-tabs" aria-label="Fire inspection workspaces">{tabs.map(t=><button key={t} disabled={codeEditing} aria-current={t===tab?'page':undefined} onClick={()=>route(t)}>{t}</button>)}</nav>
   {error&&<div role="alert" className="fi-error">{error} <button onClick={load}>Refresh saved records</button></div>}{notice&&<div role="status" className="fi-success">{notice}</div>}
   {selected&&!record&&<p className="fi-note">This inspection is not available. <button onClick={()=>route('Work queue')}>Back to inspections</button></p>}

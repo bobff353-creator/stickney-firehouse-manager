@@ -16,7 +16,7 @@ export type InspectionData = {
 export type InspectionRecord = { id: string; kind: 'inspection' | 'template'; data: InspectionData; version: number; archived: boolean; createdAt: string; updatedAt: string; updatedBy: string };
 export type InspectionFile = { id: string; recordId: string; filename: string; size: number; contentType: string; createdAt: string; checkId?:string; caption?:string; codeId?:string; recordVersion?:number };
 export type Property = { id: string; name: string; address: string };
-export type InspectionSnapshot = { records: InspectionRecord[]; properties: Property[]; attachments: InspectionFile[]; codes?:CodeEntry[] };
+export type InspectionSnapshot = { records: InspectionRecord[]; properties: Property[]; attachments: InspectionFile[]; departmentId?:string; codes?:CodeEntry[] };
 export const todayChicago = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(new Date());
 export function validDate(s: string) { return /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s)) && new Date(s).toISOString().slice(0,10) === s; }
 export function addMonths(date: string, months: number) {

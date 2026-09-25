@@ -1,7 +1,8 @@
 'use client';
-import { useRef, useState, type PointerEvent } from 'react';
+import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { inspectionChecks, inspectionSections, inspectionTypes } from './catalog';
 import { addMonths, updateInspectionDetail, blankSignature, emptyInspection, findings, freshCheck, normalizeInspection, resultOptions, todayChicago, validateInspection, type InspectionData, type InspectionRecord, type InspectionSnapshot, type Signature } from './model';
+import {inspectionDraftKey} from './draft-backup';
 import {CodePicker} from './code-library';
 import {EvidencePhotos} from './evidence';
 import { useUnsavedWork } from '../use-unsaved-work';
@@ -12,11 +13,13 @@ export function SignaturePad({value,onChange,label="Representative"}:{value:Sign
  function finish(){if(!drawing.current)return;drawing.current=false;onChange({...value,strokes:points.current,signedAt:''});}
  return <div className="fi-signature"><p>{label === "Representative" ? "Have the representative sign below to acknowledge receipt of the observations. This does not change a finding." : "Sign below after reviewing the observations and report."}</p><svg viewBox="0 0 600 160" preserveAspectRatio="none" role="img" aria-label={`${label} signature drawing area`} onPointerDown={e=>{if(e.button!==0)return;drawing.current=true;e.currentTarget.setPointerCapture(e.pointerId);points.current=[...value.strokes,[point(e)]];onChange({...value,strokes:points.current,signedAt:''});}} onPointerMove={e=>{if(!drawing.current)return;if(points.current.reduce((n,s)=>n+s.length,0)>=7900)return;points.current=[...points.current.slice(0,-1),[...points.current[points.current.length-1],point(e)]];onChange({...value,strokes:points.current,signedAt:''});}} onPointerUp={finish} onPointerCancel={finish}>{value.strokes.map((stroke,i)=><polyline key={i} points={stroke.map(p=>`${p[0]*600},${p[1]*160}`).join(' ')} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>)}</svg><button type="button" onClick={()=>onChange({...value,strokes:[],signedAt:''})}>Clear signature</button><small>A typed name alone is not a captured signature. Use the signature status above if no drawing is provided.</small></div>;
 }
-type Props={initial:InspectionRecord;snapshot:InspectionSnapshot;initialStep?:number;onSave:(record:InspectionRecord,keepEditing?:boolean)=>Promise<InspectionRecord>;onUpload:(file:File,target:{recordId:string;checkId?:string;caption?:string})=>Promise<void>;onCancel:()=>void};
-export default function InspectionEditor({initial,snapshot,initialStep=0,onSave,onUpload,onCancel}:Props){
+type Props={initial:InspectionRecord;snapshot:InspectionSnapshot;initialStep?:number;recovered?:boolean;onSave:(record:InspectionRecord,keepEditing?:boolean)=>Promise<InspectionRecord>;onUpload:(file:File,target:{recordId:string;checkId?:string;caption?:string})=>Promise<void>;onCancel:()=>void};
+export default function InspectionEditor({initial,snapshot,initialStep=0,recovered=false,onSave,onUpload,onCancel}:Props){
  const [base,setBase]=useState(initial),[data,setData]=useState(initial.data),[step,setStep]=useState(initialStep),[busy,setBusy]=useState(false),[error,setError]=useState(''),[section,setSection]=useState(initial.data.sections[0]||'Access'),[search,setSearch]=useState(''),[custom,setCustom]=useState('');
  const template=initial.kind==='template',steps=template?['Name','Choose checks']:['Property','Plan','Checklist','Findings','Finish'];
- const dirty=JSON.stringify(data)!==JSON.stringify(base.data);useUnsavedWork(dirty,busy);
+ const [recoveredDirty,setRecoveredDirty]=useState(recovered);
+ const dirty=recoveredDirty||JSON.stringify(data)!==JSON.stringify(base.data);useUnsavedWork(dirty,busy);
+ useEffect(()=>{if(!dirty)return;try{sessionStorage.setItem(inspectionDraftKey(snapshot.departmentId||'local-fixture'),JSON.stringify({record:{...base,data},step,time:Date.now()}));}catch{/* Manual Save and Download my draft remain available if browser storage is full. */}},[base,data,dirty,step,snapshot.departmentId]);
  const set=<K extends keyof InspectionData>(key:K,value:InspectionData[K])=>setData(d=>updateInspectionDetail(d,key,value));
  // Editing observations after signing clears the prior acknowledgment.
  const field=(key:keyof InspectionData,label:string,type='text',hint='')=><label className="fi-field" key={key}>{label}<input type={type} value={String(data[key]??'')} onChange={e=>set(key,e.target.value as never)} onInput={type==='date'?e=>set(key,e.currentTarget.value as never):undefined}/>{hint&&<small>{hint}</small>}</label>;
@@ -26,7 +29,7 @@ export default function InspectionEditor({initial,snapshot,initialStep=0,onSave,
  function updateCheck(id:string,patch:Partial<InspectionData['checks'][number]>){setData(d=>({...d,checks:d.checks.map(c=>c.id===id?{...c,...patch}:c),representative:blankSignature(),inspectorSignature:blankSignature(),inspectorAttested:false}));}
  async function save(status:InspectionData['status']){setError('');try{const d=normalizeInspection({...data,status:template?'Draft':status});validateInspection(initial.kind,d);setBusy(true);await onSave({...base,data:d});}catch(e){setError(e instanceof Error?e.message:'Save was not confirmed. Your entries remain here.');}finally{setBusy(false);}}
  function downloadDraft(){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([JSON.stringify({...base,data},null,2)],{type:'application/json'}));a.href=url;a.download='inspection-draft.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
- async function addPhoto(file:File,checkId:string,caption:string){setError('');setBusy(true);try{const d=normalizeInspection({...data,representative:blankSignature(),inspectorSignature:blankSignature(),inspectorAttested:false});validateInspection(initial.kind,d);const saved=await onSave({...base,data:d},true);setBase(saved);setData(saved.data);await onUpload(file,{recordId:saved.id,checkId,caption});}catch(e){setError(e instanceof Error?e.message:'Photo upload was not confirmed. Your saved progress remains available.');}finally{setBusy(false);}}
+ async function addPhoto(file:File,checkId:string,caption:string){setError('');setBusy(true);try{const d=normalizeInspection({...data,representative:blankSignature(),inspectorSignature:blankSignature(),inspectorAttested:false});validateInspection(initial.kind,d);const saved=await onSave({...base,data:d},true);setRecoveredDirty(false);setBase(saved);setData(saved.data);await onUpload(file,{recordId:saved.id,checkId,caption});}catch(e){setError(e instanceof Error?e.message:'Photo upload was not confirmed. Your saved progress remains available.');}finally{setBusy(false);}}
  const visibleChecks=data.checks.filter(c=>(!section||c.section===section)&&`${c.label} ${c.observation}`.toLowerCase().includes(search.toLowerCase()));
  const errors=findings(data),unanswered=data.checks.filter(c=>c.result==='Not checked').length;
  const propertyChoices=snapshot.properties.filter(p=>`${p.name} ${p.address}`.toLowerCase().includes(search.toLowerCase())).slice(0,40);
