@@ -122,8 +122,7 @@
         "page": 4,
         "taskPage": 26,
         "topics": [
-          "SCBA",
-          "Fire"
+          "SCBA"
         ]
       },
       {
@@ -277,50 +276,39 @@
         "id": "6.3.6-1",
         "page": 6,
         "taskPage": 50,
-        "topics": [
-          "Fire"
-        ]
+        "topics": []
       },
       {
         "id": "6.3.6-2",
         "page": 6,
         "taskPage": 51,
-        "topics": [
-          "Fire"
-        ]
+        "topics": []
       },
       {
         "id": "6.3.6-3",
         "page": 6,
         "taskPage": 52,
-        "topics": [
-          "Fire"
-        ]
+        "topics": []
       },
       {
         "id": "6.3.6-4",
         "page": 6,
         "taskPage": 53,
         "topics": [
-          "Ladders",
-          "Fire"
+          "Ladders"
         ]
       },
       {
         "id": "6.3.6-5",
         "page": 6,
         "taskPage": 54,
-        "topics": [
-          "Fire"
-        ]
+        "topics": []
       },
       {
         "id": "6.3.6-6",
         "page": 6,
         "taskPage": 56,
-        "topics": [
-          "Fire"
-        ]
+        "topics": []
       },
       {
         "id": "6.3.6-7",
@@ -343,17 +331,13 @@
         "id": "6.3.8-1",
         "page": 6,
         "taskPage": 60,
-        "topics": [
-          "Fire"
-        ]
+        "topics": []
       },
       {
         "id": "6.3.8-2",
         "page": 6,
         "taskPage": 61,
-        "topics": [
-          "Fire"
-        ]
+        "topics": []
       },
       {
         "id": "6.3.8-3",
@@ -371,9 +355,7 @@
         "id": "6.3.8-5",
         "page": 6,
         "taskPage": 64,
-        "topics": [
-          "Fire"
-        ]
+        "topics": []
       },
       {
         "id": "6.3.8-6",
@@ -440,7 +422,6 @@
         "page": 6,
         "taskPage": 75,
         "topics": [
-          "Fire",
           "Safety"
         ]
       },
@@ -449,7 +430,6 @@
         "page": 6,
         "taskPage": 77,
         "topics": [
-          "Fire",
           "Safety"
         ]
       },
@@ -710,17 +690,13 @@
         "id": "6.3.14-7",
         "page": 8,
         "taskPage": 113,
-        "topics": [
-          "Fire"
-        ]
+        "topics": []
       },
       {
         "id": "6.3.14-8",
         "page": 8,
         "taskPage": 114,
-        "topics": [
-          "Fire"
-        ]
+        "topics": []
       },
       {
         "id": "6.3.14-9",
@@ -738,17 +714,13 @@
         "id": "6.3.14-11",
         "page": 8,
         "taskPage": 117,
-        "topics": [
-          "Fire"
-        ]
+        "topics": []
       },
       {
         "id": "6.3.14-12",
         "page": 8,
         "taskPage": 118,
-        "topics": [
-          "Fire"
-        ]
+        "topics": []
       },
       {
         "id": "6.3.15-1",
@@ -1242,9 +1214,7 @@
         "id": "7.4.1-9",
         "page": 5,
         "taskPage": 30,
-        "topics": [
-          "Collapse"
-        ]
+        "topics": []
       },
       {
         "id": "7.4.1-10",
@@ -1802,7 +1772,6 @@
         "page": 5,
         "taskPage": 21,
         "topics": [
-          "Collapse",
           "Fire",
           "Inspection"
         ]
@@ -1999,7 +1968,6 @@
         "taskPage": 27,
         "topics": [
           "Rope",
-          "Collapse",
           "Fire",
           "Alarm",
           "Inspection",
@@ -2013,7 +1981,6 @@
         "taskPage": 27,
         "topics": [
           "Rope",
-          "Collapse",
           "Fire",
           "Alarm",
           "Inspection",
@@ -2246,9 +2213,7 @@
         "id": "5.3.6",
         "page": 5,
         "taskPage": 27,
-        "topics": [
-          "Fire"
-        ]
+        "topics": []
       },
       {
         "id": "5.4.1",
@@ -2767,9 +2732,7 @@
         "id": "5.4.3",
         "page": 5,
         "taskPage": 14,
-        "topics": [
-          "Collapse"
-        ]
+        "topics": []
       },
       {
         "id": "5.4.4",
@@ -2884,9 +2847,7 @@
         "id": "5.4.3",
         "page": 22,
         "taskPage": 22,
-        "topics": [
-          "Collapse"
-        ]
+        "topics": []
       },
       {
         "id": "5.4.4",
@@ -2981,9 +2942,7 @@
         "id": "6.2.4",
         "page": 5,
         "taskPage": 11,
-        "topics": [
-          "Collapse"
-        ]
+        "topics": []
       },
       {
         "id": "6.2.5",
@@ -3031,9 +2990,7 @@
         "id": "6.4.3",
         "page": 5,
         "taskPage": 18,
-        "topics": [
-          "Collapse"
-        ]
+        "topics": []
       },
       {
         "id": "6.4.4",
@@ -3735,9 +3692,7 @@
         "id": "5.3.6",
         "page": 8,
         "taskPage": 71,
-        "topics": [
-          "Fire"
-        ]
+        "topics": []
       },
       {
         "id": "5.4.1",
@@ -5564,8 +5519,7 @@
         "page": 4,
         "taskPage": 8,
         "topics": [
-          "Rescue",
-          "Collapse"
+          "Rescue"
         ]
       },
       {
@@ -5752,9 +5706,7 @@
         "id": "12.3.9",
         "page": 4,
         "taskPage": 13,
-        "topics": [
-          "Collapse"
-        ]
+        "topics": []
       },
       {
         "id": "12.3.10",
@@ -5858,9 +5810,7 @@
         "id": "6.2.9",
         "page": 4,
         "taskPage": 13,
-        "topics": [
-          "Collapse"
-        ]
+        "topics": []
       },
       {
         "id": "6.2.10",
@@ -5997,9 +5947,7 @@
         "id": "6.3.9",
         "page": 4,
         "taskPage": 13,
-        "topics": [
-          "Collapse"
-        ]
+        "topics": []
       },
       {
         "id": "6.3.10",
@@ -6171,7 +6119,6 @@
         "page": 4,
         "taskPage": 15,
         "topics": [
-          "Collapse",
           "Vehicle"
         ]
       },
@@ -6180,7 +6127,6 @@
         "page": 4,
         "taskPage": 16,
         "topics": [
-          "Collapse",
           "Vehicle"
         ]
       },
@@ -6305,9 +6251,7 @@
         "id": "8.2.6-12",
         "page": 5,
         "taskPage": 33,
-        "topics": [
-          "Collapse"
-        ]
+        "topics": []
       },
       {
         "id": "8.2.6-13",
@@ -6398,7 +6342,6 @@
         "page": 5,
         "taskPage": 44,
         "topics": [
-          "Collapse",
           "Vehicle"
         ]
       },
