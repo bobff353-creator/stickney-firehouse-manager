@@ -1,4 +1,4 @@
-export const codeTypes = ['Local ordinance','IBC','IFC','IEBC','NFPA 101','NFPA','State rule','Other'];
+export const codeTypes = ['Local ordinance','IBC','IFC','IEBC','NFPA 101','NFPA 101B','NFPA','State rule','Other'];
 export type CodeEntry = { id:string; version:number; archived:boolean; updatedAt:string; updatedBy:string; data:CodeData };
 export type CodeData = { type:string; edition:string; jurisdiction:string; section:string; title:string; text:string; sourceUrl:string; applicability:string; effectiveDate:string; category:string; frequent:string };
 export type CodeSelection = CodeData & { id:string; version:number };

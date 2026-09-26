@@ -1,0 +1,23 @@
+[
+  ["4.1","Mixed uses and shared escape routes","Occupancy and scope","Record each use and shared route. Confirm which occupancy provisions govern the arrangement."],
+  ["4.2","Contents and hazard classification","Occupancy and scope","Record materials and activities affecting escape. Confirm the applicable hazard classification before choosing egress criteria."],
+  ["5.1.3","Walking surfaces and changes in level","Exit routes","Document damaged surfaces, slopes and unexpected changes in level along the route."],
+  ["5.2.1.2","Door opening width","Doors and hardware","Record the clear opening and measurement location. Check applicable capacity criteria and exceptions."],
+  ["5.2.1.4","Door swing and opening effort","Doors and hardware","Observe opening direction, interference and operating effort. Record the door location and applicable occupancy conditions."],
+  ["5.2.1.5","Locks, latches and release hardware","Doors and hardware","Document how occupants release each door, including keys, tools, alarms or special operations. Verify permitted arrangements and exceptions."],
+  ["5.2.1.5.3","Stair door reentry","Doors and hardware","Record where occupants can leave the stair, door identification and unlocking arrangements. Verify the applicable reentry provisions."],
+  ["5.3","Exit capacity review","Exit routes","Record occupant-load basis, route dimensions and constrictions. Attach the capacity review used for the property."],
+  ["5.4","Available exits","Exit routes","Record exits serving each area and which are usable. Verify the required count for that use and load."],
+  ["5.5","Exit arrangement","Exit routes","Sketch the available routes and their relationship. Check the arrangement against the applicable criteria."],
+  ["5.6","Travel-distance measurement","Exit routes","Record the starting point, route and measured distance. Identify the criteria used to evaluate it."],
+  ["5.7","Route beyond the exit","Exit routes","Follow the discharge route and document restrictions or interruptions. Verify the required destination and arrangement."],
+  ["5.8","Lighting along escape routes","Lighting and signs","Record dark areas and lighting conditions along the route. Attach measurements when needed for the applicable criteria."],
+  ["5.9","Emergency lighting and backup power","Lighting and signs","Record equipment locations, test evidence and observed failures. Verify applicable test and performance criteria."],
+  ["5.10","Exit identification and directional signs","Lighting and signs","Document missing, hidden, damaged or confusing signs and the approach direction from which they were observed."],
+  ["5.11","Escape from high-hazard areas","Special areas","Identify the area and contents. Verify the additional egress provisions applicable to that hazard."],
+  ["5.12","Mechanical, boiler and furnace room access","Special areas","Record the room use, equipment and available escape route. Verify room-specific provisions before making a finding."],
+  ["5.13","Smoke partition condition","Smoke separation","Identify smoke partitions from approved information. Record openings, damage and changes that need review."],
+  ["5.14","Smoke barrier condition","Smoke separation","Identify smoke barriers and their boundaries. Document penetrations, openings and alterations for review."],
+  ["5.15","Assembly seating and escape paths","Special areas","Record seating layout, aisles and temporary changes. Verify the arrangement against the applicable assembly provisions."],
+  ["7.1","Existing building alterations or change of use","Occupancy and scope","Record what changed, the prior use and approval history. Review Chapter 7 application and exceptions before selecting requirements."]
+]
