@@ -1,0 +1,2810 @@
+{
+  "checkedOn": "2026-09-25",
+  "directoryUrl": "https://www.nfpa.org/for-professionals/codes-and-standards/list-of-codes-and-standards?page=1&sort=code&dir=asc",
+  "entries": [
+    {
+      "number": "NFPA 1",
+      "title": "Fire Code",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1-standard-development/1",
+      "directoryPage": 1,
+      "editions": [
+        {
+          "year": "2027",
+          "url": "https://link.nfpa.org/free-access/publications/1/2027"
+        }
+      ],
+      "listedEdition": "2027"
+    },
+    {
+      "number": "NFPA 2",
+      "title": "Hydrogen Technologies Code",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-2-standard-development/2",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 3",
+      "title": "Standard for Commissioning of Fire Protection and Life Safety Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-3-standard-development/3",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 4",
+      "title": "Standard for Integrated Fire Protection and Life Safety System Testing",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-4-standard-development/4",
+      "directoryPage": 1,
+      "editions": [
+        {
+          "year": "2027",
+          "url": "https://link.nfpa.org/free-access/publications/4/2027"
+        }
+      ],
+      "listedEdition": "2027"
+    },
+    {
+      "number": "NFPA 10",
+      "title": "Standard for Portable Fire Extinguishers",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-10-standard-development/10",
+      "directoryPage": 1,
+      "editions": [
+        {
+          "year": "2026",
+          "url": "https://link.nfpa.org/free-access/publications/10/2026"
+        },
+        {
+          "year": "2022",
+          "url": "https://link.nfpa.org/free-access/publications/10/2022"
+        }
+      ],
+      "listedEdition": "2026"
+    },
+    {
+      "number": "NFPA 11",
+      "title": "Standard for Low-, Medium-, and High-Expansion Foam",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-11-standard-development/11",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 11A",
+      "title": "Standard for Medium- and High-Expansion Foam Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-11A-standard-development/11A",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 11C",
+      "title": "Standard for Mobile Foam Apparatus",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-11C-standard-development/11C",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 12",
+      "title": "Standard on Carbon Dioxide Extinguishing Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-12-standard-development/12",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 12A",
+      "title": "Standard on Halon 1301 Fire Extinguishing Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-12A-standard-development/12A",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 13",
+      "title": "Standard for the Installation of Sprinkler Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-13-standard-development/13",
+      "directoryPage": 1,
+      "editions": [
+        {
+          "year": "2025",
+          "url": "https://link.nfpa.org/free-access/publications/13/2025"
+        },
+        {
+          "year": "2022",
+          "url": "https://link.nfpa.org/free-access/publications/13/2022"
+        }
+      ],
+      "listedEdition": "2025"
+    },
+    {
+      "number": "NFPA 13D",
+      "title": "Standard for the Installation of Sprinkler Systems in One- and Two-Family Dwellings and Manufactured Homes",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-13D-standard-development/13D",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 13E",
+      "title": "Recommended Practice for Fire Department Operations in Properties Protected by Sprinkler and Standpipe Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-13E-standard-development/13E",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 13R",
+      "title": "Standard for the Installation of Sprinkler Systems in Low-Rise Residential Occupancies",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-13R-standard-development/13R",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 14",
+      "title": "Standard for the Installation of Standpipe and Hose Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-14-standard-development/14",
+      "directoryPage": 1,
+      "editions": [
+        {
+          "year": "2024",
+          "url": "https://link.nfpa.org/free-access/publications/14/2024"
+        }
+      ],
+      "listedEdition": "2024"
+    },
+    {
+      "number": "NFPA 15",
+      "title": "Standard for Water Spray Fixed Systems for Fire Protection",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-15-standard-development/15",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 16",
+      "title": "Standard for the Installation of Foam-Water Sprinkler and Foam-Water Spray Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-16-standard-development/16",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 17",
+      "title": "Standard for Dry Chemical Extinguishing Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-17-standard-development/17",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 17A",
+      "title": "Standard for Wet Chemical Extinguishing Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-17A-standard-development/17A",
+      "directoryPage": 1,
+      "editions": [
+        {
+          "year": "2027",
+          "url": "https://link.nfpa.org/free-access/publications/17a/2027"
+        },
+        {
+          "year": "2024",
+          "url": "https://link.nfpa.org/free-access/publications/17a/2024"
+        }
+      ],
+      "listedEdition": "2027"
+    },
+    {
+      "number": "NFPA 18",
+      "title": "Standard on Wetting Agents",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-18-standard-development/18",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 18A",
+      "title": "Standard on Water Additives for Fire Control and Vapor Mitigation",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-18A-standard-development/18A",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 20",
+      "title": "Standard for the Installation of Stationary Pumps for Fire Protection",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-20-standard-development/20",
+      "directoryPage": 1,
+      "editions": [
+        {
+          "year": "2025",
+          "url": "https://link.nfpa.org/free-access/publications/20/2025"
+        }
+      ],
+      "listedEdition": "2025"
+    },
+    {
+      "number": "NFPA 22",
+      "title": "Standard for Water Tanks for Private Fire Protection",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-22-standard-development/22",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 24",
+      "title": "Standard for the Installation of Private Fire Service Mains and Their Appurtenances",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-24-standard-development/24",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 25",
+      "title": "Standard for the Inspection, Testing, and Maintenance of Water-Based Fire Protection Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-25-standard-development/25",
+      "directoryPage": 1,
+      "editions": [
+        {
+          "year": "2026",
+          "url": "https://link.nfpa.org/free-access/publications/25/2026"
+        },
+        {
+          "year": "2023",
+          "url": "https://link.nfpa.org/free-access/publications/25/2023"
+        }
+      ],
+      "listedEdition": "2026"
+    },
+    {
+      "number": "NFPA 30",
+      "title": "Flammable and Combustible Liquids Code",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-30-standard-development/30",
+      "directoryPage": 1,
+      "editions": [
+        {
+          "year": "2027",
+          "url": "https://link.nfpa.org/free-access/publications/30/2027"
+        }
+      ],
+      "listedEdition": "2027"
+    },
+    {
+      "number": "NFPA 30A",
+      "title": "Code for Motor Fuel Dispensing Facilities and Repair Garages",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-30A-standard-development/30A",
+      "directoryPage": 1,
+      "editions": [
+        {
+          "year": "2027",
+          "url": "https://link.nfpa.org/free-access/publications/30a/2027"
+        }
+      ],
+      "listedEdition": "2027"
+    },
+    {
+      "number": "NFPA 30B",
+      "title": "Code for the Manufacture and Storage of Aerosol Products",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-30B-standard-development/30B",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 31",
+      "title": "Standard for the Installation of Oil-Burning Equipment",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-31-standard-development/31",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 32",
+      "title": "Standard for Drycleaning Facilities",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-32-standard-development/32",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 33",
+      "title": "Standard for Spray Application Using Flammable or Combustible Materials",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-33-standard-development/33",
+      "directoryPage": 1,
+      "editions": [
+        {
+          "year": "2024",
+          "url": "https://link.nfpa.org/free-access/publications/33/2024"
+        }
+      ],
+      "listedEdition": "2024"
+    },
+    {
+      "number": "NFPA 34",
+      "title": "Standard for Dipping, Coating, and Printing Processes Using Flammable or Combustible Liquids",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-34-standard-development/34",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 35",
+      "title": "Standard for the Manufacture of Organic Coatings",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-35-standard-development/35",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 36",
+      "title": "Standard for Solvent Extraction Plants",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-36-standard-development/36",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 37",
+      "title": "Standard for the Installation and Use of Stationary Combustion Engines and Gas Turbines",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-37-standard-development/37",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 40",
+      "title": "Standard for the Storage and Handling of Cellulose Nitrate Film",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-40-standard-development/40",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 42",
+      "title": "Code for the Storage of Pyroxylin Plastic",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-42-standard-development/42",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 45",
+      "title": "Standard on Fire Protection for Laboratories Using Chemicals",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-45-standard-development/45",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 46",
+      "title": "Recommended Safe Practice for Storage of Forest Products",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-46-standard-development/46",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 50",
+      "title": "Standard for Bulk Oxygen Systems at Consumer Sites",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-50-standard-development/50",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 50A",
+      "title": "Standard for Gaseous Hydrogen Systems at Consumer Sites",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-50A-standard-development/50A",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 50B",
+      "title": "Standard for Liquefied Hydrogen Systems at Consumer Sites",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-50B-standard-development/50B",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 51",
+      "title": "Standard for the Design and Installation of Oxygen-Fuel Gas Systems for Welding, Cutting, and Allied Processes",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-51-standard-development/51",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 51A",
+      "title": "Standard for Acetylene Cylinder Charging Plants",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-51A-standard-development/51A",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 51B",
+      "title": "Standard for Fire Prevention During Welding, Cutting, and Other Hot Work",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-51B-standard-development/51B",
+      "directoryPage": 1,
+      "editions": [
+        {
+          "year": "2024",
+          "url": "https://link.nfpa.org/free-access/publications/51b/2024"
+        }
+      ],
+      "listedEdition": "2024"
+    },
+    {
+      "number": "NFPA 52",
+      "title": "Vehicular Natural Gas Fuel Systems Code",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-52-standard-development/52",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 53",
+      "title": "Recommended Practice on Materials, Equipment, and Systems Used in Oxygen-Enriched Atmospheres",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-53-standard-development/53",
+      "directoryPage": 1
+    },
+    {
+      "number": "NFPA 54",
+      "title": "National Fuel Gas Code",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-54-standard-development/54",
+      "directoryPage": 1,
+      "editions": [
+        {
+          "year": "2027",
+          "url": "https://link.nfpa.org/free-access/publications/54/2027"
+        }
+      ],
+      "listedEdition": "2027"
+    },
+    {
+      "number": "NFPA 55",
+      "title": "Compressed Gases and Cryogenic Fluids Code",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-55-standard-development/55",
+      "directoryPage": 2,
+      "editions": [
+        {
+          "year": "2027",
+          "url": "https://link.nfpa.org/free-access/publications/55/2027"
+        }
+      ],
+      "listedEdition": "2027"
+    },
+    {
+      "number": "NFPA 56",
+      "title": "Standard for Fire and Explosion Prevention During Cleaning and Purging of Flammable Gas Piping Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-56-standard-development/56",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 57",
+      "title": "Liquefied Natural Gas (LNG) Vehicular Fuel Systems Code",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-57-standard-development/57",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 58",
+      "title": "Liquefied Petroleum Gas Code",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-58-standard-development/58",
+      "directoryPage": 2,
+      "editions": [
+        {
+          "year": "2024",
+          "url": "https://link.nfpa.org/free-access/publications/58/2024"
+        }
+      ],
+      "listedEdition": "2024"
+    },
+    {
+      "number": "NFPA 59",
+      "title": "Utility LP-Gas Plant Code",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-59-standard-development/59",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 59A",
+      "title": "Standard for the Production, Storage, and Handling of Liquefied Natural Gas (LNG)",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-59A-standard-development/59A",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 61",
+      "title": "Standard for the Prevention of Fires and Dust Explosions in Agricultural and Food Processing Facilities",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-61-standard-development/61",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 67",
+      "title": "Recommended Practice on Explosion Protection for Gaseous Mixtures in Piping Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-67-standard-development/67",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 68",
+      "title": "Standard on Explosion Protection by Deflagration Venting",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-68-standard-development/68",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 69",
+      "title": "Standard on Explosion Prevention Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-69-standard-development/69",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 70",
+      "title": "National Electrical Code®",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-70-standard-development/70",
+      "directoryPage": 2,
+      "editions": [
+        {
+          "year": "2026",
+          "url": "https://link.nfpa.org/free-access/publications/70/2026"
+        },
+        {
+          "year": "2023",
+          "url": "https://link.nfpa.org/free-access/publications/70/2023"
+        }
+      ],
+      "listedEdition": "2026"
+    },
+    {
+      "number": "NFPA 70A",
+      "title": "National Electrical Code® Requirements for One- and Two-Family Dwellings",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-70A-standard-development/70A",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 70B",
+      "title": "Standard for Electrical Equipment Maintenance",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-70B-standard-development/70B",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 70E",
+      "title": "Standard for Electrical Safety in the Workplace®",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-70E-standard-development/70E",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 72",
+      "title": "National Fire Alarm and Signaling Code®",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-72-standard-development/72",
+      "directoryPage": 2,
+      "editions": [
+        {
+          "year": "2025",
+          "url": "https://link.nfpa.org/free-access/publications/72/2025"
+        },
+        {
+          "year": "2022",
+          "url": "https://link.nfpa.org/free-access/publications/72/2022"
+        }
+      ],
+      "listedEdition": "2025"
+    },
+    {
+      "number": "NFPA 73",
+      "title": "Standard for Electrical Inspections for Existing Dwellings",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-73-standard-development/73",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 75",
+      "title": "Standard for the Fire Protection of Information Technology Equipment",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-75-standard-development/75",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 76",
+      "title": "Standard for the Fire Protection of Telecommunications Facilities",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-76-standard-development/76",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 77",
+      "title": "Recommended Practice on Static Electricity",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-77-standard-development/77",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 78",
+      "title": "Guide on Electrical Inspections",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-78-standard-development/78",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 79",
+      "title": "Electrical Standard for Industrial Machinery",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-79-standard-development/79",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 80",
+      "title": "Standard for Fire Doors and Other Opening Protectives",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-80-standard-development/80",
+      "directoryPage": 2,
+      "editions": [
+        {
+          "year": "2025",
+          "url": "https://link.nfpa.org/free-access/publications/80/2025"
+        },
+        {
+          "year": "2022",
+          "url": "https://link.nfpa.org/free-access/publications/80/2022"
+        }
+      ],
+      "listedEdition": "2025"
+    },
+    {
+      "number": "NFPA 80A",
+      "title": "Recommended Practice for Protection of Buildings from Exterior Fire Exposures",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-80A-standard-development/80A",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 82",
+      "title": "Standard on Incinerators and Waste and Linen Handling Systems and Equipment",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-82-standard-development/82",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 85",
+      "title": "Boiler and Combustion Systems Hazards Code",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-85-standard-development/85",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 86",
+      "title": "Standard for Ovens and Furnaces",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-86-standard-development/86",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 86C",
+      "title": "Standard for Industrial Furnaces Using a Special Processing Atmosphere",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-86C-standard-development/86C",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 86D",
+      "title": "Standard for Industrial Furnaces Using Vacuum as an Atmosphere",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-86D-standard-development/86D",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 87",
+      "title": "Standard for Fluid Heaters",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-87-standard-development/87",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 88A",
+      "title": "Standard for Parking Structures",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-88A-standard-development/88A",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 88B",
+      "title": "Standard for Repair Garages",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-88B-standard-development/88B",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 90A",
+      "title": "Standard for the Installation of Air-Conditioning and Ventilating Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-90A-standard-development/90A",
+      "directoryPage": 2,
+      "editions": [
+        {
+          "year": "2027",
+          "url": "https://link.nfpa.org/free-access/publications/90a/2027"
+        }
+      ],
+      "listedEdition": "2027"
+    },
+    {
+      "number": "NFPA 90B",
+      "title": "Standard for the Installation of Warm Air Heating and Air-Conditioning Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-90B-standard-development/90B",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 91",
+      "title": "Standard for Exhaust Systems for Air Conveying of Vapors, Gases, Mists, and Particulate Solids",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-91-standard-development/91",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 92",
+      "title": "Standard for Smoke Control Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-92-standard-development/92",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 92A",
+      "title": "Standard for Smoke-Control Systems Utilizing Barriers and Pressure Differences",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-92A-standard-development/92A",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 92B",
+      "title": "Standard for Smoke Management Systems in Malls, Atria, and Large Spaces",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-92B-standard-development/92B",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 96",
+      "title": "Standard for Ventilation Control and Fire Protection of Commercial Cooking Operations",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-96-standard-development/96",
+      "directoryPage": 2,
+      "editions": [
+        {
+          "year": "2027",
+          "url": "https://link.nfpa.org/free-access/publications/96/2027"
+        },
+        {
+          "year": "2024",
+          "url": "https://link.nfpa.org/free-access/publications/96/2024"
+        }
+      ],
+      "listedEdition": "2027"
+    },
+    {
+      "number": "NFPA 97",
+      "title": "Standard Glossary of Terms Relating to Chimneys, Vents, and Heat-Producing Appliances",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-97-standard-development/97",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 99",
+      "title": "Health Care Facilities Code",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-99-standard-development/99",
+      "directoryPage": 2,
+      "editions": [
+        {
+          "year": "2027",
+          "url": "https://link.nfpa.org/free-access/publications/99/2027"
+        }
+      ],
+      "listedEdition": "2027"
+    },
+    {
+      "number": "NFPA 99B",
+      "title": "Standard for Hypobaric Facilities",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-99B-standard-development/99B",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 101",
+      "title": "Life Safety Code®",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-101-standard-development/101",
+      "directoryPage": 2,
+      "editions": [
+        {
+          "year": "2027",
+          "url": "https://link.nfpa.org/free-access/publications/101/2027"
+        },
+        {
+          "year": "2024",
+          "url": "https://link.nfpa.org/free-access/publications/101/2024"
+        }
+      ],
+      "listedEdition": "2027"
+    },
+    {
+      "number": "NFPA 101A",
+      "title": "Guide on Alternative Approaches to Life Safety",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-101A-standard-development/101A",
+      "directoryPage": 2,
+      "editions": [
+        {
+          "year": "2025",
+          "url": "https://link.nfpa.org/free-access/publications/101a/2025"
+        }
+      ],
+      "listedEdition": "2025"
+    },
+    {
+      "number": "NFPA 101B",
+      "title": "Code for Means of Egress for Buildings and Structures",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-101B-standard-development/101B",
+      "directoryPage": 2,
+      "editions": [
+        {
+          "year": "2002",
+          "url": "https://link.nfpa.org/free-access/publications/101b/2002"
+        }
+      ],
+      "listedEdition": "2002"
+    },
+    {
+      "number": "NFPA 102",
+      "title": "Standard for Grandstands, Folding and Telescopic Seating, Tents, and Membrane Structures",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-102-standard-development/102",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 105",
+      "title": "Standard for Smoke Door Assemblies and Other Opening Protectives",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-105-standard-development/105",
+      "directoryPage": 2,
+      "editions": [
+        {
+          "year": "2025",
+          "url": "https://link.nfpa.org/free-access/publications/105/2025"
+        }
+      ],
+      "listedEdition": "2025"
+    },
+    {
+      "number": "NFPA 110",
+      "title": "Standard for Emergency and Standby Power Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-110-standard-development/110",
+      "directoryPage": 2,
+      "editions": [
+        {
+          "year": "2025",
+          "url": "https://link.nfpa.org/free-access/publications/110/2025"
+        }
+      ],
+      "listedEdition": "2025"
+    },
+    {
+      "number": "NFPA 111",
+      "title": "Standard on Stored Electrical Energy Emergency and Standby Power Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-111-standard-development/111",
+      "directoryPage": 2
+    },
+    {
+      "number": "NFPA 115",
+      "title": "Standard for Laser Fire Protection",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-115-standard-development/115",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 120",
+      "title": "Standard for Fire Prevention and Control in Coal Mines",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-120-standard-development/120",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 121",
+      "title": "Standard on Fire Protection for Self-Propelled and Mobile Surface Mining Equipment",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-121-standard-development/121",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 122",
+      "title": "Standard for Fire Prevention and Control in Metal/Nonmetal Mining and Metal Mineral Processing Facilities",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-122-standard-development/122",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 123",
+      "title": "Standard for Fire Prevention and Control in Underground Bituminous Coal Mines",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-123-standard-development/123",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 130",
+      "title": "Standard for Fixed Guideway Transit and Passenger Rail Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-130-standard-development/130",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 140",
+      "title": "Standard on Motion Picture and Television Production Studio Soundstages, Approved Production Facilities, and Production Locations",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-140-standard-development/140",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 150",
+      "title": "Fire and Life Safety in Animal Housing Facilities Code",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-150-standard-development/150",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 160",
+      "title": "Standard for the Use of Flame Effects Before an Audience",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-160-standard-development/160",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 170",
+      "title": "Standard for Fire Safety and Emergency Symbols",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-170-standard-development/170",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 200",
+      "title": "Standard for Hanging and Bracing of Fire Suppression Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-200-standard-development/200",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 203",
+      "title": "Guide on Roof Coverings and Roof Deck Constructions",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-203-standard-development/203",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 204",
+      "title": "Standard for Smoke and Heat Venting",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-204-standard-development/204",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 211",
+      "title": "Standard for Chimneys, Fireplaces, Vents, and Solid Fuel-Burning Appliances",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-211-standard-development/211",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 214",
+      "title": "Standard on Water-Cooling Towers",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-214-standard-development/214",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 220",
+      "title": "Standard on Types of Building Construction",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-220-standard-development/220",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 221",
+      "title": "Standard for High Challenge Fire Walls, Fire Walls, and Fire Barrier Walls",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-221-standard-development/221",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 225",
+      "title": "Model Manufactured Home Installation Standard",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-225-standard-development/225",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 230",
+      "title": "Standard for the Fire Protection of Storage",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-230-standard-development/230",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 231",
+      "title": "Standard for General Storage",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-231-standard-development/231",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 231C",
+      "title": "Standard for Rack Storage of Materials",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-231C-standard-development/231C",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 231D",
+      "title": "Standard for Storage of Rubber Tires",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-231D-standard-development/231D",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 231E",
+      "title": "Recommended Practice for the Storage of Baled Cotton",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-231E-standard-development/231E",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 231F",
+      "title": "Standard for the Storage of Roll Paper",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-231F-standard-development/231F",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 232",
+      "title": "Standard for the Protection of Records",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-232-standard-development/232",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 232A",
+      "title": "Guide for Fire Protection for Archives and Records Centers",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-232A-standard-development/232A",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 241",
+      "title": "Standard for Safeguarding Construction, Alteration, and Demolition Operations",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-241-standard-development/241",
+      "directoryPage": 3,
+      "editions": [
+        {
+          "year": "2027",
+          "url": "https://link.nfpa.org/free-access/publications/241/2027"
+        }
+      ],
+      "listedEdition": "2027"
+    },
+    {
+      "number": "NFPA 251",
+      "title": "Standard Methods of Tests of Fire Resistance of Building Construction and Materials",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-251-standard-development/251",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 252",
+      "title": "Standard Methods of Fire Tests of Door Assemblies",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-252-standard-development/252",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 253",
+      "title": "Standard Method of Test for Critical Radiant Flux of Floor Covering Systems Using a Radiant Heat Energy Source",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-253-standard-development/253",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 255",
+      "title": "Standard Method of Test of Surface Burning Characteristics of Building Materials",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-255-standard-development/255",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 256",
+      "title": "Standard Methods of Fire Tests of Roof Coverings",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-256-standard-development/256",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 257",
+      "title": "Standard on Fire Test for Window and Glass Block Assemblies",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-257-standard-development/257",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 258",
+      "title": "Recommended Practice for Determining Smoke Generation of Solid Materials",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-258-standard-development/258",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 259",
+      "title": "Standard Test Method for Potential Heat of Building Materials",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-259-standard-development/259",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 260",
+      "title": "Standard Methods of Tests and Classification System for Cigarette Ignition Resistance of Components of Upholstered Furniture",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-260-standard-development/260",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 261",
+      "title": "Standard Method of Test for Determining Resistance of Mock-Up Upholstered Furniture Material Assemblies to Ignition by Smoldering Cigarettes",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-261-standard-development/261",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 262",
+      "title": "Standard Method of Test for Flame Travel and Smoke of Wires and Cables for Use in Air-Handling Spaces",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-262-standard-development/262",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 265",
+      "title": "Standard Methods of Fire Tests for Evaluating Room Fire Growth Contribution of Textile or Expanded Vinyl Wall Coverings on Full Height Panels and Walls",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-265-standard-development/265",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 266",
+      "title": "Standard Method of Test for Fire Characteristics of Upholstered Furniture Exposed to Flaming Ignition Source",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-266-standard-development/266",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 267",
+      "title": "Standard Method of Test for Fire Characteristics of Mattresses and Bedding Assemblies Exposed to Flaming Ignition Source",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-267-standard-development/267",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 268",
+      "title": "Standard Test Method for Determining Ignitability of Exterior Wall Assemblies Using a Radiant Heat Energy Source",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-268-standard-development/268",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 269",
+      "title": "Standard Test Method for Developing Toxic Potency Data for Use in Fire Hazard Modeling",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-269-standard-development/269",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 270",
+      "title": "Standard Test Method for Measurement of Smoke Obscuration Using a Conical Radiant Source in a Single Closed Chamber",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-270-standard-development/270",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 271",
+      "title": "Standard Method of Test for Heat and Visible Smoke Release Rates for Materials and Products Using an Oxygen Consumption Calorimeter",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-271-standard-development/271",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 272",
+      "title": "Standard Method of Test for Heat and Visible Smoke Release Rates for Upholstered Furniture Components or Composites and Mattresses Using an Oxygen Consumption Calorimeter",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-272-standard-development/272",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 274",
+      "title": "Standard Test Method to Evaluate Fire Performance Characteristics of Pipe Insulation",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-274-standard-development/274",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 275",
+      "title": "Standard Method of Fire Tests for the Evaluation of Thermal Barriers",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-275-standard-development/275",
+      "directoryPage": 3
+    },
+    {
+      "number": "NFPA 276",
+      "title": "Standard Method of Fire Test for Determining the Heat Release Rate of Roofing Assemblies with Combustible Above-Deck Roofing Components",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-276-standard-development/276",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 277",
+      "title": "Standard Methods of Tests for Evaluating Fire and Ignition Resistance of Upholstered Furniture Using a Flaming Ignition Source",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-277-standard-development/277",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 285",
+      "title": "Standard Fire Test Method for Evaluation of Fire Propagation Characteristics of Exterior Wall Assemblies Containing Combustible Components",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-285-standard-development/285",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 286",
+      "title": "Standard Methods of Fire Tests for Evaluating Contribution of Wall and Ceiling Interior Finish to Room Fire Growth",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-286-standard-development/286",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 287",
+      "title": "Standard Test Methods for Measurement of Flammability of Materials in Cleanrooms Using a Fire Propagation Apparatus (FPA)",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-287-standard-development/287",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 288",
+      "title": "Standard Methods of Fire Tests of Horizontal Fire Door Assemblies Installed in Horizontal Fire Resistance-Rated Assemblies",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-288-standard-development/288",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 289",
+      "title": "Standard Method of Fire Test for Individual Fuel Packages",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-289-standard-development/289",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 290",
+      "title": "Standard for Fire Testing of Passive Protection Materials for Use on LP-Gas Containers",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-290-standard-development/290",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 291",
+      "title": "Recommended Practice for Water Flow Testing and Marking of Hydrants",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-291-standard-development/291",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 295",
+      "title": "Standard for Wildfire Control",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-295-standard-development/295",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 297",
+      "title": "Guide on Principles and Practices for Communications Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-297-standard-development/297",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 298",
+      "title": "Standard on Foam Chemicals for Wildland Fire Control",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-298-standard-development/298",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 299",
+      "title": "Standard for Protection of Life and Property from Wildfire",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-299-standard-development/299",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 301",
+      "title": "Code for Safety to Life from Fire on Merchant Vessels",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-301-standard-development/301",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 302",
+      "title": "Fire Protection Standard for Pleasure and Commercial Motor Craft",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-302-standard-development/302",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 303",
+      "title": "Fire Protection Standard for Marinas and Boatyards",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-303-standard-development/303",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 306",
+      "title": "Standard for the Control of Gas Hazards on Vessels",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-306-standard-development/306",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 307",
+      "title": "Standard for the Construction and Fire Protection of Marine Terminals, Piers, and Wharves",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-307-standard-development/307",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 312",
+      "title": "Standard for Fire Protection of Vessels During Construction, Conversion, Repair, and Lay-Up",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-312-standard-development/312",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 318",
+      "title": "Standard for the Protection of Semiconductor Fabrication Facilities",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-318-standard-development/318",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 326",
+      "title": "Standard for the Safeguarding of Tanks and Containers for Entry, Cleaning, or Repair",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-326-standard-development/326",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 328",
+      "title": "Recommended Practice for the Control of\nFlammable and Combustible Liquids and\nGases in Manholes, Sewers, and\nSimilar Underground Structures",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-328-standard-development/328",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 329",
+      "title": "Recommended Practice for Handling Releases of Flammable and Combustible Liquids and Gases",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-329-standard-development/329",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 350",
+      "title": "Guide for Safe Confined Space Entry and Work",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-350-standard-development/350",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 385",
+      "title": "Standard for Tank Vehicles for Flammable and Combustible Liquids",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-385-standard-development/385",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 386",
+      "title": "Standard for Portable Shipping Tanks for Flammable and Combustible Liquids",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-386-standard-development/386",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 395",
+      "title": "Standard for the Storage of Flammable and Combustible Liquids at Farms and Isolated Sites",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-395-standard-development/395",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 400",
+      "title": "Hazardous Materials Code",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-400-standard-development/400",
+      "directoryPage": 4,
+      "editions": [
+        {
+          "year": "2025",
+          "url": "https://link.nfpa.org/free-access/publications/400/2025"
+        }
+      ],
+      "listedEdition": "2025"
+    },
+    {
+      "number": "NFPA 401",
+      "title": "Recommended Practice for the Prevention of Fires and Uncontrolled Chemical Reactions Associated with the Handling of Hazardous Waste",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-401-standard-development/401",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 402",
+      "title": "Guide for Aircraft Rescue and Fire-Fighting Operations",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-402-standard-development/402",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 403",
+      "title": "Standard for Aircraft Rescue and Fire-Fighting Services at Airports",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-403-standard-development/403",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 405",
+      "title": "Standard for the Recurring Proficiency of Airport Fire Fighters",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-405-standard-development/405",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 407",
+      "title": "Standard for Aircraft Fuel Servicing",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-407-standard-development/407",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 408",
+      "title": "Standard for Aircraft Hand Portable Fire Extinguishers",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-408-standard-development/408",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 409",
+      "title": "Standard on Aircraft Hangars",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-409-standard-development/409",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 410",
+      "title": "Standard on Aircraft Maintenance",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-410-standard-development/410",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 412",
+      "title": "Standard for Evaluating Aircraft Rescue and Fire-Fighting Foam Equipment",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-412-standard-development/412",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 414",
+      "title": "Standard for Aircraft Rescue and Fire-Fighting Vehicles",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-414-standard-development/414",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 415",
+      "title": "Standard on Airport Terminal Buildings, Fueling Ramp Drainage, and Loading Walkways",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-415-standard-development/415",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 418",
+      "title": "Standard for Heliports and Vertiports",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-418-standard-development/418",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 420",
+      "title": "Standard on Fire Protection of Cannabis Growing and Processing Facilities",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-420-standard-development/420",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 422",
+      "title": "Guide for Aircraft Accident/Incident Response Assessment",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-422-standard-development/422",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 423",
+      "title": "Standard for Construction and Protection of Aircraft Engine Test Facilities",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-423-standard-development/423",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 424",
+      "title": "Guide for Airport/Community Emergency Planning",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-424-standard-development/424",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 430",
+      "title": "Code for the Storage of Liquid and Solid Oxidizers",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-430-standard-development/430",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 432",
+      "title": "Code for the Storage of Organic Peroxide Formulations",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-432-standard-development/432",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 434",
+      "title": "Code for the Storage of Pesticides",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-434-standard-development/434",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 440",
+      "title": "Guide for Aircraft Rescue and Firefighting Operations and Airport/Community Emergency Planning",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-440-standard-development/440",
+      "directoryPage": 4
+    },
+    {
+      "number": "NFPA 450",
+      "title": "Guide for Emergency Medical Services and Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-450-standard-development/450",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 451",
+      "title": "Guide for Community Health Care Programs",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-451-standard-development/451",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 455",
+      "title": "Standard for Emergency Medical Services (EMS)",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-455-standard-development/455",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 460",
+      "title": "Standard for Aircraft Rescue and Firefighting Services at Airports",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-460-standard-development/460",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 461",
+      "title": "Standard for Fire Protection and Life Safety at Spaceport and Support Facilities",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-461-standard-development/461",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 470",
+      "title": "Hazardous Materials/Weapons of Mass Destruction (WMD) Standard for Responders",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-470-standard-development/470",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 471",
+      "title": "Recommended Practice for Responding to Hazardous Materials Incidents",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-471-standard-development/471",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 472",
+      "title": "Standard for Competence of Responders to Hazardous Materials/Weapons of Mass Destruction Incidents",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-472-standard-development/472",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 473",
+      "title": "Standard for Competencies for EMS Personnel Responding to Hazardous Materials/Weapons of Mass Destruction Incidents",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-473-standard-development/473",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 475",
+      "title": "Recommended Practice for Organizing, Managing, and Sustaining a Hazardous Materials/Weapons of Mass Destruction Response Program",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-475-standard-development/475",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 480",
+      "title": "Standard for the Storage, Handling, and Processing of Magnesium Solids and Powders",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-480-standard-development/480",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 481",
+      "title": "Standard for the Production, Processing, Handling, and Storage of Titanium",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-481-standard-development/481",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 482",
+      "title": "Standard for the Production, Processing, Handling, and Storage of Zirconium",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-482-standard-development/482",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 484",
+      "title": "Standard for Combustible Metals",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-484-standard-development/484",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 485",
+      "title": "Standard for the Storage, Handling, Processing, and Use of Lithium Metal",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-485-standard-development/485",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 490",
+      "title": "Code for the Storage of Ammonium Nitrate",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-490-standard-development/490",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 495",
+      "title": "Explosive Materials Code",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-495-standard-development/495",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 496",
+      "title": "Standard for Purged and Pressurized Enclosures for Electrical Equipment",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-496-standard-development/496",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 497",
+      "title": "Recommended Practice for the Classification of Flammable Liquids, Gases, or Vapors and of Hazardous (Classified) Locations for Electrical Installations in Chemical Process Areas",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-497-standard-development/497",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 498",
+      "title": "Standard for Safe Havens and Interchange Lots for Vehicles Transporting Explosives",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-498-standard-development/498",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 499",
+      "title": "Recommended Practice for the Classification of Combustible Dusts and of Hazardous (Classified) Locations for Electrical Installations in Chemical Process Areas",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-499-standard-development/499",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 501",
+      "title": "Standard on Manufactured Housing",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-501-standard-development/501",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 501A",
+      "title": "Standard for Fire and Life Safety Criteria for Manufactured Home Installations, Sites, and Communities",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-501A-standard-development/501A",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 502",
+      "title": "Standard for Road Tunnels, Bridges, and Other Limited Access Highways",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-502-standard-development/502",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 505",
+      "title": "Fire Safety Standard for Powered Industrial Trucks Including Type Designations, Areas of Use, Conversions, Maintenance, and Operations",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-505-standard-development/505",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 513",
+      "title": "Standard for Motor Freight Terminals",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-513-standard-development/513",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 520",
+      "title": "Standard on Subterranean Spaces",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-520-standard-development/520",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 550",
+      "title": "Guide to the Fire Safety Concepts Tree",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-550-standard-development/550",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 551",
+      "title": "Guide for the Evaluation of Fire Risk Assessments",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-551-standard-development/551",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 555",
+      "title": "Guide on Methods for Evaluating Potential for Room Flashover",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-555-standard-development/555",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 556",
+      "title": "Guide on Methods for Evaluating Fire Hazard to Occupants of Passenger Road Vehicles",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-556-standard-development/556",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 557",
+      "title": "Standard for Determination of Fire Loads for Use in Structural Fire Protection Design",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-557-standard-development/557",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 560",
+      "title": "Standard for the Storage, Handling, and Use of Ethylene Oxide for Sterilization and Fumigation",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-560-standard-development/560",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 600",
+      "title": "Standard on Facility Fire Brigades",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-600-standard-development/600",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 601",
+      "title": "Standard for Security Services in Fire Loss Prevention",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-601-standard-development/601",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 610",
+      "title": "Guide for Emergency and Safety Operations at Motorsports Venues",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-610-standard-development/610",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 650",
+      "title": "Standard for Pneumatic Conveying Systems for Handling Combustible Particulate Solids",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-650-standard-development/650",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 651",
+      "title": "Standard for the Machining and Finishing of Aluminum and the Production and Handling of Aluminum Powders",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-651-standard-development/651",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 652",
+      "title": "Standard on the Fundamentals of Combustible Dust",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-652-standard-development/652",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 654",
+      "title": "Standard for the Prevention of Fire and Dust Explosions from the Manufacturing, Processing, and Handling of Combustible Particulate Solids",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-654-standard-development/654",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 655",
+      "title": "Standard for Prevention of Sulfur Fires and Explosions",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-655-standard-development/655",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 660",
+      "title": "Standard for Combustible Dusts and Particulate Solids",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-660-standard-development/660",
+      "directoryPage": 5,
+      "editions": [
+        {
+          "year": "2025",
+          "url": "https://link.nfpa.org/free-access/publications/660/2025"
+        }
+      ],
+      "listedEdition": "2025"
+    },
+    {
+      "number": "NFPA 664",
+      "title": "Standard for the Prevention of Fires and Explosions in Wood Processing and Woodworking Facilities",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-664-standard-development/664",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 701",
+      "title": "Standard Methods of Fire Tests for Flame Propagation of Textiles and Films",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-701-standard-development/701",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 703",
+      "title": "Standard for Fire-Retardant-Treated Wood and Fire-Retardant Coatings for Building Materials",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-703-standard-development/703",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 704",
+      "title": "Standard System for the Identification of the Hazards of Materials for Emergency Response",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-704-standard-development/704",
+      "directoryPage": 5,
+      "editions": [
+        {
+          "year": "2027",
+          "url": "https://link.nfpa.org/free-access/publications/704/2027"
+        }
+      ],
+      "listedEdition": "2027"
+    },
+    {
+      "number": "NFPA 705",
+      "title": "Recommended Practice for a Field Flame Test for Textiles and Films",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-705-standard-development/705",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 715",
+      "title": "Standard for the Installation of Fuel Gases Detection and Warning Equipment",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-715-standard-development/715",
+      "directoryPage": 5
+    },
+    {
+      "number": "NFPA 720",
+      "title": "Standard for the Installation of Carbon Monoxide(CO) Detection and Warning Equipment",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-720-standard-development/720",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 730",
+      "title": "Guide for Premises Security",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-730-standard-development/730",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 731",
+      "title": "Standard for the Installation of Premises Security Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-731-standard-development/731",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 750",
+      "title": "Standard on Water Mist Fire Protection Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-750-standard-development/750",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 770",
+      "title": "Standard on Hybrid (Water and Inert Gas) Fire-Extinguishing Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-770-standard-development/770",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 780",
+      "title": "Standard for the Installation of Lightning Protection Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-780-standard-development/780",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 790",
+      "title": "Standard for Competency of Third-Party Field Evaluation Bodies",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-790-standard-development/790",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 791",
+      "title": "Recommended Practice and Procedures for Unlabeled Electrical Equipment Evaluation",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-791-standard-development/791",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 800",
+      "title": "Battery Safety Code (PS)",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-800-standard-development/800",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 801",
+      "title": "Standard for Fire Protection for Facilities Handling Radioactive Materials",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-801-standard-development/801",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 803",
+      "title": "Standard for Fire Protection for Light Water Nuclear Power Plants",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-803-standard-development/803",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 804",
+      "title": "Standard for Fire Protection for Advanced Light Water Reactor Electric Generating Plants",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-804-standard-development/804",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 805",
+      "title": "Performance-Based Standard for Fire Protection for Light Water Reactor Electric Generating Plants",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-805-standard-development/805",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 806",
+      "title": "Performance-Based Standard for Fire Protection for Advanced Nuclear Reactor Electric Generating Plants Change Process",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-806-standard-development/806",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 820",
+      "title": "Standard for Fire Protection in Wastewater Treatment and Collection Facilities",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-820-standard-development/820",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 850",
+      "title": "Standard for Fire Protection for Electric Generating Plants and High-Voltage Direct Current (HVDC) Converter Stations",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-850-standard-development/850",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 851",
+      "title": "Recommended Practice for Fire Protection for Hydroelectric Generating Plants",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-851-standard-development/851",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 853",
+      "title": "Standard for the Installation of Stationary Fuel Cell Power Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-853-standard-development/853",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 855",
+      "title": "Standard for the Installation of Stationary Energy Storage Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-855-standard-development/855",
+      "directoryPage": 6,
+      "editions": [
+        {
+          "year": "2026",
+          "url": "https://link.nfpa.org/free-access/publications/855/2026"
+        }
+      ],
+      "listedEdition": "2026"
+    },
+    {
+      "number": "NFPA 900",
+      "title": "Building Energy Code",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-900-standard-development/900",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 901",
+      "title": "Standard Classifications for Fire and Emergency Services Incident Reporting",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-901-standard-development/901",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 902",
+      "title": "Fire Reporting Field Incident Guide",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-902-standard-development/902",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 903",
+      "title": "Fire Reporting Property Survey Guide",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-903-standard-development/903",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 904",
+      "title": "Incident Follow-up Report Guide",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-904-standard-development/904",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 906",
+      "title": "Guide for Fire Incident Field Notes",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-906-standard-development/906",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 909",
+      "title": "Code for the Protection of Cultural Resource Properties - Museums, Libraries, and Places of Worship",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-909-standard-development/909",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 914",
+      "title": "Code for the Protection of Historic Structures",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-914-standard-development/914",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 915",
+      "title": "Standard for Remote Inspections and Tests",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-915-standard-development/915",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 921",
+      "title": "Guide for Fire and Explosion Investigations",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-921-standard-development/921",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 950",
+      "title": "Standard for Data Development and Exchange for the Fire Service",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-950-standard-development/950",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 951",
+      "title": "Guide to Building and Utilizing Digital Information",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-951-standard-development/951",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 960",
+      "title": "Standard on Fire Protection of Mobile and Temporary Cooking Operations",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-960-standard-development/960",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 1000",
+      "title": "Standard for Fire Service Professional Qualifications Accreditation, Certification Systems, and Degree-Granting Programs",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1000-standard-development/1000",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 1001",
+      "title": "Standard for Fire Fighter Professional Qualifications",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1001-standard-development/1001",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 1002",
+      "title": "Standard for Fire Apparatus Driver/Operator Professional Qualifications",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1002-standard-development/1002",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 1003",
+      "title": "Standard for Airport Fire Fighter Professional Qualifications",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1003-standard-development/1003",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 1005",
+      "title": "Standard for Professional Qualifications for Marine Fire Fighting for Land-Based Fire Fighters",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1005-standard-development/1005",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 1006",
+      "title": "Standard for Technical Rescue Personnel Professional Qualifications",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1006-standard-development/1006",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 1010",
+      "title": "Standard on Professional Qualifications for Firefighters",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1010-standard-development/1010",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 1020",
+      "title": "Standard for Fire and Emergency Services Instructor, Fire Officer, and Emergency Medical Services Officer Professional Qualifications",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1020-standard-development/1020",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 1021",
+      "title": "Standard for Fire Officer Professional Qualifications",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1021-standard-development/1021",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 1022",
+      "title": "Standard for Fire and Emergency Services Analyst Professional Qualifications",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1022-standard-development/1022",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 1026",
+      "title": "Standard for Incident Management Personnel Professional Qualifications",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1026-standard-development/1026",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 1030",
+      "title": "Standard for Professional Qualifications for Fire Prevention Program Positions",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1030-standard-development/1030",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 1031",
+      "title": "Standard for Professional Qualifications for Fire Inspector and Plan Examiner",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1031-standard-development/1031",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 1033",
+      "title": "Standard for Professional Qualifications for Fire Investigator",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1033-standard-development/1033",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 1035",
+      "title": "Standard on Fire and Life Safety Educator, Public Information Officer, Youth Firesetter Intervention Specialist and Youth Firesetter Program Manager Professional Qualifications",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1035-standard-development/1035",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 1037",
+      "title": "Standard on Fire Marshal Professional Qualifications",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1037-standard-development/1037",
+      "directoryPage": 6
+    },
+    {
+      "number": "NFPA 1041",
+      "title": "Standard for Fire and Emergency Services Instructor Professional Qualifications",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1041-standard-development/1041",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1051",
+      "title": "Standard for Wildland Firefighting Personnel Professional Qualifications",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1051-standard-development/1051",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1061",
+      "title": "Standard for Public Safety Telecommunications Personnel Professional Qualifications",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1061-standard-development/1061",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1071",
+      "title": "Standard for Emergency Vehicle Technician Professional Qualifications",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1071-standard-development/1071",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1072",
+      "title": "Standard for Hazardous Materials/Weapons of Mass Destruction Emergency Response\nPersonnel Professional Qualifications",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1072-standard-development/1072",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1078",
+      "title": "Standard for Electrical Inspector Professional Qualifications",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1078-standard-development/1078",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1081",
+      "title": "Standard for Facility Fire Brigade Member Professional Qualifications",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1081-standard-development/1081",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1082",
+      "title": "Standard for Facilities Fire and Life Safety Director Professional Qualifications",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1082-standard-development/1082",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1091",
+      "title": "Standard for Traffic Incident Management Personnel Professional Qualifications",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1091-standard-development/1091",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1122",
+      "title": "Code for Model Rocketry",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1122-standard-development/1122",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1123",
+      "title": "Code for Fireworks Display",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1123-standard-development/1123",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1124",
+      "title": "Code for the Manufacture, Transportation, and Storage of Fireworks and Pyrotechnic Articles",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1124-standard-development/1124",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1125",
+      "title": "Code for the Manufacture of Model Rocket and High-Power Rocket Motors",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1125-standard-development/1125",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1126",
+      "title": "Standard for the Use of Pyrotechnics Before a Proximate Audience",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1126-standard-development/1126",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1127",
+      "title": "Code for High Power Rocketry",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1127-standard-development/1127",
+      "directoryPage": 7
+    },
+    {
+      "number": "PYR 1128",
+      "title": "Standard Method of Fire Test for Flame Breaks",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1128-standard-development/1128",
+      "directoryPage": 7
+    },
+    {
+      "number": "PYR 1129",
+      "title": "Standard Method of Fire Test for Covered Fuse on Consumer Fireworks",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1129-standard-development/1129",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1140",
+      "title": "Standard for Fire Protection in Rural, Suburban, and Wildland/Urban Interface Areas",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1140-standard-development/1140",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1141",
+      "title": "Standard for Fire Protection Infrastructure for Land Development in Wildland, Rural, and Suburban Areas",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1141-standard-development/1141",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1142",
+      "title": "Standard on Water Supplies for Suburban and Rural Firefighting",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1142-standard-development/1142",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1143",
+      "title": "Standard for Wildland Fire Management",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1143-standard-development/1143",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1144",
+      "title": "Standard for Reducing Structure Ignition Hazards from Wildland Fire",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1144-standard-development/1144",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1145",
+      "title": "Guide for the Use of Class A Foams in Fire Fighting",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1145-standard-development/1145",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1150",
+      "title": "Standard on Foam Chemicals for Fires in Class A Fuels",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1150-standard-development/1150",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1192",
+      "title": "Standard on Recreational Vehicles",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1192-standard-development/1192",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1194",
+      "title": "Standard for Recreational Vehicle Parks and Campgrounds",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1194-standard-development/1194",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1201",
+      "title": "Standard for Providing Fire and Emergency Services to the Public",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1201-standard-development/1201",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1221",
+      "title": "Standard for the Installation, Maintenance, and Use of Emergency Services Communications Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1221-standard-development/1221",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1225",
+      "title": "Standard for Emergency Services Communications",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1225-standard-development/1225",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1231",
+      "title": "Standard on Water Supplies for Suburban and Rural Fire Fighting",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1231-standard-development/1231",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1250",
+      "title": "Recommended Practice in Fire and Emergency Service Organization Risk Management",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1250-standard-development/1250",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1300",
+      "title": "Standard on Community Risk Assessment and Community Risk Reduction Plan Development",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1300-standard-development/1300",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1321",
+      "title": "Standard for Fire Investigation Units",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1321-standard-development/1321",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1400",
+      "title": "Standard on Fire Service Training",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1400-standard-development/1400",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1401",
+      "title": "Recommended Practice for Fire Service Training Reports and Records",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1401-standard-development/1401",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1402",
+      "title": "Standard on Facilities for Fire Training and Associated Props",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1402-standard-development/1402",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1403",
+      "title": "Standard on Live Fire Training Evolutions",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1403-standard-development/1403",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1404",
+      "title": "Standard for Fire Service Respiratory Protection Training",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1404-standard-development/1404",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1405",
+      "title": "Guide for Land-Based Fire Departments that Respond to Marine Vessel Fires",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1405-standard-development/1405",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1407",
+      "title": "Standard for Training Fire Service Rapid Intervention Crews",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1407-standard-development/1407",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1408",
+      "title": "Standard for Training Fire Service Personnel in the Operation, Care, Use, and Maintenance of Thermal Imagers",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1408-standard-development/1408",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1410",
+      "title": "Standard on Training for Emergency Scene Operations",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1410-standard-development/1410",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1451",
+      "title": "Standard for a Fire and Emergency Service Vehicle Operations Training Program",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1451-standard-development/1451",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1452",
+      "title": "Guide for Training Fire Service Personnel to Conduct Community Risk Reduction for Residential Occupancies",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1452-standard-development/1452",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1500",
+      "title": "Standard on Fire Department Occupational Safety, Health, and Wellness Program",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1500-standard-development/1500",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1521",
+      "title": "Standard for Fire Department Safety Officer Professional Qualifications",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1521-standard-development/1521",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1550",
+      "title": "Standard for Emergency Responder Health and Safety",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1550-standard-development/1550",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1561",
+      "title": "Standard on Emergency Services Incident Management System and Command Safety",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1561-standard-development/1561",
+      "directoryPage": 7
+    },
+    {
+      "number": "NFPA 1580",
+      "title": "Standard for Emergency Responder Occupational Health and Wellness",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1580-standard-development/1580",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1581",
+      "title": "Standard on Fire Department Infection Control Program",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1581-standard-development/1581",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1582",
+      "title": "Standard on Comprehensive Occupational Medical Program for Fire Departments",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1582-standard-development/1582",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1583",
+      "title": "Standard on Health-Related Fitness Programs for Fire Department Members",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1583-standard-development/1583",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1584",
+      "title": "Standard on the Rehabilitation Process for Members During Emergency Operations and Training Exercises",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1584-standard-development/1584",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1585",
+      "title": "Standard for Exposure and Contamination Control",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1585-standard-development/1585",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1600",
+      "title": "Standard on Continuity, Emergency, and Crisis Management",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1600-standard-development/1600",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1616",
+      "title": "Standard on Mass Evacuation, Sheltering, and Re-entry Programs",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1616-standard-development/1616",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1620",
+      "title": "Standard for Pre-Incident Planning",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1620-standard-development/1620",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1660",
+      "title": "Standard for Emergency, Continuity, and Crisis Management: Preparedness, Response, and Recovery",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1660-standard-development/1660",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1670",
+      "title": "Standard on Operations and Training for Technical Search and Rescue Incidents",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1670-standard-development/1670",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1700",
+      "title": "Guide for Structural Firefighting",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1700-standard-development/1700",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1701",
+      "title": "Guide for Firefighting Operations at Electric Vehicle (EV) Incidents",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1701-standard-development/1701",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1710",
+      "title": "Standard for the Organization and Deployment of Fire Suppression Operations, Emergency Medical Operations, and Special Operations to the Public by Career Fire Departments",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1710-standard-development/1710",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1713",
+      "title": "Recommended Practice for Fire Department Operations in Properties Protected by Sprinkler and Standpipe Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1713-standard-development/1713",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1720",
+      "title": "Standard for the Organization and Deployment of Fire Suppression Operations, Emergency Medical Operations, and Special Operations to the Public by Volunteer Fire Departments",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1720-standard-development/1720",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1730",
+      "title": "Standard on Organization and Deployment of Fire Prevention Inspection and Code Enforcement, Plan Review, Investigation, and Public Education Operations",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1730-standard-development/1730",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1750",
+      "title": "Standard for the Organization and Deployment of Fire Suppression Operations, Emergency Medical Services, Special Operations, and Fire Prevention Activities",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1750-standard-development/1750",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1801",
+      "title": "Standard on Thermal Imagers for the Fire Service",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1801-standard-development/1801",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1802",
+      "title": "Standard on Two-Way, Portable RF Voice Communications Devices for Use by Emergency Services Personnel in the Hazard Zone",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1802-standard-development/1802",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1850",
+      "title": "Standard on Selection, Care, and Maintenance of Protective Ensembles for Structural and Proximity Firefighting and Open-Circuit Self-Contained Breathing Apparatus (SCBA)",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1850-standard-development/1850",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1851",
+      "title": "Standard on Selection, Care, and Maintenance of Protective Ensembles for Structural Fire Fighting and Proximity Fire Fighting",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1851-standard-development/1851",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1852",
+      "title": "Standard on Selection, Care, and Maintenance of Open-Circuit Self-Contained Breathing Apparatus (SCBA)",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1852-standard-development/1852",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1855",
+      "title": "Standard on Selection, Care, and Maintenance of Protective Ensembles for Technical Rescue Incidents",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1855-standard-development/1855",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1857",
+      "title": "Standard on Selection, Care, and Maintenance of Protective Ensembles for Technical Rescue Incidents and Wildland Firefighting",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1857-standard-development/1857",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1858",
+      "title": "Standard on Selection, Care, and Maintenance of Life Safety Rope and Equipment for Emergency Services",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1858-standard-development/1858",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1859",
+      "title": "Standard on Selection, Care, and Maintenance of Tactical Operations Video Equipment",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1859-standard-development/1859",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1877",
+      "title": "Standard on Selection, Care, and Maintenance of Wildland Firefighting Protective Clothing and Equipment",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1877-standard-development/1877",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1891",
+      "title": "Standard on Selection, Care, and Maintenance of Hazardous Materials, CBRN, and Emergency Medical Operations Clothing and Equipment",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1891-standard-development/1891",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1900",
+      "title": "Standard for Aircraft Rescue and Firefighting Vehicles, Automotive Fire Apparatus, Wildland Fire Apparatus, and Automotive Ambulances",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1900-standard-development/1900",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1901",
+      "title": "Standard for Automotive Fire Apparatus",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1901-standard-development/1901",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1906",
+      "title": "Standard for Wildland Fire Apparatus",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1906-standard-development/1906",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1910",
+      "title": "Standard for the Inspection, Maintenance, Refurbishment, Testing, and Retirement of In-Service Emergency Vehicles and Marine Firefighting Vessels",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1910-standard-development/1910",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1911",
+      "title": "Standard for the Inspection, Maintenance, Testing, and Retirement of In-Service Emergency Vehicles",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1911-standard-development/1911",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1912",
+      "title": "Standard for Fire Apparatus Refurbishing",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1912-standard-development/1912",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1914",
+      "title": "Standard for Testing Fire Department Aerial Devices",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1914-standard-development/1914",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1915",
+      "title": "Standard for Fire Apparatus Preventive Maintenance Program",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1915-standard-development/1915",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1917",
+      "title": "Standard for Automotive Ambulances",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1917-standard-development/1917",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1925",
+      "title": "Standard on Marine Fire-Fighting Vessels",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1925-standard-development/1925",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1930",
+      "title": "Standard on Fire and Emergency Service Use of Thermal Imagers, Two-Way Portable RF Voice Communication Devices, Ground Ladders, Rescue Tools, Fire Hose, and Fire Hose Appliances",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1930-standard-development/1930",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1931",
+      "title": "Standard for Manufacturer's Design of Fire Department Ground Ladders",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1931-standard-development/1931",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1932",
+      "title": "Standard on Use, Maintenance, and Service Testing of In-Service Fire Department Ground Ladders",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1932-standard-development/1932",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1936",
+      "title": "Standard on Rescue Tools",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1936-standard-development/1936",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1937",
+      "title": "Standard for the Selection, Care, and Maintenance of Rescue Tools",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1937-standard-development/1937",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1950",
+      "title": "Standard on Personal Protective Equipment for Technical Rescue Incidents, Emergency Medical Operations, and Wildland and Urban Interface Firefighting",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1950-standard-development/1950",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1951",
+      "title": "Standard on Protective Ensembles for Technical Rescue Incidents",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1951-standard-development/1951",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1952",
+      "title": "Standard on Surface Water Operations Protective Clothing and Equipment",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1952-standard-development/1952",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1953",
+      "title": "Standard on Protective Ensembles for Contaminated Water Diving",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1953-standard-development/1953",
+      "directoryPage": 8
+    },
+    {
+      "number": "NFPA 1955",
+      "title": "Standard on Personal Protective Equipment (PPE) for Surface Water Operations and Contaminated Water Operations",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1955-standard-development/1955",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 1960",
+      "title": "Standard for Fire Hose Connections, Spray Nozzles, Manufacturer's Design of Fire Department Ground Ladders, Fire Hose, and Powered Rescue Tools",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1960-standard-development/1960",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 1961",
+      "title": "Standard on Fire Hose",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1961-standard-development/1961",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 1962",
+      "title": "Standard for the Care, Use, Inspection, Service Testing, and Replacement of Fire Hose, Couplings, Nozzles, and Fire Hose Appliances",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1962-standard-development/1962",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 1963",
+      "title": "Standard for Fire Hose Connections",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1963-standard-development/1963",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 1964",
+      "title": "Standard for Spray Nozzles and Appliances",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1964-standard-development/1964",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 1965",
+      "title": "Standard for Fire Hose Appliances",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1965-standard-development/1965",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 1970",
+      "title": "Standard on Protective Ensembles for Structural and Proximity Firefighting, Work Apparel, Open-Circuit Self-Contained Breathing Apparatus (SCBA) for Emergency Services, and Personal Alert Safety Systems (PASS)",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1970-standard-development/1970",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 1971",
+      "title": "Standard on Protective Ensembles for Structural Fire Fighting and Proximity Fire Fighting",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1971-standard-development/1971",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 1975",
+      "title": "Standard on Emergency Services Work Apparel",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1975-standard-development/1975",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 1976",
+      "title": "Standard on Protective Ensemble for Proximity Fire Fighting",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1976-standard-development/1976",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 1977",
+      "title": "Standard on Protective Clothing and Equipment for Wildland Fire Fighting and Urban Interface Fire Fighting",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1977-standard-development/1977",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 1981",
+      "title": "Standard on Open-Circuit Self-Contained Breathing Apparatus (SCBA) for Emergency Services",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1981-standard-development/1981",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 1982",
+      "title": "Standard on Personal Alert Safety Systems (PASS)",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1982-standard-development/1982",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 1983",
+      "title": "Standard on Life Safety Rope and Equipment for Emergency Services",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1983-standard-development/1983",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 1984",
+      "title": "Standard on Respirators for Wildland Fire-Fighting Operations and Wildland Urban Interface Operations",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1984-standard-development/1984",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 1985",
+      "title": "Standard on Breathing Air Quality for Emergency Services Respiratory Protection and Respirators for Wildland Firefighting and Wildland Urban Interface Operations",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1985-standard-development/1985",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 1986",
+      "title": "Standard on Respiratory Protection Equipment for Tactical and Technical Operations",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1986-standard-development/1986",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 1987",
+      "title": "Standard on Combination Unit Respirator Systems for Tactical and Technical Operations",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1987-standard-development/1987",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 1989",
+      "title": "Standard on Breathing Air Quality for Emergency Services Respiratory Protection",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1989-standard-development/1989",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 1990",
+      "title": "Standard for Protective Ensembles for Hazardous Materials and CBRN Operations",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1990-standard-development/1990",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 1991",
+      "title": "Standard on Vapor-Protective Ensembles for Hazardous Materials Emergencies and CBRN Terrorism Incidents",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1991-standard-development/1991",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 1992",
+      "title": "Standard on Liquid Splash-Protective Ensembles and Clothing for Hazardous Materials Emergencies",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1992-standard-development/1992",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 1994",
+      "title": "Standard on Protective Ensembles for First Responders to Hazardous Materials Emergencies and CBRN Terrorism Incidents",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1994-standard-development/1994",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 1999",
+      "title": "Standard on Protective Clothing and Ensembles for Emergency Medical Operations",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-1999-standard-development/1999",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 2001",
+      "title": "Standard on Clean Agent Fire Extinguishing Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-2001-standard-development/2001",
+      "directoryPage": 9,
+      "editions": [
+        {
+          "year": "2025",
+          "url": "https://link.nfpa.org/free-access/publications/2001/2025"
+        }
+      ],
+      "listedEdition": "2025"
+    },
+    {
+      "number": "NFPA 2010",
+      "title": "Standard for Fixed Aerosol Fire-Extinguishing Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-2010-standard-development/2010",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 2112",
+      "title": "Standard on Flame-Resistant Clothing for Protection of Industrial Personnel Against Short-Duration Thermal Exposures from Fire",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-2112-standard-development/2112",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 2113",
+      "title": "Standard on Selection, Care, Use, and Maintenance of Flame-Resistant Garments for Protection of Industrial Personnel Against Short-Duration Thermal Exposures from Fire",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-2113-standard-development/2113",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 2400",
+      "title": "Standard for Small Unmanned Aircraft Systems (sUAS) Used for Public Safety Operations",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-2400-standard-development/2400",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 2500",
+      "title": "Standard on Organizational Capabilities for Technical Search and Rescue and Life Safety Rope and Equipment for Emergency Services",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-2500-standard-development/2500",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 2800",
+      "title": "Standard on Facility Emergency Action Plans",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-2800-standard-development/2800",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 3000",
+      "title": "Standard for an Active Shooter/Hostile Event Response (ASHER) Program",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-3000-standard-development/3000",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 5000",
+      "title": "Building Construction and Safety Code®",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-5000-standard-development/5000",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 8501",
+      "title": "Standard for Single Burner Boiler Operation",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-8501-standard-development/8501",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 8502",
+      "title": "Standard for the Prevention of Furnace Explosions/Implosions in Multiple Burner Boilers",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-8502-standard-development/8502",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 8503",
+      "title": "Standard for Pulverized Fuel Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-8503-standard-development/8503",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 8504",
+      "title": "Standard on Atmospheric Fluidized-Bed Boiler Operation",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-8504-standard-development/8504",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 8505",
+      "title": "Standard for Stoker Operation",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-8505-standard-development/8505",
+      "directoryPage": 9
+    },
+    {
+      "number": "NFPA 8506",
+      "title": "Standard on Heat Recovery Steam Generator Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-8506-standard-development/8506",
+      "directoryPage": 9
+    }
+  ]
+}
