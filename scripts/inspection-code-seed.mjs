@@ -26,10 +26,10 @@ export function inspectionStarter() {
 
 // Inserts are department scoped and append only. Reruns preserve edits and archives.
 // A citation's original payload and version are written atomically with each entry.
-export function inspectionSeedSql(departmentId) {
+export function inspectionSeedSql(departmentId,starter=inspectionStarter()) {
   if(!/^[a-zA-Z0-9_-]{8,80}$/.test(departmentId))throw Error('A verified department ID is required.');
   const quote = value => "'"+String(value).replaceAll("'","''")+"'";
-  const rows = inspectionStarter().map(({key,data})=>`(${quote('ref-'+departmentId+'-'+key)},${quote(JSON.stringify(data))})`).join(',\n');
+  const rows = starter.map(({key,data})=>`(${quote('ref-'+departmentId+'-'+key)},${quote(JSON.stringify(data))})`).join(',\n');
   return `WITH starter(id,payload) AS (VALUES\n${rows}\n), inserted AS (
     INSERT INTO firehouse.fire_inspection_code_entries(id,department_id,payload,version,archived,updated_at,updated_by)
     SELECT id,${quote(departmentId)},payload,1,0,to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),'Verified starter library' FROM starter

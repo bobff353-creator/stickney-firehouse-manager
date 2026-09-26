@@ -1,4 +1,4 @@
-export const codeTypes = ['Local ordinance','IBC','IFC','IEBC','NFPA','State rule','Other'];
+export const codeTypes = ['Local ordinance','IBC','IFC','IEBC','NFPA 101','NFPA','State rule','Other'];
 export type CodeEntry = { id:string; version:number; archived:boolean; updatedAt:string; updatedBy:string; data:CodeData };
 export type CodeData = { type:string; edition:string; jurisdiction:string; section:string; title:string; text:string; sourceUrl:string; applicability:string; effectiveDate:string; category:string; frequent:string };
 export type CodeSelection = CodeData & { id:string; version:number };
@@ -15,6 +15,7 @@ export function normalizeCode(value:unknown):CodeData {
 }
 export const codeLabel=(d:CodeData)=>`${d.type} ${d.edition}${d.section?` § ${d.section}`:''} · ${d.title}${d.jurisdiction?` · ${d.jurisdiction}`:''}`;
 export const selectCode=(c:CodeEntry):CodeSelection=>({...c.data,id:c.id,version:c.version});
+export const needsAdoptionReview=(d:CodeData)=>d.applicability.startsWith('ADOPTION NOT VERIFIED:');
 export function localAmendmentQuery(entries:CodeEntry[],data:CodeData) {
  const ancestors=entries.filter(c=>!c.archived&&c.data.type==='Local ordinance'&&c.data.edition===data.edition)
   .map(c=>c.data.section.split(' / IBC ')[1]).filter((s):s is string=>!!s&&(s===data.section||data.section.startsWith(s+'.')));

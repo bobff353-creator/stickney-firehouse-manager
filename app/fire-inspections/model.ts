@@ -26,6 +26,11 @@ export function addMonths(date: string, months: number) {
 }
 export function blankSignature(): Signature { return {name:'',role:'',state:'Not requested',strokes:[],signedAt:''}; }
 export function freshCheck(c: Pick<InspectionCheck,'id'|'section'|'label'|'source'>): InspectionCheck { return {...c,result:'Not checked',location:'',observation:'',correction:'',code:'',dueDate:'',correctedDate:'',priority:'Routine',citations:[]}; }
+export function checkpointSource(entry:CodeEntry){return `${codeLabel(entry.data)} (library version ${entry.version}). Source: ${entry.data.sourceUrl}\n${entry.data.applicability}\n${entry.data.text}`.slice(0,4000);}
+export function checkpointFromCode(entry:CodeEntry,id:string):InspectionCheck {
+ if(entry.archived)throw Error('Choose an active code reference.');
+ return freshCheck({id,section:'Code library',label:entry.data.title,source:checkpointSource(entry)});
+}
 export function emptyInspection(): InspectionData { return { title:'',address:'',propertyId:'',occupancy:'',owner:'',contact:'',phone:'',email:'',type:inspectionTypes[0],status:'Draft',scheduledDate:'',scheduledTime:'',actualDate:'',startTime:'',endTime:'',inspector:'',others:'',reason:'',codeEdition:'',localAmendments:'',checks:inspectionChecks.filter(c=>starterSections.includes(c.section)).map(freshCheck),sections:[...starterSections],notes:'',outcome:'',repeatMonths:0,nextDueDate:'',followUpDate:'',parentId:'',followUpKind:'',codeBasis:[],reinspectionDecision:'',reinspectionReason:'',reinspectionTime:'',inspectorSignature:blankSignature(),representative:blankSignature(),inspectorAttested:false,changeReason:'',test:false }; }
 const text=(v: unknown,max=4000)=>String(v??'').trim().slice(0,max);
 export function normalizeInspection(value: unknown): InspectionData {
