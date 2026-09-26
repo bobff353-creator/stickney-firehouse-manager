@@ -1,3 +1,4 @@
+import {reviewBasis} from '../../fire-inspections/alternative-review';
 import { ensureDatabase } from '../../../db/bootstrap';
 import { inspectionBoundary,inspectionJson,inspectionSnapshot,decodeInspection,inspectionColumns,type StoredInspection,type InspectionDb } from '../../fire-inspections/server';
 import { normalizeInspection,validateInspection,followUpRecord,followUpId,blankSignature,type InspectionRecord } from '../../fire-inspections/model';
@@ -31,6 +32,13 @@ export async function POST(request:Request){
     data.representative=blankSignature();data.inspectorSignature=blankSignature();data.inspectorAttested=false;
    }
   }
+  if(current?.data.alternativeReview?.enabled){
+   if(!body.data?.alternativeReview)throw Error('This record has an alternative review. Refresh the app before editing so the review is preserved.');
+   if(!data.alternativeReview.enabled)throw Error('Keep the saved alternative review. Use Not pursued with a reason instead of removing its history.');
+   const changedBasis=reviewBasis(current.data.alternativeReview)!==reviewBasis(data.alternativeReview)||(['propertyId','title','address','occupancy'] as const).some(k=>current.data[k]!==data[k]);
+   if(changedBasis&&current.data.alternativeReview.status!=='Draft'&&data.alternativeReview.status!=='Draft')throw Error('The property or review proposal changed. Return the alternative review to Draft before saving.');
+  }
+  if(current&&JSON.stringify(current.data.alternativeReview)!==JSON.stringify(data.alternativeReview)){data.representative=blankSignature();data.inspectorSignature=blankSignature();data.inspectorAttested=false;}
   // Parent links, test classification, and the source of a follow-up cannot silently change.
   if(current&&(current.data.parentId!==data.parentId||current.data.followUpKind!==data.followUpKind||current.data.test!==data.test))throw Error('The source inspection and test designation cannot be changed.');
   if(data.parentId){const parent=await db.prepare('SELECT payload FROM fire_inspection_pilot_records WHERE department_id=? AND id=?').bind(department,data.parentId).first<{payload:string}>();if(!parent)throw Error('The source inspection is not available in this department.');if(Boolean(JSON.parse(parent.payload).test)!==data.test)throw Error('A test inspection cannot create a live follow-up.');}
