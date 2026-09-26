@@ -177,7 +177,7 @@ test('durable CAD queue: actual migration and delivery worker against local Post
 });
 
 test('all CAD entry points schedule durable delivery after the commit, before Daily Log projection',()=>{
- for(const file of ['app/api/cad/cis/route.ts','app/api/dispatch-bridge/route.ts','app/api/resend-dispatch/route.ts','app/resend-dispatch-sync.ts']) {
+ for(const file of ['app/api/cad/cis/route.ts','app/api/dispatch-bridge/route.ts','app/api/resend-dispatch/route.ts']) {
    const source=readFileSync(new URL('../'+file,import.meta.url),'utf8');
    assert.doesNotMatch(source,/sendCadPushNotifications|incidentAlreadyStored/);
    if(file.includes('/cis/')) {

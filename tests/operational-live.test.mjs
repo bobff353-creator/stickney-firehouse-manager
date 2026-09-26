@@ -163,7 +163,7 @@ test('server grants live scopes only for the verified department and matching pe
     assert.equal(await server.readOperationalSignal(request(),[],{}),null);assert.equal(reads.length,0);
     assert.equal(await server.readOperationalSignal(request(other),['operations_board.view'],{}),null);assert.equal(reads.length,0);
     await server.readOperationalSignal(request(),['field_preplans.view'],{});assert.deepEqual(reads[0].args,[dept,user,'{respond}']);assert.equal(tasks.length,0);
-    await server.readOperationalSignal(request(),['operations_board.view'],{});assert.deepEqual(reads[1].args,[dept,user,'{board}']);assert.equal(tasks.length,1);
+    await server.readOperationalSignal(request(),['operations_board.view'],{});assert.deepEqual(reads[1].args,[dept,user,'{board}']);assert.equal(tasks.length,0);
   }finally{if(saved===undefined)delete process.env.PAYROLL_DEPARTMENT_ID;else process.env.PAYROLL_DEPARTMENT_ID=saved;}
 });
 

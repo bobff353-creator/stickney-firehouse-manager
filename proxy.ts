@@ -53,7 +53,7 @@ export async function proxy(request: NextRequest) {
     && (signedWebhookPaths.has(pathname) || pathname === "/api/cad/cis");
   const publicAuthRequest = request.method === "POST" && publicAuthPostPaths.has(pathname);
   // Exact cron routes authenticate themselves before database/source I/O.
-  const signedCronRequest = request.method === 'GET' && ['/api/cron/cad-push', '/api/cron/scheduler-reminders', '/api/cron/board-feeds', '/api/cron/daily-refresh'].includes(pathname);
+  const signedCronRequest = request.method === 'GET' && ['/api/cron/cad-push', '/api/cron/dispatch-recovery', '/api/cron/scheduler-reminders', '/api/cron/board-feeds', '/api/cron/daily-refresh'].includes(pathname);
   if (publicApiPaths.has(pathname) || signedWebhookRequest || publicAuthRequest || signedCronRequest) {
     return NextResponse.next();
   }

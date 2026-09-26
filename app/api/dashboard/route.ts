@@ -3,7 +3,6 @@ import { ensureDatabase } from "../../../db/bootstrap";
 import { projectDispatchIntoDailyLog } from "../../dispatch-daily-log";
 import { scheduleQueryDates, scheduledStaffingForLog, type DepartmentScheduleAssignment } from "../../department-schedule";
 import { chicagoOperationalContext } from "../../operational-day";
-import { syncRecentResendDispatches } from "../../resend-dispatch-sync";
 import { openFleetEquipmentIssues, pendingDailyFleetChecks } from "../../lib/fleet-projections";
 import { createInventorySupabaseClient } from "../../lib/supabase-server";
 import { nextOperationalDeadline } from '../../operational-deadlines';
@@ -34,7 +33,6 @@ export async function GET(request: Request) {
     const db = await ensureDatabase();
     const liveBoard = new URL(request.url).searchParams.get("scope") === "live-operations";
     if (!await hasAnyPermission(request, db, liveBoard ? ["operations_board.view"] : ["dashboard.view","operations_board.view"])) return Response.json({ error: "This account does not have access to this tool." }, { status: 403, headers: { "Cache-Control": "private, no-store" } });
-    try { await syncRecentResendDispatches(db); } catch (error) { console.error("Direct Resend dispatch sync failed", error); }
     const unloggedDispatches = await db.prepare("SELECT incident_id AS reportNumber, dispatched_at AS dispatchedAt, time_out AS timeOut, responding_units AS respondingUnits, address, call_type AS callType FROM dispatch_incidents WHERE active = 1 AND cleared_at IS NULL AND NOT EXISTS (SELECT 1 FROM daily_log_calls WHERE trim(daily_log_calls.report_number) = trim(dispatch_incidents.incident_id)) ORDER BY datetime(dispatched_at)").all<{
       reportNumber: string; dispatchedAt: string; timeOut: string; respondingUnits: string; address: string; callType: string;
     }>();

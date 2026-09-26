@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     const isOwner = ownerAdminEmails.includes(email);
     const viewer = { canManagePayroll: viewerPermissions.includes("payroll.manage"), canManageEmployees: viewerPermissions.includes("employees.manage"), canManagePermissions: canManage, isOwner };
     if (!canManage || new URL(request.url).searchParams.get("scope") === "viewer") {
-      const operational = new URL(request.url).searchParams.has('live') ? await readOperationalSignal(request, viewerPermissions, db) : null;
+      const operational = new URL(request.url).searchParams.has('live') ? await readOperationalSignal(request, viewerPermissions) : null;
       if (before !== await revision(db)) return json({ error: "Permissions changed during loading. Retry access verification." }, 409);
       return json({ viewerPermissions, viewer, revision: before, isOwner, operational, confirmation:parseConfirmationStatus(request.headers.get('x-portal-confirmation')), identity: `${request.headers.get("x-department-id") ?? ""}:${email}` });
     }

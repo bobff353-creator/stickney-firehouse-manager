@@ -82,6 +82,7 @@ export function parseDispatchJson(input: unknown): DispatchIncident | null {
   const [longitude, latitude] = coordinates(rawCoordinates);
   const rawTimestamp = value.ts && typeof value.ts === "object" ? (value.ts as { $date?: unknown }).$date : value.timestamp;
   const timestamp = new Date(clean(rawTimestamp));
+  if (Number.isNaN(timestamp.getTime())) return null;
   return {
     incidentId,
     callType,
@@ -92,7 +93,7 @@ export function parseDispatchJson(input: unknown): DispatchIncident | null {
     units: unitList.join(", "),
     longitude,
     latitude,
-    dispatchedAt: Number.isNaN(timestamp.getTime()) ? new Date().toISOString() : timestamp.toISOString(),
+    dispatchedAt: timestamp.toISOString(),
   };
 }
 
@@ -111,6 +112,7 @@ export function parseDispatchText(text: string): DispatchIncident | null {
   const city = fields.get("city") || "";
   const location = fields.get("location") || "";
   const timestamp = chicagoLocalTimestamp(fields.get("timestamp") || "");
+  if (!timestamp) return null;
   return {
     incidentId,
     callType,
@@ -121,6 +123,6 @@ export function parseDispatchText(text: string): DispatchIncident | null {
     units: fields.get("dispatch") || "",
     longitude,
     latitude,
-    dispatchedAt: timestamp ? timestamp.toISOString() : new Date().toISOString(),
+    dispatchedAt: timestamp.toISOString(),
   };
 }
