@@ -1,0 +1,18 @@
+{
+  "il-306:recertificationBook": {
+    "sourceSha256": "76bcb996dc6007012daed6a166fe7e98ff990b79b0e32e47ea93b0d56b8e454e",
+    "reviewedAt": "2026-09-25",
+    "tasks": {
+      "12.2.1": {"title": "Start the response", "description": "Gather emergency details, use communications equipment, and promptly relay accurate information to dispatch."},
+      "12.2.2": {"title": "Radio messages", "description": "Send and receive clear, complete messages; distinguish routine traffic from emergency traffic."},
+      "12.3.1": {"title": "Pumper readiness", "description": "Inspect and operate pumper components; identify problems and address deficiencies under department procedures."},
+      "12.4.1": {"title": "Safe apparatus travel", "description": "Use provided safety equipment when boarding, riding, and exiting; wear seat belts while moving."},
+      "12.4.2": {"title": "Protected scene workspace", "description": "Use safety equipment and traffic controls; perform assigned tasks within the protected work area."},
+      "12.4.3": {"title": "Establish water supply", "description": "Make secure, unobstructed connections using the applicable hydrant or drafting setup."},
+      "12.4.4": {"title": "Operate attack streams", "description": "Engage the pump, set safety controls, maintain nozzle flow, and monitor apparatus operation."},
+      "12.4.5": {"title": "Relay pumping", "description": "Supply the next pumper’s required flow and intake pressure through a line 2½ inches or larger."},
+      "12.4.6": {"title": "Foam application", "description": "Connect and operate foam equipment to deliver correctly proportioned foam."},
+      "12.4.7": {"title": "Support building systems", "description": "Provide sprinkler or standpipe systems with the required water volume and pressure."}
+    }
+  }
+}

@@ -103,6 +103,42 @@ test('selected JPRs remain tied to the correct book and edition without awarding
   assert.ok(model.trainingCsv([record('completion',normalized)],[member]).includes('JPR 7.3.1'));
 });
 
+test('engineer summaries make specific tasks searchable without mixing books or editions',()=>{
+  const selection=core('app/training/osfm-selection.ts');
+  const engineer=selection.osfmBooks.find(b=>b.certificationId==='il-306'&&b.kind==='recertificationBook');
+  for(const task of engineer.jprs){
+    const ref=selection.taskReference(selection.taskKey(engineer,task.id));
+    assert.ok(ref.summary?.title&&ref.summary?.description,task.id);
+    assert.equal(ref.page,task.taskPage);
+  }
+  for(const [query,id] of [['dispatch','12.2.1'],['radio messages','12.2.2'],['deficiencies','12.3.1'],['seat belts','12.4.1'],['traffic controls','12.4.2'],['hydrant','12.4.3'],['nozzle flow','12.4.4'],['relay pumping','12.4.5'],['foam','12.4.6'],['standpipe','12.4.7']]){
+    assert.deepEqual(selection.searchBookTasks(engineer,query).map(j=>j.id),[id]);
+    assert.ok(selection.searchCertifications(query).some(c=>c.id===engineer.certificationId));
+  }
+  assert.equal(selection.searchBookTasks(engineer,'unlisted imaginary task').length,0);
+  const trench=selection.osfmBooks.find(b=>b.certificationId==='il-354'&&b.kind==='recertificationBook');
+  assert.equal(selection.taskDescription(trench,'12.2.1'),null);
+  assert.equal(selection.taskDescription({...engineer,sha256:'changed-source'},'12.2.1'),null);
+  assert.equal(selection.taskDescription(engineer,'12.4.3-1'),null);
+});
+
+test('activity draft keeps selected tasks on reload and an edit removes only the unchecked task',async()=>{
+  const selection=core('app/training/osfm-selection.ts');
+  const ids=['il-306:recertificationBook:12.4.3','il-306:recertificationBook:12.4.6','il-353:recertificationBook:7.3.1'];
+  const h=await harness();try{
+    const draft={...record('activity',model.normalizeTrainingData(data({title:'test/training',status:'draft',test:true,osfmTaskIds:ids}))),version:0};
+    const created=await h.api.POST(h.request(draft));assert.equal(created.status,201,await created.clone().text());
+    const saved=(await(await h.api.GET(h.request())).json()).records[0];
+    assert.deepEqual(saved.data.osfmTaskIds,ids);
+    assert.equal(selection.taskReference(saved.data.osfmTaskIds[0]).summary.title,'Establish water supply');
+    const revised={...saved,data:{...saved.data,osfmTaskIds:ids.slice(1)}};
+    const edited=await h.api.POST(h.request(revised));assert.equal(edited.status,200,await edited.clone().text());
+    const reloaded=(await(await h.api.GET(h.request())).json()).records[0];
+    assert.deepEqual(reloaded.data.osfmTaskIds,ids.slice(1));
+    assert.equal(reloaded.data.status,'draft');assert.equal(model.creditedHours(reloaded),0);
+  }finally{await h.close();}
+});
+
 test('the full indexed selection fits the saved payload and a selection persists through the API',async()=>{
   const selection=core('app/training/osfm-selection.ts'),ids=selection.osfmBooks.flatMap(b=>b.jprs.map(j=>selection.taskKey(b,j.id)));
   assert.equal(ids.length,818);
