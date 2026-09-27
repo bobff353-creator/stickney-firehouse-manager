@@ -23,7 +23,7 @@
 
 ## Release and verification
 
-Apply `20260927173904_payroll_early_submissions.sql` before deploying this application version. It adds private tables and source-version triggers; it does not create submissions, approve adjustments, copy real attendance, change rates, or backfill historical payroll. Keep existing finalized-period protection intact. Deploy the migration and app together because CSV export checks the new saved-copy endpoint.
+Apply `20260927222152_payroll_early_submissions.sql` before deploying this application version. It adds private tables and source-version triggers; it does not create submissions, approve adjustments, copy real attendance, change rates, or backfill historical payroll. Keep existing finalized-period protection intact. Deploy the migration and app together because CSV export checks the new saved-copy endpoint.
 
 Local verification uses fictional records only:
 
@@ -44,3 +44,13 @@ Live migration installation, authenticated production walkthrough, Village expor
 ### Production integration
 
 The release is integrated on top of the newer `993a28d` production source, preserving its inspection features, payroll math fixes and department-format Excel export. Submitted and working exports use that same canonical payroll calculation; the Acting Officer allowance is frozen in the saved rules. Approved carry-forwards are separate fixed-dollar rows with zero new worked hours, including negative amounts. Excel retains the supporting source/approval details on a separate audit sheet, labeled not to add those amounts again.
+
+### Release verification — September 27, 2026
+
+- Integrated source commit: `ce834a84cb08b6e887b3c7f4eb8e6c8c18e8edc1`, pushed to `codex/clear-first-screen-20260924`. The original implementation commit is also preserved on `codex/scheduler-member-release`.
+- Production deployment: `dpl_DVqQCjua7rokj8uLs9GCCAXyhHLA`, built successfully and promoted to `https://stickney-firehouse-manager.vercel.app/` after database installation.
+- Applied database migration: `20260927222152_payroll_early_submissions`. The local filename was aligned to the migration service's assigned version; no SQL behavior changed.
+- Integrated build, TypeScript, changed-file lint and 74 targeted checks passed. Excel was reopened to verify negative approved dollars remain constants with zero additional worked hours. The previous full-suite result above belongs to the earlier source baseline, not a full-suite run of the integrated release.
+- Verified all three new tables have RLS enabled, no direct anonymous/authenticated access and zero submitted/adjustment records. Existing record totals remained 1,003 time entries, 9,401.5 hours and 85 Daily Logs. A rolled-back, zero-row source update verified trigger execution under the existing private executor's owner without changing attendance.
+- Deployment health returned HTTP 200; the new endpoint returned HTTP 401 without a signed-in session. No error/fatal logs were found for the deployment during the release scan. This does not replace an authenticated administrator acceptance walkthrough, and no real payroll was submitted or sent to the Village.
+- Security advisors added only expected informational notices for the private tables' deny-by-default RLS. Existing unrelated security-definer and leaked-password-protection warnings remain outside this release.

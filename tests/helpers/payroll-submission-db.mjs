@@ -46,7 +46,7 @@ export async function payrollDatabaseFixture() {
     CREATE FUNCTION public.firehouse_server_sql(p_sql text,p_mode text DEFAULT 'all',p_secret text DEFAULT NULL) RETURNS jsonb LANGUAGE sql AS $$ SELECT public.firehouse_sql(p_sql,p_mode,p_secret) $$;
   `);
   await pg.exec(fs.readFileSync(new URL('supabase/migrations/20260908032620_portal_atomic_saves.sql',root),'utf8'));
-  await pg.exec(fs.readFileSync(new URL('supabase/migrations/20260927173904_payroll_early_submissions.sql',root),'utf8'));
+  await pg.exec(fs.readFileSync(new URL('supabase/migrations/20260927222152_payroll_early_submissions.sql',root),'utf8'));
   await pg.exec(`SET search_path=firehouse;
     INSERT INTO pay_scales VALUES('ff','Firefighter',20,30,30);
     INSERT INTO employees VALUES('a','Fictional Member A','ff',1),('b','Fictional Member B','ff',1);

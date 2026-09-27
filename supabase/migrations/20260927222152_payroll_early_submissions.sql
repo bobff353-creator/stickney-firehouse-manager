@@ -1,4 +1,5 @@
 -- Submission is a frozen copy, NOT a lock on ongoing attendance recording.
+-- Filename matches the version assigned by the production migration service.
 -- Existing finalized time-entry protections are intentionally unchanged.
 CREATE TABLE firehouse.payroll_source_version (
   id integer PRIMARY KEY CHECK (id = 1), version bigint NOT NULL DEFAULT 0
