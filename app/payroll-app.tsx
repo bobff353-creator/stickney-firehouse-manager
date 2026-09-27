@@ -7,6 +7,8 @@ import { portalNeedsPayroll } from "./portal-data-needs";
 import { SaveStatus } from "./save-status";
 import { payrollReviewIssues, type ReviewStaffing } from "./payroll-review";
 import PayrollCorrections from "./payroll-corrections";
+import PayrollSubmissions, { type SubmissionState } from "./payroll-submissions";
+import { submittedPayrollReference, withApprovedAdjustments, submittedExportRows, adjustmentExportRows } from "./payroll-submission-export";
 import { portalPageFromSearch, portalPageLabel, portalPageUrl, type PortalPage, type PortalRecord } from "./portal-navigation";
 import { featuredNavItems, featuredNavPages, adminNavGroups, navPermission, portalNavigationForPermissions } from "./portal-menu-items";
 import { confirmLeavingWork, useUnsavedWork } from "./use-unsaved-work";
@@ -277,6 +279,8 @@ export default function PayrollApp({
   const [finalizing, setFinalizing] = useState(false);
   const [exportingPayroll, setExportingPayroll] = useState(false);
   const payrollExportInFlight = useRef(false);
+  const [submissionState, setSubmissionState] = useState<{ period: string; state: SubmissionState } | null>(null);
+  const handleSubmissionSaved = useCallback((period: string, state: SubmissionState) => setSubmissionState({ period, state }), []);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
   const [deletingEmployee, setDeletingEmployee] = useState(false);
   const [invitingEmail, setInvitingEmail] = useState("");
@@ -544,15 +548,19 @@ export default function PayrollApp({
     payrollExportInFlight.current = true;
     setExportingPayroll(true);
     try {
-      const report = buildPayrollReference(data.period, employeeSummaries.map(({ employee }) => ({
+      const response = await fetch(`/api/payroll-submissions?period=${data.period.startDate}`, { cache: "no-store", signal: AbortSignal.timeout(20000) });
+      const delivery: SubmissionState & { error?: string } = await response.json();
+      if (!response.ok) throw new Error(delivery.error || "Unable to verify submitted payroll.");
+      const report = delivery.submission ? submittedPayrollReference(delivery.submission.document) : withApprovedAdjustments(buildPayrollReference(data.period, employeeSummaries.map(({ employee }) => ({
         employee,
         entries: data.entries.filter(entry => entry.employeeId === employee.id),
-      })), data.settings);
-      const filename = `Stickney-Payroll-${data.period.startDate}-to-${data.period.endDate}.${format}`;
+      })), data.settings), delivery.incoming);
+      const detailRows = delivery.submission ? submittedExportRows(delivery.submission.document) : adjustmentExportRows(delivery.incoming);
+      const filename = `Stickney-${delivery.submission ? "Submitted-" : ""}Payroll-${data.period.startDate}-to-${data.period.endDate}.${format}`;
       let blob: Blob;
       if (format === "xlsx") {
         const { payrollExcelBytes } = await import("./payroll-excel");
-        blob = new Blob([await payrollExcelBytes(report)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        blob = new Blob([await payrollExcelBytes(report, detailRows)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       } else {
         blob = new Blob([payrollReferenceCsv(report)], { type: "text/csv;charset=utf-8" });
       }
@@ -564,7 +572,7 @@ export default function PayrollApp({
       anchor.click();
       anchor.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
-      setToast(`${format === "xlsx" ? "Excel" : "CSV"} download started · ${report.employeeCount} employees`);
+      setToast(`${format === "xlsx" ? "Excel" : "CSV"} download started · ${delivery.submission ? "fixed submitted copy" : `${report.employeeCount} employees`}`);
     } catch (caught) {
       setError(caught instanceof Error ? `Payroll export failed: ${caught.message}` : "Payroll export failed. Try again.");
     } finally {
@@ -1094,6 +1102,8 @@ export default function PayrollApp({
           {(activeNav === "Payroll" || activeNav === "Timesheets" || activeNav === "My Timesheet") && <RecordCredibility audit={{ recordNumber: `PAY-${data.period.startDate.replaceAll("-", "")}`, status: statusLabel, createdBy: data.period.createdBy, createdAt: data.period.createdAt, updatedBy: data.period.updatedBy, updatedAt: data.period.updatedAt, closedBy: data.period.finalizedBy, closedAt: data.period.finalizedAt, revisions: data.period.revisions }} />}
 
           {!testMember && ((activeNav === "Payroll" && data.viewer.canManagePayroll) || activeNav === "My Timesheet") && <PayrollCorrections key={`${data.period.startDate}-${activeNav}`} period={data.period.startDate} end={data.period.endDate} mode={activeNav === "Payroll" ? "manager" : "member"} />}
+          {!testMember && activeNav === "Payroll" && data.viewer.canManagePayroll && <PayrollSubmissions key={data.period.startDate} period={data.period.startDate} end={data.period.endDate} finalized={data.period.status === "finalized"} disabled={savingCells.size > 0 || dirtyCellCount > 0 || Object.keys(failedCells).length > 0} onSaved={handleSubmissionSaved} />}
+          {activeNav === "Payroll" && submissionState?.period === data.period.startDate && submissionState.state.submission && <p className="helper-note">The table below shows working actuals, not the fixed submitted copy. Export CSV downloads the submitted copy above. Continue recording actual work, then reconcile from the receiving period.</p>}
           {activeNav === "Payroll" && <div className={data.period.status === "finalized" ? "record-finalized" : "record-editable"}>
             {data.period.status === "finalized" && <div className="record-state-banner finalized"><span className="state-lock" aria-hidden="true">✓</span><div><strong>Finalized payroll · Read only</strong><span>This pay period is closed. Hours and payroll totals can no longer be changed.</span></div></div>}
             <section className="kpi-grid" aria-label="Payroll summary">
@@ -1112,7 +1122,7 @@ export default function PayrollApp({
                 </div>
               </div>
 <p className="payroll-export-help">Excel matches the department payroll sheets, with colored pay rows and totals. Downloads include everyone on this payroll.</p>
-<div className="review-bar workflow-payroll-review"><span><strong>{readyCount}</strong> entered · <strong>{reviewCount}</strong> need review · <strong>{payrollEmployees.length - readyCount - reviewCount}</strong> not started</span><div>{data.period.status !== "finalized" ? <><button className="quiet-button" disabled={reviewSaving} onClick={() => void markPayrollReviewed()}>{reviewSaving ? "Saving review…" : "Mark Reviewed"}</button><button className="finalize-button" disabled={reviewCount > 0} onClick={() => setFinalizeConfirmOpen(true)}>Finalize Payroll</button></> : <span className="closed-confirmation">✓ Payroll closed</span>}</div></div>
+<div className="review-bar workflow-payroll-review"><span><strong>{readyCount}</strong> entered · <strong>{reviewCount}</strong> need review · <strong>{payrollEmployees.length - readyCount - reviewCount}</strong> not started</span><div>{data.period.status !== "finalized" ? <><button className="quiet-button" disabled={reviewSaving} onClick={() => void markPayrollReviewed()}>{reviewSaving ? "Saving review…" : "Mark Reviewed"}</button>{submissionState?.period === data.period.startDate && (submissionState.state.submission || submissionState.state.incoming.length > 0) ? <span>Use the submitted-copy workflow above; actual attendance remains open.</span> : <button className="finalize-button" disabled={reviewCount > 0} onClick={() => setFinalizeConfirmOpen(true)}>Finalize Payroll</button>}</> : <span className="closed-confirmation">✓ Payroll closed</span>}</div></div>
               <div className="table-wrap payroll-table">
                 <table><thead><tr><th>Employee</th><th>Rank</th><th className="number">Hours</th><th className="number">Gross Pay</th><th>Status</th></tr></thead><tbody>
                   {filteredRows.map((row) => <tr key={row.employee.id} onClick={() => openTimesheet(row.employee.id)}>

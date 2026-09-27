@@ -6,7 +6,7 @@ const rateFormat = (rate: number) => Math.abs(rate * 100 - Math.round(rate * 100
 const colors: Record<string, string> = { overtime: "FF00B0F0", actingOfficer: "FFFFFF00", holiday: "FF92D050", dpw: "FFE4D7F5" };
 
 // Loaded only after Export Excel is clicked; generation needs no database request.
-export function createPayrollWorkbook(report: PayrollReference) {
+export function createPayrollWorkbook(report: PayrollReference, sourceRows: Array<Array<string | number>> = []) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Stickney Firehouse Manager";
   workbook.title = `Stickney Payroll · ${report.title}`;
@@ -28,8 +28,9 @@ export function createPayrollWorkbook(report: PayrollReference) {
   report.rows.forEach(({ kind, cells }) => {
     const row = sheet.addRow(cells);
     const n = row.number;
-    row.getCell(totalCol).value = { formula: `ROUND(SUM(C${n}:${letter(totalCol - 1)}${n}),2)`, result: Number(cells[totalCol - 1]) };
-    row.getCell(count).value = { formula: `ROUND(${letter(totalCol)}${n}*${letter(rateCol)}${n},2)`, result: Number(cells[count - 1]) };
+    row.getCell(totalCol).value = kind === "adjustment" ? 0 : { formula: `ROUND(SUM(C${n}:${letter(totalCol - 1)}${n}),2)`, result: Number(cells[totalCol - 1]) };
+    // Prior-period adjustments are approved dollars, not new worked hours.
+    row.getCell(count).value = kind === "adjustment" ? Number(cells[count - 1]) : { formula: `ROUND(${letter(totalCol)}${n}*${letter(rateCol)}${n},2)`, result: Number(cells[count - 1]) };
     if (colors[kind]) row.eachCell(cell => { cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: colors[kind] } }; });
   });
   const lastDataRow = sheet.rowCount;
@@ -90,10 +91,17 @@ export function createPayrollWorkbook(report: PayrollReference) {
   for (let row = 9 + report.rates.length + 2; row <= notes.rowCount; row++) {
     notes.mergeCells(row, 2, row, 3);
   }
+  if (sourceRows.length) {
+    const source = workbook.addWorksheet("Submission audit");
+    source.addRow(["Supporting detail only — do not add these amounts to the Payroll sheet again."]);
+    source.addRows(sourceRows);
+    source.columns.forEach(column => { column.width = 25; });
+    source.eachRow(row => { row.alignment = { vertical: "top", wrapText: true }; });
+  }
   return workbook;
 }
 
-export async function payrollExcelBytes(report: PayrollReference) {
-  const buffer = await createPayrollWorkbook(report).xlsx.writeBuffer();
+export async function payrollExcelBytes(report: PayrollReference, sourceRows: Array<Array<string | number>> = []) {
+  const buffer = await createPayrollWorkbook(report, sourceRows).xlsx.writeBuffer();
   return new Uint8Array(buffer);
 }

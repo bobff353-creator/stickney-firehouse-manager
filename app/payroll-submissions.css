@@ -1,0 +1,23 @@
+.payroll-submission-card{background:#fff;color:#153549;border:1px solid #b9ccd8;border-radius:12px;padding:20px;margin:16px 0;line-height:1.5;overflow-wrap:anywhere}
+.payroll-submission-card header{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.payroll-submission-card h2,.payroll-submission-card h3{color:#153549;margin:4px 0 10px;font-size:1.2rem}
+.payroll-submission-card p{color:#365568;margin:10px 0}
+.payroll-submission-card details{border-top:1px solid #c8d5dd;margin-top:16px;padding-top:14px}
+.payroll-submission-card summary{cursor:pointer;font-weight:750;min-height:44px;padding:10px 0}
+.payroll-submission-card button{background:#18577a;color:#fff;border:1px solid #18577a;padding:10px 14px;border-radius:7px;min-height:44px;font-weight:700;margin:8px 4px 4px 0;white-space:normal}
+.payroll-submission-card button:disabled{background:#e4ebef;color:#536676;border-color:#aebfc9;cursor:not-allowed}
+.payroll-submission-card input,.payroll-submission-card select{display:block;min-height:44px;max-width:100%;width:100%;background:#fff;color:#153549;border:1px solid #718f9f;border-radius:6px;padding:9px;font:inherit}
+.submission-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.payroll-submission-card label{display:block;font-weight:700;margin:12px 0}
+.payroll-submission-card .submission-confirm{display:flex;gap:12px;align-items:flex-start}
+.payroll-submission-card input[type=checkbox]{width:22px;min-height:22px;flex:none}
+.submission-warning{padding:12px;background:#fff5d9;color:#654a10!important;border-left:4px solid #c18d15}
+.submission-error{padding:12px;background:#fff0f0;color:#871b24!important;border-left:4px solid #b22431}
+.submission-success,.submission-saved{padding:14px;background:#e5f5ec;color:#155238!important;border:1px solid #63a882;border-radius:8px}
+.submission-table{overflow:auto;max-height:420px;border:1px solid #bccbd4}
+.submission-table table{width:100%;border-collapse:collapse}
+.submission-table th,.submission-table td{padding:10px;text-align:left;color:#153549;border-bottom:1px solid #cbd8df;background:#fff}
+.submission-table th{position:sticky;top:0;background:#e9f0f5}
+.submission-table small{display:block;font-size:.75rem;max-width:28rem}
+.adjustment-review{border:1px solid #a9bfcd;border-radius:8px;padding:14px;margin:12px 0}
+@media(max-width:600px){.payroll-submission-card{padding:12px}.submission-fields{grid-template-columns:1fr}.payroll-submission-card header button{width:100%}.submission-table{font-size:.9rem}.payroll-submission-card button{max-width:100%}}
