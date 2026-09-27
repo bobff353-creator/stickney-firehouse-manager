@@ -243,6 +243,7 @@ export async function POST(request: Request) {
 
     return Response.json({ error: "Unsupported action" }, { status: 400 });
   } catch (error) {
+    if (error instanceof Error && /PAYROLL_SNAPSHOT_LOCKED/.test(error.message)) return Response.json({ error: "This payroll uses a fixed submitted copy or approved carry-forwards. Use Early submission & carry-forward; actual attendance stays open for reconciliation." }, { status: 409 });
     if (error instanceof Error && /SAVE_CONFLICT|PAYROLL_FINALIZED/.test(error.message)) return Response.json({ error: "This period is finalized or the linked hours changed. Reload and review before retrying; no hours were saved." }, { status: 409 });
     return Response.json({ error: error instanceof Error ? error.message : "Unable to save payroll" }, { status: 500 });
   }
