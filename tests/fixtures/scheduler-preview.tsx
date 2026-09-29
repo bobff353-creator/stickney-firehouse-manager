@@ -1,6 +1,8 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import StationScheduler from "../../app/station-scheduler";
+import { WorkspaceViewMemory } from "../../app/workspace-view-state";
+import { useWorkspaceTaskNavigation } from "../../app/workspace-task-navigation";
 import "../../app/globals.css";
 
 const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
@@ -50,4 +52,8 @@ window.fetch = async (input, init) => {
   }
   return Response.json(data);
 };
-createRoot(document.getElementById("root")!).render(<main style={{ maxWidth: 1000, margin: "auto", padding: 12 }}><p id="fixture-status">Fictional test only · assignment attempts: 0</p><StationScheduler /></main>);
+function FixtureBack() {
+  const navigation = useWorkspaceTaskNavigation("Scheduling");
+  return navigation ? <button disabled={navigation.disabled} onClick={navigation.onBack}>← Back to {navigation.label}</button> : null;
+}
+createRoot(document.getElementById("root")!).render(<WorkspaceViewMemory><main style={{ maxWidth: 1000, margin: "auto", padding: 12 }}><p id="fixture-status">Fictional test only · assignment attempts: 0</p><FixtureBack /><StationScheduler /></main></WorkspaceViewMemory>);

@@ -43,7 +43,7 @@ test('open requests exclude started shifts using Central time in summer and wint
 test('admin navigation uses daily staffing and explicit assignment saves', async () => {
   const component = await readFile(new URL('../app/station-scheduler.tsx', import.meta.url), 'utf8');
   assert.ok(component.includes('if (!confirmLeavingWork()) return; setSchedulerView("admin"); navigationRequested.current = true; setTabState("overview")'));
-  assert.ok(component.includes('useWorkspaceViewState("scheduler-day-mode", isAdmin)'));
+  assert.ok(component.includes('useWorkspaceViewState("scheduler-day-mode", true)'));
   assert.ok(component.includes('role={adminDayMode ? "region" : "dialog"}'));
   const editor = component.split('function AssignmentEditor(')[1].split('function DaySlotTimeEditor(')[0];
   assert.ok(editor.includes('onChange={(event) => setSelected(event.target.value)}'));

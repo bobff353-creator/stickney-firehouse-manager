@@ -1,4 +1,36 @@
 /* Task-first member screens; preserve the full administrator calendar. */
+.scheduler .scheduler-coverage { margin:24px 0; padding:18px; border:1px solid var(--sched-line); border-radius:12px; background:var(--sched-panel); }
+.scheduler .scheduler-coverage .entry-head { align-items:center; flex-wrap:wrap; gap:12px; }
+.scheduler .scheduler-coverage .row-actions { display:flex; flex-direction:row; flex-wrap:wrap; gap:8px; }
+.scheduler .scheduler-coverage h3 { margin:0; }
+.scheduler .scheduler-coverage p { margin:8px 0 16px; }
+.scheduler-coverage-days { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:10px; }
+.scheduler .scheduler-coverage-days button { display:flex; flex-direction:column; gap:8px; align-items:flex-start; text-align:left; min-height:215px; padding:14px; white-space:normal; border:1px solid #63798b; border-radius:8px; color:#f2f7fc; background:#172b3b; }
+.scheduler .scheduler-coverage-days button.has-open { border-top:4px solid #f3c75f; }
+.scheduler .scheduler-coverage-days button:hover { background:#23445b; }
+.scheduler .scheduler-coverage-days strong { font-size:15px; }
+.scheduler .scheduler-coverage-count { font-size:30px; font-weight:800; line-height:1.2; }
+.scheduler .scheduler-coverage-count small { font-size:18px; color:#d1dde6; }
+.scheduler .scheduler-coverage-days span,.scheduler .scheduler-coverage-days b { font-size:13px; }
+.scheduler .scheduler-coverage-days .scheduler-coverage-count { font-size:30px; }
+.scheduler .scheduler-coverage-days .has-open b { color:#f3c75f; }
+.scheduler .scheduler-card-next { margin-top:auto; color:#abe0ff; font-weight:700; }
+.scheduler .scheduler-coverage-note { font-size:14px; }
+.scheduler .scheduler-coverage button,.scheduler .scheduler-setup-guide button,.scheduler-member-shortcuts button { min-height:44px; }
+.scheduler-member-shortcuts { display:flex; flex-wrap:wrap; gap:10px; margin:12px 0 18px; }
+.scheduler .scheduler-setup-guide { border:1px solid var(--sched-line); border-radius:10px; padding:16px; margin:16px 0; background:var(--sched-panel); }
+.scheduler .scheduler-setup-guide summary { cursor:pointer; font-weight:750; min-height:28px; }
+.scheduler .scheduler-setup-guide ol { list-style:none; padding:0; margin:16px 0 0; display:grid; gap:12px; }
+.scheduler .scheduler-setup-guide li { display:grid; gap:4px; }
+.scheduler .scheduler-setup-guide li button { justify-self:start; text-align:left; white-space:normal; }
+.scheduler .scheduler-setup-guide li span { font-size:14px; color:#d1dde6; }
+@media(max-width:1000px) { .scheduler-coverage-days { grid-template-columns:repeat(4,minmax(0,1fr)); } }
+@media(max-width:600px) {
+  .scheduler .scheduler-coverage { padding:12px; }
+  .scheduler-coverage-days { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .scheduler .scheduler-coverage-days button { padding:12px; min-height:205px; }
+  .scheduler-member-shortcuts { display:grid; grid-template-columns:1fr; }
+}
 .scheduler .scheduler-roster { min-width: 0; }
 .scheduler .scheduler-roster-members { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; margin-top: 16px; }
 .scheduler .scheduler-roster-member { min-width: 0; padding: 16px; border: 1px solid var(--sched-line); border-radius: 8px; background: var(--sched-panel-2); overflow-wrap: anywhere; }

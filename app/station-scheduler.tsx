@@ -14,6 +14,8 @@ import { normalizeScheduleTime, scheduleTimeBlocks } from "./schedule-time";
 import { recurringShiftOccursOnDate } from "./station-scheduler-logic";
 import { expandAvailabilityDates } from "./availability-repeat";
 import { canRequestRole, memberShiftList, shiftTimeLabel, shiftHasNotStarted } from "./scheduler-member-view";
+import { SchedulerCoverage } from "./scheduler-coverage";
+import { filterOpenPositions, scheduleDateOffset, type VacancyFilters } from "./scheduler-overview";
 
 type TestMember = { id: string; name: string; rank: string; effectivePermissions: string[] };
 
@@ -143,6 +145,9 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [selectedDate, setSelectedDate] = useWorkspaceViewState("scheduler-date", todayIso);
+  const [adminDayMode, setAdminDayMode] = useWorkspaceViewState("scheduler-day-mode", true);
+  const [dayReturn, setDayReturn] = useState("overview");
+  const openStaffingDay = (date: string) => { setDayReturn(tab === "openAdmin" ? "openAdmin" : "overview"); setSelectedDate(date); setAdminDayMode(true); setTab("calendar"); };
   const [tradeSlotId, setTradeSlotId] = useState("");
   const [loadedAt, setLoadedAt] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -207,7 +212,9 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
   ];
   const activeGroup = taskGroups.find(group => group.ids.includes(tab)) ?? taskGroups[0];
   const visibleTabs = isAdmin ? tabs.filter(([id]) => activeGroup.ids.includes(id)) : tabs;
-  const managedReturn = useWorkspaceTaskReturn("Scheduling", data && !previewMember && tab !== (isAdmin ? "overview" : "myshifts") ? (isAdmin ? "schedule tasks" : "my shifts") : null, () => setTab(isAdmin ? "overview" : "myshifts"), { task: tabs.find(([id]) => id === tab)?.[1], record: tab === "calendar" ? friendlyDate(selectedDate) : undefined, disabled: busy });
+  const returnTab = isAdmin ? (tab === "calendar" ? dayReturn : "overview") : "myshifts";
+  const returnLabel = isAdmin ? (returnTab === "openAdmin" ? "open positions" : "schedule tasks") : "my shifts";
+  const managedReturn = useWorkspaceTaskReturn("Scheduling", data && !previewMember && tab !== (isAdmin ? "overview" : "myshifts") ? returnLabel : null, () => setTab(returnTab), { task: tabs.find(([id]) => id === tab)?.[1], record: tab === "calendar" ? friendlyDate(selectedDate) : undefined, disabled: busy });
 
   if (error && !data) return <div className="scheduler"><p className="error" role="alert">{error}</p><button type="button" disabled={refreshing} onClick={() => void load()}>{refreshing ? "Retrying…" : "Retry schedule"}</button></div>;
   if (!data) return <div className="scheduler"><p>Loading the scheduler…</p></div>;
@@ -246,27 +253,35 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
       </nav>
       </details>
       </div>
-      {tab !== (isAdmin ? "overview" : "myshifts") && !previewMember && <div className="scheduler-task-context">{!managedReturn && <button type="button" onClick={() => setTab(isAdmin ? "overview" : "myshifts")}>← Back to {isAdmin ? "schedule tasks" : "my shifts"}</button>}<strong>{tabs.find(([id]) => id === tab)?.[1]}{tab === "calendar" ? ` · ${friendlyDate(selectedDate)}` : ""}</strong></div>}
+      {tab !== (isAdmin ? "overview" : "myshifts") && !previewMember && <div className="scheduler-task-context">{!managedReturn && <button type="button" onClick={() => setTab(returnTab)}>← Back to {returnLabel}</button>}<strong>{tabs.find(([id]) => id === tab)?.[1]}{tab === "calendar" ? ` · ${friendlyDate(selectedDate)}` : ""}</strong></div>}
       <fieldset className="scheduler-workspace-fields" disabled={previewMember || Boolean(testMember)}>
 
       {isAdmin && tab === "overview" && <section className="scheduler-admin-home">
-        <h3>What do you need to do?</h3>
+        <h3>What needs attention?</h3>
+        <p className="muted">Review staffing → choose a day → save each assignment. Requests and trades change the roster only after approval.</p>
         <div className="scheduler-task-choices">
-          <button onClick={() => { setSelectedDate(data.today); setTab("calendar"); }}><strong>Staff today</strong><span>See the crew, fill a position, or adjust one day’s schedule.</span></button>
-          <button onClick={() => setTab("openAdmin")}><strong>Find open positions</strong><span>Review upcoming openings by date.{data.notice.overdueShifts > 0 ? ` ${data.notice.overdueShifts} past the award deadline.` : ""}</span></button>
+          <button onClick={() => openStaffingDay(data.today)}><strong>Staff today</strong><span>See the crew, fill a position, or adjust one day’s schedule.</span></button>
+          <button onClick={() => setTab("openAdmin")}><strong>Find open positions · {filterOpenPositions(data.slots, data.today, { from: "", through: "", role: "", shiftTypeId: "" }).length}</strong><span>Filter by date, position, or shift. Counts include all loaded future dates.{data.notice.overdueShifts > 0 ? ` ${data.notice.overdueShifts} past the award deadline.` : ""}</span></button>
           <button onClick={() => setTab("requests")}><strong>Review shift requests · {data.claims.filter((claim) => claim.status === "pending").length}</strong><span>Approve or deny members asking to work an open position.</span></button>
           <button onClick={() => setTab("trades")}><strong>Review trades · {data.trades.filter((trade) => ["pending", "awaiting_acceptance"].includes(trade.status) && trade.acceptedByEmployeeId).length}</strong><span>Review accepted trades. Offers still waiting on a member stay separate.</span></button>
         </div>
-        <p className="muted">Use Shift Builder for repeating patterns, Roster & Assignments for standing assignments, and Calendar for one-day changes.</p>
+        <SchedulerCoverage today={data.today} entries={data.entries} slots={data.slots} onDay={openStaffingDay} onBuild={() => setTab("shiftTypes")} />
+        <details className="scheduler-setup-guide"><summary>Set up or change the schedule</summary><ol>
+          <li><button type="button" className="link" onClick={() => setTab("shiftTypes")}>1. Build shifts & required positions</button><span>Set times, repeating days, and minimum seats.</span></li>
+          <li><button type="button" className="link" onClick={() => setTab("roster")}>2. Review members & standing assignments</button><span>Check qualifications and recurring assignments.</span></li>
+          <li><button type="button" className="link" onClick={() => setTab("availability")}>3. Review availability</button><span>Confirm the dates and hours members submitted.</span></li>
+          <li><button type="button" className="link" onClick={() => setTab("distribution")}>4. Fill a date range</button><span>Use Auto-Distribution, then review the resulting calendar.</span></li>
+          <li><button type="button" className="link" onClick={() => setTab("reminders")}>5. Set deadlines & notifications</button><span>Choose timing and delivery channels for scheduling reminders.</span></li>
+        </ol></details>
       </section>}
-      {isAdmin && tab === "openAdmin" && <AdminOpenPositions data={data} onDay={(date) => { setSelectedDate(date); setTab("calendar"); }} />}
+      {isAdmin && tab === "openAdmin" && <AdminOpenPositions data={data} onDay={openStaffingDay} />}
 
       {!isAdmin && !data.viewer.employeeId && <p role="status">Your login is not linked to a member record. Ask an administrator to link it before making personal requests. Administrator tools remain available above.</p>}
-      {tab === "myshifts" && !isAdmin && <MemberShifts data={data} onOpen={() => setTab("open")} onTrade={(id) => { setTradeSlotId(id); setTab("trades"); }} />}
+      {tab === "myshifts" && !isAdmin && <><div className="scheduler-member-shortcuts" aria-label="My scheduling actions"><button type="button" onClick={() => setTab("availability")}>Update my availability →</button><button type="button" onClick={() => setTab("myrequests")}>Track my requests →</button><button type="button" onClick={() => setTab("accepttrades")}>Trade offers · {incomingTradesFor(data).length} →</button></div><MemberShifts data={data} onOpen={() => setTab("open")} onTrade={(id) => { setTradeSlotId(id); setTab("trades"); }} /></>}
       {tab === "open" && !isAdmin && <MemberOpenShifts data={data} act={act} busy={busy || refreshing || Boolean(error)} />}
       {tab === "accepttrades" && !isAdmin && <MyRequestsScreen data={data} act={act} busy={busy} incomingOnly />}
 
-      {tab === "calendar" && <CalendarScreen data={data} isAdmin={isAdmin} selectedDate={selectedDate} setSelectedDate={setSelectedDate} act={act} busy={busy} employeeName={employeeName} shiftTypeName={shiftTypeName} onTrade={(id) => { setTradeSlotId(id); setTab("trades"); }} />}
+      {tab === "calendar" && <CalendarScreen data={data} isAdmin={isAdmin} adminDayMode={adminDayMode} setAdminDayMode={setAdminDayMode} selectedDate={selectedDate} setSelectedDate={setSelectedDate} act={act} busy={busy} employeeName={employeeName} shiftTypeName={shiftTypeName} onTrade={(id) => { setTradeSlotId(id); setTab("trades"); }} />}
       {tab === "shiftTypes" && isAdmin && <ShiftBuilder data={data} act={act} busy={busy} />}
       {tab === "roster" && isAdmin && <RosterScreen data={data} act={act} busy={busy} shiftTypeName={shiftTypeName} />}
       {tab === "requests" && isAdmin && <RequestsScreen data={data} act={act} busy={busy} employeeName={employeeName} mode="claims" />}
@@ -285,13 +300,19 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
 }
 
 function AdminOpenPositions({ data, onDay }: { data: Data; onDay: (date: string) => void }) {
-  const [date, setDate] = useState("");
-  const open = data.slots.filter((slot) => slot.status === "open" && slot.entryDate >= data.today && (!date || slot.entryDate === date))
-    .sort((a, b) => a.entryDate.localeCompare(b.entryDate) || a.startTime.localeCompare(b.startTime));
-  return <section className="scheduler-member-list"><h3>Open positions</h3><p className="muted">Unfilled positions from today onward. Open a day to choose a qualified member and save the assignment.</p>
-    <div className="scheduler-member-filters"><label>Filter by date<input type="date" min={data.today} value={date} onChange={(event) => setDate(event.target.value)} /></label><button className="link" onClick={() => setDate("")}>Show all dates</button></div>
-    {!open.length && <p>No open positions match this date range.</p>}
-    {open.map((slot) => <article key={slot.id} className="scheduler-member-shift"><div><strong>{friendlyDate(slot.entryDate)} · {slot.role}</strong><span>{shiftTimeLabel(slot.startTime, slot.endTime)}</span></div><button onClick={() => onDay(slot.entryDate)}>Open day</button></article>)}
+  const empty = { from: "", through: "", role: "", shiftTypeId: "" };
+  const [filters, setFilters] = useWorkspaceViewState<VacancyFilters>("scheduler-vacancy-filters", empty);
+  const invalidRange = Boolean(filters.from && filters.through && filters.through < filters.from);
+  const allOpen = filterOpenPositions(data.slots, data.today, empty);
+  const open = filterOpenPositions(data.slots, data.today, filters);
+  const setField = (field: keyof VacancyFilters, value: string) => setFilters(current => ({ ...current, [field]: value }));
+  const shiftNames = new Map(data.shiftTypes.map(shift => [shift.id, `${shift.name} · ${shiftTimeLabel(shift.startTime, shift.endTime)}`]));
+  return <section className="scheduler-member-list"><h3>Open positions</h3><p className="muted">Unfilled positions from today onward, including shifts already started today. Open a day to review availability, choose a qualified member, and save the assignment.</p>
+    <div className="scheduler-member-shortcuts" aria-label="Open position date shortcuts"><button onClick={() => setFilters(current => ({ ...current, from: data.today, through: data.today }))}>Today</button><button onClick={() => setFilters(current => ({ ...current, from: data.today, through: scheduleDateOffset(data.today, 6) }))}>Next 7 days</button><button onClick={() => setFilters(current => ({ ...current, from: data.today, through: scheduleDateOffset(data.today, 13) }))}>Next 14 days</button><button className="link" onClick={() => setFilters(empty)}>Clear filters</button></div>
+    <div className="scheduler-member-filters"><label>From date<input type="date" min={data.today} value={filters.from} onChange={event => setField("from", event.target.value)} /></label><label>Through date<input type="date" min={filters.from || data.today} aria-invalid={invalidRange} value={filters.through} onChange={event => setField("through", event.target.value)} /></label><label>Position<select value={filters.role} onChange={event => setField("role", event.target.value)}><option value="">All positions</option>{[...new Set(allOpen.map(slot => slot.role))].sort().map(role => <option key={role}>{role}</option>)}</select></label><label>Shift<select value={filters.shiftTypeId} onChange={event => setField("shiftTypeId", event.target.value)}><option value="">All shifts</option>{[...new Set(allOpen.map(slot => slot.shiftTypeId))].map(id => <option key={id} value={id}>{shiftNames.get(id) || "Department shift"}</option>)}</select></label></div>
+    {invalidRange ? <p role="alert">Through date must be on or after From date.</p> : <p role="status">{open.length} of {allOpen.length} loaded open positions shown · Filters stay selected when you return.</p>}
+    {!invalidRange && !open.length && <p>No open positions match these filters. This does not confirm staffing for dates without a loaded schedule.</p>}
+    {open.map((slot) => <article key={slot.id} className="scheduler-member-shift"><div><strong>{friendlyDate(slot.entryDate)} · {slot.role}</strong><span>{shiftNames.get(slot.shiftTypeId)?.split(" · ")[0] || "Department shift"} · {shiftTimeLabel(slot.startTime, slot.endTime)}</span><span>{slot.isExtra ? "Extra coverage" : "Required position"}{data.awardBySlot[slot.id]?.window === "overdue" ? " · Past award deadline" : ""}</span></div><button onClick={() => onDay(slot.entryDate)} aria-label={`Open day staffing for ${friendlyDate(slot.entryDate)} ${slot.role} ${slot.startTime}`}>Open day →</button></article>)}
   </section>;
 }
 
@@ -349,8 +370,9 @@ function MemberOpenShifts({ data, act, busy }: { data: Data; act: (body: Record<
   </section>;
 }
 
-function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, busy, employeeName, shiftTypeName, onTrade }: {
+function CalendarScreen({ data, isAdmin, adminDayMode, setAdminDayMode, selectedDate, setSelectedDate, act, busy, employeeName, shiftTypeName, onTrade }: {
   data: Data; isAdmin: boolean; selectedDate: string; setSelectedDate: (d: string) => void;
+  adminDayMode: boolean; setAdminDayMode: (value: boolean) => void;
   act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean; employeeName: (id: string | null | undefined) => string; shiftTypeName: (id: string) => string;
   onTrade: (slotId: string) => void;
 }) {
@@ -358,7 +380,6 @@ function CalendarScreen({ data, isAdmin, selectedDate, setSelectedDate, act, bus
   const [rotationIndex, setRotationIndex] = useState(0);
   const [rotationPaused, setRotationPaused] = useState(false);
   const [dayViewOpen, setDayViewOpen] = useState(false);
-  const [adminDayMode, setAdminDayMode] = useWorkspaceViewState("scheduler-day-mode", isAdmin);
   const [calendarScope, setCalendarScope] = useWorkspaceViewState("scheduler-calendar-scope", "mine");
   const showAllSchedule = isAdmin || calendarScope === "all";
   const myId = data.viewer.employeeId;
