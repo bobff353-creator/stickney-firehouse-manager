@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useOperationalUpdates } from './use-operational-updates';
+import { startVisiblePolling } from './visible-poller';
 import { formatEmployeeName } from "./employee-names";
 import { groupStaffingAssignments } from "./staffing-display";
 import { joinedLabel } from "./member-start-label";
@@ -66,25 +67,26 @@ export default function StaffingRotation({
   const activeIndex = viewIndex % views.length;
   const current = views[activeIndex] ?? views[0];
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
       readRequest.current?.abort();
       const controller = new AbortController(); readRequest.current = controller;
+      const requestSignal = AbortSignal.any([controller.signal, AbortSignal.timeout(15000), ...(signal ? [signal] : [])]);
       try {
-        const response = await fetch("/api/department-schedule", { cache: 'no-store', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]) });
+        const response = await fetch("/api/department-schedule", { cache: 'no-store', signal: requestSignal });
         const payload = await response.json() as SchedulePayload;
-        if (controller.signal.aborted) return;
+        if (requestSignal.aborted) return;
         setSchedule(response.ok ? payload : { error: payload.error || "The department schedule is temporarily unavailable.", items: [] });
       } catch {
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || signal?.aborted) return;
         setSchedule({ error: "The department schedule is temporarily unavailable.", items: [] });
       }
     }, []);
-  useOperationalUpdates({ scope: 'board', sections: ['staffing'], refresh: load, fallbackMs: 60_000, enabled: mode === 'board', nextCalendarChange: schedule?.nextCalendarChange, readFailed: !schedule || Boolean(schedule.error) });
+  const loadBoard = useCallback(() => load(), [load]);
+  useOperationalUpdates({ scope: 'board', sections: ['staffing'], refresh: loadBoard, fallbackMs: 60_000, enabled: mode === 'board', nextCalendarChange: schedule?.nextCalendarChange, readFailed: !schedule || Boolean(schedule.error) });
   useEffect(() => {
     if (mode === 'board') return () => { readRequest.current?.abort(); };
-    const initial = window.setTimeout(() => void load(), 0);
-    const refresh = window.setInterval(() => void load(), 60 * 1000);
-    return () => { window.clearTimeout(initial); window.clearInterval(refresh); readRequest.current?.abort(); };
+    const poller = startVisiblePolling(load, 240_000);
+    return () => { poller.stop(); readRequest.current?.abort(); };
   }, [load, mode]);
 
   useEffect(() => {

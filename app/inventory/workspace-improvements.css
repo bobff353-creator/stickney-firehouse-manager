@@ -38,3 +38,4 @@
   .inventory-app-shell .inventory-ops .inventory-filter-toolbar,.inventory-app-shell .inventory-ops .repair-board-filtered { grid-template-columns:minmax(0,1fr); }
   .inventory-app-shell .inventory-ops .repair-completion-disclosure .repair-completion-form { grid-template-columns:minmax(0,1fr); }
 }
+.inventory-app-shell .inventory-ops .ops-refresh-status { margin:0; padding:10px 14px; border:1px solid #b7cbd3; border-radius:8px; background:#f2f7fa; color:#25495f; font-size:13px; line-height:1.5; }

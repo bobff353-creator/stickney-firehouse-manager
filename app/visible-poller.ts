@@ -3,7 +3,7 @@ export function startVisiblePolling(run: (signal: AbortSignal) => Promise<void>,
   let stopped = false;
   let active: AbortController | null = null;
   const refresh = async () => {
-    if (stopped || document.hidden || active) return;
+    if (stopped || document.hidden || !navigator.onLine || active) return;
     const controller = new AbortController();
     active = controller;
     try { await run(controller.signal); }
@@ -14,14 +14,17 @@ export function startVisiblePolling(run: (signal: AbortSignal) => Promise<void>,
     else void refresh();
   };
   const reconnect = () => { void refresh(); };
+  const offline = () => { active?.abort(); active = null; };
   const initial = window.setTimeout(reconnect, 0);
   const timer = window.setInterval(reconnect, interval);
   document.addEventListener('visibilitychange', visibility);
   window.addEventListener('online', reconnect);
+  window.addEventListener('offline', offline);
   return { refresh, stop() {
     stopped = true; active?.abort(); active = null;
     window.clearTimeout(initial); window.clearInterval(timer);
     document.removeEventListener('visibilitychange', visibility);
     window.removeEventListener('online', reconnect);
+    window.removeEventListener('offline', offline);
   } };
 }

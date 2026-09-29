@@ -77,14 +77,17 @@ test('nonessential poller pauses hidden tabs, deduplicates overlapping refreshes
  const document={hidden:false,addEventListener:(n,f)=>documentListeners.set(n,f),removeEventListener:n=>documentListeners.delete(n)};
  const window={setTimeout:f=>{timers.set(++timerId,f);return timerId;},setInterval:f=>{timers.set(++timerId,f);return timerId;},clearTimeout:id=>timers.delete(id),clearInterval:id=>timers.delete(id),addEventListener:(n,f)=>windowListeners.set(n,f),removeEventListener:n=>windowListeners.delete(n)};
  const compiledModule={exports:{}};
- vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../app/visible-poller.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{module:compiledModule,exports:compiledModule.exports,window,document,AbortController});
+ const navigator={onLine:true};
+ vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../app/visible-poller.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{module:compiledModule,exports:compiledModule.exports,window,document,navigator,AbortController});
  let requests=0,resolve;const signals=[];
  const poller=compiledModule.exports.startVisiblePolling(async signal=>{requests++;signals.push(signal);await new Promise(r=>{resolve=r;});});
  const first=poller.refresh();await poller.refresh();assert.equal(requests,1);
  document.hidden=true;documentListeners.get('visibilitychange')();assert.equal(signals[0].aborted,true);await poller.refresh();assert.equal(requests,1);
  resolve();await first;document.hidden=false;documentListeners.get('visibilitychange')();assert.equal(requests,2);
  resolve();await new Promise(setImmediate);windowListeners.get('online')();assert.equal(requests,3);
- poller.stop();assert.equal(signals[2].aborted,true);resolve();await poller.refresh();assert.equal(requests,3);
+ navigator.onLine=false;windowListeners.get('offline')();assert.equal(signals[2].aborted,true);resolve();await poller.refresh();assert.equal(requests,3);
+ navigator.onLine=true;windowListeners.get('online')();assert.equal(requests,4);
+ poller.stop();assert.equal(signals[3].aborted,true);resolve();await poller.refresh();assert.equal(requests,4);
  assert.equal(timers.size,0);assert.equal(documentListeners.size,0);assert.equal(windowListeners.size,0);
 });
 test('TV board does not mount hidden SmartAlerts; live polling and permission refresh remain unchanged',()=>{

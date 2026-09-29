@@ -1160,6 +1160,7 @@ export default function InventoryOperations({
 
   return (
     <div className="inventory-ops">
+      <p className="ops-refresh-status">Updates every {inventoryRefreshInterval(view) < 60_000 ? `${inventoryRefreshInterval(view) / 1000} seconds` : `${inventoryRefreshInterval(view) / 60_000} minutes`} while this screen is visible. Your saved changes appear immediately.{lastSyncedAt ? ` Last received ${formatDate(lastSyncedAt)}.` : ""}</p>
       {message ? <div className="ops-message" role="status">{message}</div> : null}
       {saveReceipt && <div className="ops-save-receipt" role="status">Server confirmed {formatDate(saveReceipt.at)}{saveReceipt.reference && <small>Record: {saveReceipt.reference}</small>}<small>Saved results are not submission, approval, or confirmation that equipment is safe to use.</small></div>}
       {submittedCheck && onReports && <div className="ops-message"><strong>Submitted · awaiting administrator review</strong><p>Submission is not approval. Review the saved report and its status next.</p><button type="button" onClick={onReports}>View saved reports →</button></div>}
@@ -1408,7 +1409,7 @@ export default function InventoryOperations({
               </div>
               <div className="active-inspection-title">
                 <span>{selectedApparatus ? value(selectedApparatus, "name") : "Apparatus"} · {formatStatus(activeCheck.check_type)} inspection in progress</span>
-                <small>Shared department inspection · updates refresh every 5 seconds{lastSyncedAt ? ` · synced ${formatDate(lastSyncedAt)}` : ""}</small>
+                <small>Shared department inspection · crew updates every {inventoryRefreshInterval(view) / 1000} seconds{lastSyncedAt ? ` · synced ${formatDate(lastSyncedAt)}` : ""}</small>
                 <small>Work one location at a time. Passed items leave the Pending view immediately; issues still require notes and a photo.</small>
               </div>
               <section className="check-progress-summary workflow-sticky-check" aria-label="Inspection progress">

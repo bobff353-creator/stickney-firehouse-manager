@@ -64,7 +64,7 @@ export function filterStock<T extends RecordRow>(items: ReturnType<typeof stockG
 }
 
 export function inventoryRefreshInterval(view: string) {
-  return ["check", "legacy_check"].includes(view) ? 5000 : 60000;
+  return ["check", "legacy_check"].includes(view) ? 45_000 : 240_000;
 }
 
 export function recordedRepairCost(value: unknown) {

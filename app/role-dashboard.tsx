@@ -8,6 +8,7 @@ import { formatMilitaryTime } from "./military-time";
 import StaffingRotation, { type NewMember, type StaffingPerson } from "./staffing-rotation";
 import { TaskDirectory } from "./portal-wayfinding";
 import { operationalStatusLabel, savedTimeLabel } from "./workflow-status";
+import { startVisiblePolling } from "./visible-poller";
 
 type Employee = { id: string; name: string; rank: string; phone?: string | null; email?: string | null; driverStatus?: string | null };
 type Entry = { employeeId: string; category: string; hours: number };
@@ -23,30 +24,48 @@ export default function RoleDashboard({ data, onNavigate, allowedPages }: { data
   const [briefingError, setBriefingError] = useState("");
   const [resourceCounts, setResourceCounts] = useState<{ policies: number | null; boxCards: number | null }>({ policies: null, boxCards: null });
   const [refreshing, setRefreshing] = useState(false);
-  const requestInFlight = useRef(false);
+  const [briefingOpen, setBriefingOpen] = useState(false);
+  const requestInFlight = useRef<{ signal?: AbortSignal } | null>(null);
   const toolsDialog = useRef<HTMLDialogElement>(null);
   const ownEmployee = data.employees.find((employee) => employee.id === data.viewer.employeeId);
   const rank = ownEmployee?.rank.toLowerCase() ?? "";
   const isOfficer = !data.viewer.isAdmin && ["chief", "captain", "lieutenant"].some((title) => rank.includes(title));
 
-  const load = useCallback(async () => {
-    if (requestInFlight.current) return;
-    requestInFlight.current = true;
+  const load = useCallback(async (signal?: AbortSignal) => {
+    if (requestInFlight.current && !requestInFlight.current.signal?.aborted) return;
+    const request = { signal };
+    requestInFlight.current = request;
     setRefreshing(true);
-    await Promise.all([
-      readPortalJson<Briefing>("/api/dashboard", "Operational briefing unavailable").then(value => { setBriefing(value); setBriefingError(""); }).catch(() => setBriefingError("The department briefing could not refresh. Do not rely on this screen for current readiness until it reconnects.")),
-      readPortalJson<{ count: number }>("/api/resources?type=policy&summary=1", "Policies unavailable").then(value => setResourceCounts(current => ({ ...current, policies: value.count }))).catch(() => setResourceCounts(current => ({ ...current, policies: null }))),
-      readPortalJson<{ count: number }>("/api/resources?type=boxCard&summary=1", "Box Cards unavailable").then(value => setResourceCounts(current => ({ ...current, boxCards: value.count }))).catch(() => setResourceCounts(current => ({ ...current, boxCards: null }))),
-    ]);
-    requestInFlight.current = false;
-    setRefreshing(false);
+    try {
+      const value = await readPortalJson<Briefing>("/api/dashboard", "Operational briefing unavailable", signal);
+      if (!signal?.aborted) { setBriefing(value); setBriefingError(""); }
+    } catch {
+      if (!signal?.aborted) setBriefingError("The department briefing could not refresh. Do not rely on this screen for current readiness until it reconnects.");
+    } finally {
+      if (requestInFlight.current === request) requestInFlight.current = null;
+      if (!signal?.aborted) setRefreshing(false);
+    }
   }, []);
   useEffect(() => {
-    const refresh = () => { if (document.visibilityState !== 'hidden') void load(); };
-    const initial = window.setTimeout(refresh, 0), timer = window.setInterval(refresh, 60000);
-    document.addEventListener('visibilitychange', refresh); window.addEventListener('online', refresh);
-    return () => { window.clearTimeout(initial); window.clearInterval(timer); document.removeEventListener('visibilitychange', refresh); window.removeEventListener('online', refresh); };
+    const poller = startVisiblePolling(load, 60_000);
+    return () => poller.stop();
   }, [load]);
+  useEffect(() => {
+    if (!briefingOpen) return;
+    const poller = startVisiblePolling(async signal => {
+      await Promise.all(([
+        ["policies", "policy"], ["boxCards", "boxCard"],
+      ] as const).map(async ([key, type]) => {
+        try {
+          const value = await readPortalJson<{ count: number }>(`/api/resources?type=${type}&summary=1`, "Document count unavailable", signal);
+          if (!signal.aborted) setResourceCounts(current => ({ ...current, [key]: value.count }));
+        } catch {
+          if (!signal.aborted) setResourceCounts(current => ({ ...current, [key]: null }));
+        }
+      }));
+    }, 15 * 60_000);
+    return () => poller.stop();
+  }, [briefingOpen]);
 
   const ownHours = useMemo(() => data.entries.filter((entry) => entry.employeeId === ownEmployee?.id && entry.category !== "actingOfficer").reduce((sum, entry) => sum + entry.hours, 0), [data.entries, ownEmployee?.id]);
   const pending = (briefing?.approvals.logs ?? 0) + (data.viewer.isAdmin ? briefing?.approvals.payroll ?? 0 : 0);
@@ -78,9 +97,9 @@ export default function RoleDashboard({ data, onNavigate, allowedPages }: { data
     <div>{currentWork.map(task => <button key={task.title} type="button" onClick={() => onNavigate(task.page)}><strong>{task.title} →</strong><span>{task.detail}</span></button>)}</div></section>
     {!briefing && <div className="briefing-unavailable" role="status">{briefingError ? "Staffing, equipment, and approval status are unavailable." : "Checking staffing, equipment, and approvals…"} No all-clear is shown until records arrive.</div>}
 
-    <details className="home-briefing-details"><summary>More detail · staffing, handoff & totals</summary>
+    <details className="home-briefing-details" onToggle={event => setBriefingOpen(event.currentTarget.open)}><summary>More detail · staffing, handoff & totals</summary>
     {briefing && <section className="command-status-grid" aria-label={briefingError ? "Last received department status — not current" : "Current department status"}>
-      <StaffingRotation mode="dashboard" onDuty={briefing?.onDuty ?? []} newMembers={briefing?.newMembers ?? []} onOpenDailyLog={allowedPages.includes("Daily Log") ? () => onNavigate("Daily Log") : undefined} />
+      {briefingOpen && <StaffingRotation mode="dashboard" onDuty={briefing?.onDuty ?? []} newMembers={briefing?.newMembers ?? []} onOpenDailyLog={allowedPages.includes("Daily Log") ? () => onNavigate("Daily Log") : undefined} />}
       <article className="command-card oic"><header><span className="command-icon">★</span><div><small>Officer in charge</small><h2>{briefing?.officerInCharge ? displayName(briefing.officerInCharge) : "Not signed in"}</h2></div></header><p>{briefing ? shiftLabel(briefing.currentShift) : "Current shift"}</p>{!briefing?.officerInCharge && <strong className="command-warning">Officer sign-in required</strong>}{allowedPages.includes("Daily Log") && <button className="command-next-action" onClick={() => onNavigate("Daily Log")}>{briefing.officerInCharge ? "Open shift log →" : "Open officer sign-in →"}</button>}</article>
       <article className={`command-card readiness ${briefing?.staffing.complete ? "is-clear" : "needs-attention"}`}><header><span className="command-icon">{briefing?.staffing.complete ? "✓" : "!"}</span><div><small>Staffing readiness</small><h2>{briefing?.staffing.complete ? "Complete" : "Needs attention"}</h2></div></header><div className="staffing-meter"><i style={{ width: `${Math.min(100, ((briefing?.staffing.filled ?? 0) / (briefing?.staffing.required || 4)) * 100)}%` }}/></div><p>{briefing?.staffing.filled ?? 0} of {briefing?.staffing.required ?? 4} positions filled{briefing?.officerInCharge ? " · OIC confirmed" : " · OIC missing"}</p>{allowedPages.includes("Scheduling") && <button className="command-next-action" onClick={() => onNavigate("Scheduling", { adminTask: "calendar" })}>View staffing calendar →</button>}</article>
       <article className={`command-card equipment ${briefing?.equipmentIssues.length ? "needs-attention" : "is-clear"}`}><header><span className="command-icon">{briefing?.equipmentIssues.length ? "!" : "✓"}</span><div><small>Equipment status</small><h2>{briefing?.equipmentIssues.length ? `${briefing.equipmentIssues.length} issue${briefing.equipmentIssues.length === 1 ? "" : "s"}` : "No issues reported"}</h2></div></header>{briefing?.equipmentIssues.length ? <ul>{briefing.equipmentIssues.map((issue) => <li key={issue.item}><strong>{issue.item}</strong> · {operationalStatusLabel(issue.status)}{issue.detail ? ` — ${issue.detail}` : ""}</li>)}</ul> : <p>No equipment issues listed in the loaded briefing.</p>}{allowedPages.includes("Inventory") && <button className="command-next-action" onClick={() => onNavigate("Inventory", { adminTask: "service" })}>Open equipment & repairs →</button>}</article>

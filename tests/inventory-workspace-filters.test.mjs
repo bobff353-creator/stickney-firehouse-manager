@@ -50,9 +50,9 @@ test("repairs narrow by combined filters and retain completed records", () => {
   assert.equal(openRepair({ status: "cancelled" }), false);
 });
 test("fast polling is reserved for shared active check workspaces", () => {
-  assert.equal(inventoryRefreshInterval("check"), 5000);
-  assert.equal(inventoryRefreshInterval("legacy_check"), 5000);
-  for (const view of ["due", "stock", "service", "builder", "equipment", "reports"]) assert.equal(inventoryRefreshInterval(view), 60000);
+  assert.equal(inventoryRefreshInterval("check"), 45000);
+  assert.equal(inventoryRefreshInterval("legacy_check"), 45000);
+  for (const view of ["due", "stock", "service", "equipment", "air", "inventory", "builder", "reports"]) assert.equal(inventoryRefreshInterval(view), 240000);
 });
 test("missing repair costs never display as made-up zero or NaN", () => {
   for (const cost of [undefined, null, "", "unknown"]) assert.equal(recordedRepairCost(cost), "Not recorded");
