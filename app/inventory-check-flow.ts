@@ -11,6 +11,8 @@ export function canSubmitInspection(total: number, pending: number, dirty: boole
 
 export function stockExpiryDays(date: unknown, now = Date.now()): number | null {
   if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-  const expiry = new Date(`${date}T12:00:00`).getTime();
-  return Number.isFinite(expiry) ? Math.ceil((expiry - now) / 86_400_000) : null;
+  const expiry = Date.parse(`${date}T00:00:00Z`);
+  if (!Number.isFinite(expiry) || new Date(expiry).toISOString().slice(0, 10) !== date || !Number.isFinite(now)) return null;
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(now));
+  return Math.round((expiry - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
 }

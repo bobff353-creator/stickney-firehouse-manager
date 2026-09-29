@@ -34,6 +34,17 @@ const initial={configured:true,apparatus:[rig,{...rig,id:'fixture-ambulance',nam
 const data:any=JSON.parse(sessionStorage.getItem(key)||JSON.stringify(initial));
 if (!data.stock.some((row:any)=>row.lot_id==='fixture-lot-2')) data.stock.push({...data.stock[0],lot_id:'fixture-lot-2',lot_number:'TEST-LOT-2',quantity_on_hand:3,location_id:'TEST cabinet B',expires_at:'2020-01-01'});
 const admin=new URLSearchParams(location.search).get('role')!=='member';
+if (new URLSearchParams(location.search).has('workspace-review')) {
+ data.workOrders = [
+  { id:'preview-open',apparatus_id:rig.id,apparatus_name:rig.name,status:'open',priority:'high',summary:'TEST broken scene light',details:'Fictional repair for filter verification',opened_at:'2026-09-29T12:00:00Z',assigned_employee_ids:['fixture-member'],assigned_employee_names:['Fictional crew'] },
+  { id:'preview-parts',apparatus_id:'fixture-ambulance',apparatus_name:'TEST ONLY Ambulance',status:'waiting_parts',priority:'routine',summary:'TEST replacement tires',opened_at:'2026-09-29T12:00:00Z' },
+  { id:'preview-completed',apparatus_id:rig.id,apparatus_name:rig.name,status:'closed',priority:'routine',summary:'TEST completed pump service',repair_date:'2026-09-28',repair_cost:125,resolution_notes:'Fictional completed maintenance',opened_at:'2026-09-28T12:00:00Z' },
+ ];
+ Object.assign(data.equipment.find((item:any)=>item.id==='fixture-radio'), {service_status:'out_of_service'});
+ Object.assign(data.equipment.find((item:any)=>item.id==='fixture-light'), {last_serviced_date:'2020-01-01',service_interval_months:12,service_reminder_months:1});
+ Object.assign(data.stock[0], {location_id:'TEST Engine',expires_at:'2099-01-01'});
+ if (!data.stock.some((row:any)=>row.id==='fixture-tape')) data.stock.push({id:'fixture-tape',name:'TEST Tape',unit:'rolls',par_level:10,reorder_point:2,lot_id:'fixture-tape-lot',quantity_on_hand:1,lot_number:'TEST-TAPE',location_id:'TEST Engine'});
+}
 let writes=0;
 const stamp=()=>new Date().toISOString();
 const persist=()=>sessionStorage.setItem(key,JSON.stringify(data));
@@ -107,7 +118,8 @@ window.fetch=async(input,init)=>{
    const item=data.stock.find((i:any)=>i.lot_id===b.lotId);if(!item||item.quantity_on_hand+b.delta<0)return bad('Invalid stock quantity');item.quantity_on_hand+=b.delta;return ok();
   }
   if(b.action==='request_restock'){
-   data.restockRequests.push({id:crypto.randomUUID(),stock_item_id:b.stockItemId,stock_item_name:'TEST Gloves',unit:'boxes',quantity:b.quantity,reason:b.reason,transaction_type:'restock_requested',performed_at:stamp()});return ok();
+   const stock=data.stock.find((row:any)=>row.id===b.stockItemId);if(!stock)return bad('Unknown supply');
+   data.restockRequests.push({id:crypto.randomUUID(),stock_item_id:b.stockItemId,stock_item_name:stock.name,unit:stock.unit,quantity:b.quantity,reason:b.reason,transaction_type:'restock_requested',performed_at:stamp()});return ok();
   }
   if(b.action==='approve_restock'||b.action==='fulfill_restock'){
    const request=data.restockRequests.find((r:any)=>r.id===b.requestId);if(!admin||!request)return bad('No editable request');

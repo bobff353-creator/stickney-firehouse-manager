@@ -794,7 +794,7 @@ export default function Inventory360({
                         <small>
                           {twinState === "unavailable"
                             ? "Inventory storage unavailable"
-                            : twin
+                            : twinState === "loading" ? "Checking inventory record…" : twin
                               ? "Digital twin record linked"
                               : "No digital twin record yet"}
                         </small>
@@ -814,7 +814,7 @@ export default function Inventory360({
                       <div className="fleet-card-meta real">
                         <span><b>{unit.station || "-"}</b>Station</span>
                         <span><b>{unit.cad_unit_id || "-"}</b>CAD unit ID</span>
-                        <span><b>{twin ? "Ready" : "Setup needed"}</b>Inventory record</span>
+                        <span><b>{twinState === "ready" ? (twin ? "Ready" : "Setup needed") : twinState === "loading" ? "Checking…" : "Unavailable"}</b>Inventory record</span>
                       </div>
                       {unit.notes ? <p className="unit-notes">{unit.notes}</p> : null}
                       <div className="fleet-direct-actions" aria-label={`Checks for ${unit.unit_name}`}>
