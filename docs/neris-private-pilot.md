@@ -50,3 +50,10 @@ Official end-to-end submission, receipt reconciliation, approved partner compati
 ## Production verification
 
 September 29: deployed to the verified Stickney Vercel project. The signed-in owner saved and reopened test/NERIS reporting verification (record eeb6bb9e-89f8-4103-ac0b-1bf38b91da33, version 1). Database confirms the test flag and revision. Live validation reports the expected nine missing items for this deliberately unanswered draft. Anonymous requests and spoofed owner headers both receive 401. Chrome blocked automated file selection, so a live attachment upload is not claimed; local endpoint tests cover upload/download and failure cleanup. No official NERIS connection or submission was made.
+# Reporting workspace refresh — September 29, 2026
+
+The report desk now separates drafting, department setup and references. The editor groups all 13 sections, provides a phone section selector, labels the next destination and identifies each review warning by field and section. Existing CAD review, attachments, correction history, recovery, archive, print and export remain available.
+
+Incident types are selected directly from the 130 pinned schema values, with category filters, search, a three-type limit and at most one primary. Filtering does not select an answer. Department setup uses the existing owner-only, versioned settings records: reporting-system and dispatch-sharing choices, lead/backup selections, and a local Illinois preparation checklist. Only an explicitly confirmed department ID is reused in new drafts. These settings do not enroll a vendor, grant permissions, update official NERIS records or submit incidents.
+
+Verification: 15 focused reporting tests passed, including setup validation, persistence, department isolation, optimistic conflicts and unchanged incident facts. Browser checks used fictional local data to verify setup save failures/retry, reload, type search/selection/primary/limits, navigation and review. Phone editor and setup views were checked at 390px with no document overflow. No real incident report was created or edited for this refresh.

@@ -26,6 +26,25 @@ test('private attachments round-trip, reject wrong contents and versions, and cl
 function loader(overrides={}){const cache=new Map();function load(p){p=resolve(p);if(Object.hasOwn(overrides,p))return overrides[p];if(cache.has(p))return cache.get(p).exports;if(extname(p)==='.json')return JSON.parse(fs.readFileSync(p,'utf8'));const target={exports:{}};cache.set(p,target);const js=ts.transpileModule(fs.readFileSync(p,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true,resolveJsonModule:true}}).outputText;new Function('require','module','exports',js)(n=>n.startsWith('.')?load(resolve(dirname(p),extname(n)?n:n+'.ts')):require(n),target,target.exports);return target.exports;}return load;}
 
 const core=loader(),model=core('app/neris/model.ts'),access=core('app/neris/access.ts'),validation=core('app/neris/validation.ts');
+const setupModel=core('app/neris/setup-model.ts');
+test('department setup rejects invented states, malformed IDs and duplicate administrators',()=>{
+ const data=model.newReport().data;data.setup=setupModel.emptySetup();assert.deepEqual(model.normalizeData(data).setup,data.setup);
+ for(const patch of [{departmentId:'FD-made-up'},{departmentConfirmed:true},{reportingMethod:'Connected automatically'},{dispatchPlan:'Anything'},{leadId:'member-1',backupId:'member-1'},{tasks:{}},{notes:500}]){
+  const changed=structuredClone(data);Object.assign(changed.setup,patch);assert.throws(()=>model.normalizeData(changed),JSON.stringify(patch));
+ }
+});
+test('saved department choices are isolated, versioned and do not alter incident facts',async()=>{
+ const h=await harness();try{
+  const incident=report();assert.equal((await h.api.POST(h.request(incident))).status,201);
+  const settings={...model.newReport(),id:'neris-setup-fixture-department',kind:'settings'};settings.data.payload={};settings.data.setup={...setupModel.emptySetup(),departmentId:'FD00000000',departmentConfirmed:true,reportingMethod:'NERIS portal'};
+  const response=await h.api.POST(h.request(settings));assert.equal(response.status,201,await response.clone().text());const saved=(await response.json()).record;
+  const all=await(await h.api.GET(h.request(null))).json();assert.deepEqual(all.records.find(r=>r.id===settings.id).data.setup,settings.data.setup);assert.deepEqual(all.records.find(r=>r.id===incident.id).data.payload,incident.data.payload);
+  const competing=structuredClone(settings);competing.data.setup.reportingMethod='ESO';assert.equal((await h.api.POST(h.request(competing))).status,409);
+  saved.data.setup.tasks.profile='Confirmed';assert.equal((await h.api.POST(h.request(saved))).status,200);
+  assert.equal((await h.api.POST(h.request(saved,'other@example.invalid'))).status,403);
+  const other=await(await h.api.GET(h.request(null,'bobff353@gmail.com','other-department'))).json();assert.equal(other.records.length,0);
+ }finally{await h.close();}
+});
 test('draft shape rejects malformed local data before it can break a saved editor',()=>{const data=model.newReport().data;for(const key of ['title','writer','changeReason']){const changed=structuredClone(data);changed.local[key]={};assert.throws(()=>model.normalizeData(changed));}const changed=structuredClone(data);changed.local.personnel=[{id:'bad'}];assert.throws(()=>model.normalizeData(changed));});
 const report=()=>{const r=model.newReport();r.data.local.title='test/NERIS verification';r.data.local.test=true;return r;};
 const valid=()=>{const d=report().data;d.local.writer='Fictional writer';d.local.reviewed=true;d.payload={base:{department_neris_id:'FD00000000',incident_number:'TEST-001',location:{street:'Test Way',number:100}},incident_types:[{primary:true,type:'MEDICAL||ILLNESS'}],dispatch:{incident_number:'TEST-001',location:{},call_arrival:'2026-09-29T10:00:00-05:00',call_answered:'2026-09-29T10:00:05-05:00',call_create:'2026-09-29T10:00:10-05:00',unit_responses:[]}};return d;};
