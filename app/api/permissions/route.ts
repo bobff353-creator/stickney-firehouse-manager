@@ -1,3 +1,4 @@
+import { nerisPilotAccess } from "../../neris/access";
 import { inspectionPilotAccess } from "../../fire-inspections/access";
 import { trainingPilotAccess } from "../../training/access";
 import { ensureDatabase } from "../../../db/bootstrap";
@@ -21,6 +22,7 @@ export async function GET(request: Request) {
     const db = await ensureDatabase(), email = actorEmail(request);
     const before = await revision(db);
     const viewerPermissions: string[] = [...await permissionsForEmail(email, db)];
+    if (nerisPilotAccess(email)) viewerPermissions.push("neris.pilot");
     if (trainingPilotAccess(email)) viewerPermissions.push("training.pilot");
     if (inspectionPilotAccess(email)) viewerPermissions.push("inspections.pilot");
     if (!viewerPermissions.length) return json({ error: "Your login is not linked to an active employee. Ask an administrator to check your employee email.", viewerPermissions: [] }, 403);

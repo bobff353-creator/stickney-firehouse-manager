@@ -1,0 +1,3 @@
+import {ensureDatabase} from '../../../../db/bootstrap';
+import {nerisBoundary,nerisJson} from '../../../neris/server';
+export async function GET(request:Request){const denied=nerisBoundary(request);if(denied)return denied;try{const db=await ensureDatabase(),q=(new URL(request.url).searchParams.get('q')||'').slice(0,100);const rows=await db.prepare("SELECT incident_id id,call_type callType,address,city,narrative,responding_units units,dispatched_at dispatchedAt,source_system source FROM dispatch_incidents WHERE incident_id LIKE ? OR address LIKE ? ORDER BY dispatched_at DESC LIMIT 50").bind(`%${q}%`,`%${q}%`).all();return nerisJson({calls:rows.results});}catch{return nerisJson({error:'Saved CAD calls could not load. You can still start a blank report.'},503);}}
