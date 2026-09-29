@@ -114,6 +114,8 @@ function formatDate(input: Row[string]) {
   return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: "America/Chicago",
+    hourCycle: "h23",
   }).format(date);
 }
 

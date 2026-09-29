@@ -126,12 +126,14 @@
 .inventory-ops .due-check-grid p { font-size:14px; line-height:1.5; }
 .inventory-ops .due-check-grid button { min-height:48px; font-size:15px; }
 .inventory-ops button:focus-visible,.inventory-app-shell select:focus-visible { outline:3px solid #007f94; outline-offset:3px; }
+.inventory-app-shell .inventory-section-nav { grid-template-columns:repeat(auto-fit,minmax(118px,1fr)); }
 @media(max-width:980px) {
  .inventory-app-shell.inventory-portal-refresh .check-completion-bar { bottom:calc(70px + env(safe-area-inset-bottom)); }
  .inventory-app-shell .mobile-nav { grid-template-columns:repeat(4,1fr); min-height:60px; height:60px; }
  .inventory-app-shell .mobile-nav button:nth-child(n+5) { display:none; }
  .inventory-app-shell .mobile-nav button { min-height:56px; font-size:11px; }
  .inventory-app-shell .inventory-section-nav { display:none; }
+ .inventory-app-shell .inventory-more-tools { display:none; }
  .inventory-app-shell .inventory-mobile-destination { display:grid; gap:8px; margin-top:18px; font-size:14px; font-weight:700; color:#23475a; }
  .inventory-mobile-destination select { width:100%; min-height:48px; font-size:16px; padding:10px; border:1px solid #afc3ce; border-radius:8px; color:#183d52; background:#fff; }
  .inventory-ops .inventory-task-nav { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
