@@ -659,6 +659,10 @@ td strong { font-size: 16px; }
 .contact-table tbody tr:nth-child(even) { background: #fafbfc; }
 .employee-call-link { display: inline-flex; min-height: 38px; padding: 0 12px; border: 1px solid #9fbcd0; border-radius: 7px; background: #edf5fa; color: #20527a; align-items: center; font-weight: 850; text-decoration: none; font-variant-numeric: tabular-nums; }
 .employee-call-link:hover { border-color: #4f7da5; background: #e2eff7; }
+.employee-email-list { display: grid; gap: 8px; min-width: 0; }
+.employee-email-list > div { display: grid; gap: 3px; }
+.employee-email-list small { color: var(--slate); font-size: 11px; }
+.employee-email-list a { overflow-wrap: anywhere; text-decoration: underline; }
 .driver-key { padding: 13px 20px; border-top: 1px solid var(--border); background: #fff7d9; color: #5e4a17; display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; font-size: 12px; }
 .driver-key b { margin-right: 4px; }
 .contact-source-note { margin: 0; color: var(--slate); font-size: 12px; text-align: center; }

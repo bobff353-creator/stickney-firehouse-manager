@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import EmployeeContacts from "./employee-contacts";
 
 export default function EmployeeDirectory({ contacts = false, initialSearch = "" }: { contacts?: boolean; initialSearch?: string }) {
-  const [employees, setEmployees] = useState<Array<{id:string;name:string;rank:string;phone?:string}>>([]);
+  const [employees, setEmployees] = useState<Array<{id:string;name:string;rank:string;phone?:string;email?:string;secondaryEmail?:string}>>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   useEffect(() => {

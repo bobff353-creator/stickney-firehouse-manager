@@ -40,9 +40,9 @@ function fixture({admin=0,overrides={},linked=true,duplicate=false}={}) {
     return statements.map(()=>({success:true,meta:{changes:1}}));
   }};
   const bootstrap={ensureDatabase:async()=>db};
-  const deps={'../../../db/bootstrap':bootstrap,'../../permissions':catalog,'../../server-permissions':shared,'../../required-confirmation-policy':load('app/required-confirmation-policy.ts'),'../../lib/operational-signals':{readOperationalSignal:async()=>null}};
+  const deps={'../../../db/bootstrap':bootstrap,'../../permissions':catalog,'../../server-permissions':shared,'../../required-confirmation-policy':load('app/required-confirmation-policy.ts'),'../../lib/operational-signals':{readOperationalSignal:async()=>null},'../../fire-inspections/access':load('app/fire-inspections/access.ts'),'../../training/access':load('app/training/access.ts')};
   const api=load('app/api/permissions/route.ts',deps);
-  const payroll=load('app/api/payroll/route.ts',{...deps,'../../employee-names':load('app/employee-names.ts'),'../../payroll-rounding':{},'../../payroll-calculation':{}},'\nexport {getViewer as testViewer};');
+  const payroll=load('app/api/payroll/route.ts',{...deps,'../../employee-names':load('app/employee-names.ts'),'../../payroll-rounding':{},'../../phone-format':load('app/phone-format.ts'),'../../payroll-calculation':{}},'\nexport {getViewer as testViewer};');
   const scheduler=load('app/api/station-scheduler/route.ts',{...deps,'../../staffing-eligibility':{staffingRoles:()=>[]},'../../schedule-time':{},'../../station-scheduler-logic':{},'../../station-distribution':{},'../../scheduler-reminders':{},'../../scheduler-push-worker':{},'../../cad-push':{},'../../scheduler-member-view':{}},'\nexport {viewer as testViewer};');
   const hydrants=load('app/api/field-hydrants/route.ts',{...deps,'../../hydrant-flow':{}},'\nexport {access as testAccess};');
   const command=load('app/api/command-center/route.ts',{...deps,'../../command-center-analytics':{buildPayrollDetails:()=>[],buildStaffingDetails:()=>[]}});
@@ -131,5 +131,5 @@ test('delegated employee editors cannot remove login accounts without permission
 test('permission management cannot disguise a protected recovery owner as restricted',async()=>{
   const f=fixture({admin:1});f.employee.email='bobff353@gmail.com';
   assert.equal((await f.api.PUT(f.request('PUT',{scope:'employee',employeeId:f.employee.id,revision:f.revision,overrides:{'permissions.manage':'deny'}}))).status,409);
-  const body=await(await f.api.GET(f.request())).json();assert.equal(body.employees[0].isOwner,true);assert.equal(body.viewerPermissions.length,permissionCatalog.length);
+  const body=await(await f.api.GET(f.request())).json();assert.equal(body.employees[0].isOwner,true);assert.deepEqual(body.viewerPermissions.sort(),[...permissionCatalog.map(p=>p.key),'training.pilot','inspections.pilot'].sort());
 });

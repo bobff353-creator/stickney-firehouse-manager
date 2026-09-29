@@ -67,13 +67,13 @@ type PayRateHistory = PayScale & { payScaleId: string; effectiveDate: string; cr
 type Employee = PayScale & {
   id: string; name: string; payScaleId: string; rank: string; active: number;
   employeeNumber?: string | null; startDate?: string | null; endDate?: string | null; dateOfBirth?: string | null;
-  phone?: string | null; email?: string | null; addressLine1?: string | null; city?: string | null;
+  phone?: string | null; email?: string | null; secondaryEmail?: string | null; addressLine1?: string | null; city?: string | null;
   state?: string | null; postalCode?: string | null; employmentType?: string | null; isDpw?: number | boolean; driverStatus?: string | null; singleRole?: number | boolean; actingOfficerEligible?: number | boolean; scheduleSmsOptIn?: number | boolean; isAdmin?: number | boolean;
   emergencyName?: string | null; emergencyRelationship?: string | null; emergencyPhone?: string | null; photoUpdatedAt?: string | null; notes?: string | null;
 };
 type EmployeeForm = {
   id?: string; lastName: string; firstName: string; payScaleId: string; employeeNumber: string; startDate: string; endDate: string;
-  dateOfBirth: string; phone: string; email: string; addressLine1: string; city: string; state: string;
+  dateOfBirth: string; phone: string; email: string; secondaryEmail: string; addressLine1: string; city: string; state: string;
   postalCode: string; employmentType: string; isDpw: boolean; driverStatus: string; singleRole: boolean; actingOfficerEligible: boolean; scheduleSmsOptIn: boolean; isAdmin: boolean; emergencyName: string; emergencyRelationship: string;
   emergencyPhone: string; notes: string;
 };
@@ -100,7 +100,7 @@ function navigationForViewer(_viewer: PayrollData["viewer"] | undefined, permiss
 }
 const emptyEmployee: EmployeeForm = {
   lastName: "", firstName: "", payScaleId: "firefighter", employeeNumber: "", startDate: "", endDate: "", dateOfBirth: "",
-  phone: "", email: "", addressLine1: "", city: "", state: "IL", postalCode: "", employmentType: "Part-time", isDpw: false, driverStatus: "", singleRole: false, actingOfficerEligible: false, scheduleSmsOptIn: false, isAdmin: false,
+  phone: "", email: "", secondaryEmail: "", addressLine1: "", city: "", state: "IL", postalCode: "", employmentType: "Part-time", isDpw: false, driverStatus: "", singleRole: false, actingOfficerEligible: false, scheduleSmsOptIn: false, isAdmin: false,
   emergencyName: "", emergencyRelationship: "", emergencyPhone: "", notes: "",
 };
 const categoryColumns: Array<{ key: Category; short: string; label: string }> = [
@@ -641,7 +641,7 @@ export default function PayrollApp({
       const nextDraft: EmployeeForm = {
         id: employee.id, ...splitEmployeeName(employee.name), payScaleId: employee.payScaleId, employeeNumber: employee.employeeNumber ?? "",
         startDate: employee.startDate ?? "", endDate: employee.endDate ?? "", dateOfBirth: employee.dateOfBirth ?? "",
-        phone: formatPhoneNumber(employee.phone), email: employee.email ?? "", addressLine1: employee.addressLine1 ?? "",
+        phone: formatPhoneNumber(employee.phone), email: employee.email ?? "", secondaryEmail: employee.secondaryEmail ?? "", addressLine1: employee.addressLine1 ?? "",
         city: employee.city ?? "", state: employee.state ?? "IL", postalCode: employee.postalCode ?? "",
         employmentType: employee.employmentType ?? "Part-time", isDpw: Boolean(employee.isDpw), driverStatus: employee.driverStatus ?? "", singleRole: Boolean(employee.singleRole), actingOfficerEligible: Boolean(employee.actingOfficerEligible), scheduleSmsOptIn: Boolean(employee.scheduleSmsOptIn), isAdmin: Boolean(employee.isAdmin), emergencyName: employee.emergencyName ?? "",
         emergencyRelationship: employee.emergencyRelationship ?? "", emergencyPhone: formatPhoneNumber(employee.emergencyPhone), notes: employee.notes ?? "",
@@ -1186,6 +1186,7 @@ export default function PayrollApp({
                 <label><span>Date of birth</span><input type="date" value={employeeDraft.dateOfBirth} onChange={(event) => setEmployeeDraft((current) => ({ ...current, dateOfBirth: event.target.value }))} /></label>
                 <label><span>Phone number</span><input type="tel" inputMode="tel" autoComplete="tel" placeholder="(708) 555-0123" value={employeeDraft.phone} onChange={(event) => setEmployeeDraft((current) => ({ ...current, phone: event.target.value }))} onBlur={() => setEmployeeDraft((current) => ({ ...current, phone: formatPhoneNumber(current.phone) }))} /><small className="input-help">Type the digits. Formatting is added when you leave this field.</small></label>
                 <label><span>Login email</span><input disabled={!access.permissions.includes("permissions.manage")} type="email" placeholder="name@example.com" value={employeeDraft.email} onChange={(event) => setEmployeeDraft((current) => ({ ...current, email: event.target.value }))} /><small className="input-help">Must match this member’s department portal login. Changing login identity requires Manage permissions access.</small></label>
+                <label><span>Secondary email (personal)</span><input type="email" placeholder="Optional personal email" autoComplete="off" maxLength={254} value={employeeDraft.secondaryEmail} onChange={(event) => setEmployeeDraft((current) => ({ ...current, secondaryEmail: event.target.value }))} /><small className="input-help">An additional contact address. Signing in and automatic notifications use the login email.</small></label>
                 <label className="admin-employee-check"><input type="checkbox" checked={employeeDraft.scheduleSmsOptIn} onChange={(event) => setEmployeeDraft((current) => ({ ...current, scheduleSmsOptIn: event.target.checked }))} /><span><strong>Employee elected to receive scheduling texts</strong><small>Text alerts are queued only when this is checked and a phone number is saved.</small></span></label>
                 <label className="span-two"><span>Home address</span><input placeholder="Street address" value={employeeDraft.addressLine1} onChange={(event) => setEmployeeDraft((current) => ({ ...current, addressLine1: event.target.value }))} /></label>
                 <label><span>City</span><input value={employeeDraft.city} onChange={(event) => setEmployeeDraft((current) => ({ ...current, city: event.target.value }))} /></label>
