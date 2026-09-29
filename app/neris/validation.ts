@@ -1,7 +1,7 @@
 import Ajv2020 from 'ajv/dist/2020';
 import addFormats from 'ajv-formats';
 import definition from './schema.json';
-import {getAt,type Json,type Values,type NerisData,sectionFor} from './model';
+import {getAt,humanLabel,type Json,type Values,type NerisData,sectionFor} from './model';
 // The published API uses escaped colons in patterns, invalid under JS's /u flag.
 // Preserve those patterns and evaluate with the compatible non-unicode flag.
 const ajv=new Ajv2020({allErrors:true,strict:false,validateFormats:true,allowUnionTypes:true,unicodeRegExp:false});addFormats(ajv);
@@ -11,7 +11,24 @@ export function validateReport(data:NerisData):Issue[]{
  const payload=data.payload,issues:Issue[]=[];
  const add=(path:string,message:string)=>issues.push({path,section:sectionFor(path),message});
  validate(payload);
- for(const e of validate.errors||[]){if(e.keyword==='anyOf'||e.keyword==='oneOf')continue;const path=e.instancePath+(e.keyword==='required'?`/${e.params.missingProperty}`:'');add(path,`${path.replaceAll('/',' › ').replaceAll('_',' ')} ${e.message||'needs review'}`);}
+ for(const e of validate.errors||[]){
+  if(e.keyword==='anyOf'||e.keyword==='oneOf')continue;
+  const path=e.instancePath+(e.keyword==='required'?`/${e.params.missingProperty}`:''),parts=path.split('/').filter(p=>p&&p!=='base');
+  const label=parts.map(p=>/^\d+$/.test(p)?`entry ${Number(p)+1}`:humanLabel(p).replace(/\bid\b/gi,'ID')).join(' › ')||'Report';
+  let message=`${label}: check this value against the field instructions.`;
+  if(e.keyword==='required')message=`Enter ${label}.`;
+  else if(e.keyword==='enum'||e.keyword==='const')message=`${label}: choose an official option from the list.`;
+  else if(e.keyword==='format')message=e.params.format==='date-time'?`${label}: enter a complete date and time, then choose its time zone.`:`${label}: enter a valid ${humanLabel(String(e.params.format)).toLowerCase()}.`;
+  else if(e.keyword==='minItems')message=`${label}: add at least ${e.params.limit} ${e.params.limit===1?'entry':'entries'}.`;
+  else if(e.keyword==='maxItems')message=`${label}: keep no more than ${e.params.limit} entries.`;
+  else if(e.keyword==='minLength')message=`${label}: enter at least ${e.params.limit} characters.`;
+  else if(e.keyword==='maxLength')message=`${label}: shorten this to ${e.params.limit} characters or fewer.`;
+  else if(e.keyword==='minimum'||e.keyword==='exclusiveMinimum')message=`${label}: enter a number ${e.keyword==='minimum'?'at least':'greater than'} ${e.params.limit}.`;
+  else if(e.keyword==='maximum'||e.keyword==='exclusiveMaximum')message=`${label}: enter a number ${e.keyword==='maximum'?'no greater than':'less than'} ${e.params.limit}.`;
+  else if(e.keyword==='uniqueItems')message=`${label}: remove the repeated entry.`;
+  else if(e.keyword==='type')message=`${label}: enter ${e.params.type==='integer'?'a whole number':e.params.type==='number'?'a number':'a value in the format shown by this field'}.`;
+  add(path,message);
+ }
  const types=Array.isArray(payload.incident_types)?payload.incident_types as Values[]:[],typeNames=types.map(t=>String(t.type||''));
  if(types.filter(t=>t.primary===true).length>1)add('/incident_types','Only one incident type may be primary.');
  if(new Set(typeNames).size!==typeNames.length)add('/incident_types','Each incident type may be selected only once.');

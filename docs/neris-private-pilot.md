@@ -46,3 +46,7 @@ File uploads enforce 4 MB, an allowlist, content signatures, department ownershi
 - Local browser: blank report, official incident choices/search, unanswered fields, conditional alarm branch, failed save/retry, recovery, time entry with explicit offset, saved report reopening, and phone/tablet/desktop layouts, category search, and saved timestamp/offset surviving a reload.
 
 Official end-to-end submission, receipt reconciliation, approved partner compatibility, and actual secondary-schema delivery remain pending external setup. These limits are visible in the app.
+
+## Production verification
+
+September 29: deployed to the verified Stickney Vercel project. The signed-in owner saved and reopened test/NERIS reporting verification (record eeb6bb9e-89f8-4103-ac0b-1bf38b91da33, version 1). Database confirms the test flag and revision. Live validation reports the expected nine missing items for this deliberately unanswered draft. Anonymous requests and spoofed owner headers both receive 401. Chrome blocked automated file selection, so a live attachment upload is not claimed; local endpoint tests cover upload/download and failure cleanup. No official NERIS connection or submission was made.
