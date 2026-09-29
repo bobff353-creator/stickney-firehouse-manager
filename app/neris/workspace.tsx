@@ -1,6 +1,8 @@
 'use client';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {SchemaField} from './fields';
+import {CadLocationPanel} from './cad-location-panel';
+import {cadLocation,withCadLocation,type CadCall as Cad} from './cad-location';
 import {IncidentPicker} from './incident-picker';
 import {DepartmentChoice,DepartmentSetup} from './department-setup';
 import {ReportNavigation,SectionGuide,shortTitle} from './report-navigation';
@@ -9,7 +11,6 @@ import {sections,schemaAt,getAt,setAt,humanLabel,newReport,reportLabel,reviewPac
 import type {Issue} from './validation';
 import './neris.css';
 type History={version:number;payload:string;actor:string;createdAt:string;archived:number};
-type Cad={id:string;callType:string;address:string;city:string;narrative:string;units:string;dispatchedAt:string;source:string};
 const empty:Snapshot={departmentId:'',records:[],members:[],attachments:[]};
 async function fetchSnapshot(signal?:AbortSignal):Promise<Snapshot>{const r=await fetch('/api/neris',{cache:'no-store',signal}),j=await r.json();if(!r.ok)throw Error(j.error||'Reports could not load.');return j;}
 function download(name:string,data:unknown){const u=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);}
@@ -34,7 +35,7 @@ export default function NerisWorkspace(){
  async function loadCad(){setBusy(true);setError('');try{const r=await fetch(`/api/neris/cad?q=${encodeURIComponent(cadQuery)}`,{cache:'no-store'}),j=await r.json();if(!r.ok)throw Error(j.error);setCad(j.calls);}catch(e){setError(String(e));}finally{setBusy(false);}}
  function createReport(){const r=newReport(),setup=snapshot.records.find(x=>x.kind==='settings'&&!x.archived&&x.data.setup)?.data.setup;if(setup?.departmentConfirmed&&setup.departmentId)r.data.payload=setAt(r.data.payload,'base.department_neris_id',setup.departmentId);return r;}
  function switchView(next:string){if(next===view)return;if(setupDirty&&!window.confirm('Leave department setup without saving these changes?'))return;setSetupDirty(false);setNotice('');setError('');setView(next);}
- function startFromCad(c:Cad){const r=createReport();r.data.local.title=`${c.id} · ${c.callType}`;r.data.local.cadSourceId=c.id;r.data.local.cadNotes=c.narrative||'';r.data.payload=setAt(r.data.payload,'base.incident_number',c.id);r.data.payload=setAt(r.data.payload,'dispatch.incident_number',c.id);r.data.payload=setAt(r.data.payload,'dispatch.incident_code',c.callType);r.data.payload=setAt(r.data.payload,'dispatch.location',{additional_info:c.address,postal_community:c.city});setCad(null);setSelectedCad(null);open(r);setNotice('Copied saved CAD facts into a new draft. Confirm the final address, incident type, units, and each timestamp.');}
+ function startFromCad(c:Cad){const r=createReport();r.data.local.title=`${c.id} · ${c.callType}`;r.data.local.cadSourceId=c.id;r.data.local.cadNotes=c.narrative||'';r.data.payload=setAt(r.data.payload,'base.incident_number',c.id);r.data.payload=setAt(r.data.payload,'dispatch.incident_number',c.id);r.data.payload=setAt(r.data.payload,'dispatch.incident_code',c.callType);r.data.payload=setAt(r.data.payload,'dispatch.location',cadLocation(c));r.data=withCadLocation(r.data,c);setCad(null);setSelectedCad(null);open(r);setNotice('Copied saved CAD facts and available address details into a new draft. Confirm the final location, incident type, units, and each timestamp.');}
  function move(id:string){if(form.current&&!form.current.reportValidity())return;setStep(id);setHistory(null);document.querySelector('.nr-editor-heading')?.scrollIntoView({block:'start',behavior:'smooth'});}
  const section=sections.find(s=>s.id===step)!,records=snapshot.records.filter(r=>r.kind==='incident'&&r.archived===showArchived&&(showTests||!r.data.local.test)),filtered=records.filter(r=>(status==='All'||r.data.local.status===status)&&`${reportLabel(r)} ${getAt(r.data.payload,'base.incident_number')||''}`.toLowerCase().includes(query.toLowerCase()));
  const selectedFiles=snapshot.attachments.filter(f=>f.recordId===editing?.id&&f.filename.toLowerCase().includes(fileQuery.toLowerCase()));
@@ -60,6 +61,7 @@ export default function NerisWorkspace(){
  <div className="nr-editor"><ReportNavigation step={step} onMove={move} issues={issues} disabled={busy}/>
  <form ref={form} className="nr-editor-form" onSubmit={e=>{e.preventDefault();void save().catch(()=>{});}}><header><p className="nr-eyebrow">{sections.findIndex(s=>s.id===step)+1} OF {sections.length}</p><h2>{section.title.replace(/^\d+ · /,'')}</h2><p>{section.hint}</p><SectionGuide step={step}/></header>
  <fieldset className="nr-editable" disabled={busy||locked}>
+ {step==='location'&&<CadLocationPanel data={editing.data} onChange={change}/>}
  {step==='core'&&<div className="nr-fields">{(['title','writer'] as const).map(k=><label key={k}>{({title:'Report title',onset:'Incident onset (local record)',writer:'Report writer',qualityControl:'Quality-control reviewer',station:'Station',shift:'Shift',battalion:'Battalion',division:'Division'})[k]}<input list={k==='writer'?'nr-members':undefined} value={editing.data.local[k]} onChange={e=>local(k,e.target.value)}/></label>)}{!editing.version&&<label className="nr-check"><input type="checkbox" checked={editing.data.local.test} onChange={e=>local('test',e.target.checked)}/>This is a test report (title must begin test/)</label>}<datalist id="nr-members">{snapshot.members.map(m=><option key={m.id} value={m.name}/>)}</datalist></div>}
  {step==='core'&&<details><summary>Agency assignment & additional local details</summary><div className="nr-fields">{(['onset','qualityControl','station','shift','battalion','division'] as const).map(k=><label key={k}>{humanLabel(k)}<input list={k==='qualityControl'?'nr-members':undefined} value={editing.data.local[k]} onChange={e=>local(k,e.target.value)}/></label>)}</div></details>}
  {step==='core'&&<DepartmentChoice value={String(getAt(editing.data.payload,'base.department_neris_id')||'')} onChange={v=>change({...editing.data,payload:setAt(editing.data.payload,'base.department_neris_id',v||undefined)})}/>}

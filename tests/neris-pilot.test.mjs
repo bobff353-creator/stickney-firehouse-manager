@@ -60,3 +60,56 @@ test('API denies other accounts, missing department and cross-origin writes',asy
 test('atomic save, identical retry, conflict protection, department isolation and archive history',async()=>{const h=await harness();try{const r=report();let response=await h.api.POST(h.request(r));assert.equal(response.status,201,await response.clone().text());const saved=(await response.json()).record;response=await h.api.POST(h.request(r));assert.equal((await response.json()).record.version,1);r.data.local.title='test/competing draft';assert.equal((await h.api.POST(h.request(r))).status,409);assert.equal((await h.api.POST(h.request({...saved,archived:true}))).status,200);assert.equal((await h.pg.query('select * from neris_pilot_audit')).rows.length,2);const other=await(await h.api.GET(h.request(null,'bobff353@gmail.com','other-department'))).json();assert.equal(other.records.length,0);}finally{await h.close();}});
 test('failed audit rolls back report; reviewed records require correction and valid facts',async()=>{const h=await harness();try{h.fail(1);const r=report();assert.equal((await h.api.POST(h.request(r))).status,503);assert.equal((await h.pg.query('select * from neris_pilot_records')).rows.length,0);r.data=valid();r.data.local.status='Reviewed';let response=await h.api.POST(h.request(r));assert.equal(response.status,201,await response.clone().text());const saved=(await response.json()).record;saved.data.local.title='test/changed';assert.equal((await h.api.POST(h.request(saved))).status,400);saved.data.local.status='Draft';saved.data.local.changeReason='Correcting fictional test';assert.equal((await h.api.POST(h.request(saved))).status,200);}finally{await h.close();}});
 test('attachment endpoints deny other accounts before touching storage',async()=>{const never=async()=>{throw Error('must not reach backend');};const load=loader({[resolve('db/bootstrap.ts')]:{ensureDatabase:never},[resolve('app/supabase-server.ts')]:{getSupabaseServerClient:never}}),headers={'oai-authenticated-user-email':'other@example.invalid','x-department-id':'fixture-department'};assert.equal((await load('app/api/neris/files/route.ts').POST(new Request('http://localhost/api/neris/files',{method:'POST',headers}))).status,403);assert.equal((await load('app/api/neris/files/[id]/route.ts').GET(new Request('http://localhost/api/neris/files/id',{headers}),{params:Promise.resolve({id:'id'})})).status,403);});
+
+const cad=core('app/neris/cad-location.ts');
+test('CAD address fills explicit elements without inventing missing address facts',()=>{
+ const source={id:'TEST-CAD',address:'3924 WISCONSIN, STICKNEY',city:'STICKNEY'};
+ assert.deepEqual(cad.cadLocation(source),{additional_info:source.address,postal_community:'STICKNEY',number:3924,street:'WISCONSIN'});
+ const detailed={address:'100 W Test St, Apt 2B, Fictional, IL 60402-1234',city:'Fictional'};
+ const actual=cad.cadLocation(detailed);
+ assert.deepEqual(actual,{additional_info:detailed.address,postal_community:'Fictional',state:'IL',postal_code:'60402',postal_code_extension:'1234',unit_prefix:'APT',unit_value:'2B',street_prefix_direction:'W',street_postfix:'STREET',number:100,street:'Test'});
+ const d=newReportData();d.payload.base.location=actual;
+ assert.equal(validation.validateReport(d).filter(i=>i.path.startsWith('/base/location/')).length,0);
+ assert.deepEqual(cad.cadLocation({address:'42A Test Ave NW, Fictional IL 60402',city:''}),{additional_info:'42A Test Ave NW, Fictional IL 60402',postal_community:'Fictional',state:'IL',postal_code:'60402',street_postfix_direction:'NW',street_postfix:'AVENUE',number:42,number_suffix:'A',street:'Test'});
+ assert.deepEqual(cad.cadLocation({address:'',city:''}),{});
+});
+function newReportData(){return model.newReport().data;}
+test('ambiguous CAD locations preserve source text for review instead of making a street address',()=>{
+ for(const address of ['39TH & WISCONSIN','3900 BLOCK WISCONSIN','3900-4000 WISCONSIN','100 Test St, behind library','100 TEST ST AT FIRST AVE']){
+  assert.deepEqual(cad.cadLocation({address,city:'Fictional'}),{additional_info:address,postal_community:'Fictional'},address);
+ }
+});
+test('CAD import fills a blank final location and preserves unrelated report facts and dispatch history',()=>{
+ const d=newReportData(),source={id:'TEST-CAD',address:'100 Test Way',city:'Fictional'};
+ d.local.title='test/CAD address';d.payload.dispatch={incident_number:'TEST-CAD',location:{additional_info:source.address,postal_community:source.city}};
+ const original=structuredClone(d),changed=cad.withCadLocation(d,source);
+ assert.equal(changed.payload.base.location.number,100);assert.equal(changed.payload.base.location.street_postfix,'WAY');
+ assert.deepEqual(d,original);assert.deepEqual(changed.payload.dispatch,original.payload.dispatch);
+ assert.deepEqual(changed.local.cadLocation,source);assert.deepEqual(model.normalizeData(changed),changed);
+ assert.equal(changed.local.cadSourceId,'');assert.deepEqual(changed.payload.incident_types,[]);
+ changed.payload.base.location.street='Corrected';assert.equal(changed.payload.dispatch.location.additional_info,'100 Test Way');
+ assert.deepEqual(cad.recordedDispatchSource(original),source);
+ for(const path of ['base.location.number','base.location.additional_info','base.point.x','base.polygon.type']){
+  const entered={...original,payload:model.setAt(original.payload,path,path.endsWith('number')||path.endsWith('x')?0:'User entry')};
+  assert.equal(cad.withCadLocation(entered,source),entered,path);
+ }
+ assert.equal(cad.withCadLocation(original,{id:'EMPTY',address:'',city:''}),original);
+});
+test('CAD source metadata rejects malformed data and remains optional for old reports',()=>{
+ assert.doesNotThrow(()=>model.normalizeData(newReportData()));
+ for(const bad of [null,[],{}, {id:5,address:'Test',city:''},{id:'TEST',address:'x'.repeat(2001),city:''},{id:'TEST',address:'Test',city:'',other:'bad'}]){
+  const d=newReportData();d.local.cadLocation=bad;assert.throws(()=>model.normalizeData(d),/CAD address source/);
+ }
+});
+test('CAD-prefilled draft and a corrected final address persist through the versioned API',async()=>{
+ const h=await harness();try{
+  const r=report(),source={id:'TEST-CAD-1',address:'100 Test Way',city:'Fictional'};
+  r.data=cad.withCadLocation(r.data,source);
+  let response=await h.api.POST(h.request(r));assert.equal(response.status,201,await response.clone().text());
+  const saved=(await response.json()).record;saved.data.payload.base.location.street='Corrected Test';
+  response=await h.api.POST(h.request(saved));assert.equal(response.status,200,await response.clone().text());
+  const reloaded=(await(await h.api.GET(h.request())).json()).records.find(x=>x.id===r.id);
+  assert.equal(reloaded.version,2);assert.equal(reloaded.data.payload.base.location.street,'Corrected Test');
+  assert.deepEqual(reloaded.data.local.cadLocation,source);
+ }finally{await h.close();}
+});

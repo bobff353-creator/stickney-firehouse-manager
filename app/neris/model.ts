@@ -1,5 +1,6 @@
 import {validateSetup,type ReportingSetup} from './setup-model';
 import definition from './schema.json';
+import type {CadLocationSource} from './cad-location';
 export type Json=null|boolean|number|string|Json[]|{[key:string]:Json};
 export type Values=Record<string,Json>;
 export type Schema={ $ref?:string; type?:string; title?:string; description?:string; format?:string; enum?:Json[]; const?:Json; properties?:Record<string,Schema>; required?:string[]; items?:Schema; anyOf?:Schema[]; oneOf?:Schema[]; discriminator?:{propertyName:string;mapping:Record<string,string>}; minItems?:number;maxItems?:number;minLength?:number;maxLength?:number;minimum?:number;maximum?:number;additionalProperties?:boolean|Schema; 'x-ui-label'?:string;'x-ui-hint'?:string };
@@ -30,7 +31,7 @@ export const sections:Section[]=[
 export function schemaAt(path:string){let s=schemas.IncidentPayload;for(const key of path.split('.'))s=resolveSchema(s).properties?.[key]||{};return s;}
 export function sectionFor(path:string){const dotted=path.replace(/^\//,'').replaceAll('/','.');return sections.find(s=>s.paths.some(p=>dotted===p||dotted.startsWith(`${p}.`)))?.id||'core';}
 export type Personnel={id:string;employeeId:string;name:string;unit:string;role:string;reportWriter:boolean;narrative:string};
-export type LocalData={status:'Draft'|'Reviewed';test:boolean;title:string;station:string;shift:string;battalion:string;division:string;writer:string;qualityControl:string;onset:string;reviewed:boolean;changeReason:string;cadSourceId:string;cadNotes:string;personnel:Personnel[]};
+export type LocalData={status:'Draft'|'Reviewed';test:boolean;title:string;station:string;shift:string;battalion:string;division:string;writer:string;qualityControl:string;onset:string;reviewed:boolean;changeReason:string;cadSourceId:string;cadNotes:string;cadLocation?:CadLocationSource;personnel:Personnel[]};
 export type NerisData={schemaVersion:string;payload:Values;local:LocalData;setup?:ReportingSetup};
 export type NerisRecord={id:string;kind:'incident'|'settings';data:NerisData;version:number;archived:boolean;updatedAt?:string;createdAt?:string;updatedBy?:string};
 export type NerisFile={id:string;recordId:string;filename:string;size:number;contentType:string;createdAt:string};
@@ -45,6 +46,7 @@ export function normalizeData(input:unknown):NerisData{
  for(const k of ['title','station','shift','battalion','division','writer','qualityControl','onset','changeReason','cadSourceId','cadNotes'] as const){const v=d.local[k];if(typeof v!=='string'||v.length>(k==='cadNotes'?100000:2000))throw Error('A local report field is invalid or too long.');}
  for(const p of d.local.personnel){if(!p||typeof p!=='object'||typeof p.reportWriter!=='boolean'||['id','employeeId','name','unit','role','narrative'].some(k=>typeof p[k as keyof Personnel]!=='string'||String(p[k as keyof Personnel]).length>2000))throw Error('A personnel entry is invalid or too long.');}
  if(d.setup!==undefined)validateSetup(d.setup);
+ if(d.local.cadLocation!==undefined){const s=d.local.cadLocation;if(!s||typeof s!=='object'||Array.isArray(s)||Object.keys(s).some(k=>!['id','address','city'].includes(k))||['id','address','city'].some(k=>typeof s[k as keyof CadLocationSource]!=='string'||s[k as keyof CadLocationSource].length>2000))throw Error('The saved CAD address source is invalid or too long.');}
  if(d.local.test&&!d.local.title.toLowerCase().startsWith('test/'))throw Error('Name a test report with test/ at the beginning.');
  if(JSON.stringify(d).length>550000)throw Error('The report is too large. Use attachments for supporting documents.');
  return structuredClone(d);
