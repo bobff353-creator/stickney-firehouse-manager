@@ -1,4 +1,5 @@
 "use client";
+import { departmentTimestamp } from "./department-time";
 
 import { useCallback, useEffect, useState } from "react";
 import type { HealthPayload } from "./system-health-model";
@@ -6,7 +7,7 @@ import DepartmentHandoff from "./department-handoff";
 
 function checkedTime(value: string) {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Not checked" : date.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+  return Number.isNaN(date.getTime()) ? "Not checked" : departmentTimestamp(value);
 }
 
 export default function SystemHealth({ permissions = [] }: { permissions?: readonly string[] }) {

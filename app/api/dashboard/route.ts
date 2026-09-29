@@ -112,7 +112,7 @@ export async function GET(request: Request) {
     let nextShift = null;
     if (!liveBoard) {
       const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() || "";
-      const people = await db.prepare("SELECT e.id FROM employees e JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(trim(ep.email))=? LIMIT 2").bind(email).all<{ id: string }>();
+      const people = await db.prepare("SELECT e.id FROM employees e JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND e.id=employee_id_for_login(?) LIMIT 2").bind(email).all<{ id: string }>();
       if (email && people.results.length === 1) {
         const context = chicagoOperationalContext();
         const hhmm = `${String(Math.floor(context.minutes / 60)).padStart(2, "0")}${String(context.minutes % 60).padStart(2, "0")}`;

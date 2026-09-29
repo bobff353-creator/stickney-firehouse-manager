@@ -11,7 +11,7 @@ export async function GET() {
   const { url } = getPublicSupabaseConfig();
   return Response.json({
     application: "stickney-firehouse-manager",
-    ...releaseIdentity(process.env),
+    ...releaseIdentity({ ...process.env, APP_BUILD_SHA: process.env.APP_BUILD_SHA, APP_BUILT_AT: process.env.APP_BUILT_AT }),
     supabaseConfiguration: "configured",
     supabaseProjectRef: projectRef(url),
   }, {

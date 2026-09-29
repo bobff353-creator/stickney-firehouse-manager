@@ -97,7 +97,10 @@ const code=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.Comm
 function routeHarness(allowed){
   let providerCalls=0;
   const modules={
-    '../../../db/bootstrap':{ensureDatabase:async()=>({prepare:()=>({first:async()=>({online:1,count:50,databaseBytes:100,storageBytes:200,objectCount:24,bucketCount:2,authUserCount:2,monitoringSince:'2026-09-01T00:00:00Z',attemptCount24h:0,failedCount24h:0})})})},
+    '../../../db/bootstrap':{ensureDatabase:async()=>({prepare:()=>({bind:()=>({first:async()=>({count:44})}),first:async()=>({online:1,count:50,databaseBytes:100,storageBytes:200,objectCount:24,bucketCount:2,authUserCount:2,monitoringSince:'2026-09-01T00:00:00Z',attemptCount24h:0,failedCount24h:0})})})},
+    '../../background-database':{backgroundDatabase:()=>({prepare:()=>({first:async()=>null})})},
+    '../../background-job-health':{preplanJobHealth:()=>({id:'preplan-job',state:'unavailable'})},
+    '../../employment-status':{departmentToday:()=> '2026-09-29',currentEmploymentSql:'e.active=1'},
     '../../server-permissions':{hasPermission:async(_r,_db,p)=>{assert.equal(p,'settings.manage');return allowed}},
     '../../supabase-config':{getPublicSupabaseConfig:()=>({url:options.supabaseUrl})},
     '../../lib/supabase-backup-health':{getSupabaseBackupHealth:async(o)=>{providerCalls++;assert.equal(o.projectRef,ref);return {id:'database-backup',state:'healthy',value:'fixture-only'}}},

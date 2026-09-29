@@ -8,7 +8,7 @@ const isOfficer = (rank: string) => /(chief|captain|lieutenant)/i.test(rank);
 
 async function viewer(db: Awaited<ReturnType<typeof ensureDatabase>>, request: Request) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
-  const employee = email ? await db.prepare("SELECT e.id, e.name, p.label AS rank, COALESCE(ep.is_admin, 0) AS isAdmin FROM employees e JOIN pay_scales p ON p.id = e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id = e.id WHERE e.active = 1 AND lower(ep.email) = ? LIMIT 1").bind(email).first<{ id: string; name: string; rank: string; isAdmin: number }>() : null;
+  const employee = email ? await db.prepare("SELECT e.id, e.name, p.label AS rank, COALESCE(ep.is_admin, 0) AS isAdmin FROM employees e JOIN pay_scales p ON p.id = e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id = e.id WHERE e.active = 1 AND e.id=employee_id_for_login(?) LIMIT 1").bind(email).first<{ id: string; name: string; rank: string; isAdmin: number }>() : null;
   return { email, employeeId: employee?.id ?? null, name: employee?.name ?? (email || "Employee"), isAdmin: await hasPermission(request, db, "scheduling.manage"), rank: employee?.rank ?? "" };
 }
 

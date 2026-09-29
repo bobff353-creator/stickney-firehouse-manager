@@ -3155,3 +3155,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
   .payroll-panel .toolbar { flex-wrap: wrap; }
   .payroll-panel .toolbar-actions { gap: 8px; }
 }
+
+/* Device readiness and personnel account setup */
+.alert-popover[hidden]{display:none!important}.device-push-status{font:inherit;font-size:.72rem;border:1px solid #bacbd5;background:#fff4df;color:#714609;border-radius:8px;padding:5px 8px;white-space:nowrap}.device-push-status.on{background:#edf8f0;color:#176241}.smart-alerts{display:flex;align-items:center;gap:6px}.account-setup-status{display:block;min-width:170px;color:#15364b}.account-setup-status small{display:block;white-space:normal;font-size:.75rem;line-height:1.4;margin-top:4px;color:#526878}.account-setup-panel{margin-bottom:20px}.account-setup-panel fieldset{margin-top:16px;padding:16px;border:1px solid #bacbd5;border-radius:10px}.account-setup-panel .primary-action{margin-top:16px}@media(max-width:600px){.smart-alerts{gap:3px}.device-push-status{max-width:55px;white-space:normal;font-size:.65rem;padding:4px}.account-setup-panel .section-header{flex-wrap:wrap}.account-setup-panel select{max-width:100%}}
+
+.inventory-more-tools{padding:10px 0}.inventory-more-tools summary{cursor:pointer;font-weight:650;min-height:40px;padding:10px;border-radius:8px}.inventory-more-tools summary:focus-visible{outline:3px solid #287ea6}

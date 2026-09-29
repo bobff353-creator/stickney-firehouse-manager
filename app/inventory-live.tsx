@@ -275,6 +275,8 @@ function formatDate(value: string | number | undefined) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Not recorded";
   return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago",
+    hourCycle: "h23",
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
@@ -650,8 +652,7 @@ export default function Inventory360({
         <label className="inventory-mobile-destination">What do you need to do?<select aria-label="Inventory workspace" value={view === "check" ? (selectedCheckType === "air_pack" ? "air" : "fleet") : view} onChange={event => setView(event.target.value as View)}>{inventorySections.map(([id,label]) => <option key={id} value={id}>{label}</option>)}{view === "readiness" && <option value="readiness">Items needing attention</option>}{canSetup && <option value="setup">Admin: checks &amp; equipment</option>}</select></label>
         <nav className="inventory-section-nav" aria-label="Inventory sections">
           {[
-            ...inventorySections,
-            ...(canSetup ? [["setup", "Build & templates"]] as Array<[View, string]> : []),
+            ...inventorySections.filter(([id]) => ['due','fleet','equipment','service'].includes(id)),
           ].map(([id, label]) => (
             <button
               key={id}
@@ -664,6 +665,7 @@ export default function Inventory360({
             </button>
           ))}
         </nav>
+        <details className="inventory-more-tools" open={['inventory','air','reports','stock','setup'].includes(view)}><summary>More tools · inventory counts, air packs, reports &amp; stock</summary><nav className="inventory-section-nav" aria-label="More inventory tools">{[...inventorySections.filter(([id]) => ['inventory','air','reports','stock'].includes(id)), ...(canSetup ? [["setup","Build & templates"]] as Array<[View,string]> : [])].map(([id,label])=><button type="button" key={id} className={view===id?'active':''} aria-current={view===id?'page':undefined} onClick={()=>setView(id)}>{label}</button>)}</nav></details>
       </section>
 
       {view === "due" ? (
@@ -677,19 +679,13 @@ export default function Inventory360({
           </div>
           <nav className="inventory-workflow" aria-label="Vehicle checks and inventory workflow">
             <button type="button" className="active" onClick={() => setView("due")}>
-              <span>1</span><b>Due today</b><small>Start or resume required checks</small>
-            </button>
-            <button type="button" onClick={() => setView("inventory")}>
-              <span>2</span><b>Inventory check</b><small>Open the inventory for each apparatus</small>
-            </button>
-            <button type="button" onClick={() => setView("fleet")}>
-              <span>3</span><b>Choose an apparatus</b><small>Open any configured unit check</small>
+              <b>Check apparatus</b><small>Start or resume today’s required checks</small>
             </button>
             <button type="button" onClick={() => setView("equipment")}>
-              <span>4</span><b>Find equipment</b><small>Search or scan its exact location</small>
+              <b>Find equipment</b><small>Search or scan its exact location</small>
             </button>
             <button type="button" onClick={() => setView("service")}>
-              <span>5</span><b>Repair follow-up</b><small>Track failed items without duplicate work</small>
+              <b>Report or follow up a repair</b><small>Track failed items and work already underway</small>
             </button>
           </nav>
           <InventoryOperations onRecords={receiveOperations} view="due" onAir={() => setView("air")} onSetup={() => setView("setup")} onOpenUnit={(apparatusId, checkType) => { setSelectedApparatusId(apparatusId); setSelectedCheckType(checkType); window.history.replaceState(null, "", `/inventory?apparatus=${encodeURIComponent(apparatusId)}&check=${checkType}`); setView("check"); }} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />

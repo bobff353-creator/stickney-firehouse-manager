@@ -63,7 +63,7 @@ function eligibleForRole(role: string, emp: Parameters<typeof staffingRoles>[0])
 async function viewer(db: Db, request: Request) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
   const employee = email
-    ? await db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.email,'') email,COALESCE(ep.is_admin,0) isAdmin,COALESCE(ep.station_roles,'[]') roles,COALESCE(ep.driver_status,'') driverStatus,COALESCE(ep.single_role,0) singleRole,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(ep.email)=? LIMIT 1").bind(email).first<{ id: string; name: string; rank: string; email: string; isAdmin: number; roles: string; driverStatus: string; singleRole: number; actingOfficerEligible: number }>()
+    ? await db.prepare("SELECT e.id,e.name,p.label rank,COALESCE(ep.email,'') email,COALESCE(ep.is_admin,0) isAdmin,COALESCE(ep.station_roles,'[]') roles,COALESCE(ep.driver_status,'') driverStatus,COALESCE(ep.single_role,0) singleRole,COALESCE(ep.acting_officer_eligible,0) actingOfficerEligible FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND e.id=employee_id_for_login(?) LIMIT 1").bind(email).first<{ id: string; name: string; rank: string; email: string; isAdmin: number; roles: string; driverStatus: string; singleRole: number; actingOfficerEligible: number }>()
     : null;
   const actingOfficerEligible = Boolean(employee?.actingOfficerEligible);
   const roles = employee ? staffingRoles(employee) : [];

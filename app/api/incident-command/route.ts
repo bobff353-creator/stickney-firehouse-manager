@@ -38,7 +38,7 @@ async function personnel(db: Db) {
 
 async function actorName(request: Request, db: Db) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
-  const employee = email ? await db.prepare("SELECT e.name FROM employees e JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(ep.email)=? LIMIT 1").bind(email).first<{ name: string }>() : null;
+  const employee = email ? await db.prepare("SELECT e.name FROM employees e JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND e.id=employee_id_for_login(?) LIMIT 1").bind(email).first<{ name: string }>() : null;
   return employee?.name || email || "Authenticated user";
 }
 

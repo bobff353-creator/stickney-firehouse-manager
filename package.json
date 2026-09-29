@@ -15,7 +15,8 @@
     "test:preplan-v2": "node scripts/verify-preplan-v2.mjs",
     "verify:preplan-v2": "npm run lint:preplan-v2 && npm run build && npm run test:preplan-v2",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern .work --ignore-pattern node_modules-* --ignore-pattern build --ignore-pattern db --ignore-pattern examples --ignore-pattern vercel --ignore-pattern worker",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "deploy:production": "node scripts/deploy-production.mjs"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "1.1.1",

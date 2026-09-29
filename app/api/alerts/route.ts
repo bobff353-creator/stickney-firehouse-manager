@@ -1,3 +1,4 @@
+import { currentEmploymentSql } from "../../employment-status";
 import { hasPermission } from "../../server-permissions";
 import { ensureDatabase } from "../../../db/bootstrap";
 import { evaluatePreplanExpirations } from "../../preplans/expiration-evaluator";
@@ -17,8 +18,8 @@ export async function GET(request: Request) {
       db.prepare("SELECT sign_in_at AS signInAt, sign_in_equipment AS equipment FROM daily_log_approvals WHERE log_date = ? AND shift_key = ?").bind(now.date, shift).first<Record<string, unknown>>(),
       db.prepare("SELECT sign_out_at AS signOutAt FROM daily_log_approvals WHERE log_date = ? AND shift_key = ?").bind(now.date, previous).first<Record<string, unknown>>(),
       db.prepare("SELECT COUNT(*) AS count FROM daily_log_staffing WHERE log_date = ? AND shift_key = ? AND employee_id IS NOT NULL").bind(now.date, shift).first<{ count: number }>(),
-      db.prepare("SELECT s.log_date AS logDate, s.employee_id AS employeeId, s.time_in AS timeIn, s.time_out AS timeOut, e.name FROM daily_log_staffing s JOIN employees e ON e.id = s.employee_id WHERE date(s.log_date) >= date(?, '-1 day') ORDER BY s.employee_id, s.log_date, s.time_in").bind(now.date).all(),
-      db.prepare("SELECT e.name, ep.phone, ep.email, ep.driver_status AS driverStatus FROM employees e LEFT JOIN employee_profiles ep ON ep.employee_id = e.id WHERE e.active = 1 AND (COALESCE(ep.phone, '') = '' OR COALESCE(ep.email, '') = '' OR COALESCE(ep.driver_status, '') = '') ORDER BY e.name").all(),
+      db.prepare("SELECT s.log_date AS logDate, s.employee_id AS employeeId, s.time_in AS timeIn, s.time_out AS timeOut, e.name FROM daily_log_staffing s JOIN employees e ON e.id = s.employee_id WHERE date(s.log_date) >= date(?, '-1 day') AND s.log_date <= ? ORDER BY s.employee_id, s.log_date, s.time_in").bind(now.date,now.date).all(),
+      isAdmin ? db.prepare(`SELECT e.name, ep.phone, ep.email, ep.driver_status AS driverStatus FROM employees e LEFT JOIN employee_profiles ep ON ep.employee_id = e.id WHERE ${currentEmploymentSql} AND (COALESCE(ep.phone, '') = '' OR COALESCE(ep.email, '') = '' OR COALESCE(ep.driver_status, '') = '') ORDER BY e.name`).bind(now.date, now.date).all() : Promise.resolve({ results: [] }),
     ]);
     const alerts: Array<{ id: string; severity: "critical" | "warning" | "info"; category: string; title: string; detail: string; page: string }> = [];
     if (!approval?.signInAt) alerts.push({ id: "missing-oic", severity: "critical", category: "Coverage", title: "Missing officer coverage", detail: `${shift} shift has no completed officer sign-in.`, page: "Daily Log" });

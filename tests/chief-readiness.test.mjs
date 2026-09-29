@@ -23,7 +23,7 @@ test('unknown provider measurements are not converted to reassuring zero counts'
   for (const value of [0,'0',24,'24']) assert.equal(nonnegativeMeasurement(value), Number(value));
 });
 test('production without source metadata is unknown, and a CLI release can supply its exact revision', () => {
-  assert.deepEqual(releaseIdentity({VERCEL_ENV:'production'}), {environment:'production',commit:null});
+  assert.deepEqual(releaseIdentity({VERCEL_ENV:'production'}), {environment:'production',commit:null,builtAt:null});
   assert.equal(releaseIdentity({VERCEL_GIT_COMMIT_SHA:'local'}).commit, null);
   const sha = 'a'.repeat(40);
   assert.equal(releaseIdentity({APP_RELEASE_SHA:sha}).commit, sha.slice(0,12));

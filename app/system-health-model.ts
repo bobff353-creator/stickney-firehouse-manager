@@ -38,10 +38,11 @@ export function nonnegativeMeasurement(value: unknown): number | null {
 }
 
 export function releaseIdentity(env: Record<string, string | undefined>) {
-  const sha = [env.APP_RELEASE_SHA, env.VERCEL_GIT_COMMIT_SHA]
+  const sha = [env.APP_BUILD_SHA, env.VERCEL_GIT_COMMIT_SHA, env.APP_RELEASE_SHA]
     .find(value => value && /^[a-f0-9]{40}$/i.test(value.trim()));
   return {
     environment: env.VERCEL_ENV || "local",
     commit: sha?.trim().slice(0, 12) ?? null,
+    builtAt: env.APP_BUILT_AT && Number.isFinite(Date.parse(env.APP_BUILT_AT)) ? env.APP_BUILT_AT : null,
   };
 }

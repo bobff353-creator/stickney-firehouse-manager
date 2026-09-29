@@ -1,4 +1,7 @@
 import { ensureDatabase } from "../../../db/bootstrap";
+import { backgroundDatabase } from '../../background-database';
+import { preplanJobHealth, type JobRun } from '../../background-job-health';
+import { departmentToday, currentEmploymentSql } from '../../employment-status';
 import { hasPermission } from "../../server-permissions";
 import { getPublicSupabaseConfig } from "../../supabase-config";
 import { getSupabaseBackupHealth } from "../../lib/supabase-backup-health";
@@ -51,7 +54,7 @@ export async function GET(request: Request) {
   try {
     const [database, activeMembers] = await Promise.all([
       db.prepare("SELECT 1 AS online").first<{ online: number }>(),
-      db.prepare("SELECT COUNT(*) AS count FROM employees WHERE active=1").first<{ count: number }>(),
+      db.prepare(`SELECT COUNT(*) AS count FROM employees e LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE ${currentEmploymentSql}`).bind(departmentToday(),departmentToday()).first<{ count: number }>(),
     ]);
     checks.push({
       id: "database",
@@ -170,7 +173,12 @@ export async function GET(request: Request) {
     checks.push(unavailable("failed-logins", "Failed portal logins · last 24 hours", "The private portal login audit feed is not available."));
   }
 
-  const { commit, environment } = releaseIdentity(process.env);
+  try {
+    const run = await backgroundDatabase().prepare("SELECT status,started_at AS startedAt,finished_at AS finishedAt,summary FROM background_job_runs WHERE job_name='preplan-expiration' ORDER BY started_at DESC LIMIT 1").first<JobRun>();
+    checks.push(preplanJobHealth(run));
+  } catch { checks.push(unavailable('preplan-job', 'Overnight preplan check', 'The job result could not be read. Its completion is not verified.')); }
+
+  const { commit, environment, builtAt } = releaseIdentity({ ...process.env, APP_BUILD_SHA: process.env.APP_BUILD_SHA, APP_BUILT_AT: process.env.APP_BUILT_AT });
   const branch = process.env.VERCEL_GIT_COMMIT_REF?.trim();
   const repository = process.env.VERCEL_GIT_REPO_SLUG?.trim();
   checks.push({
@@ -185,6 +193,8 @@ export async function GET(request: Request) {
       : "This is a test deployment, not the live production release. Preview status is expected during migration testing.",
     verifiedAt: checkedAt,
   });
+
+  if (builtAt) checks[checks.length-1].detail += ` Built ${new Date(builtAt).toLocaleString('en-US', { timeZone: 'America/Chicago', hour12: false })} Central.`;
 
   checks.push(
     await backupCheck,

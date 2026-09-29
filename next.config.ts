@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
+import { buildReleaseMetadata } from './scripts/release-metadata.mjs';
 
 const nextConfig: NextConfig = {
+  env: buildReleaseMetadata(),
   poweredByHeader: false,
   async headers() {
     return [

@@ -50,3 +50,5 @@ next-env.d.ts
 /work/
 /supabase/.temp/
 .env*
+
+.release-source.json

@@ -12,7 +12,7 @@ async function addRevision(db: Awaited<ReturnType<typeof ensureDatabase>>, id: s
 async function getViewer(db: Awaited<ReturnType<typeof ensureDatabase>>, request: Request) {
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
   const [employee, permissions] = await Promise.all([
-    email ? db.prepare("SELECT e.id, e.name, COALESCE(ep.is_admin, 0) AS isAdmin FROM employees e JOIN employee_profiles ep ON ep.employee_id = e.id WHERE e.active = 1 AND lower(ep.email) = ? LIMIT 1").bind(email).first<{ id: string; name: string; isAdmin: number }>() : null,
+    email ? db.prepare("SELECT e.id, e.name, COALESCE(ep.is_admin, 0) AS isAdmin FROM employees e JOIN employee_profiles ep ON ep.employee_id = e.id WHERE e.active = 1 AND e.id=employee_id_for_login(?) LIMIT 1").bind(email).first<{ id: string; name: string; isAdmin: number }>() : null,
     permissionsForEmail(email, db),
   ]);
   const isAdmin = ownerAdminEmails.includes(email) || Boolean(employee?.isAdmin);

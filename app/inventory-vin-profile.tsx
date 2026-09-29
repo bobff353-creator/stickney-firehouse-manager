@@ -1,4 +1,5 @@
 "use client";
+import { departmentTimestamp } from "./department-time";
 
 import { FormEvent, useEffect, useState } from "react";
 import InventoryCapture from './inventory-capture';
@@ -144,7 +145,7 @@ export default function InventoryVinProfile({ apparatus, onReload, notify }: {
         <label>Preferred vendor<input name="preferredVendor" defaultValue={apparatus.preferred_vendor || ""} /></label>
         <label>Ordering notes / approved equivalents<textarea name="orderingNotes" defaultValue={apparatus.ordering_notes || ""} /></label>
       </div></fieldset>
-      <div className="service-save-row"><span>{apparatus.service_profile_verified_at ? `Last department verification: ${new Date(apparatus.service_profile_verified_at).toLocaleString()}` : "Not yet department verified"}</span><button className="primary" disabled={busy === "service"}>{busy === "service" ? "Saving…" : "Save & mark service details verified"}</button></div>
+      <div className="service-save-row"><span>{apparatus.service_profile_verified_at ? `Last department verification: ${departmentTimestamp(apparatus.service_profile_verified_at)}` : "Not yet department verified"}</span><button className="primary" disabled={busy === "service"}>{busy === "service" ? "Saving…" : "Save & mark service details verified"}</button></div>
     </form>
   </section>;
 }

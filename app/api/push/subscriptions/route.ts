@@ -8,6 +8,7 @@ import { webPushPublicConfig } from "../../../cad-push";
 import { trustedPushEndpoint, validPushKeys } from "../../../push-subscription-security";
 
 type SubscriptionBody = {
+  action?: unknown;
   endpoint?: unknown;
   keys?: { p256dh?: unknown; auth?: unknown };
 };
@@ -38,6 +39,12 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as SubscriptionBody | null;
   if (!body || typeof body !== "object") return Response.json({ error: "Invalid push subscription." }, { status: 400 });
   const endpoint = text(body.endpoint);
+  if (body.action === 'check') {
+    if (!trustedPushEndpoint(endpoint)) return Response.json({ error: 'Invalid device registration.' }, { status: 400 });
+    const db = await ensureDatabase();
+    const row = await db.prepare('SELECT active,last_success_at AS lastSuccessAt,failure_count AS failureCount FROM push_subscriptions WHERE endpoint=? AND user_id=? AND department_id=? LIMIT 1').bind(endpoint,session.context.user.id,session.context.department.id).first<{active:number;lastSuccessAt:string|null;failureCount:number}>();
+    return Response.json({ registered: row?.active === 1, lastAcceptedAt: row?.lastSuccessAt || null, failureCount: row?.failureCount || 0 }, { headers: { 'Cache-Control':'private, no-store' } });
+  }
   const p256dh = text(body.keys?.p256dh, 2048);
   const auth = text(body.keys?.auth, 2048);
   if (!trustedPushEndpoint(endpoint) || !validPushKeys(p256dh, auth)) {

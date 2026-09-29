@@ -23,7 +23,7 @@ export async function permissionsForEmail(
     return new Set(permissionCatalog.map((item) => item.key));
   }
   if (!normalizedEmail) return new Set<PermissionKey>();
-  const matches = await db.prepare("SELECT e.id,p.label rank,COALESCE(ep.is_admin,0) isAdmin,ep.end_date endDate FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(trim(ep.email))=? LIMIT 2").bind(normalizedEmail).all<{ id: string; rank: string; isAdmin: number; endDate: string | null }>();
+  const matches = await db.prepare("SELECT e.id,p.label rank,COALESCE(ep.is_admin,0) isAdmin,ep.end_date endDate FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND e.id=employee_id_for_login(?) LIMIT 2").bind(normalizedEmail).all<{ id: string; rank: string; isAdmin: number; endDate: string | null }>();
   const employee = matches.results.length === 1 ? matches.results[0] : null;
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   if (employee?.endDate && employee.endDate < today) return new Set<PermissionKey>();
@@ -53,7 +53,7 @@ export async function preplanReadAccess(
   const email = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
   const permissions = await permissionsForEmail(email, db);
   const employee = email
-    ? await db.prepare("SELECT e.name FROM employees e JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(ep.email)=? LIMIT 1").bind(email).first<{ name: string }>()
+    ? await db.prepare("SELECT e.name FROM employees e JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND e.id=employee_id_for_login(?) LIMIT 1").bind(email).first<{ name: string }>()
     : null;
   return {
     canViewPublished: permissions.has("field_preplans.view"),

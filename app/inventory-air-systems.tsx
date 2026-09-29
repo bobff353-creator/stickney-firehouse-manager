@@ -1,4 +1,5 @@
 "use client";
+import { departmentTimestamp } from "./department-time";
 
 /* Authenticated photos use the department session, not a public image proxy. */
 /* eslint-disable @next/next/no-img-element */
@@ -110,7 +111,7 @@ export default function InventoryAirSystems({ data, busy, canSetup, canManageRep
         </details>)}
         {canManageRepairs ? <p><button type="button" onClick={onRepairs}>Open Repairs for a new or ongoing issue →</button></p> : null}
       </section>
-      <details className="air-record"><summary>Inspection history · {checkHistory.length} linked entries</summary>{checkHistory.length ? checkHistory.map(entry => <p key={val(entry, "id")}><strong>{val(entry, "result").replaceAll("_", " ")}</strong> · {val(entry, "label")} · {val(entry, "location_snapshot")}<br />{entry.checked_at ? new Date(val(entry, "checked_at")).toLocaleString() : "Not yet checked"} · {val(entry, "notes") || "No note"}</p>) : <p>New inspections link here automatically. Older checklist reports remain in Reports and have not been guessed or reassigned to this ID.</p>}</details>
+      <details className="air-record"><summary>Inspection history · {checkHistory.length} linked entries</summary>{checkHistory.length ? checkHistory.map(entry => <p key={val(entry, "id")}><strong>{val(entry, "result").replaceAll("_", " ")}</strong> · {val(entry, "label")} · {val(entry, "location_snapshot")}<br />{entry.checked_at ? departmentTimestamp(val(entry, "checked_at")) : "Not yet checked"} · {val(entry, "notes") || "No note"}</p>) : <p>New inspections link here automatically. Older checklist reports remain in Reports and have not been guessed or reassigned to this ID.</p>}</details>
     </> : <>
       <header className="air-heading"><div><h2>Air Packs & Bottles</h2><p>Find an ID → view its record → check or maintain it.</p></div>{canSetup ? <button className="ops-primary" type="button" onClick={() => setEditing({ id: crypto.randomUUID(), scba_asset_kind: tab === "bottle" ? "bottle" : "pack" })}>Add pack or bottle</button> : null}</header>
       <nav className="air-tabs" aria-label="Air equipment views">{[["pack", "Air packs"], ["bottle", "Air bottles"], ["checks", "Weekly checks"]].map(([key, label]) => <button type="button" key={key} aria-pressed={tab === key} onClick={() => { setTab(key); setSearch(""); }}>{label}{key !== "checks" ? ` (${all.filter(item => item.scba_asset_kind === key && !item.retired_at).length})` : ""}</button>)}</nav>

@@ -19,7 +19,7 @@ const isDeputyChief = (employee: ActorEmployee | null) => Boolean(employee && (e
 async function actorEmployee(request: Request, db: Database) {
   const email = actorEmail(request);
   if (!email) return null;
-  return db.prepare("SELECT e.id,e.name,p.label AS rank,p.id AS payScaleId FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND lower(trim(ep.email))=? LIMIT 1").bind(email).first<ActorEmployee>();
+  return db.prepare("SELECT e.id,e.name,p.label AS rank,p.id AS payScaleId FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND e.id=employee_id_for_login(?) LIMIT 1").bind(email).first<ActorEmployee>();
 }
 
 async function reviewerSetting(db: Database) {
