@@ -1,0 +1,22 @@
+.grouped-response-panel { scroll-margin-top:100px; min-width:0; }
+.grouped-response-panel:focus { outline:2px solid #76bada; outline-offset:3px; }
+.grouped-response-panel .response-group-help { color:var(--slate); font-size:14px; line-height:1.5; margin:0 0 16px; }
+.grouped-response-panel .response-bars > div,.grouped-response-panel .response-bars > button { display:grid; grid-template-columns:minmax(120px,1.15fr) minmax(40px,2fr) 42px; align-items:center; gap:12px; }
+.grouped-response-panel .response-bars span,.grouped-response-panel .response-bars strong,.grouped-response-panel .section-header h2 { color:var(--ink); }
+.grouped-response-panel .response-bars span { overflow-wrap:anywhere; }
+.grouped-response-panel .response-bars small { display:block; color:#245c83; font-size:12px; margin-top:5px; }
+.grouped-response-panel .response-type-drilldown { width:100%; min-height:64px; padding:12px; border:1px solid #78b3d5; border-radius:8px; background:#e9f4fc; text-align:left; cursor:pointer; }
+.grouped-response-panel .response-type-drilldown:hover { background:#d5eafa; }
+.grouped-response-panel .response-type-drilldown:focus-visible,.grouped-response-panel .response-type-back:focus-visible { outline:3px solid #9ad7ff; outline-offset:3px; }
+.grouped-response-panel .response-type-back { min-height:44px; margin-bottom:12px; padding:10px 14px; border:1px solid #9fc1d7; border-radius:8px; background:#edf5fa; color:#173f5c; font-weight:750; cursor:pointer; }
+@media(prefers-color-scheme:dark) {
+  .grouped-response-panel .response-type-drilldown { background:#1a3a50; }
+  .grouped-response-panel .response-type-drilldown:hover { background:#224b67; }
+  .grouped-response-panel .response-bars small { color:#ade0fc; }
+}
+@media(max-width:600px) {
+  .grouped-response-panel { padding:16px; }
+  .grouped-response-panel .response-bars > div,.grouped-response-panel .response-bars > button { grid-template-columns:minmax(0,1fr) 38px; gap:6px 10px; }
+  .grouped-response-panel .response-bars i { grid-column:1; grid-row:2; }
+  .grouped-response-panel .response-bars strong { grid-column:2; grid-row:1 / 3; }
+}
