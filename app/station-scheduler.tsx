@@ -261,7 +261,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
         <p className="muted">Review staffing → choose a day → save each assignment. Requests and trades change the roster only after approval.</p>
         <div className="scheduler-task-choices">
           <button onClick={() => openStaffingDay(data.today)}><strong>Staff today</strong><span>See the crew, fill a position, or adjust one day’s schedule.</span></button>
-          <button onClick={() => setTab("openAdmin")}><strong>Find open positions · {filterOpenPositions(data.slots, data.today, { from: "", through: "", role: "", shiftTypeId: "" }).length}</strong><span>Filter by date, position, or shift. Counts include all loaded future dates.{data.notice.overdueShifts > 0 ? ` ${data.notice.overdueShifts} past the award deadline.` : ""}</span></button>
+          <button onClick={() => setTab("openAdmin")}><strong>Open in the next 7 days · {filterOpenPositions(data.slots, data.today, { from: data.today, through: scheduleDateOffset(data.today, 6), role: "", shiftTypeId: "" }).length}</strong><span>Find a position to fill. Filter by date, role, or shift; all loaded future dates remain available.</span></button>
           <button onClick={() => setTab("requests")}><strong>Review shift requests · {data.claims.filter((claim) => claim.status === "pending").length}</strong><span>Approve or deny members asking to work an open position.</span></button>
           <button onClick={() => setTab("trades")}><strong>Review trades · {data.trades.filter((trade) => ["pending", "awaiting_acceptance"].includes(trade.status) && trade.acceptedByEmployeeId).length}</strong><span>Review accepted trades. Offers still waiting on a member stay separate.</span></button>
         </div>
@@ -301,7 +301,10 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
 
 function AdminOpenPositions({ data, onDay }: { data: Data; onDay: (date: string) => void }) {
   const empty = { from: "", through: "", role: "", shiftTypeId: "" };
-  const [filters, setFilters] = useWorkspaceViewState<VacancyFilters>("scheduler-vacancy-filters", empty);
+  const [filters, setFilters] = useWorkspaceViewState<VacancyFilters>("scheduler-vacancy-filters", { ...empty, from: data.today, through: scheduleDateOffset(data.today, 6) });
+  const [shown, setShown] = useState({ key: "", count: 50 });
+  const filterKey = JSON.stringify(filters);
+  const visibleCount = shown.key === filterKey ? shown.count : 50;
   const invalidRange = Boolean(filters.from && filters.through && filters.through < filters.from);
   const allOpen = filterOpenPositions(data.slots, data.today, empty);
   const open = filterOpenPositions(data.slots, data.today, filters);
@@ -312,7 +315,8 @@ function AdminOpenPositions({ data, onDay }: { data: Data; onDay: (date: string)
     <div className="scheduler-member-filters"><label>From date<input type="date" min={data.today} value={filters.from} onChange={event => setField("from", event.target.value)} /></label><label>Through date<input type="date" min={filters.from || data.today} aria-invalid={invalidRange} value={filters.through} onChange={event => setField("through", event.target.value)} /></label><label>Position<select value={filters.role} onChange={event => setField("role", event.target.value)}><option value="">All positions</option>{[...new Set(allOpen.map(slot => slot.role))].sort().map(role => <option key={role}>{role}</option>)}</select></label><label>Shift<select value={filters.shiftTypeId} onChange={event => setField("shiftTypeId", event.target.value)}><option value="">All shifts</option>{[...new Set(allOpen.map(slot => slot.shiftTypeId))].map(id => <option key={id} value={id}>{shiftNames.get(id) || "Department shift"}</option>)}</select></label></div>
     {invalidRange ? <p role="alert">Through date must be on or after From date.</p> : <p role="status">{open.length} of {allOpen.length} loaded open positions shown · Filters stay selected when you return.</p>}
     {!invalidRange && !open.length && <p>No open positions match these filters. This does not confirm staffing for dates without a loaded schedule.</p>}
-    {open.map((slot) => <article key={slot.id} className="scheduler-member-shift"><div><strong>{friendlyDate(slot.entryDate)} · {slot.role}</strong><span>{shiftNames.get(slot.shiftTypeId)?.split(" · ")[0] || "Department shift"} · {shiftTimeLabel(slot.startTime, slot.endTime)}</span><span>{slot.isExtra ? "Extra coverage" : "Required position"}{data.awardBySlot[slot.id]?.window === "overdue" ? " · Past award deadline" : ""}</span></div><button onClick={() => onDay(slot.entryDate)} aria-label={`Open day staffing for ${friendlyDate(slot.entryDate)} ${slot.role} ${slot.startTime}`}>Open day →</button></article>)}
+    {open.slice(0, visibleCount).map((slot) => <article key={slot.id} className="scheduler-member-shift"><div><strong>{friendlyDate(slot.entryDate)} · {slot.role}</strong><span>{shiftNames.get(slot.shiftTypeId)?.split(" · ")[0] || "Department shift"} · {shiftTimeLabel(slot.startTime, slot.endTime)}</span><span>{slot.isExtra ? "Extra coverage" : "Required position"}{data.awardBySlot[slot.id]?.window === "overdue" ? " · Past award deadline" : ""}</span></div><button onClick={() => onDay(slot.entryDate)} aria-label={`Open day staffing for ${friendlyDate(slot.entryDate)} ${slot.role} ${slot.startTime}`}>Open day →</button></article>)}
+    {open.length > visibleCount && <div className="scheduler-member-shortcuts"><span>Showing the first {visibleCount} matching positions.</span><button type="button" onClick={() => setShown({ key: filterKey, count: visibleCount + 50 })}>Show {Math.min(50, open.length - visibleCount)} more positions</button></div>}
   </section>;
 }
 
