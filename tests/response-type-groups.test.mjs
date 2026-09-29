@@ -10,7 +10,7 @@ test("groups the department's medical dispatch labels, including stroke, as EMS"
     "CHEST PAIN (NON-TRAUMA)", "TRAUMATIC INJ", "UNK MEDICAL", "CARDIAC/RESP ARREST/DEATH",
     "STROKE (CVA/TIA)", "DIABETIC PROBLEMS", "ANIMAL BITE/ATTACK (FD)", "PD ASSIST FD/AMBULANCE",
     "BACK PAIN (NON-TRAUMA)", "OVERDOSE DRUGS/MEDICATION", "PSYCH EVALUATION", "STAB/GUNSHOT (FD)",
-    "CHOKING", "HEART PROBLEMS", "HEADACHE", "ABDOMINAL PAIN",
+    "CHOKING", "HEART PROBLEMS", "HEADACHE", "ABDOMINAL PAIN", "PANIC/HOLD UP ALARM",
   ];
   for (const label of labels) assert.ok(isEmsResponseType(label), label);
   const result = groupResponseTypes(labels.map((label) => [label, 1]));
@@ -30,15 +30,15 @@ test("accepts punctuation and case variants without matching unrelated calls", (
 test("counts each call once and retains the original dispatch labels in the breakdown", () => {
   const input = Object.freeze([
     Object.freeze(["EMS", 4]), Object.freeze(["SICK PERSON", 5]), Object.freeze(["SICK PERSON", 2]),
-    Object.freeze(["Stab/Gunshot (FD)", 1]), Object.freeze(["FIRE ALARM", 3]), Object.freeze(["MVA", 2]),
+    Object.freeze(["Stab/Gunshot (FD)", 1]), Object.freeze(["FIRE ALARM", 3]), Object.freeze(["MVA", 2]), Object.freeze(["PANIC/HOLD UP ALARM", 1]),
   ]);
   const result = groupResponseTypes(input);
-  assert.deepEqual(result.summary, [["EMS", 12], ["FIRE ALARM", 3], ["MVA", 2]]);
-  assert.deepEqual(result.breakdown, [["SICK PERSON", 7], ["EMS", 4], ["Stab/Gunshot (FD)", 1]]);
-  assert.equal(result.total, 17);
+  assert.deepEqual(result.summary, [["EMS", 13], ["FIRE ALARM", 3], ["MVA", 2]]);
+  assert.deepEqual(result.breakdown, [["SICK PERSON", 7], ["EMS", 4], ["PANIC/HOLD UP ALARM", 1], ["Stab/Gunshot (FD)", 1]]);
+  assert.equal(result.total, 18);
   assert.equal(result.summary.reduce((sum, [, count]) => sum + count, 0), result.total);
   assert.equal(result.breakdown.reduce((sum, [, count]) => sum + count, 0), result.emsTotal);
-  assert.equal(input.length, 6);
+  assert.equal(input.length, 7);
 });
 
 test("does not invent an EMS category in an empty or nonmedical range", () => {
