@@ -50,6 +50,9 @@
 .log-call-group h3 span { color: #476073; }
 .log-call-summary, .log-call-editing { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; }
 .log-call-summary > div { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.logbook-page .call-entry { background: #f9fbfc; color: #173e59; }
+.logbook-page .log-call-summary :is(strong, span) { color: #173e59; }
+.logbook-page .call-entry .call-row label { color: #476073; }
 .log-call-summary small { color: #476073; }
 .log-call-editing { background: #e8f2f8; font-size: 13px; }
 .logbook-page .call-row { display: grid; grid-template-columns: 28px minmax(110px, 1fr) minmax(140px, 1fr) minmax(140px, 1fr) minmax(110px, 1fr); align-items: start; gap: 10px; }
