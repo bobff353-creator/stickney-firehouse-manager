@@ -939,9 +939,9 @@ export async function POST(request: Request) {
       const notes = clean(body.notes, 500) || null;
       const equipmentName = clean(equipment.name, 300);
       const isNumericReadingItem = ["numeric", "mileage", "quantity"].includes(equipment.response_type || "")
-        || /\b(mileage|odometer)\b/i.test(equipmentName);
+        || /\b(mileage|odometer)\b/i.test(equipmentName) || /\b(miles|milage|millage)\b/i.test(equipmentName);
       const numericReadingInput = body.numericReading;
-      const numericReading = numericReadingInput === null || numericReadingInput === undefined || numericReadingInput === ""
+      const numericReading = (typeof numericReadingInput !== "number" && typeof numericReadingInput !== "string") || (typeof numericReadingInput === "string" && numericReadingInput.trim() === "")
         ? null
         : Number(numericReadingInput);
       if (isNumericReadingItem && (numericReading === null || !Number.isFinite(numericReading) || numericReading < 0)) {
@@ -952,6 +952,13 @@ export async function POST(request: Request) {
       }
       if (isNumericReadingItem && result !== "pass") {
         return privateJson({ error: "This item must be saved as a numeric reading." }, 400);
+      }
+      if (/\b(engine oil|transmission fluid)\b/i.test(equipmentName)) {
+        const level = notes?.split("\n")[0];
+        if (!((result === "pass" && level === "Fluid level: In range")
+          || (result === "failed" && ["Fluid level: Low", "Fluid level: High"].includes(level || "")))) {
+          return privateJson({ error: "Choose Low, In range, or High for this fluid level." }, 400);
+        }
       }
       const evidencePhotoId = clean(body.evidencePhotoId, 80) || null;
       const assignedEmployeeIds = stringList(body.assignedEmployeeIds);
@@ -1029,7 +1036,8 @@ export async function POST(request: Request) {
           const equipment = equipmentByIdForBulk.get(item.equipment_id);
           return item.result === "pending"
             && !["numeric", "mileage", "quantity"].includes(equipment?.response_type || "")
-            && !/\b(mileage|odometer)\b/i.test(equipment?.name || "");
+            && !/\b(mileage|odometer)\b/i.test(equipment?.name || "")
+            && !/\b(miles|milage|millage|engine oil|transmission fluid)\b/i.test(equipment?.name || "");
         })
         .map((item) => item.id);
       if (!safeIds.length) {

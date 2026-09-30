@@ -129,13 +129,17 @@ function formatStatus(input: Row[string]) {
 
 function isNumericReadingItem(item: Row) {
   return ["numeric", "mileage", "quantity"].includes(value(item, "response_type"))
-    || /\b(mileage|odometer)\b/i.test(value(item, "equipment_name"));
+    || (/\b(mileage|odometer)\b/i.test(value(item, "equipment_name")) || /\b(miles|milage|millage)\b/i.test(value(item, "equipment_name")));
+}
+
+function isFluidLevelItem(item: Row) {
+  return /\b(engine oil|transmission fluid)\b/i.test(value(item, "equipment_name"));
 }
 
 function numericReadingLabel(item: Row) {
   const responseType = value(item, "response_type");
   if (responseType === "quantity") return "Quantity counted";
-  if (responseType === "mileage") return "Current mileage / odometer";
+  if (responseType === "mileage" || /\b(miles|mileage|odometer|milage|millage)\b/i.test(value(item, "equipment_name"))) return "Current mileage / odometer";
   return "Numeric reading";
 }
 
@@ -925,6 +929,7 @@ export default function InventoryOperations({
     const itemCanCheck = canCheck && !preview;
     const itemId = value(item, "id");
     const numericItem = isNumericReadingItem(item);
+    const fluidItem = isFluidLevelItem(item);
     const savedReading = displayNumericReading(item.numeric_reading);
     const reading = numericReadings[itemId] ?? numericReadingInputValue(item.numeric_reading);
     const compartment = value(item, "compartment_label") || "Location not assigned";
@@ -943,7 +948,7 @@ export default function InventoryOperations({
           {pendingLocationChange ? <small className="location-change-pending">Wrong location reported · awaiting administrator review</small> : null}
         </div>
         <div className="check-result">
-          <span>{numericItem && savedReading ? `${savedReading}${value(item, "response_type") === "mileage" || /\b(mileage|odometer)\b/i.test(value(item, "equipment_name")) ? " miles" : ""}` : value(item, "result").replace("_", " ")}</span>
+          <span>{fluidItem && value(item, "notes").startsWith("Fluid level:") ? value(item, "notes").split("\n")[0] : numericItem && savedReading ? `${savedReading}${value(item, "response_type") === "mileage" || (/\b(mileage|odometer)\b/i.test(value(item, "equipment_name")) || /\b(miles|milage|millage)\b/i.test(value(item, "equipment_name"))) ? " miles" : ""}` : value(item, "result").replace("_", " ")}</span>
           {value(item, "result") !== "pending" && value(item, "checked_by") ? <small>By {value(item, "checked_by")} · {formatDate(item.checked_at)}</small> : null}
         </div>
         {numericItem ? <div className="numeric-reading-entry">
@@ -952,6 +957,11 @@ export default function InventoryOperations({
             <input id={`numeric-reading-${itemId}`} type="number" inputMode="decimal" min="0" step="0.1" placeholder="Enter reading" value={reading} onChange={(event) => setNumericReadings((current) => ({ ...current, [itemId]: event.target.value }))} disabled={Boolean(busy) || !itemCanCheck} />
             <button type="button" disabled={Boolean(busy) || !itemCanCheck || reading.trim() === "" || !Number.isFinite(Number(reading)) || Number(reading) < 0} onClick={() => void recordCheckItems(`item-${itemId}`, { action: "record_check_item", checkItemId: itemId, result: "pass", numericReading: reading })}>Save reading</button>
           </div>
+        </div> : fluidItem ? <div className="check-actions" aria-label={`Fluid level for ${value(item, "equipment_name")}`}>
+          {(["Low", "In range", "High"] as const).map((level) => <button key={level} className={level === "In range" ? "pass" : "failed"} disabled={Boolean(busy) || !itemCanCheck} onClick={() => {
+            if (level === "In range") void recordCheckItems(`item-${itemId}`, { action: "record_check_item", checkItemId: itemId, result: "pass", notes: "Fluid level: In range" });
+            else { setDeficiencyAssignees([]); setDeficiencyItem({ ...item, notes: `Fluid level: ${level}` }); }
+          }}>{level}</button>)}
         </div> : <div className="check-actions" aria-label={`Check ${value(item, "equipment_name")}`}>
           <button className="pass" disabled={Boolean(busy) || !itemCanCheck} onClick={() => void recordCheckItems(`item-${itemId}`, { action: "record_check_item", checkItemId: itemId, result: "pass" })}>Pass</button>
           <button className="failed" disabled={Boolean(busy) || !itemCanCheck} onClick={() => { setDeficiencyAssignees([]); setDeficiencyItem(item); }}>Issue</button>
@@ -1385,7 +1395,7 @@ export default function InventoryOperations({
                 {message ? <p role="status">{message}</p> : null}
               </details> : null}
               {groupedActiveItems.length ? groupedActiveItems.map(([label, items]) => {
-                const pendingStandardItems = items.filter((item) => value(item, "result") === "pending" && !isNumericReadingItem(item));
+                const pendingStandardItems = items.filter((item) => value(item, "result") === "pending" && !isNumericReadingItem(item) && !isFluidLevelItem(item));
                 return (
                   <section className="check-location-group" hidden={currentSection !== "all" && currentSection !== label} key={label}>
                     <header>
@@ -1504,20 +1514,7 @@ export default function InventoryOperations({
               <div className="ops-empty"><strong>No apparatus added</strong><p>Add the first real department unit before starting checks.</p><button onClick={onSetup}>Add apparatus</button></div>
             ) : activeCheck ? (
               <div className="check-worklist">
-                {activeItems.map((item) => {
-                  const itemId = value(item, "id");
-                  const numericItem = isNumericReadingItem(item);
-                  const savedReading = displayNumericReading(item.numeric_reading);
-                  const reading = numericReadings[itemId] ?? numericReadingInputValue(item.numeric_reading);
-                  return (
-                  <article key={itemId} className={`check-row result-${value(item, "result")} ${numericItem ? "numeric-reading-row" : ""}`}>
-                    <div><strong>{value(item, "equipment_name")}</strong><small>{value(item, "compartment_label")}</small></div>
-                    <span>{numericItem && savedReading ? `${savedReading} miles` : value(item, "result").replace("_", " ")}</span>
-                    {numericItem ? <div className="numeric-reading-entry"><label htmlFor={`legacy-numeric-reading-${itemId}`}>Current mileage / odometer</label><div><input id={`legacy-numeric-reading-${itemId}`} type="number" inputMode="decimal" min="0" step="0.1" placeholder="Enter mileage" value={reading} onChange={(event) => setNumericReadings((current) => ({ ...current, [itemId]: event.target.value }))} disabled={Boolean(busy)} /><button type="button" disabled={Boolean(busy) || reading.trim() === "" || !Number.isFinite(Number(reading)) || Number(reading) < 0} onClick={() => void action(`item-${itemId}`, { action: "record_check_item", checkItemId: itemId, result: "pass", numericReading: reading })}>Save mileage</button></div></div> : <div className="check-actions">
-                      {(["pass", "missing", "damaged", "not_applicable"] as const).map((result) => <button key={result} disabled={Boolean(busy)} onClick={() => void action(`item-${value(item, "id")}`, { action: "record_check_item", checkItemId: value(item, "id"), result })}>{result === "not_applicable" ? "N/A" : result}</button>)}
-                    </div>}
-                  </article>
-                )})}
+                {activeItems.map((item) => renderActiveItem(item))}
                 <button className="ops-primary" disabled={Boolean(busy) || unsavedReadings || pendingItems > 0} onClick={() => void action("complete", { action: "complete_check", checkId: value(activeCheck, "id") })}>Submit apparatus check for approval</button>
               </div>
             ) : (
@@ -1773,7 +1770,7 @@ export default function InventoryOperations({
         <div className="camera-overlay" role="presentation">
           <section className="camera-panel bulk-pass-panel" role="dialog" aria-modal="true" aria-label="Confirm passing remaining inventory items">
             <header><div><span>CONFIRM LOCATION</span><h3>Pass {bulkPassGroup.itemIds.length} items in {bulkPassGroup.label}?</h3></div><button type="button" onClick={() => setBulkPassGroup(null)}>Cancel</button></header>
-            <p>Use this only after physically checking every listed item in this location. Mileage and odometer entries are excluded and still require a number.</p>
+            <p>Use this only after physically checking every listed item in this location. Mileage and odometer entries still require a number. Engine oil and transmission fluid require a level selection. These items are excluded.</p>
             <div className="bulk-pass-actions"><button type="button" onClick={() => setBulkPassGroup(null)}>Go back</button><button className="ops-primary" type="button" disabled={Boolean(busy) || !canCheck} onClick={() => void recordCheckItems("bulk-pass", { action: "bulk_record_check_items", checkId: value(activeCheck, "id"), checkItemIds: bulkPassGroup.itemIds }).then((saved) => { if (saved) setBulkPassGroup(null); })}>Confirm {bulkPassGroup.itemIds.length} items passed</button></div>
           </section>
         </div>
@@ -1822,7 +1819,7 @@ export default function InventoryOperations({
               try {
                 setBusy("deficiency");
                 const evidencePhotoId = await uploadEvidence(selectedApparatusId, photo, value(deficiencyItem, "id"));
-                const saved = await recordCheckItems("deficiency", { action: "record_check_item", checkItemId: value(deficiencyItem, "id"), result: "failed", notes: form.get("notes"), issueCategories: form.getAll("issueCategories"), assignedEmployeeIds: employeeIds, assignedEmployeeNames: employeeNames, evidencePhotoId });
+                const saved = await recordCheckItems("deficiency", { action: "record_check_item", checkItemId: value(deficiencyItem, "id"), result: "failed", notes: `${isFluidLevelItem(deficiencyItem) ? value(deficiencyItem, "notes").split("\n")[0] + "\n" : ""}${form.get("notes")}`, issueCategories: form.getAll("issueCategories"), assignedEmployeeIds: employeeIds, assignedEmployeeNames: employeeNames, evidencePhotoId });
                 if (saved) {
                   setDeficiencyAssignees([]);
                   setDeficiencyItem(null);
@@ -1837,6 +1834,7 @@ export default function InventoryOperations({
             <header><div><span>FAILED INSPECTION ITEM</span><h3>{value(deficiencyItem, "equipment_name")}</h3></div><button type="button" onClick={() => { setDeficiencyAssignees([]); setDeficiencyItem(null); }}>Cancel</button></header>
             <p>Describe what failed and attach a picture. This creates the repair notice and Live Ops equipment issue.</p>
             <fieldset className="ops-check-grid"><legend>Issue type</legend>{categoryOptions.map(([id, label]) => <label key={id}><input type="checkbox" name="issueCategories" value={id} defaultChecked={(value(activeCheck, "check_type") === "air_pack" ? id === "air_pack" : id === "equipment")} /> {label}</label>)}</fieldset>
+            {isFluidLevelItem(deficiencyItem) && <p>{value(deficiencyItem, "notes").split("\n")[0]}</p>}
             <label>Failure notes<textarea name="notes" rows={4} required placeholder="What failed, where it is located, and whether the unit is impaired" /></label>
             <label>Required photo<input name="photo" type="file" accept="image/*" capture="environment" required /></label>
             <EmployeeNotifyPicker employees={employees} selectedIds={deficiencyAssignees} onChange={setDeficiencyAssignees} emptyText="An officer can assign this repair from the Repairs section." />

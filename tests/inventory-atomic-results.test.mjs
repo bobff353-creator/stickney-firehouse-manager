@@ -28,6 +28,7 @@ async function setup(){
  INSERT INTO public.inventory_equipment VALUES('${equipment}','${department}','Fixture hose','pass_fail','equipment');
  INSERT INTO public.inventory_deficiency_photos VALUES('${photo}','${department}','${apparatus}','${item}');`);
  await pg.exec(migration);
+ await pg.exec(fs.readFileSync(new URL('../supabase/migrations/20260930120000_inventory_vehicle_reading_levels.sql',import.meta.url),'utf8'));
  return pg;
 }
 const fail=pg=>pg.query('SELECT public.inventory_record_item_atomic($1,$2,$3,$4,NULL,$5)',[department,item,'damaged','Fixture only',photo]);
@@ -102,4 +103,34 @@ test('completion rejects pending and empty checks, is repeat-safe, and prevents 
   await pg.exec("UPDATE public.inventory_checks SET status='in_progress'; DELETE FROM public.inventory_check_items");
   await assert.rejects(complete(),/Complete a configured/);
  }finally{await pg.close();}
+});
+
+
+test('daily Record miles requires a number and preserves the odometer reading', async () => {
+ const pg=await setup();try {
+  await pg.exec("UPDATE public.inventory_equipment SET name='Record miles',response_type='pass_fail'");
+  const save=(reading,result='pass')=>pg.query('SELECT public.inventory_record_item_atomic($1,$2,$3,NULL,$4)',[department,item,result,reading]);
+  for (const reading of [null,-1,'NaN']) await assert.rejects(save(reading),/numeric reading/);
+  await assert.rejects(save(12000,'not_applicable'),/numeric reading/);
+  await save(12000.5);
+  assert.equal(Number((await pg.query('SELECT numeric_reading FROM public.inventory_check_items')).rows[0].numeric_reading),12000.5);
+ } finally {await pg.close();}
+});
+
+test('engine oil and transmission levels persist without bypassing issue evidence', async () => {
+ const pg=await setup();try {
+  for(const name of ['Engine oil','Engine oil in range','Transmission fluid - engine running and in neutral']) {
+   await pg.query('UPDATE public.inventory_equipment SET name=$1',[name]);
+   const save=(result,notes,evidence=null)=>pg.query('SELECT public.inventory_record_item_atomic($1,$2,$3,$4,NULL,$5)',[department,item,result,notes,evidence]);
+   await assert.rejects(save('pass',null),/Choose Low/);
+   await assert.rejects(save('pass','Fluid level: Low'),/Choose Low/);
+   await assert.rejects(save('not_applicable',null),/Choose Low/);
+   await save('pass','Fluid level: In range');
+   for(const level of ['Low','High']) {
+    await assert.rejects(save('failed',`Fluid level: ${level}`),/photo/);
+    await save('failed',`Fluid level: ${level}\nFixture issue`,photo);
+    assert.equal((await pg.query('SELECT notes FROM public.inventory_check_items')).rows[0].notes,`Fluid level: ${level}\nFixture issue`);
+   }
+  }
+ } finally {await pg.close();}
 });
