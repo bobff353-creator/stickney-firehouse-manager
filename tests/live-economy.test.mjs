@@ -89,7 +89,10 @@ test('Inventory confirms unchanged packets only after fresh scoped reads; change
     inventory_stock_lots:[{id:'lot-a',stock_item_id:'stock',quantity_on_hand:0},{id:'lot-b',stock_item_id:'stock',quantity_on_hand:5}],
     inventory_transactions:[{id:'request',stock_item_id:'stock'},{id:'orphan-request',stock_item_id:'removed'}],
   };
-  const db={from(table){
+  const db={async rpc(name,args){
+    assert.equal(name,'inventory_live_check_packet');assert.equal(args.p_department,'fixture');state.reads++;
+    return {data:{checks:[],checkItems:[],scbaEntries:[]},error:state.fail?'Unavailable':null};
+  },from(table){
     const filters=[];
     const query={
       select(){return query;},eq(key,value){filters.push([key,value]);return query;},order(){return query;},range(){return query;},

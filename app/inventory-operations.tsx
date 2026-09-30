@@ -17,6 +17,7 @@ import { airCheckLines } from "./inventory-air-checks";
 import InventoryCapture from './inventory-capture';
 import { createConditionalJsonReader } from './conditional-json-reader';
 import { indexFirstBy, groupByKey, sortCheckItems, equipmentNameOrder } from './inventory-index';
+import InventoryReports from './inventory-reports';
 import InventoryCheckJourney from "./inventory-check-journey";
 import { canSubmitInspection, initialCheckSection, stockExpiryDays } from "./inventory-check-flow";
 import { filterRepairOrders, filterStock, inventoryRefreshInterval, openRepair, recordedRepairCost, repairStage, stockAttention as stockAttentionState, stockGroups, type StockFilter } from "./inventory-workspace-filters";
@@ -467,14 +468,7 @@ export default function InventoryOperations({
   const [repairFilter, setRepairFilter] = useState("open");
   const [repairPriority, setRepairPriority] = useState("all");
   const [selectedMaintenanceOrder, setSelectedMaintenanceOrder] = useState<Row | null>(null);
-  const [selectedReportCheck, setSelectedReportCheck] = useState<Row | null>(null);
-  const reportDetailRef = useRef<HTMLElement>(null);
-  useEffect(() => {
-    if (!selectedReportCheck) return;
-    reportDetailRef.current?.scrollIntoView({ block: "start", behavior: "auto" });
-    reportDetailRef.current?.focus({ preventScroll: true });
-  }, [selectedReportCheck]);
-  const [checkReviewNotes, setCheckReviewNotes] = useState<Record<string, string>>({});
+
   const [checkSearch, setCheckSearch] = useState("");
   const [checkResultFilter, setCheckResultFilter] = useState<"pending" | "all" | "completed" | "failed">("pending");
   const [checkCompartmentFilter, setCheckCompartmentFilter] = useState("all");
@@ -1033,8 +1027,6 @@ export default function InventoryOperations({
       return equipmentNameOrder.compare(leftKey, rightKey);
     });
   }, [apparatusById, data.equipment, equipmentRigFilter, equipmentSearch, equipmentSort, equipmentAttention, dueEquipment]);
-  const completedChecks = useMemo(() => data.checks.filter((check) => value(check, "status") === "completed"), [data.checks]);
-  const pendingCheckReviews = useMemo(() => completedChecks.filter((check) => value(check, "review_status") === "pending"), [completedChecks]);
   const today = new Date();
   const chicagoWeekday = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", weekday: "short" }).format(today);
   const todayDay = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(chicagoWeekday);
@@ -1114,46 +1106,6 @@ export default function InventoryOperations({
       if (saved) form.reset();
     });
   }
-
-  const reportItemsFor = (check: Row): Row[] => value(check, "check_type") === "air_pack"
-    ? data.scbaEntries.filter((item) => value(item, "check_id") === value(check, "id")).map((item) => ({
-      ...item,
-      equipment_name: value(item, "label"),
-      compartment_label: value(item, "section") === "pack" ? "SCBA packs" : value(item, "section") === "rit" ? "R.I.T. bag" : "Spare bottles",
-      numeric_reading: item.psi,
-    }))
-    : data.checkItems.filter((item) => value(item, "check_id") === value(check, "id"));
-  const reportReading = (item: Row) => value(item, "section")
-    ? [value(item, "harness_number") ? `Harness ${value(item, "harness_number")}` : "", value(item, "cylinder_number") ? `Cylinder ${value(item, "cylinder_number")}` : "", value(item, "psi") ? `${value(item, "psi")} PSI` : "", value(item, "notes")].filter(Boolean).join(" · ") || "—"
-    : displayNumericReading(item.numeric_reading) || value(item, "notes") || "—";
-  const reportSummaryFor = (check: Row) => {
-    const items = reportItemsFor(check);
-    const issues = items.filter((item) => ["failed", "missing", "damaged"].includes(value(item, "result"))).length;
-    const passed = items.filter((item) => value(item, "result") === "pass").length;
-    return { items, issues, passed };
-  };
-  const emailReport = (check: Row) => {
-    const summary = reportSummaryFor(check);
-    const subject = `${value(check, "apparatus_name")} ${formatStatus(check.check_type)} check report`;
-    const body = [
-      "Stickney Fire Department — Vehicle Checks & Inventory",
-      `Report: ${value(check, "id")}`,
-      `Apparatus: ${value(check, "apparatus_name")}`,
-      `Check: ${formatStatus(check.check_type)}`,
-      `Started: ${formatDate(check.started_at)}`,
-      `Completed: ${formatDate(check.completed_at)}`,
-      `Completed by: ${value(check, "started_by") || "Not recorded"}`,
-      `Review: ${formatStatus(check.review_status)}`,
-      `Items: ${summary.items.length} · Passed: ${summary.passed} · Issues: ${summary.issues}`,
-      "",
-      ...summary.items.filter((item) => value(item, "result") !== "pass").map((item) => `${value(item, "equipment_name")}: ${formatStatus(item.result)}${value(item, "notes") ? ` — ${value(item, "notes")}` : ""}`),
-    ].join("\n");
-    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  };
-  const printReport = (check: Row) => {
-    setSelectedReportCheck(check);
-    window.setTimeout(() => window.print(), 80);
-  };
 
   if (loading) return <div className="ops-state">Loading saved Inventory records…</div>;
   if ((error || refreshError) && !data.configured) {
@@ -1295,53 +1247,14 @@ export default function InventoryOperations({
         </section>
       ) : null}
 
-      {view === "reports" ? (
-        <div className="inventory-reports-workspace">
-          {canSetup ? <section className="ops-card check-approval-card">
-            <header><div><span>ADMINISTRATOR APPROVALS</span><h2>Completed checks awaiting review</h2></div><b>{pendingCheckReviews.length} pending</b></header>
-            {pendingCheckReviews.length ? <div className="check-approval-list">{pendingCheckReviews.map((check) => {
-              const summary = reportSummaryFor(check);
-              const checkId = value(check, "id");
-              return <article key={checkId}>
-                <div><span>{formatStatus(check.check_type)} check</span><h3>{value(check, "apparatus_name")}</h3><small>Completed {formatDate(check.completed_at)} by {value(check, "started_by") || "department crew"}</small></div>
-                <dl><div><dt>Items</dt><dd>{summary.items.length}</dd></div><div><dt>Passed</dt><dd>{summary.passed}</dd></div><div><dt>Issues</dt><dd>{summary.issues}</dd></div></dl>
-                <label>Administrator review note<textarea rows={2} value={checkReviewNotes[checkId] || ""} onChange={(event) => setCheckReviewNotes((current) => ({ ...current, [checkId]: event.target.value }))} placeholder="Required when returning for correction" /></label>
-                <div className="check-review-actions"><button type="button" onClick={() => setSelectedReportCheck(check)}>Review report</button><button type="button" disabled={Boolean(busy)} onClick={() => void action(`changes-${checkId}`, { action: "review_check", checkId, decision: "changes_requested", reviewNotes: checkReviewNotes[checkId] || "" })}>Request changes</button><button className="ops-primary" type="button" disabled={Boolean(busy)} onClick={() => void action(`approve-${checkId}`, { action: "review_check", checkId, decision: "approved", reviewNotes: checkReviewNotes[checkId] || "" })}>Approve check</button></div>
-              </article>;
-            })}</div> : <div className="ops-empty due-clear"><strong>All completed checks are reviewed.</strong><p>New daily, weekly, inventory, and air-pack checks appear here after completion.</p></div>}
-          </section> : null}
-
-          <section className="ops-card inventory-report-history">
-            <header><div><span>REPORTS</span><h2>Vehicle checks and inventory history</h2></div><b>{completedChecks.length} reports</b></header>
-            <p className="report-help">Every completed Daily, Weekly, Inventory, and Air Pack check creates a printable report. Email opens a prepared summary in your device&apos;s email application.</p>
-            {completedChecks.length ? <div className="inventory-report-list">{completedChecks.map((check) => {
-              const summary = reportSummaryFor(check);
-              return <article key={value(check, "id")}>
-                <div><span>{formatStatus(check.check_type)}</span><h3>{value(check, "apparatus_name")}</h3><small>{formatDate(check.completed_at)} · {summary.items.length} items · {summary.issues} issues</small></div>
-                <b className={`review-${value(check, "review_status") || "pending"}`}>{formatStatus(check.review_status) || "Pending"}</b>
-                <div><button type="button" onClick={() => setSelectedReportCheck(check)}>View</button><button type="button" onClick={() => printReport(check)}>Print</button><button type="button" onClick={() => emailReport(check)}>Email summary</button></div>
-              </article>;
-            })}</div> : <div className="ops-empty"><strong>No completed check reports yet.</strong><p>Reports appear automatically when an apparatus check is completed.</p></div>}
-          </section>
-
+      {view === "reports" ? <InventoryReports apparatus={data.apparatus} canReview={canSetup} busy={Boolean(busy)}
+        onReview={(checkId, decision, reviewNotes) => action(`review-${checkId}`, { action: "review_check", checkId, decision, reviewNotes })}>
           <section className="ops-card inventory-lifecycle-report">
             <header><div><span>ASSET LIFECYCLE</span><h2>Repairs and retired equipment</h2></div><b>{data.workOrders.length + data.retiredEquipment.length} records</b></header>
             <div className="lifecycle-report-grid"><article><strong>{data.workOrders.filter((item) => value(item, "status") !== "closed").length}</strong><span>Open repair tickets</span></article><article><strong>{data.workOrders.filter((item) => value(item, "status") === "closed").length}</strong><span>Completed repairs</span></article><article><strong>{data.retiredEquipment.length}</strong><span>Retired equipment records</span></article><article><strong>{data.equipment.filter((item) => value(item, "service_status") === "out_of_service").length}</strong><span>Items out of service</span></article></div>
           </section>
 
-          {selectedReportCheck ? (() => {
-            const summary = reportSummaryFor(selectedReportCheck);
-            return <section ref={reportDetailRef} tabIndex={-1} aria-label="Selected check report" className="ops-card inventory-report-detail inventory-report-print-host">
-              <header><div><span>STICKNEY FIRE DEPARTMENT · CHECK REPORT</span><h2>{value(selectedReportCheck, "apparatus_name")} · {formatStatus(selectedReportCheck.check_type)}</h2></div><button type="button" onClick={() => setSelectedReportCheck(null)}>Close</button></header>
-              <div className="report-metadata"><span><b>Report ID</b>{value(selectedReportCheck, "id")}</span><span><b>Started</b>{formatDate(selectedReportCheck.started_at)}</span><span><b>Completed</b>{formatDate(selectedReportCheck.completed_at)}</span><span><b>Completed by</b>{value(selectedReportCheck, "started_by") || "Not recorded"}</span><span><b>Approval</b>{formatStatus(selectedReportCheck.review_status)}</span><span><b>Reviewed by</b>{value(selectedReportCheck, "reviewed_by") || "Pending"}</span></div>
-              {value(selectedReportCheck, "review_notes") ? <blockquote>{value(selectedReportCheck, "review_notes")}</blockquote> : null}
-              <table><thead><tr><th>Equipment</th><th>Location</th><th>Result</th><th>Reading / notes</th><th>Checked by</th></tr></thead><tbody>{summary.items.map((item) => <tr key={value(item, "id")}><td data-label="Equipment">{value(item, "equipment_name")}</td><td data-label="Location">{value(item, "compartment_label")}</td><td data-label="Result">{formatStatus(item.result)}</td><td data-label="Reading / notes">{reportReading(item)}</td><td data-label="Checked by">{value(item, "checked_by") || "—"}</td></tr>)}</tbody></table>
-              <footer><span>{summary.items.length} items</span><span>{summary.passed} passed</span><span>{summary.issues} issues</span><span>Generated {formatDate(Date.now())}</span></footer>
-              <div className="report-detail-actions"><button type="button" onClick={() => printReport(selectedReportCheck)}>Print report</button><button type="button" onClick={() => emailReport(selectedReportCheck)}>Email summary</button></div>
-            </section>;
-          })() : null}
-        </div>
-      ) : null}
+      </InventoryReports> : null}
 
       {view === "check" ? (
         <section className="ops-card unit-inspection-hub">

@@ -1,6 +1,7 @@
 import { createInventorySupabaseClient } from "../../lib/supabase-server";
 import { privatePacketResponse } from '../../lib/private-packet-response';
 import { indexFirstBy, groupByKey } from '../../inventory-index';
+import type { LiveCheckPacket } from '../../inventory-history';
 import { airAssetInput, airSaveError } from "../../inventory-air-input";
 import { serviceScheduleInput } from "../../inventory-service-schedule";
 import {
@@ -59,6 +60,12 @@ export async function GET(request: Request) {
   try {
     const supabase = await createInventorySupabaseClient();
     const departmentId = session.context.department.id;
+    const liveChecks = Promise.resolve(supabase.rpc('inventory_live_check_packet', { p_department: departmentId }))
+      .then(result => {
+        const packet = result.data as LiveCheckPacket | null;
+        const valid = packet && Array.isArray(packet.checks) && Array.isArray(packet.checkItems) && Array.isArray(packet.scbaEntries);
+        return { data: valid ? packet : null, error: result.error || (valid ? null : new Error('Current check data is unavailable.')) };
+      });
     const [
       apparatusResult,
       fleetResult,
@@ -99,17 +106,8 @@ export async function GET(request: Request) {
         .order("item_order")
         .order("name")
         .range(from, to)),
-      supabase
-        .from("inventory_checks")
-        .select("id,apparatus_id,shift_id,check_type,status,started_by,started_at,completed_at,review_status,reviewed_by,reviewed_at,review_notes")
-        .eq("department_id", departmentId)
-        .in("status", ["in_progress", "completed"])
-        .order("started_at", { ascending: false }),
-      collectPages((from, to) => supabase
-        .from("inventory_check_items")
-        .select("id,check_id,equipment_id,result,notes,numeric_reading,checked_by,checked_at")
-        .eq("department_id", departmentId)
-        .range(from, to)),
+      liveChecks.then(result => ({ data: result.data?.checks || [], error: result.error })),
+      liveChecks.then(result => ({ data: result.data?.checkItems || [], error: result.error })),
       supabase
         .from("inventory_readiness_exceptions")
         .select("id,apparatus_id,equipment_id,check_item_id,result,priority,notes,status,out_of_service,opened_by,opened_at,issue_categories,assigned_employee_ids,assigned_employee_names,evidence_photo_id,resolved_at,resolved_by,resolution_notes")
@@ -165,12 +163,7 @@ export async function GET(request: Request) {
         .select("id,apparatus_id,pack_positions,include_rit,spare_bottle_count,active,updated_by,updated_at")
         .eq("department_id", departmentId)
         .order("updated_at", { ascending: false }),
-      collectPages((from, to) => supabase
-        .from("inventory_scba_check_entries")
-        .select("id,check_id,section,label,sort_order,harness_number,cylinder_number,psi,result,notes,checked_by,checked_at,equipment_id,asset_number,location_snapshot")
-        .eq("department_id", departmentId)
-        .order("sort_order")
-        .range(from, to)),
+      liveChecks.then(result => ({ data: result.data?.scbaEntries || [], error: result.error })),
     ]);
     const firstError = [
       apparatusResult,

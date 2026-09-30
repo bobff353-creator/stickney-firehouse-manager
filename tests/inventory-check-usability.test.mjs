@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const operations = await readFile(new URL("../app/inventory-operations.tsx", import.meta.url), "utf8");
+const reports = await readFile(new URL("../app/inventory-reports.tsx", import.meta.url), "utf8");
 const route = await readFile(new URL("../app/api/operations/route.ts", import.meta.url), "utf8");
 const styles = await readFile(new URL("../app/inventory/inventory.css", import.meta.url), "utf8");
 const usabilityStyles = await readFile(new URL("../app/inventory/usability.css", import.meta.url), "utf8");
@@ -15,9 +16,9 @@ test("starting or resuming a check clears the prior submission notice", () => {
 });
 
 test("opening a report moves it into view and gives it keyboard focus", () => {
-  assert.match(operations, /reportDetailRef.current\?\.scrollIntoView\(\{ block: "start", behavior: "auto" \}\)/);
-  assert.match(operations, /reportDetailRef.current\?\.focus\(\{ preventScroll: true \}\)/);
-  assert.match(operations, /ref=\{reportDetailRef\} tabIndex=\{-1\} aria-label="Selected check report"/);
+  assert.match(reports, /reportDetailRef.current\?\.scrollIntoView\(\{ block: 'start', behavior: 'auto' \}\)/);
+  assert.match(reports, /reportDetailRef.current\?\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(reports, /ref=\{reportDetailRef\} tabIndex=\{-1\} aria-label="Selected check report"/);
 });
 
 test("due-date navigation targets the schedule editor after it renders", () => {

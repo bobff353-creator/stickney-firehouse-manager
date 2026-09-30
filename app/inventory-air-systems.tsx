@@ -1,10 +1,10 @@
 "use client";
-import { departmentTimestamp } from "./department-time";
 
 /* Authenticated photos use the department session, not a public image proxy. */
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { airCheckLines, airTemplateLines, type AirRow } from "./inventory-air-checks";
+import { InventoryAirHistory } from './inventory-reports';
 
 import { ServiceScheduleFields, ServiceScheduleSummary } from "./inventory-service-fields";
 import { serviceScheduleInput } from "./inventory-service-schedule";
@@ -87,7 +87,6 @@ export default function InventoryAirSystems({ data, busy, canSetup, canManageRep
   const filtered = all.filter(item => item.scba_asset_kind === tab && Boolean(item.retired_at) === showRetired && (!rigFilter || item.apparatus_id === rigFilter) && ["asset_number", "name", "sku", "serial_number", "barcode", "compartment_label"].some(key => val(item, key).toLowerCase().includes(search.toLowerCase().trim())));
   const assetRig = selected ? data.apparatus.find(item => item.id === selected.apparatus_id) : undefined;
   const history = selected ? data.workOrders.filter(item => item.equipment_id === selected.id).sort((a, b) => val(b, "repair_date").localeCompare(val(a, "repair_date"))) : [];
-  const checkHistory = selected ? data.scbaEntries.filter(item => item.equipment_id === selected.id) : [];
   const doUpload = async (event: React.FormEvent<HTMLFormElement>, task: (form: FormData) => Promise<void>) => {
     event.preventDefault(); const formElement = event.currentTarget; setUploading(true); setLocalError("");
     try { await task(new FormData(formElement)); formElement.reset(); } catch (error) { setLocalError(error instanceof Error ? error.message : "Upload failed. Try again."); } finally { setUploading(false); }
@@ -111,7 +110,7 @@ export default function InventoryAirSystems({ data, busy, canSetup, canManageRep
         </details>)}
         {canManageRepairs ? <p><button type="button" onClick={onRepairs}>Open Repairs for a new or ongoing issue →</button></p> : null}
       </section>
-      <details className="air-record"><summary>Inspection history · {checkHistory.length} linked entries</summary>{checkHistory.length ? checkHistory.map(entry => <p key={val(entry, "id")}><strong>{val(entry, "result").replaceAll("_", " ")}</strong> · {val(entry, "label")} · {val(entry, "location_snapshot")}<br />{entry.checked_at ? departmentTimestamp(val(entry, "checked_at")) : "Not yet checked"} · {val(entry, "notes") || "No note"}</p>) : <p>New inspections link here automatically. Older checklist reports remain in Reports and have not been guessed or reassigned to this ID.</p>}</details>
+      <InventoryAirHistory key={val(selected,'id')} equipmentId={val(selected,'id')}/>
     </> : <>
       <header className="air-heading"><div><h2>Air Packs & Bottles</h2><p>Find an ID → view its record → check or maintain it.</p></div>{canSetup ? <button className="ops-primary" type="button" onClick={() => setEditing({ id: crypto.randomUUID(), scba_asset_kind: tab === "bottle" ? "bottle" : "pack" })}>Add pack or bottle</button> : null}</header>
       <nav className="air-tabs" aria-label="Air equipment views">{[["pack", "Air packs"], ["bottle", "Air bottles"], ["checks", "Weekly checks"]].map(([key, label]) => <button type="button" key={key} aria-pressed={tab === key} onClick={() => { setTab(key); setSearch(""); }}>{label}{key !== "checks" ? ` (${all.filter(item => item.scba_asset_kind === key && !item.retired_at).length})` : ""}</button>)}</nav>

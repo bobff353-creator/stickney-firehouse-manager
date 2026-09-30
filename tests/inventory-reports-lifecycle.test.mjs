@@ -4,6 +4,7 @@ import test from "node:test";
 
 const shell = await readFile(new URL("../app/inventory-live.tsx", import.meta.url), "utf8");
 const operations = await readFile(new URL("../app/inventory-operations.tsx", import.meta.url), "utf8");
+const reports = await readFile(new URL("../app/inventory-reports.tsx", import.meta.url), "utf8");
 const route = await readFile(new URL("../app/api/operations/route.ts", import.meta.url), "utf8");
 const migration = await readFile(new URL("../supabase/migrations/20260825052518_add_inventory_asset_lifecycle_and_check_reviews.sql", import.meta.url), "utf8");
 
@@ -27,11 +28,11 @@ test("administrators can manage complete asset lifecycle and grouping", () => {
 
 test("reports tab prints, prepares email, and exposes check approval queue", () => {
   assert.match(shell, /\["reports", "Reports"\]/);
-  assert.match(operations, /Completed checks awaiting review/);
-  assert.match(operations, /Approve check/);
-  assert.match(operations, /Request changes/);
-  assert.match(operations, /window\.print\(\)/);
-  assert.match(operations, /mailto:/);
+  assert.match(reports, /Completed checks awaiting review/);
+  assert.match(reports, /Approve check/);
+  assert.match(reports, /Request changes/);
+  assert.match(reports, /window\.print\(\)/);
+  assert.match(reports, /mailto:/);
   assert.match(route, /action === "review_check"/);
   assert.match(route, /rpc\("inventory_complete_check_atomic"/);
 });
