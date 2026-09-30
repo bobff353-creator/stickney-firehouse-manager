@@ -41,10 +41,10 @@ test("administrator setup avoids a single scroll-of-death workspace", () => {
 });
 
 test("crew landing page exposes a short operational workflow", () => {
-  for (const step of ["Due today", "Inventory check", "Choose an apparatus", "Find equipment", "Repair follow-up"]) {
+  for (const step of ["What must I check right now?", "Check apparatus", "Find equipment", "Report or follow up a repair"]) {
     assert.match(shell, new RegExp(step));
   }
-  assert.match(shell, /Track failed items without duplicate work/);
+  assert.match(shell, /Track failed items and work already underway/);
 });
 
 test("equipment directory opens a safe summary before administrator editing", () => {

@@ -7,7 +7,7 @@ const operations = await readFile(new URL("../app/inventory-operations.tsx", imp
 
 test("inventory is a separate top-level apparatus workflow", () => {
   assert.match(shell, /\["inventory", "Inventory"\]/);
-  assert.match(shell, /<b>Inventory check<\/b><small>Open the inventory for each apparatus<\/small>/);
+  assert.match(shell, /Inventory stays separate and is matched to each apparatus below/);
   assert.match(shell, /view === "inventory"/);
   assert.match(shell, /Inventory checks by apparatus/);
 });

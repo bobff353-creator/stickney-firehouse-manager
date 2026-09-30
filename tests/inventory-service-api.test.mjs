@@ -6,6 +6,7 @@ import ts from 'typescript';
 import { serviceScheduleInput } from '../app/inventory-service-schedule.ts';
 import { airAssetInput, airSaveError } from '../app/inventory-air-input.ts';
 import { privatePacketResponse } from '../app/lib/private-packet-response.ts';
+import * as inventoryIndex from '../app/inventory-index.ts';
 const compiled=ts.transpileModule(fs.readFileSync(new URL('../app/api/operations/route.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
 function harness(options={}){
  const state={row:{id:'item',department_id:'dept',apparatus_id:'rig',compartment_id:'place',name:'Spreaders',updated_at:'2026-01-01T00:00:00Z'},queries:[],rpc:[],updates:0};
@@ -19,6 +20,7 @@ function harness(options={}){
  },async rpc(name,args){state.rpc.push({name,args});return {data:{id:args.p_id,changed:true}};}};
  const session={ok:true,context:{department:{id:'dept'},user:{id:'user',email:'fixture@example.test'}}};
  const imports={
+  '../../inventory-index':inventoryIndex,
   '../../lib/private-packet-response':{privatePacketResponse},
   '../../lib/supabase-server':{createInventorySupabaseClient:async()=>db},
   '../../inventory-air-input':{airAssetInput,airSaveError},

@@ -6,6 +6,7 @@ import ts from 'typescript';
 import { privatePacketResponse } from '../app/lib/private-packet-response.ts';
 import { createConditionalJsonReader } from '../app/conditional-json-reader.ts';
 import { synchronizedSlide } from '../app/board-sync-clock.ts';
+import * as inventoryIndex from '../app/inventory-index.ts';
 
 const source = path => readFileSync(path, 'utf8');
 function compileRoute(path, mocks) {
@@ -80,6 +81,14 @@ test('Home summaries require document access but do not read document bodies or 
 
 test('Inventory confirms unchanged packets only after fresh scoped reads; changes and errors stay visible',async()=>{
   const state={allowed:true,fail:false,name:'Fixture unit',reads:0};
+  const rows={
+    inventory_equipment:[{id:'item',compartment_id:'cabinet'},{id:'without-photo'},{id:'retired',retired_at:'2026-01-01'}],
+    inventory_compartments:[{id:'cabinet',label:'Cabinet 1'}],
+    inventory_photo_views:[{id:'newest',equipment_id:'item'},{id:'older',equipment_id:'item'}],
+    inventory_stock_items:[{id:'stock',name:'Test gloves',unit:'boxes'},{id:'empty',name:'No lots',unit:'each'}],
+    inventory_stock_lots:[{id:'lot-a',stock_item_id:'stock',quantity_on_hand:0},{id:'lot-b',stock_item_id:'stock',quantity_on_hand:5}],
+    inventory_transactions:[{id:'request',stock_item_id:'stock'},{id:'orphan-request',stock_item_id:'removed'}],
+  };
   const db={from(table){
     const filters=[];
     const query={
@@ -87,17 +96,23 @@ test('Inventory confirms unchanged packets only after fresh scoped reads; change
       in(){return query;},neq(){return query;},not(){return query;},is(){return query;},limit(){return query;},
       then(resolve,reject){
         state.reads++;assert.ok(filters.some(([key,value])=>key==='department_id'&&value==='fixture'));
-        return Promise.resolve({data:table==='inventory_apparatus_profiles'?[{id:'rig',name:state.name}]:[],error:state.fail?'Unavailable':null}).then(resolve,reject);
+        return Promise.resolve({data:table==='inventory_apparatus_profiles'?[{id:'rig',name:state.name}]:(rows[table]||[]),error:state.fail?'Unavailable':null}).then(resolve,reject);
       },
     };return query;
   }};
   const api=compileRoute('app/api/operations/route.ts',{
     '../../lib/supabase-server':{createInventorySupabaseClient:async()=>db},'../../inventory-air-input':{},'../../inventory-service-schedule':{},
     '../../lib/private-packet-response':{privatePacketResponse},
+    '../../inventory-index':inventoryIndex,
     '../../lib/inventory-session':{verifyInventoryRequest:async()=>({ok:state.allowed,context:{department:{id:'fixture'},user:{email:'local@example.invalid'},role:'member'}}),sessionFailureResponse:()=>Response.json({error:'Denied'},{status:403})},
   });
   const request=revision=>new Request('https://fixture.invalid/api/operations',{headers:revision?{'x-content-revision':revision}:{}});
   const first=await api.GET(request());assert.equal(first.status,200);const revision=first.headers.get('x-content-revision');assert.ok(revision);
+  const packet=await first.json();
+  assert.deepEqual(packet.equipment.map(item=>[item.id,item.photo_url]),[['item','/api/digital-twin/media/newest'],['without-photo',null]]);
+  assert.deepEqual(packet.retiredEquipment.map(item=>item.id),['retired']);
+  assert.deepEqual(packet.stock.map(item=>[item.id,item.lot_id,item.quantity_on_hand]),[['stock','lot-a',0],['stock','lot-b',5],['empty',null,0]]);
+  assert.deepEqual(packet.restockRequests.map(item=>[item.stock_item_name,item.unit]),[['Test gloves','boxes'],['Supply','units']]);
   const reads=state.reads;assert.equal((await api.GET(request(revision))).status,204);assert.equal(state.reads,reads*2);
   state.name='Changed fixture unit';const changed=await api.GET(request(revision));assert.equal(changed.status,200);assert.match(await changed.text(),/Changed fixture unit/);
   state.fail=true;assert.equal((await api.GET(request(revision))).status,503);

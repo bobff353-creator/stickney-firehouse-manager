@@ -16,6 +16,7 @@ import InventoryAirSystems from "./inventory-air-systems";
 import { airCheckLines } from "./inventory-air-checks";
 import InventoryCapture from './inventory-capture';
 import { createConditionalJsonReader } from './conditional-json-reader';
+import { indexFirstBy, groupByKey, sortCheckItems, equipmentNameOrder } from './inventory-index';
 import InventoryCheckJourney from "./inventory-check-journey";
 import { canSubmitInspection, initialCheckSection, stockExpiryDays } from "./inventory-check-flow";
 import { filterRepairOrders, filterStock, inventoryRefreshInterval, openRepair, recordedRepairCost, repairStage, stockAttention as stockAttentionState, stockGroups, type StockFilter } from "./inventory-workspace-filters";
@@ -416,6 +417,7 @@ export default function InventoryOperations({
   const readController = useRef<AbortController | null>(null);
   const readerMounted = useRef(true);
   const packetReader = useRef(createConditionalJsonReader());
+  const appliedRevision = useRef<string | null>(null);
   const [accessRequired, setAccessRequired] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -549,6 +551,15 @@ export default function InventoryOperations({
         fetch("/api/permissions", { cache: "no-store", signal }).catch(() => null),
       ]);
       const response = await packetReader.current.read('/api/operations', { signal });
+      const revision = response.headers.get('x-content-revision');
+      if (controller.signal.aborted || readGeneration !== itemSaveGeneration.current || itemSavePending.current) return false;
+      // A fresh authorized read confirmed the exact packet already applied here.
+      // Explicit refresh/save recovery still parses and reapplies the full snapshot.
+      if (background && !fresh && response.ok && revision && revision === appliedRevision.current) {
+        await response.body?.cancel();
+        setLastSyncedAt(Date.now()); setRefreshError(''); setAccessRequired(false);
+        return true;
+      }
       const payload = await response.json().catch(() => ({})) as Partial<OperationsData>;
       if (!response.ok || payload.configured !== true) {
         if (!background) setAccessRequired(response.status === 401 || response.status === 403);
@@ -556,6 +567,7 @@ export default function InventoryOperations({
       }
       // An earlier crew refresh must not replace a newer acknowledged result.
       if (controller.signal.aborted || readGeneration !== itemSaveGeneration.current || itemSavePending.current) return false;
+      appliedRevision.current = revision;
       onRecords?.({ equipment: payload.equipment || [], checks: payload.checks || [], checkItems: payload.checkItems || [] });
       setData({
         configured: true,
@@ -594,6 +606,7 @@ export default function InventoryOperations({
       return true;
     } catch (caught) {
       if (controller.signal.aborted) return false;
+      appliedRevision.current = null;
       onRecords?.(null);
       setRefreshError(caught instanceof Error ? caught.message : "Operational records are unavailable.");
       return false;
@@ -833,27 +846,21 @@ export default function InventoryOperations({
     if (!response.ok) throw new Error(payload.error || "The equipment photo could not be saved.");
   }
 
-  const apparatusActiveChecks = data.checks.filter((check) => (
+  const equipmentById = useMemo(() => indexFirstBy(data.equipment, row => value(row, 'id')), [data.equipment]);
+  const compartmentById = useMemo(() => indexFirstBy(data.compartments, row => value(row, 'id')), [data.compartments]);
+  const apparatusById = useMemo(() => indexFirstBy(data.apparatus, row => value(row, 'id')), [data.apparatus]);
+  const checkItemsByCheck = useMemo(() => groupByKey(data.checkItems, row => value(row, 'check_id')), [data.checkItems]);
+  const scbaEntriesByCheck = useMemo(() => groupByKey(data.scbaEntries, row => value(row, 'check_id')), [data.scbaEntries]);
+  const openOrdersByEquipment = useMemo(() => groupByKey(data.workOrders.filter(order => !['completed', 'closed', 'cancelled'].includes(value(order, 'status'))), order => value(order, 'equipment_id')), [data.workOrders]);
+  const apparatusActiveChecks = useMemo(() => data.checks.filter((check) => (
     value(check, "status") === "in_progress"
     && (!selectedApparatusId || value(check, "apparatus_id") === selectedApparatusId)
-  ));
+  )), [data.checks, selectedApparatusId]);
   const activeCheck = apparatusActiveChecks.find((check) => value(check, "id") === selectedCheckId)
     || apparatusActiveChecks[0];
-  const activeItems = activeCheck
-    ? data.checkItems.filter((item) => value(item, "check_id") === value(activeCheck, "id"))
-      .sort((left, right) => {
-        const leftEquipment = data.equipment.find((item) => value(item, "id") === value(left, "equipment_id"));
-        const rightEquipment = data.equipment.find((item) => value(item, "id") === value(right, "equipment_id"));
-        const leftCabinet = data.compartments.find((item) => value(item, "id") === value(leftEquipment || {}, "compartment_id"));
-        const rightCabinet = data.compartments.find((item) => value(item, "id") === value(rightEquipment || {}, "compartment_id"));
-        return Number(leftCabinet?.sort_order ?? Number.MAX_SAFE_INTEGER) - Number(rightCabinet?.sort_order ?? Number.MAX_SAFE_INTEGER)
-          || value(leftCabinet || {}, "label").localeCompare(value(rightCabinet || {}, "label"), undefined, { numeric: true })
-          || Number(leftEquipment?.item_order ?? 0) - Number(rightEquipment?.item_order ?? 0);
-      })
-    : [];
-  const activeScbaEntries = activeCheck && value(activeCheck, "check_type") === "air_pack"
-    ? data.scbaEntries.filter((item) => value(item, "check_id") === value(activeCheck, "id"))
-    : [];
+  const activeCheckId = activeCheck ? value(activeCheck, 'id') : '';
+  const activeItems = useMemo(() => activeCheckId ? sortCheckItems(checkItemsByCheck.get(activeCheckId) || [], equipmentById, compartmentById) : [], [activeCheckId, checkItemsByCheck, equipmentById, compartmentById]);
+  const activeScbaEntries = useMemo(() => activeCheck && value(activeCheck, 'check_type') === 'air_pack' ? scbaEntriesByCheck.get(activeCheckId) || [] : [], [activeCheck, activeCheckId, scbaEntriesByCheck]);
   const activeCheckType = value(activeCheck || {}, "check_type");
   const activeAllowsRelocation = activeCheckType === "inventory";
   const activeChecklistRows = activeCheckType === "air_pack" ? activeScbaEntries : activeItems;
@@ -927,6 +934,7 @@ export default function InventoryOperations({
     const savedReading = displayNumericReading(item.numeric_reading);
     const reading = numericReadings[itemId] ?? numericReadingInputValue(item.numeric_reading);
     const compartment = value(item, "compartment_label") || "Location not assigned";
+    const existingRepairs = preview ? [] : openOrdersByEquipment.get(value(item, 'equipment_id')) || [];
     const allowsRelocation = preview ? templateType === "inventory" : activeAllowsRelocation;
     const pendingLocationChange = !preview && allowsRelocation
       ? pendingLocationChangeByEquipmentId.get(value(item, "equipment_id"))
@@ -936,7 +944,7 @@ export default function InventoryOperations({
         <div className="check-item-copy">
           <strong>{value(item, "equipment_name")}{Number(item.quantity_required || 1) > 1 ? ` × ${item.quantity_required}` : ""}</strong>
           <small>{compartment}</small>
-          {!preview && data.workOrders.some(order => value(order, "equipment_id") === value(item, "equipment_id") && !["completed", "closed", "cancelled"].includes(value(order, "status"))) && <details className="check-known-issue"><summary>Existing repair — review before reporting again</summary>{data.workOrders.filter(order => value(order, "equipment_id") === value(item, "equipment_id") && !["completed", "closed", "cancelled"].includes(value(order, "status"))).map(order => <p key={value(order, "id")}>{value(order, "summary")} · {formatStatus(order.status)}</p>)}<button type="button" onClick={() => { if (confirmLeavingWork()) onRepairs(); }}>Open Repairs</button></details>}
+          {existingRepairs.length > 0 && <details className="check-known-issue"><summary>Existing repair — review before reporting again</summary>{existingRepairs.map(order => <p key={value(order, "id")}>{value(order, "summary")} · {formatStatus(order.status)}</p>)}<button type="button" onClick={() => { if (confirmLeavingWork()) onRepairs(); }}>Open Repairs</button></details>}
           {value(item, "source_form") ? <details className="check-item-details"><summary>Details</summary><p>{value(item, "source_form")}</p></details> : null}
           {pendingLocationChange ? <small className="location-change-pending">Wrong location reported · awaiting administrator review</small> : null}
         </div>
@@ -1003,9 +1011,9 @@ export default function InventoryOperations({
   for (const item of stockRows) { const state = stockAttentionState(item); if (state.low) stockStatusCounts.low++; if (state.expired.length) stockStatusCounts.expired++; if (state.expiring.length) stockStatusCounts.expiring++; }
   const equipmentMatches = useMemo(() => {
     const query = equipmentSearch.trim().toLowerCase();
-    const apparatusName = (item: Row) => value(data.apparatus.find((row) => value(row, "id") === value(item, "apparatus_id")) || {}, "name");
+    const apparatusName = (item: Row) => value(apparatusById.get(value(item, "apparatus_id")) || {}, "name");
     const matches = data.equipment.filter((item) => {
-      const apparatus = data.apparatus.find((row) => value(row, "id") === value(item, "apparatus_id"));
+      const apparatus = apparatusById.get(value(item, "apparatus_id"));
       const matchesRig = equipmentRigFilter === "all" || value(item, "apparatus_id") === equipmentRigFilter;
       const matchesQuery = !query || [value(item, "name"), value(item, "manufacturer"), value(item, "model"), value(item, "serial_number"), value(item, "barcode"), value(item, "compartment_label"), value(item, "item_type"), value(item, "service_status"), apparatus ? value(apparatus, "name") : ""]
         .some((field) => field.toLowerCase().includes(query));
@@ -1022,9 +1030,9 @@ export default function InventoryOperations({
         : equipmentSort === "compartment" ? `${apparatusName(right)} ${value(right, "compartment_label")} ${value(right, "name")}`
           : equipmentSort === "status" ? `${value(right, "service_status")} ${apparatusName(right)} ${value(right, "name")}`
             : `${apparatusName(right)} ${value(right, "compartment_label")} ${value(right, "name")}`;
-      return leftKey.localeCompare(rightKey, undefined, { numeric: true, sensitivity: "base" });
+      return equipmentNameOrder.compare(leftKey, rightKey);
     });
-  }, [data.apparatus, data.equipment, equipmentRigFilter, equipmentSearch, equipmentSort, equipmentAttention, dueEquipment]);
+  }, [apparatusById, data.equipment, equipmentRigFilter, equipmentSearch, equipmentSort, equipmentAttention, dueEquipment]);
   const completedChecks = useMemo(() => data.checks.filter((check) => value(check, "status") === "completed"), [data.checks]);
   const pendingCheckReviews = useMemo(() => completedChecks.filter((check) => value(check, "review_status") === "pending"), [completedChecks]);
   const today = new Date();
@@ -1407,7 +1415,7 @@ export default function InventoryOperations({
             <div className="check-worklist">
               <div className="inspection-workflow-actions">
                 <button type="button" onClick={() => { if (confirmLeavingWork()) { setInspectionMenuOpen(true); setScbaDirty({}); setNumericReadings({}); } }}>Back to inspection types</button>
-                <button type="button" disabled={Boolean(busy)} onClick={() => void load({ background: true })}>Refresh crew progress</button>
+                <button type="button" disabled={Boolean(busy)} onClick={() => void load({ background: true, fresh: true })}>Refresh crew progress</button>
               </div>
               <div className="active-inspection-title">
                 <span>{selectedApparatus ? value(selectedApparatus, "name") : "Apparatus"} · {formatStatus(activeCheck.check_type)} inspection in progress</span>

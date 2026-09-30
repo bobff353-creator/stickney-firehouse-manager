@@ -1,5 +1,6 @@
 import { createInventorySupabaseClient } from "../../lib/supabase-server";
 import { privatePacketResponse } from '../../lib/private-packet-response';
+import { indexFirstBy, groupByKey } from '../../inventory-index';
 import { airAssetInput, airSaveError } from "../../inventory-air-input";
 import { serviceScheduleInput } from "../../inventory-service-schedule";
 import {
@@ -201,11 +202,12 @@ export async function GET(request: Request) {
     }));
     const compartments = compartmentsResult.data || [];
     const compartmentById = new Map(compartments.map((item) => [item.id, item]));
+    const photoByEquipment = indexFirstBy(equipmentPhotosResult.data || [], photo => photo.equipment_id);
     const allEquipment = (equipmentResult.data || []).map((item) => ({
       ...item,
       compartment_label: compartmentById.get(item.compartment_id)?.label || "",
-      photo_url: equipmentPhotosResult.data?.find((photo) => photo.equipment_id === item.id)
-        ? `/api/digital-twin/media/${equipmentPhotosResult.data.find((photo) => photo.equipment_id === item.id)?.id}`
+      photo_url: photoByEquipment.has(item.id)
+        ? `/api/digital-twin/media/${photoByEquipment.get(item.id)?.id}`
         : null,
     }));
     const equipment = allEquipment.filter((item) => !item.retired_at);
@@ -251,8 +253,10 @@ export async function GET(request: Request) {
       apparatus_name: apparatusById.get(item.apparatus_id)?.name || "Unknown apparatus",
     }));
     const lots = stockLotsResult.data || [];
+    const lotsByStock = groupByKey(lots, lot => lot.stock_item_id);
+    const stockItemById = indexFirstBy(stockItemsResult.data || [], item => item.id);
     const stock = (stockItemsResult.data || []).flatMap((item) => {
-      const itemLots = lots.filter((lot) => lot.stock_item_id === item.id);
+      const itemLots = lotsByStock.get(item.id) || [];
       return itemLots.length
         ? itemLots.map((lot) => ({
           ...item,
@@ -275,8 +279,8 @@ export async function GET(request: Request) {
     });
     const restockRequests = (restockRequestsResult.data || []).map((request) => ({
       ...request,
-      stock_item_name: (stockItemsResult.data || []).find((item) => item.id === request.stock_item_id)?.name || "Supply",
-      unit: (stockItemsResult.data || []).find((item) => item.id === request.stock_item_id)?.unit || "units",
+      stock_item_name: stockItemById.get(request.stock_item_id)?.name || "Supply",
+      unit: stockItemById.get(request.stock_item_id)?.unit || "units",
     }));
     const locationChanges = (locationChangesResult.data || []).map((request) => ({
       ...request,

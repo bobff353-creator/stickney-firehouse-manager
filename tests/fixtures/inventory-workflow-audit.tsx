@@ -5,6 +5,7 @@
 import React from 'react';
 import {createRoot} from 'react-dom/client';
 import Inventory from '../../app/inventory-live';
+import InventoryOperations from '../../app/inventory-operations';
 import {airCheckLines} from '../../app/inventory-air-checks';
 import '../../app/globals.css';
 import '../../app/mobile-usability.css';
@@ -18,7 +19,8 @@ import '../../app/suite-theme.css';
 import '../../app/workflow-usability.css';
 
 if (!['127.0.0.1', 'localhost'].includes(location.hostname)) throw Error('Local fixtures only');
-const key='fictional-inventory-workflow-v2';
+const performanceAudit = new URLSearchParams(location.search).has('performance');
+const key=performanceAudit ? 'fictional-inventory-performance-v1' : 'fictional-inventory-workflow-v2';
 const rig={id:'fixture-engine',name:'TEST ONLY Engine',asset_type:'engine',status:'in_service'};
 const cabinet={id:'fixture-cabinet',apparatus_id:rig.id,label:'Driver side cabinet',side:'driver',sort_order:1};
 const base={apparatus_id:rig.id,compartment_id:cabinet.id,compartment_label:cabinet.label,quantity_required:1,check_types:['daily','weekly','inventory'],equipment_category:'equipment',response_type:'pass_fail',service_status:'in_service',updated_at:'2026-09-17T12:00:00Z'};
@@ -46,6 +48,13 @@ if (new URLSearchParams(location.search).has('workspace-review')) {
  if (!data.stock.some((row:any)=>row.id==='fixture-tape')) data.stock.push({id:'fixture-tape',name:'TEST Tape',unit:'rolls',par_level:10,reorder_point:2,lot_id:'fixture-tape-lot',quantity_on_hand:1,lot_number:'TEST-TAPE',location_id:'TEST Engine'});
 }
 let writes=0;
+let reads=0, confirmations=0, applications=0, revision=1, nextReadStatus=200;
+const refreshFixture=()=>window.dispatchEvent(new Event('firehouse:inventory-refresh'));
+const receiveRecords=(records:unknown)=>{
+  if(records) applications++;
+  const output=document.getElementById('audit-applications');
+  if(output) output.textContent=`Applied packets: ${applications} · ${records?'available':'unavailable'}`;
+};
 const stamp=()=>new Date().toISOString();
 const persist=()=>sessionStorage.setItem(key,JSON.stringify(data));
 const bad=(error:string,status=400)=>Response.json({error},{status});
@@ -127,6 +136,16 @@ window.fetch=async(input,init)=>{
   }
   return bad(`Unimplemented fixture action: ${b.action}`,409);
  }
+ if(url.startsWith('/api/operations')&&performanceAudit){
+  reads++;
+  const version=`fictional-${revision}-${writes}`;
+  const status=nextReadStatus;nextReadStatus=200;
+  const unchanged=status===200&&new Headers(init?.headers).get('x-content-revision')===version;
+  if(unchanged) confirmations++;
+  document.getElementById('audit-reads')!.textContent=`Reads: ${reads} · Unchanged confirmations: ${confirmations}`;
+  if(status!==200)return bad('Simulated read failure',status);
+  return unchanged?new Response(null,{status:204,headers:{'x-content-revision':version}}):Response.json(data,{headers:{'x-content-revision':version}});
+ }
  if(url.startsWith('/api/operations')||url.startsWith('/api/digital-twin'))return Response.json(data);
  if(url.startsWith('/api/suite-context'))return Response.json({configured:true,department:{id:'fixture',name:'FICTIONAL TEST DEPARTMENT'},apparatus:data.apparatus.map((r:any)=>({...r,unit_name:r.name,unit_type:r.asset_type,call_sign:r.name})),events:[]});
  if(url.startsWith('/api/dashboard'))return Response.json({viewer:{employeeId:'fixture-member'}});
@@ -136,4 +155,10 @@ window.fetch=async(input,init)=>{
 const reportError=(message:string)=>{const target=document.getElementById('audit-errors');if(target)target.textContent+=message;};
 window.addEventListener('error',e=>reportError(e.message));
 window.addEventListener('unhandledrejection',e=>reportError(String(e.reason)));
-createRoot(document.getElementById('root')!).render(<><aside style={{padding:8,background:'#fff4be',color:'#172b3b',font:'14px Arial'}}>FICTIONAL LOCAL TEST ONLY · no real inspections saved<br/><span id="audit-writes">Test writes: 0</span><label><input id="fail-save" type="checkbox"/>Fail next save</label><label><input id="slow-save" type="checkbox"/>Slow saves</label><button onClick={()=>{sessionStorage.removeItem(key);location.reload();}}>Reset fictional test records</button><span id="audit-errors" role="alert"/></aside><Inventory departmentId="fixture" departmentName="FICTIONAL TEST DEPARTMENT" permissions={admin?['inventory.check','inventory.repairs.manage','inventory.setup.manage']:['inventory.check']}/></>);
+createRoot(document.getElementById('root')!).render(<><aside style={{padding:8,background:'#fff4be',color:'#172b3b',font:'14px Arial'}}>FICTIONAL LOCAL TEST ONLY · no real inspections saved<br/><span id="audit-writes">Test writes: 0</span><label><input id="fail-save" type="checkbox"/>Fail next save</label><label><input id="slow-save" type="checkbox"/>Slow saves</label><button onClick={()=>{sessionStorage.removeItem(key);location.reload();}}>Reset fictional test records</button><span id="audit-errors" role="alert"/>
+{performanceAudit&&<div><output id="audit-reads">Reads: 0</output><br/><output id="audit-applications">Applied packets: 0</output><br/>
+<button onClick={refreshFixture}>Background refresh test</button>
+<button onClick={()=>{revision++;data.equipment[1].name=`TEST Portable radio revision ${revision}`;refreshFixture();}}>Change saved fixture</button>
+<button onClick={()=>{nextReadStatus=503;refreshFixture();}}>Fail next refresh test</button>
+<button onClick={()=>{nextReadStatus=403;refreshFixture();}}>Deny next refresh test</button></div>}
+</aside>{performanceAudit?<main className="inventory-app-shell inventory-portal-refresh"><section className="page"><InventoryOperations view="check" initialApparatusId={rig.id} initialCheckType="daily" onSetup={()=>{}} canCheck canSetup canManageRepairs onRecords={receiveRecords}/></section></main>:<Inventory departmentId="fixture" departmentName="FICTIONAL TEST DEPARTMENT" permissions={admin?['inventory.check','inventory.repairs.manage','inventory.setup.manage']:['inventory.check']}/>}</>);
