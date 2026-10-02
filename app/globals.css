@@ -1321,6 +1321,14 @@ td strong { font-size: 16px; }
 .chief-board-panel > header { padding: 9px 14px 9px 18px; }
 .chief-board-panel > header > div { display: grid; gap: 3px; }
 .chief-board-panel > header > div span { color: #9fb0bb; font-size: 9px; font-weight: 800; }
+/* Reserve more of the TV column for the rotating crew beneath the gauge. */
+.operations-board.tv-display .board-grid.redesigned { grid-template-rows: minmax(0,52fr) minmax(0,48fr); }
+.operations-board.tv-display .board-grid.redesigned > .chief-board-panel,
+.operations-board.tv-display .board-grid.redesigned > .staffing-rotation-panel { min-height: 0; overflow: hidden; }
+.operations-board.tv-display .chief-board-panel > header { box-sizing: border-box; height: 32px; min-height: 32px; padding: 0 10px; }
+.operations-board.tv-display .chief-board-content { box-sizing: border-box; flex: 1; height: auto; min-height: 0; padding: 6px 8px !important; }
+.operations-board.tv-display .chief-board-content article.river-gauge-slide { padding: 5px 8px; gap: 3px; }
+.operations-board.tv-display .staffing-rotation-body { min-height: 0; }
 .chief-add-button { flex: 0 0 auto; width: 38px; height: 38px; padding: 0; border: 1px solid #d8aa4e; border-radius: 50%; background: #f1b84b; color: #172a35; display: grid; place-items: center; font-size: 27px; line-height: 1; font-weight: 500; }
 .chief-add-button:hover, .chief-add-button:focus-visible { background: #ffd16f; outline: 3px solid rgba(241,184,75,.25); }
 .chief-board-content { min-height: 145px; padding: 14px 17px !important; }
