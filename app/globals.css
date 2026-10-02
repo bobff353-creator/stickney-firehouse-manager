@@ -1290,6 +1290,34 @@ td strong { font-size: 16px; }
 .staffing-rotation-panel .staffing-current-list span, .staffing-rotation-panel .schedule-24-list strong { color: white; }
 .staffing-rotation-panel .staffing-current-list small, .staffing-rotation-panel .schedule-24-list small { color: #aebdc7; }
 .staffing-rotation-panel .schedule-24-list time { color: #e6b667; }
+/* Let crew cards occupy the panel instead of collecting in its upper corner. */
+.operations-board .staffing-rotation-panel { display: flex; flex-direction: column; }
+.operations-board .staffing-rotation-panel > header { flex-shrink: 0; }
+.operations-board .staffing-rotation-panel > .staffing-rotation-body { flex: 1; min-height: 0; align-content: stretch; }
+.operations-board .staffing-rotation-panel .schedule-24-list,
+.operations-board .staffing-rotation-panel .staffing-current-list { max-height: none; padding-right: 0; grid-auto-rows: minmax(0,1fr); align-content: stretch; }
+.operations-board:not(.tv-display) .staffing-rotation-panel .schedule-24-list > div,
+.operations-board:not(.tv-display) .staffing-rotation-panel .staffing-current-list > div { min-height: 94px; padding: 12px 14px; align-content: center; gap: 5px; }
+.operations-board:not(.tv-display) .staffing-rotation-panel .schedule-24-list strong,
+.operations-board:not(.tv-display) .staffing-rotation-panel .staffing-current-list span { font-size: clamp(16px,1.6vw,22px); line-height: 1.2; }
+.operations-board:not(.tv-display) .staffing-rotation-panel .schedule-24-list time,
+.operations-board:not(.tv-display) .staffing-rotation-panel .schedule-24-list small,
+.operations-board:not(.tv-display) .staffing-rotation-panel .staffing-current-list small { font-size: 12px; }
+.operations-board.tv-display .staffing-rotation-panel > .staffing-rotation-body { container: crew-panel / size; }
+.operations-board.tv-display .staffing-rotation-panel .schedule-24-list,
+.operations-board.tv-display .staffing-rotation-panel .staffing-current-list { height: 100%; gap: 6px; position: relative; }
+.operations-board.tv-display .staffing-rotation-panel .schedule-24-list > div,
+.operations-board.tv-display .staffing-rotation-panel .staffing-current-list > div { padding: clamp(6px,4cqh,14px) 10px; align-content: center; gap: 4px; }
+.operations-board.tv-display .staffing-rotation-panel .schedule-24-list strong,
+.operations-board.tv-display .staffing-rotation-panel .staffing-current-list span { font-size: clamp(14px,10cqh,24px); line-height: 1.15; overflow-wrap: anywhere; }
+.operations-board.tv-display .staffing-rotation-panel .schedule-24-list time,
+.operations-board.tv-display .staffing-rotation-panel .schedule-24-list small,
+.operations-board.tv-display .staffing-rotation-panel .staffing-current-list small { font-size: clamp(9px,6cqh,14px); line-height: 1.2; }
+.operations-board.tv-display .staffing-rotation-panel .schedule-24-list:has(> div:nth-child(2)):not(:has(> div:nth-child(3))) { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.operations-board.tv-display .staffing-rotation-panel .schedule-24-list:has(> div:only-child) { grid-template-columns: 1fr; }
+.operations-board.tv-display .staffing-rotation-body:has(.schedule-24-overflow) { padding-bottom: 22px; }
+.operations-board.tv-display .staffing-rotation-panel .schedule-24-list:has(.schedule-24-overflow) { overflow: visible; }
+.operations-board.tv-display .schedule-24-overflow { position: absolute; bottom: -17px; left: 0; right: 0; }
 .staffing-rotation-panel .staffing-current-list > p, .staffing-rotation-panel .schedule-24-list > p { color: #aebdc7; }
 .staffing-rotation-panel .aladtec-connection-state { margin-top: 0; border-color: #776032; background: #302b20; }
 .staffing-rotation-panel .aladtec-connection-state strong { color: #f1c66f; }
