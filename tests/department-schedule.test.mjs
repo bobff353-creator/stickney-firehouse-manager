@@ -75,3 +75,30 @@ test("Live Operations prefers saved Daily Log staffing and falls back to the act
   assert.match(source, /onDuty,/);
   assert.match(source, /filled: onDuty\.length/);
 });
+
+for (const route of ["logbook", "department-schedule"]) {
+  test(`${route} excludes retired recurring patterns while retaining the actual night's four or five members`, async () => {
+    const { DatabaseSync } = await import("node:sqlite");
+    const db = new DatabaseSync(":memory:");
+    try {
+      db.exec(`CREATE TABLE station_shift_types(id TEXT, start_time TEXT, end_time TEXT, active INTEGER);
+        CREATE TABLE station_schedule_entries(id TEXT, entry_date TEXT, shift_type_id TEXT);
+        CREATE TABLE employees(id TEXT, name TEXT);
+        CREATE TABLE station_shift_slots(id TEXT, employee_id TEXT, entry_id TEXT, start_time TEXT, end_time TEXT, role TEXT, status TEXT);
+        INSERT INTO station_shift_types VALUES ('retired','18:00','06:00',0),('current','18:00','06:00',1);
+        INSERT INTO station_schedule_entries VALUES ('old-night','2026-10-02','retired'),('night-five','2026-10-02','current'),('night-four','2026-10-03','current');`);
+      for (let i = 0; i < 16; i++) {
+        db.prepare("INSERT INTO employees VALUES (?,?)").run(`member-${i}`, `Member ${i}`);
+        db.prepare("INSERT INTO station_shift_slots VALUES (?,?,?,'','','Firefighter','filled')").run(`old-${i}`, `member-${i}`, 'old-night');
+        if (i < 5) db.prepare("INSERT INTO station_shift_slots VALUES (?,?,?,'','','Firefighter','filled')").run(`five-${i}`, `member-${i}`, 'night-five');
+        if (i < 4) db.prepare("INSERT INTO station_shift_slots VALUES (?,?,?,'','','Firefighter','filled')").run(`four-${i}`, `member-${i}`, 'night-four');
+      }
+      const source = await readFile(new URL(`../app/api/${route}/route.ts`, import.meta.url), "utf8");
+      const query = source.match(/"(SELECT s\.id,s\.employee_id AS employeeId[^"\n]+)"/)[1];
+      const rows = db.prepare(query).all('2026-10-01','2026-10-04');
+      assert.equal(scheduledStaffingForLog(rows, '2026-10-02').filter(row => row.shiftKey === 'overnight').length, 5);
+      assert.equal(scheduledStaffingForLog(rows, '2026-10-03').filter(row => row.shiftKey === 'overnight').length, 4);
+      assert.equal(db.prepare('SELECT count(*) AS total FROM station_shift_slots').get().total, 25);
+    } finally { db.close(); }
+  });
+}
