@@ -1318,6 +1318,9 @@ td strong { font-size: 16px; }
 .operations-board.tv-display .staffing-rotation-body:has(.schedule-24-overflow) { padding-bottom: 22px; }
 .operations-board.tv-display .staffing-rotation-panel .schedule-24-list:has(.schedule-24-overflow) { overflow: visible; }
 .operations-board.tv-display .schedule-24-overflow { position: absolute; bottom: -17px; left: 0; right: 0; }
+.operations-board.tv-display .staffing-rotation-panel .schedule-24-list:not(:has(> div:nth-child(4))) strong { font-size: clamp(18px,16cqh,30px); }
+.operations-board.tv-display .staffing-rotation-panel .schedule-24-list:not(:has(> div:nth-child(4))) time,
+.operations-board.tv-display .staffing-rotation-panel .schedule-24-list:not(:has(> div:nth-child(4))) small { font-size: clamp(11px,9cqh,18px); }
 .staffing-rotation-panel .staffing-current-list > p, .staffing-rotation-panel .schedule-24-list > p { color: #aebdc7; }
 .staffing-rotation-panel .aladtec-connection-state { margin-top: 0; border-color: #776032; background: #302b20; }
 .staffing-rotation-panel .aladtec-connection-state strong { color: #f1c66f; }
