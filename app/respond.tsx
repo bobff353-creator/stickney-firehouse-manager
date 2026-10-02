@@ -692,6 +692,20 @@ export default function Respond({
     [view, setView] = useState<RightView>("cad"),
     [selected, setSelected] = useState<QuickItem | null>(null);
   const [monitorMode, setMonitorMode] = useState(false);
+  const [mapApparatus, setMapApparatus] = useState(apparatus);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        const pair = JSON.parse(localStorage.getItem('stickney-vehicle-pair') || 'null');
+        setMapApparatus(apparatus || localStorage.getItem('stickney-respond-map-apparatus') || pair?.unit || '');
+      } catch { setMapApparatus(apparatus); }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [apparatus]);
+  function chooseMapApparatus(unit: string) {
+    setMapApparatus(unit);
+    try { localStorage.setItem('stickney-respond-map-apparatus',unit); } catch { /* Selection still works for this visit. */ }
+  }
   const [selectedReportNumber, setSelectedReportNumber] = useState(() => initialReportNumber || (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('report') || '' : ''));
   const [selectionNotice, setSelectionNotice] = useState("");
   const locations=useApparatusLocations(Boolean(apparatus)||monitorMode,data?.activeCall?.respondingUnits||'');
@@ -1257,6 +1271,7 @@ export default function Respond({
           </section>
         ) : null}
         <RespondOverviewMap
+          selectedUnit={mapApparatus} onUnitChange={chooseMapApparatus} fullScreen={monitorMode}
           locationModel={locations}
           overview={overview}
           recentCalls={data?.recentCalls ?? []}
@@ -1348,7 +1363,7 @@ export default function Respond({
       {error && <p className="respond-update-warning" role="alert">{error}</p>}
       <details className="apparatus-map-only" onToggle={event=>setVehicleMapOpen(event.currentTarget.open)}>
         <summary>Apparatus locations · all units / units on this call</summary>
-        {vehicleMapOpen&&<RespondOverviewMap locationModel={locations} apparatusOnly respondingUnits={call.respondingUnits} overview={{apparatus:null,preplans:[],hydrants:[],roadClosures:[]}} recentCalls={[]}/>}
+        {vehicleMapOpen&&<RespondOverviewMap selectedUnit={mapApparatus} onUnitChange={chooseMapApparatus} fullScreen={monitorMode} locationModel={locations} apparatusOnly respondingUnits={call.respondingUnits} overview={{apparatus:null,preplans:[],hydrants:[],roadClosures:[]}} recentCalls={[]}/>}
       </details>
       {progressScope && <section className="respond-field-toolbar" aria-label="Field response controls">
         <div className="respond-progress-panel">
@@ -2152,7 +2167,7 @@ export default function Respond({
             tabIndex={0}
             className="respond-context-body"
           >
-            {view === "apparatus" && <RespondOverviewMap locationModel={locations} apparatusOnly respondingUnits={call.respondingUnits} overview={{apparatus:null,preplans:[],hydrants:[],roadClosures:[]}} recentCalls={[]} onNavigate={onNavigate}/>}
+            {view === "apparatus" && <RespondOverviewMap selectedUnit={mapApparatus} onUnitChange={chooseMapApparatus} fullScreen={monitorMode} locationModel={locations} apparatusOnly respondingUnits={call.respondingUnits} overview={{apparatus:null,preplans:[],hydrants:[],roadClosures:[]}} recentCalls={[]} onNavigate={onNavigate}/>}
             {view === "cad" && (
               <>
                 <header>

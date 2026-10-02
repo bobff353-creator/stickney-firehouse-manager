@@ -8,6 +8,7 @@ export async function locationRouteFixture(){
  CREATE TABLE firehouse.employee_profiles(employee_id text,email text,is_admin int,end_date text);
  CREATE TABLE firehouse.rank_permissions(rank text,permission_key text,allowed int);
  CREATE TABLE firehouse.employee_permission_overrides(employee_id text,permission_key text,effect text);
+ CREATE FUNCTION firehouse.employee_id_for_login(login text) RETURNS text LANGUAGE sql STABLE AS $$ SELECT employee_id FROM firehouse.employee_profiles WHERE lower(email)=lower(login) LIMIT 1 $$;
  INSERT INTO firehouse.pay_scales VALUES('chief','Chief'),('ff','Firefighter');
  INSERT INTO firehouse.employees VALUES('admin','Fixture Admin',1,'chief'),('member','Fixture Member',1,'ff');
  INSERT INTO firehouse.employee_profiles VALUES('admin','admin@fixture.invalid',0,null),('member','member@fixture.invalid',0,null);`);

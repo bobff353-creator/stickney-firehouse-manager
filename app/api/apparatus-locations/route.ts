@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   const raw=await request.text();if(raw.length>2048)return Response.json({error:'Setup request is too large.'},{status:413,headers:noStore});
   const body=JSON.parse(raw) as Record<string,unknown>,db=locationDatabase();
   const apparatusId=typeof body.apparatusId==='string'?body.apparatusId.slice(0,80):'';
-  const apparatus=await db.prepare("SELECT id,unit_number unit FROM fleet_apparatus WHERE id=? AND (retired_at IS NULL OR retired_at='')").bind(apparatusId).first<{id:string;unit:string}>();
+  const apparatus=await db.prepare("SELECT id,unit_number unit FROM apparatus_location_fleet(?::uuid) WHERE id=?").bind(actor.department,apparatusId).first<{id:string;unit:string}>();
   if(!apparatus)return Response.json({error:'Select an active fleet apparatus.'},{status:400,headers:noStore});
   if(body.action==='revoke'){
    await db.prepare('UPDATE apparatus_trackers SET enabled=false,token_hash=NULL,sequence=sequence+1 WHERE department_id=?::uuid AND apparatus_id=? AND enabled=true').bind(actor.department,apparatusId).run();

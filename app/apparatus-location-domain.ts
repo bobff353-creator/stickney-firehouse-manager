@@ -44,5 +44,5 @@ export function mergeLocation(units: ApparatusLocation[],update: ApparatusLocati
  const previous=units.find(unit=>unit.apparatusId===update.apparatusId);
  // Bootstrap defines the authorized fleet. Do not accept arbitrary socket IDs.
  if(!previous || update.sequence<previous.sequence) return units;
- return units.map(unit=>unit.apparatusId===update.apparatusId?update:unit);
+ return units.map(unit=>unit.apparatusId===update.apparatusId?{...update,unit:unit.unit,name:unit.name,fleetStatus:unit.fleetStatus}:unit);
 }

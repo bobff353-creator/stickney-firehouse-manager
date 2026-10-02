@@ -10,7 +10,7 @@ export const locationColumns=`f.id "apparatusId",f.unit_number unit,f.name,f.sta
 export async function readLocationSnapshot(department: string,user: string) {
  const db=locationDatabase();
  const lease=await db.prepare('SELECT * FROM issue_apparatus_location_lease(?::uuid,?::uuid)').bind(department,user).first<{topic:string;expiresAt:string;serverTime:string}>();
- const {results:units}=await db.prepare(`SELECT ${locationColumns} FROM fleet_apparatus f LEFT JOIN apparatus_trackers t ON t.apparatus_id=f.id AND t.department_id=?::uuid WHERE f.retired_at IS NULL OR f.retired_at='' ORDER BY f.unit_number LIMIT 100`).bind(department).all<ApparatusLocation>();
+ const {results:units}=await db.prepare(`SELECT ${locationColumns} FROM apparatus_location_fleet(?::uuid) f LEFT JOIN apparatus_trackers t ON t.apparatus_id=f.id AND t.department_id=?::uuid ORDER BY f.unit_number`).bind(department,department).all<ApparatusLocation>();
  if(!lease) throw Error('Location access unavailable');
  return {...lease,units};
 }

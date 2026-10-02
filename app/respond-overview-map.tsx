@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import GoogleFieldMap from "./google-field-map";
 import ApparatusLocationsPanel, { type LocationModel } from './apparatus-locations-panel';
 import { locationAgeLabel } from './apparatus-location-domain';
-import { respondingUnitsIncludeUnit } from './respond-device';
+import { respondingUnitsIncludeUnit, normalizeFleetApparatusName } from './respond-device';
 import { clusterRecentCallLocations } from "./respond-call-clusters";
 import { formatRespondMilitaryTime } from "./respond-time";
 import { clusterHydrantLocations, hasMapLocation, projectMapPoint } from "./respond-map-markers";
@@ -51,23 +51,6 @@ type RecentCall = {
 
 const stickneyCenter: Point = { lat: 41.8189, lng: -87.7734 };
 
-function initialCallMapView(calls: RecentCall[]) {
-  const clusters = clusterRecentCallLocations(calls);
-  if (!clusters.length) return { center: stickneyCenter, zoom: 16 };
-  const latitudes = clusters.map((cluster) => cluster.latitude);
-  const longitudes = clusters.map((cluster) => cluster.longitude);
-  const latitudeSpan = Math.max(...latitudes) - Math.min(...latitudes);
-  const longitudeSpan = Math.max(...longitudes) - Math.min(...longitudes);
-  const span = Math.max(latitudeSpan, longitudeSpan);
-  return {
-    center: {
-      lat: (Math.min(...latitudes) + Math.max(...latitudes)) / 2,
-      lng: (Math.min(...longitudes) + Math.max(...longitudes)) / 2,
-    },
-    zoom: span > 0.055 ? 14 : span > 0.022 ? 15 : 16,
-  };
-}
-
 function HydrantMapSymbol() {
   return <svg viewBox="0 0 32 40" aria-hidden="true"><path d="M11 4h10v5h4v5h3v7h-5v14H9V21H4v-7h3V9h4V4Zm1 9v6h8v-6h-8Zm0 10v9h8v-9h-8Z"/></svg>;
 }
@@ -88,6 +71,9 @@ export default function RespondOverviewMap({
   locationModel,
   apparatusOnly = false,
   respondingUnits = '',
+  selectedUnit = '',
+  onUnitChange,
+  fullScreen = false,
 }: {
   overview: RespondOverview;
   recentCalls: RecentCall[];
@@ -95,6 +81,9 @@ export default function RespondOverviewMap({
   locationModel?: LocationModel;
   apparatusOnly?: boolean;
   respondingUnits?: string;
+  selectedUnit?: string;
+  onUnitChange?: (unit: string) => void;
+  fullScreen?: boolean;
   onNavigate?: (page: "Daily Log" | "Field Preplans" | "Box Cards") => void;
 }) {
   const mapElement = useRef<HTMLDivElement>(null);
@@ -108,12 +97,22 @@ export default function RespondOverviewMap({
     () => clusterRecentCallLocations(recentCalls),
     [recentCalls],
   );
-  const [initialView] = useState(() => initialCallMapView(recentCalls));
+  const [initialView] = useState(() => ({ center: stickneyCenter, zoom: 16 }));
   const [apiKey, setApiKey] = useState("");
   const [mapUnavailable, setMapUnavailable] = useState(false);
   const [imagery, setImagery] = useState<"aerial" | "street">("aerial");
   const [center, setCenter] = useState(initialView.center);
   const [zoom, setZoom] = useState(initialView.zoom);
+  const focusedUnit = locationModel?.units.find(unit => normalizeFleetApparatusName(unit.unit) === normalizeFleetApparatusName(selectedUnit));
+  const focusedLatitude = focusedUnit?.latitude;
+  const focusedLongitude = focusedUnit?.longitude;
+  const hasFocusedLocation = Boolean(focusedUnit?.fixAt) && focusedLatitude != null && focusedLongitude != null && Number.isFinite(focusedLatitude) && Number.isFinite(focusedLongitude);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setCenter(fullScreen && hasFocusedLocation ? { lat: focusedLatitude!, lng: focusedLongitude! } : stickneyCenter);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [fullScreen, selectedUnit, hasFocusedLocation, focusedLatitude, focusedLongitude]);
   const [rail, setRail] = useState<"active" | "recent">("active");
   const [selectedCallClusterId, setSelectedCallClusterId] = useState("");
   const [layers, setLayers] = useState({
@@ -295,6 +294,7 @@ export default function RespondOverviewMap({
 
   return (
     <section className={`respond-map-shell${apparatusOnly?' apparatus-only-map':''}`} aria-label="Stickney response map">
+      {locationModel && <div className="location-toolbar"><label>Choose apparatus<select aria-label="Choose map apparatus" value={selectedUnit} onChange={event => onUnitChange?.(event.target.value)}><option value="">Stickney · department view</option>{locationModel.units.map(unit => <option key={unit.apparatusId} value={unit.unit}>{unit.unit} · {unit.name}</option>)}</select></label><p role="status">{selectedUnit ? `Unit ${selectedUnit} · ${hasFocusedLocation && focusedUnit ? locationAgeLabel(focusedUnit,locationNow,locationModel.connected) : 'Location unavailable'}${fullScreen && !hasFocusedLocation ? ' · Map centered on Stickney' : ''}` : 'Map centered on Stickney, IL 60402'}</p></div>}
       {locationModel&&<ApparatusLocationsPanel model={locationModel} respondingUnits={respondingUnits} onFilter={setOnlyCallUnits} onLocate={unit=>{if(unit.latitude==null||unit.longitude==null)return;setCenter({lat:unit.latitude,lng:unit.longitude});setZoom(16);mapElement.current?.scrollIntoView({block:'center',behavior:'smooth'});}}/>}
       {!apparatusOnly&&<section className="respond-task-guide" aria-live="polite">
         <b>Step {guide.step}</b>

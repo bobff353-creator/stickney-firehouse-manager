@@ -9,8 +9,10 @@ export async function locationTestDatabase(){
  CREATE TABLE auth.users(id uuid primary key);INSERT INTO auth.users VALUES('${user}'),('${otherUser}');
  CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.user',true),'')::uuid $$;
  GRANT USAGE ON SCHEMA auth,realtime,firehouse TO authenticated;
- CREATE TABLE firehouse.fleet_apparatus(id text primary key,unit_number text,name text,status text,retired_at text);
- INSERT INTO firehouse.fleet_apparatus VALUES('test-engine','TEST E','Fictional test engine','in_service',null),('test-car','TEST C','Fictional test car','in_service',null);
+ CREATE TABLE public.department_apparatus(id uuid primary key,department_id uuid,unit_name text,unit_type text,status text);
+ INSERT INTO public.department_apparatus VALUES('00000000-0000-4000-8000-000000000010','${department}','TEST E','Fictional test engine','in_service'),('00000000-0000-4000-8000-000000000011','${department}','TEST C','Fictional test car','in_service');
+ CREATE TABLE firehouse.fleet_apparatus(id text primary key,unit_number text,name text,status text,retired_at text,created_by text,updated_by text);
+ INSERT INTO firehouse.fleet_apparatus(id,unit_number,name,status) VALUES('test-engine','TEST E','Fictional test engine','in_service'),('test-car','TEST C','Fictional test car','in_service');
  CREATE TABLE realtime.messages(id bigint generated always as identity,topic text,event text,payload jsonb,extension text,private boolean DEFAULT true,inserted_at timestamp DEFAULT now());
  CREATE INDEX messages_inserted_at_topic_index ON realtime.messages(inserted_at DESC,topic) WHERE extension='broadcast' AND private IS TRUE;
  ALTER TABLE realtime.messages ENABLE ROW LEVEL SECURITY;GRANT SELECT,INSERT ON realtime.messages TO authenticated;
@@ -19,6 +21,7 @@ export async function locationTestDatabase(){
  IF current_setting('test.fail_broadcast',true)='true' THEN RETURN; END IF;
  INSERT INTO realtime.messages(payload,event,topic,extension) VALUES(payload,event,topic,'broadcast'); END $$;`);
  await pg.exec(readFileSync(new URL('../../supabase/migrations/20260912164513_apparatus_location_tracking.sql',import.meta.url),'utf8'));
+ await pg.exec(readFileSync(new URL('../../supabase/migrations/20261002145000_respond_fleet_locations.sql',import.meta.url),'utf8'));
  return pg;
 }
 export async function pairTestDevice(pg,hash='a'.repeat(64),apparatus='test-engine'){
