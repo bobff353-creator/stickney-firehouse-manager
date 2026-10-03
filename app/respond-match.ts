@@ -65,6 +65,9 @@ export function rankPreplanMatch<T extends GeoPoint & { address: string }>(
   const exact = callAddress ? plans.find((plan) => normalizeResponseAddress(plan.address) === callAddress) : undefined;
   if (exact) return { plan: exact, method: "address" as const, distanceFeet: 0 };
 
+  // A known street address must not inherit a neighboring building's preplan.
+  if (/^\d+[a-z]?\b/.test(callAddress)) return null;
+
   const callPoint = Number.isFinite(call.latitude) && Number.isFinite(call.longitude)
     ? { latitude: Number(call.latitude), longitude: Number(call.longitude) }
     : null;

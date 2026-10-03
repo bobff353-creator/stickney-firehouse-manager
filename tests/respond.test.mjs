@@ -102,3 +102,11 @@ test("Respond reads existing call and preplan records and exposes requested fiel
   assert.match(styles, /grid-template-columns:minmax\(165px,\.432fr\) minmax\(460px,1\.53fr\) minmax\(315px,\.988fr\)/);
   assert.match(styles, /\.respond-auto-alert\{position:fixed;inset:0/);
 });
+
+test("Respond never substitutes a nearby building for a numbered incident address", async () => {
+  const { rankPreplanMatch } = await loadMatcher();
+  const plans = [{ id: 'mccrakens', address: '6611 W Pershing Rd, Stickney', latitude: 41.8211234, longitude: -87.7885954 }];
+  assert.equal(rankPreplanMatch({ address: '6621 W Pershing Rd, Stickney', latitude: 41.8211234, longitude: -87.7885954 }, plans), null);
+  assert.equal(rankPreplanMatch({ address: '6611 West Pershing Road, Stickney', latitude: 41.8211234, longitude: -87.7885954 }, plans)?.plan.id, 'mccrakens');
+  assert.equal(rankPreplanMatch({ address: '6621 Other Street', latitude: 41.8211234, longitude: -87.7885954 }, plans), null);
+});
