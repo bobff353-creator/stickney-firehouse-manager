@@ -1,12 +1,13 @@
 import { randomBytes,createHash } from 'node:crypto';
 import { getDb } from '../../../db';
 import { permissionsForEmail } from '../../server-permissions';
+import { getPortalDepartment } from '../../department-portal';
 import { locationDatabase,readLocationSnapshot } from '../../lib/apparatus-location-store';
 const noStore={'Cache-Control':'private, no-store'};
 const uuid=/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i;
 async function access(request: Request) {
  const department=request.headers.get('x-department-id')||'',user=request.headers.get('x-authenticated-user-id')||'',email=request.headers.get('oai-authenticated-user-email')||'';
- if(!uuid.test(department)||!uuid.test(user)||department!==process.env.PAYROLL_DEPARTMENT_ID?.trim()||!email) return null;
+ if(!uuid.test(department)||!uuid.test(user)||department!==(await getPortalDepartment()).id||!email) return null;
  const permissions=await permissionsForEmail(email,getDb());
  if(!permissions.has('field_preplans.view')) return null;
  return {department,user,email,canManage:permissions.has('settings.manage')||permissions.has('inventory.setup.manage')};

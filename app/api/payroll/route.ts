@@ -106,7 +106,7 @@ export async function GET(request: Request) {
       reviewStaffing: reviewStaffing.results,
       payScales: scalesForPeriod,
       rateHistory: viewer.canManagePayroll ? rateHistoryRows.results : [],
-      settings: settingsRow,
+      settings: settingsRow ?? { overtimeThreshold: 0, actingOfficerPremium: 0, dpwMultiplier: 0, configured: false },
       viewer,
     });
   } catch (error) {
@@ -171,7 +171,7 @@ export async function POST(request: Request) {
       if (!scales.length || scales.some(scale => !scale || !scale.id || scale.regularRate == null || scale.regularRate === "" || !Number.isFinite(Number(scale.regularRate)) || Number(scale.regularRate) < 0) || new Set(scales.map(scale => scale.id)).size !== scales.length) return Response.json({ error: "Every pay scale must have one valid, nonnegative pay rate. No rates were saved." }, { status: 400 });
       // Validate the complete request before constructing one atomic write.
       // A later bad rate or failed insert must not leave earlier rates/settings saved.
-      const writes = [db.prepare("UPDATE payroll_settings SET overtime_threshold = ?, acting_officer_premium = ?, dpw_multiplier = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1").bind(overtimeThreshold, ACTING_OFFICER_STIPEND_PER_HOUR, dpwMultiplier).expectChanges(1)];
+      const writes = [db.prepare("INSERT INTO payroll_settings(id,overtime_threshold,acting_officer_premium,dpw_multiplier) VALUES(1,?,?,?) ON CONFLICT(id) DO UPDATE SET overtime_threshold=excluded.overtime_threshold,acting_officer_premium=excluded.acting_officer_premium,dpw_multiplier=excluded.dpw_multiplier,updated_at=CURRENT_TIMESTAMP").bind(overtimeThreshold, ACTING_OFFICER_STIPEND_PER_HOUR, dpwMultiplier).expectChanges(1)];
       for (const scale of scales) {
         const regularRate = Number(scale.regularRate);
         const premiumRate = roundPayrollToCent(regularRate * 1.5);

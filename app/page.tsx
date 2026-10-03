@@ -1,5 +1,6 @@
 import AuthGateway from "./auth-gateway";
+import { getPortalDepartment } from './department-portal';
 
-export default function Home() {
-  return <AuthGateway />;
+export default async function Home() {
+  return <AuthGateway department={await getPortalDepartment()} />;
 }

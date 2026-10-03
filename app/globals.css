@@ -726,6 +726,19 @@ td strong { font-size: 16px; }
 .department-create-actions { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .department-create-actions small { max-width: 620px; color: var(--slate); }
 .department-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.department-card-link { color: inherit; text-decoration: none; display: block; border-radius: 12px; }
+.department-card-link .department-card { height: 100%; transition: border-color .15s; }
+.department-card-link:hover .department-card { border-color: var(--accent, #64b5d5); }
+.department-card-link:focus-visible { outline: 3px solid #64b5d5; outline-offset: 4px; }
+.department-brand-mark { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: #14384b; color: white; }
+.shared-preplans { margin-top: 20px; }
+.shared-preplans h3 { margin-top: 24px; }
+.shared-preplans h3 small { font-size: 12px; margin-left: 12px; }
+.shared-record { padding: 12px; margin: 8px 0; border: 1px solid #687c88; border-radius: 8px; }
+.shared-record summary { cursor: pointer; }
+.shared-record dl > div { display: grid; grid-template-columns: minmax(100px, 1fr) 2fr; gap: 12px; padding: 6px 0; }
+.shared-record dt { text-transform: capitalize; }
+.shared-record dd { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
 .department-card { display: grid; gap: 18px; }
 .department-card-head { display: grid; grid-template-columns: 54px minmax(0, 1fr) auto; align-items: center; gap: 13px; }
 .department-card-head > span { width: 54px; height: 54px; display: grid; place-items: center; border-radius: 12px; background: var(--navy-deep); color: white; font-weight: 950; }

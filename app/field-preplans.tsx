@@ -14,6 +14,7 @@ import OperationalPreplanPanel, { type OperationalMapDraft, type OperationalMapO
 import PhotoIllustrationEditor, { IllustratedPhotoView } from "./preplans/photo-illustration-editor";
 import { type IllustratedPhoto } from "./preplans/photo-illustrations";
 import "./preplans/preplan-workflow.css";
+import SharedPreplans from './shared-preplans';
 
 type Point = { lat:number; lng:number };
 type Feature = { id:string; preplanId:string; featureType:string; label:string; latitude:number; longitude:number; systemType:string; serviceStatus:string; details:string };
@@ -31,14 +32,14 @@ type ImportedBuilding = { id:string;businessName:string;address:string;sourceFil
 type Form = Omit<Preplan,"features"|"photos"|"updatedBy"|"updatedAt"> & { street:string; city:string; state:string; zipCode:string; contacts:PreplanContact[] };
 type LocationState = "locating"|"current"|"fallback"|"record";
 
-const defaultAddress = { street:"",city:"Stickney",state:"Illinois",zipCode:"60402" };
+const defaultAddress = { street:"",city:"",state:"",zipCode:"" };
 function addressParts(address:string){
-  let remaining=address.trim();const zipCode=remaining.match(/\b\d{5}(?:-\d{4})?\s*$/)?.[0]??"60402";
+  let remaining=address.trim();const zipCode=remaining.match(/\b\d{5}(?:-\d{4})?\s*$/)?.[0]??"";
   remaining=remaining.replace(/\b\d{5}(?:-\d{4})?\s*$/,"").replace(/[\s,]+$/,"");
-  const stateMatch=remaining.match(/\b(?:Illinois|IL)\s*$/i);const state="Illinois";
+  const stateMatch=remaining.match(/\b(?:Illinois|IL)\s*$/i);const state=stateMatch ? "Illinois" : "";
   if(stateMatch)remaining=remaining.slice(0,stateMatch.index).replace(/[\s,]+$/,"");
   const comma=remaining.lastIndexOf(",");
-  if(comma>=0)return {street:remaining.slice(0,comma).trim(),city:remaining.slice(comma+1).trim()||"Stickney",state,zipCode};
+  if(comma>=0)return {street:remaining.slice(0,comma).trim(),city:remaining.slice(comma+1).trim(),state,zipCode};
   const cityMatch=remaining.match(/\b(Stickney|Sticiney|Chicago|Berwyn|Cicero|Lyons|Forest View|McCook)\s*$/i);
   if(cityMatch)return {street:remaining.slice(0,cityMatch.index).replace(/[\s,]+$/,"").trim(),city:cityMatch[1].toLowerCase()==="sticiney"?"Stickney":cityMatch[1],state,zipCode};
   return {...defaultAddress,street:remaining};
@@ -47,7 +48,7 @@ function fullAddress(value:Pick<Form,"street"|"city"|"state"|"zipCode">){const s
 function simpleConstruction(value:ConstructionGroup):ConstructionGroup{return ({IA_IB:"I",IIA_IIIA:"II",IIB_IIIB:"III",IV_VA:"IV",VB:"V"} as Partial<Record<ConstructionGroup,ConstructionGroup>>)[value]??value;}
 function formFromPlan(plan:Preplan):Form{return {...plan,...addressParts(plan.address),contacts:parsePreplanContacts(plan.contactInfo),constructionType:simpleConstruction(plan.constructionType)};}
 function formSignature(form:Form){return JSON.stringify([form.businessName,form.street,form.city,form.state,form.zipCode,form.latitude,form.longitude,form.aSideLatitude,form.aSideLongitude,form.footprint,serializePreplanContacts(form.contacts),form.construction,form.accessInfo,form.alarmSystem,form.knoxBox,form.riser,form.fdc,form.sprinklerSystem,form.floorCount,form.constructionType,form.occupancyFlowCategory,form.sprinklerStandard]);}
-const empty = (center:Point):Form => ({ id:"",businessName:"",address:"Stickney, Illinois 60402",...defaultAddress,latitude:center.lat,longitude:center.lng,aSideLatitude:null,aSideLongitude:null,footprint:[],contactInfo:"",contacts:[createPreplanContact()],construction:"",accessInfo:"",alarmSystem:"",knoxBox:"",riser:"",fdc:"",sprinklerSystem:"",footprintSquareFeet:0,floorCount:1,fireFlowCalculationArea:0,constructionType:"V",occupancyFlowCategory:"other",sprinklerStandard:"none",suggestedFireFlowGpm:0,suggestedFireFlowDuration:0,status:"Quick Preplan" });
+const empty = (center:Point):Form => ({ id:"",businessName:"",address:"",...defaultAddress,latitude:center.lat,longitude:center.lng,aSideLatitude:null,aSideLongitude:null,footprint:[],contactInfo:"",contacts:[createPreplanContact()],construction:"",accessInfo:"",alarmSystem:"",knoxBox:"",riser:"",fdc:"",sprinklerSystem:"",footprintSquareFeet:0,floorCount:1,fireFlowCalculationArea:0,constructionType:"V",occupancyFlowCategory:"other",sprinklerStandard:"none",suggestedFireFlowGpm:0,suggestedFireFlowDuration:0,status:"Quick Preplan" });
 const pinTypes = [
   ["knox","K","Knox Box"],["fdc","F","FDC"],["riser","R","Riser"],["sprinkler","S","Sprinkler"],["alarm","A","Alarm Panel"],
   ["gas","G","Gas Shutoff"],["water","W","Water Shutoff"],["electric","E","Electrical Panel"],["propane","P","Propane Tank"],
@@ -249,7 +250,13 @@ function FieldMap({ apiKey,center,zoom,imagery,plans,hydrants,selected,draft,mod
   </div>;
 }
 
-export default function FieldPreplans() {
+export default function FieldPreplans({ department }: { department?: { isolated: boolean } }) {
+  const [showShared,setShowShared] = useState(false);
+  const departmentMapOverview = department?.isolated ? { center: { lat:39,lng:-98 }, zoom:4 } : stickneyMapOverview;
+  function departmentLocationView(point?: Parameters<typeof preplanLocationView>[0], zoom?: number) {
+    const view = preplanLocationView(point,zoom);
+    return department?.isolated && !view.located ? { ...view,...departmentMapOverview } : view;
+  }
   const [plans,setPlans]=useState<Preplan[]>([]),[canEdit,setCanEdit]=useState(false),[canDeletePreplan,setCanDeletePreplan]=useState(false),[query,setQuery]=useWorkspaceViewState("preplan-search",""),[selected,setSelected]=useState(""),[draft,setDraft]=useState<Form|null>(null);
   const [selectedOperationalSpaceId,setSelectedOperationalSpaceId]=useState("");
   const [focusedPreplan,setFocusedPreplan]=useState(false);
@@ -263,10 +270,10 @@ export default function FieldPreplans() {
   const [imports,setImports]=useState<ImportedBuilding[]>([]),[selectedImport,setSelectedImport]=useState("");
   const [importSort,setImportSort]=useWorkspaceViewState<"street"|"completion">("preplan-sort","street"),[geocodeProgress,setGeocodeProgress]=useState("");
   const [hydrants,setHydrants]=useState<Hydrant[]>([]),[hydrantDraft,setHydrantDraft]=useState<Hydrant|null>(null),[hydrantTab,setHydrantTab]=useState<"quick"|"details"|"flush"|"flow">("quick");
-  const [center,setCenter]=useState<Point>(stickneyMapOverview.center),[zoom,setZoom]=useState(stickneyMapOverview.zoom),[imagery,setImagery]=useState<"aerial"|"street">("aerial"),[mode,setMode]=useState(""),[tab,setTab]=useState<"quick"|"details"|"photos"|"operational">("quick");
+  const [center,setCenter]=useState<Point>(departmentMapOverview.center),[zoom,setZoom]=useState(departmentMapOverview.zoom),[imagery,setImagery]=useState<"aerial"|"street">("aerial"),[mode,setMode]=useState(""),[tab,setTab]=useState<"quick"|"details"|"photos"|"operational">("quick");
   const [locationState,setLocationState]=useState<LocationState>("locating");
   const [mapExpanded,setMapExpanded]=useState(false);
-  const directoryPosition = useRef({ center: stickneyMapOverview.center, zoom: stickneyMapOverview.zoom, scroll: 0 });
+  const directoryPosition = useRef({ center: departmentMapOverview.center, zoom: departmentMapOverview.zoom, scroll: 0 });
   const directoryRestore = useRef<(() => void) | null>(null);
   useEffect(() => () => directoryRestore.current?.(), []);
   const [footprintAccepted,setFootprintAccepted]=useState(false);
@@ -304,7 +311,7 @@ export default function FieldPreplans() {
         const currentUrl=new URL(window.location.href);
         // A late device response must not move a record or new footprint opened meanwhile.
         if(cancelled||currentUrl.searchParams.has("preplan")||currentUrl.searchParams.has("hydrant"))return;
-        const view=preplanLocationView(point,17);
+        const view=departmentLocationView(point,17);
         setCenter(view.center);setZoom(view.zoom);setLocationState(view.located?"current":"fallback");
       };
       navigator.geolocation.getCurrentPosition((position)=>applyLocation({lat:position.coords.latitude,lng:position.coords.longitude}),()=>applyLocation(),{enableHighAccuracy:true,timeout:12000,maximumAge:60000});
@@ -376,9 +383,9 @@ export default function FieldPreplans() {
   function focusPlan(plan:Preplan,nextMode:"view"|"edit") {setSavedReloadNeeded(false);setBuildingSaveError("");if(!focusedPreplan)directoryPosition.current={center,zoom,scroll:window.scrollY};const view=detailedPreplanMapView(plan.footprint,{lat:plan.latitude,lng:plan.longitude});setMapExpanded(false);setSelectedImport("");setSelected(plan.id);setDraft(formFromPlan(plan));setFootprintAccepted(true);setCenter(view.center);setZoom(view.zoom);setTab("quick");setQuickStep(1);setDetailsStep("overview");setHydrantDraft(null);setMode("");setOperationalOverlay(null);setOperationalMapDraft(null);setSelectedOperationalSpaceId("");setRecordMode(nextMode);setFocusedPreplan(true);openPreplanUrl(plan.id,false,nextMode==="edit");window.scrollTo({top:0,behavior:"smooth"});}
   function view(plan:Preplan){if(!canLeave())return;setOperationalDirty(false);setFeaturePhoto(null);setEditingFeatureId('');setFeaturePoint(null);focusPlan(plan,"view");}
   function edit(plan:Preplan){const form=formFromPlan(plan);setEditingFeatureId('');setFeaturePoint(null);focusPlan(plan,"edit");setSavedForm(formSignature(form));setQuickStep(2);}
-  function beginNewPreplan(){setSavedReloadNeeded(false);setBuildingSaveError("");directoryPosition.current={center,zoom,scroll:window.scrollY};resetFeatureEditor();const view=preplanLocationView(locationState==="current"?center:null,zoom),next=empty(view.center);setCenter(view.center);setZoom(view.zoom);setLocationState(view.located?"current":"fallback");setSelectedImport("");setDraft(next);setFootprintAccepted(false);setHydrantDraft(null);setSelected("");setTab("quick");setQuickStep(1);setDetailsStep("overview");setMode("footprint");setRecordMode("edit");setFocusedPreplan(true);openPreplanUrl("new",false,true);window.scrollTo({top:0,behavior:"smooth"});}
+  function beginNewPreplan(){setSavedReloadNeeded(false);setBuildingSaveError("");directoryPosition.current={center,zoom,scroll:window.scrollY};resetFeatureEditor();const view=departmentLocationView(locationState==="current"?center:null,zoom),next=empty(view.center);setCenter(view.center);setZoom(view.zoom);setLocationState(view.located?"current":"fallback");setSelectedImport("");setDraft(next);setFootprintAccepted(false);setHydrantDraft(null);setSelected("");setTab("quick");setQuickStep(1);setDetailsStep("overview");setMode("footprint");setRecordMode("edit");setFocusedPreplan(true);openPreplanUrl("new",false,true);window.scrollTo({top:0,behavior:"smooth"});}
   function closePreplan(){if(!canLeave())return;setCenter(directoryPosition.current.center);setZoom(directoryPosition.current.zoom);directoryRestore.current?.();directoryRestore.current=restoreWorkspaceScroll(directoryPosition.current.scroll);resetFeatureEditor();const url=new URL(window.location.href);url.searchParams.delete("preplan");url.searchParams.delete("edit");window.history.pushState({},"",`${url.pathname}${url.search}${url.hash}`);setFocusedPreplan(false);setSelected("");setSelectedImport("");setDraft(null);setMode("");setOperationalOverlay(null);setOperationalMapDraft(null);setOperationalDirty(false);setSelectedOperationalSpaceId("");setRecordMode("view");}
-  function startImportedBuilding(item:ImportedBuilding){if(item.linkedPreplanId){const plan=plans.find((record)=>record.id===item.linkedPreplanId);if(plan)edit(plan);return;}const view=preplanLocationView({lat:item.latitude,lng:item.longitude});const next=empty(view.center);setCenter(view.center);setZoom(view.zoom);setLocationState(view.located?"record":"fallback");setSelectedImport(item.id);setSelected("");setHydrantDraft(null);setDraft({...next,...addressParts(item.address),businessName:item.businessName,address:item.address,status:view.located?"Imported · Footprint Required":"Imported · Location Required"});setFootprintAccepted(false);setTab("quick");setQuickStep(1);setDetailsStep("overview");setMode("footprint");setRecordMode("edit");setFocusedPreplan(true);openPreplanUrl("new",false,true);setMessage(view.located?"Address located. Verify the map position, place the building corners, and accept the footprint.":"Location not found. Showing a wider view of Stickney, Illinois. Zoom in to the building, place its corners, and accept the footprint.");window.scrollTo({top:0,behavior:"smooth"});}
+  function startImportedBuilding(item:ImportedBuilding){if(item.linkedPreplanId){const plan=plans.find((record)=>record.id===item.linkedPreplanId);if(plan)edit(plan);return;}const view=departmentLocationView({lat:item.latitude,lng:item.longitude});const next=empty(view.center);setCenter(view.center);setZoom(view.zoom);setLocationState(view.located?"record":"fallback");setSelectedImport(item.id);setSelected("");setHydrantDraft(null);setDraft({...next,...addressParts(item.address),businessName:item.businessName,address:item.address,status:view.located?"Imported · Footprint Required":"Imported · Location Required"});setFootprintAccepted(false);setTab("quick");setQuickStep(1);setDetailsStep("overview");setMode("footprint");setRecordMode("edit");setFocusedPreplan(true);openPreplanUrl("new",false,true);setMessage(view.located?"Address located. Verify the map position, place the building corners, and accept the footprint.":"Location not found. Showing a wider view of Stickney, Illinois. Zoom in to the building, place its corners, and accept the footprint.");window.scrollTo({top:0,behavior:"smooth"});}
   async function batchGeocode(){
     setBusy(true);setGeocodeProgress("Starting address lookup…");setMessage("");
     try{
@@ -397,11 +404,11 @@ export default function FieldPreplans() {
     finally{setBusy(false);}
   }
   function locate(){
-    const fallback=()=>{const view=preplanLocationView();setCenter(view.center);setZoom(view.zoom);setLocationState("fallback");setMessage("Location unavailable. Showing a wider view of Stickney, Illinois. Your preplan details and drawn footprint have not changed.");};
+    const fallback=()=>{const view=departmentLocationView();setCenter(view.center);setZoom(view.zoom);setLocationState("fallback");setMessage("Location unavailable. Showing a wider view of Stickney, Illinois. Your preplan details and drawn footprint have not changed.");};
     if(!navigator.geolocation){fallback();return;}
     setLocationState("locating");
     navigator.geolocation.getCurrentPosition((position)=>{
-      const view=preplanLocationView({lat:position.coords.latitude,lng:position.coords.longitude},17);
+      const view=departmentLocationView({lat:position.coords.latitude,lng:position.coords.longitude},17);
       if(!view.located){fallback();return;}
       setCenter(view.center);setZoom(view.zoom);setLocationState("current");setMessage("Map centered on this device's current location.");if(draft)setDraft({...draft,latitude:view.center.lat,longitude:view.center.lng});
     },fallback,{enableHighAccuracy:true,timeout:12000,maximumAge:60000});
@@ -510,9 +517,11 @@ export default function FieldPreplans() {
     {!recordFocused&&<>
     <header className="field-preplan-header"><div><p className="eyebrow">Field intelligence</p><h1>Preplans & Hydrants</h1><p>Find a building or water supply record, then open it in a focused workspace.</p></div><div className="field-preplan-actions"><label><span>Search the entire department</span><input type="search" value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="Business, address, street, or hydrant ID…" aria-label="Search all preplans and hydrants"/></label>{canEdit&&<><button className="primary-action" onClick={beginNewPreplan}>+ New Preplan</button><button className="primary-action hydrant-add" onClick={addHydrant}>+ New Hydrant</button></>}</div></header>
     <nav className="field-directory-tabs" aria-label="Preplan workspaces"><button className={directoryView==="map"?"active":""} aria-pressed={directoryView==='map'} onClick={()=>setDirectoryView("map")}><strong>Find & open a record</strong><span>Search or select on map · {plans.length} preplans · {hydrants.length} hydrants</span></button><button className={directoryView==="starters"?"active":""} aria-pressed={directoryView==='starters'} onClick={()=>{setMapExpanded(false);setDirectoryView("starters");}}><strong>Finish imported addresses</strong><span>{imports.filter((item)=>item.status!=="completed").length} addresses still need a completed preplan</span></button></nav>
+    <button className="quiet-button" type="button" onClick={()=>setShowShared(value=>!value)}>{showShared?"Close shared records":"View other departments’ hydrants & preplans"}</button>
+    {showShared&&<SharedPreplans/>}
     {message&&<div className="field-message">{message}</div>}
     {directoryView==="map"&&<>
-    <div className="preplan-directory-controls" role="group" aria-label="Record list scope"><button type="button" aria-pressed={recordScope==="map"} onClick={()=>setRecordScope("map")}>In map view</button><button type="button" aria-pressed={recordScope==="all"} onClick={()=>setRecordScope("all")}>All department records</button><button type="button" onClick={()=>{setCenter({...stickneyMapOverview.center});setZoom(stickneyMapOverview.zoom);setLocationState("fallback");}}>Show Stickney map</button>{query&&<button type="button" onClick={()=>setQuery("")}>Clear search</button>}</div>
+    <div className="preplan-directory-controls" role="group" aria-label="Record list scope"><button type="button" aria-pressed={recordScope==="map"} onClick={()=>setRecordScope("map")}>In map view</button><button type="button" aria-pressed={recordScope==="all"} onClick={()=>setRecordScope("all")}>All department records</button><button type="button" onClick={()=>{setCenter({...departmentMapOverview.center});setZoom(departmentMapOverview.zoom);setLocationState("fallback");}}>Show department map</button>{query&&<button type="button" onClick={()=>setQuery("")}>Clear search</button>}</div>
 <div className={`field-map-workspace${mapExpanded?" expanded":""}`}>
       <div className="field-map-toolbar"><button className={locationState==="current"?"active":""} disabled={locationState==="locating"} onClick={locate}>◎ {locationLabel}</button><button className={imagery==="aerial"?"active":""} onClick={()=>setImagery("aerial")}>Aerial</button><button className={imagery==="street"?"active":""} onClick={()=>setImagery("street")}>Streets</button><small>Drag to move · wheel or double-click to zoom</small><em className={`map-provider ${mapProvider}`}>{mapProvider==="google"?`Google Maps · ${imagery==="aerial"?"Satellite":"Streets"}`:mapProvider==="loading"?"Loading map…":"Backup map"}</em><span/><button type="button" className="field-map-expand-button" aria-pressed={mapExpanded} onClick={()=>setMapExpanded((expanded)=>!expanded)}>{mapExpanded?"✕ Exit expanded view":"⛶ Expand map & records"}</button><button aria-label="Zoom out" onClick={()=>setZoom(Math.max(14,zoom-1))}>−</button><b>Zoom {zoom}</b><button aria-label="Zoom in" onClick={()=>setZoom(Math.min(21,zoom+1))}>+</button></div>
       <div className="field-map-layout"><FieldMap apiKey={mapsApiKey} center={center} zoom={zoom} imagery={imagery} plans={mapPlans} hydrants={hydrants} selected={selected} draft={draft} mode={mode} footprintAccepted={footprintAccepted} operationalOverlay={null} operationalDraft={null} onMapClick={clickMap} onCenter={setCenter} onZoom={setZoom} onProviderChange={setMapProvider} onHydrantSelect={openHydrant} onSelect={(id)=>{const plan=plans.find((item)=>item.id===id);if(plan)view(plan);}}/><aside><header><b>{normalizedQuery?"Department search results":recordScope==="all"?"All department records":"Records in this map view"}</b><span>{shown.length+shownHydrants.length}</span></header>{shown.map((plan)=><button key={plan.id} className={plan.id===selected?"active":""} onClick={()=>view(plan)}><strong>{plan.businessName}</strong><span>{plan.address||"A-side GPS location"}</span><small>{plan.status} · {plan.features.length} mapped items</small><b className="record-open-label">View preplan →</b></button>)}{shownHydrants.map((hydrant)=><button key={hydrant.id} className={hydrant.id===hydrantDraft?.id?"active hydrant-record":"hydrant-record"} onClick={()=>openHydrant(hydrant.id)}><strong><i className={hydrant.serviceStatus}/>{hydrant.hydrantNumber||"Hydrant"}</strong><span>{hydrant.address||`${hydrant.latitude.toFixed(5)}, ${hydrant.longitude.toFixed(5)}`}</span><small>{hydrant.serviceStatus.replaceAll("_"," ")} · {hydrant.flowTests[0]?`${Math.round(hydrant.flowTests[0].availableFlow).toLocaleString()} GPM @ ${hydrant.flowTests[0].desiredResidual} psi`:"Not flow tested"}</small><b className="record-open-label">Open record →</b></button>)}{!shown.length&&!shownHydrants.length&&<p>{normalizedQuery?"No department preplans or hydrants match this search. Try part of a business name, address, street, or hydrant number.":"No records are visible here. Search the department or move the map."}</p>}</aside></div>

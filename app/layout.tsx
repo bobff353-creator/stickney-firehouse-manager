@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import Script from "next/script";
+import { getPortalDepartment } from './department-portal';
 import "./globals.css";
 import "./mobile-usability.css";
 import "./portal-usability.css";
@@ -20,16 +21,17 @@ export async function generateMetadata(): Promise<Metadata> {
   const protocol = requestHeaders.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   const origin = `${protocol}://${host}`;
   const socialImage = `${origin}/og.png`;
+  const department = await getPortalDepartment();
 
   return {
-    title: "Stickney Firehouse Manager",
-    description: "The secure operations portal for Stickney Fire Department staffing, scheduling, daily logs, field operations, fleet, inventory, and readiness.",
-    applicationName: "Stickney Firehouse Manager",
+    title: `${department.name} Firehouse Manager`,
+    description: `The secure operations portal for ${department.name} staffing, scheduling, daily logs, field operations, fleet, inventory, and readiness.`,
+    applicationName: `${department.name} Firehouse Manager`,
     manifest: "/manifest.webmanifest",
     appleWebApp: {
       capable: true,
       statusBarStyle: "black-translucent",
-      title: "Stickney Firehouse",
+      title: `${department.name} Firehouse`,
     },
     formatDetection: { telephone: false },
     icons: {
@@ -41,7 +43,7 @@ export async function generateMetadata(): Promise<Metadata> {
       apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
     },
     openGraph: {
-      title: "Stickney Firehouse Manager",
+      title: `${department.name} Firehouse Manager`,
       description: "Staffing, field operations, fleet, inventory, and readiness in one secure portal.",
       type: "website",
       url: origin,
@@ -49,7 +51,7 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     twitter: {
       card: "summary_large_image",
-      title: "Stickney Firehouse Manager",
+      title: `${department.name} Firehouse Manager`,
       description: "Staffing, field operations, fleet, inventory, and readiness in one secure portal.",
       images: [socialImage],
     },

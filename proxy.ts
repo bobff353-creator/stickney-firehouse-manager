@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getPublicSupabaseConfig } from "./app/supabase-config";
 import { confirmationExemptRequest } from "./app/required-confirmation-policy";
 import { definitiveAuthFailure } from "./app/auth-failure-policy";
+import { resolvePortalDepartment } from './app/department-portal';
 
 const publicApiPaths = new Set([
   "/api/health",
@@ -49,16 +50,21 @@ function jsonError(error: string, status: number) {
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  let department;
+  try { department = await resolvePortalDepartment(request.nextUrl.hostname); }
+  catch { return jsonError('This department portal has not been published.', 503); }
   const signedWebhookRequest = request.method === "POST"
     && (signedWebhookPaths.has(pathname) || pathname === "/api/cad/cis");
   const publicAuthRequest = request.method === "POST" && publicAuthPostPaths.has(pathname);
   // Exact cron routes authenticate themselves before database/source I/O.
   const signedCronRequest = request.method === 'GET' && ['/api/cron/cad-push', '/api/cron/dispatch-recovery', '/api/cron/scheduler-reminders', '/api/cron/board-feeds', '/api/cron/daily-refresh'].includes(pathname);
+  if (department.isolated && (signedWebhookRequest || signedCronRequest)) return jsonError('This department integration is not configured.', 503);
   if (publicApiPaths.has(pathname) || signedWebhookRequest || publicAuthRequest || signedCronRequest) {
     return NextResponse.next();
   }
 
-  const { url, key, departmentId } = configuration();
+  const { url, key } = configuration();
+  const departmentId = department.id;
   if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
     const origin = request.headers.get("origin");
     if (!origin || origin !== request.nextUrl.origin) return jsonError("Open this action from the department portal.", 403);
@@ -150,7 +156,9 @@ export async function proxy(request: NextRequest) {
   const confirmationExempt = confirmationExemptRequest(request.nextUrl,request.method);
   const viewerCheck = pathname === '/api/permissions' && request.nextUrl.searchParams.get('scope') === 'viewer';
   if (pinConfigured && pinUnlocked && (!confirmationExempt || viewerCheck)) {
-    const confirmation = await client.rpc('portal_confirmation_status');
+    const confirmation = department.isolated
+      ? await client.rpc('department_portal_confirmation_status', { p_department: departmentId })
+      : await client.rpc('portal_confirmation_status');
     // A failed acknowledgment check must not revoke live-call permissions.
     // Regular tools remain closed until confirmation can be verified.
     if (viewerCheck) requestHeaders.set('x-portal-confirmation',JSON.stringify(confirmation.error ? null : confirmation.data));

@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { ensureDatabase } from "../../db/bootstrap";
 import { permissionsForEmail } from "../server-permissions";
 import { definitiveAuthFailure } from "../auth-failure-policy";
+import { getPortalDepartment } from '../department-portal';
 
 export const INVENTORY_MODULE_ID = "inventory";
 export const STICKNEY_DEPARTMENT_SLUG = "stickney-fire-department";
@@ -52,11 +53,12 @@ async function verifiedSession(requiredPermissions = ['inventory.view']): Promis
       };
     }
 
+    const configuredDepartment = await getPortalDepartment();
     const [{ data: department, error: departmentError }, ownerResult] = await Promise.all([
       supabase
         .from("departments")
         .select("id,name,slug")
-        .eq("slug", STICKNEY_DEPARTMENT_SLUG)
+        .eq("id", configuredDepartment.id)
         .maybeSingle(),
       supabase.rpc("is_platform_owner"),
     ]);

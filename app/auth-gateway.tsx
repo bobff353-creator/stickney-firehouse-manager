@@ -9,6 +9,7 @@ import SessionIdleLock from "./session-idle-lock";
 import RememberDeviceOption from "./remember-device-option";
 import { clearCachedRespondPackets } from "./preplans/offline-cache";
 import { getSupabaseBrowserClient } from "./supabase-browser";
+import type { PortalDepartment } from './department-portal';
 
 type Mode = "loading" | "sign-in" | "new-user" | "checking" | "set-pin" | "pin" | "reset-pin" | "authorized" | "waiting" | "unavailable";
 
@@ -18,9 +19,12 @@ function clearAccessCache() {
 
 export default function AuthGateway({
   initialPage,
+  department,
 }: {
   initialPage?: "Dashboard" | "Inventory";
+  department?: PortalDepartment;
 }) {
+  const departmentName = department?.name ?? 'Stickney Fire Department';
   const [mode, setMode] = useState<Mode>("loading");
   const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState("");
@@ -342,6 +346,7 @@ export default function AuthGateway({
     return (
       <SessionIdleLock onSignOut={signOut}>
         <PayrollApp
+          department={department}
           accountEmail={user?.email || ""}
           onSignOut={signOut}
           initialPage={initialPage}
@@ -387,7 +392,7 @@ export default function AuthGateway({
           <p className="login-eyebrow">EMAIL VERIFIED · ONE-TIME SETUP</p>
           <h1>Create your portal PIN</h1>
           <p>Your approved account existed before PIN login was added. Create 4 to 6 digits now; no department records or unfinished work will be removed.</p>
-          <dl className="invite-account-summary"><div><dt>Verified account</dt><dd>{user?.email}</dd></div><div><dt>Department</dt><dd>Stickney Fire Department</dd></div></dl>
+          <dl className="invite-account-summary"><div><dt>Verified account</dt><dd>{user?.email}</dd></div><div><dt>Department</dt><dd>{departmentName}</dd></div></dl>
           <form onSubmit={event => { event.preventDefault(); void runAuthAction(() => createPin(event), "set-pin"); }}>
             <label>New PIN<input autoFocus type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
             <label>Confirm PIN<input type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pinConfirmation} onChange={(event) => setPinConfirmation(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
@@ -429,7 +434,7 @@ export default function AuthGateway({
           <p className="login-eyebrow">VERIFIED ACCOUNT · PIN RESET</p>
           <h1>Reset your portal PIN</h1>
           <p>Confirm the employee number saved on your active record, then choose the private PIN you will use from now on.</p>
-          <dl className="invite-account-summary"><div><dt>Verified account</dt><dd>{user?.email}</dd></div><div><dt>Department</dt><dd>Stickney Fire Department</dd></div></dl>
+          <dl className="invite-account-summary"><div><dt>Verified account</dt><dd>{user?.email}</dd></div><div><dt>Department</dt><dd>{departmentName}</dd></div></dl>
           <form onSubmit={event => { event.preventDefault(); void runAuthAction(() => resetPin(event), "reset-pin"); }}>
             <label>Employee number<input autoFocus type="password" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={employeeNumber} onChange={(event) => setEmployeeNumber(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
             <label>New private PIN<input type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" minLength={4} maxLength={6} value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))} required /></label>
@@ -454,7 +459,7 @@ export default function AuthGateway({
           <h1>Create your login</h1>
           <p>Start with an invitation from your department administrator. Your employee number alone cannot open an account.</p>
           <ol className="login-activation-steps">
-            <li>Ask an administrator to open Employees, select your record, and send an app invitation to your Stickney email.</li>
+            <li>Ask an administrator to open Employees, select your record, and send an app invitation to your account email.</li>
             <li>Open the invitation in your email to verify your address.</li>
             <li>Follow the invitation to confirm your employee number and choose a private PIN.</li>
           </ol>
@@ -491,7 +496,7 @@ export default function AuthGateway({
           <span><b>Firehouse Manager</b><small>Department Operations Portal</small></span>
         </div>
         <div>
-          <p className="login-eyebrow">STICKNEY FIRE DEPARTMENT</p>
+          <p className="login-eyebrow">{departmentName.toUpperCase()}</p>
           <h1>Your firehouse.<br />One place to get things done.</h1>
           <p>See your schedule, complete vehicle checks, record your shift, and find response information.</p>
         </div>
@@ -510,7 +515,7 @@ export default function AuthGateway({
         </form>
         <div className="login-divider"><span>NEW EMPLOYEE?</span></div>
         <button type="button" className="login-secondary login-new-user-button" onClick={() => { setMessage(""); setPin(""); setMode("new-user"); }}>New User — Create Login</button>
-        <p className="login-invite-note">Your administrator saves your active employee record and sends an invitation to your Stickney email. Open that email to set up your private PIN.</p>
+        <p className="login-invite-note">Your administrator saves your active employee record and sends an invitation to your account email. Open that email to set up your private PIN.</p>
         <button type="button" className="login-link-button" onClick={() => void emailSignInLink()}>Email me a one-time sign-in link</button>
       </section>
     </main>

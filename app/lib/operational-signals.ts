@@ -1,4 +1,5 @@
 import 'server-only';
+import { getPortalDepartment } from '../department-portal';
 import { locationDatabase } from './apparatus-location-store';
 import type { OperationalSignal, OperationalScope } from '../operational-signals';
 const uuid = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i;
@@ -12,7 +13,7 @@ export async function readOperationalSignal(request: Request, permissions: strin
   if (requested.has('board') && permissions.includes('operations_board.view')) scopes.push('board');
   if (!scopes.length) return null;
   const department = request.headers.get('x-department-id') ?? '', user = request.headers.get('x-authenticated-user-id') ?? '';
-  if (!uuid.test(department) || !uuid.test(user) || department !== process.env.PAYROLL_DEPARTMENT_ID?.trim()) return null;
+  if (!uuid.test(department) || !uuid.test(user) || department !== (await getPortalDepartment()).id) return null;
   try {
     const db = locationDatabase();
     const row = await db.prepare('SELECT issue_operational_view_lease(?::uuid,?::uuid,?::text[]) signal')

@@ -1,5 +1,6 @@
 import { getSupabaseServerClient } from "../app/supabase-server";
 import { sqlLiteral, type BoundValue } from "./sql-literal";
+import { getPortalDepartment } from '../app/department-portal';
 
 type QueryMode = "all" | "first" | "run";
 type SupabaseClientFactory = typeof getSupabaseServerClient;
@@ -100,10 +101,12 @@ async function execute(
   databaseSecret: string | null,
 ) {
   const supabase = await clientFactory();
-  const { data, error } = await supabase.rpc(rpc, {
+  const department = await getPortalDepartment();
+  const { data, error } = await supabase.rpc(department.isolated ? `department_${rpc}` : rpc, {
     p_sql: translateSql(sql, values),
     p_mode: mode,
     p_secret: databaseSecret,
+    ...(department.isolated ? { p_department: department.id } : {}),
   });
   if (error) throw new Error(`Portal database query failed: ${error.message}`);
   return data;
@@ -165,9 +168,11 @@ export class PostgresD1Adapter {
     // A single RPC is one PostgreSQL transaction. Never fall back to sequential
     // requests: doing so can leave earlier writes committed after a failure.
     const supabase = await this.clientFactory();
-    const { data, error } = await supabase.rpc(`${this.rpc}_batch`, {
+    const department = await getPortalDepartment();
+    const { data, error } = await supabase.rpc(`${department.isolated ? 'department_' : ''}${this.rpc}_batch`, {
       p_statements: statements.map((statement) => statement.batchPayload()),
       p_secret: this.databaseSecret,
+      ...(department.isolated ? { p_department: department.id } : {}),
     });
     if (error) throw new Error(`Portal transaction failed: ${error.message}`);
     return data as T[];

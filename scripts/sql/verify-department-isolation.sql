@@ -1,0 +1,46 @@
+-- Acceptance fixtures exist only inside this rolled-back transaction.
+BEGIN;
+DO $test$
+DECLARE first_id uuid:=gen_random_uuid(); second_id uuid:=gen_random_uuid(); first_schema name; second_schema name;
+ before_count bigint; after_count bigint; value jsonb; denied boolean:=false; test_id uuid;
+BEGIN
+ SELECT count(*) INTO before_count FROM firehouse.field_hydrants;
+ INSERT INTO public.departments(id,name,slug) VALUES(first_id,'Isolation acceptance fixture A','acceptance-'||replace(first_id::text,'-',''));
+ INSERT INTO public.departments(id,name,slug) VALUES(second_id,'Isolation acceptance fixture B','acceptance-'||replace(second_id::text,'-',''));
+ SELECT schema_name INTO first_schema FROM private.department_portals WHERE department_id=first_id;
+ SELECT schema_name INTO second_schema FROM private.department_portals WHERE department_id=second_id;
+ IF first_schema IS NULL OR second_schema IS NULL OR first_schema=second_schema THEN RAISE EXCEPTION 'New department provisioning failed'; END IF;
+ value:=private.department_execute_sql(first_id,'SELECT count(*) rows FROM employees','first');
+ IF (value->>'rows')::bigint<>0 THEN RAISE EXCEPTION 'Employees were seeded'; END IF;
+ PERFORM private.department_execute_sql(first_id,'INSERT INTO field_hydrants(id,hydrant_number,address,latitude,longitude,created_by,updated_by) VALUES(''same-fixture-id'',''Fixture A'',''Acceptance only'',0,0,''acceptance-fixture'',''acceptance-fixture'')','run');
+ PERFORM private.department_execute_sql(second_id,'INSERT INTO field_hydrants(id,hydrant_number,address,latitude,longitude,created_by,updated_by) VALUES(''same-fixture-id'',''Fixture B'',''Acceptance only'',0,0,''acceptance-fixture'',''acceptance-fixture'')','run');
+ value:=private.department_execute_sql(first_id,'SELECT hydrant_number FROM field_hydrants WHERE id=''same-fixture-id''','first');
+ IF value->>'hydrant_number'<>'Fixture A' THEN RAISE EXCEPTION 'First department read crossed boundary'; END IF;
+ value:=private.department_execute_sql(second_id,'SELECT hydrant_number FROM field_hydrants WHERE id=''same-fixture-id''','first');
+ IF value->>'hydrant_number'<>'Fixture B' THEN RAISE EXCEPTION 'Second department read crossed boundary'; END IF;
+ PERFORM private.department_execute_sql(first_id,'UPDATE field_hydrants SET hydrant_number=''Updated A'' WHERE id=''same-fixture-id''','run');
+ value:=private.department_execute_sql(second_id,'SELECT hydrant_number FROM field_hydrants WHERE id=''same-fixture-id''','first');
+ IF value->>'hydrant_number'<>'Fixture B' THEN RAISE EXCEPTION 'Update crossed department boundary'; END IF;
+ PERFORM private.department_execute_sql(second_id,'INSERT INTO field_preplans(id,business_name,latitude,longitude,publication_status,created_by,updated_by) VALUES(''published-fixture'',''Acceptance published fixture'',0,0,''published'',''acceptance-fixture'',''acceptance-fixture''),(''draft-fixture'',''Acceptance private draft'',0,0,''draft'',''acceptance-fixture'',''acceptance-fixture'')','run');
+ value:=private.department_shared_snapshot(first_id,second_id)->0;
+ IF jsonb_array_length(value->'preplans')<>1 OR value->'preplans'->0->>'id'<>'published-fixture' OR value->>'canEdit'<>'false' OR value->'preplans'->0 ? 'created_by' THEN RAISE EXCEPTION 'Shared view exposed drafts, private actor data, or editing'; END IF;
+ IF jsonb_array_length(value->'hydrants')<>1 OR value ? 'employees' OR value ? 'payroll' THEN RAISE EXCEPTION 'Shared view scope failed'; END IF;
+ BEGIN PERFORM private.department_execute_sql(first_id,'SELECT count(*) FROM firehouse.employees','first');
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'Explicit legacy read was allowed'; END IF;
+ denied:=false;
+ BEGIN PERFORM private.department_execute_sql(first_id,format('DELETE FROM %I.field_hydrants',second_schema),'run');
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'Explicit cross-department write was allowed'; END IF;
+ denied:=false;
+ BEGIN PERFORM public.department_firehouse_sql(first_id,'SELECT count(*) FROM employees','first');
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'Unauthenticated gateway access was allowed'; END IF;
+ SELECT count(*) INTO after_count FROM firehouse.field_hydrants;
+ IF before_count<>after_count THEN RAISE EXCEPTION 'Stickney was changed'; END IF;
+ SELECT id INTO test_id FROM public.departments WHERE slug='test';
+ value:=private.department_execute_sql(test_id,'SELECT count(*) rows FROM field_hydrants','first');
+ IF (value->>'rows')::bigint<>0 THEN RAISE EXCEPTION 'Test portal contains imported hydrants'; END IF;
+END $test$;
+ROLLBACK;
+SELECT 'PASS: empty provisioning, independent saves and updates, denied cross reads/writes, unsigned access denied, published-only view without private records/editing, unchanged Stickney, fixture rollback' result;

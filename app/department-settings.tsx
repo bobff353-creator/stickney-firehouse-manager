@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { getSupabaseBrowserClient } from "./supabase-browser";
+import SharedPreplans from './shared-preplans';
 
 type Department = {
   id: string;
@@ -15,6 +16,9 @@ type Department = {
 };
 
 type DepartmentRow = {
+  portalUrl?: string | null;
+  properties?: number;
+  hydrants?: number;
   role: string;
   status: string;
   departments: Department | Department[] | null;
@@ -39,26 +43,19 @@ export default function DepartmentSettings() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [showShared, setShowShared] = useState(false);
 
   const load = useCallback(async () => {
     const client = getSupabaseBrowserClient();
-    const { data, error } = await client
-      .from("department_memberships")
-      .select("role,status,departments(id,name,slug,city,state,county,account_status,trial_status)")
-      .eq("status", "active")
-      .order("created_at", { ascending: true });
+    const { data, error } = await client.rpc('department_portal_directory');
     if (error) throw error;
     const rows = (data ?? []) as unknown as DepartmentRow[];
     setMemberships(rows);
-    const departments = rows.map(departmentFrom).filter((item): item is Department => Boolean(item));
     const nextCounts: Record<string, { properties: number; hydrants: number }> = {};
-    await Promise.all(departments.map(async (department) => {
-      const [properties, hydrants] = await Promise.all([
-        client.from("properties").select("id", { count: "exact", head: true }).eq("department_id", department.id),
-        client.from("hydrants").select("id", { count: "exact", head: true }).eq("department_id", department.id),
-      ]);
-      nextCounts[department.id] = { properties: properties.count ?? 0, hydrants: hydrants.count ?? 0 };
-    }));
+    for (const row of rows) {
+      const department = departmentFrom(row);
+      if (department) nextCounts[department.id] = { properties: row.properties ?? 0, hydrants: row.hydrants ?? 0 };
+    }
     setCounts(nextCounts);
   }, []);
 
@@ -118,12 +115,15 @@ export default function DepartmentSettings() {
       const department = departmentFrom(row);
       if (!department) return null;
       const stats = counts[department.id] ?? { properties: 0, hydrants: 0 };
-      return <article className="content-card department-card" key={department.id}>
+      const card = <article className="content-card department-card">
         <div className="department-card-head"><span>{department.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 3)}</span><div><h2>{department.name}</h2><p>{[department.city, department.state].filter(Boolean).join(", ") || "Location not entered"}</p></div><b>{row.role}</b></div>
         <div className="department-stats"><div><strong>{stats.properties}</strong><span>Properties</span></div><div><strong>{stats.hydrants}</strong><span>Hydrants</span></div><div><strong>{department.trial_status === "active" ? "Active" : department.account_status}</strong><span>Account</span></div></div>
-        <footer><span>Workspace: {department.slug}</span><small>Website publishing is managed separately.</small></footer>
+        <footer><span>Workspace: {department.slug}</span><small>{row.portalUrl ? 'Open department portal →' : 'Separate records ready · portal publishing pending'}</small></footer>
       </article>;
+      return row.portalUrl ? <a className="department-card-link" href={row.portalUrl} key={department.id} aria-label={`Open ${department.name} Firehouse Manager`}>{card}</a> : <div key={department.id}>{card}</div>;
     })}</div>
+    <button className="quiet-button" type="button" onClick={() => setShowShared(value => !value)}>{showShared ? 'Close shared records' : 'View other departments’ hydrants & preplans'}</button>
+    {showShared && <SharedPreplans />}
     {message && <div className="toast">{message}</div>}
   </section>;
 }

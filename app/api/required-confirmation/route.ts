@@ -5,7 +5,7 @@ export async function GET(request: Request) {
   if (!request.headers.get('x-authenticated-user-id')) return json({error:'Sign in required.'},401);
   try {
     const db=await ensureDatabase();
-    const row=await db.prepare("SELECT m.id version,m.title,m.message,m.enabled FROM portal_confirmation_setting s LEFT JOIN portal_confirmation_messages m ON m.id=s.message_id WHERE s.department_id='14a76771-4c24-481b-8def-e6cce005c17b'").first();
+    const row=await db.prepare("SELECT m.id version,m.title,m.message,m.enabled FROM portal_confirmation_setting s LEFT JOIN portal_confirmation_messages m ON m.id=s.message_id WHERE s.department_id=?").bind(request.headers.get('x-department-id')).first();
     return json(row || {version:null,title:'Department confirmation',message:'',enabled:false});
   } catch {return json({error:'The confirmation message could not be loaded. Try again.'},503);}
 }

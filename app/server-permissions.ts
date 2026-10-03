@@ -1,5 +1,7 @@
 import type { ensureDatabase } from "../db/bootstrap";
 import { resolveEmployeePermissions, permissionCatalog, type PermissionKey } from "./permissions";
+import { headers } from 'next/headers';
+import { getPortalDepartment } from './department-portal';
 
 export const ownerAdminEmails = ["bobff353@gmail.com"];
 
@@ -23,6 +25,10 @@ export async function permissionsForEmail(
     return new Set(permissionCatalog.map((item) => item.key));
   }
   if (!normalizedEmail) return new Set<PermissionKey>();
+  const requestHeaders = await headers();
+  if ((await getPortalDepartment()).isolated && requestHeaders.get('oai-authenticated-user-email') === normalizedEmail && ['admin','owner'].includes(requestHeaders.get('x-department-role') ?? '')) {
+    return new Set(permissionCatalog.map(item => item.key));
+  }
   const matches = await db.prepare("SELECT e.id,p.label rank,COALESCE(ep.is_admin,0) isAdmin,ep.end_date endDate FROM employees e JOIN pay_scales p ON p.id=e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.active=1 AND e.id=employee_id_for_login(?) LIMIT 2").bind(normalizedEmail).all<{ id: string; rank: string; isAdmin: number; endDate: string | null }>();
   const employee = matches.results.length === 1 ? matches.results[0] : null;
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());

@@ -218,13 +218,16 @@ function PortalSkeleton({ page }: { page: NavItem }) {
 
 export default function PayrollApp({
   accountEmail,
+  department,
   onSignOut,
   initialPage = "Dashboard",
 }: {
   accountEmail: string;
+  department?: { id: string; name: string; slug: string; isolated: boolean };
   onSignOut: () => void;
   initialPage?: "Dashboard" | "Inventory";
 }) {
+  const departmentName = department?.name ?? 'Stickney Fire Department';
   const [activeNav, setActiveNav] = useState<NavItem>(initialPage);
   const [tvMode, setTvMode] = useState(false);
   const [routeReady, setRouteReady] = useState(false);
@@ -972,7 +975,7 @@ export default function PayrollApp({
     <WorkspaceViewMemory key={`${access.identity}:${testMember?.id ?? "self"}`}><main className={`app-shell${tvMode ? " tv-shell" : ""}${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
       {!tvMode && <PwaInstall />}
       <aside id="desktop-navigation" className="desktop-sidebar" aria-hidden={sidebarCollapsed} inert={sidebarCollapsed}>
-        <button className="sidebar-brand" onClick={() => navigate(homePage)} aria-label="Stickney Fire Department Operations Portal home" title="Dashboard"><img className="brand-patch" src="/stickney-fd-patch.png?v=3" alt="Stickney Fire Department patch" width="64" height="64" /><span><strong>Stickney Fire Department</strong><small>Operations Portal</small></span></button>
+        <button className="sidebar-brand" onClick={() => navigate(homePage)} aria-label={`${departmentName} Operations Portal home`} title="Dashboard">{department?.isolated ? <b className="department-brand-mark">FD</b> : <img className="brand-patch" src="/stickney-fd-patch.png?v=3" alt="Stickney Fire Department patch" width="64" height="64" />}<span><strong>{departmentName}</strong><small>Operations Portal</small></span></button>
         <nav className="sidebar-nav" aria-label="Primary navigation">
           <div className="sidebar-core-nav">
             {visibleFeaturedNav.map((item) => <button key={item.page} title={item.label} aria-current={activeNav === item.page ? "page" : undefined} className={`nav-featured nav-featured-${item.tone}${activeNav === item.page ? " current" : ""}`} onClick={() => navigate(item.page)}><span className={`sidebar-feature-icon ${item.tone}`}><Icon name={navIcons[item.page]}/></span><span>{item.label}</span></button>)}
@@ -990,8 +993,8 @@ export default function PayrollApp({
       </aside>
       <header className="topbar">
         <button className="desktop-sidebar-toggle" type="button" aria-expanded={!sidebarCollapsed} aria-controls="desktop-navigation" aria-label={sidebarCollapsed ? "Show navigation menu" : "Hide navigation menu"} title={sidebarCollapsed ? "Show menu" : "Hide menu"} onClick={() => setDesktopMenuHidden(!sidebarCollapsed)}><Icon name="menu" size={19}/><span>{sidebarCollapsed ? "Show menu" : "Hide menu"}</span></button>
-        <button className="mobile-brand" onClick={() => navigate(homePage)} aria-label="Stickney Fire Department Operations Portal home"><img src="/stickney-fd-patch.png?v=3" alt="Stickney Fire Department patch" width="44" height="44" /><strong>Stickney FD Operations Portal</strong></button>
-        <div className="topbar-context"><span>Stickney Fire Department</span><strong>{portalPageLabel(activeNav)}</strong></div>
+        <button className="mobile-brand" onClick={() => navigate(homePage)} aria-label={`${departmentName} Operations Portal home`}>{department?.isolated ? <b className="department-brand-mark">FD</b> : <img src="/stickney-fd-patch.png?v=3" alt="Stickney Fire Department patch" width="44" height="44" />}<strong>{departmentName} Operations Portal</strong></button>
+        <div className="topbar-context"><span>{departmentName}</span><strong>{portalPageLabel(activeNav)}</strong></div>
         <div className="topbar-utilities"><div className={`sync-indicator ${connection.tone}`} role="status" aria-label={`${connection.label}. ${connection.detail}`} title={connection.detail}><Icon name={connection.tone === "offline" ? "warning" : "save"} size={16}/><span><strong>{connection.label}</strong><small>Connection only</small></span></div><button className="global-search-trigger" aria-label="Search the portal" onClick={() => void openGlobalSearch()}><Icon name="search"/><span>Search</span><kbd>Ctrl / ⌘ K</kbd></button>{!tvMode && <SmartAlerts icon={<Icon name="bell"/>} onNavigate={(page) => navigate(page as NavItem)} onReminderSettings={viewerPermissions.includes("scheduling.manage") ? () => navigate("Scheduling", { adminTask: "reminders" }) : undefined} />}<div className="profile"><span className="avatar">{(testMember?.name ?? data?.viewer.displayName ?? "").split(/[ ,]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "FD"}</span><span className="profile-copy"><strong>{testMember ? displayName(testMember.name) : data ? displayName(data.viewer.displayName) : accountEmail}</strong><small>{testMember ? `Test view · ${testMember.rank}` : data ? (data.viewer.isAdmin ? "Administrator" : "Employee") : "Verified account"}</small></span></div><button className="mobile-menu-toggle" aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen((current) => !current)} aria-label={mobileMenuOpen ? "Close navigation" : "Open navigation"}><Icon name={mobileMenuOpen ? "close" : "menu"}/></button></div>
       </header>
       {mobileMenuOpen && <nav id="mobile-navigation" className="mobile-nav-panel" aria-label="Mobile navigation">
@@ -1021,6 +1024,7 @@ export default function PayrollApp({
         {!tvMode && <WorkspaceGuide page={activeNav} home={homePage} allowedPages={visibleNav} permissions={testMember ? [] : viewerPermissions} backLabel={activeNav !== homePage ? portalPageLabel(parentPage) : undefined} onBack={() => { const prior = workspaceTrail[workspaceTrail.length - 1]; navigate(parentPage, undefined, prior?.page === parentPage); }} returnLabel={workspaceTrail.length && workspaceTrail[workspaceTrail.length - 1].page !== parentPage && workspaceTrail[workspaceTrail.length - 1].page !== activeNav ? portalPageLabel(workspaceTrail[workspaceTrail.length - 1].page) : undefined} onReturn={() => { const prior = workspaceTrail[workspaceTrail.length - 1]; if (prior) navigate(prior.page, prior.record, true); }} onNavigate={navigate} setupTools={!tvMode && !testMember && activeNav !== "Respond" && activeNav !== "Command Board" && <AdminTools page={activeNav} permissions={viewerPermissions} allowedPages={visibleNav} onNavigate={navigate} />} />}
 
         {navigationNotice && <div className="error-banner" role="alert">{navigationNotice}</div>}
+        {department?.isolated && data && !data.payScales.some(scale => scale.regularRate > 0) && <div className="phone-message" role="status">This is a separate department workspace. No employees or operating records were copied. Configure your department’s pay rates and payroll rules before entering payroll.</div>}
         {adminSaveNotice && <div className="phone-message" role="status">{adminSaveNotice}<button type="button" className="quiet-button" onClick={() => setAdminSaveNotice("")}>Dismiss</button></div>}
         {testMember && <div className="test-view-banner"><div><b>TEST VIEW</b><span>Previewing as {displayName(testMember.name)} · {testMember.rank}</span><small>No identity or approval authority has changed.</small></div><button onClick={() => changeTestMember(null)}>Exit test view</button></div>}
         {portalNeedsPayroll(activeNav) && error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={() => { setError(""); void loadPayroll(periodStart); }}>Retry</button></div>}
@@ -1053,7 +1057,7 @@ export default function PayrollApp({
 
           {activeNav === "Activity Timeline" && <ActivityTimeline />}
           {activeNav === "Command Board" && <IncidentCommandBoard />}
-          {activeNav === "Field Preplans" && <FieldPreplans />}
+          {activeNav === "Field Preplans" && <FieldPreplans department={department} />}
           {activeNav === "Road Closures" && <RoadClosures />}
           {activeNav === "NERIS Reporting" && !testMember && <NerisWorkspace />}
           {activeNav === "Training" && !testMember && <TrainingWorkspace />}
@@ -1227,7 +1231,7 @@ export default function PayrollApp({
           </fieldset>}
         </>)}
       </section>
-      <footer className="portal-footer"><div className="footer-identity"><img src="/stickney-fd-patch.png?v=3" alt="Official Stickney Fire Department patch" width="56" height="56" /><div><strong>Stickney Fire Department Operations Portal</strong><span>Stickney, Illinois</span><a href="tel:+17089747721">Cicero Consolidated Dispatch · (708) 974-7721</a></div></div><div className="footer-links"><button onClick={() => navigate(homePage)}>{portalPageLabel(homePage)}</button>{visibleNav.includes("Employee Contacts") && <button onClick={() => navigate("Employee Contacts")}>Employee contacts</button>}{visibleNav.includes("Phone Numbers") && <button onClick={() => navigate("Phone Numbers")}>Important phone numbers</button>}<span>For portal help, contact your department administrator.</span></div><p>© {new Date().getFullYear()} Stickney Fire Department · Authorized use only</p></footer>
+      <footer className="portal-footer"><div className="footer-identity">{!department?.isolated && <img src="/stickney-fd-patch.png?v=3" alt="Official Stickney Fire Department patch" width="56" height="56" />}<div><strong>{departmentName} Operations Portal</strong>{!department?.isolated && <><span>Stickney, Illinois</span><a href="tel:+17089747721">Cicero Consolidated Dispatch · (708) 974-7721</a></>}</div></div><div className="footer-links"><button onClick={() => navigate(homePage)}>{portalPageLabel(homePage)}</button>{visibleNav.includes("Employee Contacts") && <button onClick={() => navigate("Employee Contacts")}>Employee contacts</button>}{visibleNav.includes("Phone Numbers") && <button onClick={() => navigate("Phone Numbers")}>Important phone numbers</button>}<span>For portal help, contact your department administrator.</span></div><p>© {new Date().getFullYear()} {departmentName} · Authorized use only</p></footer>
     </main></WorkspaceViewMemory>
   );
 }

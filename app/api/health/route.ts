@@ -1,5 +1,6 @@
 import { getPublicSupabaseConfig } from "../../supabase-config";
 import { releaseIdentity } from "../../system-health-model";
+import { getPortalDepartment } from '../../department-portal';
 
 function projectRef(url: string) {
   const hostname = new URL(url).hostname.toLowerCase();
@@ -9,11 +10,13 @@ function projectRef(url: string) {
 
 export async function GET() {
   const { url } = getPublicSupabaseConfig();
+  const department = await getPortalDepartment();
   return Response.json({
     application: "stickney-firehouse-manager",
     ...releaseIdentity({ ...process.env, APP_BUILD_SHA: process.env.APP_BUILD_SHA, APP_BUILT_AT: process.env.APP_BUILT_AT }),
     supabaseConfiguration: "configured",
     supabaseProjectRef: projectRef(url),
+    department: { id: department.id, name: department.name, isolated: department.isolated },
   }, {
     headers: {
       "cache-control": "private, no-store",

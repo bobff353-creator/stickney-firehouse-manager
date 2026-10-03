@@ -8,6 +8,7 @@ import { getSupabaseSystemClient } from "../../../supabase-system";
 import { rememberedCookieSeconds } from "../../../remember-device";
 import { loginServiceUnavailable } from "../../../login-response";
 import { sameOriginAuthRequest } from "../../../request-security";
+import { getPortalDepartment } from '../../../department-portal';
 
 const pinCookie = "__Secure-firehouse-pin";
 const unlockSeconds = 30 * 60;
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Enter your account email and 4 to 6 digit PIN." }, { status: 400 });
   }
 
-  const departmentId = process.env.PAYROLL_DEPARTMENT_ID?.trim() ?? "";
+  const departmentId = (await getPortalDepartment()).id;
   const databaseSecret = cleanSecret(process.env.FIREHOUSE_DATABASE_SECRET);
   if (!departmentId || !databaseSecret || !process.env.PORTAL_PIN_PASSWORD_PEPPER?.trim()) {
     return Response.json({ error: "PIN login is not configured." }, { status: 503 });

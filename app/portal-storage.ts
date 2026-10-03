@@ -1,6 +1,13 @@
 import { getSupabaseServerClient } from "./supabase-server";
+import { getPortalDepartment } from './department-portal';
 
 const bucketName = "firehouse-portal";
+async function storageKey(key: string) {
+  const department = await getPortalDepartment();
+  if (!department.isolated) return key;
+  if (key.includes('..') || key.startsWith('/')) throw new Error('Invalid department file path.');
+  return `departments/${department.id}/${key}`;
+}
 
 export type PortalStoredObject = {
   body: ReadableStream;
@@ -16,6 +23,7 @@ export type PortalStorage = {
 export function getPortalStorage(): PortalStorage {
   return {
     async get(key) {
+      key = await storageKey(key);
       const supabase = await getSupabaseServerClient();
       const { data, error } = await supabase.storage.from(bucketName).download(key);
       if (error) {
@@ -28,6 +36,7 @@ export function getPortalStorage(): PortalStorage {
       };
     },
     async put(key, value, options) {
+      key = await storageKey(key);
       const supabase = await getSupabaseServerClient();
       const bytes = await new Response(value).arrayBuffer();
       const blob = new Blob([bytes], { type: options.httpMetadata.contentType });
@@ -38,6 +47,7 @@ export function getPortalStorage(): PortalStorage {
       if (error) throw new Error(`Portal storage upload failed: ${error.message}`);
     },
     async delete(key) {
+      key = await storageKey(key);
       const supabase = await getSupabaseServerClient();
       const { error } = await supabase.storage.from(bucketName).remove([key]);
       if (error) throw new Error(`Portal storage delete failed: ${error.message}`);

@@ -62,7 +62,7 @@ export async function payrollDatabaseFixture() {
     INSERT INTO station_shift_slots VALUES('slot24','24','a','Officer/AO','filled','',''),('slot25','25','a','Officer/AO','filled','','');
   `);
   const state={manager:true,failAudit:false,delayMs:0,loseResponse:false,beforeBatch:null};
-  const adapter=moduleFromFile('db/postgres-adapter.ts',{getSupabaseServerClient:()=>{throw new Error('Live database forbidden in tests');},sqlLiteral});
+  const adapter=moduleFromFile('db/postgres-adapter.ts',{getSupabaseServerClient:()=>{throw new Error('Live database forbidden in tests');},getPortalDepartment:async()=>({id:'fixture',isolated:false}),sqlLiteral});
   const client={async rpc(name,args){
     try {
       if(state.delayMs) await new Promise(r=>setTimeout(r,state.delayMs));
