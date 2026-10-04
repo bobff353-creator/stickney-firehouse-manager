@@ -25,3 +25,8 @@ body:has(.inventory-app-shell) { background:#0b1120; }
 .inventory-app-shell.inventory-app-shell.inventory-portal-refresh .due-check-grid > article { background:#141e30; color:#f1f5f9; border-color:#314159; border-radius:16px; padding:22px; box-shadow:none; }
 .inventory-app-shell.inventory-app-shell.inventory-portal-refresh .due-check-grid > article.in-progress { border-top-color:#60a5fa; }
 }
+@media screen {
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.inventory-section-nav,.ops-refresh-status,.inventory-find-unit,.due-check-exemptions,.connection) { background:#141e30; color:#b5c4d8; border-color:#314159; border-radius:12px; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh .due-progress { background:#314159; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh .inventory-command-back { background:transparent; color:#b5c4d8; }
+}
