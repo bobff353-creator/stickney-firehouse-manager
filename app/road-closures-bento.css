@@ -1,0 +1,20 @@
+/* Road Closures presentation; preserve closure lines, bypass markers and routing. */
+@media screen {
+.workspace:has(.road-closures-page) { background:#0b1120; color:#f1f5f9; }
+.workspace:has(.road-closures-page) .workspace-wayfinding { color:#b5c4d8; }
+.road-closures-page.road-closures-page { color:#f1f5f9; --road-line:#314159; }
+.road-closures-page.road-closures-page :is(.road-closures-hero,.road-location-search,.road-map-workspace,.road-closure-form,.active-road-list,.road-closure-history,.road-workflow-steps li,.road-closure-empty) { background:#141e30; color:#f1f5f9; border-color:#314159; border-radius:16px; box-shadow:none; }
+.road-closures-page.road-closures-page .road-closures-hero { padding:24px; margin-bottom:20px; }
+.road-closures-page.road-closures-page :is(h1,h2,h3,label,strong) { color:#f1f5f9; }
+.road-closures-page.road-closures-page :is(p,small,label em,.road-closures-hero > div > span,.road-closure-form > span,.road-drawing-dock span,.road-closure-empty span,.road-workflow-steps span) { color:#b5c4d8; }
+.road-closures-page.road-closures-page :is(.road-map-toolbar,.road-drawing-dock,.road-draft-summary > div,.active-road-list > article,.road-closure-history > article,.road-reopen-confirm) { background:#101a2c; color:#e2e8f0; border-color:#314159; border-radius:12px; }
+.road-closures-page.road-closures-page :is(.road-location-search,.road-map-toolbar,.road-drawing-dock,.road-closure-form,.road-closure-actions,.road-reopen-confirm) button,.road-closures-page.road-closures-page .road-history-toggle { background:#1b2b43; color:#e2e8f0; border-color:#415575; border-radius:10px; transition:background .18s ease,border-color .18s ease; }
+.road-closures-page.road-closures-page :is(.road-location-search button:not(.locate-me),.road-map-toolbar button.active,.road-drawing-dock button.primary,.activate-road-closure) { background:#2563eb; border-color:#3b82f6; color:#fff; }
+.road-closures-page.road-closures-page :is(.road-location-search,.road-map-toolbar,.road-drawing-dock,.road-closure-form,.road-closure-actions) button:hover:not(:disabled) { background:#243b60; border-color:#60a5fa; }
+.road-closures-page.road-closures-page :is(input,textarea,select) { background:#0e1728; color:#f1f5f9; border-color:#415575; border-radius:8px; color-scheme:dark; }
+.road-closures-page.road-closures-page :is(.road-detour-preview,.road-closure-actions a) { background:#1b2b43; color:#93c5fd; border-color:#415575; border-radius:10px; }
+.road-closures-page.road-closures-page .road-workflow-steps li.done b { background:#1e40af; color:#dbeafe; }
+.road-closures-page.road-closures-page :focus-visible { outline:3px solid #60a5fa; outline-offset:3px; }
+@media(max-width:600px) { .road-closures-page.road-closures-page .road-closures-hero { padding:18px; } }
+@media(prefers-reduced-motion:reduce) { .road-closures-page.road-closures-page button { transition:none; } }
+}
