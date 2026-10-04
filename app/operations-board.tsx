@@ -371,7 +371,7 @@ export default function OperationsBoard({ tvMode: stationTvMode = false, onTvMod
     setAlertTone(selected);
     window.localStorage.setItem("stickney-call-alert-tone", selected);
   }
-  return <section className={`operations-board${tvMode ? " tv-display" : ""}${previewConfiguration ? ' board-configuration-preview' : ''}${announcementIsActive(activeConfiguration, clock.getTime()) ? ' has-board-announcement' : ''}`}>
+  return <section className={`operations-board${!data ? " board-loading" : ""}${tvMode ? " tv-display" : ""}${previewConfiguration ? ' board-configuration-preview' : ''}${announcementIsActive(activeConfiguration, clock.getTime()) ? ' has-board-announcement' : ''}`}>
     {tvMode && <button type="button" className={`board-exit-tv${tvExitVisible ? " is-visible" : ""}`} onClick={() => void exitTvMode()} aria-label="Exit full-screen TV mode and return to the portal"><span aria-hidden="true">×</span> Exit full screen</button>}
     <div className="board-display-controls">
       {boardLinks.canEdit && !tvMode && <button type="button" className={linkStyles.editButton} onClick={() => setManagerOpen(true)}>Manage Live Ops Board</button>}

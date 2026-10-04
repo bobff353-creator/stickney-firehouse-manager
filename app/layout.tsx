@@ -8,6 +8,7 @@ import "./portal-usability.css";
 import "./admin-usability.css";
 import "./workflow-usability.css";
 import "./home-bento.css";
+import "./operations-bento.css";
 
 export const viewport: Viewport = {
   width: "device-width",

@@ -1,0 +1,41 @@
+/* Live Operations shares Home's slate surfaces; TV geometry stays compact. */
+.operations-board { --ops-surface:#141e30; --ops-border:#2a374c; --ops-muted:#b8c5d8; background:#0b1120; color:#f8fafc; }
+.operations-board .board-panel { background:var(--ops-surface); border-color:var(--ops-border); border-radius:18px; box-shadow:0 8px 24px #00000014; }
+.operations-board .board-panel > header { background:#172237; border-bottom:1px solid var(--ops-border); }
+.operations-board .board-panel h2 { color:#f8fafc; letter-spacing:-.025em; }
+.operations-board .board-summary > article { background:var(--ops-surface); border-color:var(--ops-border); border-radius:16px; }
+.operations-board .board-summary article > span,.operations-board .board-summary article > small { color:var(--ops-muted); }
+.operations-board .board-summary article > strong { color:#fff; letter-spacing:-.03em; }
+.operations-board .board-summary article.warning { border-left-color:#f5bc44; }
+.operations-board .board-summary article.clear { border-left-color:#45c777; }
+.operations-board .board-header p,.operations-board .board-source-note,.operations-board .board-empty { color:var(--ops-muted); }
+.operations-board .board-display-controls button,.operations-board .board-header button { background:#1b2a43; border:1px solid #3b5680; border-radius:10px; color:#e2edff; min-height:40px; padding:8px 14px; }
+.operations-board .board-display-controls button:last-child { background:#2563eb; border-color:#4986ff; color:#fff; }
+.operations-board button,.operations-board a { transition:background-color 180ms ease,border-color 180ms ease,color 180ms ease; }
+.operations-board button:focus-visible,.operations-board a:focus-visible,.operations-board select:focus-visible { outline:3px solid #60a5fa; outline-offset:3px; }
+.operations-board :is(.schedule-24-list > div,.staffing-current-list > div) { background:#1b2940; border-color:#34445c; border-radius:12px; }
+.operations-board :is(.schedule-24-list > div,.staffing-current-list > div) strong { color:#fff; }
+.operations-board :is(.schedule-24-list > div,.staffing-current-list > div) small { color:#c6d2e4; }
+.operations-board .river-gauge-slide { background:#1b2b43; border-color:#3b5680; border-radius:14px; }
+.operations-board .river-source-link,.operations-board .close-call-list a small { color:#91baff; }
+.operations-board .close-call-list > a { background:#1a273c; border-color:#34445c; border-radius:14px; }
+.operations-board .close-call-list a strong { color:#fff; }
+.operations-board .close-call-list a p { color:#c6d2e4; }
+.operations-board .apparatus > div > article { background:#1b2940; border-color:#34445c; border-radius:12px; }
+.operations-board .apparatus > div > article.committed { background:#451c25; border-color:#ff7a80; }
+.operations-board .apparatus > div > article.unknown { border-color:#f5bc44; }
+.operations-board:not(.tv-display) { padding:32px clamp(18px,3vw,44px) 40px; }
+.operations-board:not(.tv-display) .board-summary { gap:16px; margin-bottom:24px; }
+.operations-board:not(.tv-display) .board-summary > article { padding:20px; min-height:128px; }
+.operations-board:not(.tv-display) .board-grid.redesigned { gap:20px; }
+.operations-board:not(.tv-display) .board-panel > header { padding:16px 20px; }
+.operations-board:not(.tv-display) .board-panel h2 { font-size:20px; }
+.operations-board:not(.tv-display) .apparatus-wide { margin-top:20px; }
+.operations-board:not(.tv-display) .staffing-rotation-body { padding:18px; }
+.operations-board:not(.tv-display) :is(.schedule-24-list > div,.staffing-current-list > div) { padding:16px; }
+.operations-board.board-loading .board-summary article > strong { color:transparent; background:linear-gradient(90deg,#24334a 25%,#354864 50%,#24334a 75%); background-size:200% 100%; border-radius:6px; width:75%; animation:ops-shimmer 1.8s ease-in-out infinite; }
+@keyframes ops-shimmer { to { background-position:-200% 0; } }
+@media(hover:hover) { .operations-board .board-display-controls button:hover { background:#2758ac; border-color:#619aff; } .operations-board .close-call-list > a:hover { background:#22334d; border-color:#619aff; } }
+@media(max-width:700px) { .operations-board:not(.tv-display) .board-summary { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; } .operations-board:not(.tv-display) .board-summary > article { padding:16px; min-height:116px; } .operations-board:not(.tv-display) .board-grid.redesigned { grid-template-columns:1fr; gap:16px; } .operations-board:not(.tv-display) .board-display-controls { flex-wrap:wrap; gap:8px; } }
+@media(max-width:380px) { .operations-board:not(.tv-display) .board-summary { grid-template-columns:1fr; } }
+@media(prefers-reduced-motion:reduce) { .operations-board button,.operations-board a { transition:none; } .operations-board.board-loading .board-summary article > strong { animation:none; } }
