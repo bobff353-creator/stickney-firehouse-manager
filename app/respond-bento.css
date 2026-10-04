@@ -48,7 +48,7 @@
 .respond-page .respond-call-card,.respond-page .location-unit { background:#1b2940; border-color:#3b4f6d; color:#f8fafc; }
 .respond-page .respond-call-card strong,.respond-page .location-unit strong { color:#f8fafc; }
 .respond-page .respond-call-card span,.respond-page .location-unit small,.respond-page .location-unit span { color:#c6d2e4; }
-.respond-page .respond-hydrant-summary > span:first-child { color:#f8fafc; }
-.respond-page .respond-hydrant-summary > span:last-child,.respond-page .respond-box-card > span:last-of-type { color:#b8c5d8; }
+.respond-page .respond-hydrant-summary > b { color:#f8fafc; }
+.respond-page .respond-hydrant-summary > small,.respond-page .respond-box-card > span:last-of-type { color:#b8c5d8; }
 .workspace:has(.respond-page) > .workspace-wayfinding { color:#b8c5d8; }
 body:has(.respond-page.monitor-view) .portal-footer { display:none; }
