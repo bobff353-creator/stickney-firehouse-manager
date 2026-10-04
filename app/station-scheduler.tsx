@@ -217,7 +217,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
   const managedReturn = useWorkspaceTaskReturn("Scheduling", data && !previewMember && tab !== (isAdmin ? "overview" : "myshifts") ? returnLabel : null, () => setTab(returnTab), { task: tabs.find(([id]) => id === tab)?.[1], record: tab === "calendar" ? friendlyDate(selectedDate) : undefined, disabled: busy });
 
   if (error && !data) return <div className="scheduler"><p className="error" role="alert">{error}</p><button type="button" disabled={refreshing} onClick={() => void load()}>{refreshing ? "Retrying…" : "Retry schedule"}</button></div>;
-  if (!data) return <div className="scheduler"><p>Loading the scheduler…</p></div>;
+  if (!data) return <div className="scheduler scheduler-loading" aria-busy="true" aria-label="Loading station schedule"><p role="status">Loading the scheduler…</p><div className="scheduler-loading-panels" aria-hidden="true"><span /><span /><span /><span /></div></div>;
 
   return (
     <div className="scheduler">

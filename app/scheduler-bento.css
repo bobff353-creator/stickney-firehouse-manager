@@ -1,0 +1,30 @@
+/* Station Schedule only; preserve assignment and approval workflows. */
+@media screen {
+.workspace:has(.scheduler) { background:#0b1120; color:#f1f5f9; }
+.scheduler.scheduler { --sched-bg:#0b1120; --sched-panel:#141e30; --sched-panel-2:#1b2b43; --sched-line:#314159; --sched-text:#f1f5f9; --sched-muted:#b5c4d8; --sched-blue:#2563eb; padding:24px; box-shadow:none; }
+.scheduler.scheduler .scheduler-brand-mark { border-color:#3b82f6; background:#1e3a8a; color:#dbeafe; border-radius:12px; }
+.scheduler.scheduler .scheduler-brand { padding-bottom:20px; }
+.scheduler.scheduler .scheduler-brand span,.scheduler.scheduler .muted { color:#b5c4d8; }
+.scheduler.scheduler :is(.scheduler-view-bar,.scheduler-task-groups) { gap:8px; flex-wrap:wrap; }
+.scheduler.scheduler :is(button,input:not([type=checkbox]),select,textarea) { border-radius:9px; }
+.scheduler.scheduler button { transition:background .18s ease,border-color .18s ease; }
+.scheduler.scheduler button:hover:not(:disabled) { border-color:#60a5fa; }
+.scheduler.scheduler :is(.scheduler-view-bar > button.current,.scheduler-task-groups button[aria-pressed=true],button.primary) { background:#2563eb; border-color:#3b82f6; color:#fff; }
+.scheduler.scheduler .scheduler-tabs button.current::after { background:#3b82f6; }
+.scheduler.scheduler .scheduler-view-bar > button { margin-left:0; border-radius:9px; }
+.scheduler.scheduler :is(.scheduler-task-choices button,.scheduler-grid > section,.scheduler-coverage,.scheduler-setup-guide,.scheduler-job-chooser,.scheduler-member-shift,.scheduler-roster-member) { border-radius:16px; border-color:#314159; background:#141e30; }
+.scheduler.scheduler .scheduler-task-choices { gap:16px; margin:20px 0; }
+.scheduler.scheduler .scheduler-task-choices button { padding:24px; min-height:140px; }
+.scheduler.scheduler .scheduler-task-choices button:hover { background:#1b2b43; }
+.scheduler.scheduler .scheduler-grid { gap:20px; }
+.scheduler.scheduler .entry-card { border-radius:12px; border-color:#314159; padding:16px; }
+.scheduler.scheduler .scheduler-coverage-days button { background:#1b2b43; border-radius:12px; }
+.scheduler.scheduler .scheduler-card-next { color:#93c5fd; }
+.scheduler.scheduler :focus-visible { outline:3px solid #60a5fa; outline-offset:3px; }
+.scheduler.scheduler.scheduler-loading { min-height:320px; }
+.scheduler-loading-panels { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-top:24px; }
+.scheduler-loading-panels span { display:block; height:140px; border-radius:16px; background:linear-gradient(100deg,#141e30 25%,#24344f 50%,#141e30 75%); background-size:200% 100%; animation:schedule-shimmer 1.6s ease infinite; }
+@keyframes schedule-shimmer { to { background-position:-200% 0; } }
+@media(max-width:600px) { .scheduler.scheduler { padding:14px; } .scheduler.scheduler .scheduler-task-choices button { padding:18px; min-height:120px; } .scheduler-loading-panels { grid-template-columns:1fr; } }
+@media(prefers-reduced-motion:reduce) { .scheduler.scheduler button { transition:none; } .scheduler-loading-panels span { animation:none; } }
+}
