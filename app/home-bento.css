@@ -1,0 +1,45 @@
+/* Home dashboard: spacious slate bento cards, with blue reserved for actions. */
+.workspace:has(> .home-clear-start) { background:#0b1120; color:#f8fafc; }
+.role-dashboard.home-clear-start { --home-border:#283449; --home-muted:#b5c2d5; color:#f8fafc; max-width:1440px; margin:0 auto; padding:clamp(16px,3vw,36px); }
+.home-clear-start .dashboard-welcome { padding:28px 0 32px; background:transparent; border:0; box-shadow:none; }
+.home-clear-start .dashboard-welcome h1 { font-size:clamp(32px,4vw,52px); letter-spacing:-.045em; line-height:1.1; color:#fff; }
+.home-clear-start .dashboard-welcome p { color:var(--home-muted); max-width:60ch; line-height:1.65; }
+.home-clear-start .eyebrow { color:#91baff; font-size:11px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; }
+.home-clear-start h2 { color:#f8fafc; font-size:20px; letter-spacing:-.025em; }
+.home-clear-start .home-task-start { margin:0 0 36px; }
+.home-clear-start .home-task-start h2 { margin-bottom:18px; }
+.home-clear-start .chief-quick-access { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+.home-clear-start .chief-quick-access button { min-height:148px; padding:24px; background:#141e30; border:1px solid var(--home-border); border-radius:20px; text-align:left; box-shadow:0 4px 18px #00000014; }
+.home-clear-start .chief-quick-access button:first-child { grid-column:span 2; background:linear-gradient(120deg,#174fcd,#2563eb); border-color:#4c85ff; }
+.home-clear-start .chief-quick-access strong { color:#fff; font-size:20px; display:flex; justify-content:space-between; gap:16px; }
+.home-clear-start .chief-quick-access small { display:block; color:#c4d0e3; margin-top:12px; font-size:14px; line-height:1.6; }
+.home-clear-start .chief-quick-access button:first-child small { color:#e2edff; }
+.home-clear-start .chief-quick-access strong span { color:#83b0ff; }
+.home-clear-start .chief-quick-access button:first-child strong span { color:#fff; }
+.home-clear-start .home-current-work > header { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; margin-bottom:18px; }
+.home-clear-start .home-briefing-status { color:var(--home-muted); font-size:12px; text-align:right; }
+.home-clear-start .home-briefing-status strong { color:#dbeafe; display:block; margin-bottom:4px; }
+.home-clear-start .home-current-work > div:not(.error-banner) { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+.home-clear-start .home-current-work button { background:#141e30; border:1px solid var(--home-border); border-radius:18px; padding:22px; text-align:left; min-height:124px; }
+.home-clear-start .home-current-work button strong { display:block; color:#f8fafc; font-size:16px; margin-bottom:12px; }
+.home-clear-start .home-current-work button span { color:var(--home-muted); line-height:1.6; font-size:14px; }
+.home-clear-start button { cursor:pointer; transition:transform 180ms ease,border-color 180ms ease,background-color 180ms ease; }
+@media(hover:hover) { .home-clear-start .chief-quick-access button:hover,.home-clear-start .home-current-work button:hover { transform:translateY(-3px); border-color:#619aff; background-color:#1b2940; } }
+.home-clear-start button:focus-visible,.home-clear-start summary:focus-visible { outline:3px solid #60a5fa; outline-offset:4px; }
+.home-clear-start .home-briefing-details { margin-top:28px; padding:0; border:1px solid var(--home-border); border-radius:18px; background:#111b2b; color:#f8fafc; }
+.home-clear-start .home-briefing-details > summary { padding:22px; color:#dbeafe; min-height:56px; }
+.home-clear-start .command-status-grid,.home-clear-start .dashboard-metrics { padding:16px; gap:16px; }
+.home-clear-start .command-card,.home-clear-start .dashboard-metrics article { background:#141e30; border:1px solid var(--home-border); border-radius:16px; color:#f8fafc; }
+.home-clear-start .command-card p,.home-clear-start .command-card small,.home-clear-start .dashboard-metrics small { color:var(--home-muted); }
+.home-clear-start .command-card button { background:#2563eb; color:#fff; border-color:#4986ff; }
+.home-clear-start .briefing-unavailable { background:#111b2b; border-color:var(--home-border); color:var(--home-muted); padding:18px; margin-top:18px; border-radius:16px; }
+.home-clear-start .home-skeleton { display:block; height:16px; width:75%; border-radius:6px; background:linear-gradient(90deg,#24334a 25%,#354864 50%,#24334a 75%); background-size:200% 100%; animation:home-skeleton-pulse 1.8s ease-in-out infinite; }
+.home-clear-start .home-skeleton + .home-skeleton { width:55%; margin-top:14px; height:12px; }
+@keyframes home-skeleton-pulse { to { background-position:-200% 0; } }
+@media(max-width:900px) { .home-clear-start .chief-quick-access,.home-clear-start .home-current-work > div:not(.error-banner) { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:600px) { .role-dashboard.home-clear-start { padding:16px 4px 28px; } .home-clear-start .chief-quick-access,.home-clear-start .home-current-work > div:not(.error-banner) { grid-template-columns:1fr; gap:12px; } .home-clear-start .chief-quick-access button:first-child { grid-column:auto; } .home-clear-start .chief-quick-access button { min-height:116px; padding:20px; } .home-clear-start .home-briefing-status { text-align:left; } }
+@media(prefers-reduced-motion:reduce) { .home-clear-start button { transition:none; } .home-clear-start .home-skeleton { animation:none; } }
+@media print { .workspace:has(> .home-clear-start),.role-dashboard.home-clear-start { background:white; color:black; } .home-clear-start .home-skeleton { display:none; } }
+.role-dashboard.home-clear-start .dashboard-welcome { padding:28px 0 32px; }
+.role-dashboard.home-clear-start .dashboard-welcome h1 { font-size:clamp(32px,4vw,52px); }
+.home-clear-start .chief-quick-access .home-more-tools { background:#141e30; border-color:var(--home-border); }
