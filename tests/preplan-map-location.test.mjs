@@ -39,9 +39,9 @@ test('overview map and record list have bounded, independently scrolling viewpor
 
 test('new and imported preplans and device failures use the shared fallback without saving', async () => {
   const source=await readFile(new URL('../app/field-preplans.tsx',import.meta.url),'utf8');
-  assert.match(source,/useState\(stickneyMapOverview.zoom\)/);
-  assert.match(source,/function beginNewPreplan\(\).*preplanLocationView/);
-  assert.match(source,/function startImportedBuilding\(.*preplanLocationView\(\{lat:item.latitude,lng:item.longitude\}\)/);
+  assert.match(source,/useState\(departmentMapOverview.zoom\)/);
+  assert.match(source,/function beginNewPreplan\(\).*departmentLocationView/);
+  assert.match(source,/function startImportedBuilding\(.*departmentLocationView\(\{lat:item.latitude,lng:item.longitude\}\)/);
   const locate=source.slice(source.indexOf('  function locate(){'),source.indexOf('  const locationLabel='));
   assert.match(locate,/if\(!navigator.geolocation\)\{fallback\(\);return;\}/);
   assert.match(locate,/\},fallback,/);

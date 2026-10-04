@@ -1,0 +1,23 @@
+/* Maps & Preplans: presentation only; retain map symbols and published records. */
+@media screen {
+.workspace:has(.field-preplans-page) { background:#0b1120; color:#f1f5f9; }
+.workspace:has(.field-preplans-page) .workspace-wayfinding { color:#b5c4d8; }
+.field-preplans-page.field-preplans-page { color:#f1f5f9; gap:20px; }
+.field-preplans-page.field-preplans-page :is(.field-preplan-header,.preplan-focus-header,.field-directory-tabs,.preplan-directory-controls,.field-map-toolbar,.preplan-editor,.preplan-record-hero,.preplan-record-card,.imported-building-panel,.preplan-record-metrics > div,.preplan-section-guide,.preplan-workflow-footer,.preplan-side-actions) { background:#141e30; color:#f1f5f9; border-color:#314159; border-radius:16px; }
+.field-preplans-page.field-preplans-page .field-preplan-header { padding:24px; }
+.field-preplans-page.field-preplans-page :is(h1,h2,h3,h4,label,legend,strong) { color:#f1f5f9; }
+.field-preplans-page.field-preplans-page :is(.field-preplan-header p,.preplan-focus-header p,.eyebrow,.preplan-record-empty,.preplan-save-bar > strong,.preplan-record-card dt,.field-map-toolbar small,.preplan-record-feature-heading small) { color:#b5c4d8; }
+.field-preplans-page.field-preplans-page :is(.field-preplan-actions,.field-directory-tabs,.preplan-directory-controls,.field-map-toolbar,.preplan-reader-tabs,.preplan-record-actions,.preplan-workflow-footer,.preplan-side-actions,.preplan-editor > header nav) button,.field-preplans-page.field-preplans-page > .quiet-button { background:#1b2b43; color:#e2e8f0; border-color:#415575; border-radius:10px; transition:background .18s ease,border-color .18s ease; }
+.field-preplans-page.field-preplans-page :is(.field-preplan-actions .primary-action,.field-directory-tabs button[aria-pressed=true],.preplan-directory-controls button[aria-pressed=true],.field-map-toolbar button.active,.preplan-reader-tabs button[aria-pressed=true],.preplan-workflow-footer .primary-action) { background:#2563eb; color:#fff; border-color:#3b82f6; }
+.field-preplans-page.field-preplans-page :is(.field-directory-tabs,.field-map-toolbar,.preplan-reader-tabs) button:hover:not(:disabled) { background:#243b60; border-color:#60a5fa; }
+.field-preplans-page.field-preplans-page :is(input:not([type=checkbox]):not([type=radio]),select,textarea) { background:#0e1728; color:#f1f5f9; border-color:#415575; border-radius:8px; color-scheme:dark; }
+.field-preplans-page.field-preplans-page :is(.field-map-workspace,.preplan-focus-map-panel) { border-color:#314159; border-radius:16px; overflow:hidden; }
+.field-preplans-page.field-preplans-page .field-map-workspace aside { background:#101a2c; color:#f1f5f9; border-color:#314159; }
+.field-preplans-page.field-preplans-page .field-map-workspace aside > button { background:#141e30; color:#e2e8f0; border-color:#314159; border-radius:12px; margin:8px; width:calc(100% - 16px); }
+.field-preplans-page.field-preplans-page .field-map-workspace aside > button :is(span,small) { color:#b5c4d8; }
+.field-preplans-page.field-preplans-page .record-open-label { color:#93c5fd; }
+.field-preplans-page.field-preplans-page :is(.preplan-quick-grid > article,.preplan-detail-grid > article,.preplan-photo-grid article,.preplan-contact-card,.preplan-record-feature,.imported-street-groups details,.imported-street-groups article) { background:#101a2c; color:#e2e8f0; border-color:#314159; border-radius:12px; }
+.field-preplans-page.field-preplans-page :focus-visible { outline:3px solid #60a5fa; outline-offset:3px; }
+@media(max-width:700px) { .field-preplans-page.field-preplans-page { gap:14px; } .field-preplans-page.field-preplans-page .field-preplan-header { padding:18px; } }
+@media(prefers-reduced-motion:reduce) { .field-preplans-page.field-preplans-page button { transition:none; } }
+}
