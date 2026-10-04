@@ -45,3 +45,25 @@
 .app-shell:has(#portal-workspace) .sidebar button.current { background:#1e3a8a; color:#fff; }
 @media(prefers-reduced-motion:reduce) { .workspace.bento-rest.bento-rest .content-card[aria-busy=true]::after { animation:none; } }
 }
+@media screen {
+.app-shell:has(#portal-workspace) .topbar-context strong { color:#f1f5f9; }
+.app-shell:has(#portal-workspace) :is(.topbar-context > span,.profile-copy small,.portal-footer span) { color:#b5c4d8; }
+.workspace.bento-rest.bento-rest :is(.payroll-submission-card,.payroll-correction-card,.system-health-card,.system-health-summary,.phone-section-title,.holiday-item,.pay-rule,.callback-rule-grid > div,.respond-device-intro,.respond-device-fields,.respond-device-actions,.respond-device-safety,.trend-toggle,.record-identity,.search-box,.select-button,.work-detail-form fieldset,.certification-check,.permission-admin-note,.permission-groups label,.safety-workflow-guide li,.safety-template-card footer dl > div,.safety-report-controls > header,.safety-report-tools,.safety-report-table > header) { background:#141e30; color:#e2e8f0; border-color:#314159; border-radius:12px; }
+.workspace.bento-rest.bento-rest :is(.employee-call-link,.ems-document-actions a.quiet-button,.cad-url code,.calculated-rate em,.safety-template-badges span,.safety-library-head > span) { background:#1b2b43; color:#cbd5e1; border-color:#415575; }
+.workspace.bento-rest.bento-rest :is(.safety-workflow-guide li strong,.safety-template-card footer dd,.system-health-card strong,.phone-section-title strong,.callback-rule-grid strong,.holiday-item strong,.pay-rule strong) { color:#f1f5f9; }
+.workspace.bento-rest.bento-rest .health-skeleton { background:#24344f; }
+.app-shell:has(#portal-workspace) :is(.admin-task-dialog,.workspace-tools-dialog,.workspace-guide[open],.portal-task-directory,.admin-help,.admin-task-dialog summary,.workspace-tools-dialog header,.portal-task-directory summary) { background:#141e30; color:#e2e8f0; border-color:#314159; }
+.app-shell:has(#portal-workspace) :is(.admin-task-dialog,.workspace-tools-dialog,.workspace-guide) :is(h2,h3,strong) { color:#f1f5f9; }
+.app-shell:has(#portal-workspace) :is(.admin-task-dialog,.workspace-tools-dialog,.workspace-guide) :is(p,small,span) { color:#b5c4d8; }
+}
+@media screen {
+.workspace.bento-rest.bento-rest > *, .workspace.bento-rest.bento-rest :is(.system-health-page,.cad-settings-page,.standard-page-header > div,.cad-status-grid,.cad-readiness-card,.system-health-grid,.system-health-card,.system-health-summary) { min-width:0; max-width:100%; }
+.workspace.bento-rest.bento-rest :is(.system-health-page,.cad-settings-page) { width:100%; overflow-wrap:anywhere; }
+.workspace.bento-rest.bento-rest :is(.cad-checklist > div,.cad-checklist span,.cad-readiness-card header > div,.system-health-card > div) { min-width:0; }
+.workspace.bento-rest.bento-rest .health-section-nav { flex-wrap:wrap; }
+@media(max-width:600px) {
+.workspace.bento-rest.bento-rest :is(.system-health-header,.cad-settings-page > .standard-page-header) { flex-direction:column; align-items:stretch; }
+.workspace.bento-rest.bento-rest :is(.health-section-nav,.cad-status-grid,.system-health-grid) { grid-template-columns:minmax(0,1fr); }
+.workspace.bento-rest.bento-rest .cad-readiness-card header { flex-wrap:wrap; }
+}
+}
