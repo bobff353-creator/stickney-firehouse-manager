@@ -11,7 +11,7 @@
 .workspace.bento-rest.bento-rest :is(.content-card,.kpi-card,.payroll-panel,.record-credibility,.standard-page-header,.policy-hero,.phone-hero,.phone-group,.phone-card,.employee-contact-card,.document-card,.policy-card,.box-card,.activity-card,.command-card,.command-panel,.command-summary-card,.system-health-light,.health-card,.department-card,.cad-status-grid > article,.safety-card,.safety-inspection-card,.safety-template-card,.training-card,.neris-card,.inspection-card) { background:#141e30; color:#f1f5f9; border-color:#314159; border-radius:16px; box-shadow:none; }
 .workspace.bento-rest.bento-rest :is(.standard-page-header,.policy-hero,.phone-hero) { padding:22px; margin-bottom:20px; }
 .workspace.bento-rest.bento-rest :is(.kpi-grid,.department-card-grid,.system-health-grid,.phone-grid,.document-grid,.policy-grid,.settings-layout) { gap:16px; }
-.workspace.bento-rest.bento-rest button:not(.danger):not(.delete-employee):not(.confirm-delete-button):not(.delete-record-button) { background:#1b2b43; color:#e2e8f0; border-color:#415575; border-radius:10px; transition:background .18s ease,border-color .18s ease; }
+.workspace.bento-rest.bento-rest button:where(:not(.danger):not(.delete-employee):not(.confirm-delete-button):not(.delete-record-button)) { background:#1b2b43; color:#e2e8f0; border-color:#415575; border-radius:10px; transition:background .18s ease,border-color .18s ease; }
 .workspace.bento-rest.bento-rest :is(button.primary-action,a.primary-action,.primary-action,.ops-primary,.finalize-button,button[aria-pressed=true],button[aria-current=page]) { background:#2563eb; color:#fff; border-color:#3b82f6; }
 .workspace.bento-rest.bento-rest button:hover:not(:disabled):not(.danger):not(.confirm-delete-button) { background:#243b60; border-color:#60a5fa; }
 .workspace.bento-rest.bento-rest :is(input:not([type=checkbox]):not([type=radio]),select,textarea) { background:#0e1728; color:#f1f5f9; border-color:#415575; border-radius:8px; color-scheme:dark; }
@@ -66,4 +66,7 @@
 .workspace.bento-rest.bento-rest :is(.health-section-nav,.cad-status-grid,.system-health-grid) { grid-template-columns:minmax(0,1fr); }
 .workspace.bento-rest.bento-rest .cad-readiness-card header { flex-wrap:wrap; }
 }
+}
+@media screen {
+.workspace.bento-rest.bento-rest :is(.record-identity strong,.record-number,.payroll-submission-card strong,.payroll-correction-card strong) { color:#f1f5f9; }
 }
