@@ -2,38 +2,38 @@
 @media screen {
 .workspace:has(.logbook-page), .workspace:has(.daily-log-skeleton) { background: #0b1120; color: #f1f5f9; padding-bottom: 32px; }
 .logbook-page.logbook-page { color: #f1f5f9; gap: 20px; }
-.logbook-page :is(h2,h3,h4,strong,label) { color: #f1f5f9; }
-.logbook-page :is(.content-card,.record-credibility,.log-handoff-next,.log-note-composer,.log-note-entry,.log-prior-open article) { background: #141e30; border: 1px solid #314159; border-radius: 16px; color: #f1f5f9; }
-.logbook-page :is(.log-compact-heading p,.log-compact-heading small,.log-section-intro p,.section-header p,.log-save-status small,.shift-card > summary > span:nth-child(2),.log-call-summary small,.call-entry .call-row label,.log-note-entry time,.log-note-composer > small,.log-call-group h3 span) { color: #b5c4d8; }
-.logbook-page .log-compact-heading { padding: 12px 0; }
-.logbook-page .log-sticky-tools { background: #141e30; border-color: #314159; border-radius: 16px; padding: 12px; box-shadow: 0 8px 24px #0003; }
-.logbook-page .log-sticky-tools nav a { color: #e2e8f0; border-radius: 10px; transition: background .18s ease; }
-.logbook-page .log-sticky-tools nav a:hover { background: #243b60; }
-.logbook-page :is(button,.log-print,.log-sticky-tools button,.log-call-summary button,.log-call-editing button,.log-note-composer button,.log-note-entry button,.log-prior-open button,.apparatus-check-log > .section-header button) { background: #1b2b43; color: #e2e8f0; border: 1px solid #415575; border-radius: 10px; transition: background .18s ease,border-color .18s ease; }
-.logbook-page button:hover:not(:disabled) { background: #243b60; border-color: #60a5fa; }
-.logbook-page :is(.add-call,.shift-title button,.log-note-composer button,.primary-action) { background: #2563eb; color: #fff; border-color: #3b82f6; }
-.logbook-page :focus-visible { outline-color: #60a5fa; }
-.logbook-page :is(input:not([type=checkbox]),select,textarea) { background: #0e1728; color: #f1f5f9; border-color: #415575; border-radius: 8px; color-scheme: dark; }
-.logbook-page .shift-card-grid { gap: 12px; }
-.logbook-page .shift-card > summary { background: #1b2b43; color: #f1f5f9; padding: 16px 20px; }
-.logbook-page .shift-card em { background: #1e40af; color: #dbeafe; }
-.logbook-page .log-shift-body { padding: 20px; }
-.logbook-page :is(.staff-row,.call-entry,.log-empty,.log-call-editing,.apparatus-check-empty) { background: #101a2c; color: #cbd5e1; border-color: #314159; border-radius: 10px; }
-.logbook-page .log-call-summary :is(strong,span) { color: #f1f5f9; }
-.logbook-page :is(.calls-card,.apparatus-check-log,.notes-card) { padding: 22px; }
-.logbook-page :is(.log-next,.log-handoff-next a,.log-required-checks a) { color: #93c5fd; }
-.logbook-page .log-save-status { color: #86efac; }
-.logbook-page .log-save-status.pending { color: #fcd34d; }
-.logbook-page .log-save-status.attention { color: #fca5a5; }
-.logbook-page :is(.log-attention,.log-required-checks,.log-note-entry.open,.log-recovery-banner,.log-recovery-review) { background: #302719; border-color: #80652d; color: #fde68a; }
-.logbook-page :is(.log-recovery-banner h2,.log-recovery-review h2) { color: #fde68a; }
+.logbook-page.logbook-page :is(h2,h3,h4,strong,label) { color: #f1f5f9; }
+.logbook-page.logbook-page :is(.content-card,.record-credibility,.log-handoff-next,.log-note-composer,.log-note-entry,.log-prior-open article) { background: #141e30; border: 1px solid #314159; border-radius: 16px; color: #f1f5f9; }
+.logbook-page.logbook-page :is(.log-compact-heading p,.log-compact-heading small,.log-section-intro p,.section-header p,.log-save-status small,.shift-card > summary > span:nth-child(2),.log-call-summary small,.call-entry .call-row label,.log-note-entry time,.log-note-composer > small,.log-call-group h3 span) { color: #b5c4d8; }
+.logbook-page.logbook-page .log-compact-heading { padding: 12px 0; }
+.logbook-page.logbook-page .log-sticky-tools { background: #141e30; border-color: #314159; border-radius: 16px; padding: 12px; box-shadow: 0 8px 24px #0003; }
+.logbook-page.logbook-page .log-sticky-tools nav a { color: #e2e8f0; border-radius: 10px; transition: background .18s ease; }
+.logbook-page.logbook-page .log-sticky-tools nav a:hover { background: #243b60; }
+.logbook-page.logbook-page :is(button,.log-print,.log-sticky-tools button,.log-call-summary button,.log-call-editing button,.log-note-composer button,.log-note-entry button,.log-prior-open button,.apparatus-check-log > .section-header button) { background: #1b2b43; color: #e2e8f0; border: 1px solid #415575; border-radius: 10px; transition: background .18s ease,border-color .18s ease; }
+.logbook-page.logbook-page button:hover:not(:disabled) { background: #243b60; border-color: #60a5fa; }
+.logbook-page.logbook-page :is(.add-call,.shift-title button,.log-note-composer button,.primary-action) { background: #2563eb; color: #fff; border-color: #3b82f6; }
+.logbook-page.logbook-page :focus-visible { outline-color: #60a5fa; }
+.logbook-page.logbook-page :is(input:not([type=checkbox]),select,textarea) { background: #0e1728; color: #f1f5f9; border-color: #415575; border-radius: 8px; color-scheme: dark; }
+.logbook-page.logbook-page .shift-card-grid { gap: 12px; }
+.logbook-page.logbook-page .shift-card > summary { background: #1b2b43; color: #f1f5f9; padding: 16px 20px; }
+.logbook-page.logbook-page .shift-card em { background: #1e40af; color: #dbeafe; }
+.logbook-page.logbook-page .log-shift-body { padding: 20px; }
+.logbook-page.logbook-page :is(.staff-row,.call-entry,.log-empty,.log-call-editing,.apparatus-check-empty) { background: #101a2c; color: #cbd5e1; border-color: #314159; border-radius: 10px; }
+.logbook-page.logbook-page .log-call-summary :is(strong,span) { color: #f1f5f9; }
+.logbook-page.logbook-page :is(.calls-card,.apparatus-check-log,.notes-card) { padding: 22px; }
+.logbook-page.logbook-page :is(.log-next,.log-handoff-next a,.log-required-checks a) { color: #93c5fd; }
+.logbook-page.logbook-page .log-save-status { color: #86efac; }
+.logbook-page.logbook-page .log-save-status.pending { color: #fcd34d; }
+.logbook-page.logbook-page .log-save-status.attention { color: #fca5a5; }
+.logbook-page.logbook-page :is(.log-attention,.log-required-checks,.log-note-entry.open,.log-recovery-banner,.log-recovery-review) { background: #302719; border-color: #80652d; color: #fde68a; }
+.logbook-page.logbook-page :is(.log-recovery-banner h2,.log-recovery-review h2) { color: #fde68a; }
 .workspace:has(.logbook-page) .workspace-wayfinding { color: #b5c4d8; }
 .daily-log-skeleton :is(span,strong,i) { background: #24344f; border-radius: 12px; }
 @media (max-width: 640px) {
 .logbook-page.logbook-page { gap: 14px; }
-.logbook-page :is(.calls-card,.apparatus-check-log,.notes-card,.log-shift-body) { padding: 14px; }
-.logbook-page .shift-card > summary { padding: 14px; }
-.logbook-page .log-sticky-tools { padding: 8px; }
+.logbook-page.logbook-page :is(.calls-card,.apparatus-check-log,.notes-card,.log-shift-body) { padding: 14px; }
+.logbook-page.logbook-page .shift-card > summary { padding: 14px; }
+.logbook-page.logbook-page .log-sticky-tools { padding: 8px; }
 }
-@media (prefers-reduced-motion: reduce) { .logbook-page :is(button,a) { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .logbook-page.logbook-page :is(button,a) { transition: none; } }
 }
