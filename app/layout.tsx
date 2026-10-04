@@ -14,6 +14,7 @@ import "./daily-log-bento.css";
 import "./scheduler-bento.css";
 import "./preplans/bento.css";
 import "./road-closures-bento.css";
+import "./remaining-bento.css";
 
 export const viewport: Viewport = {
   width: "device-width",

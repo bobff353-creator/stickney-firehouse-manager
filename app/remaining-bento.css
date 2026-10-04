@@ -1,0 +1,47 @@
+/* Remaining portal tools share one presentation layer; operational data is unchanged. */
+@media screen {
+.app-shell:has(#portal-workspace) { background:#0b1120; color:#f1f5f9; }
+.app-shell:has(#portal-workspace) > .topbar,.app-shell:has(#portal-workspace) .sidebar,.app-shell:has(#portal-workspace) .portal-footer { background:#101a2c; color:#e2e8f0; border-color:#314159; }
+.app-shell:has(#portal-workspace) .topbar :is(.profile-copy strong,.department-brand,.portal-title) { color:#f1f5f9; }
+.app-shell:has(#portal-workspace) .sidebar button { color:#cbd5e1; }
+.app-shell:has(#portal-workspace) .sidebar button.active { background:#1e3a8a; color:#fff; border-color:#3b82f6; }
+.workspace.bento-rest.bento-rest { background:#0b1120; color:#f1f5f9; }
+.workspace.bento-rest.bento-rest :is(h1,h2,h3,h4,h5,label,legend) { color:#f1f5f9; }
+.workspace.bento-rest.bento-rest :is(p,small,dt,.eyebrow,.helper-note,.muted,.workspace-wayfinding,.section-header p) { color:#b5c4d8; }
+.workspace.bento-rest.bento-rest :is(.content-card,.kpi-card,.payroll-panel,.record-credibility,.standard-page-header,.policy-hero,.phone-hero,.phone-group,.phone-card,.employee-contact-card,.document-card,.policy-card,.box-card,.activity-card,.command-card,.command-panel,.command-summary-card,.system-health-light,.health-card,.department-card,.cad-status-grid > article,.safety-card,.safety-inspection-card,.safety-template-card,.training-card,.neris-card,.inspection-card) { background:#141e30; color:#f1f5f9; border-color:#314159; border-radius:16px; box-shadow:none; }
+.workspace.bento-rest.bento-rest :is(.standard-page-header,.policy-hero,.phone-hero) { padding:22px; margin-bottom:20px; }
+.workspace.bento-rest.bento-rest :is(.kpi-grid,.department-card-grid,.system-health-grid,.phone-grid,.document-grid,.policy-grid,.settings-layout) { gap:16px; }
+.workspace.bento-rest.bento-rest button:not(.danger):not(.delete-employee):not(.confirm-delete-button):not(.delete-record-button) { background:#1b2b43; color:#e2e8f0; border-color:#415575; border-radius:10px; transition:background .18s ease,border-color .18s ease; }
+.workspace.bento-rest.bento-rest :is(button.primary-action,a.primary-action,.primary-action,.ops-primary,.finalize-button,button[aria-pressed=true],button[aria-current=page]) { background:#2563eb; color:#fff; border-color:#3b82f6; }
+.workspace.bento-rest.bento-rest button:hover:not(:disabled):not(.danger):not(.confirm-delete-button) { background:#243b60; border-color:#60a5fa; }
+.workspace.bento-rest.bento-rest :is(input:not([type=checkbox]):not([type=radio]),select,textarea) { background:#0e1728; color:#f1f5f9; border-color:#415575; border-radius:8px; color-scheme:dark; }
+.workspace.bento-rest.bento-rest option { background:#0e1728; color:#f1f5f9; }
+.workspace.bento-rest.bento-rest :is(input[type=checkbox],input[type=radio]) { accent-color:#2563eb; }
+.workspace.bento-rest.bento-rest :is(.toolbar,.review-bar,.table-wrap,.settings-grid,.record-details-toggle,.period-row,.permission-tabs,.health-section-nav,.activity-toolbar,.duty-view-controls,.phone-search,.resource-search,.rate-head,.rate-row,.rate-effective-control,.calculated-rate,.input-unit,.policy-step,.callback-reviewer-row,.member-picker,.member-picker-trigger,.safety-page-head,.safety-editor-picker) { background:#101a2c; color:#e2e8f0; border-color:#314159; border-radius:12px; }
+.workspace.bento-rest.bento-rest :is(table,tbody,tr,td) { background:transparent; color:#e2e8f0; border-color:#314159; }
+.workspace.bento-rest.bento-rest :is(thead,th) { background:#1b2b43; color:#cbd5e1; border-color:#415575; }
+.workspace.bento-rest.bento-rest tbody tr:hover { background:#1b2b43; }
+.workspace.bento-rest.bento-rest :is(.content-card,.kpi-card,.phone-card,.department-card,.activity-card) strong { color:#f1f5f9; }
+.workspace.bento-rest.bento-rest :is(a:not(.primary-action),.text-link) { color:#93c5fd; }
+.workspace.bento-rest.bento-rest :is(.error-banner,.error,.safety-message.error) { background:#472126; color:#fecaca; border-color:#90414b; border-radius:12px; }
+.workspace.bento-rest.bento-rest :is(.error-banner,.error,.safety-message.error) :is(p,strong,small) { color:#fecaca; }
+.workspace.bento-rest.bento-rest :is(.success,.safety-message.success) { background:#15382a; color:#bbf7d0; border-color:#286044; }
+.workspace.bento-rest.bento-rest :focus-visible { outline:3px solid #60a5fa; outline-offset:3px; }
+/* Command Board remains compact in full screen; hazards and Mayday colors remain semantic. */
+.workspace:has(.icb-page) { background:#0b1120; }
+.icb-page.icb-page { background:#0b1120; color:#f1f5f9; }
+.icb-page.icb-page :is(.icb-reference-header,.icb-dark-panel,.icb-idle-preview,.icb-preview-grid > section,.icb-quick-editor,.icb-history-drawer) { background:#141e30; border-color:#314159; }
+.icb-page.icb-page :is(.icb-fullscreen,.icb-quick-editor > footer .primary) { background:#2563eb; color:#fff; border-color:#3b82f6; }
+@media(max-width:600px) { .workspace.bento-rest.bento-rest :is(.standard-page-header,.policy-hero,.phone-hero) { padding:16px; margin-bottom:14px; } }
+@media(prefers-reduced-motion:reduce) { .workspace.bento-rest.bento-rest button { transition:none; } }
+}
+@media screen {
+.workspace.bento-rest.bento-rest :is(.trend-card,.command-center-hero,.safety-workflow-guide,.safety-report-controls,.safety-report-table,.safety-kpis > article,.safety-empty,.safety-template-card > footer,.safety-template-card > header,.safety-form-card,.safety-checkpoint,.safety-inspection-summary,.safety-editor-section,.phone-category,.phone-entry,.resource-card,.resource-list,.document-reader,.policy-section,.department-card,.system-health-check,.training-panel,.neris-panel,.fi-panel,.fire-inspection-panel,.call-breakdown-dialog) { background:#141e30; color:#f1f5f9; border-color:#314159; border-radius:16px; }
+.workspace.bento-rest.bento-rest :is(.trend-card > span,.safety-workflow-guide span,.safety-template-card span,.safety-kpis span,.phone-entry span,.resource-card span,.command-center-hero span) { color:#b5c4d8; }
+.workspace.bento-rest.bento-rest :is(.portal-skeleton,.safety-loading) :is(i,span,strong),.workspace.bento-rest.bento-rest .content-card[aria-busy=true]::after { background:#24344f; border-radius:12px; }
+.workspace.bento-rest.bento-rest .content-card[aria-busy=true]::after { content:''; display:block; height:100px; margin-top:16px; background:linear-gradient(100deg,#141e30 25%,#24344f 50%,#141e30 75%); background-size:200% 100%; animation:remaining-shimmer 1.6s ease infinite; }
+@keyframes remaining-shimmer { to { background-position:-200% 0; } }
+.app-shell:has(#portal-workspace) .topbar :is(.brand-copy strong,.profile strong,.page-title) { color:#f1f5f9; }
+.app-shell:has(#portal-workspace) .sidebar button.current { background:#1e3a8a; color:#fff; }
+@media(prefers-reduced-motion:reduce) { .workspace.bento-rest.bento-rest .content-card[aria-busy=true]::after { animation:none; } }
+}
