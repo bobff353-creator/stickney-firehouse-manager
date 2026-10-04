@@ -43,3 +43,5 @@
 .role-dashboard.home-clear-start .dashboard-welcome { padding:28px 0 32px; }
 .role-dashboard.home-clear-start .dashboard-welcome h1 { font-size:clamp(32px,4vw,52px); }
 .home-clear-start .chief-quick-access .home-more-tools { background:#141e30; border-color:var(--home-border); }
+.role-dashboard.home-clear-start .chief-quick-access button small { color:#c4d0e3; }
+.role-dashboard.home-clear-start .chief-quick-access button:first-child small { color:#e2edff; }
