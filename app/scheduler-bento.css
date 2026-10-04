@@ -28,3 +28,11 @@
 @media(max-width:600px) { .scheduler.scheduler { padding:14px; } .scheduler.scheduler .scheduler-task-choices button { padding:18px; min-height:120px; } .scheduler-loading-panels { grid-template-columns:1fr; } }
 @media(prefers-reduced-motion:reduce) { .scheduler.scheduler button { transition:none; } .scheduler-loading-panels span { animation:none; } }
 }
+@media screen {
+.scheduler.scheduler button:not(.link):not(.danger) { background:#2563eb; border-color:#3b82f6; color:#fff; }
+.scheduler.scheduler :is(.scheduler-tabs,.scheduler-task-groups,.scheduler-coverage-days,.scheduler-task-choices) button:not(.current):not([aria-pressed=true]) { background:#1b2b43; border-color:#314159; }
+.scheduler.scheduler .scheduler-view-bar > button:not(.current) { background:#1b2b43; border-color:#314159; }
+.scheduler.scheduler .scheduler-member-shift > div > :first-child { color:#93c5fd; }
+.scheduler.scheduler input[type=checkbox] { accent-color:#2563eb; }
+.workspace:has(.scheduler) .workspace-wayfinding { color:#b5c4d8; }
+}
