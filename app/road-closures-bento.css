@@ -18,3 +18,10 @@
 @media(max-width:600px) { .road-closures-page.road-closures-page .road-closures-hero { padding:18px; } }
 @media(prefers-reduced-motion:reduce) { .road-closures-page.road-closures-page button { transition:none; } }
 }
+@media screen {
+.road-closures-page.road-closures-page .road-closures-hero > strong.clear { background:#15382a; color:#86efac; border-color:#286044; }
+.road-closures-page.road-closures-page .road-closures-hero > strong.has-closures { background:#472126; color:#fca5a5; border-color:#90414b; }
+.road-closures-page.road-closures-page .road-workflow-steps { background:transparent; gap:10px; }
+.road-closures-page.road-closures-page .road-workflow-steps li:not(.done) b { background:#24344f; color:#cbd5e1; }
+.road-closures-page.road-closures-page .road-location-search label > span { color:#b5c4d8; }
+}
