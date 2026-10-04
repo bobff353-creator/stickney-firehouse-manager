@@ -31,7 +31,7 @@ test('only full-screen hides location management and the map title; live hooks s
   assert.match(css, /\.respond-page\.monitor-view \.apparatus-location-panel,/);
   assert.match(css, /\.respond-overview-page\.monitor-view > \.respond-title,/);
   assert.match(respond, /const locations=useApparatusLocations\(Boolean\(apparatus\)\|\|monitorMode/);
-  assert.match(respond, /<RespondOverviewMap\s+locationModel=\{locations\}/);
+  assert.match(respond, /<RespondOverviewMap\b[^>]*locationModel=\{locations\}/);
   assert.doesNotMatch(css, /(?:^|\})\s*\.apparatus-location-panel\s*\{/);
 });
 
@@ -63,7 +63,7 @@ test('monitor hides secondary sections without removing saved records from norma
 test('apparatus map is a keyboard-accessible tactical tab sharing the current location model', () => {
   assert.match(respond, /"D",\s*"apparatus",/);
   assert.match(respond, /item === "apparatus" \? "Apparatus"/);
-  assert.match(respond, /view === "apparatus" && <RespondOverviewMap locationModel=\{locations\} apparatusOnly respondingUnits=\{call.respondingUnits\}/);
+  assert.match(respond, /view === "apparatus" && <RespondOverviewMap\b[^>]*locationModel=\{locations\} apparatusOnly respondingUnits=\{call.respondingUnits\}/);
   assert.match(respond, /onKeyDown=\{\(event\) => moveContextTab\(event, item\)\}/);
   assert.match(css, /\.respond-context > nav:has\(#respond-tab-apparatus\)/);
 });

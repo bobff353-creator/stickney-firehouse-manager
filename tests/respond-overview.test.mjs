@@ -28,9 +28,9 @@ test("idle Respond uses the real Stickney map data sources", async () => {
   assert.match(overview, /Hydrants/);
   assert.match(overview, /Road closures/);
   assert.match(overview, /clusterRecentCallLocations/);
-  assert.match(overview, /initialCallMapView/);
-  assert.match(overview, /const \[initialView\] = useState\(\(\) => initialCallMapView\(recentCalls\)\)/);
-  assert.match(overview, /span > 0\.055 \? 14 : span > 0\.022 \? 15 : 16/);
+  assert.match(overview, /fullScreen && hasFocusedLocation/);
+  assert.match(overview, /const \[initialView\] = useState\(\(\) => \(\{ center: stickneyCenter, zoom: 16 \}\)\)/);
+  assert.match(overview, /focusedLongitude! \} : stickneyCenter/);
   assert.match(overview, /Show \$\{cluster\.calls\.length\} recent calls at this location/);
   assert.match(overview, /respond-map-marker call/);
   assert.doesNotMatch(`${route}\n${respond}\n${overview}`, /Fermilab|KUBOTA|Main Ring Road|Kautz Road/i);
