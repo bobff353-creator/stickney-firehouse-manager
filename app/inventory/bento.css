@@ -1,0 +1,27 @@
+/* Shared slate presentation for the real inventory workspace. */
+@media screen {
+body:has(.inventory-app-shell) { background:#0b1120; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh { --ink:#f1f5f9; --muted:#b5c4d8; --line:#314159; --paper:#0b1120; --panel:#141e30; --night:#0b1120; --night-2:#1b2b43; --blue:#2563eb; background:#0b1120; color:#f1f5f9; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh .topbar { background:#101a2c; border-bottom-color:#314159; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.inventory-command-hero,.ops-card,.fleet-card,.truth-panel,.operational-state,.setup-intro,.inventory-report-detail,.check-journey,.inventory-attention-cards button,.inventory-status-strip button,.metrics article,.inventory-metrics > div,.setup-source-summary article) { background:#141e30; border:1px solid #314159; border-radius:16px; color:#f1f5f9; box-shadow:none; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.inventory-command-hero,.ops-card) { padding:24px; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(h1,h2,h3,h4,strong,label,legend) { color:#f1f5f9; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(p,small,.eyebrow,.muted,.check-item-copy > small,.check-journey-path,.inventory-command-back) { color:#b5c4d8; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(button,.primary,.secondary,.ops-primary,.inventory-section-nav button,.inventory-workflow button,.setup-workspace-tabs button) { background:#1b2b43; color:#e2e8f0; border-color:#415575; border-radius:10px; transition:background .18s ease,border-color .18s ease; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.primary,.ops-primary,button.active,button[aria-pressed=true],.inventory-section-nav button.active,.inventory-workflow button.active,.setup-workspace-tabs button.active) { background:#2563eb; border-color:#3b82f6; color:#fff; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh button:hover:not(:disabled) { background:#243b60; border-color:#60a5fa; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(input:not([type=checkbox]):not([type=radio]),select,textarea) { background:#0e1728; color:#f1f5f9; border-color:#415575; color-scheme:dark; border-radius:8px; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh option { background:#0e1728; color:#f1f5f9; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.check-row,.check-item,.ops-empty,.repair-column,.stock-grid article,.check-review-sections button,.inventory-more-tools) { background:#101a2c; color:#e2e8f0; border-color:#314159; border-radius:12px; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.fleet-grid,.inventory-attention-cards,.check-review-sections) { gap:16px; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :focus-visible { outline:3px solid #60a5fa; outline-offset:3px; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh .operational-state.loading::after { content:''; display:block; margin-top:16px; height:72px; border-radius:10px; background:linear-gradient(100deg,#1b2b43 25%,#314159 50%,#1b2b43 75%); background-size:200% 100%; animation:inventory-shimmer 1.6s ease infinite; }
+@keyframes inventory-shimmer { to { background-position:-200% 0; } }
+@media(max-width:600px) { .inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.inventory-command-hero,.ops-card) { padding:18px; } }
+@media(prefers-reduced-motion:reduce) { .inventory-app-shell.inventory-app-shell.inventory-portal-refresh button { transition:none; } .inventory-app-shell.inventory-app-shell.inventory-portal-refresh .operational-state.loading::after { animation:none; } }
+}
+@media screen {
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh .due-check-grid { gap:16px; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh .due-check-grid > article { background:#141e30; color:#f1f5f9; border-color:#314159; border-radius:16px; padding:22px; box-shadow:none; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh .due-check-grid > article.in-progress { border-top-color:#60a5fa; }
+}

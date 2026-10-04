@@ -3,6 +3,7 @@ import "./usability.css";
 import "./air-systems.css";
 import "./service-schedule.css";
 import "../suite-theme.css";
+import "./bento.css";
 
 export const metadata = {
   title: "Inventory & Apparatus Checks | Stickney Firehouse Manager",
