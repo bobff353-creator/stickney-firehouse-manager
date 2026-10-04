@@ -21,3 +21,11 @@
 @media(max-width:700px) { .field-preplans-page.field-preplans-page { gap:14px; } .field-preplans-page.field-preplans-page .field-preplan-header { padding:18px; } }
 @media(prefers-reduced-motion:reduce) { .field-preplans-page.field-preplans-page button { transition:none; } }
 }
+@media screen {
+.field-preplans-page.field-preplans-page .field-directory-tabs button span { color:#cbd5e1; }
+.field-preplans-page.field-preplans-page .field-map-workspace aside > header { background:#141e30; color:#f1f5f9; border-color:#314159; }
+.field-preplans-page.field-preplans-page .preplan-record-metrics > article { background:#141e30; color:#f1f5f9; border-color:#314159; border-radius:12px; }
+.field-preplans-page.field-preplans-page :is(.preplan-record-view p,.preplan-record-metrics span,.preplan-record-metrics small,.preplan-record-card dt) { color:#b5c4d8; }
+.field-preplans-page.field-preplans-page .preplan-record-actions a { background:#1b2b43; color:#93c5fd; border-color:#415575; border-radius:10px; }
+.field-preplans-page.field-preplans-page .field-preplan-actions button { background:#2563eb; border-color:#3b82f6; color:#fff; }
+}
