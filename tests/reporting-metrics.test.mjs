@@ -2,6 +2,20 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { trainingModules } from './helpers/training-modules.mjs';
 const load = trainingModules(), metrics = load('app/reporting-metrics.ts'), model = load('app/neris/model.ts'), desk = load('app/neris/reporting-desk.ts');
+const navigation = load('app/portal-navigation.ts');
+
+test('chief report dates survive source navigation and return, while invalid saved ranges fall back within coverage', () => {
+  const coverage = ['2026-10-01', '2026-10-05'];
+  const search = '?page=command-center&display=portal&reportStart=2026-10-02&reportEnd=2026-10-04';
+  const source = navigation.portalPageUrl('/', search, 'Daily Log');
+  assert.equal(navigation.portalPageFromSearch(source.split('?')[1]), 'Daily Log');
+  const back = navigation.portalPageUrl('/', source.split('?')[1], 'Command Center');
+  assert.deepEqual(metrics.restoredReportRange(back.split('?')[1], ...coverage), { start: '2026-10-02', end: '2026-10-04' });
+  for (const invalid of ['', '?reportStart=2026-10-02', '?reportStart=2026-02-30&reportEnd=2026-10-04', '?reportStart=2026-10-06&reportEnd=2026-10-05']) {
+    assert.deepEqual(metrics.restoredReportRange(invalid, ...coverage), { start: coverage[0], end: coverage[1] });
+  }
+  assert.equal(navigation.portalPageFromSearch(`?page=${navigation.pageSlug('CAD Integration')}`), 'CAD Integration');
+});
 test('trend windows include twelve consecutive calendar periods rather than twelve nonempty old periods', () => {
   const weeks=metrics.trendPeriodKeys('2026-10-05','weekly');assert.equal(weeks.length,12);assert.equal(weeks[0],'2026-07-20');assert.equal(weeks.at(-1),'2026-10-05');
   const months=metrics.trendPeriodKeys('2026-01-31','monthly');assert.equal(months[0],'2025-02');assert.equal(months.at(-1),'2026-01');

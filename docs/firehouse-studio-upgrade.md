@@ -410,3 +410,9 @@ signed-in read-only acceptance are verified separately after publication.
 This is the final planned upgrade batch. External vendor enrollment, approved
 adapters, end-to-end receipts, additional source-specific analytics and optional
 permission-aware AI remain follow-on capabilities, not completed connections.
+
+Signed-in acceptance found client links updating the URL without switching the
+portal workspace. The grouped acceptance correction uses the portal navigator,
+routes integration settings to CAD Integration, restores both report dates after
+source visits, and hides workspace navigation in the focused print view. Invalid
+persisted ranges fall back to available coverage; no department records change.

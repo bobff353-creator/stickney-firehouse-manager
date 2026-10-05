@@ -33,6 +33,14 @@ export function reportRange(start: string, end: string, earliest: string, latest
   if (![start, end].every(validReportDate) || start > end || start < earliest || end > latest) throw Error(`Choose dates from ${earliest} through ${latest}, with the start before the end.`);
   return { start, end };
 }
+export function restoredReportRange(search: string, earliest: string, latest: string) {
+  const params = new URLSearchParams(search);
+  try { return reportRange(params.get('reportStart') || '', params.get('reportEnd') || '', earliest, latest); }
+  catch {
+    const from = new Date(`${latest}T12:00:00Z`); from.setUTCDate(from.getUTCDate() - 29);
+    return { start: [earliest, from.toISOString().slice(0, 10)].sort().at(-1)!, end: latest };
+  }
+}
 export function chiefSummary(days: ReportDay[], sources: AnalyticsSources, start: string, end: string) {
   const selected = days.filter(day => day.date >= start && day.date <= end);
   return reportDefinitions.map(metric => {

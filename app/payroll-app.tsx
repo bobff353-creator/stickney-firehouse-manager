@@ -1075,7 +1075,7 @@ export default function PayrollApp({
         {visibleNav.includes(activeNav) && <>
           {activeNav === "Dashboard" && <TodayDashboard departmentName={departmentName} onNavigate={navigate} allowedPages={visibleNav} showPersonalShift={!testMember} />}
           {activeNav === "Inventory" && <section className="content-card action-empty-state"><div><h1>Apparatus Checks &amp; Inventory</h1><p>Open the dedicated workspace to choose an apparatus, complete checks, and find equipment.</p></div><button type="button" className="primary-action" disabled={openingInventory} onClick={() => void openInventory()}>{openingInventory ? "Checking access…" : "Open Apparatus Checks"}</button></section>}
-          {activeNav === "Command Center" && <CommandCenter />}
+          {activeNav === "Command Center" && <CommandCenter onNavigate={navigate} />}
           {activeNav === "Work Details" && <WorkDetails onPayrollChanged={(approvedPeriodStart) => { setPeriodStart(approvedPeriodStart); }} />}
           {activeNav === "Scheduling" && <StationScheduler key={navigationVersion} testMember={testMember} />}
 
