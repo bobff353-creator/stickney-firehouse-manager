@@ -6,6 +6,8 @@ import { RecordCredibility, type Revision } from "./record-credibility";
 import { confirmLeavingWork, useUnsavedWork } from "./use-unsaved-work";
 import { readPortalJson } from "./portal-status";
 import { useWorkspaceViewState } from "./workspace-view-state";
+import { controlledDocumentTypes,emptyDocumentState,type DocumentState } from './document-workflow';
+import { DocumentWorkflowPanel } from './document-workflow-panel';
 
 type AuditFields = {
   status?: string;
@@ -16,7 +18,7 @@ type AuditFields = {
   revisions?: Revision[];
 };
 
-type Policy = AuditFields & { id: string; title: string; policyNumber: string; category: string; effectiveDate: string; body: string };
+type Policy = AuditFields & { id: string; title: string; policyNumber: string; category: string; effectiveDate: string; body: string;documentType?:string;sourceUrl?:string;workflow?:DocumentState };
 type BoxCardLayout = { signature: string; division: string; rows: Array<{ alarm: string; cells: string[] }>; interdivisional: string[] };
 type BoxCard = AuditFields & { id: string; title: string; address: string; boxNumber: string; accessNotes: string; details: string; department: string; documentUrl?: string; documentPage?: number; effectiveDate?: string; reviewDate?: string; layoutData?: string };
 
@@ -49,23 +51,26 @@ function BoxCardSheet({ card }: { card: BoxCard }) {
   </div></div></>;
 }
 
-function PolicyRecord({ policy, canEdit, onEdit }: { policy: Policy; canEdit: boolean; onEdit: () => void }) {
+function PolicyRecord({ policy, canEdit, onEdit,onChange }: { policy: Policy; canEdit: boolean; onEdit: () => void;onChange:()=>Promise<unknown> }) {
   return <article className="content-card resource-record official-record policy-reader">
     <div className="resource-record-head">
       <div><span>{policy.category || "General"} · Policy {policy.policyNumber}</span><h2>{policy.title}</h2>{policy.effectiveDate && <time>Effective {policy.effectiveDate}</time>}</div>
       {canEdit && <button className="edit-employee no-print" onClick={onEdit}>Edit</button>}
     </div>
     <div className="resource-copy">{policy.body || "No policy text has been entered."}</div>
+    {policy.workflow?.draft&&canEdit&&<p role="status">An unpublished draft is saved. The text above remains the published or legacy content.</p>}
+    <DocumentWorkflowPanel key={`${policy.id}:${policy.workflow?.revision??''}`} id={policy.id} revision={policy.workflow?.revision??''} onChange={onChange}/>
     <RecordCredibility audit={{ recordNumber: `POL-${policy.policyNumber || policy.id.slice(0, 8).toUpperCase()}`, status: policy.status || "Active", createdBy: policy.createdBy, createdAt: policy.createdAt, updatedBy: policy.updatedBy, updatedAt: policy.updatedAt, revisions: policy.revisions }} />
   </article>;
 }
 
-function PolicyLibrary({ policies, selectedId, onSelect, canEdit, onEdit }: {
+function PolicyLibrary({ policies, selectedId, onSelect, canEdit, onEdit,onChange }: {
   policies: Policy[];
   selectedId: string;
   onSelect: (id: string) => void;
   canEdit: boolean;
   onEdit: (policy: Policy) => void;
+  onChange:()=>Promise<unknown>;
 }) {
   const selected = policies.find((policy) => policy.id === selectedId) ?? policies[0];
   if (!selected) return null;
@@ -82,7 +87,7 @@ function PolicyLibrary({ policies, selectedId, onSelect, canEdit, onEdit }: {
         })}
       </div>
     </nav>
-    <PolicyRecord policy={selected} canEdit={canEdit} onEdit={() => onEdit(selected)} />
+    <PolicyRecord policy={selected} canEdit={canEdit} onEdit={() => onEdit(selected)} onChange={onChange}/>
   </div>;
 }
 
@@ -101,6 +106,7 @@ function SharedPage({ type }: { type: "policy" | "boxCard" }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [readerOpen, setReaderOpen] = useState(false);
+  const [documentKind,setDocumentKind]=useState(''),[includeArchived,setIncludeArchived]=useState(false);
   useUnsavedWork(Boolean(draft) && JSON.stringify(draft) !== draftBaseline, saving);
 
   const load = useCallback(async () => {
@@ -129,8 +135,8 @@ function SharedPage({ type }: { type: "policy" | "boxCard" }) {
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return query ? items.filter((item) => Object.values(item).join(" ").toLowerCase().includes(query)) : items;
-  }, [items, search]);
+    return items.filter(item=>{const policy=item as Policy;return (!query||Object.values(item).join(' ').toLowerCase().includes(query))&&(!isPolicy||(!documentKind||(policy.workflow?.publishedType??(policy.status==='Draft'?policy.workflow?.draft?.documentType:'Policy')??'Policy')===documentKind)&&(!policy.workflow?.archived||includeArchived&&canEdit));});
+  }, [items, search,isPolicy,documentKind,includeArchived,canEdit]);
   const filteredPolicies = isPolicy ? filtered as Policy[] : [];
   const boxCards = useMemo(() => !isPolicy ? items as BoxCard[] : [], [isPolicy, items]);
   const departments = useMemo(() => Array.from(new Set(boxCards.map((card) => card.department || "Stickney"))).sort(), [boxCards]);
@@ -144,7 +150,7 @@ function SharedPage({ type }: { type: "policy" | "boxCard" }) {
     if (!draft || saving) return;
     setSaving(true); setError(""); setMessage("");
     try {
-    const response = await fetch(`/api/resources?type=${type}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(draft) });
+    const response = await fetch(`/api/resources?type=${type}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({...draft,...(isPolicy?{revision:(draft as Policy).workflow?.revision??''}:{})}),signal:AbortSignal.timeout(20000) });
     const result = await response.json() as { error?: string; id?: string };
     if (!response.ok) throw new Error(result.error || "Unable to save record");
     setDraft(null);
@@ -153,12 +159,13 @@ function SharedPage({ type }: { type: "policy" | "boxCard" }) {
     const savedRecord = refreshed?.find(item => item.id === (result.id || draft.id));
     if (savedRecord) {
       setSearch("");
+      if (isPolicy) setDocumentKind('');
       if (!isPolicy) setSelectedDepartment((savedRecord as BoxCard).department || "Stickney");
       const url = new URL(window.location.href);
       url.searchParams.set(isPolicy ? "policy" : "boxCard", savedRecord.id);
       window.history.replaceState(null, "", url);
       openReader(savedRecord.id);
-      setMessage(`${isPolicy ? "Policy" : "Box Card"} saved. Showing the reloaded member-facing record.`);
+      setMessage(isPolicy?'Draft saved. Review and publish it in Versions & acknowledgements. The member-facing text is retained.':'Box Card saved. Showing the reloaded member-facing record.');
     } else {
       setReaderOpen(false);
       setMessage("Saved, but the saved record could not be reloaded for preview. Retry the library before checking the result.");
@@ -169,8 +176,9 @@ function SharedPage({ type }: { type: "policy" | "boxCard" }) {
 
   function editRecord(record: Policy | BoxCard) {
     if (!confirmLeavingWork()) return;
-    setDraft({ ...record });
-    setDraftBaseline(JSON.stringify(record));
+    const nextRecord=isPolicy?{...record,id:record.id||crypto.randomUUID(),documentType:(record as Policy).workflow?.publishedType??'Policy',sourceUrl:(record as Policy).workflow?.publishedReference??'',...(record as Policy).workflow?.draft,workflow:(record as Policy).workflow??emptyDocumentState()}:{...record};
+    setDraft(nextRecord);
+    setDraftBaseline(JSON.stringify(nextRecord));
     window.setTimeout(() => document.querySelector<HTMLElement>(".resource-form")?.scrollIntoView({ block: "start", behavior: "instant" }), 0);
   }
 
@@ -193,6 +201,7 @@ function SharedPage({ type }: { type: "policy" | "boxCard" }) {
       {canEdit ? <button className="primary-action" disabled={saving} onClick={() => editRecord(isPolicy ? emptyPolicy : emptyBoxCard)}>+ Add {isPolicy ? "Policy" : "Box Card"}</button> : <span className="read-only-badge">View only</span>}
     </div>
     {(isPolicy || selectedDepartment) && <label className="resource-search" data-test-safe><span aria-hidden="true">⌕</span><span className="sr-only">Search {isPolicy ? "policies" : "box cards"}</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Search ${isPolicy ? "by number, title, category, or policy text" : `${selectedDepartment} by box number, type, or area`}…`} /></label>}
+    {isPolicy&&<div className="document-library-filters"><label>Document type<select value={documentKind} onChange={e=>setDocumentKind(e.target.value)}><option value="">All document types</option>{controlledDocumentTypes.map(kind=><option key={kind}>{kind}</option>)}</select></label>{canEdit&&<label><input type="checkbox" checked={includeArchived} onChange={e=>setIncludeArchived(e.target.checked)}/>Include archived documents</label>}</div>}
     {loading && <p role="status">Loading library…</p>}
     {error && <div className="error-banner" role="alert"><span>{error}</span><button type="button" disabled={loading || saving} onClick={() => void load()}>Retry library</button></div>}
     {readerOpen && !draft && <button type="button" className="quiet-button resource-reader-back" onClick={backToList}>← Back to {isPolicy ? "policies" : "cards"}</button>}
@@ -200,12 +209,14 @@ function SharedPage({ type }: { type: "policy" | "boxCard" }) {
 
     {draft && <form className="content-card resource-form" onSubmit={(event) => void save(event)}>
       <fieldset className="portal-save-fields" disabled={saving}>
-      <div className="section-header"><div><h2>{draft.id ? "Edit" : "Add"} {isPolicy ? "Policy" : "Box Card"}</h2><p>Changes become available to everyone immediately after saving.</p></div><button type="button" className="quiet-button" disabled={saving} onClick={() => { if (confirmLeavingWork()) setDraft(null); }}>Cancel</button></div>
+      <div className="section-header"><div><h2>{draft.id ? "Edit" : "Add"} {isPolicy ? "document draft" : "Box Card"}</h2><p>{isPolicy?'Save a draft, review it, then publish a new version. Historical versions and receipts remain.':'Changes become available to everyone immediately after saving.'}</p></div><button type="button" className="quiet-button" disabled={saving} onClick={() => { if (confirmLeavingWork()) setDraft(null); }}>Cancel</button></div>
       {isPolicy ? (() => { const value = draft as Policy; return <div className="resource-form-grid">
         <label className="resource-title"><span>Policy title *</span><input required value={value.title} onChange={(event) => setDraft({ ...value, title: event.target.value })} /></label>
         <label><span>Policy number</span><input value={value.policyNumber} onChange={(event) => setDraft({ ...value, policyNumber: event.target.value })} /></label>
         <label><span>Category</span><input value={value.category} onChange={(event) => setDraft({ ...value, category: event.target.value })} /></label>
-        <label><span>Effective date</span><input type="date" value={value.effectiveDate} onChange={(event) => setDraft({ ...value, effectiveDate: event.target.value })} /></label>
+        <label><span>Document type</span><select value={value.documentType??'Policy'} onChange={event=>setDraft({...value,documentType:event.target.value})}>{controlledDocumentTypes.map(kind=><option key={kind}>{kind}</option>)}</select></label>
+        <label><span>Document reference (https)</span><input type="url" value={value.sourceUrl??''} onChange={event=>setDraft({...value,sourceUrl:event.target.value})}/></label>
+        <label><span>Effective date</span><input type="date" value={value.effectiveDate} onInput={(event) => setDraft({ ...value, effectiveDate: event.currentTarget.value })} onChange={(event) => setDraft({ ...value, effectiveDate: event.target.value })} /></label>
         <label className="resource-body"><span>Policy text</span><textarea rows={12} value={value.body} onChange={(event) => setDraft({ ...value, body: event.target.value })} /></label>
       </div>; })() : (() => { const value = draft as BoxCard; const layout = readLayout(value.layoutData); const updateLayout = (next: BoxCardLayout) => setDraft({ ...value, layoutData: JSON.stringify(next) }); return <div className="resource-form-grid">
         <label className="resource-title"><span>Alarm type / card title *</span><input required value={value.title} onChange={(event) => setDraft({ ...value, title: event.target.value })} /></label>
@@ -220,11 +231,11 @@ function SharedPage({ type }: { type: "policy" | "boxCard" }) {
         <div className="resource-body interdivisional-editor"><strong>Interdivisional request</strong>{layout.interdivisional.map((choice, index) => <label key={index}><span>{index + 1}{index === 0 ? "st" : index === 1 ? "nd" : "rd"} choice</span><input value={choice} onChange={(event) => updateLayout({ ...layout, interdivisional: layout.interdivisional.map((item, choiceIndex) => choiceIndex === index ? event.target.value : item) })} /></label>)}</div>
         <label className="resource-body"><span>Information / special instructions</span><textarea rows={5} value={value.accessNotes} onChange={(event) => setDraft({ ...value, accessNotes: event.target.value })} placeholder="Station location, callback, rehab, staging, or other information…" /></label>
       </div>; })()}
-      <div className="admin-save-bar"><span>{JSON.stringify(draft) !== draftBaseline ? "Unsaved changes" : "Editing saved record"}</span><div><button type="button" className="quiet-button" disabled={saving} onClick={() => { if (confirmLeavingWork()) setDraft(null); }}>Cancel editing</button><button className="primary-action compact" disabled={saving} type="submit">{saving ? "Saving…" : "Save & view"}</button></div></div>
+      <div className="admin-save-bar"><span>{JSON.stringify(draft) !== draftBaseline ? "Unsaved changes" : "Editing saved record"}</span><div><button type="button" className="quiet-button" disabled={saving} onClick={() => { if (confirmLeavingWork()) setDraft(null); }}>Cancel editing</button><button className="primary-action compact" disabled={saving} type="submit">{saving ? "Saving…" : isPolicy ? "Save draft & review" : "Save & view"}</button></div></div>
       </fieldset>
     </form>}
 
-    {isPolicy && filteredPolicies.length > 0 && <PolicyLibrary policies={filteredPolicies} selectedId={selectedPolicyId} onSelect={openReader} canEdit={canEdit} onEdit={editRecord} />}
+    {isPolicy && filteredPolicies.length > 0 && <PolicyLibrary policies={filteredPolicies} selectedId={selectedPolicyId} onSelect={openReader} canEdit={canEdit} onEdit={editRecord} onChange={async()=>{setMessage('');return load();}}/>}
 
     {!isPolicy && !selectedDepartment && <div className="box-department-grid">{departments.map((department) => {
       const count = boxCards.filter((card) => (card.department || "Stickney") === department).length;

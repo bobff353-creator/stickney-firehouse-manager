@@ -15,6 +15,8 @@ export type TrainingData = {
   fields: TrainingField[]; answers: Record<string,string>; attendance: Record<string,number>;
   osfmTaskIds: string[]; osfmBookHashes: Record<string,string>;
   requiredJprs: string[]; receipt: string; submissionDate: string; reviewNote: string;
+  repeatEveryDays: number | null; seriesId: string; issuingAuthority: string;
+  renewalMonths: number | null; documentType: string;
 };
 export type TrainingRecord = { id: string; kind: TrainingKind; data: TrainingData; version: number; archived: boolean; createdAt: string; updatedAt: string; updatedBy: string };
 export type TrainingMember = { id: string; name: string; rank: string; active: number };
@@ -23,7 +25,7 @@ export type TrainingSnapshot = { records: TrainingRecord[]; members: TrainingMem
 export const categories = ['Company training','Driver / operator','Officer development','EMS','Hazardous materials','Technical rescue','Fire prevention / inspection','Instructor development','Health and safety','Compliance','New member onboarding','Facility / live fire','Fire investigation','Communications','Traffic incident management','Mental health','Other'];
 export const todayChicago = () => new Intl.DateTimeFormat('en-CA', { timeZone:'America/Chicago', year:'numeric',month:'2-digit',day:'2-digit' }).format(new Date());
 export function emptyTrainingData(): TrainingData {
-  return { title:'',category:'Company training',description:'',date:'',dueDate:'',startTime:'',hours:null,instructor:'',location:'',employeeIds:[],activityId:'',assignmentId:'',credentialId:'',certificationId:'',status:'draft',delivery:'Hands-on',sourceUrl:'',sourceEdition:'',externalId:'',cycleStart:'',issuedDate:'',credentialNumber:'',jpr:'',sourcePage:'',evaluator:'',method:'Training',result:'Practiced',points:null,pointsBasis:'',test:false,verified:false,fields:[],answers:{},attendance:{},osfmTaskIds:[],osfmBookHashes:{},requiredJprs:[],receipt:'',submissionDate:'',reviewNote:'' };
+  return { title:'',category:'Company training',description:'',date:'',dueDate:'',startTime:'',hours:null,instructor:'',location:'',employeeIds:[],activityId:'',assignmentId:'',credentialId:'',certificationId:'',status:'draft',delivery:'Hands-on',sourceUrl:'',sourceEdition:'',externalId:'',cycleStart:'',issuedDate:'',credentialNumber:'',jpr:'',sourcePage:'',evaluator:'',method:'Training',result:'Practiced',points:null,pointsBasis:'',test:false,verified:false,fields:[],answers:{},attendance:{},osfmTaskIds:[],osfmBookHashes:{},requiredJprs:[],receipt:'',submissionDate:'',reviewNote:'',repeatEveryDays:null,seriesId:'',issuingAuthority:'',renewalMonths:null,documentType:'Other' };
 }
 export function validDate(value: string) { const d=new Date(value+'T12:00:00Z');return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(d.getTime()) && d.toISOString().slice(0,10)===value; }
 export function shiftDate(date: string, days: number) { const d=new Date(date+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10); }
@@ -37,6 +39,13 @@ export function normalizeTrainingData(input: unknown): TrainingData {
   }
   out.status=['draft','saved','completed'].includes(String(raw.status))?raw.status as TrainingData['status']:'draft';
   out.test=raw.test===true;out.verified=raw.verified===true;
+  for(const key of ['repeatEveryDays','renewalMonths'] as const) {
+    if(typeof raw[key]==='boolean'||typeof raw[key]==='object'&&raw[key]!==null)throw Error('Enter a numeric interval or leave it blank.');
+    const value=raw[key];out[key]=value===null||value===undefined||value===''?null:Number(value);
+    if(out[key]!==null&&(!Number.isInteger(out[key])||out[key]!<1||out[key]!>(key==='repeatEveryDays'?366:120)))throw Error('Repeat days must be 1–366; renewal months must be 1–120, or left blank.');
+  }
+  out.documentType=String(raw.documentType??'Other').trim();
+  if(!['SOG','SOP','Policy','Form','Manual','Bulletin','Certificate','Other'].includes(out.documentType))throw Error('Choose a listed document type.');
   const selection=normalizeOsfmSelections(raw.osfmTaskIds,raw.osfmBookHashes);
   out.osfmTaskIds=selection.ids;out.osfmBookHashes=selection.fingerprints;
   for(const key of ['hours','points'] as const) { const n=raw[key]; out[key]=n===null||n===undefined||n===''?null:Number(n); if(out[key]!==null && (!Number.isFinite(out[key]) || out[key]!<0 || out[key]!>10000))throw new Error(`Enter a valid ${key} value.`); }
@@ -75,6 +84,7 @@ export function validateTraining(kind: TrainingKind, data: TrainingData, records
     if(data.assignmentId) {const a=linked(data.assignmentId,'assignment')!;if(data.employeeIds.some(id=>!a.data.employeeIds.includes(id)))throw new Error('Only members on the linked assignment can receive completion credit.');if(a.data.activityId&&data.activityId!==a.data.activityId)throw new Error('The completion must use the assigned activity.');if(!data.test&&a.data.test)throw new Error('A test assignment cannot receive real credit.');}
   }
   if(kind==='assignment'&&!data.dueDate)throw new Error('Choose when this assignment is due.');
+  if(kind==='credential'&&data.issuedDate&&data.dueDate&&data.issuedDate>data.dueDate)throw Error('The credential issue date cannot follow its renewal date.');
   if(kind==='credential'&&(!data.certificationId||!data.cycleStart))throw new Error('Choose a certification and the verified start of this credential cycle.');
   if(kind==='proficiency') {
     const c=linked(data.credentialId,'credential');

@@ -252,3 +252,48 @@ deployment and authenticated live acceptance are verified independently. This
 batch extends the existing scheduling/submission system; it does not establish
 that every envisioned commercial scheduling feature or external payroll
 integration is complete. Phases 4-7 remain separate work.
+
+## Phase 4 release
+
+Five related training and document changes form one push:
+
+1. Saved pilot assignments can carry a repeat interval in calendar days. Create
+   next occurrence explicitly saves a separate assignment, with empty attendance
+   and answers. Repeated requests return the same occurrence without overwriting
+   edits or restoring an archived child. No completion credit is created.
+2. Credentials retain issuing authority and a recorded renewal period. A searchable
+   renewal register filters recorded dates by 7/30/60/90-day windows. Missing dates
+   remain visible. The renewal period never extends a recorded date or determines
+   certification or duty eligibility.
+3. Training references have document types, effective dates and links. The existing
+   private file center adds filename/linked-record search. Original PDF/photo
+   evidence remains private and separate from notes. Department policies gain
+   document type and HTTPS reference filters; these references do not import files.
+4. Policy edits save as drafts. Publication appends a frozen content version;
+   archive/restore retains text, versions and receipts. The first edit preserves
+   existing legacy content without inventing a publication date. Older action-only
+   audit entries cannot reconstruct previously overwritten text.
+5. A published version can require acknowledgement from the active roster captured
+   at publication. Each receipt uses the verified member identity and exact version.
+   A new required version needs a separate receipt. Managers can review current and
+   historical receipt reports; member responses omit other members' reports.
+
+Training remains the existing Bob-only pilot. Policy management and member reads
+retain existing permissions and tenant routing. No email/push, OSFM submission,
+certification award, database migration or new storage grant is part of this batch.
+Draft/version/receipt keys use existing department-scoped metadata. Atomic batches
+retain document audit and saved state together, with stale-edit rejection and
+repeat-safe acknowledgements. Literal prefixes prevent wildcard IDs from reading
+another document's history.
+
+Focused PostgreSQL/API tests cover failed-audit rollback, conflicts, concurrent
+retries, immutable historical text/receipts, hidden drafts/archives, verified own
+identity, department scoping and unchanged training credit. Training import and
+private-pilot fixtures now supply the department context required by the existing
+SQL adapter; this changes fixtures rather than production access. Local fictional
+browser verification exercises draft recovery, publication, member receipt,
+recurrence, renewal filters and document filters at phone/tablet/desktop sizes.
+No fictional operational rows or live policy revisions are seeded for acceptance.
+Production health and signed-in read-only checks are recorded separately after
+deployment. This is a practical Phase 4 batch, not a claim that every commercial
+course-delivery or general document-upload feature is complete. Phases 5-7 remain.

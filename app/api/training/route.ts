@@ -1,6 +1,7 @@
 import { ensureDatabase } from '../../../db/bootstrap';
 import { trainingBoundary, trainingJson, trainingSnapshot, decodeTraining, type StoredTrainingRow } from '../../training/server';
 import { trainingKinds, normalizeTrainingData, validateTraining, type TrainingKind } from '../../training/model';
+import { repeatAssignment } from '../../training/repeat-server';
 
 export async function GET(request:Request) {
   const denied=trainingBoundary(request);if(denied)return denied;
@@ -17,11 +18,19 @@ export async function POST(request:Request) {
   try {
     const text=await request.text();if(text.length>90000)return trainingJson({error:'This record is too large. Attach documents as files.'},413);
     const body=JSON.parse(text), id=String(body.id??''),version=Number(body.version),kind=body.kind as TrainingKind;
+    if(body.action==='repeatAssignment') {
+      if(!/^[a-zA-Z0-9_-]{8,100}$/.test(id)||!Number.isInteger(version)||version<1)return trainingJson({error:'Reload a saved assignment before repeating it.'},400);
+      const db=await ensureDatabase(),department=request.headers.get('x-department-id')!,actor=request.headers.get('oai-authenticated-user-email')!.trim().toLowerCase();
+      const result=await repeatAssignment(db,department,id,version,actor);
+      return trainingJson(result,result.created?201:200);
+    }
     if(!/^[a-zA-Z0-9_-]{8,100}$/.test(id)||!Number.isInteger(version)||version<0||!trainingKinds.includes(kind))return trainingJson({error:'The record ID, version, or type is invalid.'},400);
     const data=normalizeTrainingData(body.data),archived=body.archived===true;
     const department=request.headers.get('x-department-id')!,actor=request.headers.get('oai-authenticated-user-email')!.trim().toLowerCase();
     const db=await ensureDatabase(),snapshot=await trainingSnapshot(db,department);
     const current=snapshot.records.find(r=>r.id===id);
+    if(data.seriesId&&data.seriesId!==current?.data.seriesId)return trainingJson({error:'Recurring series links are assigned by the next-occurrence workflow.'},400);
+    data.seriesId=current?.data.seriesId??'';
     const payload=JSON.stringify(data),timestamp=new Date().toISOString();
     if(current&&current.kind!==kind)return trainingJson({error:'A record cannot change its type.'},409);
     // Idempotent retry after a lost response. It neither duplicates credit nor rewrites a newer edit.
@@ -40,7 +49,7 @@ export async function POST(request:Request) {
   } catch(error) {
     const message=error instanceof Error?error.message:'';
     if(message.includes('SAVE_CONFLICT')||message.includes('duplicate key'))return trainingJson({error:'Another save reached the server first. Reload the saved record; your draft is still on screen.',code:'SAVE_CONFLICT'},409);
-    if(writing||message.startsWith('Portal database')||message.includes('fetch')||message.includes('bootstrap'))return trainingJson({error:'The save was not confirmed. Keep this screen open and retry. Retrying will not duplicate this record.'},503);
+    if(writing||message.startsWith('Portal database')||message.startsWith('Portal transaction')||message.includes('fetch')||message.includes('bootstrap'))return trainingJson({error:'The save was not confirmed. Keep this screen open and retry. Retrying will not duplicate this record.'},503);
     return trainingJson({error:message||'The record was not saved. Check the details and try again.'},400);
   }
 }

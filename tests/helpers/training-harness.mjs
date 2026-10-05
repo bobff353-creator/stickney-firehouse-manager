@@ -7,7 +7,7 @@ export async function trainingHarness() {
   await pg.exec('CREATE SCHEMA firehouse; CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role; SET search_path=firehouse; CREATE TABLE system_meta(key text PRIMARY KEY,value text NOT NULL,updated_at text NOT NULL DEFAULT CURRENT_TIMESTAMP);');
   await pg.exec(readFileSync(resolve('supabase/migrations/20260912104034_shared_board_feed_cache.sql'), 'utf8'));
   const stats = { reads: 0, writes: 0, imports: 0, failImport: false, failBatchAt: -1 };
-  const base = trainingModules({ [resolve('app/supabase-server.ts')]: {} });
+  const base = trainingModules({ [resolve('app/supabase-server.ts')]: {}, [resolve('app/department-portal.ts')]: {getPortalDepartment:async()=>({id:'fixture-department',isolated:false})} });
   const { createPostgresD1Adapter } = base('db/postgres-adapter.ts');
   function safe(sql) {
     if (sql.length > 200000 || /(;|--|\/\*|\*\/)/.test(sql) || /\b(create|alter|drop|truncate|grant|revoke|copy|call|show|reset|listen|notify|vacuum|analyze)\b/i.test(sql)) throw Error('Unsafe SQL');
