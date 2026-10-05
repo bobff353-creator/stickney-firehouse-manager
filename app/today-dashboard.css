@@ -12,3 +12,15 @@
 @media(max-width:980px){.crew-primary-nav{display:none}.today-actions{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.today-main-grid{grid-template-columns:1fr}.today-panel{padding:16px}.today-heading{flex-wrap:wrap}.today-received{text-align:left;grid-template-columns:1fr auto;align-items:center;flex:1}.today-received span{grid-column:1}.today-received button{grid-column:2;grid-row:1/3}.today-actions button{padding:14px}.today-actions strong{font-size:14px}.today-panel h2{font-size:19px}.today-inbox>header{flex-wrap:wrap}.today-inbox li{flex-wrap:wrap;gap:10px}.today-inbox li>div{flex-basis:calc(100% - 90px)}.today-inbox li>button{margin-left:auto}.today-readiness>ul>li{flex-wrap:wrap}.today-readiness li>div{flex-basis:calc(100% - 105px)}.today-readiness li>button{margin-left:auto}.today-crew li{gap:8px}.today-crew li>span:last-child{font-size:10px}.today-person-mark{width:32px;height:32px}}
 @media print{.crew-primary-nav,.today-actions,.today-workspace button,.today-inbox label{display:none}.today-panel{break-inside:avoid}}
+/* The production portal uses its own dark shell, independent of OS preference. */
+@media screen{
+  #portal-workspace .today-workspace{--today-panel:#141e30;--today-ink:#f1f5f9;--today-muted:#b5c4d8;--today-border:#314159}
+  #portal-workspace .today-heading h1{color:var(--today-ink)}
+  #portal-workspace .crew-primary-nav{background:#141e30;border-color:#314159}
+  #portal-workspace .crew-primary-nav button{color:#f1f5f9}
+  #portal-workspace .today-status.ready{background:#183f34;color:#b7f0d9}
+  #portal-workspace :is(.today-status.attention,.today-priority.warning){background:#493817;color:#ffe0a0}
+  #portal-workspace .today-status.unknown{background:#304557;color:#dde8f0}
+  #portal-workspace .today-priority.critical{background:#54272d;color:#ffced1}
+  #portal-workspace .today-priority.normal{background:#193f59;color:#c7e7ff}
+}

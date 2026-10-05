@@ -139,3 +139,11 @@ fixture's missing department-portal dependency was reproduced against the
 unchanged production revision. The full run was stopped after the successful
 build rather than reporting its partial results as passing. Production release
 and authenticated live acceptance are verified separately after the batch push.
+
+Authenticated acceptance confirmed the real saved crew, due checks, apparatus
+service status, current call and existing handoff/payroll review counts. It also
+identified the portal's forced dark shell, which is independent of operating
+system preference. A grouped presentation correction aligns the TODAY heading,
+primary navigation, crew/readiness panels and Inbox status/filter controls with
+that shell. Repeat visual acceptance includes the actual shell styles rather
+than only global CSS in the isolated fixture.
