@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
 const migration=fs.readFileSync(new URL('../supabase/migrations/20261005151249_inventory_phase_two_safe_operations.sql',import.meta.url),'utf8');
+const stockMigration=fs.readFileSync(new URL('../supabase/migrations/20261005154554_inventory_stock_setup_and_restock_atomic.sql',import.meta.url),'utf8');
 const dept='14a76771-4c24-481b-8def-e6cce005c17b';
 const foreign='00000000-0000-4000-8000-000000000099';
 const user='00000000-0000-4000-8000-000000000002';
@@ -24,21 +25,23 @@ async function setup(){
  INSERT INTO public.departments VALUES('${dept}'),('${foreign}');
  CREATE TABLE public.inventory_apparatus_profiles(id uuid PRIMARY KEY,department_id uuid,name text);
  CREATE TABLE public.inventory_equipment(id uuid PRIMARY KEY,department_id uuid,apparatus_id uuid,retired_at timestamptz,service_status text,updated_at timestamptz);
- CREATE TABLE public.inventory_stock_lots(id uuid PRIMARY KEY,department_id uuid,stock_item_id uuid,quantity_on_hand integer,location_id text);
+ CREATE TABLE public.inventory_stock_items(id uuid PRIMARY KEY,department_id uuid,name text,sku text,barcode text,unit text,par_level integer,reorder_point integer,expiration_tracked boolean);
+ CREATE TABLE public.inventory_stock_lots(id uuid PRIMARY KEY,department_id uuid,stock_item_id uuid,quantity_on_hand integer,location_id text,location_type text,lot_number text,expires_at date);
  CREATE TABLE public.inventory_transactions(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),department_id uuid,stock_item_id uuid,stock_lot_id uuid,transaction_type text,quantity integer,to_location_id text,reason text,performed_by uuid);
  CREATE TABLE public.inventory_deficiency_photos(id uuid PRIMARY KEY,department_id uuid,apparatus_id uuid);
  CREATE TABLE public.inventory_readiness_exceptions(id uuid PRIMARY KEY,department_id uuid,apparatus_id uuid,result text,priority text,notes text,status text,out_of_service boolean,opened_by text,issue_categories text[],assigned_employee_ids text[],assigned_employee_names text[],evidence_photo_id uuid,resolved_at timestamptz,resolved_by text,resolution_notes text);
  CREATE TABLE public.inventory_work_orders(id uuid PRIMARY KEY,department_id uuid,apparatus_id uuid,equipment_id uuid,status text,priority text,summary text,details text,assigned_to text,assigned_employee_ids text[],assigned_employee_names text[],opened_by text,service_type text,odometer integer,linked_exception_id uuid,closed_at timestamptz,repair_date date,repair_cost numeric,vendor text,invoice_number text,resolution_notes text,closed_by text,labor_hours numeric,performed_by text,parts_used text,next_service_due_date date,next_service_due_mileage integer);
  INSERT INTO public.inventory_apparatus_profiles VALUES('${rig}','${dept}','Preview-only apparatus');
  INSERT INTO public.inventory_equipment VALUES('${equip}','${dept}','${rig}',null,'in_service',now());
- INSERT INTO public.inventory_stock_lots VALUES('${lot}','${dept}','${item}',5,'Preview-only station');
+ INSERT INTO public.inventory_stock_items(id,department_id,name,unit) VALUES('${item}','${dept}','Preview-only supply','units');
+ INSERT INTO public.inventory_stock_lots(id,department_id,stock_item_id,quantity_on_hand,location_id) VALUES('${lot}','${dept}','${item}',5,'Preview-only station');
  GRANT USAGE ON SCHEMA public,auth,private TO authenticated;
  GRANT SELECT,INSERT,UPDATE ON ALL TABLES IN SCHEMA public TO authenticated;`);
- for(const table of ['inventory_apparatus_profiles','inventory_equipment','inventory_stock_lots','inventory_transactions','inventory_deficiency_photos','inventory_readiness_exceptions','inventory_work_orders']) {
+ for(const table of ['inventory_stock_items','inventory_apparatus_profiles','inventory_equipment','inventory_stock_lots','inventory_transactions','inventory_deficiency_photos','inventory_readiness_exceptions','inventory_work_orders']) {
   await pg.exec(`ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY; CREATE POLICY tenant ON public.${table} TO authenticated USING(private.inventory_can_access(department_id)) WITH CHECK(private.inventory_can_write(department_id));`);
  }
- await pg.exec(migration);
- await pg.exec("SET fixture.server='yes'; SET fixture.permissions='inventory.check,inventory.repairs.manage'; SET ROLE authenticated;");
+ await pg.exec(migration); await pg.exec(stockMigration);
+ await pg.exec("SET fixture.server='yes'; SET fixture.permissions='inventory.check,inventory.repairs.manage,inventory.setup.manage'; SET ROLE authenticated;");
  return pg;
 }
 const save=(pg,action,input,id=randomUUID(),department=dept)=>pg.query('SELECT public.inventory_apply_operation($1,$2,$3,$4) saved',[department,id,action,input]).then(result=>result.rows[0].saved);
@@ -126,5 +129,70 @@ test('RLS, server boundary, granular permission and foreign department remain en
   await pg.exec('RESET ROLE');
   const privileges=(await pg.query("SELECT has_function_privilege('anon','public.inventory_apply_operation(uuid,uuid,text,jsonb)','execute') anonymous,(SELECT prosecdef FROM pg_proc WHERE proname='inventory_apply_operation') definer,(SELECT relrowsecurity FROM pg_class WHERE oid='inventory_operation_receipts'::regclass) rls")).rows[0];
   assert.deepEqual(privileges,{anonymous:false,definer:false,rls:true});
+ }finally{await pg.close();}
+});
+
+test('new stock item, lot, initial audit and receipt either save together or roll back together',async()=>{
+ const pg=await setup();try{
+  const input={name:'Preview-only new supply',unit:'boxes',quantity:12,parLevel:20,reorderPoint:5,expirationTracked:true,locationId:'Preview-only storage',lotNumber:'PREVIEW-LOT',expiresAt:'2027-01-01'};
+  const id=randomUUID();await pg.exec('RESET ROLE; ALTER TABLE inventory_transactions ADD CONSTRAINT simulated_initial_failure CHECK(false); SET ROLE authenticated');
+  await assert.rejects(save(pg,'create_stock_item',input,id),/simulated_initial_failure/);
+  assert.equal((await pg.query('SELECT count(*)::int n FROM inventory_stock_items')).rows[0].n,1);
+  assert.equal((await pg.query('SELECT count(*)::int n FROM inventory_stock_lots')).rows[0].n,1);
+  await pg.exec('RESET ROLE; ALTER TABLE inventory_transactions DROP CONSTRAINT simulated_initial_failure; SET ROLE authenticated');
+  const saved=await save(pg,'create_stock_item',input,id);await save(pg,'create_stock_item',input,id);
+  assert.equal((await pg.query('SELECT count(*)::int n FROM inventory_stock_items')).rows[0].n,2);
+  assert.equal((await pg.query('SELECT quantity_on_hand FROM inventory_stock_lots WHERE id=$1',[saved.lotId])).rows[0].quantity_on_hand,12);
+  assert.equal((await pg.query("SELECT quantity FROM inventory_transactions WHERE transaction_type='initial'")).rows[0].quantity,12);
+  await assert.rejects(save(pg,'create_stock_item',{...input,quantity:-1}),/nonnegative whole/);
+ }finally{await pg.close();}
+});
+test('restock requests are replay-safe, reject duplicate open requests and isolate supplies by department',async()=>{
+ const pg=await setup();try{
+  const input={stockItemId:item,quantity:4,reason:'Preview-only request'};const id=randomUUID();
+  const request=await save(pg,'request_restock',input,id);await save(pg,'request_restock',input,id);
+  assert.ok(request.restockRequestId);
+  assert.equal((await pg.query("SELECT count(*)::int n FROM inventory_transactions WHERE transaction_type='restock_requested'")).rows[0].n,1);
+  await assert.rejects(save(pg,'request_restock',input),/already has an open/);
+  await assert.rejects(save(pg,'request_restock',{...input,stockItemId:foreign}),/not found in this department/);
+  await assert.rejects(save(pg,'request_restock',{...input,quantity:0}),/positive whole/);
+ }finally{await pg.close();}
+});
+test('approval and fulfillment keep original request identity, reject stale saves and never invent physical stock',async()=>{
+ const pg=await setup();try{
+  const saved=await save(pg,'request_restock',{stockItemId:item,quantity:8});const input={requestId:saved.restockRequestId};
+  await assert.rejects(save(pg,'fulfill_restock',input),/no longer awaiting/);
+  const approveId=randomUUID();await save(pg,'approve_restock',input,approveId);await save(pg,'approve_restock',input,approveId);
+  await assert.rejects(save(pg,'approve_restock',input),/no longer awaiting/);
+  const fulfillId=randomUUID();await save(pg,'fulfill_restock',input,fulfillId);await save(pg,'fulfill_restock',input,fulfillId);
+  const request=(await pg.query('SELECT * FROM inventory_transactions WHERE id=$1',[saved.restockRequestId])).rows[0];
+  assert.equal(request.transaction_type,'restock_fulfilled');assert.equal(request.quantity,8);assert.match(request.reason,/restock_approved.*restock_fulfilled/);
+  assert.equal((await pg.query('SELECT quantity_on_hand FROM inventory_stock_lots WHERE id=$1',[lot])).rows[0].quantity_on_hand,5);
+  await save(pg,'adjust_stock',{lotId:lot,delta:8,reason:'Preview-only physical receipt'});
+  assert.equal((await pg.query('SELECT quantity_on_hand FROM inventory_stock_lots WHERE id=$1',[lot])).rows[0].quantity_on_hand,13);
+ }finally{await pg.close();}
+});
+test('ordinary stock permission cannot create supplies, approve or fulfill requests',async()=>{
+ const pg=await setup();try{
+  await pg.exec("SET fixture.permissions='inventory.check'");
+  for(const action of ['create_stock_item','approve_restock','fulfill_restock']) await assert.rejects(save(pg,action,{requestId:foreign}),/Permission for this operation/);
+  assert.equal((await pg.query('SELECT count(*)::int n FROM inventory_operation_receipts')).rows[0].n,0);
+ }finally{await pg.close();}
+});
+
+test('new lots keep the original supply and older lot IDs, audit the physical receipt and replay once',async()=>{
+ const pg=await setup();try{
+  await pg.exec('RESET ROLE; UPDATE inventory_stock_items SET expiration_tracked=true; SET ROLE authenticated');
+  const input={stockItemId:item,quantity:8,locationId:'Preview-only storage',lotNumber:'PREVIEW-NEW',expiresAt:'2027-01-01'};
+  await assert.rejects(save(pg,'create_stock_lot',{...input,expiresAt:''}),/expiration date/);
+  await pg.exec('RESET ROLE; ALTER TABLE inventory_transactions ADD CONSTRAINT simulated_lot_audit_failure CHECK(false); SET ROLE authenticated');
+  const id=randomUUID();await assert.rejects(save(pg,'create_stock_lot',input,id),/simulated_lot_audit_failure/);
+  assert.equal((await pg.query('SELECT count(*)::int n FROM inventory_stock_lots')).rows[0].n,1);
+  await pg.exec('RESET ROLE; ALTER TABLE inventory_transactions DROP CONSTRAINT simulated_lot_audit_failure; SET ROLE authenticated');
+  const saved=await save(pg,'create_stock_lot',input,id);await save(pg,'create_stock_lot',input,id);
+  assert.equal(saved.itemId,item);assert.notEqual(saved.lotId,lot);
+  assert.equal((await pg.query('SELECT count(*)::int n FROM inventory_stock_items')).rows[0].n,1);
+  assert.equal((await pg.query('SELECT quantity_on_hand FROM inventory_stock_lots WHERE id=$1',[lot])).rows[0].quantity_on_hand,5);
+  assert.equal((await pg.query('SELECT count(*)::int n FROM inventory_transactions')).rows[0].n,1);
  }finally{await pg.close();}
 });

@@ -719,7 +719,7 @@ export default function InventoryOperations({
     setError("");
     setMessage("");
     setSaveReceipt(null);
-    const atomic = ["adjust_stock", "create_notice", "create_work_order", "close_work_order", "update_work_order_status"].includes(String(payload.action));
+    const atomic = ["adjust_stock", "create_notice", "create_work_order", "close_work_order", "update_work_order_status", "create_stock_item", "request_restock", "approve_restock", "fulfill_restock", "create_stock_lot"].includes(String(payload.action));
     let reference: { key: string; id: string } | undefined;
     try {
       reference = atomic ? await saveReferences.acquire(payload, data.viewer?.email || "") : undefined;
@@ -729,13 +729,13 @@ export default function InventoryOperations({
         body: JSON.stringify(reference ? { ...payload, operationId: reference.id } : payload),
         signal: AbortSignal.timeout(20000),
       });
-      const result = await response.json() as { error?: string; checkId?: string };
+      const result = await response.json() as { error?: string; checkId?: string; requestId?: string };
       if (!response.ok) {
         if (response.status < 500 && reference) saveReferences.confirm(reference.key);
         throw new Error(result.error || "The change could not be saved.");
       }
       if (reference) saveReferences.confirm(reference.key);
-      setSaveReceipt({ at: Date.now(), reference: String(result.checkId || payload.checkId || payload.entryId || payload.lotId || "") });
+      setSaveReceipt({ at: Date.now(), reference: String(result.requestId || result.checkId || payload.checkId || payload.entryId || payload.lotId || "") });
       // Keep every form mounted while reconciling a successful mutation.
       const refreshed = await load({ background: true, fresh: true });
       if (payload.action === "complete_check") setSubmittedCheck(true);
@@ -744,10 +744,12 @@ export default function InventoryOperations({
         start_check: "Inspection opened. Progress saves item by item.",
         record_scba_entry: "Air-pack entry saved. Progress has been refreshed.",
         review_check: "Review decision saved. The report status has been refreshed.",
-        adjust_stock: "Stock quantity saved.",
+        adjust_stock: "Stock quantity and movement audit saved together.",
+        create_stock_item: "Supply, initial lot and initial quantity audit saved together.",
+        create_stock_lot: "New lot and receipt audit saved. Existing lots and their dates are retained.",
         request_restock: "Restock request saved for administrator approval.",
         approve_restock: "Restock request approved.",
-        fulfill_restock: "Restock request marked fulfilled.",
+        fulfill_restock: "Restock request marked fulfilled. Record each actual stock receipt against its lot; this action does not change quantities.",
         create_notice: `Repair notice saved. Assigned in-app to ${(payload.assignedEmployeeNames as string[] | undefined)?.join(", ") || "the selected employees"}. No email, text, or push was sent. Follow it in All repair records.`,
         create_work_order: "Work order opened. Follow progress and add service documents in Maintenance history.",
         complete_check: "Inspection submitted for administrator review. Find the saved report in Reports.",
@@ -1767,7 +1769,14 @@ export default function InventoryOperations({
                 <p className="stock-lot-detail">{stockState.usable} {value(item.row, "unit")} within recorded expiration dates · {item.total} physically on hand. This count does not authorize use.</p>{stockState.unknown.length > 0 && <p className="stock-lot-warning">Expiration dates missing for {stockState.unknown.length} stocked lot(s). Verify before use.</p>}{expiredQuantity > 0 && <p className="stock-lot-warning">Includes {expiredQuantity} {value(item.row, "unit")} with a past expiration date. The total is a physical count, not confirmation that stock can be used.</p>}
                 {lotsNeedingAttention.length > 0 && <p className="stock-lot-warning">{lotsNeedingAttention.length} lot(s) expired or expiring within 30 days. Check the lot dates before use.</p>}
                 <label className="stock-lot-picker">Lot &amp; location<select value={selectedLot} disabled={Boolean(busy)} onChange={event => setSelectedStockLots(current => ({ ...current, [value(item.row, "id")]: event.target.value }))}><option value="">Choose the actual lot</option>{item.lots.map(row => <option key={value(row, "lot_id")} value={value(row, "lot_id")}>{value(row, "lot_number") || "Lot not recorded"} · {value(row, "location_id") || "Location not recorded"} · {value(row, "quantity_on_hand")} on hand · Exp {value(row, "expires_at") || "not recorded"}</option>)}</select></label>
-                {lot ? <><p className="stock-lot-detail">Selected lot: {value(lot, "quantity_on_hand")} {value(item.row, "unit")} · Expires {value(lot, "expires_at") || "not recorded"}</p>{expirationAlert && <p className="stock-lot-warning">{daysToExpiration! < 0 ? "EXPIRED" : `Expires in ${daysToExpiration} days`} — follow department policy; this screen does not authorize use.</p>}<div className="stock-actions">{([-1, 1] as const).map(delta => <button key={delta} type="button" disabled={Boolean(busy) || !canCheck || (delta < 0 && Number(lot.quantity_on_hand || 0) <= 0)} onClick={() => { if (window.confirm(`${delta < 0 ? "Record use of" : "Receive"} 1 ${value(item.row, "unit")} of ${value(item.row, "name")}, lot ${value(lot, "lot_number") || "not recorded"}, at ${value(lot, "location_id") || "unrecorded location"}? Only confirm if this physical movement occurred.`)) void action(`stock-${value(lot, "lot_id")}`, { action: "adjust_stock", lotId: value(lot, "lot_id"), delta, reason: delta < 0 ? "Used from station stock" : "Received into station stock" }); }}>{delta < 0 ? "− Use 1" : "+ Receive 1"}</button>)}</div></> : <p className="stock-lot-detail">Choose a lot before recording a quantity change.</p>}
+                {lot ? <><p className="stock-lot-detail">Selected lot: {value(lot, "quantity_on_hand")} {value(item.row, "unit")} · Expires {value(lot, "expires_at") || "not recorded"}</p>{expirationAlert && <p className="stock-lot-warning">{daysToExpiration! < 0 ? "EXPIRED" : `Expires in ${daysToExpiration} days`} — follow department policy; this screen does not authorize use.</p>}<div className="stock-actions">{([-1, 1] as const).map(delta => <button key={delta} type="button" disabled={Boolean(busy) || !canCheck || (delta < 0 && Number(lot.quantity_on_hand || 0) <= 0)} onClick={() => { if (window.confirm(`${delta < 0 ? "Record use of" : "Receive"} 1 ${value(item.row, "unit")} of ${value(item.row, "name")}, lot ${value(lot, "lot_number") || "not recorded"}, at ${value(lot, "location_id") || "unrecorded location"}? Only confirm if this physical movement occurred.`)) void action(`stock-${value(lot, "lot_id")}`, { action: "adjust_stock", lotId: value(lot, "lot_id"), delta, reason: delta < 0 ? "Used from station stock" : "Received into station stock" }); }}>{delta < 0 ? "− Use 1" : "+ Receive 1"}</button>)}</div><form className="stock-restock-form" onSubmit={event => {
+                  event.preventDefault(); const form = event.currentTarget; const fields = new FormData(form);
+                  void action(`stock-${value(lot, "lot_id")}`, { action: "adjust_stock", lotId: value(lot, "lot_id"), delta: Number(fields.get("quantity")) * (fields.get("movement") === "use" ? -1 : 1), reason: fields.get("reason") }).then(saved => { if (saved) form.reset(); });
+                }}><label>Movement<select name="movement" disabled={Boolean(busy) || !canCheck}><option value="receive">Receive stock</option><option value="use">Use / remove stock</option></select></label><label>Actual quantity ({value(item.row, "unit")})<input name="quantity" type="number" min="1" step="1" required disabled={Boolean(busy) || !canCheck} /></label><label>Reason<input name="reason" maxLength={300} required disabled={Boolean(busy) || !canCheck} /></label><button disabled={Boolean(busy) || !canCheck}>Record lot movement</button><small>Records a physical movement at the selected lot and location. Expired disposal may be recorded as removal.</small></form></> : <p className="stock-lot-detail">Choose a lot before recording a quantity change.</p>}
+                {canSetup && <details className="stock-new-lot"><summary>Receive a new lot</summary><form className="stock-restock-form" onSubmit={event => {
+                  const fields = new FormData(event.currentTarget);
+                  submit(event, `lot-${value(item.row, "id")}`, { action: "create_stock_lot", stockItemId: value(item.row, "id"), quantity: Number(fields.get("quantity")), locationId: fields.get("locationId"), lotNumber: fields.get("lotNumber"), expiresAt: fields.get("expiresAt") });
+                }}><label>Actual receipt quantity ({value(item.row, "unit")})<input name="quantity" type="number" min="1" step="1" required /></label><label>Lot number<input name="lotNumber" required maxLength={120} /></label><label>Station location<input name="locationId" required maxLength={120} /></label><label>Expiration date<input name="expiresAt" type="date" required={Boolean(item.row.expiration_tracked)} /></label><button disabled={Boolean(busy)}>Save received lot</button><small>Creates a separate lot under this supply. Prior dates, quantities and lot IDs stay intact.</small></form></details>}
                 <form className="stock-restock-form" onSubmit={event => { event.preventDefault(); const fields = new FormData(event.currentTarget); void action(`restock-${value(item.row, "id")}`, { action: "request_restock", stockItemId: value(item.row, "id"), quantity: Number(fields.get("quantity")), reason: `Restock requested for ${value(item.row, "name")}` }); }}>
                   <label>Restock quantity ({value(item.row, "unit")})<input name="quantity" type="number" min="1" step="1" required defaultValue={openRequest ? Number(openRequest.quantity) : Math.max(1, Number(item.row.par_level || 1) - stockState.usable)} disabled={Boolean(busy) || !canCheck || Boolean(openRequest)} /></label>
                   <button className="restock-request-button" disabled={Boolean(busy) || !canCheck || Boolean(openRequest)}>{openRequest ? formatStatus(openRequest.transaction_type) : "Request restock"}</button>

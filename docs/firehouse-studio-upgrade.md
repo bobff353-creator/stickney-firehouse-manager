@@ -193,3 +193,22 @@ SQL adapter. Legacy source assertions were updated for transactional repair RPCs
 and safe-retry messaging; rollback/permission behavior is covered by SQL and real
 handler tests. This focused suite does not establish that every repository test
 outside this release passes.
+
+Four follow-through changes form a second grouped push: current briefing equipment
+reports stay visible in the readiness template, new stock records save together
+with their initial lot/audit, restock request/approval/fulfillment uses locked
+transactional saves, and physical movements support whole quantities and new lots
+under the existing supply ID. Fulfillment changes only request status; a physical
+receipt must be recorded separately. Missing required new-lot expiration dates,
+overdraw, unauthorized setup and stale request stages are rejected.
+
+`20261005154554_inventory_stock_setup_and_restock_atomic.sql` extends the same
+caller/RLS/receipt boundary without rewriting records or granting new roles.
+186 focused tests pass after this batch, including rollback of failed initial
+stock/lot audits, stable older lot IDs and dates, replay-safe restock transitions
+and no automatic stock credit. Browser fixtures exercised bulk and new-lot form
+payloads and preserved equipment reports without writing live department rows.
+Types, changed-file lint and the production build passed. The first push is
+`2de021b470091d7d021876c1bf2896fda1702825`; the authenticated production overview
+confirmed 1,629 active assets and the same 16 unfinished checks as the saved
+inventory workspace. These are dated acceptance observations, not fixed targets.

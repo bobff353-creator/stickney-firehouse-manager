@@ -15,11 +15,11 @@ function harness(options={}){
  return{state,post:body=>exports.POST(new Request('https://preview-only.test/api/operations',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}))};
 }
 test('actual API uses one caller RPC for each atomic action and forces verified department',async()=>{
- for(const action of ['adjust_stock','create_notice','create_work_order','close_work_order','update_work_order_status']){
+ for(const action of ['adjust_stock','create_notice','create_work_order','close_work_order','update_work_order_status','create_stock_item','request_restock','approve_restock','fulfill_restock','create_stock_lot']){
   const h=harness();const id=randomUUID();const response=await h.post({action,operationId:id,departmentId:'forged-department',reason:'Preview only',assignedEmployeeIds:[],assignedEmployeeNames:[]});
   assert.equal(response.status,action.startsWith('create_')?201:200);assert.equal(h.state.rpc.length,1);
   assert.equal(h.state.rpc[0].name,'inventory_apply_operation');assert.equal(h.state.rpc[0].args.p_department_id,'verified-department');assert.equal(h.state.rpc[0].args.p_request_id,id);assert.equal(h.state.rpc[0].args.p_input.operationId,undefined);
-  assert.deepEqual(h.state.permission,[action==='adjust_stock'?'inventory.check':'inventory.repairs.manage']);
+  assert.deepEqual(h.state.permission,[['adjust_stock','request_restock'].includes(action)?'inventory.check':['create_stock_item','approve_restock','fulfill_restock','create_stock_lot'].includes(action)?'inventory.setup.manage':'inventory.repairs.manage']);
  }
 });
 test('actual API denies unauthorized, foreign-origin and missing-reference saves before database mutations',async()=>{

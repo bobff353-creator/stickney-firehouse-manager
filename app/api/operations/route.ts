@@ -338,7 +338,7 @@ export async function POST(request: Request) {
     const actor = session.context.user.email;
     const supabase = await createInventorySupabaseClient();
 
-    if (["adjust_stock", "create_notice", "create_work_order", "close_work_order", "update_work_order_status"].includes(action)) {
+    if (["adjust_stock", "create_notice", "create_work_order", "close_work_order", "update_work_order_status", "create_stock_item", "request_restock", "approve_restock", "fulfill_restock", "create_stock_lot"].includes(action)) {
       const requestId = clean(body.operationId, 80);
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId)) return privateJson({ error: "Refresh this form to obtain a valid save reference." }, 400);
       const { action: ignoredAction, operationId: ignoredId, ...input } = body;
@@ -1082,109 +1082,6 @@ export async function POST(request: Request) {
       const { data: completed, error } = await supabase.rpc("inventory_complete_check_atomic", { p_department_id: departmentId, p_check_id: checkId });
       if (error) throw error;
       return privateJson(completed);
-    }
-
-    if (action === "create_stock_item") {
-      const name = clean(body.name);
-      const unit = clean(body.unit, 40);
-      if (!name || !unit) {
-        return privateJson({ error: "Supply name and unit are required." }, 400);
-      }
-      const itemId = crypto.randomUUID();
-      const lotId = crypto.randomUUID();
-      const quantity = Math.max(0, number(body.quantity));
-      const { error: itemError } = await supabase.from("inventory_stock_items").insert({
-        id: itemId,
-        department_id: departmentId,
-        name,
-        sku: clean(body.sku, 120) || null,
-        barcode: clean(body.barcode, 120) || null,
-        unit,
-        par_level: Math.max(0, number(body.parLevel)),
-        reorder_point: Math.max(0, number(body.reorderPoint)),
-        expiration_tracked: Boolean(body.expirationTracked),
-      });
-      if (itemError) throw itemError;
-      const { error: lotError } = await supabase.from("inventory_stock_lots").insert({
-        id: lotId,
-        department_id: departmentId,
-        stock_item_id: itemId,
-        location_type: "station",
-        location_id: clean(body.locationId, 120) || "main",
-        lot_number: clean(body.lotNumber, 120) || null,
-        expires_at: clean(body.expiresAt, 40) || null,
-        quantity_on_hand: quantity,
-      });
-      if (lotError) throw lotError;
-      await supabase.from("inventory_transactions").insert({
-        department_id: departmentId,
-        stock_item_id: itemId,
-        stock_lot_id: lotId,
-        transaction_type: "initial",
-        quantity,
-        to_location_id: clean(body.locationId, 120) || "main",
-        reason: "Initial recorded quantity",
-        performed_by: actorId,
-      });
-      return privateJson({ itemId }, 201);
-    }
-
-    if (action === "request_restock") {
-      const stockItemId = clean(body.stockItemId, 80);
-      const quantity = Math.max(1, number(body.quantity));
-      const { data: stockItem } = await supabase
-        .from("inventory_stock_items")
-        .select("id,name")
-        .eq("department_id", departmentId)
-        .eq("id", stockItemId)
-        .maybeSingle();
-      if (!stockItem) return privateJson({ error: "The selected supply was not found." }, 404);
-      const { data: existing } = await supabase
-        .from("inventory_transactions")
-        .select("id")
-        .eq("department_id", departmentId)
-        .eq("stock_item_id", stockItemId)
-        .in("transaction_type", ["restock_requested", "restock_approved"])
-        .limit(1)
-        .maybeSingle();
-      if (existing) return privateJson({ error: "This supply already has an open restock request." }, 409);
-      const { data: requestRecord, error } = await supabase
-        .from("inventory_transactions")
-        .insert({
-          department_id: departmentId,
-          stock_item_id: stockItemId,
-          transaction_type: "restock_requested",
-          quantity,
-          reason: clean(body.reason, 300) || `Restock requested for ${stockItem.name}`,
-          performed_by: actorId,
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-      return privateJson({ requestId: requestRecord.id }, 201);
-    }
-
-    if (action === "approve_restock" || action === "fulfill_restock") {
-      const requestId = clean(body.requestId, 80);
-      const expectedStatus = action === "approve_restock" ? "restock_requested" : "restock_approved";
-      const nextStatus = action === "approve_restock" ? "restock_approved" : "restock_fulfilled";
-      const { data: requestRecord } = await supabase
-        .from("inventory_transactions")
-        .select("id,reason")
-        .eq("department_id", departmentId)
-        .eq("id", requestId)
-        .eq("transaction_type", expectedStatus)
-        .maybeSingle();
-      if (!requestRecord) return privateJson({ error: "That restock request is no longer awaiting this action." }, 409);
-      const note = `${requestRecord.reason} | ${nextStatus === "restock_approved" ? "Approved" : "Fulfilled"} by ${actor} at ${new Date().toISOString()}`;
-      const { error } = await supabase
-        .from("inventory_transactions")
-        .update({ transaction_type: nextStatus, reason: note })
-        .eq("department_id", departmentId)
-        .eq("id", requestId)
-        .eq("transaction_type", expectedStatus);
-      if (error) throw error;
-      return privateJson({ updated: true });
     }
 
     return privateJson({ error: "Unsupported Inventory action." }, 400);
