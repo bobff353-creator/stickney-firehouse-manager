@@ -15,7 +15,9 @@ const training = compile('app/lib/training-parsers.ts', {});
 export const model = compile('app/board-links.ts', { './lib/training-parsers': training });
 export const store = compile('app/board-links-store.ts', { './board-links': model });
 const sqlLiteral = compile('db/sql-literal.ts', {});
-const adapter = compile('db/postgres-adapter.ts', { '../app/supabase-server': {}, './sql-literal': sqlLiteral });
+const adapter = compile('db/postgres-adapter.ts', { '../app/supabase-server': {}, './sql-literal': sqlLiteral,
+  '../app/department-portal': { getPortalDepartment: async () => ({ id: 'preview-only-department', isolated: false }) },
+});
 export async function boardLinksHarness() {
   const pg = new PGlite();
   await pg.exec('CREATE SCHEMA firehouse; SET search_path=firehouse; CREATE TABLE system_meta(key text PRIMARY KEY,value text NOT NULL,updated_at text NOT NULL DEFAULT CURRENT_TIMESTAMP);');

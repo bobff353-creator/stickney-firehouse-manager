@@ -30,7 +30,6 @@ function stringList(value: unknown, allowed?: Set<string>, limit = 25) {
 
 const checkTypes = new Set(["daily", "weekly", "inventory", "air_pack"]);
 const issueCategories = new Set(["vehicle", "air_pack", "equipment"]);
-const serviceTypes = new Set(["inspection", "preventive", "repair", "recall", "tires", "fluids", "electrical", "body", "other"]);
 
 function privateJson(value: unknown, status = 200) {
   return Response.json(value, {
@@ -105,20 +104,21 @@ export async function GET(request: Request) {
         .eq("department_id", departmentId)
         .order("item_order")
         .order("name")
+        .order("id")
         .range(from, to)),
       liveChecks.then(result => ({ data: result.data?.checks || [], error: result.error })),
       liveChecks.then(result => ({ data: result.data?.checkItems || [], error: result.error })),
-      supabase
+      collectPages((from, to) => supabase
         .from("inventory_readiness_exceptions")
         .select("id,apparatus_id,equipment_id,check_item_id,result,priority,notes,status,out_of_service,opened_by,opened_at,issue_categories,assigned_employee_ids,assigned_employee_names,evidence_photo_id,resolved_at,resolved_by,resolution_notes")
         .eq("department_id", departmentId)
         .neq("status", "resolved")
-        .order("opened_at", { ascending: false }),
-      supabase
+        .order("opened_at", { ascending: false }).order("id").range(from, to)),
+      collectPages((from, to) => supabase
         .from("inventory_work_orders")
         .select("id,apparatus_id,equipment_id,status,priority,summary,details,assigned_to,opened_by,opened_at,due_at,closed_at,linked_exception_id,assigned_employee_ids,assigned_employee_names,repair_date,repair_cost,vendor,invoice_number,resolution_notes,closed_by,service_type,odometer,labor_hours,performed_by,parts_used,next_service_due_date,next_service_due_mileage")
         .eq("department_id", departmentId)
-        .order("opened_at", { ascending: false }),
+        .order("opened_at", { ascending: false }).order("id").range(from, to)),
       supabase
         .from("inventory_work_order_documents")
         .select("id,apparatus_id,work_order_id,document_type,original_filename,mime_type,byte_size,note,uploaded_by,uploaded_at")
@@ -130,15 +130,15 @@ export async function GET(request: Request) {
         .eq("department_id", departmentId)
         .order("day_of_week")
         .order("start_time"),
-      supabase
+      collectPages((from, to) => supabase
         .from("inventory_stock_items")
         .select("id,name,sku,barcode,unit,par_level,reorder_point,expiration_tracked")
         .eq("department_id", departmentId)
-        .order("name"),
-      supabase
+        .order("name").order("id").range(from, to)),
+      collectPages((from, to) => supabase
         .from("inventory_stock_lots")
         .select("id,stock_item_id,location_type,location_id,lot_number,expires_at,quantity_on_hand")
-        .eq("department_id", departmentId),
+        .eq("department_id", departmentId).order("id").range(from, to)),
       supabase
         .from("inventory_transactions")
         .select("id,stock_item_id,transaction_type,quantity,reason,performed_by,performed_at")
@@ -337,6 +337,27 @@ export async function POST(request: Request) {
     const actorId = session.context.user.id;
     const actor = session.context.user.email;
     const supabase = await createInventorySupabaseClient();
+
+    if (["adjust_stock", "create_notice", "create_work_order", "close_work_order", "update_work_order_status"].includes(action)) {
+      const requestId = clean(body.operationId, 80);
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId)) return privateJson({ error: "Refresh this form to obtain a valid save reference." }, 400);
+      const { action: ignoredAction, operationId: ignoredId, ...input } = body;
+      void ignoredAction; void ignoredId;
+      if (action === "create_notice" || action === "create_work_order") {
+        input.assignedEmployeeIds = stringList(input.assignedEmployeeIds);
+        input.assignedEmployeeNames = stringList(input.assignedEmployeeNames);
+        if (action === "create_notice") input.issueCategories = stringList(input.issueCategories, issueCategories, 3);
+      }
+      const { data, error } = await supabase.rpc("inventory_apply_operation", {
+        p_department_id: departmentId, p_request_id: requestId, p_action: action, p_input: input,
+      });
+      if (error) {
+        const status = error.code === "42501" ? 403 : error.code === "P0002" ? 404 : error.code === "40001" ? 409 : ["22023", "22P02", "22003", "22007", "22008"].includes(error.code) ? 400 : 503;
+        return privateJson({ error: status === 503 ? "Save confirmation was not received. Retry these same details to verify the original save." : error.message }, status);
+      }
+      if (!data?.requestId) return privateJson({ error: "The operation receipt could not be confirmed. Retry these same details." }, 503);
+      return privateJson(data, action.startsWith("create_") ? 201 : 200);
+    }
 
     if (action === "save_air_asset") {
       let asset;
@@ -1063,217 +1084,6 @@ export async function POST(request: Request) {
       return privateJson(completed);
     }
 
-    if (action === "create_notice") {
-      const apparatusId = clean(body.apparatusId, 80);
-      const notes = clean(body.notes, 1000);
-      const categories = stringList(body.issueCategories, issueCategories, 3);
-      const assignedEmployeeIds = stringList(body.assignedEmployeeIds);
-      const assignedEmployeeNames = stringList(body.assignedEmployeeNames);
-      const evidencePhotoId = clean(body.evidencePhotoId, 80) || null;
-      if (!apparatusId || !notes || !categories.length || !assignedEmployeeIds.length) {
-        return privateJson(
-          { error: "Select an apparatus, issue type, employee, and enter the notice details." },
-          400,
-        );
-      }
-      const { data: apparatus } = await supabase
-        .from("inventory_apparatus_profiles")
-        .select("id,name")
-        .eq("department_id", departmentId)
-        .eq("id", apparatusId)
-        .maybeSingle();
-      if (!apparatus) return privateJson({ error: "The selected apparatus was not found." }, 404);
-      if (evidencePhotoId) {
-        const { data: evidence } = await supabase
-          .from("inventory_deficiency_photos")
-          .select("id")
-          .eq("department_id", departmentId)
-          .eq("apparatus_id", apparatusId)
-          .eq("id", evidencePhotoId)
-          .maybeSingle();
-        if (!evidence) return privateJson({ error: "The attached photo does not match this apparatus." }, 400);
-      }
-      const exceptionId = crypto.randomUUID();
-      const { error: exceptionError } = await supabase
-        .from("inventory_readiness_exceptions")
-        .insert({
-          id: exceptionId,
-          department_id: departmentId,
-          apparatus_id: apparatusId,
-          result: "failed",
-          priority: clean(body.priority, 40) || "medium",
-          notes,
-          status: "open",
-          out_of_service: false,
-          opened_by: actor,
-          issue_categories: categories,
-          assigned_employee_ids: assignedEmployeeIds,
-          assigned_employee_names: assignedEmployeeNames,
-          evidence_photo_id: evidencePhotoId,
-        });
-      if (exceptionError) throw exceptionError;
-      const { error: orderError } = await supabase.from("inventory_work_orders").insert({
-        id: crypto.randomUUID(),
-        department_id: departmentId,
-        apparatus_id: apparatusId,
-        linked_exception_id: exceptionId,
-        status: "new",
-        priority: clean(body.priority, 40) || "medium",
-        summary: `${apparatus.name} ${categories.map((item) => item.replace("_", " ")).join(" / ")} notice`,
-        details: notes,
-        assigned_to: assignedEmployeeNames.join(", "),
-        assigned_employee_ids: assignedEmployeeIds,
-        assigned_employee_names: assignedEmployeeNames,
-        opened_by: actor,
-      });
-      if (orderError) throw orderError;
-      return privateJson({ noticeId: exceptionId }, 201);
-    }
-
-    if (action === "create_work_order") {
-      const apparatusId = clean(body.apparatusId, 80);
-      const equipmentId = clean(body.equipmentId, 80) || null;
-      const summary = clean(body.summary);
-      const requestedServiceType = clean(body.serviceType, 40) || "repair";
-      const odometer = body.odometer === "" || body.odometer === null || body.odometer === undefined ? null : number(body.odometer, -1);
-      if (!apparatusId || !summary) {
-        return privateJson(
-          { error: "Select an apparatus and describe the work needed." },
-          400,
-        );
-      }
-      if (!serviceTypes.has(requestedServiceType) || (odometer !== null && odometer < 0)) return privateJson({ error: "Choose a valid service type and nonnegative odometer reading." }, 400);
-      if (equipmentId) {
-        const { data: equipment } = await supabase
-          .from("inventory_equipment")
-          .select("id")
-          .eq("department_id", departmentId)
-          .eq("apparatus_id", apparatusId)
-          .eq("id", equipmentId)
-          .maybeSingle();
-        if (!equipment) return privateJson({ error: "The selected equipment is not assigned to that apparatus." }, 400);
-      }
-      const record = {
-        id: crypto.randomUUID(),
-        department_id: departmentId,
-        apparatus_id: apparatusId,
-        equipment_id: equipmentId,
-        status: "new",
-        priority: clean(body.priority, 40) || "routine",
-        summary,
-        details: clean(body.details, 1000) || null,
-        assigned_to: stringList(body.assignedEmployeeNames).join(", ")
-          || clean(body.assignedTo, 160)
-          || null,
-        assigned_employee_ids: stringList(body.assignedEmployeeIds),
-        assigned_employee_names: stringList(body.assignedEmployeeNames),
-        opened_by: actor,
-        service_type: requestedServiceType,
-        odometer,
-      };
-      const { error } = await supabase.from("inventory_work_orders").insert(record);
-      if (error) throw error;
-      if (equipmentId) {
-        const { error: equipmentStatusError } = await supabase
-          .from("inventory_equipment")
-          .update({ service_status: "in_repair", updated_at: new Date().toISOString() })
-          .eq("department_id", departmentId)
-          .eq("id", equipmentId)
-          .is("retired_at", null);
-        if (equipmentStatusError) throw equipmentStatusError;
-      }
-      return privateJson({ workOrder: record }, 201);
-    }
-
-    if (action === "close_work_order") {
-      const workOrderId = clean(body.workOrderId, 80);
-      const repairDate = clean(body.repairDate, 40);
-      const resolutionNotes = clean(body.resolutionNotes, 1000);
-      const repairCost = Number(body.repairCost);
-      const serviceType = clean(body.serviceType, 40) || "repair";
-      const odometer = body.odometer === "" || body.odometer === null || body.odometer === undefined ? null : number(body.odometer, -1);
-      const laborHours = body.laborHours === "" || body.laborHours === null || body.laborHours === undefined ? null : Number(body.laborHours);
-      const nextServiceMileage = body.nextServiceDueMileage === "" || body.nextServiceDueMileage === null || body.nextServiceDueMileage === undefined ? null : number(body.nextServiceDueMileage, -1);
-      if (!repairDate || !resolutionNotes || !Number.isFinite(repairCost) || repairCost < 0 || !serviceTypes.has(serviceType) || (odometer !== null && odometer < 0) || (laborHours !== null && (!Number.isFinite(laborHours) || laborHours < 0)) || (nextServiceMileage !== null && nextServiceMileage < 0)) {
-        return privateJson(
-          { error: "Repair date, repair details, and a valid cost are required." },
-          400,
-        );
-      }
-      const { data: workOrder } = await supabase
-        .from("inventory_work_orders")
-        .select("id,linked_exception_id,equipment_id")
-        .eq("department_id", departmentId)
-        .eq("id", workOrderId)
-        .neq("status", "closed")
-        .maybeSingle();
-      if (!workOrder) return privateJson({ error: "This open repair was not found." }, 404);
-      const { error } = await supabase
-        .from("inventory_work_orders")
-        .update({
-          status: "closed",
-          closed_at: new Date().toISOString(),
-          repair_date: repairDate,
-          repair_cost: repairCost,
-          vendor: clean(body.vendor, 240) || null,
-          invoice_number: clean(body.invoiceNumber, 120) || null,
-          resolution_notes: resolutionNotes,
-          closed_by: actor,
-          service_type: serviceType,
-          odometer,
-          labor_hours: laborHours,
-          performed_by: clean(body.performedBy, 240) || clean(body.vendor, 240) || null,
-          parts_used: clean(body.partsUsed, 2000) || null,
-          next_service_due_date: clean(body.nextServiceDueDate, 40) || null,
-          next_service_due_mileage: nextServiceMileage,
-        })
-        .eq("department_id", departmentId)
-        .eq("id", workOrderId)
-        .neq("status", "closed");
-      if (error) throw error;
-      if (workOrder.linked_exception_id) {
-        const { error: resolveError } = await supabase
-          .from("inventory_readiness_exceptions")
-          .update({
-            status: "resolved",
-            resolved_at: new Date().toISOString(),
-            resolved_by: actor,
-            resolution_notes: resolutionNotes,
-          })
-          .eq("department_id", departmentId)
-          .eq("id", workOrder.linked_exception_id)
-          .neq("status", "resolved");
-        if (resolveError) throw resolveError;
-      }
-      if (workOrder.equipment_id) {
-        const { error: equipmentStatusError } = await supabase
-          .from("inventory_equipment")
-          .update({ service_status: "in_service", updated_at: new Date().toISOString() })
-          .eq("department_id", departmentId)
-          .eq("id", workOrder.equipment_id)
-          .is("retired_at", null);
-        if (equipmentStatusError) throw equipmentStatusError;
-      }
-      return privateJson({ closed: true });
-    }
-
-    if (action === "update_work_order_status") {
-      const workOrderId = clean(body.workOrderId, 80);
-      const status = clean(body.status, 40);
-      const allowed = new Set(["new", "assigned", "in_repair", "waiting_parts"]);
-      if (!workOrderId || !allowed.has(status)) {
-        return privateJson({ error: "Choose a valid repair status." }, 400);
-      }
-      const { error } = await supabase
-        .from("inventory_work_orders")
-        .update({ status })
-        .eq("department_id", departmentId)
-        .eq("id", workOrderId)
-        .neq("status", "closed");
-      if (error) throw error;
-      return privateJson({ updated: true });
-    }
-
     if (action === "create_stock_item") {
       const name = clean(body.name);
       const unit = clean(body.unit, 40);
@@ -1317,42 +1127,6 @@ export async function POST(request: Request) {
         performed_by: actorId,
       });
       return privateJson({ itemId }, 201);
-    }
-
-    if (action === "adjust_stock") {
-      const lotId = clean(body.lotId, 80);
-      const delta = number(body.delta);
-      const { data: lot } = await supabase
-        .from("inventory_stock_lots")
-        .select("id,stock_item_id,quantity_on_hand,location_id")
-        .eq("department_id", departmentId)
-        .eq("id", lotId)
-        .maybeSingle();
-      if (!lot || !delta) {
-        return privateJson(
-          { error: "Select a supply lot and enter a non-zero adjustment." },
-          400,
-        );
-      }
-      const nextQuantity = Math.max(0, Number(lot.quantity_on_hand) + delta);
-      const actualDelta = nextQuantity - Number(lot.quantity_on_hand);
-      const { error } = await supabase
-        .from("inventory_stock_lots")
-        .update({ quantity_on_hand: nextQuantity })
-        .eq("department_id", departmentId)
-        .eq("id", lotId);
-      if (error) throw error;
-      await supabase.from("inventory_transactions").insert({
-        department_id: departmentId,
-        stock_item_id: lot.stock_item_id,
-        stock_lot_id: lotId,
-        transaction_type: actualDelta >= 0 ? "receive" : "use",
-        quantity: actualDelta,
-        to_location_id: lot.location_id,
-        reason: clean(body.reason, 300) || "Manual department adjustment",
-        performed_by: actorId,
-      });
-      return privateJson({ quantityOnHand: nextQuantity });
     }
 
     if (action === "request_restock") {

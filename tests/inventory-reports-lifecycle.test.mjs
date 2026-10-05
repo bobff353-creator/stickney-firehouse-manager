@@ -23,7 +23,7 @@ test("administrators can manage complete asset lifecycle and grouping", () => {
   assert.match(operations, /Create repair ticket/);
   assert.match(operations, /Place out of service/);
   assert.match(route, /action === "set_equipment_status"/);
-  assert.match(route, /equipment_id: equipmentId/);
+  assert.match(route, /rpc\("inventory_apply_operation"/); // Equipment linkage is verified in the transactional SQL tests.
 });
 
 test("reports tab prints, prepares email, and exposes check approval queue", () => {

@@ -9,6 +9,7 @@ export const boardSlides = [
 ] as const;
 export type BoardSlideId = typeof boardSlides[number]['id'];
 export type BoardConfiguration = {
+  template?: "standard" | "readiness";
   slides: Array<{ id: BoardSlideId; enabled: boolean; seconds: number }>;
   closeCalls: 'auto' | '3';
   announcement: { title: string; body: string; startsAt: string; endsAt: string; enabled: boolean };
@@ -34,12 +35,13 @@ export function validateBoardConfiguration(input: unknown): BoardConfiguration {
   });
   if (!slides.some(slide => slide.enabled)) throw Error('Keep at least one rotating section enabled.');
   if (!['auto', '3'].includes(value.closeCalls)) throw Error('Choose a Close Calls layout.');
+  if (value.template !== undefined && !["standard", "readiness"].includes(value.template)) throw Error("Choose a station display template.");
   const a = value.announcement;
   if (!a || typeof a.enabled !== 'boolean' || typeof a.title !== 'string' || a.title.length > 80 || typeof a.body !== 'string' || a.body.length > 240 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(a.title + a.body)) throw Error('Use a headline up to 80 characters and a message up to 240 characters.');
   for (const date of [a.startsAt, a.endsAt]) if (typeof date !== 'string' || (date && (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(date) || !Number.isFinite(Date.parse(date))))) throw Error('Choose valid announcement dates.');
   if (a.enabled && (!a.title.trim() || !a.body.trim() || !a.endsAt)) throw Error('An enabled announcement needs a headline, message, and end time.');
   if (a.startsAt && a.endsAt && Date.parse(a.endsAt) <= Date.parse(a.startsAt)) throw Error('The announcement must end after it starts.');
-  return { slides, closeCalls: value.closeCalls, announcement: { title: a.title.trim(), body: a.body.trim(), startsAt: a.startsAt, endsAt: a.endsAt, enabled: a.enabled } };
+  return { ...(value.template ? { template: value.template } : {}), slides, closeCalls: value.closeCalls, announcement: { title: a.title.trim(), body: a.body.trim(), startsAt: a.startsAt, endsAt: a.endsAt, enabled: a.enabled } };
 }
 export function boardSlideAt(now: number, config: BoardConfiguration): BoardSlideId {
   const enabled = config.slides.filter(slide => slide.enabled);

@@ -32,7 +32,7 @@ test('save acknowledgement is separate from refresh, duplicate requests and noti
   assert.match(operations, /mutationPending\.current \|\| itemSavePending\.current/);
   assert.match(operations, /load\(\{ background: true, fresh: true \}\)/);
   assert.match(operations, /This does not send an email, text, or push notification/);
-  assert.match(operations, /Do not repeat a stock adjustment until you verify the quantity/);
+  assert.match(operations, /Retry the same details to confirm the original save/);
   assert.match(operations, /item\.lots\.length === 1/);
   assert.match(operations, /Choose the actual lot/);
 });

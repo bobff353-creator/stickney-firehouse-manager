@@ -1,4 +1,5 @@
 'use client';
+import Link from "next/link";
 import { useEffect, useRef, useState } from 'react';
 import { boardSlides, validateBoardConfiguration, type BoardConfiguration, type SavedBoardConfiguration } from './board-configuration';
 import styles from './board-manager.module.css';
@@ -79,7 +80,7 @@ export default function BoardManager({ onClose, onPreview, previewing, onPublish
       <div className={styles.body}>
         <p className={styles.protected}>Always protected: active calls, staffing, officer in charge, apparatus status, road closures and delayed-data warnings. New calls still open Respond for 90 seconds.</p>
         {draft && <fieldset disabled={busy}>
-          {tab === 'layout' && <section><h2>What plays on the information panel?</h2><p>Move sections up or down, choose their display time, or turn off optional rotations. All TVs use the same clock; changing slides does not download the data again.</p>
+          {tab === 'layout' && <section><label>Station display template<select value={draft.template || 'standard'} onChange={event => change({ ...draft, template: event.target.value as 'standard' | 'readiness' })}><option value='standard'>Station briefing</option><option value='readiness'>Operations readiness</option></select></label><p>Operations readiness replaces the equipment rotation with saved asset, work-order and stock attention counts. Active call alerts and required checks stay visible.</p><h2>What plays on the information panel?</h2><p>Move sections up or down, choose their display time, or turn off optional rotations. All TVs use the same clock; changing slides does not download the data again.</p>
             <ol className={styles.slides}>{draft.slides.map((slide, index) => { const label = boardSlides.find(item => item.id === slide.id)!.label; return <li key={slide.id}>
               <label><input type="checkbox" checked={slide.enabled} onChange={event => change({ ...draft, slides: draft.slides.map(item => item.id === slide.id ? { ...item, enabled: event.target.checked } : item) })}/><strong>{label}</strong></label>
               <label>Seconds<input aria-label={`${label} seconds`} type="number" min={8} max={60} value={slide.seconds} onChange={event => change({ ...draft, slides: draft.slides.map(item => item.id === slide.id ? { ...item, seconds: Number(event.target.value) } : item) })}/></label>
@@ -97,7 +98,7 @@ export default function BoardManager({ onClose, onPreview, previewing, onPublish
             <article className={styles.noticePreview}><small>MESSAGE PREVIEW · NOT PUBLISHED</small><h3>{draft.announcement.title || 'Your headline'}</h3><p>{draft.announcement.body || 'Keep the notice brief and readable from across the room.'}</p></article>
           </section>}
           {tab === 'content' && <section><h2>Edit the source, once</h2><p>These open the existing editors. Each has its own save action; they are separate from the layout draft.</p><div className={styles.tools}>{(['notes','classes','links'] as const).map(kind => <button key={kind} onClick={() => { if (!dirty || window.confirm('Leave setup and discard unpublished layout changes?')) { onPreview(null); onContent(kind); } }}>{kind === 'notes' ? 'Officer notes & events' : kind === 'classes' ? 'Manage training classes' : 'News & training links'}</button>)}</div>
-            <h2>Set up each TV or apparatus browser</h2><p>Open <strong>Respond Device Modes</strong> on that device. Choose its name and apparatus filter there. Then open Live Operations and select TV full screen. Call sound must be enabled on each TV.</p><a href="/?page=respond-device-modes&display=portal" onClick={event => { if (dirty && !window.confirm('Leave setup and discard unpublished layout changes?')) event.preventDefault(); }}>Set up this browser →</a><p>Remote device health and remote reload are not connected. This screen cannot confirm that a physical TV is powered on.</p>
+            <h2>Set up each TV or apparatus browser</h2><p>Open <strong>Respond Device Modes</strong> on that device. Choose its name and apparatus filter there. Then open Live Operations and select TV full screen. Call sound must be enabled on each TV.</p><Link href="/?page=respond-device-modes&display=portal" onClick={event => { if (dirty && !window.confirm('Leave setup and discard unpublished layout changes?')) event.preventDefault(); }}>Set up this browser →</Link><p>Remote device health and remote reload are not connected. This screen cannot confirm that a physical TV is powered on.</p>
           </section>}
         </fieldset>}
       </div>

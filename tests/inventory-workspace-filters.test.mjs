@@ -14,7 +14,8 @@ test("stock grouping keeps each lot and never mixes units or hides expired count
   assert.equal(stock[0].total, 5);
   assert.equal(stock[0].lots.length, 2);
   const state = stockAttention(stock[0], now);
-  assert.equal(state.low, false);
+  assert.equal(state.low, true);
+  assert.equal(state.usable, 2);
   assert.deepEqual(state.expired.map(lot => lot.lot_id), ["old"]);
   assert.deepEqual(state.expiring.map(lot => lot.lot_id), ["new"]);
   assert.equal(stockAttention(stock[1], now).expired.length, 0, "empty lots do not imply expired stock on hand");
@@ -24,7 +25,7 @@ test("stock location, search and expiration filters refer to the same lot scope"
   assert.equal(filterStock(stock, { query: "", location: "Station", status: "expired" }, now).length, 0);
   assert.equal(filterStock(stock, { query: "OLD", location: "Station", status: "all" }, now).length, 0);
   assert.equal(filterStock(stock, { query: "NEW", location: "Station", status: "expiring" }, now)[0].total, 5);
-  assert.deepEqual(filterStock(stock, { query: "", location: "all", status: "low" }, now).map(item => item.row.id), ["tape"]);
+  assert.deepEqual(filterStock(stock, { query: "", location: "all", status: "low" }, now).map(item => item.row.id), ["gloves", "tape"]);
   assert.equal(filterStock([], { query: "", location: "all", status: "attention" }, now).length, 0);
 });
 test("expiration follows Chicago calendar days at midnight and across daylight saving changes", () => {

@@ -2,7 +2,7 @@ import { stockExpiryDays } from "./inventory-check-flow.ts";
 
 type RecordRow = Record<string, unknown>;
 const text = (value: unknown) => value == null ? "" : String(value);
-export type StockFilter = "all" | "attention" | "low" | "expired" | "expiring";
+export type StockFilter = "all" | "attention" | "low" | "expired" | "expiring" | "unknown";
 export type RepairFilter = { query: string; apparatus: string; status: string; priority: string };
 
 export function repairStage(row: RecordRow) {
@@ -43,7 +43,10 @@ export function stockAttention(item: { row: RecordRow; total: number; lots: Reco
     const days = stockExpiryDays(lot.expires_at, now);
     return Number(lot.quantity_on_hand) > 0 && days !== null && days >= 0 && days <= 30;
   });
-  return { low: item.total <= Number(item.row.reorder_point || 0), expired, expiring };
+  const unknown = item.lots.filter(lot => Number(lot.quantity_on_hand) > 0 && Boolean(item.row.expiration_tracked) && stockExpiryDays(lot.expires_at, now) === null);
+  const excluded = [...expired, ...unknown].reduce((sum, lot) => sum + Number(lot.quantity_on_hand || 0), 0);
+  const usable = Math.max(0, item.total - excluded);
+  return { low: usable <= Number(item.row.reorder_point || 0), usable, expired, expiring, unknown };
 }
 
 export function filterStock<T extends RecordRow>(items: ReturnType<typeof stockGroups<T>>, filter: { query: string; location: string; status: StockFilter }, now = Date.now()) {
@@ -54,11 +57,13 @@ export function filterStock<T extends RecordRow>(items: ReturnType<typeof stockG
     const lots = filter.location === "all" ? item.lots : item.lots.filter(lot => text(lot.location_id) === filter.location);
     if (filter.location !== "all" && !lots.length) return false;
     const searchable = [item.row.name, item.row.sku, item.row.barcode, ...lots.flatMap(lot => [lot.lot_number, lot.location_id])].map(text).join(" ").toLowerCase();
-    const state = stockAttention({ ...item, lots }, now);
+    const departmentState = stockAttention(item, now);
+    const state = { ...stockAttention({ ...item, lots }, now), low: departmentState.low };
     const matches = filter.status === "all" || (filter.status === "low" && state.low)
       || (filter.status === "expired" && state.expired.length > 0)
       || (filter.status === "expiring" && state.expiring.length > 0)
-      || (filter.status === "attention" && (state.low || state.expired.length > 0 || state.expiring.length > 0));
+      || (filter.status === "unknown" && state.unknown.length > 0)
+      || (filter.status === "attention" && (state.low || state.expired.length > 0 || state.expiring.length > 0 || state.unknown.length > 0));
     return matches && searchable.includes(query);
   });
 }

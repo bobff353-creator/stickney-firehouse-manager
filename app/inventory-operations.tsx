@@ -20,6 +20,9 @@ import { indexFirstBy, groupByKey, sortCheckItems, equipmentNameOrder } from './
 import InventoryReports from './inventory-reports';
 import InventoryCheckJourney from "./inventory-check-journey";
 import { canSubmitInspection, initialCheckSection, stockExpiryDays } from "./inventory-check-flow";
+import { assetAttention } from "./inventory-asset-attention";
+import { createInventorySaveReferences } from "./inventory-save-reference";
+import { OperationsOverview } from "./operations-overview";
 import { filterRepairOrders, filterStock, inventoryRefreshInterval, openRepair, recordedRepairCost, repairStage, stockAttention as stockAttentionState, stockGroups, type StockFilter } from "./inventory-workspace-filters";
 import "./inventory/workspace-improvements.css";
 
@@ -385,6 +388,7 @@ export default function InventoryOperations({
   onAir = onSetup,
   onReports,
   onRecords,
+  onNavigate,
 }: {
   view: OperationsView;
   onSetup: () => void;
@@ -398,6 +402,7 @@ export default function InventoryOperations({
   onRepairs?: () => void;
   onAir?: () => void;
   onReports?: () => void;
+  onNavigate?: (view: "equipment" | "service" | "stock") => void;
   onRecords?: (records: Pick<OperationsData, "equipment" | "checks" | "checkItems"> | null) => void;
 }) {
   const [data, setData] = useState<OperationsData>(emptyData);
@@ -406,6 +411,7 @@ export default function InventoryOperations({
   const [message, setMessage] = useState("");
   const [saveReceipt, setSaveReceipt] = useState<{ at: number; reference: string } | null>(null);
   const mutationPending = useRef(false);
+  const [saveReferences] = useState(createInventorySaveReferences);
   const [scbaDirty, setScbaDirty] = useState<Record<string, boolean>>({});
   const [journey, setJourney] = useState<{ checkId: string; section: string } | null>(null);
   const [stockSearch, setStockSearch] = useState("");
@@ -713,15 +719,22 @@ export default function InventoryOperations({
     setError("");
     setMessage("");
     setSaveReceipt(null);
+    const atomic = ["adjust_stock", "create_notice", "create_work_order", "close_work_order", "update_work_order_status"].includes(String(payload.action));
+    let reference: { key: string; id: string } | undefined;
     try {
+      reference = atomic ? await saveReferences.acquire(payload, data.viewer?.email || "") : undefined;
       const response = await fetch("/api/operations", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(reference ? { ...payload, operationId: reference.id } : payload),
         signal: AbortSignal.timeout(20000),
       });
       const result = await response.json() as { error?: string; checkId?: string };
-      if (!response.ok) throw new Error(result.error || "The change could not be saved.");
+      if (!response.ok) {
+        if (response.status < 500 && reference) saveReferences.confirm(reference.key);
+        throw new Error(result.error || "The change could not be saved.");
+      }
+      if (reference) saveReferences.confirm(reference.key);
       setSaveReceipt({ at: Date.now(), reference: String(result.checkId || payload.checkId || payload.entryId || payload.lotId || "") });
       // Keep every form mounted while reconciling a successful mutation.
       const refreshed = await load({ background: true, fresh: true });
@@ -742,14 +755,14 @@ export default function InventoryOperations({
         create_equipment: "Equipment added to the selected compartment.",
         save_air_asset: "Air equipment record saved. View its details below; location changes apply to the next check.",
         log_air_maintenance: "Completed maintenance saved to this equipment ID. Service status and hydro dates are unchanged.",
-        close_work_order: "Repair completion saved to maintenance history.",
+        close_work_order: "Repair completion saved to maintenance history. Equipment service status is retained; review it separately before returning equipment to use.",
         update_work_order_status: "Repair status updated. The saved record is shown below.",
         request_location_change: "Location change submitted for administrator approval. The official location is unchanged until approved.",
       };
       setMessage(refreshed ? (confirmations[String(payload.action)] || `${name.replaceAll("_", " ")} saved. The records below have been refreshed.`) : "Your change was saved, but the refreshed records could not be loaded. Retry the refresh before reviewing the saved preview.");
       return true;
     } catch (caught) {
-      setError(caught instanceof TypeError || caught instanceof SyntaxError || (caught instanceof DOMException && ["TimeoutError", "AbortError"].includes(caught.name)) ? "Save confirmation was not received. Refresh and check the record before trying again; the server may have saved it. Do not repeat a stock adjustment until you verify the quantity." : caught instanceof Error ? caught.message : "The change could not be saved.");
+      setError(caught instanceof TypeError || caught instanceof SyntaxError || (caught instanceof DOMException && ["TimeoutError", "AbortError"].includes(caught.name)) ? "Save confirmation was not received. Refresh and check the record before trying again; the server may have saved it. Retry the same details to confirm the original save without repeating the quantity change." : caught instanceof Error ? caught.message : "The change could not be saved.");
       return false;
     } finally {
       mutationPending.current = false;
@@ -1002,6 +1015,8 @@ export default function InventoryOperations({
   const maintenanceOrders = useMemo(() => data.workOrders.filter((item) => maintenanceApparatusId === "all" || value(item, "apparatus_id") === maintenanceApparatusId), [data.workOrders, maintenanceApparatusId]);
   const filteredRepairs = filterRepairOrders(data.workOrders, { query: repairSearch, apparatus: repairApparatus, status: repairFilter, priority: repairPriority });
   const openRepairs = data.workOrders.filter(openRepair);
+  const openEquipmentIds = useMemo(() => new Set([...data.exceptions, ...data.workOrders.filter(openRepair)].filter(row => !["resolved", "cancelled"].includes(value(row, "status"))).map(row => value(row, "equipment_id")).filter(Boolean)), [data.exceptions, data.workOrders]);
+  const attentionForAsset = (item: Row) => assetAttention(item, Date.now(), openEquipmentIds.has(value(item, "id")));
   const dueEquipment = useMemo(() => new Set(serviceReminders(data.equipment).map(({ item }) => value(item, "id"))), [data.equipment]);
   const documentsForOrder = (orderId: string) => data.workOrderDocuments.filter((item) => value(item, "work_order_id") === orderId);
   const printMaintenanceTicket = (order: Row) => {
@@ -1022,7 +1037,7 @@ export default function InventoryOperations({
       const matchesQuery = !query || [value(item, "name"), value(item, "manufacturer"), value(item, "model"), value(item, "serial_number"), value(item, "barcode"), value(item, "compartment_label"), value(item, "item_type"), value(item, "service_status"), apparatus ? value(apparatus, "name") : ""]
         .some((field) => field.toLowerCase().includes(query));
       const unavailable = ["out_of_service", "in_repair"].includes(value(item, "service_status"));
-      const matchesAttention = equipmentAttention === "all" || (equipmentAttention === "service" && dueEquipment.has(value(item, "id"))) || (equipmentAttention === "unavailable" && unavailable);
+      const matchesAttention = equipmentAttention === "all" || (equipmentAttention === "attention" && assetAttention(item, Date.now(), openEquipmentIds.has(value(item, "id"))).length > 0) || (equipmentAttention === "service" && dueEquipment.has(value(item, "id"))) || (equipmentAttention === "unavailable" && unavailable);
       return matchesRig && matchesQuery && matchesAttention;
     });
     return [...matches].sort((left, right) => {
@@ -1036,7 +1051,7 @@ export default function InventoryOperations({
             : `${apparatusName(right)} ${value(right, "compartment_label")} ${value(right, "name")}`;
       return equipmentNameOrder.compare(leftKey, rightKey);
     });
-  }, [apparatusById, data.equipment, equipmentRigFilter, equipmentSearch, equipmentSort, equipmentAttention, dueEquipment]);
+  }, [apparatusById, data.equipment, equipmentRigFilter, equipmentSearch, equipmentSort, equipmentAttention, dueEquipment, openEquipmentIds]);
   const today = new Date();
   const chicagoWeekday = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", weekday: "short" }).format(today);
   const todayDay = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(chicagoWeekday);
@@ -1143,6 +1158,7 @@ export default function InventoryOperations({
         uploadDocument={uploadMaintenanceDocument} uploadPhoto={async (asset, file) => { await uploadEquipmentPhoto(asset, file); await load({ background: true, fresh: true }); }} /> : null}
       {view === "due" || view === "inventory" ? <div className="inventory-find-unit"><label>Find your apparatus<input type="search" value={unitSearch} onChange={event => setUnitSearch(event.target.value)} placeholder="Unit name or check type" /></label>{unitSearch && <button type="button" onClick={() => setUnitSearch("")}>Clear search</button>}<p>Choose your apparatus → check each item → submit for review.</p></div> : null}
 
+      {view === "due" && onNavigate && <OperationsOverview data={data} onNavigate={onNavigate} delayed={Boolean(refreshError)} />}
       {view === "due" ? (
         <>
           <nav className="check-job-filter" aria-label="Choose a check job">{[["all", "All due checks"], ["daily", "Daily"], ["weekly", "Weekly"], ["air_pack", "Air packs & bottles"]].map(([id, label]) => <button key={id} type="button" aria-pressed={dueType === id} onClick={() => setDueType(id)}>{label}</button>)}</nav>
@@ -1214,13 +1230,13 @@ export default function InventoryOperations({
             <label className="equipment-search-query">Search equipment<input value={equipmentSearch} onChange={(event) => setEquipmentSearch(event.target.value)} placeholder="Name, barcode, serial, compartment, kit, or unit" /></label>
             <label>Apparatus<select value={equipmentRigFilter} onChange={(event) => setEquipmentRigFilter(event.target.value)}><option value="all">All apparatus</option>{data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")}</option>)}</select></label>
             <label>Sort by<select value={equipmentSort} onChange={(event) => setEquipmentSort(event.target.value as typeof equipmentSort)}><option value="rig">Rig and compartment</option><option value="name">Item name</option><option value="compartment">Compartment</option><option value="status">Service status</option></select></label>
-            <label>Show equipment<select value={equipmentAttention} onChange={event => setEquipmentAttention(event.target.value)}><option value="all">All equipment</option><option value="unavailable">Out of service / in repair</option><option value="service">Service due / reminder active</option></select></label>
+            <label>Show equipment<select value={equipmentAttention} onChange={event => setEquipmentAttention(event.target.value)}><option value="all">All equipment</option><option value="attention">All asset attention</option><option value="unavailable">Out of service / in repair</option><option value="service">Service due / reminder active</option></select></label>
             <button type="button" onClick={() => { setScannerTarget("search"); setScannerOpen(true); }}>Scan Barcode</button>
             <button type="button" onClick={() => { setEquipmentSearch(""); setEquipmentRigFilter("all"); setEquipmentAttention("all"); }}>Clear filters</button>
           </div>
           {equipmentMatches.length ? <div className="equipment-directory">{equipmentMatches.map((item) => {
             const apparatus = data.apparatus.find((row) => value(row, "id") === value(item, "apparatus_id"));
-            return <button className="equipment-record-button" type="button" key={value(item, "id")} onClick={() => setSelectedDirectoryEquipment(item)} aria-label={`View ${value(item, "name")} equipment record`}><div><span className={`equipment-status status-${value(item, "service_status") || "in_service"}`}>{formatStatus(item.service_status) || "In Service"}</span><strong>{value(item, "name")}</strong><small>{apparatus ? value(apparatus, "name") : "Unknown apparatus"} · {value(item, "compartment_label") || "Location not recorded"}</small></div><dl><div><dt>Type</dt><dd>{formatStatus(item.item_type) || "Individual"}</dd></div><div><dt>Serial</dt><dd>{value(item, "serial_number") || "Not recorded"}</dd></div><div><dt>Required</dt><dd>{value(item, "quantity_required") || "1"}</dd></div></dl></button>;
+            return <button className="equipment-record-button" type="button" key={value(item, "id")} onClick={() => setSelectedDirectoryEquipment(item)} aria-label={`View ${value(item, "name")} equipment record`}><div><span className={`equipment-status status-${value(item, "service_status") || "in_service"}`}>{formatStatus(item.service_status) || "In Service"}</span><strong>{value(item, "name")}</strong><small>{apparatus ? value(apparatus, "name") : "Unknown apparatus"} · {value(item, "compartment_label") || "Location not recorded"}</small></div><dl><div><dt>Type</dt><dd>{formatStatus(item.item_type) || "Individual"}</dd></div><div><dt>Serial</dt><dd>{value(item, "serial_number") || "Not recorded"}</dd></div><div><dt>Required</dt><dd>{value(item, "quantity_required") || "1"}</dd></div></dl>{attentionForAsset(item).length > 0 && <ul className="asset-attention-list" aria-label="Asset attention">{attentionForAsset(item).map(entry => <li key={entry.kind} data-severity={entry.severity}>{entry.label}</li>)}</ul>}</button>;
           })}</div> : <div className="ops-empty"><strong>No equipment matches this search.</strong><p>Try a unit name, compartment, asset tag, barcode, or serial number.</p></div>}
           {selectedDirectoryEquipment ? (() => {
             const apparatus = data.apparatus.find((row) => value(row, "id") === value(selectedDirectoryEquipment, "apparatus_id"));
@@ -1244,7 +1260,7 @@ export default function InventoryOperations({
                 <div><dt>Expiration</dt><dd>{value(selectedDirectoryEquipment, "expiration_date") || "Not tracked"}</dd></div>
                 <div><dt>Contained equipment</dt><dd>{containedItems.length ? `${containedItems.length} linked item${containedItems.length === 1 ? "" : "s"}` : "None"}</dd></div>
               </dl>
-              <ServiceScheduleSummary item={data.equipment.find(item => item.id === selectedDirectoryEquipment.id) || selectedDirectoryEquipment} />
+              <ServiceScheduleSummary item={data.equipment.find(item => item.id === selectedDirectoryEquipment.id) || selectedDirectoryEquipment} />{attentionForAsset(selectedDirectoryEquipment).length > 0 && <ul className="asset-attention-list" aria-label="Selected asset attention">{attentionForAsset(selectedDirectoryEquipment).map(entry => <li key={entry.kind} data-severity={entry.severity}>{entry.label}</li>)}</ul>}
               {value(selectedDirectoryEquipment, "service_notes") ? <p className="equipment-service-note">{value(selectedDirectoryEquipment, "service_notes")}</p> : null}
               <div className="equipment-record-actions">
                 {canSetup ? <button className="ops-primary" type="button" onClick={() => openEquipmentEditor(selectedDirectoryEquipment)}>Edit complete asset record</button> : null}
@@ -1709,7 +1725,7 @@ export default function InventoryOperations({
             <div className="inventory-filter-toolbar stock-workflow-tools">
               <label>Find a supply, barcode, lot or location<input type="search" value={stockSearch} onChange={event => setStockSearch(event.target.value)} placeholder="Search supplies" /></label>
               <label>Supply location<select value={stockLocation} onChange={event => setStockLocation(event.target.value)}><option value="all">All locations</option>{stockLocations.map(location => <option key={location} value={location}>{location || "Location not recorded"}</option>)}</select></label>
-              <label>Show supplies<select value={stockFilter} onChange={event => setStockFilter(event.target.value as StockFilter)}><option value="all">All supplies</option><option value="attention">Any stock or expiration alert</option><option value="low">At / below reorder point</option><option value="expired">Have expired stock</option><option value="expiring">Expire today / within 30 days</option></select></label>
+              <label>Show supplies<select value={stockFilter} onChange={event => setStockFilter(event.target.value as StockFilter)}><option value="all">All supplies</option><option value="attention">Any stock or expiration alert</option><option value="unknown">Expiration dates to verify</option><option value="low">At / below reorder point</option><option value="expired">Have expired stock</option><option value="expiring">Expire today / within 30 days</option></select></label>
               <button type="button" onClick={() => { setStockFilter("all"); setStockSearch(""); setStockLocation("all"); }}>Clear supply filters</button>
             </div>
           </section>
@@ -1739,7 +1755,8 @@ export default function InventoryOperations({
             {visibleStockRows.length ? <div className="stock-grid">{visibleStockRows.map((item) => {
               const selectedLot = selectedStockLots[value(item.row, "id")] || (item.lots.length === 1 ? value(item.lots[0], "lot_id") : "");
               const lot = item.lots.find(row => value(row, "lot_id") === selectedLot);
-              const belowPar = item.total <= Number(item.row.reorder_point || 0);
+              const stockState = stockAttentionState(item);
+              const belowPar = stockState.low;
               const daysToExpiration = stockExpiryDays(lot?.expires_at);
               const expirationAlert = daysToExpiration !== null && daysToExpiration <= 30;
               const lotsNeedingAttention = item.lots.filter(row => { const days = stockExpiryDays(row.expires_at); return Number(row.quantity_on_hand) > 0 && days !== null && days <= 30; });
@@ -1747,12 +1764,12 @@ export default function InventoryOperations({
               const openRequest = data.restockRequests.find((request) => value(request, "stock_item_id") === value(item.row, "id") && value(request, "transaction_type") !== "restock_fulfilled");
               return <article key={value(item.row, "id")} className={`${belowPar ? "stock-low" : ""} ${expirationAlert ? "stock-expiring" : ""}`}>
                 <div><strong>{value(item.row, "name")}</strong><small>{value(item.row, "sku") || "No SKU"} · {value(item.row, "unit")}</small></div><b>{item.total} recorded</b><span>{belowPar ? "REORDER" : `PAR ${value(item.row, "par_level")}`}</span>
-                {expiredQuantity > 0 && <p className="stock-lot-warning">Includes {expiredQuantity} {value(item.row, "unit")} with a past expiration date. The total is a physical count, not confirmation that stock can be used.</p>}
+                <p className="stock-lot-detail">{stockState.usable} {value(item.row, "unit")} within recorded expiration dates · {item.total} physically on hand. This count does not authorize use.</p>{stockState.unknown.length > 0 && <p className="stock-lot-warning">Expiration dates missing for {stockState.unknown.length} stocked lot(s). Verify before use.</p>}{expiredQuantity > 0 && <p className="stock-lot-warning">Includes {expiredQuantity} {value(item.row, "unit")} with a past expiration date. The total is a physical count, not confirmation that stock can be used.</p>}
                 {lotsNeedingAttention.length > 0 && <p className="stock-lot-warning">{lotsNeedingAttention.length} lot(s) expired or expiring within 30 days. Check the lot dates before use.</p>}
                 <label className="stock-lot-picker">Lot &amp; location<select value={selectedLot} disabled={Boolean(busy)} onChange={event => setSelectedStockLots(current => ({ ...current, [value(item.row, "id")]: event.target.value }))}><option value="">Choose the actual lot</option>{item.lots.map(row => <option key={value(row, "lot_id")} value={value(row, "lot_id")}>{value(row, "lot_number") || "Lot not recorded"} · {value(row, "location_id") || "Location not recorded"} · {value(row, "quantity_on_hand")} on hand · Exp {value(row, "expires_at") || "not recorded"}</option>)}</select></label>
                 {lot ? <><p className="stock-lot-detail">Selected lot: {value(lot, "quantity_on_hand")} {value(item.row, "unit")} · Expires {value(lot, "expires_at") || "not recorded"}</p>{expirationAlert && <p className="stock-lot-warning">{daysToExpiration! < 0 ? "EXPIRED" : `Expires in ${daysToExpiration} days`} — follow department policy; this screen does not authorize use.</p>}<div className="stock-actions">{([-1, 1] as const).map(delta => <button key={delta} type="button" disabled={Boolean(busy) || !canCheck || (delta < 0 && Number(lot.quantity_on_hand || 0) <= 0)} onClick={() => { if (window.confirm(`${delta < 0 ? "Record use of" : "Receive"} 1 ${value(item.row, "unit")} of ${value(item.row, "name")}, lot ${value(lot, "lot_number") || "not recorded"}, at ${value(lot, "location_id") || "unrecorded location"}? Only confirm if this physical movement occurred.`)) void action(`stock-${value(lot, "lot_id")}`, { action: "adjust_stock", lotId: value(lot, "lot_id"), delta, reason: delta < 0 ? "Used from station stock" : "Received into station stock" }); }}>{delta < 0 ? "− Use 1" : "+ Receive 1"}</button>)}</div></> : <p className="stock-lot-detail">Choose a lot before recording a quantity change.</p>}
                 <form className="stock-restock-form" onSubmit={event => { event.preventDefault(); const fields = new FormData(event.currentTarget); void action(`restock-${value(item.row, "id")}`, { action: "request_restock", stockItemId: value(item.row, "id"), quantity: Number(fields.get("quantity")), reason: `Restock requested for ${value(item.row, "name")}` }); }}>
-                  <label>Restock quantity ({value(item.row, "unit")})<input name="quantity" type="number" min="1" step="1" required defaultValue={openRequest ? Number(openRequest.quantity) : Math.max(1, Number(item.row.par_level || 1) - item.total)} disabled={Boolean(busy) || !canCheck || Boolean(openRequest)} /></label>
+                  <label>Restock quantity ({value(item.row, "unit")})<input name="quantity" type="number" min="1" step="1" required defaultValue={openRequest ? Number(openRequest.quantity) : Math.max(1, Number(item.row.par_level || 1) - stockState.usable)} disabled={Boolean(busy) || !canCheck || Boolean(openRequest)} /></label>
                   <button className="restock-request-button" disabled={Boolean(busy) || !canCheck || Boolean(openRequest)}>{openRequest ? formatStatus(openRequest.transaction_type) : "Request restock"}</button>
                   <small>Request only. Stock changes when the actual receipt is recorded.</small>
                 </form>
@@ -2024,7 +2041,7 @@ function RepairStatusControl({
   const status = normalizedRepairStatus(item);
   return (
     <label className="repair-status-control">Repair stage
-      <select value={status} disabled={busy} onChange={(event) => void onUpdate(`status-${value(item, "id")}`, { action: "update_work_order_status", workOrderId: value(item, "id"), status: event.target.value })}>
+      <select value={status} disabled={busy} onChange={(event) => void onUpdate(`status-${value(item, "id")}`, { action: "update_work_order_status", workOrderId: value(item, "id"), expectedStatus: value(item, "status"), status: event.target.value })}>
         {repairStages.filter(([id]) => id !== "closed").map(([id, label]) => <option key={id} value={id}>{label}</option>)}
       </select>
     </label>

@@ -147,3 +147,49 @@ system preference. A grouped presentation correction aligns the TODAY heading,
 primary navigation, crew/readiness panels and Inbox status/filter controls with
 that shell. Repeat visual acceptance includes the actual shell styles rather
 than only global CSS in the isolated fixture.
+
+## Phase 2 release
+
+Five related changes are grouped into one push:
+
+1. The Operations due screen joins saved checks, active assets, work orders and
+   supply attention, with direct links to the existing tools. Existing check
+   templates, unfinished results, reports, photographs and linked IDs remain.
+2. Equipment attention combines open repairs/defects, saved service status,
+   expiration dates, hydro dates and service reminders. Missing bottle hydro
+   dates and invalid service schedules require verification. Retired assets are
+   excluded; dates alone do not certify readiness.
+3. Repair notices and work orders save transactionally. Closing work preserves
+   service status; a separate equipment release remains necessary. An exception
+   shared by another open order stays unresolved. Stale stage changes are denied.
+4. Stock movements lock the actual lot and save its audit in the same transaction.
+   Overdraw is rejected instead of silently clamped. Physical quantities retain
+   every lot; reorder attention excludes expired stock and stock with missing
+   required dates. Restock requests still require an actual receipt to add stock.
+5. Board setup offers Station briefing and Operations readiness templates. The
+   readiness packet contains department-scoped aggregate counts, no narratives,
+   assignee names or costs. Existing call takeover, sound opt-in, required-check
+   section, announcements and weighted rotation remain. Failed reads retain a
+   marked last report; denied access clears the packet.
+
+The additive migration `20261005151249_inventory_phase_two_safe_operations.sql`
+adds caller-owned, department-scoped save receipts and a security-invoker RPC.
+RLS, the signed portal server boundary and action-specific permission checks are
+retained. Unknown-response retries use the same request UUID, including a page
+reload; the browser stores only a digest and UUID. Successful saves clear the
+pending reference. No operational rows are seeded or backfilled.
+
+181 focused inventory, board, session and fleet tests passed. Real local
+PostgreSQL fixtures verified atomic rollback, repeat-safe stock/repair saves,
+audit persistence, retained defects, completed-record protection, caller RLS and
+denied server/department access. Actual handler tests verified scoped paging past
+1,000 assets, redacted TV fields and failure responses. Phone, tablet, desktop,
+light/dark and unavailable-feed browser previews use isolated fictional data.
+Changed-file lint and type checks pass; production build, migration deployment
+and authenticated live acceptance are recorded independently for the release.
+
+The board fixture now supplies the department context required by the production
+SQL adapter. Legacy source assertions were updated for transactional repair RPCs
+and safe-retry messaging; rollback/permission behavior is covered by SQL and real
+handler tests. This focused suite does not establish that every repository test
+outside this release passes.
