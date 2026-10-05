@@ -8,6 +8,8 @@ import dynamic from "next/dynamic";
 import { portalNeedsPayroll } from "./portal-data-needs";
 import { SaveStatus } from "./save-status";
 import { payrollReviewIssues, type ReviewStaffing } from "./payroll-review";
+import { timekeepingReview, validatePayrollReference, validatePayrollExportInputs } from './payroll-timekeeping-review';
+import { PayrollTimekeepingPanel } from './payroll-timekeeping-panel';
 import PayrollCorrections from "./payroll-corrections";
 import PayrollSubmissions, { type SubmissionState } from "./payroll-submissions";
 import { submittedPayrollReference, withApprovedAdjustments, submittedExportRows, adjustmentExportRows } from "./payroll-submission-export";
@@ -463,8 +465,8 @@ export default function PayrollApp({
     if (!data) return { ...summarizePayroll(employee, [], { overtimeThreshold: 0, actingOfficerPremium: 0, dpwMultiplier: 1.5 }), status: "Not started" as const, issues: [] as string[] };
     const employeeEntries = data.entries.filter((entry) => entry.employeeId === employee.id);
     const calculation = summarizePayroll(employee, employeeEntries, data.settings);
-    const issues = payrollReviewIssues(employeeEntries, (data.reviewStaffing || []).filter(row => row.employeeId === employee.id));
-    const status = employeeEntries.length === 0 ? "Not started" as const : issues.length ? "Review" as const : "Entered" as const;
+    const issues = payrollReviewIssues(employeeEntries, (data.reviewStaffing || []).filter(row => row.employeeId === employee.id), { from: data.period.startDate, through: data.period.endDate });
+    const status = issues.length ? "Review" as const : employeeEntries.length === 0 ? "Not started" as const : "Entered" as const;
     return { ...calculation, status, issues };
   }, [data]);
 
@@ -475,6 +477,7 @@ export default function PayrollApp({
     return started && notEnded;
   }), [data]);
   const employeeSummaries = useMemo(() => payrollEmployees.map((employee) => ({ employee, ...summaryFor(employee) })), [payrollEmployees, summaryFor]);
+  const timekeepingFlags = useMemo(() => data ? timekeepingReview(payrollEmployees, data.entries, data.reviewStaffing || [], data.period.startDate, data.period.endDate) : [], [data, payrollEmployees]);
   const reviewCount = employeeSummaries.filter((row) => row.status === "Review").length;
   const readyCount = employeeSummaries.filter((row) => row.status === "Entered").length;
   const grossPayroll = employeeSummaries.reduce((sum, row) => sum + row.gross, 0);
@@ -566,11 +569,21 @@ export default function PayrollApp({
       const response = await fetch(`/api/payroll-submissions?period=${data.period.startDate}`, { cache: "no-store", signal: AbortSignal.timeout(20000) });
       const delivery: SubmissionState & { error?: string } = await response.json();
       if (!response.ok) throw new Error(delivery.error || "Unable to verify submitted payroll.");
-      const report = delivery.submission ? submittedPayrollReference(delivery.submission.document) : withApprovedAdjustments(buildPayrollReference(data.period, employeeSummaries.map(({ employee }) => ({
+      let exportData = data;
+      if (!delivery.submission) {
+        const freshResponse = await fetch(`/api/payroll?period=${data.period.startDate}`, { cache: 'no-store', signal: AbortSignal.timeout(20000) });
+        const fresh = await freshResponse.json() as PayrollData & { error?: string };
+        if (!freshResponse.ok || fresh.period?.startDate !== data.period.startDate || fresh.period?.endDate !== data.period.endDate || !fresh.viewer?.canManagePayroll) throw new Error(fresh.error || 'Current payroll could not be confirmed. Retry before exporting.');
+        exportData = fresh;
+      }
+      const exportMembers = exportData.employees.filter(employee => (!employee.startDate || employee.startDate <= exportData.period.endDate) && (!employee.endDate || employee.endDate >= exportData.period.startDate));
+      if (!delivery.submission) validatePayrollExportInputs(exportMembers, exportData.entries, exportData.settings, exportData.period.startDate, exportData.period.endDate);
+      const report = delivery.submission ? submittedPayrollReference(delivery.submission.document) : withApprovedAdjustments(buildPayrollReference(exportData.period, exportMembers.map(employee => ({
         employee,
-        entries: data.entries.filter(entry => entry.employeeId === employee.id),
-      })), data.settings), delivery.incoming);
+        entries: exportData.entries.filter(entry => entry.employeeId === employee.id),
+      })), exportData.settings), delivery.incoming);
       const detailRows = delivery.submission ? submittedExportRows(delivery.submission.document) : adjustmentExportRows(delivery.incoming);
+      validatePayrollReference(report);
       const filename = `Stickney-${delivery.submission ? "Submitted-" : ""}Payroll-${data.period.startDate}-to-${data.period.endDate}.${format}`;
       let blob: Blob;
       if (format === "xlsx") {
@@ -1125,6 +1138,7 @@ export default function PayrollApp({
           {!testMember && ((activeNav === "Payroll" && data.viewer.canManagePayroll) || activeNav === "My Timesheet") && <PayrollCorrections key={`${data.period.startDate}-${activeNav}`} period={data.period.startDate} end={data.period.endDate} mode={activeNav === "Payroll" ? "manager" : "member"} />}
           {!testMember && activeNav === "Payroll" && data.viewer.canManagePayroll && <PayrollSubmissions key={data.period.startDate} period={data.period.startDate} end={data.period.endDate} finalized={data.period.status === "finalized"} disabled={savingCells.size > 0 || dirtyCellCount > 0 || Object.keys(failedCells).length > 0} onSaved={handleSubmissionSaved} />}
           {activeNav === "Payroll" && submissionState?.period === data.period.startDate && submissionState.state.submission && <p className="helper-note">The table below shows working actuals, not the fixed submitted copy. Export CSV downloads the submitted copy above. Continue recording actual work, then reconcile from the receiving period.</p>}
+          {activeNav === 'Payroll' && data.viewer.canManagePayroll && <PayrollTimekeepingPanel flags={timekeepingFlags} from={data.period.startDate} through={data.period.endDate} onMember={id => openTimesheet(id)} />}
           {activeNav === "Payroll" && <div className={data.period.status === "finalized" ? "record-finalized" : "record-editable"}>
             {data.period.status === "finalized" && <div className="record-state-banner finalized"><span className="state-lock" aria-hidden="true">✓</span><div><strong>Finalized payroll · Read only</strong><span>This pay period is closed. Hours and payroll totals can no longer be changed.</span></div></div>}
             <section className="kpi-grid" aria-label="Payroll summary">

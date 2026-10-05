@@ -15,6 +15,8 @@ import { recurringShiftOccursOnDate } from "./station-scheduler-logic";
 import { expandAvailabilityDates } from "./availability-repeat";
 import { canRequestRole, memberShiftList, shiftTimeLabel, shiftHasNotStarted } from "./scheduler-member-view";
 import { SchedulerCoverage } from "./scheduler-coverage";
+import { ScheduleSafetyPanel } from './schedule-safety-panel';
+import type { SavedScheduleSafety } from './schedule-safety-store';
 import { filterOpenPositions, scheduleDateOffset, type VacancyFilters } from "./scheduler-overview";
 
 type TestMember = { id: string; name: string; rank: string; effectivePermissions: string[] };
@@ -42,6 +44,7 @@ type Weights = { seniorityWeight: number; hoursWeight: number; customWeight: num
 type Notice = { openShifts: number; overdueShifts: number; pendingTrades: number; pendingClaims: number; pendingTimeOff: number };
 
 type Data = {
+  scheduleSafety?: SavedScheduleSafety;
   pushConfigured?: boolean;
   requestDeadlines?: { id: string; deadline: string }[];
   viewer: { employeeId: string | null; isAdmin: boolean; rank: string; roles: string[]; actingOfficerEligible: boolean; name: string };
@@ -194,7 +197,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
   const accountIsAdmin = data?.viewer.isAdmin ?? false;
   const isAdmin = accountIsAdmin && schedulerView === "admin" && !previewMember;
   const adminTabs = [
-    ["overview", "Admin home"], ["openAdmin", "Open positions"],
+    ["overview", "Admin home"], ["openAdmin", "Open positions"], ["safety", "Schedule review"],
     ["calendar", "Calendar"], ["shiftTypes", "Shift Builder"], ["roster", "Roster & Assignments"],
     ["trades", "Trades"], ["requests", "Requests"], ["distribution", "Auto-Distribution"],
     ["availability", "Availability"], ["reminders", "Reminders"], ["confirmation", "Required confirmation"],
@@ -206,7 +209,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
   ] as const;
   const tabs = isAdmin ? adminTabs : employeeTabs;
   const taskGroups = [
-    { label: "Daily staffing", ids: ["overview", "openAdmin", "calendar", "availability"] },
+    { label: "Daily staffing", ids: ["overview", "openAdmin", "calendar", "availability", "safety"] },
     { label: "Requests & trades", ids: ["requests", "trades"] },
     { label: "Schedule setup", ids: ["shiftTypes", "roster", "distribution", "reminders", "confirmation"] },
   ];
@@ -275,6 +278,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
         </ol></details>
       </section>}
       {isAdmin && tab === "openAdmin" && <AdminOpenPositions data={data} onDay={openStaffingDay} />}
+      {isAdmin && tab === "safety" && <ScheduleSafetyPanel slots={data.slots} members={data.employees} saved={data.scheduleSafety} today={data.today} canEdit={!previewMember && !testMember} busy={busy || refreshing || Boolean(error)} onSave={act} onDay={openStaffingDay} />}
 
       {!isAdmin && !data.viewer.employeeId && <p role="status">Your login is not linked to a member record. Ask an administrator to link it before making personal requests. Administrator tools remain available above.</p>}
       {tab === "myshifts" && !isAdmin && <><div className="scheduler-member-shortcuts" aria-label="My scheduling actions"><button type="button" onClick={() => setTab("availability")}>Update my availability →</button><button type="button" onClick={() => setTab("myrequests")}>Track my requests →</button><button type="button" onClick={() => setTab("accepttrades")}>Trade offers · {incomingTradesFor(data).length} →</button></div><MemberShifts data={data} onOpen={() => setTab("open")} onTrade={(id) => { setTradeSlotId(id); setTab("trades"); }} /></>}
@@ -751,6 +755,12 @@ function ShiftBuilder({ data, act, busy }: { data: Data; act: (b: Record<string,
           <label><span>End (24-hour)</span><input value={endTime} onChange={(e) => setEndTime(e.target.value.replace(/\D/g, "").slice(0, 4))} inputMode="numeric" maxLength={4} placeholder="0600" aria-describedby="shift-time-help" /></label></div>
         <p id="shift-time-help" className="form-help">Enter four digits: 0600 is 6:00 AM and 1800 is 6:00 PM. Matching Start and End creates a 24-hour shift.</p>
         <fieldset className="shift-pattern-fields"><legend>Shift pattern</legend>
+          <label><span>Start from a rotation</span><select aria-label="Start from a rotation" value="" onChange={event => {
+            const days = Number(event.target.value);
+            if (!days) return;
+            setStartTime('0600'); setEndTime('0600'); setRepeatEveryDays(days);
+          }}><option value="">Choose a draft preset…</option><option value="1">24-hour shift every day</option><option value="3">24 on / 48 off</option><option value="4">24 on / 72 off</option><option value="5">24 on / 96 off</option></select></label>
+          <p className="form-help">Presets only fill this draft. Check the name, first day and required positions before saving. For 48 on / 96 off, build two 24-hour patterns on consecutive first days, each repeating every 6 days; assign the same crew to both. Kelly days and leave use dated staffing changes.</p>
           <div className="two-field-row">
             <label><span>First shift day</span><input type="date" value={anchorDate} onChange={(e) => setAnchorDate(e.target.value)} /></label>
             <label><span>Repeat every</span><span className="number-with-suffix"><input type="number" min={1} max={365} step={1} value={repeatEveryDays} onChange={(e) => setRepeatEveryDays(Number(e.target.value))} /><b>{repeatEveryDays === 1 ? "day" : "days"}</b></span></label>

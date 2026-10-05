@@ -127,7 +127,7 @@ test('scheduler reminder migration, recipients, due clock and durable worker',as
   assert.equal(new Date(await due('2027-03-14 06:00','24 hours before')).toISOString(),'2027-03-13T11:00:00.000Z');
  });
  await t.test('the real reminder save handler validates and persists push without changing other channels',async()=>{
-  const {createPostgresD1Adapter}=load('../db/postgres-adapter.ts',{'../app/supabase-server':{},'./sql-literal':load('../db/sql-literal.ts')});
+  const {createPostgresD1Adapter}=load('../db/postgres-adapter.ts',{'../app/supabase-server':{},'./sql-literal':load('../db/sql-literal.ts'),'../app/department-portal':{getPortalDepartment:async()=>({id:department,isolated:false})}});
   await pg.exec('SET search_path=firehouse,public');
   const db=createPostgresD1Adapter(async()=>({rpc:async(_name,{p_sql,p_mode})=>{try {const result=await pg.query(p_sql);return {data:p_mode==='all'?result.rows:p_mode==='first'?(result.rows[0]??null):{success:true,meta:{changes:result.affectedRows}},error:null};}catch(error){return {data:null,error};}}}));
   const source=file('../app/api/station-scheduler/route.ts');const ast=ts.createSourceFile('route.ts',source,ts.ScriptTarget.Latest,true);

@@ -1,0 +1,15 @@
+.schedule-safety { padding: 20px; border: 1px solid #c6d2df; border-radius: 14px; background: var(--panel, #fff); color: var(--text, #17263b); }
+.schedule-safety header { display: flex; justify-content: space-between; align-items: start; gap: 16px; }
+.schedule-safety h2 { margin: 0 0 6px; }
+.schedule-safety p { line-height: 1.5; }
+.schedule-safety-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin: 16px 0; }
+.schedule-safety label { display: grid; gap: 8px; }
+.schedule-safety input, .schedule-safety select, .schedule-safety button { min-height: 44px; max-width: 100%; }
+.schedule-safety ul { padding: 0; margin: 0; list-style: none; }
+.schedule-safety li { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-top: 1px solid #c6d2df; padding: 12px 0; }
+.schedule-safety li div { display: grid; gap: 6px; overflow-wrap: anywhere; }
+.schedule-safety details { margin-top: 16px; border-top: 1px solid #c6d2df; padding-top: 12px; }
+.schedule-safety summary { cursor: pointer; min-height: 44px; display: list-item; font-weight: 700; }
+.app-shell .schedule-safety { background: #142438; color: #edf4ff; border-color: #42566d; }
+.app-shell .schedule-safety input, .app-shell .schedule-safety select { background: #0e1b2b; color: #edf4ff; border-color: #64788e; }
+@media (max-width: 600px) { .schedule-safety { padding: 14px; } .schedule-safety header, .schedule-safety li { flex-direction: column; } .schedule-safety li button { width: 100%; } .schedule-safety-filters { grid-template-columns: minmax(0, 1fr); } }

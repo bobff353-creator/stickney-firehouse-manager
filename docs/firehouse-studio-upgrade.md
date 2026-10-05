@@ -212,3 +212,43 @@ Types, changed-file lint and the production build passed. The first push is
 `2de021b470091d7d021876c1bf2896fda1702825`; the authenticated production overview
 confirmed 1,629 active assets and the same 16 unfinished checks as the saved
 inventory workspace. These are dated acceptance observations, not fixed targets.
+
+## Phase 3 release
+
+Five related scheduling, timekeeping and payroll improvements form one push:
+
+1. Shift Builder starts drafts from 24/48, 24/72, 24/96 or daily 24-hour rotations.
+   A preset does not save or assign anyone. The 48/96 guidance uses two existing
+   24-hour patterns; Kelly days and leave retain dated changes.
+2. Schedule review checks saved assignment IDs for overlaps, invalid times and
+   current qualification mismatches. Date/type filters and day links support
+   follow-up in the existing staffing editor.
+3. Department administrators can save advisory minimum-rest and maximum-continuous
+   clock-hour rules. Both are unset by default. Rules and audit save atomically
+   in existing department-scoped metadata; stale saves conflict, and failed saves
+   retain the draft. This does not enforce union rules, change assignments or
+   calculate elapsed daylight-saving hours for pay. No migration is needed.
+4. Timekeeping review compares Daily Log attendance with recorded duty-pay hours,
+   identifies adjacent-date overlaps across period boundaries and links each flag
+   to the existing timesheet. Manual differences can be legitimate. Review changes
+   no hours, approval, submission or historical record.
+5. A formula-safe review CSV includes all flags. Working payroll downloads read
+   current saved records and reject unsaved edits, invalid source mappings/hours,
+   unavailable reads or inconsistent totals. Submitted exports retain their frozen
+   document and approved adjustments rather than substitute newer working data.
+
+176 focused payroll, scheduler, availability, department-schedule and SQL/API
+regression tests passed, followed by six additional actual export-handler/source
+validation tests and a repeat of the 12 new review-model tests. PostgreSQL tests
+verify atomic rule/audit rollback, concurrent-save conflicts, permission denial,
+department keys and unchanged no-op revisions. Browser fixtures exercised the
+actual panels at phone/tablet/desktop sizes, light/dark themes, failed-save recovery,
+conflicting drafts, links, filters and draft-only rotation presets. Fixtures are
+local and fictional; no department attendance or payroll rows were seeded.
+
+Type checks, changed-file lint and the final production build are tracked in the
+release logs. Lint retains one existing unused `OvertimeScreen` warning. Production
+deployment and authenticated live acceptance are verified independently. This
+batch extends the existing scheduling/submission system; it does not establish
+that every envisioned commercial scheduling feature or external payroll
+integration is complete. Phases 4-7 remain separate work.

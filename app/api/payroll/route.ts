@@ -97,8 +97,8 @@ export async function GET(request: Request) {
     const revisions = await db.prepare("SELECT revision_number AS revisionNumber, action, summary, actor, changed_at AS changedAt FROM record_revisions WHERE record_type = 'payroll' AND record_id = ? ORDER BY revision_number DESC").bind(start).all();
     const staffingSelect = "SELECT employee_id AS employeeId,log_date AS logDate,shift_key AS shiftKey,time_in AS timeIn,time_out AS timeOut FROM daily_log_staffing WHERE log_date BETWEEN ? AND ?";
     const reviewStaffing = viewer.canManagePayroll
-      ? await db.prepare(staffingSelect).bind(start,end).all()
-      : await db.prepare(`${staffingSelect} AND employee_id = ?`).bind(start,end,viewer.employeeId).all();
+      ? await db.prepare(staffingSelect).bind(addDays(start,-1),addDays(end,1)).all()
+      : await db.prepare(`${staffingSelect} AND employee_id = ?`).bind(addDays(start,-1),addDays(end,1),viewer.employeeId).all();
     return Response.json({
       period: { ...(periodRow as object), revisions: revisions.results },
       employees: employeesForPeriod,

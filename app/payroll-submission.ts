@@ -116,7 +116,7 @@ export function buildSubmission(source: PayrollSources, staffingThrough: string,
   const deferred = source.entries.filter(e => ["callback", "workDetail"].includes(e.category) && e.workDate > extrasThrough);
   if (deferred.length) warnings.push(`${deferred.length} recorded callback/work-detail entries are outside the extras cutoff and are excluded from this submission. Reconcile them later.`);
   for (const employee of source.employees) {
-    const issues = payrollReviewIssues(entries.filter(e => e.employeeId === employee.id), source.staffing.filter(s => s.employeeId === employee.id && s.logDate <= staffingThrough));
+    const issues = payrollReviewIssues(entries.filter(e => e.employeeId === employee.id), source.staffing.filter(s => s.employeeId === employee.id && s.logDate <= staffingThrough), { from: source.period, through: staffingThrough });
     blockers.push(...issues.map(issue => `${employee.name}: ${issue}`));
   }
   if (new Set(incoming.map(a => a.id)).size !== incoming.length || incoming.some(a => a.targetPeriod !== source.period)) blockers.push("Duplicate or misrouted incoming adjustments.");
@@ -132,7 +132,7 @@ export function reconcileSubmission(saved: SavedSubmission, actual: PayrollSourc
   // Missing/unreviewed attendance must never silently become a deduction.
   for (const date of dates) for (const shift of ["morning", "afternoon", "overnight"]) if (!actual.approvals.some(a => a.logDate === date && a.shiftKey === shift && a.signOutAt)) blockers.push(`${date} ${shift}: officer handoff is not complete; no deduction or addition can be approved yet.`);
   const entries = recordedEntries(actual.entries);
-  for (const employee of actual.employees) blockers.push(...payrollReviewIssues(entries.filter(e => e.employeeId === employee.id), actual.staffing.filter(s => s.employeeId === employee.id)).map(issue => `${employee.name}: ${issue}`));
+  for (const employee of actual.employees) blockers.push(...payrollReviewIssues(entries.filter(e => e.employeeId === employee.id), actual.staffing.filter(s => s.employeeId === employee.id), { from: actual.period, through: payPeriodEnd(actual.period) }).map(issue => `${employee.name}: ${issue}`));
   const employees = new Map(snapshot.employees.map(e => [e.id, e]));
   for (const e of entries) if (!employees.has(e.employeeId)) blockers.push("An employee is missing from the submitted rate snapshot. A payroll administrator must resolve their original-period rate before adjustment.");
   const candidates: Omit<PayAdjustment, "id">[] = [];

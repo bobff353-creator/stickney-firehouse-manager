@@ -5,6 +5,8 @@ import { validReminderTiming, reminderAudience } from "../../scheduler-reminders
 import { scheduleSchedulerPushDelivery } from "../../scheduler-push-worker";
 import { webPushPublicConfig } from "../../cad-push";
 import { shiftHasNotStarted } from "../../scheduler-member-view";
+import { readScheduleSafety, saveScheduleSafety, ScheduleSafetyConflict } from "../../schedule-safety-store";
+import { validateScheduleSafetyRules } from '../../schedule-safety';
 import { ensureDatabase } from "../../../db/bootstrap";
 import { normalizeScheduleTime } from "../../schedule-time";
 import { distributionConsent, distributionConsentGuard, type DistributionPosition, type DistributionAvailability, type DistributionTimeOff } from "../../station-distribution";
@@ -243,6 +245,7 @@ export async function GET(request: Request) {
     }
 
     return Response.json({
+      scheduleSafety: await readScheduleSafety(db),
       pushConfigured: current.isAdmin ? webPushPublicConfig().configured : undefined,
       requestDeadlines: (await db.prepare("SELECT s.id,s.request_deadline deadline FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id WHERE s.request_deadline<>'' AND en.entry_date>=? AND t.active=1").bind(today).all()).results,
       viewer: current,
@@ -296,6 +299,21 @@ export async function POST(request: Request) {
     const requireAdmin = () => { if (!current.isAdmin) throw new AdminError(); };
 
     switch (action) {
+      case "saveScheduleSafety": {
+        requireAdmin();
+        if (typeof payload.revision !== 'string' || payload.revision.length > 80) return bad('Refresh the saved rules before editing.');
+        let rules;
+        try { rules = validateScheduleSafetyRules(payload.rules); }
+        catch (error) { return bad(error instanceof Error ? error.message : 'Invalid review rules.'); }
+        let saved;
+        try { saved = await saveScheduleSafety(db, rules, payload.revision, current.name); }
+        catch (error) {
+          if (error instanceof ScheduleSafetyConflict) return bad(error.message, 409);
+          if (error instanceof Error && error.message.startsWith('Rule hours')) return bad(error.message);
+          throw error;
+        }
+        return Response.json({ ok: true, saved, note: 'Schedule review rules saved. Review flags do not change or approve assignments.' });
+      }
       case "saveShiftType": return await saveShiftType(db, current, payload, requireAdmin);
       case "deactivateShiftType": return await deactivateShiftType(db, payload, requireAdmin);
       case "createEntry": return await createEntry(db, current, payload, requireAdmin);
