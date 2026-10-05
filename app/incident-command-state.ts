@@ -135,7 +135,7 @@ export function normalizeIncidentCommandState(value: unknown): IncidentCommandSt
       ...fallback.par,
       ...(candidate.par ?? {}),
       intervalMinutes: interval,
-      remainingSeconds: Math.max(0, Number(candidate.par?.remainingSeconds) || interval * 60),
+      remainingSeconds: Number.isFinite(candidate.par?.remainingSeconds) ? Math.max(0, Number(candidate.par?.remainingSeconds)) : interval * 60,
       confirmations: candidate.par?.confirmations ?? {},
     },
     building: { ...fallback.building, ...(candidate.building ?? {}) },

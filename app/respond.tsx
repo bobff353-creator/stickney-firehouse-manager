@@ -682,10 +682,12 @@ export default function Respond({
   apparatus = "",
   initialReportNumber = "",
   onNavigate,
+  canOpenCommandBoard = false,
 }: {
   apparatus?: string;
   initialReportNumber?: string;
-  onNavigate?: (page: "Daily Log" | "Field Preplans" | "Box Cards") => void;
+  canOpenCommandBoard?: boolean;
+  onNavigate?: (page: "Daily Log" | "Field Preplans" | "Box Cards" | "Command Board", record?: { incident?: string }) => void;
 }) {
   const [data, setData] = useState<RespondData | null>(null),
     [error, setError] = useState(""),
@@ -1165,6 +1167,7 @@ export default function Respond({
     <span className="respond-context-freshness">{freshness.label}</span>
     <span>Last successful update: {savedTimeLabel(lastRefresh, "not yet received")}{lastRefresh ? " Central" : ""}</span>
     <small>CAD delivery: {call?.receivedAt ? `last incident received ${savedTimeLabel(call.receivedAt)}` : "no incident receipt in this view"}. Upstream CAD connection is not independently verified.</small>
+    {call?.reportNumber && onNavigate && canOpenCommandBoard && <button type="button" disabled={!isOnline || respondSource !== "live" || Boolean(error)} onClick={() => onNavigate("Command Board", { incident: call.reportNumber })}>Open this call in Command Board</button>}
     {freshness.warning && <button type="button" onClick={() => void load()}>Retry updates</button>}
   </aside>;
   const monitorExit = monitorMode ? <RespondMonitorExit onExit={() => void toggleMonitor()} /> : null;
@@ -2182,7 +2185,7 @@ export default function Respond({
                     >
                       <div>
                         <strong>{update.eventType || "CAD update"}</strong>
-                        <time>{displayTime(update.receivedAt)}</time>
+                        <time>{savedTimeLabel(update.receivedAt)} Central</time>
                       </div>
                       {update.narrative && <p>{update.narrative}</p>}
                       {update.respondingUnits && (

@@ -120,6 +120,39 @@ Phase 5: shared inspection/preplan properties and field offline workflow.
 Phase 6: verified CAD adapters, response maps and command offline synchronization.
 Phase 7: NERIS submission, reusable analytics, authorized optional AI and adapters.
 
+### Phase 6 implementation batch
+
+Five related improvements build on the existing CAD adapters and response maps:
+
+1. Response opens the selected incident in Command Board for authorized viewers.
+   A cleared/missing selection does not silently switch to another call. Active
+   CIS incidents retain the same age rules as Response.
+2. Command saves use transactional revision and active-incident guards, keeping
+   the board and its audit event together during concurrent edits or closeout.
+3. A save request has a department/account scoped receipt. Lost-response retries
+   cannot repeat an event; a receipt-only check never sends an unsaved change.
+4. One ordinary command update can be retained as an explicit local draft on the
+   current tab. Reconnect, refresh, review and send manually. Conflicts, an old
+   device clock, or a different incident block sending and retain a downloadable
+   draft. Mayday, PAR, search confirmations, benchmarks and closeout require live
+   updates. The shared board does not show unconfirmed draft assignments.
+5. CAD receipt age is labeled separately from upstream connection verification,
+   with Central times and interrupted-update recovery. Dispatch note and command
+   timestamps also handle legacy UTC storage correctly. An expired PAR remains
+   due after state normalization instead of resetting to a full interval.
+
+No database migration or vendor configuration change is required. Local practice
+fixtures use fictional records only. Existing tenant-scoped response maps, preplan
+and hydrant references, email ingestion and CIS adapters remain in place.
+
+Offline limits: the board must first load in an authenticated, connected tab;
+there is no offline cold start. One pending ordinary action is retained per tab
+and account/department scope. Storage failure falls back to the current page and
+download. Drafts are not automatically replayed or rebased over a newer board.
+Vendor/Cicero delivery acceptance, vehicle hardware feeds and mutual-aid sharing
+still need their approved connections and real end-to-end acceptance; this batch
+does not certify those external integrations.
+
 Validate each batch with types, changed-file lint, relevant tests, production build
 and browser checks. Push approximately four or five completed changes together.
 Report source, push, migrations, deployment and live acceptance separately.

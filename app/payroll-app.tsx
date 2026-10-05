@@ -952,9 +952,9 @@ export default function PayrollApp({
     restoreScrollRef.current?.();
     restoreScrollRef.current = restoreWorkspaceScroll(priorVisit?.scroll ?? 0);
   }
-  function navigateFromRespond(page: "Daily Log" | "Field Preplans" | "Box Cards") {
+  function navigateFromRespond(page: "Daily Log" | "Field Preplans" | "Box Cards" | "Command Board", record?: PortalRecord) {
     const params = new URLSearchParams(window.location.search);
-    navigate(page, page === "Field Preplans" ? { preplan: params.get("preplan") || undefined, hydrant: params.get("hydrant") || undefined } : undefined);
+    navigate(page, page === "Command Board" ? record : page === "Field Preplans" ? { preplan: params.get("preplan") || undefined, hydrant: params.get("hydrant") || undefined } : undefined);
   }
   function changeTestMember(member: { id: string; name: string; rank: string; effectivePermissions: string[] } | null) {
     setTestMember(member);
@@ -1068,9 +1068,9 @@ export default function PayrollApp({
         }} onNewActiveCall={(call) => {
           if (shouldOpenBoardRespondAlert(activeNav, visibleNav, respondDeviceSettings, call)) { setRespondAlertSeconds(RESPOND_ALERT_DURATION_SECONDS); setRespondAlertCallId(call.reportNumber); }
         }} />}
-        {activeNav === "Respond" && visibleNav.includes("Respond") && <Respond apparatus={respondDeviceSettings.mode === "apparatus" ? respondDeviceSettings.apparatus : ""} onNavigate={navigateFromRespond} />}
+        {activeNav === "Respond" && visibleNav.includes("Respond") && <Respond apparatus={respondDeviceSettings.mode === "apparatus" ? respondDeviceSettings.apparatus : ""} onNavigate={navigateFromRespond} canOpenCommandBoard={visibleNav.includes("Command Board")} />}
         {respondAlertCallId && activeNav === "Operations Board" && visibleNav.includes("Operations Board") && visibleNav.includes("Respond") && <div className="respond-auto-alert" role="dialog" aria-modal="true" aria-label="New active call Respond view">
-          <header><div><strong>NEW ACTIVE CALL · RESPOND</strong><span>Returning to Live Operations in {respondAlertSeconds} seconds</span></div><button type="button" onClick={() => setRespondAlertCallId("")}>Return now</button></header><Respond key={respondAlertCallId} initialReportNumber={respondAlertCallId} apparatus={respondDeviceSettings.mode === "apparatus" ? respondDeviceSettings.apparatus : ""} onNavigate={navigateFromRespond} />
+          <header><div><strong>NEW ACTIVE CALL · RESPOND</strong><span>Returning to Live Operations in {respondAlertSeconds} seconds</span></div><button type="button" onClick={() => setRespondAlertCallId("")}>Return now</button></header><Respond key={respondAlertCallId} initialReportNumber={respondAlertCallId} apparatus={respondDeviceSettings.mode === "apparatus" ? respondDeviceSettings.apparatus : ""} onNavigate={navigateFromRespond} canOpenCommandBoard={visibleNav.includes("Command Board")} />
         </div>}
         {visibleNav.includes(activeNav) && <>
           {activeNav === "Dashboard" && <TodayDashboard departmentName={departmentName} onNavigate={navigate} allowedPages={visibleNav} showPersonalShift={!testMember} />}

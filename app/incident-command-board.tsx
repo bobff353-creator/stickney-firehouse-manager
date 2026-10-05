@@ -4,6 +4,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import ConfirmDialog from "./confirm-dialog";
 import { formatEmployeeName } from "./employee-names";
 import styles from "./incident-command-board.module.css";
+import { canDraftCommand, commandDraftKey, commandDraftReview, commandSaveConfirmed, parseCommandDraft, type CommandDraft } from "./incident-command-recovery";
+import { savedTimeLabel } from "./workflow-status";
 import {
   commandPositions,
   searchPhases,
@@ -42,6 +44,9 @@ type Preplan = {
 };
 type AuditEvent = { id: string; revision: number; eventType: string; summary: string; actor: string; createdAt: string };
 type BoardData = {
+  departmentId: string;
+  draftScope: string;
+  selectedIncident: string;
   incident: Incident | null;
   preplan: Preplan | null;
   personnel: Personnel[];
@@ -71,12 +76,12 @@ type HazardStatusDraft = {
   status: TacticalHazard["status"];
   mitigationNote: string;
 };
-type MutationResponse = { ok?: boolean; state?: IncidentCommandState; event?: AuditEvent; error?: string };
+type MutationResponse = { ok?: boolean; state?: IncidentCommandState; event?: AuditEvent; error?: string; incidentId?: string; requestId?: string; savedRevision?: number; replayed?: boolean };
 
 const hazardOptions = ["Collapse", "Electrical", "Hazardous material", "Hole / opening", "Propane / gas", "Solar panels", "Structural damage", "Utilities"];
 
 const sentence = (value: string) => value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
-const formatTime = (value?: string | null) => value ? new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
+const formatTime = (value?: string | null) => savedTimeLabel(value, "—");
 
 export default function IncidentCommandBoard() {
   const boardRef = useRef<HTMLElement>(null);
@@ -84,12 +89,18 @@ export default function IncidentCommandBoard() {
   const alertAudioRef = useRef<AudioContext | null>(null);
   const alertedParRef = useRef("");
   const savingRef = useRef(false);
+  const readGeneration = useRef(0);
+  const loadingRef = useRef(false);
   const closedRef = useRef(false);
+  const currentDataRef = useRef<BoardData | null>(null);
   const [data, setData] = useState<BoardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
   const [online, setOnline] = useState(true);
+  const [readHealthy, setReadHealthy] = useState(false);
+  const [draft, setDraft] = useState<CommandDraft | null>(null);
+  const [draftStorageReady, setDraftStorageReady] = useState(false);
   const [clock, setClock] = useState(0);
   const [selectedUnit, setSelectedUnit] = useState("");
   const [selectedLevel, setSelectedLevel] = useState("Level unknown");
@@ -115,19 +126,37 @@ export default function IncidentCommandBoard() {
   useLayoutEffect(() => {
     savingRef.current = saving;
     closedRef.current = Boolean(data?.state?.closeout.endedAt);
-  }, [saving, data?.state?.closeout.endedAt]);
+    currentDataRef.current = data;
+  }, [saving, data]);
 
   const load = useCallback(async (quiet = false) => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    const generation = ++readGeneration.current;
     if (!quiet) setLoading(true);
     try {
-      const response = await fetch("/api/incident-command", { cache: "no-store" });
+      const selected = new URLSearchParams(window.location.search).get("incident");
+      const response = await fetch(`/api/incident-command${selected ? `?incident=${encodeURIComponent(selected)}` : ""}`, { cache: "no-store", signal: AbortSignal.timeout(12_000) });
       const payload = await response.json() as BoardData;
+      if (generation !== readGeneration.current) return;
+      if ([401, 403, 423].includes(response.status)) {
+        setData(null); setDraft(null); setDraftStorageReady(false);
+      }
       if (!response.ok) throw new Error(payload.error || "Unable to load the Command Board.");
       setData(payload);
-      setNotice("");
+      setReadHealthy(true);
+      if (!quiet) setNotice("");
+      try {
+        const stored = parseCommandDraft(sessionStorage.getItem(commandDraftKey(payload.draftScope)), payload.draftScope);
+        setDraft(current => stored || (current?.scope === payload.draftScope ? current : null));
+        setDraftStorageReady(true);
+      } catch { setDraftStorageReady(false); }
     } catch (error) {
+      if (generation !== readGeneration.current) return;
+      setReadHealthy(false);
       setNotice(error instanceof Error ? error.message : "Unable to load the Command Board.");
     } finally {
+      loadingRef.current = false;
       setLoading(false);
     }
   }, []);
@@ -154,49 +183,88 @@ export default function IncidentCommandBoard() {
   }, [load]);
 
   useEffect(() => {
-    if (!data?.state) return;
     const timeout = window.setTimeout(() => {
-      setRadioDraft(data.state?.radioChannel ?? "");
-      setRitDraft(data.state?.rit ?? { unitId: "", chiefEmployeeId: "", readiness: "not_reported" });
-      setRehabDraft(data.state?.rehab ?? { unitIds: [], chiefEmployeeId: "", assignmentNote: "" });
+      const current = currentDataRef.current?.state;
+      if (!current) return;
+      setRadioDraft(current.radioChannel);
+      setRitDraft(current.rit);
+      setRehabDraft(current.rehab);
     }, 0);
     return () => window.clearTimeout(timeout);
   }, [data?.incident?.incidentId, data?.state?.revision]);
 
-  const mutate = useCallback(async (mutation: CommandAction) => {
-    if (!data?.incident || !data.state || saving) return;
-    if (!online) {
-      setNotice("The browser is offline. The last known board remains visible, but changes cannot be saved.");
-      return;
-    }
+  const saveDraftLocally = useCallback((entry: CommandDraft) => {
+    setDraft(entry);
+    try { sessionStorage.setItem(commandDraftKey(entry.scope), JSON.stringify(entry)); setDraftStorageReady(true); }
+    catch { setDraftStorageReady(false); setNotice("Draft retained in this page only. Browser storage is unavailable; download it before leaving."); }
+  }, []);
+  const sendUpdate = useCallback(async (entry: CommandDraft, receiptOnly = false) => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    ++readGeneration.current;
     setSaving(true);
     setNotice("");
+    if (canDraftCommand(entry.mutation)) saveDraftLocally(entry);
     try {
       const response = await fetch("/api/incident-command", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ incidentId: data.incident.incidentId, expectedRevision: data.state.revision, mutation }),
+        body: JSON.stringify({ incidentId: entry.incidentId, expectedRevision: entry.expectedRevision, requestId: entry.requestId, mutation: entry.mutation, receiptOnly }),
+        signal: AbortSignal.timeout(12_000),
       });
       const payload = await response.json() as MutationResponse;
       if (!response.ok) {
+        if ([401, 403, 423].includes(response.status)) { setData(null); setDraft(null); setDraftStorageReady(false); }
+        else if (canDraftCommand(entry.mutation)) saveDraftLocally(entry);
         if (response.status === 409) await load(true);
         throw new Error(payload.error || "Unable to save the command-board update.");
       }
-      if (payload.state && mutation.action === "end-call") {
+      if (!commandSaveConfirmed(entry, payload)) throw new Error(canDraftCommand(entry.mutation) ? "The server did not confirm this update. The draft remains available for review." : "The server did not confirm this update. Refresh and check the command history before taking another action.");
+      setDraft(null);
+      try { sessionStorage.removeItem(commandDraftKey(entry.scope)); } catch { /* The confirmed receipt remains authoritative. */ }
+      if (payload.state) {
         setData((current) => current ? {
           ...current,
           state: payload.state ?? current.state,
           events: payload.event ? [payload.event, ...current.events] : current.events,
         } : current);
-      } else {
-        await load(true);
       }
+      if (entry.mutation.action !== "end-call") await load(true);
+      setNotice(payload.replayed ? "Previously saved update confirmed. No duplicate was created." : "Command update saved to the department board.");
     } catch (error) {
+      if (error instanceof TypeError || (error instanceof DOMException && ["TimeoutError", "AbortError"].includes(error.name))) {
+        setReadHealthy(false);
+        if (canDraftCommand(entry.mutation)) saveDraftLocally(entry);
+      }
       setNotice(error instanceof Error ? error.message : "Unable to save the command-board update.");
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
-  }, [data, load, online, saving]);
+  }, [load, saveDraftLocally]);
+  const mutate = useCallback(async (mutation: CommandAction) => {
+    if (!data?.incident || !data.state || !data.canManage || savingRef.current || draft || data.state.closeout.endedAt) return;
+    const entry: CommandDraft = { scope: data.draftScope, incidentId: data.incident.incidentId, expectedRevision: data.state.revision, requestId: crypto.randomUUID(), mutation, queuedAt: new Date().toISOString() };
+    if (!online || !readHealthy) {
+      if (!canDraftCommand(mutation)) { setNotice("Reconnect and refresh before recording a timed or critical confirmation."); return; }
+      saveDraftLocally(entry);
+      setNotice("Draft only — the department board has not changed. Reconnect, review, then send this update.");
+      return;
+    }
+    await sendUpdate(entry);
+  }, [data, draft, online, readHealthy, saveDraftLocally, sendUpdate]);
+  const downloadDraft = () => {
+    if (!draft) return;
+    const url = URL.createObjectURL(new Blob([JSON.stringify(draft, null, 2)], { type: "application/json" }));
+    const anchor = document.createElement("a"); anchor.href = url; anchor.download = "command-board-draft.json"; anchor.click(); URL.revokeObjectURL(url);
+  };
+  const recoveryPanel = draft && <section className={styles.recovery} aria-label="Unsent command update">
+    <strong>Unsent command draft · {draft.mutation.action.replaceAll("-", " ")}</strong>
+    <p>Incident {draft.incidentId} · based on revision {draft.expectedRevision} · prepared {new Date(draft.queuedAt).toLocaleString()}. This change is not shown on the shared board until the server confirms it.</p>
+    <pre>{JSON.stringify(draft.mutation, null, 2)}</pre>
+    <p role="status">{commandDraftReview(draft, data?.incident?.incidentId, data?.state?.revision) || "Review the proposed change before sending."} {!draftStorageReady ? "Stored in this page only; download before leaving." : "Saved on this tab. Closing the tab may remove it."}</p>
+    <div><button disabled={saving || !online || !data?.canManage} onClick={() => void load()}>Refresh board</button><button disabled={saving || !online || !readHealthy || !data?.canManage || Boolean(data?.state?.closeout.endedAt) || Boolean(commandDraftReview(draft, data?.incident?.incidentId, data?.state?.revision))} onClick={() => void sendUpdate(draft)}>Send reviewed draft</button><button disabled={saving || !online || !readHealthy || !data?.canManage || draft.incidentId !== data?.incident?.incidentId} onClick={() => void sendUpdate(draft, true)}>Check previous save</button><button onClick={downloadDraft}>Download draft</button><button disabled={saving} onClick={() => { try { sessionStorage.removeItem(commandDraftKey(draft.scope)); setDraft(null); } catch { setDraft(null); setNotice("The in-memory draft was discarded, but browser storage could not remove its saved copy."); } }}>Discard draft</button></div>
+  </section>;
 
   const state = data?.state;
   const levels = useMemo(
@@ -207,7 +275,7 @@ export default function IncidentCommandBoard() {
   const parSeconds = useMemo(() => {
     if (!state) return 0;
     if (state.par.status !== "running" || !state.par.startedAt) return state.par.remainingSeconds;
-    return Math.max(0, state.par.remainingSeconds - Math.floor((clock - Date.parse(state.par.startedAt)) / 1000));
+    return Math.max(0, state.par.remainingSeconds - Math.max(0, Math.floor((clock - Date.parse(state.par.startedAt)) / 1000)));
   }, [clock, state]);
   const parText = `${String(Math.floor(parSeconds / 60)).padStart(2, "0")}:${String(parSeconds % 60).padStart(2, "0")}`;
   const armAlertTone = useCallback(() => {
@@ -240,7 +308,8 @@ export default function IncidentCommandBoard() {
     }
   }, [parSeconds, playAlertTone, state?.par.startedAt, state?.par.status]);
   const floorCount = state?.building.floorCount || data?.preplan?.floorCount || 1;
-  const commandDisabled = !data?.canManage || saving || !online || Boolean(state?.closeout.endedAt);
+  const commandDisabled = !data?.canManage || saving || Boolean(draft) || Boolean(state?.closeout.endedAt);
+  const criticalDisabled = commandDisabled || !online || !readHealthy;
   const onSceneUnits = [...new Set([...(data?.cadUnits ?? []), ...(state?.manualUnits ?? [])])];
   const stagedUnits = onSceneUnits.filter((unitId) => state?.units[unitId]?.status === "Staged" || state?.units[unitId]?.assignment === "Staging");
   const employeeName = (employeeId: string) => {
@@ -372,17 +441,19 @@ export default function IncidentCommandBoard() {
   };
 
   if (loading && !data) return <section ref={boardRef} className="icb-page"><div className="icb-empty"><strong>Loading Command Board…</strong><span>Checking the active incident and command record.</span></div></section>;
-  if (!data?.incident || !state) return <section ref={boardRef} className="icb-page icb-reference icb-idle">
+  if (!data?.incident || !state) return <section ref={boardRef} className={`icb-page icb-reference icb-idle${draft ? ` ${styles.recoveryBoard}` : ""}`}>
     <header className="icb-reference-header">
       <button className="icb-brand" onClick={() => { window.location.href = window.location.pathname; }} aria-label="Return to operations portal"><b>SFD</b><span><small>STICKNEY FIRE DEPARTMENT</small><strong>COMMAND BOARD</strong></span></button>
-      <div className="icb-no-call">NO ACTIVE INCIDENT</div>
+      <div className="icb-no-call">{readHealthy ? "NO ACTIVE INCIDENT" : "STATUS UNAVAILABLE"}</div>
       <button className="icb-fullscreen" onClick={() => void toggleFullscreen()}>{isFullscreen ? "EXIT FULL SCREEN" : "FULL SCREEN"}</button>
     </header>
     {notice && <div className="icb-notice">{notice}<button onClick={() => void load()}>Retry</button></div>}
+    {recoveryPanel}
     <div className="icb-idle-body">
       <div className="icb-idle-copy">
         <small>COMMAND WORKSPACE READY</small>
-        <strong>Awaiting CAD incident</strong>
+        <strong>{data?.selectedIncident ? "Selected incident unavailable" : "Awaiting CAD incident"}</strong>
+        {data?.selectedIncident && <span>{data.connection.label}</span>}
         <span>The active board will populate from the verified call, assigned units, and department command record.</span>
         <div>
           <span><i /> Incident and preplan</span>
@@ -437,7 +508,7 @@ export default function IncidentCommandBoard() {
   ];
   const emailReportHref = `mailto:?subject=${encodeURIComponent(`Command Board report ${data.incident.reportNumber || data.incident.address}`)}&body=${encodeURIComponent(reportLines.join("\n"))}`;
 
-  return <section ref={boardRef} className={`icb-page icb-reference${state.mayday.active ? " mayday-active" : ""}`}>
+  return <section ref={boardRef} className={`icb-page icb-reference${state.mayday.active ? " mayday-active" : ""}${draft || !online || !readHealthy ? ` ${styles.recoveryBoard}` : ""}`}>
     <ConfirmDialog open={Boolean(confirm)} title={confirmCopy.title} description={confirmCopy.description} confirmLabel={confirmCopy.label} tone={confirmCopy.tone} busy={saving} onCancel={() => setConfirm(null)} onConfirm={() => void confirmAction()} />
 
     {assignmentDraft && <div className="icb-editor-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setAssignmentDraft(null); }}>
@@ -498,20 +569,22 @@ export default function IncidentCommandBoard() {
       </button>
       <div className="icb-address"><strong>{data.incident.address || "Address not provided"}</strong><span>{data.incident.callType || "Call type not provided"} · #{data.incident.reportNumber || "Unavailable"}</span></div>
       <div className="icb-header-par"><span>PAR COUNTDOWN</span><strong className={parSeconds === 0 ? "due" : ""}>{parSeconds === 0 ? "DUE" : parText}</strong></div>
-      <label className="icb-interval"><span>INTERVAL</span><select disabled={commandDisabled} value={state.par.intervalMinutes} onChange={(event) => void mutate({ action: "set-par-interval", intervalMinutes: Number(event.target.value) })}>{[10, 15, 20, 30].map((minutes) => <option key={minutes} value={minutes}>{minutes}</option>)}</select></label>
-      <button className="icb-header-action" disabled={commandDisabled} onClick={() => { armAlertTone(); void mutate({ action: "toggle-par" }); }}>{state.par.status === "running" ? "Pause" : "Start"}</button>
-      <button className="icb-header-action" disabled={commandDisabled} onClick={() => { armAlertTone(); alertedParRef.current = ""; void mutate({ action: "reset-par" }); }}>Reset</button>
-      <label className="icb-radio"><span>RADIO CHANNEL</span><input disabled={!data.canManage} value={radioDraft} onChange={(event) => setRadioDraft(event.target.value)} onBlur={() => { if (radioDraft !== state.radioChannel) void mutate({ action: "set-radio", radioChannel: radioDraft }); }} placeholder="Not assigned" /></label>
+      <label className="icb-interval"><span>INTERVAL</span><select disabled={criticalDisabled} value={state.par.intervalMinutes} onChange={(event) => void mutate({ action: "set-par-interval", intervalMinutes: Number(event.target.value) })}>{[10, 15, 20, 30].map((minutes) => <option key={minutes} value={minutes}>{minutes}</option>)}</select></label>
+      <button className="icb-header-action" disabled={criticalDisabled} onClick={() => { armAlertTone(); void mutate({ action: "toggle-par" }); }}>{state.par.status === "running" ? "Pause" : "Start"}</button>
+      <button className="icb-header-action" disabled={criticalDisabled} onClick={() => { armAlertTone(); alertedParRef.current = ""; void mutate({ action: "reset-par" }); }}>Reset</button>
+      <label className="icb-radio"><span>RADIO CHANNEL</span><input disabled={commandDisabled} value={radioDraft} onChange={(event) => setRadioDraft(event.target.value)} onBlur={() => { if (radioDraft !== state.radioChannel) void mutate({ action: "set-radio", radioChannel: radioDraft }); }} placeholder="Not assigned" /></label>
       <button className="icb-fullscreen" onClick={() => void toggleFullscreen()}>{isFullscreen ? "EXIT FULL SCREEN" : "FULL SCREEN"}</button>
-      <button className={`icb-mayday ${state.mayday.active ? "active" : ""}`} disabled={commandDisabled} onClick={() => setConfirm({ kind: "mayday", active: !state.mayday.active })}>{state.mayday.active ? "RESOLVE MAYDAY" : "MAYDAY"}</button>
+      <button className={`icb-mayday ${state.mayday.active ? "active" : ""}`} disabled={criticalDisabled} onClick={() => setConfirm({ kind: "mayday", active: !state.mayday.active })}>{state.mayday.active ? "RESOLVE MAYDAY" : "MAYDAY"}</button>
     </header>
 
-    <div className={`icb-status-line ${!online ? "offline" : data.connection.status}`}>
-      <i /> <span>{!online ? "OFFLINE · LAST KNOWN INCIDENT SHOWN" : data.connection.label}</span>
+    <div className={`icb-status-line ${styles.statusLine} ${!online || !readHealthy ? "offline" : data.connection.status}`}>
+      <i /> <span>{!online || !readHealthy ? "UPDATES INTERRUPTED · LAST KNOWN INCIDENT SHOWN" : data.connection.label}</span><button type="button" onClick={() => void load()}>Refresh board</button>
       {data.preplan && <b>PREPLAN · {data.preplan.businessName || data.preplan.address || data.preplan.status || "MATCHED"}</b>}
       {!data.canManage && <b>READ ONLY</b>}
     </div>
+    {(!online || !readHealthy) && <p className={styles.offlineInfo} role="status">Ordinary changes prepare one local draft for review after reconnecting. Timed and critical confirmations require a successful live refresh. The shared board stays unchanged until a save is confirmed.</p>}
     {notice && <div className="icb-notice" role="alert">{notice}<button onClick={() => setNotice("")}>Dismiss</button></div>}
+    {recoveryPanel}
 
     <div className={`icb-reference-grid ${styles.boardGrid}`}>
       <aside className="icb-reference-left">
@@ -548,7 +621,7 @@ export default function IncidentCommandBoard() {
             return <article key={unitId} className={selectedUnit === unitId ? "selected" : ""} onClick={() => setSelectedUnit(unitId)}>
               <div><strong>{unitId}</strong><small>{unit ? `${unit.floor || "No level"} · ${unit.side ? `Side ${unit.side}` : "No side"}` : "Not assigned"}</small></div>
               <button type="button" className="icb-edit-assignment" disabled={commandDisabled} onClick={(event) => { event.stopPropagation(); openAssignmentEditor(unitId); }}>{unit?.assignment || "Assign unit"}</button>
-              <button className={confirmed ? "confirmed" : ""} disabled={commandDisabled || Boolean(confirmed)} onClick={(event) => { event.stopPropagation(); void mutate({ action: "confirm-par-unit", unitId }); }}>{confirmed ? "PAR ✓" : "PAR"}</button>
+              <button className={confirmed ? "confirmed" : ""} disabled={criticalDisabled || Boolean(confirmed)} onClick={(event) => { event.stopPropagation(); void mutate({ action: "confirm-par-unit", unitId }); }}>{confirmed ? "PAR ✓" : "PAR"}</button>
             </article>;
           })}</div>}
         </section>
@@ -621,7 +694,7 @@ export default function IncidentCommandBoard() {
           <div className="icb-search-head"><span>LEVEL</span>{searchPhases.map((phase) => <span key={phase}>{phase.toUpperCase()}</span>)}</div>
           <div className="icb-search-grid">{levels.map((level) => <div className="icb-search-row" key={level}><strong>{level}</strong>{searchPhases.map((phase) => {
             const status = searchStatus(level, phase);
-            return <button key={phase} className={status} disabled={commandDisabled || status === "confirmed"} onClick={() => changeSearch(level, phase)}><i />{status === "not_started" ? "—" : status === "in_progress" ? "ACTIVE" : "CLEAR"}</button>;
+            return <button key={phase} className={status} disabled={criticalDisabled || status === "confirmed"} onClick={() => changeSearch(level, phase)}><i />{status === "not_started" ? "—" : status === "in_progress" ? "ACTIVE" : "CLEAR"}</button>;
           })}</div>)}</div>
           <div className="icb-search-key"><span><i className="active" /> ACTIVE</span><span><i className="clear" /> CLEAR</span></div>
         </section>
@@ -642,7 +715,7 @@ export default function IncidentCommandBoard() {
     <footer className="icb-reference-footer">
       <span>{saving ? "SAVING…" : "BOARD READY"} · REV {state.revision}</span>
       <span>LAST CHANGE {formatTime(state.updatedAt)} · {state.updatedBy || "NONE"}</span>
-      <div className="icb-footer-actions"><button type="button" onClick={() => setHistoryOpen(true)}>HISTORY · {data.events.length}</button><button type="button" className="end" disabled={commandDisabled || state.mayday.active} onClick={() => setConfirm({ kind: "end-call" })}>END CALL</button><span>{data.incident.source} · RECEIVED {formatTime(data.incident.receivedAt)}</span></div>
+      <div className="icb-footer-actions"><button type="button" onClick={() => setHistoryOpen(true)}>HISTORY · {data.events.length}</button><button type="button" className="end" disabled={criticalDisabled || state.mayday.active} onClick={() => setConfirm({ kind: "end-call" })}>END CALL</button><span>{data.incident.source} · RECEIVED {formatTime(data.incident.receivedAt)}</span></div>
     </footer>
   </section>;
 }

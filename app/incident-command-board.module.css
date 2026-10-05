@@ -210,3 +210,25 @@
     grid-template-columns: 1fr;
   }
 }
+.recovery {
+  padding: 16px;
+  margin: 12px 0;
+  border: 2px solid #c68b25;
+  border-radius: 10px;
+  background: #fff7df;
+  color: #172d45;
+  overflow-wrap: anywhere;
+}
+.recovery strong, .recovery p { color: inherit; }
+.recovery pre { max-height: 180px; overflow: auto; white-space: pre-wrap; color: inherit; }
+.recovery > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.recovery button { min-height: 44px; padding: 8px 12px; background: #143954; color: #fff; border: 1px solid #143954; border-radius: 6px; }
+.recovery button:disabled { opacity: .55; }
+.recovery button:focus-visible { outline: 3px solid #267ec5; outline-offset: 2px; }
+:global([data-theme="dark"]) .recovery { background: #29251c; color: #ffefc4; }
+.recoveryBoard:global(.icb-page.icb-reference) { display: block; overflow: auto; }
+.recoveryBoard > :global(.icb-reference-grid) { min-height: 650px; }
+.offlineInfo { padding: 12px; border: 1px solid #c68b25; background: #29251c; color: #ffefc4; font-size: 14px; line-height: 1.5; }
+@media (max-width: 1080px) { .recoveryBoard > :global(.icb-reference-grid) { min-height: 0; } }
+.statusLine:global(.icb-status-line) { min-height: 32px; font-size: 12px; line-height: 1.4; flex-wrap: wrap; color: #cad6e2; }
+:global(.icb-page.icb-reference):has(> .statusLine) { grid-template-rows: 54px auto minmax(0,1fr) 17px; }

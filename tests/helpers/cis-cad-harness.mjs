@@ -10,7 +10,8 @@ export async function cisHarness() {
     CREATE TABLE daily_logs(log_date text PRIMARY KEY,created_by text,updated_by text);
     CREATE TABLE daily_log_calls(id text PRIMARY KEY,log_date text,report_number text,time_out text,time_in text,responding_units text,address text,call_type text,sort_order int);
     CREATE FUNCTION enable_cad_push_outbox() RETURNS void LANGUAGE sql AS $$ SELECT set_config('fixture.cad_push','enabled',true)::text $$;`);
-  const base = trainingModules({ [resolve('app/supabase-server.ts')]: {} });
+  const department = { getPortalDepartment: async () => ({ id:'fictional-cis-department', isolated:false }) };
+  const base = trainingModules({ [resolve('app/supabase-server.ts')]: {}, [resolve('app/department-portal.ts')]:department });
   const { createPostgresD1Adapter } = base('db/postgres-adapter.ts');
   const stats = { queries: [], failBatchAt: -1, pushes: [] };
   const client = { rpc: async (name, args) => {
@@ -36,6 +37,7 @@ export async function cisHarness() {
   } };
   const db = createPostgresD1Adapter(async () => client);
   const load = trainingModules({
+    [resolve('app/department-portal.ts')]:department,
     [resolve('db/bootstrap.ts')]: { ensureDatabase: async () => db },
     [resolve('app/supabase-server.ts')]: {},
     [resolve('app/supabase-system.ts')]: { getSupabaseSystemClient: async () => client },
