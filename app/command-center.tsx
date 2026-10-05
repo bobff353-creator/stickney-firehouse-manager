@@ -2,18 +2,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { readPortalJson } from "./portal-status";
+import { ChiefReport, type ReportData } from './chief-report';
+import { callHour, metricSources, trendPeriodKeys } from './reporting-metrics';
 import { ResponseTypePanel } from "./response-type-panel";
 
 type Daily = { date: string; staffingGaps: number; overtimeHours: number; aoHours: number; calls: number; equipmentIssues: number; payrollCost: number };
 type StaffingDetail = { date: string; shiftKey: string; shiftLabel: string; timeRange: string; filled: number; required: number; gaps: number; holidayName: string | null };
 type PayrollDetail = { employeeId: string; date: string; rank: string; category: string; hours: number; cost: number; overtimeHours: number; overtimeCost: number };
-type Data = {
+type Data = ReportData & {
   daily: Daily[];
   responseTypeDaily: Array<{ date: string; callType: string; count: number }>;
   callTiming: Array<{ date: string; timeOut: string }>;
   staffingDetails: StaffingDetail[];
   payrollDetails: PayrollDetail[];
-  fiscalYear: { startDate: string; endDate: string; payToDate: number };
+  fiscalYear: { startDate: string; endDate: string; payToDate: number | null };
   generatedAt: string;
   error?: string;
 };
@@ -57,11 +59,6 @@ const format = (key: Metric, value: number) => key === "payrollCost" ? new Intl.
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
 const shortDate = (value: string) => new Date(`${value}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 const fullDate = (value: string) => new Date(`${value}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
-function detailCutoff(mode: "weekly" | "monthly") { const value = new Date(); value.setUTCDate(value.getUTCDate() - (mode === "weekly" ? 84 : 365)); return value; }
-function callHour(value: string) {
-  const digits = value.replace(/\D/g, "").padStart(4, "0").slice(-4), hour = Number(digits.slice(0, 2)), minute = Number(digits.slice(2));
-  return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59 ? hour : null;
-}
 function Trend({ values, color, labels }: { values: number[]; color: string; labels: string[] }) {
   const max = Math.max(1, ...values), points = values.map((value, index) => `${values.length === 1 ? 50 : (index / (values.length - 1)) * 100},${42 - (value / max) * 36}`).join(" ");
   return <div className="trend-chart"><svg viewBox="0 0 100 48" preserveAspectRatio="none" role="img" aria-label={`Trend from ${labels[0] || "start"} to ${labels.at(-1) || "current"}`}><line x1="0" y1="42" x2="100" y2="42"/><polyline points={points} style={{ stroke: color }}/>{values.map((value, index) => <circle key={index} cx={values.length === 1 ? 50 : (index / (values.length - 1)) * 100} cy={42 - (value / max) * 36} r="1.4" style={{ fill: color }}/>)}</svg><div><span>{labels[0]}</span><span>{labels.at(-1)}</span></div></div>;
@@ -81,9 +78,9 @@ function StaffingDialog({ breakdown, mode, onClose }: { breakdown: { total: numb
 
 function PayrollDialog({ breakdown, mode, onClose }: { breakdown: { totalCost: number; totalHours: number; overtimeHours: number; overtimeCost: number; categories: Array<{ key: string; label: string; hours: number; cost: number }>; ranks: Array<{ rank: string; hours: number; cost: number }> }; mode: "weekly" | "monthly"; onClose: () => void }) {
   return <DetailDialog titleId="payroll-detail-title" eyebrow="Payroll cost detail" title="What payroll cost contains" summary={`${mode === "weekly" ? "Last 12 weeks" : "Last 12 months"} · ${money(breakdown.totalCost)} calculated gross pay`} onClose={onClose}>
-    <div className="detail-summary-grid"><article><span>Paid hours</span><strong>{breakdown.totalHours.toLocaleString("en-US", { maximumFractionDigits: 1 })}</strong><small>All recorded categories</small></article><article><span>Overtime hours</span><strong>{breakdown.overtimeHours.toLocaleString("en-US", { maximumFractionDigits: 1 })}</strong><small>Hours over 106 per pay period</small></article><article><span>Overtime cost</span><strong>{money(breakdown.overtimeCost)}</strong><small>Included in category totals below</small></article></div>
+    <div className="detail-summary-grid"><article><span>Paid hours</span><strong>{breakdown.totalHours.toLocaleString("en-US", { maximumFractionDigits: 1 })}</strong><small>All recorded categories</small></article><article><span>Overtime hours</span><strong>{breakdown.overtimeHours.toLocaleString("en-US", { maximumFractionDigits: 1 })}</strong><small>Hours over the configured period threshold</small></article><article><span>Overtime cost</span><strong>{money(breakdown.overtimeCost)}</strong><small>Included in category totals below</small></article></div>
     <div className="call-breakdown-grid command-detail-grid"><section><h3>Pay category</h3><div className="payroll-detail-list">{breakdown.categories.map((category) => <article key={category.key}><div><strong>{category.label}</strong><span>{category.hours.toLocaleString("en-US", { maximumFractionDigits: 1 })} hr</span></div><b>{money(category.cost)}</b></article>)}</div></section><section><h3>Rank</h3>{breakdown.ranks.length ? <div className="payroll-detail-list">{breakdown.ranks.map((rank) => <article key={rank.rank}><div><strong>{rank.rank}</strong><span>{rank.hours.toLocaleString("en-US", { maximumFractionDigits: 1 })} hr</span></div><b>{money(rank.cost)}</b></article>)}</div> : <p className="detail-empty">No payroll entries were recorded in this range.</p>}</section></div>
-    <p className="payroll-detail-note">Acting Officer is calculated separately as the $1 per-hour stipend. DPW uses the configured DPW multiplier. Overtime applies only after 106 base hours and is included within the related shift, training, work-detail, or callback category.</p>
+    <p className="payroll-detail-note">Acting Officer uses the configured per-hour premium. DPW uses the configured multiplier. Overtime applies after the configured base-hour threshold and is included within the related shift, training, work-detail, or callback category.</p>
   </DetailDialog>;
 }
 
@@ -103,23 +100,26 @@ export default function CommandCenter() {
   useEffect(() => { const timer = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(timer); }, [load]);
   const buckets = useMemo(() => {
     const map = new Map<string, Daily>();
+    if (data) for (const date of trendPeriodKeys(data.coverage.latest, mode)) map.set(date, {date, staffingGaps:0, overtimeHours:0, aoHours:0, calls:0, equipmentIssues:0, payrollCost:0});
     for (const row of data?.daily ?? []) {
       const key = bucketKey(row.date, mode);
-      if (!map.has(key)) map.set(key, { date: key, staffingGaps: 0, overtimeHours: 0, aoHours: 0, calls: 0, equipmentIssues: 0, payrollCost: 0 });
+      if (!map.has(key)) continue;
       const bucket = map.get(key)!;
       for (const metric of metricInfo) bucket[metric.key] += row[metric.key];
     }
     return [...map.values()].sort((a, b) => a.date.localeCompare(b.date)).slice(-12);
   }, [data, mode]);
   const responseTypes = useMemo(() => {
-    const cutoff = detailCutoff(mode);
+    const first = buckets.at(0)?.date ?? '9999-12-31';
+    const cutoff = first.length === 7 ? first + '-01' : first;
     const totals = new Map<string, number>();
-    for (const row of data?.responseTypeDaily ?? []) if (new Date(`${row.date}T12:00:00Z`) >= cutoff) totals.set(row.callType, (totals.get(row.callType) || 0) + row.count);
+    for (const row of data?.responseTypeDaily ?? []) if (row.date >= cutoff) totals.set(row.callType, (totals.get(row.callType) || 0) + row.count);
     return [...totals.entries()].sort((a, b) => b[1] - a[1]);
-  }, [data, mode]);
+  }, [buckets, data]);
   const callBreakdown = useMemo(() => {
-    const cutoff = detailCutoff(mode);
-    const rows = (data?.callTiming ?? []).filter((row) => new Date(`${row.date}T12:00:00Z`) >= cutoff);
+    const first = buckets.at(0)?.date ?? '9999-12-31';
+    const cutoff = first.length === 7 ? first + '-01' : first;
+    const rows = (data?.callTiming ?? []).filter((row) => row.date >= cutoff);
     const weekdays = new Map(weekdayOrder.map((day) => [day, 0]));
     const times = new Map(timeBlocks.map((block) => [block.label, 0]));
     let missingTime = 0;
@@ -132,7 +132,7 @@ export default function CommandCenter() {
       times.set(block.label, (times.get(block.label) || 0) + 1);
     }
     return { total: rows.length, weekdays: [...weekdays.entries()], times: timeBlocks.map((block) => ({ ...block, count: times.get(block.label) || 0 })), missingTime };
-  }, [data, mode]);
+  }, [buckets, data]);
   const staffingBreakdown = useMemo(() => {
     const visibleStart = buckets.at(0)?.date ?? "9999-12-31";
     const rows = (data?.staffingDetails ?? []).filter((row) => row.date >= visibleStart);
@@ -178,23 +178,25 @@ export default function CommandCenter() {
   const labels = buckets.map((bucket) => bucketLabel(bucket.date, mode));
 
   return <section className="command-center-page">
-    <header className="standard-page-header command-center-header"><div><span className="page-icon">⌁</span><div><p className="eyebrow">Administrator analytics</p><h1>Department Command Center</h1><p>Operational readiness, activity, and payroll trends from official department records.</p></div></div><div className="trend-toggle"><button className={mode === "weekly" ? "active" : ""} onClick={() => setMode("weekly")}>Weekly</button><button className={mode === "monthly" ? "active" : ""} onClick={() => setMode("monthly")}>Monthly</button></div></header>
+    <header className="standard-page-header command-center-header"><div><span className="page-icon">⌁</span><div><p className="eyebrow">Department analytics</p><h1>Department Command Center</h1><p>Operational readiness, activity, and payroll trends from official department records.</p></div></div><div className="trend-toggle"><button className={mode === "weekly" ? "active" : ""} onClick={() => setMode("weekly")}>Weekly</button><button className={mode === "monthly" ? "active" : ""} onClick={() => setMode("monthly")}>Monthly</button></div></header>
     {error && <div className="error-banner"><span>{error}</span><button onClick={() => void load()}>Retry</button></div>}
     {loading ? <div className="command-center-loading">{metricInfo.map((item) => <i key={item.key}/>)}</div> : data ? <>
-      <section className="fiscal-pay-card"><div><span>Fiscal year pay to date</span><strong>{money(data?.fiscalYear.payToDate || 0)}</strong><small>Calculated department gross pay recorded from {data?.fiscalYear ? shortDate(data.fiscalYear.startDate) : "May 1"} through today</small></div><b>FY {data?.fiscalYear ? `${data.fiscalYear.startDate.slice(0, 4)}–${data.fiscalYear.endDate.slice(2, 4)}` : "—"}</b></section>
+      <ChiefReport key={data.generatedAt} data={data} stale={!!error}/><section className="fiscal-pay-card"><div><span>Fiscal year pay to date</span><strong>{data.sources.payroll === 'ready' ? money(data.fiscalYear.payToDate || 0) : data.sources.payroll === 'restricted' ? 'Restricted' : 'Unavailable'}</strong><small>Calculated department gross pay recorded from {data?.fiscalYear ? shortDate(data.fiscalYear.startDate) : "May 1"} through today</small></div><b>FY {data?.fiscalYear ? `${data.fiscalYear.startDate.slice(0, 4)}–${data.fiscalYear.endDate.slice(2, 4)}` : "—"}</b></section>
       <div className="trend-card-grid">{metricInfo.map((item) => {
-        const values = buckets.map((bucket) => bucket[item.key]), total = values.reduce((sum, value) => sum + value, 0), previous = values.at(-2) || 0, current = values.at(-1) || 0, change = previous ? ((current - previous) / previous) * 100 : current ? 100 : 0;
+        const sourceState = data.sources[metricSources[item.key]];
+        if (sourceState !== 'ready') return <article className="trend-card metric-unavailable" key={item.key}><header><span>{item.label}</span></header><strong>{sourceState === 'restricted' ? 'Restricted' : 'Unavailable'}</strong><p>{sourceState === 'restricted' ? 'Your account does not have access to this source.' : 'This source could not load. Retry to review it.'}</p></article>;
+        const values = buckets.map((bucket) => bucket[item.key]), total = values.reduce((sum, value) => sum + value, 0), previous = values.at(-2) || 0, current = values.at(-1) || 0, change = previous ? ((current - previous) / previous) * 100 : 0;
         const hasDetail = item.key === "calls" || item.key === "staffingGaps" || item.key === "payrollCost";
         const detailText = item.key === "calls" ? "Click for busiest days and times" : item.key === "staffingGaps" ? "Click for days, times, and holidays" : item.key === "payrollCost" ? "Click for rank and pay categories" : mode === "weekly" ? "Last 12 weeks" : "Last 12 months";
-        const contents = <><header><span>{item.label}</span><b style={{ background: item.color }}/></header><strong>{format(item.key, total)}{item.unit === "hr" ? <small> hr</small> : null}</strong><p>{detailText}<em className={change > 0 ? "up" : change < 0 ? "down" : "flat"}>{change > 0 ? "↑" : change < 0 ? "↓" : "–"} {Math.abs(change).toFixed(0)}%</em></p><Trend values={values} color={item.color} labels={labels}/></>;
+        const contents = <><header><span>{item.label}</span><b style={{ background: item.color }}/></header><strong>{format(item.key, total)}{item.unit === "hr" ? <small> hr</small> : null}</strong><p>{detailText}<em className={change > 0 ? "up" : change < 0 ? "down" : "flat"}>{change > 0 ? "↑" : change < 0 ? "↓" : "–"} {!previous && current ? "No prior recorded value" : `${Math.abs(change).toFixed(0)}%`}</em></p><Trend values={values} color={item.color} labels={labels}/></>;
         if (!hasDetail) return <article className="trend-card" key={item.key}>{contents}</article>;
         const openDetail = () => item.key === "calls" ? setCallBreakdownOpen(true) : setDetailOpen(item.key === "staffingGaps" ? "staffing" : "payroll");
         return <button type="button" className="trend-card trend-card-button" key={item.key} onClick={openDetail} aria-haspopup="dialog">{contents}<span className="open-breakdown">Open {item.key === "calls" ? "call" : item.key === "staffingGaps" ? "staffing" : "payroll"} breakdown →</span></button>;
       })}</div>
-      <div className="command-center-lower"><ResponseTypePanel types={responseTypes} range={mode === "weekly" ? "Last 12 weeks" : "Last 12 months"}/><section className="content-card command-insight"><h2>Command summary</h2>{metricInfo.map((item) => <div key={item.key}><span>{item.label}</span><strong>{format(item.key, buckets.at(-1)?.[item.key] || 0)}</strong><small>Current {mode === "weekly" ? "week" : "month"}</small></div>)}<p>Updated {data?.generatedAt ? new Date(data.generatedAt).toLocaleString() : "—"}</p></section></div>
+      <div className="command-center-lower">{data.sources.calls === "ready" && <ResponseTypePanel types={responseTypes} range={mode === "weekly" ? "Last 12 weeks" : "Last 12 months"}/>}<section className="content-card command-insight"><h2>Command summary</h2>{metricInfo.map((item) => <div key={item.key}><span>{item.label}</span><strong>{data.sources[metricSources[item.key]] === "ready" ? format(item.key, buckets.at(-1)?.[item.key] || 0) : data.sources[metricSources[item.key]] === "restricted" ? "Restricted" : "Unavailable"}</strong><small>Current {mode === "weekly" ? "week" : "month"}</small></div>)}<p>Updated {data?.generatedAt ? new Date(data.generatedAt).toLocaleString() : "—"}</p></section></div>
     </> : <p role="status">Trends are unavailable until department records can be loaded. Use Retry above to check again.</p>}
-    {callBreakdownOpen && <div className="call-breakdown-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setCallBreakdownOpen(false); }}><section className="call-breakdown-dialog" role="dialog" aria-modal="true" aria-labelledby="call-breakdown-title"><header><div><p className="eyebrow">Call volume detail</p><h2 id="call-breakdown-title">When calls happen most</h2><p>{mode === "weekly" ? "Last 12 weeks" : "Last 12 months"} · {callBreakdown.total} calls</p></div><button type="button" autoFocus aria-label="Close call breakdown" onClick={() => setCallBreakdownOpen(false)}>×</button></header><div className="call-breakdown-grid"><section><h3>Day of week</h3><div className="breakdown-bars">{callBreakdown.weekdays.map(([label, count]) => { const max = Math.max(1, ...callBreakdown.weekdays.map(([, value]) => value)); return <div key={label}><span>{label}</span><i><b style={{ width: `${(count / max) * 100}%` }}/></i><strong>{count}</strong></div>; })}</div></section><section><h3>Time of day</h3><div className="breakdown-bars time-blocks">{callBreakdown.times.map((block) => { const max = Math.max(1, ...callBreakdown.times.map((item) => item.count)); return <div key={block.label}><span>{block.label}<small>{block.detail}</small></span><i><b style={{ width: `${(block.count / max) * 100}%` }}/></i><strong>{block.count}</strong></div>; })}</div>{callBreakdown.missingTime > 0 && <p className="missing-time-note">{callBreakdown.missingTime} call{callBreakdown.missingTime === 1 ? "" : "s"} without a recorded time are excluded from the time-of-day bars.</p>}</section></div></section></div>}
-    {detailOpen === "staffing" && <StaffingDialog breakdown={staffingBreakdown} mode={mode} onClose={() => setDetailOpen(null)}/>}
-    {detailOpen === "payroll" && <PayrollDialog breakdown={payrollBreakdown} mode={mode} onClose={() => setDetailOpen(null)}/>}
+    {callBreakdownOpen && data?.sources.calls === "ready" && <div className="call-breakdown-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setCallBreakdownOpen(false); }}><section className="call-breakdown-dialog" role="dialog" aria-modal="true" aria-labelledby="call-breakdown-title"><header><div><p className="eyebrow">Call volume detail</p><h2 id="call-breakdown-title">When calls happen most</h2><p>{mode === "weekly" ? "Last 12 weeks" : "Last 12 months"} · {callBreakdown.total} calls</p></div><button type="button" autoFocus aria-label="Close call breakdown" onClick={() => setCallBreakdownOpen(false)}>×</button></header><div className="call-breakdown-grid"><section><h3>Day of week</h3><div className="breakdown-bars">{callBreakdown.weekdays.map(([label, count]) => { const max = Math.max(1, ...callBreakdown.weekdays.map(([, value]) => value)); return <div key={label}><span>{label}</span><i><b style={{ width: `${(count / max) * 100}%` }}/></i><strong>{count}</strong></div>; })}</div></section><section><h3>Time of day</h3><div className="breakdown-bars time-blocks">{callBreakdown.times.map((block) => { const max = Math.max(1, ...callBreakdown.times.map((item) => item.count)); return <div key={block.label}><span>{block.label}<small>{block.detail}</small></span><i><b style={{ width: `${(block.count / max) * 100}%` }}/></i><strong>{block.count}</strong></div>; })}</div>{callBreakdown.missingTime > 0 && <p className="missing-time-note">{callBreakdown.missingTime} call{callBreakdown.missingTime === 1 ? "" : "s"} without a recorded time are excluded from the time-of-day bars.</p>}</section></div></section></div>}
+    {detailOpen === "staffing" && data?.sources.staffing === "ready" && <StaffingDialog breakdown={staffingBreakdown} mode={mode} onClose={() => setDetailOpen(null)}/>}
+    {detailOpen === "payroll" && data?.sources.payroll === "ready" && <PayrollDialog breakdown={payrollBreakdown} mode={mode} onClose={() => setDetailOpen(null)}/>}
   </section>;
 }

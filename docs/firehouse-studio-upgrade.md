@@ -365,3 +365,48 @@ paper-surface typography. A grouped follow-up corrects heading/record names,
 body/review text, form labels/native options, and action/status contrast. The
 local fixture now includes the actual bento stylesheet and workspace classes so
 phone/tablet/desktop acceptance reproduces that production shell.
+
+## Phase 7 release
+
+Five related reporting and integration-readiness changes form one push:
+
+1. The private NERIS reporting desk reconciles up to 1,000 saved CAD calls by exact
+   source ID. Active operational drafts/reviews, multiple reports, archived links
+   and test links are distinguished. Manual Daily Log calls and unlinked reports
+   are outside this desk; absence here is not a no-activity finding. Nothing is
+   automatically created, merged, archived, deleted or submitted.
+2. Download saved review packet uses the authorized server record and expected
+   saved version. It rejects stale versions and changes during export. Packets
+   include pinned-schema provenance, local validation findings, source ID and
+   current private attachment metadata. File bytes and storage keys are excluded;
+   attachment downloads still need an authorized session. Client draft downloads
+   remain separate. Local review never means official validation or acceptance.
+3. Command Center gates Daily Log and payroll sources independently on the server.
+   Officers without payroll.manage receive no employee payroll details, settings,
+   rates or fiscal cost. Restricted/unavailable sources are labelled, including
+   in exports. A failed source leaves other authorized metrics usable. Payroll
+   calculations include full pay periods at the history boundary. Charts show
+   twelve consecutive calendar periods, and missing times are excluded from
+   time-of-day bars rather than assigned to midnight.
+4. A date-filtered chief report provides defined totals, source links, a CSV
+   download and a focused print view. Dates stay within the loaded history;
+   formulas in CSV cells are neutralized. Staffing uses the existing four-seat,
+   three-shift model. Equipment totals are observations, not unique repair tickets;
+   payroll is calculated gross pay, not proof of payment. Unmeasured metrics are
+   named rather than given invented totals or readiness scores.
+5. Firehouse Connect separates app credential configuration, saved CIS receipt
+   history and unverified vendor delivery. NERIS submission remains unconnected,
+   and AI assistance is not enabled. This batch makes no outgoing vendor, NERIS,
+   email, push or AI request and adds no credentials or access grants.
+
+NERIS retains the Bob-only pilot boundary; analytics retains verified department
+routing and existing assignable permissions. No database migration or fictional
+production seed is needed. PostgreSQL/API checks cover redaction, denied exports,
+partial failures, period boundaries, exact-version packets, private metadata,
+department scoping and bounded reconciliation. Browser fixtures are explicitly
+fictional and saving is disabled. Production deployment, health revision and
+signed-in read-only acceptance are verified separately after publication.
+
+This is the final planned upgrade batch. External vendor enrollment, approved
+adapters, end-to-end receipts, additional source-specific analytics and optional
+permission-aware AI remain follow-on capabilities, not completed connections.

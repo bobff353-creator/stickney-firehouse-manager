@@ -2,9 +2,19 @@ import {ensureDatabase} from '../../../db/bootstrap';
 import {nerisBoundary,nerisJson,columns,decode,type Stored} from '../../neris/server';
 import {normalizeData,reviewPackage} from '../../neris/model';
 import {validateReport} from '../../neris/validation';
+import {savedReviewPackage} from '../../neris/saved-package';
+import type {NerisFile} from '../../neris/model';
 export async function GET(request:Request){const denied=nerisBoundary(request);if(denied)return denied;try{const db=await ensureDatabase(),department=request.headers.get('x-department-id')!,url=new URL(request.url);
  if(url.searchParams.has('history'))return nerisJson({history:(await db.prepare('SELECT version,payload,archived,actor,created_at createdAt FROM neris_pilot_audit WHERE department_id=? AND record_id=? ORDER BY version DESC LIMIT 200').bind(department,url.searchParams.get('history')).all()).results});
- if(url.searchParams.has('export')){const row=await db.prepare(`SELECT ${columns} FROM neris_pilot_records WHERE department_id=? AND id=?`).bind(department,url.searchParams.get('export')).first<Stored>();return row?nerisJson(reviewPackage(decode(row))):nerisJson({error:'Report not found.'},404);}
+ if(url.searchParams.has('export')){
+  const row=await db.prepare(`SELECT ${columns} FROM neris_pilot_records WHERE department_id=? AND id=?`).bind(department,url.searchParams.get('export')).first<Stored>();if(!row)return nerisJson({error:'Report not found.'},404);
+  if(url.searchParams.get('exportMode')==='handoff'){
+   const expected=url.searchParams.get('version');if(!expected||!/^\d+$/.test(expected)||Number(expected)!==row.version)return nerisJson({error:'The saved version changed. Reopen it before downloading a review packet.',code:'SAVE_CONFLICT'},409);if(row.kind!=='incident')return nerisJson({error:'Choose a saved incident report.'},400);
+   const files=await db.prepare('SELECT id,record_id recordId,filename,size_bytes size,content_type contentType,created_at createdAt FROM neris_pilot_files WHERE department_id=? AND record_id=? ORDER BY created_at,id LIMIT 10001').bind(department,row.id).all<NerisFile>();if(files.results.length>10000)throw Error('File limit');
+   const current=await db.prepare('SELECT version FROM neris_pilot_records WHERE department_id=? AND id=?').bind(department,row.id).first<{version:number}>();if(current?.version!==row.version)return nerisJson({error:'The saved version changed during export. Reopen it and retry.',code:'SAVE_CONFLICT'},409);
+   return nerisJson(savedReviewPackage(decode(row),files.results,department));
+  }return nerisJson(reviewPackage(decode(row)));
+ }
  const [records,members,files]=await Promise.all([db.prepare(`SELECT ${columns} FROM neris_pilot_records WHERE department_id=? ORDER BY updated_at DESC LIMIT 2001`).bind(department).all<Stored>(),db.prepare('SELECT e.id,e.name,p.label rank FROM employees e LEFT JOIN pay_scales p ON p.id=e.pay_scale_id ORDER BY e.name').all(),db.prepare('SELECT id,record_id recordId,filename,size_bytes size,content_type contentType,created_at createdAt FROM neris_pilot_files WHERE department_id=? ORDER BY created_at DESC LIMIT 10001').bind(department).all()]);if(records.results.length>2000||files.results.length>10000)throw Error('Limit');return nerisJson({departmentId:department,records:records.results.map(decode),members:members.results,attachments:files.results});
  }catch{return nerisJson({error:'Reports could not load. Retry; saved records have not changed.'},503);}}
 export async function POST(request:Request){const denied=nerisBoundary(request,true);if(denied)return denied;let writing=false;try{
