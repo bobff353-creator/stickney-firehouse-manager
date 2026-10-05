@@ -3,13 +3,10 @@ type NavItem = PortalPage;
 type IconName = "home" | "log" | "box" | "users" | "phone" | "payroll" | "clock" | "rates" | "document" | "holiday" | "settings" | "search" | "bell" | "menu" | "close" | "filter" | "export" | "back" | "next" | "save" | "warning" | "chevron";
 
 export const featuredNavItems: Array<{ page: NavItem; label: string; tone: string }> = [
-  { page: "Dashboard", label: "Home", tone: "home" },
-  { page: "Respond", label: "Respond", tone: "respond" },
-  { page: "Operations Board", label: "Live Operations", tone: "live" },
-  { page: "Field Preplans", label: "Maps & Preplans", tone: "maps" },
-  { page: "Daily Log", label: "Daily Log", tone: "log" },
-  { page: "Scheduling", label: "Station Schedule", tone: "schedule" },
-  { page: "Inventory", label: "Inventory & Apparatus Checks", tone: "apparatus" },
+  { page: "Dashboard", label: "Today", tone: "home" },
+  { page: "Respond", label: "Response", tone: "respond" },
+  { page: "Inventory", label: "Operations", tone: "apparatus" },
+  { page: "Scheduling", label: "Schedule", tone: "schedule" },
 ];
 export const featuredNavPages = new Set<NavItem>(featuredNavItems.map((item) => item.page));
 export const adminNavGroups: Array<{ label: string; icon: IconName; items: Array<{ label: string; page: NavItem }> }> = [

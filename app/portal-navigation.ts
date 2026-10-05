@@ -11,6 +11,7 @@ export function portalPageFromSearch(search: string): PortalPage | null {
   if (params.get("display") === "tv") return "Operations Board";
   if (params.get("preplan") || params.get("hydrant")) return "Field Preplans";
   const slug = params.get("page")?.toLowerCase();
+  if (slug === "today") return "Dashboard";
   if (slug === "monthly-safety-inspections") return "Safety Inspections";
   return portalPages.find(page => pageSlug(page) === slug) ?? null;
 }
@@ -30,5 +31,5 @@ export function portalPageUrl(pathname: string, search: string, page: PortalPage
   return `${pathname}?${params.toString()}`;
 }
 export function portalPageLabel(page: PortalPage) {
-  return ({ Dashboard: "Home", "Field Preplans": "Maps & Preplans", Scheduling: "Station Schedule", Inventory: "Inventory & Apparatus Checks", "Operations Board": "Live Operations" } as Partial<Record<PortalPage,string>>)[page] ?? page;
+  return ({ Dashboard: "Today", Respond: "Response", "Field Preplans": "Maps & Preplans", Scheduling: "Schedule", Inventory: "Operations", "Operations Board": "Live Operations" } as Partial<Record<PortalPage,string>>)[page] ?? page;
 }

@@ -9,7 +9,7 @@ test("EMS is a permission-gated Documents page for administrators and employees"
     readFile(new URL("../public/ems/stickney-refusal-of-medical-advice.pdf", import.meta.url)),
   ]);
   assert.match(menu, /label: "Documents"[\s\S]*label: "EMS", page: "EMS"/);
-  assert.match(app, /const employeeNavItems:[^\n]+"EMS"/);
+  assert.match(app, /portalNavigationForPermissions\(permissions\)/);
   assert.match(app, /visibleMoreNavGroups[\s\S]+visibleNav\.includes\(item\.page\)/);
   assert.match(app, /desktop-more-nav-groups[\s\S]+group\.items\.map/);
   assert.match(menu, /EMS: "documents\.view"/);

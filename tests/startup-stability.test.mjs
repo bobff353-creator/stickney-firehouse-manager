@@ -6,8 +6,8 @@ import { definitiveAuthFailure, boundedAuthRead } from '../app/auth-failure-poli
 import { portalNeedsPayroll } from '../app/portal-data-needs.ts';
 
 test('independent operational pages do not require payroll data', () => {
-  for (const page of ['Field Preplans','Scheduling','Inventory','Respond','Operations Board','Permissions','Test View','Policies','Command Center','Work Details']) assert.equal(portalNeedsPayroll(page), false, page);
-  for (const page of ['Dashboard','Payroll','Timesheets','My Timesheet','Employees','Rates & Rules','Daily Log']) assert.equal(portalNeedsPayroll(page), true, page);
+  for (const page of ['Dashboard','Field Preplans','Scheduling','Inventory','Respond','Operations Board','Permissions','Test View','Policies','Command Center','Work Details']) assert.equal(portalNeedsPayroll(page), false, page);
+  for (const page of ['Payroll','Timesheets','My Timesheet','Employees','Rates & Rules','Daily Log']) assert.equal(portalNeedsPayroll(page), true, page);
 });
 
 test('only definitive auth failures expire a login; outages remain retryable', () => {
@@ -27,9 +27,9 @@ test('six mounted permission consumers use one timer, hidden tabs pause, and cle
   const d=Object.assign(new EventTarget(),{visibilityState:'visible'});
   globalThis.window=w;globalThis.document=d;globalThis.BroadcastChannel=class{constructor(){channels++;}close(){channels--;}};
   globalThis.fetch=async()=>{requests++;return Response.json({viewerPermissions:['inventory.view'],identity:'fixture:member',confirmation:{required:false}});};
-  const module={exports:{}};
-  new Function('require','module','exports',ts.transpileModule(fs.readFileSync('app/use-permissions.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(name=>{if(name==='./operational-signals')return{operationalQuery:()=>'',publishOperationalSignal:()=>{}};assert.equal(name,'react');return{useEffect(fn){effects.push(fn);},useSyncExternalStore(sub,snapshot){subscriptions.push(sub);return snapshot();}};},module,module.exports);
-  const hooks=module.exports,cleanups=[];
+  const compiledModule={exports:{}};
+  new Function('require','module','exports',ts.transpileModule(fs.readFileSync('app/use-permissions.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(name=>{if(name==='./operational-signals')return{operationalQuery:()=>'',publishOperationalSignal:()=>{}};assert.equal(name,'react');return{useEffect(fn){effects.push(fn);},useSyncExternalStore(sub,snapshot){subscriptions.push(sub);return snapshot();}};},compiledModule,compiledModule.exports);
+  const hooks=compiledModule.exports,cleanups=[];
   try {
     for(let i=0;i<6;i++){hooks.usePermissions();const off=subscriptions.at(-1)(()=>{}),stop=effects.at(-1)();cleanups.push(()=>{stop();off();});await new Promise(r=>setImmediate(r));}
     assert.equal(requests,1);assert.equal(timers.size,1);assert.equal(channels,1);
@@ -56,7 +56,7 @@ test('Inventory shares concurrent background reads but fetches anew after a save
   let shown=null;const replies=[],records=[];
   const ref=current=>({current});
   const env={useCallback:fn=>fn,document:{visibilityState:'visible'},navigator:{onLine:true},
-    itemSavePending:ref(false),itemSaveGeneration:ref(0),readPending:ref(null),readController:ref(null),readerMounted:ref(true),
+    itemSavePending:ref(false),itemSaveGeneration:ref(0),readPending:ref(null),readController:ref(null),readerMounted:ref(true),appliedRevision:ref(null),
     initialApparatusId:'fixture',setLoading(){},setAccessRequired(){},setData(data){shown=data;},setViewerEmployeeId(){},setEmployees(){},setSelectedApparatusId(){},setLastSyncedAt(){},setRefreshError(){},onRecords:r=>records.push(r),
     fetch:async url=>url==='/api/operations'?await new Promise(resolve=>replies.push(resolve)):Response.json({}),
   };

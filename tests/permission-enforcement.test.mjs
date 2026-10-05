@@ -12,11 +12,11 @@ function load(file, dependencies={}, expose='') {
   return loadedModule.exports;
 }
 const catalog=load('app/permissions.ts');
-const shared=load('app/server-permissions.ts',{'./permissions':catalog});
+const shared=load('app/server-permissions.ts',{'./permissions':catalog,'next/headers':{headers:async()=>new Headers()},'./department-portal':{getPortalDepartment:async()=>({id:'fixture',isolated:false})}});
 function fixture({admin=0,overrides={},linked=true,duplicate=false}={}) {
   const employee={id:'test-member',name:'Fictional Member',email:'member@example.invalid',rank:'Firefighter',isAdmin:admin,endDate:null};
   let revision='original'; const persisted=new Map(Object.entries(overrides)); let batches=0;
-  const query=(sql,args)=>{
+  const query=(sql)=>{
     if(sql.includes("key='permissions-revision'"))return[{value:revision}];
     if(sql.includes('FROM employee_permission_overrides'))return[...persisted].map(([permissionKey,effect])=>({employeeId:employee.id,permissionKey,effect}));
     if(sql.includes('FROM rank_permissions'))return[];

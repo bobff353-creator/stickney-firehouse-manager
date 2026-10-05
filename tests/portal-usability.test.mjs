@@ -10,7 +10,7 @@ test("every portal screen has a refreshable round-trip URL", () => {
     const url = new URL(portalPageUrl("/", "", page), "https://example.test");
     assert.equal(portalPageFromSearch(url.search), page);
   }
-  assert.equal(portalPageLabel("Dashboard"), "Home");
+  assert.equal(portalPageLabel("Dashboard"), "Today");
   assert.equal(portalPageFromSearch("?page=unknown"), null);
 });
 test("leaving a record removes stale focus and old edit mode", () => {
@@ -62,7 +62,8 @@ test("navigation and search handle unavailable sources and browser history", () 
   assert.match(source,/Promise.allSettled/);
   assert.match(source,/if \(!term\) return screens.slice/);
   assert.match(source,/permittedPages.includes\(item.page\)/);
-  assert.match(source,/navigate\(item.page, item.record\)/);
+  assert.match(source,/onNavigate\(item.page, item.record\)/);
+  assert.match(source,/<SearchResultButtons items=\{globalSearchResults\} onNavigate=\{navigate\}/);
   assert.match(source,/addEventListener\("popstate", fromHistory, \{ capture: true \}\)/);
   assert.match(source,/if \(!confirmLeavingWork\(\)\) return/);
 });

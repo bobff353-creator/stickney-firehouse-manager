@@ -1,4 +1,4 @@
-import { hasAnyPermission } from "../../server-permissions";
+import { hasAnyPermission, permissionsForEmail } from "../../server-permissions";
 import { ensureDatabase } from "../../../db/bootstrap";
 import { projectDispatchIntoDailyLog } from "../../dispatch-daily-log";
 import { scheduleQueryDates, scheduledStaffingForLog, type DepartmentScheduleAssignment } from "../../department-schedule";
@@ -32,6 +32,9 @@ export async function GET(request: Request) {
   try {
     const db = await ensureDatabase();
     const liveBoard = new URL(request.url).searchParams.get("scope") === "live-operations";
+    const today = new URL(request.url).searchParams.get("scope") === "today";
+    const todayPermissions = today ? await permissionsForEmail(request.headers.get("oai-authenticated-user-email") || "", db) : null;
+    if (today && !todayPermissions?.has("dashboard.view")) return Response.json({ error: "Today access is required." }, { status: 403, headers: { "Cache-Control": "private, no-store" } });
     if (!await hasAnyPermission(request, db, liveBoard ? ["operations_board.view"] : ["dashboard.view","operations_board.view"])) return Response.json({ error: "This account does not have access to this tool." }, { status: 403, headers: { "Cache-Control": "private, no-store" } });
     const unloggedDispatches = await db.prepare("SELECT incident_id AS reportNumber, dispatched_at AS dispatchedAt, time_out AS timeOut, responding_units AS respondingUnits, address, call_type AS callType FROM dispatch_incidents WHERE active = 1 AND cleared_at IS NULL AND NOT EXISTS (SELECT 1 FROM daily_log_calls WHERE trim(daily_log_calls.report_number) = trim(dispatch_incidents.incident_id)) ORDER BY datetime(dispatched_at)").all<{
       reportNumber: string; dispatchedAt: string; timeOut: string; respondingUnits: string; address: string; callType: string;
@@ -87,15 +90,30 @@ export async function GET(request: Request) {
     const departmentId = request.headers.get("x-department-id")?.trim() || "";
     let fleetIssues: Awaited<ReturnType<typeof openFleetEquipmentIssues>> = [];
     let checksDue: number | null = null;
-    if (departmentId) {
+    let fleetIssuesAvailable = false;
+    let fleet: Array<{ id: string; name: string; status: string }> | null = null;
+    if (departmentId && (!today || todayPermissions?.has("inventory.view"))) {
       try {
         fleetIssues = await openFleetEquipmentIssues(
           await createInventorySupabaseClient(),
           departmentId,
         );
+        fleetIssuesAvailable = true;
         if (!liveBoard) checksDue = (await pendingDailyFleetChecks(await createInventorySupabaseClient(), departmentId)).length;
       } catch (error) {
         console.error("Live Operations fleet issue projection failed", error);
+      }
+      if (today) {
+        try {
+          const client = await createInventorySupabaseClient();
+          const [profiles, statuses] = await Promise.all([
+            client.from("inventory_apparatus_profiles").select("id,name").eq("department_id", departmentId).order("name"),
+            client.from("department_apparatus").select("id,status").eq("department_id", departmentId),
+          ]);
+          if (profiles.error || statuses.error) throw new Error("Fleet status unavailable");
+          const byId = new Map((statuses.data || []).map(unit => [unit.id, unit.status]));
+          fleet = (profiles.data || []).map(unit => ({ id: String(unit.id), name: String(unit.name), status: String(byId.get(unit.id) || "unknown") }));
+        } catch { fleet = null; }
       }
     }
     const callRows = calls.results as Array<Record<string, unknown>>;
@@ -118,6 +136,21 @@ export async function GET(request: Request) {
         const hhmm = `${String(Math.floor(context.minutes / 60)).padStart(2, "0")}${String(context.minutes % 60).padStart(2, "0")}`;
         nextShift = await db.prepare("SELECT s.employee_id employeeId,en.entry_date workDate,COALESCE(NULLIF(s.start_time,''),t.start_time) startTime,COALESCE(NULLIF(s.end_time,''),t.end_time) endTime,s.role FROM station_shift_slots s JOIN station_schedule_entries en ON en.id=s.entry_id JOIN station_shift_types t ON t.id=en.shift_type_id WHERE s.employee_id=? AND s.status='filled' AND t.active=1 AND (en.entry_date>? OR (en.entry_date=? AND replace(COALESCE(NULLIF(s.start_time,''),t.start_time),':','')>=?)) ORDER BY en.entry_date,COALESCE(NULLIF(s.start_time,''),t.start_time) LIMIT 1").bind(people.results[0].id, context.calendarDate, context.calendarDate, hhmm).first();
       }
+    }
+    if (today) {
+      const canLog = todayPermissions!.has("daily_log.view"), canInventory = todayPermissions!.has("inventory.view");
+      return Response.json({
+        asOf: new Date().toISOString(), date: now.date, currentShift, staffingSource, onDuty,
+        officerInCharge: canLog ? currentApproval?.officerName || null : null,
+        staffing: { filled: onDuty.length, required: 4, complete: onDuty.length >= 4 && Boolean(currentApproval?.signInAt) },
+        equipmentIssues: canInventory ? [...fleetIssues, ...(canLog ? issues.map((issue, index) => ({ id: `handoff-${index}-${issue.item}`, ...issue })) : [])] : [],
+        fleetIssuesAvailable: canInventory && fleetIssuesAvailable, fleet: canInventory ? fleet : null,
+        checksDue: canInventory ? checksDue : null,
+        activeCalls: todayPermissions!.has("field_preplans.view") ? activeCalls.map(call => ({ reportNumber: String(call.reportNumber || ""), callType: String(call.callType || "Call type not reported"), address: String(call.address || "") })) : null,
+        nextShift: todayPermissions!.has("scheduling.view") ? nextShift : null,
+        approvals: { logs: canLog ? openLogApprovals : null, payroll: todayPermissions!.has("payroll.manage") ? Number(payrollWaiting?.count || 0) : null },
+        previousShift: canLog ? { officer: priorApproval?.officerName || null, note: priorApproval?.signOutNote || priorApproval?.signInNote || (log as { shiftNotes?: string } | null)?.shiftNotes || "No handoff note was entered." } : null,
+      }, { headers: { "Cache-Control": "private, no-store" } });
     }
     return Response.json({
       asOf: new Date().toISOString(), date: now.date, currentShift, priorShift,
