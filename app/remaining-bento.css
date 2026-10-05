@@ -70,3 +70,9 @@
 @media screen {
 .workspace.bento-rest.bento-rest :is(.record-identity strong,.record-number,.payroll-submission-card strong,.payroll-correction-card strong) { color:#f1f5f9; }
 }
+@media screen {
+.workspace.bento-rest.bento-rest .fiscal-pay-card { background:#141e30; border-color:#314159; border-radius:16px; box-shadow:none; }
+.workspace.bento-rest.bento-rest :is(.fiscal-pay-card span,.trend-card > span) { color:#b5c4d8; }
+.workspace.bento-rest.bento-rest :is(strong,.trend-card strong,.fiscal-pay-card strong) { color:#f1f5f9; }
+.workspace.bento-rest.bento-rest :is(.error-banner,.error,.safety-message.error) strong { color:#fecaca; }
+}
