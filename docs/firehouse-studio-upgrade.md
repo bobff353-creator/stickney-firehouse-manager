@@ -124,6 +124,35 @@ Validate each batch with types, changed-file lint, relevant tests, production bu
 and browser checks. Push approximately four or five completed changes together.
 Report source, push, migrations, deployment and live acceptance separately.
 
+### Phase 5 implementation batch
+
+Five related changes connect prevention to the existing canonical property IDs:
+property inspection history (including archived visits and separate test filters),
+field observations captured in the versioned inspection, reviewed updates to
+selected preplan building summary fields, a tab-scoped pending inspection queue,
+and nearby hydrant references from saved coordinates. The private inspection
+pilot stays restricted to its designated owner; the reverse preplan shortcut is
+shown only with that existing pilot grant. No additional address database,
+production fixture records, notification sends or schema migration is introduced.
+
+Applying observations checks preplan edit permission, the source inspection
+version and destination update timestamp. The source guard, selected field update
+and immutable receipt (previous/applied values and actor) commit together. Test
+inspections cannot alter operational preplans. Empty fields cannot erase data;
+photos, mapped features, construction, contact records and publication history
+remain in their existing workflows. Building summary edits can be immediately
+visible; advanced publication is still separate.
+
+Offline coverage is an incremental field workflow: load the workspace while
+connected, continue entering observations, and choose Save on this tab for later.
+Pending entries survive reload in that tab and require explicit synchronization
+through the authenticated API. A conflict retains local work and requires review;
+an entry older than 24 hours also requires review. Download pending entries for
+retention beyond the tab's lifetime. This does not implement offline cold-start,
+cross-device queues, offline files/email, or background preplan publication.
+Hydrant distances are approximate straight-line references, not access routes or
+inferred water-flow adequacy. Phase 6 remains the response/command upgrade.
+
 ## First-batch validation
 
 The production build and 91 focused tests passed, covering the actual TODAY

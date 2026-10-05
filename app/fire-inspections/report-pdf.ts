@@ -5,6 +5,7 @@ import {PDFDocument,rgb,type PDFFont} from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import sharp from 'sharp';
 import {getSupabaseServerClient} from '../supabase-server';
+import {observationFields,type FieldObservations} from './field-workflow';
 import {codeLabel,type CodeSelection} from './codes';
 import {blankSignature,type InspectionRecord,type Signature} from './model';
 import {decodeInspection,inspectionColumns,type StoredInspection,type InspectionDb} from './server';
@@ -46,6 +47,7 @@ export async function buildInspectionPdf(record:InspectionRecord,photos:ReportPh
  heading('Findings and checklist');for(const c of d.checks){room(90);text(`${c.label} - ${c.result}`,12,bold);pair('Topic',c.section);if(['Needs attention','Corrected on site','Not inspected'].includes(c.result)||c.observation){pair('Location',c.location);pair('Observation',c.observation);pair('Action / correction',c.correction);pair('Priority',c.priority);pair('Correction due',c.dueDate);pair('Corrected date',c.correctedDate);}if(c.code)pair('Entered citation',c.code);for(const code of c.citations||[])reference(code);for(const f of photos.filter(f=>f.checkId===c.id))await photo(f);y-=8;}
  const other=photos.filter(f=>!f.checkId||!d.checks.some(c=>c.id===f.checkId));if(other.length){heading('Additional evidence');for(const f of other)await photo(f);}
  const review=alternativeReviewLines(d.alternativeReview??emptyAlternativeReview());if(review.length){heading('Alternative Safety Review');for(const line of review.slice(1))text(line);}
+ if(Object.keys(d.preplanObservations||{}).length){heading('Preplan observations');text('Recorded during this visit; applying them to a preplan requires separate review.');for(const [key,value] of Object.entries(d.preplanObservations||{}))pair(observationFields[key as keyof FieldObservations],value);}
  heading('Next steps');pair('Notes',d.notes);pair('Reinspection decision',d.reinspectionDecision);pair('Reinspection date / time',[d.followUpDate,d.reinspectionTime].filter(Boolean).join(' '));pair('Reason no reinspection is needed',d.reinspectionReason);pair('Next routine due',d.nextDueDate);if(d.reinspectionDecision==='Needs scheduling')text('A reinspection appointment still needs to be arranged.');
  signature('Representative acknowledgment',d.representative);text('A representative signature acknowledges receipt of the recorded observations and does not change a finding.',9,regular,muted);signature('Inspector signature',d.inspectorSignature||blankSignature());pair('Inspector review',d.inspectorAttested?'Acknowledged':'Not acknowledged');pair('Saved by',`${record.updatedBy} / ${record.updatedAt}`);text('Email delivery is recorded separately in the portal. Downloading this PDF is not confirmation of delivery.',9,regular,muted);
  const pages=doc.getPages();pages.forEach((p,i)=>p.drawText(`${d.test?'TEST | ':''}Inspection version ${record.version} | Page ${i+1} of ${pages.length}`,{x:margin,y:24,font:regular,size:8,color:muted}));

@@ -1081,7 +1081,7 @@ export default function PayrollApp({
 
           {activeNav === "Activity Timeline" && <ActivityTimeline />}
           {activeNav === "Command Board" && <IncidentCommandBoard />}
-          {activeNav === "Field Preplans" && <FieldPreplans department={department} />}
+          {activeNav === "Field Preplans" && <FieldPreplans department={department} inspectionPilot={viewerPermissions.includes("inspections.pilot")} />}
           {activeNav === "Road Closures" && <RoadClosures />}
           {activeNav === "NERIS Reporting" && !testMember && <NerisWorkspace />}
           {activeNav === "Training" && !testMember && <TrainingWorkspace />}

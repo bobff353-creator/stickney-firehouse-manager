@@ -11,3 +11,22 @@
 .fi-code-tags{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.fi-code-tags span{padding:3px 9px;border:1px solid var(--fi-line);border-radius:20px;font-size:12px;background:#edf4f8;color:#183c53}.fi-code-card h3,.fi-code-card h4{margin:0;font-size:17px}.fi-code-source{margin:10px 0}.fi-code-card>.fi-actions{margin:12px 0}.fi-code-filters{padding:16px 0}.fi-code-card>details:last-child{font-size:14px}.fi-code-library>.fi-note{margin:16px 0}.fi-code-card>.fi-link{display:block;margin:10px 0;text-align:left}
 
 .fi-alternative{border-left:4px solid #397391}.fi-alternative>summary{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.fi-review-steps{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}.fi-review-steps button[aria-current]{background:#153c58;color:#fff}.fi-review-footer{border-top:1px solid var(--fi-line);padding-top:16px;margin-top:18px}#fi-alternative-title{scroll-margin-top:95px}.fi-alternative h4{margin:4px 0 12px}@media(max-width:480px){.fi-review-steps button{flex:1 0 40%}.fi-review-footer button{width:100%}}
+/* Keep the paper prevention workspace readable inside the shared dark portal shell. */
+@media screen {
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace :is(.fi-panel,.fi-row,.fi-saved-check){background:#fff;color:var(--fi-ink);border-color:var(--fi-line);box-shadow:none}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace :is(h1,h2,h3,h4,h5,strong,label,legend){color:var(--fi-ink)}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace :is(p,dt,dd,li){color:var(--fi-ink)}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace small{color:#4b6476}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace :is(input,textarea,select,option){background:#fff;color:var(--fi-ink)}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace .fi-field :is(input,textarea,select){background:#fff;color:var(--fi-ink);border-color:#acc2d1}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace :is(a,a.fi-button){color:#155e91}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace a.fi-button{background:#fff;border-color:#b5cbd9}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace button{background:#fff;color:var(--fi-ink);border-color:#b5cbd9}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace button:hover:not(:disabled){background:#e6f0f7}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace button:is(.fi-primary,[aria-current]){background:#17597e;color:#fff;border-color:#17597e}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace button:is(.fi-primary,[aria-current]):hover:not(:disabled){background:#124361}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace button :is(strong,span){color:inherit}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace .fi-error :is(p,strong){color:inherit}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace .fi-success :is(p,strong){color:inherit}
+ .fi-workspace .fi-panel{overflow-wrap:anywhere;min-width:0}
+}

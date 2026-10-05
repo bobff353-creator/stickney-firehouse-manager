@@ -13,7 +13,7 @@ export const inspectionColumns='id,kind,payload,version,archived,created_at crea
 export async function inspectionSnapshot(db:InspectionDb,department:string){
  const [rows,properties,files,codes]=await Promise.all([
   db.prepare(`SELECT ${inspectionColumns} FROM fire_inspection_pilot_records WHERE department_id=? ORDER BY updated_at DESC LIMIT 10001`).bind(department).all<StoredInspection>(),
-  db.prepare('SELECT id,business_name name,address FROM field_preplans ORDER BY business_name LIMIT 10001').all<Property>(),
+  db.prepare('SELECT id,business_name name,address,updated_at updatedAt,latitude,longitude,access_info accessInfo,knox_box knoxBox,fdc,alarm_system alarmSystem,sprinkler_system sprinklerSystem FROM field_preplans ORDER BY business_name LIMIT 10001').all<Property>(),
   db.prepare('SELECT id,record_id recordId,code_id codeId,check_id checkId,caption,record_version recordVersion,filename,size_bytes size,content_type contentType,created_at createdAt FROM fire_inspection_pilot_files WHERE department_id=? ORDER BY created_at DESC LIMIT 10001').bind(department).all<InspectionFile>(),
   db.prepare('SELECT id,payload,version,archived,updated_at updatedAt,updated_by updatedBy FROM fire_inspection_code_entries WHERE department_id=? ORDER BY updated_at DESC LIMIT 10001').bind(department).all<{id:string;payload:string;version:number;archived:number;updatedAt:string;updatedBy:string}>(),
  ]);

@@ -250,7 +250,7 @@ function FieldMap({ apiKey,center,zoom,imagery,plans,hydrants,selected,draft,mod
   </div>;
 }
 
-export default function FieldPreplans({ department }: { department?: { isolated: boolean } }) {
+export default function FieldPreplans({ department, inspectionPilot=false }: { department?: { isolated: boolean }; inspectionPilot?:boolean }) {
   const [showShared,setShowShared] = useState(false);
   const departmentMapOverview = department?.isolated ? { center: { lat:39,lng:-98 }, zoom:4 } : stickneyMapOverview;
   function departmentLocationView(point?: Parameters<typeof preplanLocationView>[0], zoom?: number) {
@@ -506,6 +506,7 @@ export default function FieldPreplans({ department }: { department?: { isolated:
   return <section className={`field-preplans-page${recordFocused?" preplan-builder-focused":""}${hydrantDraft?" hydrant-record-focused":""}${writingDetails?' preplan-form-focused':''}`}>
     {focusedPreplan&&draft&&<>
       <header className="preplan-focus-header">{!managedReturn&&<button disabled={busy} onClick={closePreplan}>&larr; Back to Preplan list</button>}<div><span>{draft.id?(recordMode==="view"?"VIEW PREPLAN":"EDIT PREPLAN"):"NEW PREPLAN"}</span><h1>{draft.businessName||"New building preplan"}</h1><p>{fullAddress(draft)||"A-side GPS location"} &middot; {draft.status}</p></div>{recordMode==="edit"&&<div className="preplan-save-bar"><SaveStatus state={busy?"saving":buildingSaveError?"failed":formDirty||!draft.id?"unsaved":"saved"} detail={buildingSaveError|| (savedReloadNeeded?"Save acknowledged; reload to verify the saved record.":"Building details save separately from operational review and publication. Existing published building edits may be visible immediately.")} onRetry={()=>void savePlan()} /><button className="primary-action" disabled={busy||savedReloadNeeded||!footprintAccepted||!formDirty} onClick={()=>void savePlan()}>{draft.id?'Save building changes':'Save new preplan'}</button>{current&&<button className="record-focus-view-button" disabled={busy||savedReloadNeeded} onClick={()=>view(current)}>Preview saved preplan</button>}</div>}</header>
+      {inspectionPilot&&current&&recordMode==="view"&&<p><a className="fi-button" href={"?page=fire-inspections&display=portal&inspectionProperty="+encodeURIComponent(current.id)}>Property inspections & history →</a></p>}
       {message&&<div role="status" className="field-message preplan-focus-message">{message}</div>}
       {savedReloadNeeded&&<div className="field-message" role="alert"><strong>Saved record needs verification.</strong> <button type="button" disabled={busy} onClick={()=>{setBusy(true);void load().then(()=>{setSavedReloadNeeded(false);setMessage("Saved preplan reloaded. You can now preview or continue.");}).catch(()=>setMessage("The saved record still could not reload. Reconnect, then retry.")).finally(()=>setBusy(false));}}>Reload saved preplan</button></div>}
       <div className="preplan-focus-map-panel" ref={focusMapPanel}>
