@@ -6,6 +6,7 @@ import {emptyDocumentState,normalizeDocument,type DocumentVersion} from '../../a
 import {emptyTrainingData,normalizeTrainingData,validateTraining,type TrainingRecord} from '../../app/training/model';
 import {nextAssignmentData} from '../../app/training/phase-four';
 import '../../app/globals.css';
+import '../../app/remaining-bento.css';
 if(!['localhost','127.0.0.1'].includes(location.hostname))throw Error('Local fictional fixture only.');
 let state=emptyDocumentState(),manager=true,fail=false;
 const versions:DocumentVersion[]=[],acks:Record<string,string>={};
@@ -35,5 +36,5 @@ window.fetch=async(input,init)=>{
  }
  return Response.json({error:'Unexpected fixture call'},{status:400});
 };
-function Preview(){const [dark,setDark]=useState(false),[mode,setMode]=useState('Policies'),[key,setKey]=useState(0);return <main className={dark?'app-shell sidebar-collapsed':''} style={{display:'block',maxWidth:1200,margin:'auto',padding:16}}><p style={{background:'#fff2b0',color:'#111',padding:12}}>LOCAL FICTIONAL VERIFICATION · no production writes</p><div style={{display:'flex',gap:10,flexWrap:'wrap'}}><button onClick={()=>setDark(!dark)}>{dark?'Use light preview':'Use dark preview'}</button><button onClick={()=>setMode(mode==='Policies'?'Training':'Policies')}>Show {mode==='Policies'?'Training':'Policies'}</button><button onClick={()=>{manager=!manager;setKey(key+1);}}>Use {manager?'member':'manager'} preview</button><button onClick={()=>{fail=true;}}>Fail next save</button></div><div key={key}>{mode==='Policies'?<PoliciesPage/>:<TrainingWorkspace/>}</div></main>;}
+function Preview(){const [dark,setDark]=useState(false),[mode,setMode]=useState('Policies'),[key,setKey]=useState(0);return <main className={dark?'app-shell sidebar-collapsed':''} style={{display:'block',maxWidth:1200,margin:'auto',padding:16}}><p style={{background:'#fff2b0',color:'#111',padding:12}}>LOCAL FICTIONAL VERIFICATION · no production writes</p><div style={{display:'flex',gap:10,flexWrap:'wrap'}}><button onClick={()=>setDark(!dark)}>{dark?'Use light preview':'Use dark preview'}</button><button onClick={()=>setMode(mode==='Policies'?'Training':'Policies')}>Show {mode==='Policies'?'Training':'Policies'}</button><button onClick={()=>{manager=!manager;setKey(key+1);}}>Use {manager?'member':'manager'} preview</button><button onClick={()=>{fail=true;}}>Fail next save</button></div><div id="portal-workspace" className={dark?"workspace bento-rest":""} key={key}>{mode==='Policies'?<PoliciesPage/>:<TrainingWorkspace/>}</div></main>;}
 createRoot(document.getElementById('root')!).render(<Preview/>);

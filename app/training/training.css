@@ -13,6 +13,23 @@
 
 .tr-print-report{display:none}
 .training-workspace input[type=checkbox],.training-workspace input[type=radio]{color-scheme:light}
+
+/* Keep the pilot's paper surfaces readable inside the production bento shell. */
+@media screen {
+  /* Headings and named records. */
+  .workspace.bento-rest.bento-rest .training-workspace.training-workspace :is(h1,h2,h3,h4,h5,strong) { color:var(--tr-ink); }
+  /* Body text and review detail. */
+  .workspace.bento-rest.bento-rest .training-workspace.training-workspace :is(p,dd,li,.tr-preserve) { color:var(--tr-ink); }
+  .workspace.bento-rest.bento-rest .training-workspace.training-workspace :is(small,dt,.tr-muted,.tr-eyebrow) { color:var(--tr-muted); }
+  /* Form labels and native menu options. */
+  .workspace.bento-rest.bento-rest .training-workspace.training-workspace :is(label,legend) { color:var(--tr-ink); }
+  .workspace.bento-rest.bento-rest .training-workspace.training-workspace option { background:white;color:var(--tr-ink); }
+  /* Action and status text retain their own contrasting surfaces. */
+  .workspace.bento-rest.bento-rest .training-workspace.training-workspace button { background:white;color:var(--tr-ink);border-color:#a9c0d1; }
+  .workspace.bento-rest.bento-rest .training-workspace.training-workspace button:hover:not(:disabled):not(.tr-primary):not([aria-current]) { background:#e6f0f7;color:var(--tr-ink); }
+  .workspace.bento-rest.bento-rest .training-workspace.training-workspace :is(button.tr-primary,.tr-tabs button[aria-current],.tr-steps [aria-current] button) { background:#175e89;color:white;border-color:#175e89; }
+  .workspace.bento-rest.bento-rest .training-workspace.training-workspace :is(.tr-success,.tr-error,.tr-note) :is(p,strong,small) { color:inherit; }
+}
 .tr-task-copy{display:block;min-width:0;flex:1}.tr-task-description{display:block;font-size:14px;font-weight:400;line-height:1.55;margin-top:5px;color:#345164}.tr-task-state{display:inline-block;font-size:12px;font-weight:700;color:#4e697a;margin-top:8px;padding:2px 8px;border:1px solid #c6d7e1;border-radius:5px;background:#fff}.training-workspace .tr-task-selected{background:#e7f4ed;box-shadow:inset 3px 0 #26754f}.tr-task-selected .tr-task-state{color:#185837;border-color:#86bba0;background:#f3fcf6}.tr-selected-tasks p{font-size:14px;margin:4px 0 10px}
 .tr-task-row small{display:block;font-weight:400;margin-top:3px}
 .tr-book-catalog{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-height:340px;overflow:auto;padding:5px;border:1px solid var(--tr-line);border-radius:10px}.training-workspace .tr-book-catalog button{text-align:left;display:grid;gap:5px}.training-workspace .tr-osfm-browser button[aria-pressed=true]{background:#e2f1f5;border-color:#19778c;box-shadow:inset 3px 0 #19778c}.tr-task-list{max-height:440px;overflow:auto;overscroll-behavior:contain;padding:4px;border:1px solid var(--tr-line);border-radius:8px}.tr-task-row{display:flex;gap:16px;align-items:center;justify-content:space-between;padding:14px;border-bottom:1px solid #dde8ed;min-height:48px}.tr-task-row label{display:flex;align-items:flex-start;gap:12px;cursor:pointer;flex:1;min-width:0}.tr-task-row input[type=checkbox]{width:24px;height:24px;margin:2px 0 0}.tr-task-row a{font-size:13px;flex-shrink:0;padding:10px 0}.tr-task-row:last-child{border-bottom:0}.tr-selection-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:14px;background:#e8f3f7;border:1px solid #a9cbd9;border-radius:10px;margin:15px 0}.tr-selected-tasks{max-height:280px;overflow:auto;padding-left:22px}.tr-selected-tasks li{padding:6px 0}.tr-osfm-browser{min-width:0}.tr-osfm-browser>.tr-panel{scroll-margin-top:90px}

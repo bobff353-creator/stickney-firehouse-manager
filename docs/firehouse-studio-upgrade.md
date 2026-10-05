@@ -297,3 +297,9 @@ No fictional operational rows or live policy revisions are seeded for acceptance
 Production health and signed-in read-only checks are recorded separately after
 deployment. This is a practical Phase 4 batch, not a claim that every commercial
 course-delivery or general document-upload feature is complete. Phases 5-7 remain.
+
+Live acceptance found that the production bento workspace overrode Training's
+paper-surface typography. A grouped follow-up corrects heading/record names,
+body/review text, form labels/native options, and action/status contrast. The
+local fixture now includes the actual bento stylesheet and workspace classes so
+phone/tablet/desktop acceptance reproduces that production shell.
