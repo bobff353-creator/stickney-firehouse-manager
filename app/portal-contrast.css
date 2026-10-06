@@ -87,6 +87,30 @@
   .workspace.bento-rest.bento-rest .pay-calculation-line b {color:#f1f5f9}
   .workspace.bento-rest.bento-rest :is(.rate-row > label > b,.system-health-state) {color:#b5c4d8}
   .workspace.bento-rest.bento-rest .system-health-card a.quiet-button {background:#1b2b43;color:#93c5fd;border-color:#607895}
+  /* Hydrant sections use the portal palette as a complete surface, including labels and histories. */
+  #portal-workspace .hydrant-editor,
+  #portal-workspace .hydrant-editor :is(.content-card,.hydrant-summary) {background:#141e30;color:#f1f5f9;border-color:#607895}
+  #portal-workspace .hydrant-editor > header {background:#1b2b43;color:#f1f5f9;border-color:#607895}
+  #portal-workspace .hydrant-editor :is(h2,h3,label,legend,strong,b,dd) {color:#f1f5f9}
+  #portal-workspace .hydrant-editor :is(p,small,dt,li,.hydrant-history span,.flow-history span,.hydrant-quick > article span) {color:#b5c4d8;opacity:1}
+  #portal-workspace .hydrant-editor :is(.hydrant-quick > article,.hydrant-summary dl div) {background:#1b2b43;color:#f1f5f9}
+  #portal-workspace .hydrant-editor :is(.hydrant-profile > header,.hydrant-history,.flow-history > div) {border-color:#607895}
+  #portal-workspace .hydrant-editor :is(input,select,textarea) {background:#0e1728;color:#f1f5f9;border-color:#607895;color-scheme:dark}
+  #portal-workspace .hydrant-editor option {background:#0e1728;color:#f1f5f9}
+  #portal-workspace .hydrant-editor button {transition:none}
+  #portal-workspace .hydrant-editor > header nav button {background:#1b2b43;color:#e2e8f0;border-color:#607895}
+  #portal-workspace .hydrant-editor > header nav button.active {background:#0f6974;color:#fff;border-color:#70c8d0;box-shadow:inset 0 -3px #70c8d0}
+  #portal-workspace .hydrant-editor > header nav button:disabled {background:#24344f;color:#b5c4d8;opacity:1}
+  #portal-workspace .hydrant-editor .hydrant-quick > article button {background:transparent;color:#93c5fd}
+  #portal-workspace .hydrant-editor .field-message {background:#443219;color:#fde8b4;border-color:#a18450}
+  #portal-workspace .hydrant-editor .flow-result {background:#253d4c;color:#fff}
+  #portal-workspace .hydrant-editor .flow-result :is(strong,b,span,p,small) {color:#fff;opacity:1}
+  #portal-workspace .hydrant-record-focused .preplan-focus-header > div > span,
+  #portal-workspace .hydrant-editor > header > div > span {color:#9edfe4}
+  #portal-workspace .hydrant-record-focused .record-focus-status,
+  #portal-workspace .hydrant-editor .hydrant-summary > strong {background:#15382a;color:#bbf7d0}
+  #portal-workspace .hydrant-record-focused .record-focus-status.out_of_service,
+  #portal-workspace .hydrant-editor .hydrant-summary > strong.out_of_service {background:#472126;color:#fecaca}
   @media (max-width:360px) {
     .workspace.bento-rest.bento-rest .mini-summary {grid-template-columns:minmax(0,1fr)}
   }
