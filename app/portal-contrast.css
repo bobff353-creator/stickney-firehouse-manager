@@ -51,6 +51,7 @@
   /* Secondary boxes inherit the same palette as their containing tool. */
   .workspace.bento-rest.bento-rest :is(.action-empty-state,.admin-edit-banner,.phone-actions a,.workflow-save-status) {background:#1b2b43;color:#e2e8f0;border-color:#607895}
   .workspace.bento-rest.bento-rest :is(.action-empty-state,.admin-edit-banner,.phone-actions a,.workflow-save-status) :is(strong,p,small,span) {color:inherit}
+  .workspace.bento-rest.bento-rest .action-empty-state > span:first-child {background:#24344f;color:#e2e8f0}
   .workspace.bento-rest.bento-rest .phone-actions a.emergency-call {background:#472126;color:#fecaca;border-color:#b87079}
   .workspace.bento-rest.bento-rest .workflow-save-status.saved {background:#15382a;color:#bbf7d0;border-color:#508b6a}
   .workspace.bento-rest.bento-rest .workflow-save-status.failed {background:#472126;color:#fecaca;border-color:#b87079}
@@ -69,6 +70,10 @@
   .app-shell:has(#portal-workspace) .workspace :is(.fi-workspace,.training-workspace,.nr-workspace) button:disabled {background:#e7eff5;color:#496578;border-color:#698495}
   .field-preplans-page.field-preplans-page .field-directory-tabs button.active :is(span,small) {color:#fff}
   .road-closures-page.road-closures-page .road-closures-hero span {color:#b5c4d8}
+  .road-closures-page.road-closures-page .active-road-list > header span {color:#b5c4d8}
+  .field-preplans-page.field-preplans-page .field-map-layout aside > header > span {background:#1b2b43;color:#f1f5f9}
+  .field-preplans-page.field-preplans-page .field-map-layout aside > p {color:#b5c4d8}
+  .workspace.bento-rest.bento-rest .callback-rule-version {background:#15382a;color:#bbf7d0}
   .icb-page.icb-page .icb-empty span {color:#496578}
   .workspace.bento-rest.bento-rest :is(.policy-toc,.policy-toc-head) {background:#141e30;color:#f1f5f9;border-color:#607895}
   .workspace.bento-rest.bento-rest .policy-toc-head > strong {background:#1b2b43;color:#f1f5f9}
@@ -76,7 +81,13 @@
   .workspace.bento-rest.bento-rest .policy-toc button.current :is(span,small) {color:#fff}
   .workspace.bento-rest.bento-rest .mini-summary > div {background:#1b2b43;border-color:#607895}
   .workspace.bento-rest.bento-rest .mini-summary span {color:#b5c4d8}
+  .workspace.bento-rest.bento-rest .timesheet-phone-day {background:#1b2b43;color:#f1f5f9;border-color:#607895}
   .workspace.bento-rest.bento-rest :is(.pay-calculation,.pay-calculation-line,.pay-calculation-total) {background:#141e30;color:#f1f5f9;border-color:#607895}
   .workspace.bento-rest.bento-rest .pay-calculation-line span {color:#b5c4d8}
   .workspace.bento-rest.bento-rest .pay-calculation-line b {color:#f1f5f9}
+  .workspace.bento-rest.bento-rest :is(.rate-row > label > b,.system-health-state) {color:#b5c4d8}
+  .workspace.bento-rest.bento-rest .system-health-card a.quiet-button {background:#1b2b43;color:#93c5fd;border-color:#607895}
+  @media (max-width:360px) {
+    .workspace.bento-rest.bento-rest .mini-summary {grid-template-columns:minmax(0,1fr)}
+  }
 }

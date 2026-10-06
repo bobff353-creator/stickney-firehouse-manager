@@ -55,6 +55,7 @@ body:has(.inventory-app-shell) { background:#0b1120; }
 .inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.air-note,.air-warning,.inventory-report-detail blockquote) :is(p,strong,small,span) { color:inherit; }
 .inventory-app-shell.inventory-app-shell.inventory-portal-refresh .air-systems { color:#f1f5f9; }
 .inventory-app-shell.inventory-app-shell.inventory-portal-refresh .air-open-label { color:#93c5fd; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh .equipment-directory dt { color:#b5c4d8; }
 .inventory-app-shell.inventory-app-shell.inventory-portal-refresh .controlled-medication-note { background:#342652; color:#e5d5ff; }
 .inventory-app-shell.inventory-app-shell.inventory-portal-refresh .controlled-medication-note :is(strong,p) { color:inherit; }
 .inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.ops-card > header > div > span,.inventory-filter-toolbar label) { color:#b5c4d8; }
