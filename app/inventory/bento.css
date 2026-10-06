@@ -30,3 +30,32 @@ body:has(.inventory-app-shell) { background:#0b1120; }
 .inventory-app-shell.inventory-app-shell.inventory-portal-refresh .due-progress { background:#314159; }
 .inventory-app-shell.inventory-app-shell.inventory-portal-refresh .inventory-command-back { background:transparent; color:#b5c4d8; }
 }
+/* Pair shared overview tokens and nested labels with the actual slate surfaces. */
+@media screen {
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh { --card:#141e30; --foreground:#f1f5f9; --background:#101a2c; --border:#607895; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(input:not([type=checkbox]):not([type=radio]),select,textarea) { border-color:#607895; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(input,textarea)::placeholder { color:#b5c4d8; opacity:1; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.ops-card > header span,.section-heading > span,.fleet-card-meta span,.add-unit-card > span:last-child,.inventory-metrics button > span) { color:#b5c4d8; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.fleet-card-meta b,.add-unit-card b) { color:#f1f5f9; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh .due-check-grid article span { color:#fecaca; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh .due-check-grid article.in-progress span { color:#fde8b4; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh .inventory-context-note { background:#15382a; color:#bbf7d0; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh .equipment-photo-required { background:#1b2b43; color:#b5c4d8; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh .mobile-nav button.active { color:#fff; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh button:is(.active,[aria-pressed=true],.ops-primary,.primary) :is(strong,small,span,b) { color:inherit; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh .setup-workspace-tabs button > span { background:#1b2b43; color:#fff; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh button:disabled { opacity:1; background:#24344f; color:#b5c4d8; border-color:#607895; cursor:not-allowed; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh button:disabled :is(strong,small,span) { color:inherit; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.check-approval-list article,.inventory-report-list article,.lifecycle-report-grid article,.air-record,.air-empty,.air-systems details,.air-systems fieldset,.scba-template-editor,.scba-check-section,.scba-entry,.check-location-group,.inventory-context-note) { border-color:#607895; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.check-approval-list article,.inventory-report-list article,.lifecycle-report-grid article,.air-record,.air-empty,.air-systems details,.air-systems fieldset,.scba-template-editor,.scba-check-section,.scba-entry,.check-location-group) { background:#141e30; color:#f1f5f9; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.check-approval-list dt,.inventory-report-list span,.lifecycle-report-grid span,.report-metadata b,.history-list time,.air-systems dt,.air-systems label span,.scba-template-editor > header span,.scba-check-section > header span,.scba-entry > header span) { color:#b5c4d8; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh .check-approval-list article span { color:#fde8b4; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.air-note,.scba-template-options label,.scba-entry > header > b,.scba-template-editor > header > b,.scba-check-section > header > b,.inventory-report-detail th) { background:#1b2b43; color:#e2e8f0; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.air-warning,.inventory-report-detail blockquote) { background:#443219; color:#fde8b4; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.air-note,.air-warning,.inventory-report-detail blockquote) :is(p,strong,small,span) { color:inherit; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh .air-systems { color:#f1f5f9; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh .air-open-label { color:#93c5fd; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh .controlled-medication-note { background:#342652; color:#e5d5ff; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh .controlled-medication-note :is(strong,p) { color:inherit; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.ops-card > header > div > span,.inventory-filter-toolbar label) { color:#b5c4d8; }
+}

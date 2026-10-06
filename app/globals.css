@@ -568,7 +568,7 @@ td strong { font-size: 16px; }
 .permission-override-list label > span { min-width: 0; display: grid; gap: 3px; }
 .permission-override-list b { color: #294b63; font-size: 12px; }
 .permission-override-list small { color: #788996; font-size: 9px; }
-.permission-admin-note { margin: 18px !important; padding: 15px; border-radius: 7px; background: #edf5f8; color: #315d77 !important; font-weight: 800; }
+.permission-admin-note { margin: 18px !important; padding: 15px; border-radius: 7px; background: #edf5f8; color: #315d77; font-weight: 800; }
 .test-member-card { max-width: 760px; padding: 28px; display: grid; gap: 14px; }
 .test-member-card select { width: 100%; }
 .test-member-card button { width: fit-content; min-height: 40px; padding: 0 14px; border: 1px solid #a45145; border-radius: 7px; background: white; color: #913e34; font-weight: 850; }

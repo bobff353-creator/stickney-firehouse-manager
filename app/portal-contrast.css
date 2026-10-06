@@ -1,0 +1,82 @@
+/* Surface-specific contrast. Keep the operational canvases and printed records intact. */
+@media screen {
+  /* Shared navigation and help use the same dark surface on every portal page. */
+  .app-shell:has(#portal-workspace) .workspace-guide > summary {
+    background:#1b2b43;color:#f1f5f9;border:1px solid #607895;
+  }
+  .app-shell:has(#portal-workspace) .portal-footer :is(strong,p) {color:#b5c4d8}
+  .app-shell:has(#portal-workspace) .portal-footer strong {color:#f1f5f9}
+  .app-shell:has(#portal-workspace) .portal-footer a {color:#93c5fd}
+  .app-shell:has(#portal-workspace) .workspace-wayfinding {color:#b5c4d8}
+  .app-shell:has(#portal-workspace) .workspace-guide :is(li,dt,dd) {color:#b5c4d8}
+
+  /* Work-detail cards must match their inherited light text, including nested facts. */
+  .workspace.bento-rest.bento-rest .work-detail-list article {
+    background:#141e30;color:#f1f5f9;border-color:#607895;
+  }
+  .workspace.bento-rest.bento-rest .work-detail-list :is(p,dt,header span) {color:#b5c4d8}
+  .workspace.bento-rest.bento-rest .work-detail-list dl > div {background:#1b2b43}
+  .workspace.bento-rest.bento-rest .work-detail-list dd {color:#f1f5f9}
+  .workspace.bento-rest.bento-rest .work-detail-list .rejection-note {
+    background:#472126;color:#fecaca;
+  }
+
+  /* Form hints are text, not faded decorations; use explicit opaque palettes. */
+  .workspace.bento-rest.bento-rest :is(input,textarea)::placeholder {color:#b5c4d8;opacity:1}
+  .workspace.bento-rest.bento-rest :is(input:not([type=checkbox]):not([type=radio]),select,textarea) {border-color:#607895}
+  .workspace.bento-rest.bento-rest :is(.member-picker,.member-picker-trigger,.work-detail-form fieldset,.certification-check) {border-color:#607895}
+
+  /* Paper workspaces retain native light controls, including calendar/select icons. */
+  #portal-workspace :is(.fi-workspace,.training-workspace,.nr-workspace) :is(input,select,textarea,option) {color-scheme:light}
+  .workspace.bento-rest.bento-rest :is(.fi-workspace,.training-workspace,.nr-workspace) option {background:#fff;color:#153247}
+  #portal-workspace :is(.fi-workspace,.training-workspace,.nr-workspace) :is(input:not([type=checkbox]):not([type=radio]),select,textarea,button,a.fi-button) {border-color:#698495}
+  .workspace.bento-rest.bento-rest :is(.fi-workspace,.training-workspace,.nr-workspace) :is(input,textarea)::placeholder {color:#496578;opacity:1}
+  .workspace.bento-rest.bento-rest :is(.fi-workspace,.training-workspace,.nr-workspace) :focus-visible {outline-color:#986000}
+  .workspace.bento-rest.bento-rest .training-workspace.training-workspace button :is(strong,small,span) {color:inherit}
+  .workspace.bento-rest.bento-rest .nr-workspace.nr-workspace button {background:#fff;color:#153247;border-color:#698495}
+  .workspace.bento-rest.bento-rest .nr-workspace.nr-workspace button:hover:not(:disabled) {background:#e6f0f7}
+  .workspace.bento-rest.bento-rest .nr-workspace.nr-workspace button:is(.nr-primary,[aria-current]) {background:#155a7c;color:#fff;border-color:#155a7c}
+  .workspace.bento-rest.bento-rest .nr-workspace.nr-workspace button :is(strong,span,small) {color:inherit}
+  .workspace.bento-rest.bento-rest .nr-workspace h1 {color:var(--nr-ink)}
+
+  /* Labels and neutral states on the shared analytics/payroll surfaces. */
+  .workspace.bento-rest.bento-rest :is(.record-identity span,.payroll-panel > header span,.trend-card > header span,.command-summary-card span,.call-breakdown-row span,.response-type-drilldown span) {color:#b5c4d8}
+  .workspace.bento-rest.bento-rest .trend-card em.flat {background:#1b2b43;color:#b5c4d8}
+  .workspace.bento-rest.bento-rest :is(.status-pill.not-started,.employment-status.ended) {background:#1b2b43;color:#b5c4d8}
+  .workspace.bento-rest.bento-rest .ao-eligibility.eligible {background:#342652;color:#e5d5ff}
+  .workspace.bento-rest.bento-rest :is(.kpi-card > div > span,.command-insight div span,.response-bars span,.response-bars small) {color:#b5c4d8}
+  .workspace.bento-rest.bento-rest :is(.detail-summary-grid > article,.call-breakdown-grid > section,.payroll-detail-list > article) {background:#141e30;color:#f1f5f9;border-color:#607895}
+  .workspace.bento-rest.bento-rest :is(.detail-summary-grid span,.breakdown-bars span,.payroll-detail-list span,.payroll-detail-list b) {color:#b5c4d8}
+
+  /* Secondary boxes inherit the same palette as their containing tool. */
+  .workspace.bento-rest.bento-rest :is(.action-empty-state,.admin-edit-banner,.phone-actions a,.workflow-save-status) {background:#1b2b43;color:#e2e8f0;border-color:#607895}
+  .workspace.bento-rest.bento-rest :is(.action-empty-state,.admin-edit-banner,.phone-actions a,.workflow-save-status) :is(strong,p,small,span) {color:inherit}
+  .workspace.bento-rest.bento-rest .phone-actions a.emergency-call {background:#472126;color:#fecaca;border-color:#b87079}
+  .workspace.bento-rest.bento-rest .workflow-save-status.saved {background:#15382a;color:#bbf7d0;border-color:#508b6a}
+  .workspace.bento-rest.bento-rest .workflow-save-status.failed {background:#472126;color:#fecaca;border-color:#b87079}
+  .workspace.bento-rest.bento-rest :is(.workflow-save-status.unsaved,.validation-box) {background:#443219;color:#fde8b4;border-color:#a18450}
+  .workspace.bento-rest.bento-rest .board-alert {background:#472126;color:#fecaca;border-color:#b87079}
+  .workspace.bento-rest.bento-rest :is(.validation-box,.board-alert) :is(strong,span,p) {color:inherit}
+  .workspace.bento-rest.bento-rest .record-state-banner.finalized {background:#15382a;color:#bbf7d0;border-color:#508b6a}
+  .workspace.bento-rest.bento-rest .record-state-banner.finalized :is(strong,span) {color:inherit}
+  .workspace.bento-rest.bento-rest .cad-security-note {background:#472126;color:#fecaca}
+  .workspace.bento-rest.bento-rest .cad-security-note strong {color:inherit}
+  .workspace.bento-rest.bento-rest :is(.cad-needed-card li,.permission-admin-note,.department-stats span,.department-card footer span,.activity-category,.activity-card time,.activity-card footer span,.activity-toolbar span,.callback-rules-card span,.pay-rule span,.holiday-item span,.holiday-item time,.mobile-rate-label,.input-unit b,.calculated-rate b) {color:#b5c4d8}
+  .workspace.bento-rest.bento-rest .respond-device-settings :is(b,label span,.respond-device-actions span) {color:#e2e8f0}
+  .app-shell:has(#portal-workspace) .workspace :is(input,textarea)::placeholder {color:#b5c4d8;opacity:1}
+  .app-shell:has(#portal-workspace) .workspace :is(.fi-workspace,.training-workspace,.nr-workspace) :is(input,textarea)::placeholder {color:#496578;opacity:1}
+  .app-shell:has(#portal-workspace) .workspace button:disabled {opacity:1;background:#24344f;color:#b5c4d8;border-color:#607895;cursor:not-allowed}
+  .app-shell:has(#portal-workspace) .workspace :is(.fi-workspace,.training-workspace,.nr-workspace) button:disabled {background:#e7eff5;color:#496578;border-color:#698495}
+  .field-preplans-page.field-preplans-page .field-directory-tabs button.active :is(span,small) {color:#fff}
+  .road-closures-page.road-closures-page .road-closures-hero span {color:#b5c4d8}
+  .icb-page.icb-page .icb-empty span {color:#496578}
+  .workspace.bento-rest.bento-rest :is(.policy-toc,.policy-toc-head) {background:#141e30;color:#f1f5f9;border-color:#607895}
+  .workspace.bento-rest.bento-rest .policy-toc-head > strong {background:#1b2b43;color:#f1f5f9}
+  .workspace.bento-rest.bento-rest .policy-toc button :is(span,small) {color:#b5c4d8}
+  .workspace.bento-rest.bento-rest .policy-toc button.current :is(span,small) {color:#fff}
+  .workspace.bento-rest.bento-rest .mini-summary > div {background:#1b2b43;border-color:#607895}
+  .workspace.bento-rest.bento-rest .mini-summary span {color:#b5c4d8}
+  .workspace.bento-rest.bento-rest :is(.pay-calculation,.pay-calculation-line,.pay-calculation-total) {background:#141e30;color:#f1f5f9;border-color:#607895}
+  .workspace.bento-rest.bento-rest .pay-calculation-line span {color:#b5c4d8}
+  .workspace.bento-rest.bento-rest .pay-calculation-line b {color:#f1f5f9}
+}

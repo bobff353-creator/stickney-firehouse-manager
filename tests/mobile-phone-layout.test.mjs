@@ -4,10 +4,11 @@ import test from "node:test";
 
 test("phone layout keeps navigation visible and content above the safe area", async () => {
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const navigationStyles = await readFile(new URL("../app/today-dashboard.css", import.meta.url), "utf8");
   const shell = await readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8");
-  assert.match(styles, /\.mobile-bottom-tabs[^}]+grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
+  assert.match(navigationStyles, /\.mobile-bottom-tabs[^}]+grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/);
   assert.match(shell, /Dashboard[\s\S]+Daily Log[\s\S]+Respond[\s\S]+More/);
-  assert.doesNotMatch(shell, /\["Scheduling", "Schedule", "clock"\]/);
+  assert.match(shell, /\["Dashboard", "Today", "home"\][\s\S]+\["Respond", "Response", "warning"\][\s\S]+\["Inventory", "Operations", "box"\][\s\S]+\["Scheduling", "Schedule", "clock"\]/);
   assert.match(styles, /padding-bottom:calc\(94px \+ env\(safe-area-inset-bottom\)\)/);
   assert.match(styles, /\.mobile-brand strong\{display:none\}/);
   assert.match(styles, /\.mobile-nav-panel\{position:fixed;z-index:100;left:8px;right:8px;bottom:64px/);
@@ -38,7 +39,7 @@ test("desktop navigation starts hidden and closes when no longer in use", async 
   assert.match(shell, /if \(hidden && document\.activeElement\?\.closest\("#desktop-navigation"\)\)/);
   assert.match(shell, /className="sidebar-core-nav"/);
   assert.match(shell, /import.*featuredNavItems.*from "\.\/portal-menu-items"/);
-  assert.match(menu, /Home[\s\S]+Respond[\s\S]+Live Operations[\s\S]+Maps & Preplans[\s\S]+Daily Log[\s\S]+Station Schedule[\s\S]+Apparatus Checks/);
+  assert.match(menu, /page: "Dashboard", label: "Today"[\s\S]+page: "Respond", label: "Response"[\s\S]+page: "Inventory", label: "Operations"[\s\S]+page: "Scheduling", label: "Schedule"/);
   assert.ok(menu.match(/const featuredNavItems[\s\S]+?\];/));
   assert.doesNotMatch(menu.match(/const featuredNavItems[\s\S]+?\];/)?.[0], /Command Center|Station Board/);
   assert.match(menu, /label: "Operations"[\s\S]+label: "Command Center", page: "Command Center"/);
