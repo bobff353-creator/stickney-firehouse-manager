@@ -14,6 +14,7 @@ import { normalizeScheduleTime, scheduleTimeBlocks } from "./schedule-time";
 import { recurringShiftOccursOnDate } from "./station-scheduler-logic";
 import { expandAvailabilityDates } from "./availability-repeat";
 import { canRequestRole, memberShiftList, shiftTimeLabel, shiftHasNotStarted } from "./scheduler-member-view";
+import { calendarDayShifts, calendarShiftText } from './scheduler-calendar-view';
 import { SchedulerCoverage } from "./scheduler-coverage";
 import { ScheduleSafetyPanel } from './schedule-safety-panel';
 import type { SavedScheduleSafety } from './schedule-safety-store';
@@ -386,10 +387,12 @@ function CalendarScreen({ data, isAdmin, adminDayMode, setAdminDayMode, selected
 }) {
   const [newShiftType, setNewShiftType] = useState("");
   const [rotationIndex, setRotationIndex] = useState(0);
-  const [rotationPaused, setRotationPaused] = useState(false);
+  const [rotationPaused, setRotationPaused] = useState(true);
+  const [calendarWindow, setCalendarWindow] = useState<'all' | 'block'>('all');
   const [dayViewOpen, setDayViewOpen] = useState(false);
   const [calendarScope, setCalendarScope] = useWorkspaceViewState("scheduler-calendar-scope", "mine");
   const showAllSchedule = isAdmin || calendarScope === "all";
+  const inlineDayView = isAdmin && adminDayMode;
   const myId = data.viewer.employeeId;
   const activeShiftIds = useMemo(() => new Set(data.shiftTypes.filter((shift) => shift.active).map((shift) => shift.id)), [data.shiftTypes]);
   const entriesByDate = useMemo(() => {
@@ -431,18 +434,20 @@ function CalendarScreen({ data, isAdmin, adminDayMode, setAdminDayMode, selected
   const dateForDay = (day: number) => `${monthKey}-${String(day).padStart(2, "0")}`;
   const changeMonth = (delta: number) => {
     const next = new Date(firstDay.getFullYear(), firstDay.getMonth() + delta, 1, 12);
-    setRotationIndex(0);
+    setRotationPaused(true);
     setSelectedDate(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-01`);
   };
 
   useEffect(() => {
-    if (rotationPaused || adminDayMode) return;
-    const timer = window.setInterval(() => setRotationIndex((current) => current + 1), 12_000);
+    if (rotationPaused || calendarWindow === 'all' || (isAdmin && adminDayMode)) return;
+    const timer = window.setInterval(() => { if (!document.hidden) setRotationIndex((current) => (current + 1) % calendarTimeBlocks.length); }, 12_000);
     return () => window.clearInterval(timer);
-  }, [rotationPaused, adminDayMode]);
+  }, [rotationPaused, calendarWindow, isAdmin, adminDayMode]);
+
+  const activeWindow = calendarWindow === 'all' ? null : calendarTimeBlocks[rotationIndex % calendarTimeBlocks.length];
 
   useEffect(() => {
-    if (!dayViewOpen) return;
+    if (!dayViewOpen || inlineDayView) return;
     const previousOverflow = document.body.style.overflow;
     const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setDayViewOpen(false); };
     document.body.style.overflow = "hidden";
@@ -451,7 +456,7 @@ function CalendarScreen({ data, isAdmin, adminDayMode, setAdminDayMode, selected
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", closeOnEscape);
     };
-  }, [dayViewOpen]);
+  }, [dayViewOpen, inlineDayView]);
 
   useEffect(() => {
     setNewShiftType("");
@@ -467,11 +472,25 @@ function CalendarScreen({ data, isAdmin, adminDayMode, setAdminDayMode, selected
         <div className="scheduler-month-head">
           <h3>{monthTitle(selectedDate)}{!isAdmin && <small className="personal-calendar-label">{showAllSchedule ? "All scheduled · department view" : "My shifts only"}</small>}</h3>
           <div className="scheduler-month-actions">
-            <span className="calendar-window-status">Showing {calendarTimeBlocks[rotationIndex % calendarTimeBlocks.length].startTime}–{calendarTimeBlocks[rotationIndex % calendarTimeBlocks.length].endTime} on every day</span>
-            <button type="button" className="calendar-rotation-button" aria-pressed={rotationPaused} onClick={() => setRotationPaused((paused) => !paused)}>{rotationPaused ? "Resume rotation" : "Pause rotation"}</button>
             <button type="button" aria-label="Previous month" onClick={() => changeMonth(-1)}>‹</button>
             <button type="button" aria-label="Next month" onClick={() => changeMonth(1)}>›</button>
           </div>
+        </div>
+        <div className="scheduler-calendar-time-controls">
+          <label><span>Show times</span><select aria-label="Show calendar times" value={activeWindow ? String(rotationIndex % calendarTimeBlocks.length) : 'all'} onChange={event => {
+            setRotationPaused(true);
+            setCalendarWindow(event.target.value === 'all' ? 'all' : 'block');
+            if (event.target.value !== 'all') setRotationIndex(Number(event.target.value));
+          }}>
+            <option value="all">All times</option>
+            {calendarTimeBlocks.map((block, index) => <option key={block.id} value={index}>{block.label}</option>)}
+          </select></label>
+          <button type="button" className="calendar-rotation-button" aria-pressed={!rotationPaused} onClick={() => {
+            if (!rotationPaused) { setRotationPaused(true); return; }
+            if (calendarWindow === 'all') setRotationIndex(0);
+            setCalendarWindow('block'); setRotationPaused(false);
+          }}>{rotationPaused ? 'Auto-cycle times' : 'Pause cycling'}</button>
+          <span className="calendar-window-status" role="status">{activeWindow ? `${rotationPaused ? 'Holding' : 'Cycling every 12 seconds ·'} ${activeWindow.label}` : 'Showing every saved shift time'}</span>
         </div>
         <div className="scheduler-legend">
           {data.shiftTypes.filter((s) => s.active).slice(0, 5).map((s) => <span key={s.id}><i style={{ background: shiftColorHex[s.color] ?? s.color }} />{s.name} · {s.startTime}–{s.endTime}</span>)}
@@ -485,30 +504,22 @@ function CalendarScreen({ data, isAdmin, adminDayMode, setAdminDayMode, selected
               if (!day) return <span className="calendar-blank" key={`blank-${index}`} />;
               const date = dateForDay(day);
               const entries = entriesByDate.get(date) ?? [];
-              const activeWindow = calendarTimeBlocks[rotationIndex % calendarTimeBlocks.length];
-              const matchingEntries = entries.filter((entry) => {
-                const entryShift = data.shiftTypes.find((item) => item.id === entry.shiftTypeId);
-                return entryShift?.startTime === activeWindow.startTime && entryShift?.endTime === activeWindow.endTime;
-              });
-              const visibleEntry = showAllSchedule
-                ? matchingEntries[0]
-                : matchingEntries.find((entry) => (slotsByDate.get(date) ?? []).some((slot) => slot.entryId === entry.id && slot.employeeId === myId));
-              const matchingShift = visibleEntry ? data.shiftTypes.find((item) => item.id === visibleEntry.shiftTypeId) : null;
-              const visibleSlots = visibleEntry ? (slotsByDate.get(date) ?? []).filter((slot) => slot.entryId === visibleEntry.id && (showAllSchedule || slot.employeeId === myId)) : [];
-              const shift = showAllSchedule || visibleSlots.length ? matchingShift : null;
+              const visibleShifts = calendarDayShifts(entries, data.shiftTypes, slotsByDate.get(date) ?? [], myId, showAllSchedule, activeWindow);
+              const visibleSlots = visibleShifts.flatMap(item => item.slots);
+              const shift = visibleShifts[0]?.shift;
               const availability = (availabilityByDate.get(date) ?? []).filter((row) => isAdmin || row.employeeId === myId);
               const availableCount = availability.filter((row) => row.status === "available").length;
               const unavailableCount = availability.filter((row) => row.status === "unavailable").length;
               const hasOpen = showAllSchedule && visibleSlots.some((slot) => slot.status === "open");
               const coverageSummary = visibleSlots.map((slot) => slot.status === "open" ? `Open ${slot.role}` : `${employeeName(slot.employeeId)} assigned ${slot.role}`).join(", ");
-              const ariaLabel = [`Open ${friendlyDate(date)}`, shift?.name, `${activeWindow.startTime}–${activeWindow.endTime}`, coverageSummary].filter(Boolean).join("; ");
+              const ariaLabel = [`Open ${friendlyDate(date)}`, activeWindow?.label ?? 'All times', ...visibleShifts.map(item => item.shift.name), coverageSummary].filter(Boolean).join("; ");
               const shiftHex = shift ? (shiftColorHex[shift.color] ?? shift.color) : "";
               const calendarStyle = shift ? {
                 "--calendar-shift-color": shiftHex,
                 "--calendar-shift-tint": `${shiftHex}30`,
                 "--calendar-shift-text": shiftTextColor(shift.color),
               } as CSSProperties : undefined;
-              return <button type="button" role="gridcell" key={date} style={calendarStyle} className={`${date === selectedDate ? "selected " : ""}${date === data.today ? "today " : ""}${shift ? "calendar-has-shift" : ""}`} onClick={() => { setSelectedDate(date); setDayViewOpen(true); }} aria-label={ariaLabel}>
+              return <button type="button" role="gridcell" key={date} style={calendarStyle} className={`${date === selectedDate ? "selected " : ""}${date === data.today ? "today " : ""}${shift ? "calendar-has-shift" : ""}`} onClick={() => { setRotationPaused(true); setSelectedDate(date); setDayViewOpen(true); }} aria-label={ariaLabel}>
                 <span className="calendar-day-header">
                   <span className="calendar-day-number">{day}</span>
                   {!!availability.length && <span className="calendar-availability-summary">
@@ -517,23 +528,23 @@ function CalendarScreen({ data, isAdmin, adminDayMode, setAdminDayMode, selected
                   </span>}
                   {hasOpen && <i className="open-dot" />}
                 </span>
-                {visibleEntry && shift ? (
-                  <span className="calendar-shift-summary">
+                {visibleShifts.length ? visibleShifts.map(({entry, shift, slots}) => (
+                  <span className="calendar-shift-summary" key={entry.id} style={{'--calendar-shift-color': shiftColorHex[shift.color] ?? shift.color, '--calendar-shift-text': calendarShiftText(shiftColorHex[shift.color] ?? shift.color)} as CSSProperties}>
                     <strong>
                       <span>{shift.name}</span>
-                      <small>{shift.startTime}–{shift.endTime}</small>
+                      {!slots.length && <small>{shiftTimeLabel(shift.startTime, shift.endTime)}</small>}
                     </strong>
                     <span className="calendar-shift-slots">
-                      {visibleSlots.map((slot) => (
+                      {slots.map((slot) => (
                         <span key={slot.id} className={slot.status === "open" ? "calendar-slot open" : "calendar-slot"}>
                           <b>{slot.status === "open" ? "OPEN" : (employeeName(slot.employeeId) || "Assigned")}</b>
-                          <small>{slot.role}{slot.isExtra || slot.hasTimeOverride ? ` · ${slot.startTime}–${slot.endTime}` : ""}</small>
+                          <small>{slot.role}</small>
+                          <small className="calendar-slot-time">{shiftTimeLabel(slot.startTime, slot.endTime)}</small>
                         </span>
                       ))}
                     </span>
-                    {entries.length > 1 && <small className="calendar-rotation-count">Time block {rotationIndex % calendarTimeBlocks.length + 1} of {calendarTimeBlocks.length}</small>}
                   </span>
-                ) : <span className="calendar-no-shift">{showAllSchedule ? `No ${activeWindow.startTime}–${activeWindow.endTime} shift` : `Not scheduled ${activeWindow.startTime}–${activeWindow.endTime}`}</span>}
+                )) : <span className="calendar-no-shift">{showAllSchedule ? 'No saved shifts' : 'Not scheduled'}{activeWindow ? ` · ${activeWindow.label}` : ''}</span>}
               </button>;
             })}
           </div>
@@ -541,13 +552,13 @@ function CalendarScreen({ data, isAdmin, adminDayMode, setAdminDayMode, selected
       </section>}
 
       {(dayViewOpen || (isAdmin && adminDayMode)) && (
-        <div className={adminDayMode ? "scheduler-inline-day" : "scheduler-day-backdrop"} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDayViewOpen(false); }}>
-          <section className="scheduler-day-dialog scheduler-day-card" role={adminDayMode ? "region" : "dialog"} aria-modal={adminDayMode ? undefined : true} aria-labelledby="scheduler-day-title">
+        <div className={inlineDayView ? "scheduler-inline-day" : "scheduler-day-backdrop"} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDayViewOpen(false); }}>
+          <section className="scheduler-day-dialog scheduler-day-card" role={inlineDayView ? "region" : "dialog"} aria-modal={inlineDayView ? undefined : true} aria-labelledby="scheduler-day-title">
             <header className="scheduler-day-dialog-head">
               <div><span className="section-kicker">Day schedule</span><h3 id="scheduler-day-title">{friendlyDate(selectedDate)}</h3></div>
               <div>
                 <input aria-label="Choose another date" type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
-                {!adminDayMode && <button type="button" className="scheduler-day-close" aria-label="Close day view" autoFocus onClick={() => setDayViewOpen(false)}>×</button>}
+                {!inlineDayView && <button type="button" className="scheduler-day-close" aria-label="Close day view" autoFocus onClick={() => setDayViewOpen(false)}>×</button>}
               </div>
             </header>
             <div className="scheduler-day-dialog-body">

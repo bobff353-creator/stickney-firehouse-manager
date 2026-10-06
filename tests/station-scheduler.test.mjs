@@ -12,7 +12,7 @@ const missing = async (path) => {
 test("calendar availability stays beside the day number with the open-position dot last", async () => {
   const component = await read("../app/station-scheduler.tsx");
   const css = await read("../app/globals.css");
-  const header = component.split('<span className="calendar-day-header">')[1].split("{visibleEntry && shift ?")[0];
+  const header = component.split('<span className="calendar-day-header">')[1].split("{visibleShifts.length ?")[0];
   assert.match(header, /calendar-day-number[\s\S]*calendar-availability-summary[\s\S]*open-dot/);
   assert.match(header, /availableCount[\s\S]*unavailableCount/);
   assert.match(css, /\.scheduler \.calendar-day-header \{[^}]*display: flex;[^}]*align-items: center;/);
@@ -82,12 +82,12 @@ test("scheduler uses the scoped Stickney mobile workspace instead of prototype b
   assert.equal(component.includes('disabled={busy} onClick={save}'), true, "save remains clickable so validation can explain missing fields");
   assert.equal(styles.includes("Stickney Station Scheduler - deliberately scoped"), true);
   assert.equal(styles.includes(".scheduler-month"), true);
-  assert.equal(component.includes("const activeWindow = calendarTimeBlocks[rotationIndex % calendarTimeBlocks.length]"), true, "every date uses the same active time window");
-  assert.equal(component.includes("entryShift?.startTime === activeWindow.startTime"), true, "each date selects its shift by time instead of unstable entry order");
+  assert.equal(component.includes("const activeWindow = calendarWindow === 'all' ? null : calendarTimeBlocks[rotationIndex % calendarTimeBlocks.length]"), true, "All times defaults to a complete calendar; selection applies to every date");
+  assert.equal(component.includes("calendarDayShifts(entries, data.shiftTypes, slotsByDate.get(date) ?? [], myId, showAllSchedule, activeWindow)"), true, "each date includes all matching assignments using their actual times");
   assert.equal(component.includes("calendar-shift-summary"), true, "calendar keeps names and assignments visible for the rotating shift");
   assert.equal(component.includes('slot.status === "open" ? "OPEN"'), true, "calendar labels open roles clearly");
   assert.equal(component.includes("12_000"), true, "the shared time window rotates every 12 seconds");
-  assert.equal(component.includes("Pause rotation"), true, "automatic rotation can be paused");
+  assert.equal(component.includes("Pause cycling"), true, "optional automatic cycling can be paused");
   assert.equal(component.includes('setSchedulerView("employee")'), true, "the Employee view is an interactive control");
   assert.equal(component.includes(">My Schedule</button>"), true, "the personal calendar has a plain-language destination");
   assert.equal(component.includes('slot.employeeId === myId'), true, "the personal month and day views filter assignments to the signed-in employee");
@@ -184,7 +184,7 @@ test("calendar day view manages one-day openings and assignments without changin
   ]);
 
   assert.equal(component.includes('setDayViewOpen(true)'), true, "clicking a day opens its focused view");
-  assert.equal(component.includes('role={adminDayMode ? "region" : "dialog"}'), true);
+  assert.equal(component.includes('role={inlineDayView ? "region" : "dialog"}'), true);
   assert.equal(component.includes("+ Add one-day position"), true);
   assert.equal(component.includes("Start (24-hour)"), true);
   assert.equal(component.includes("Post as open position"), true);

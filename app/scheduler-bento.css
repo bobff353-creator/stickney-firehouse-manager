@@ -36,3 +36,23 @@
 .scheduler.scheduler input[type=checkbox] { accent-color:#2563eb; }
 .workspace:has(.scheduler) .workspace-wayfinding { color:#b5c4d8; }
 }
+@media screen {
+.scheduler.scheduler .scheduler-calendar-time-controls { display:flex; flex-wrap:wrap; align-items:end; gap:12px; padding:14px; margin-bottom:14px; border:1px solid #607895; border-radius:12px; background:#1b2b43; }
+.scheduler.scheduler .scheduler-calendar-time-controls label { display:grid; gap:6px; flex:1 1 240px; min-width:0; color:#f1f5f9; font-size:14px; }
+.scheduler.scheduler .scheduler-calendar-time-controls select { width:100%; min-width:0; min-height:44px; font-size:16px; background:#0e1728; color:#f1f5f9; border-color:#607895; color-scheme:dark; }
+.scheduler.scheduler .scheduler-calendar-time-controls button { min-height:44px; font-size:14px; }
+.scheduler.scheduler .calendar-window-status { flex-basis:100%; color:#b5c4d8; font-size:13px; white-space:normal; }
+.scheduler.scheduler .scheduler-month > button:not(.link):not(.danger) { background:#141e30; background-image:none; color:#f1f5f9; border-color:#607895; min-height:150px; gap:12px; }
+.scheduler.scheduler .scheduler-month > button.calendar-has-shift { border-top-color:var(--calendar-shift-color); }
+.scheduler.scheduler .scheduler-month > button:hover { background:#1b2b43; }
+.scheduler.scheduler .scheduler-month > button.selected { outline:2px solid #93c5fd; outline-offset:-2px; }
+.scheduler.scheduler :is(.calendar-no-shift,.scheduler-legend span,.scheduler-weekdays span,.calendar-slot small) { color:#b5c4d8; opacity:1; }
+.scheduler.scheduler .calendar-no-shift { font-size:13px; line-height:1.5; }
+.scheduler.scheduler .calendar-shift-summary { flex:0 0 auto; gap:8px; }
+#portal-workspace .scheduler.scheduler .calendar-shift-summary > strong { color:var(--calendar-shift-text); font-size:14px; }
+#portal-workspace .scheduler.scheduler .calendar-shift-summary > strong :is(span,small) { color:inherit; opacity:1; white-space:normal; overflow:visible; font-size:inherit; }
+.scheduler.scheduler .calendar-slot { display:grid; justify-content:stretch; gap:3px; padding:6px 0; }
+.scheduler.scheduler .calendar-slot b { font-size:13px; white-space:normal; overflow:visible; overflow-wrap:anywhere; }
+.scheduler.scheduler .calendar-slot small { font-size:12px; white-space:normal; overflow:visible; }
+.scheduler.scheduler .calendar-slot .calendar-slot-time { color:#f1f5f9; font-weight:700; }
+}

@@ -11,8 +11,7 @@ test('calendar department view changes visibility without changing edit permissi
   assert.ok(calendar.includes('<option value="all">All scheduled</option>'));
   assert.ok(calendar.includes('const showAllSchedule = isAdmin || calendarScope === "all"'));
   assert.ok(calendar.includes('.filter((slot) => showAllSchedule || slot.employeeId === myId)'));
-  assert.ok(calendar.includes('const visibleEntry = showAllSchedule'));
-  assert.ok(calendar.includes('(showAllSchedule || slot.employeeId === myId)'));
+  assert.ok(calendar.includes('calendarDayShifts(entries, data.shiftTypes, slotsByDate.get(date) ?? [], myId, showAllSchedule, activeWindow)'));
   assert.ok(calendar.includes('.filter((row) => isAdmin || row.employeeId === myId)'));
   assert.ok(calendar.includes('{isAdmin && <AssignmentEditor'));
   assert.ok(calendar.includes('const canTrade = !isAdmin && slot.status === "filled" && slot.employeeId === myId'));
@@ -44,7 +43,8 @@ test('admin navigation uses daily staffing and explicit assignment saves', async
   const component = await readFile(new URL('../app/station-scheduler.tsx', import.meta.url), 'utf8');
   assert.ok(component.includes('if (!confirmLeavingWork()) return; setSchedulerView("admin"); navigationRequested.current = true; setTabState("overview")'));
   assert.ok(component.includes('useWorkspaceViewState("scheduler-day-mode", true)'));
-  assert.ok(component.includes('role={adminDayMode ? "region" : "dialog"}'));
+  assert.ok(component.includes('const inlineDayView = isAdmin && adminDayMode'));
+  assert.ok(component.includes('role={inlineDayView ? "region" : "dialog"}'));
   const editor = component.split('function AssignmentEditor(')[1].split('function DaySlotTimeEditor(')[0];
   assert.ok(editor.includes('onChange={(event) => setSelected(event.target.value)}'));
   assert.ok(editor.includes('<SaveStatus state={changed ? (busy ? "saving" : saveFailed ? "failed" : "unsaved") : "saved"}'));
