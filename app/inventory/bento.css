@@ -59,4 +59,20 @@ body:has(.inventory-app-shell) { background:#0b1120; }
 .inventory-app-shell.inventory-app-shell.inventory-portal-refresh .controlled-medication-note { background:#342652; color:#e5d5ff; }
 .inventory-app-shell.inventory-app-shell.inventory-portal-refresh .controlled-medication-note :is(strong,p) { color:inherit; }
 .inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.ops-card > header > div > span,.inventory-filter-toolbar label) { color:#b5c4d8; }
+/* Selected equipment and its editor pair every text color with a slate surface. */
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.equipment-record-summary,.equipment-editor,.equipment-repair-panel,.service-schedule-fields,.service-reminder) { background:#141e30; color:#f1f5f9; border-color:#607895; border-radius:12px; color-scheme:dark; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.equipment-editor header,.inventory-editor-footer) { background:#141e30; color:#f1f5f9; border-color:#607895; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.equipment-record-summary,.equipment-editor,.equipment-repair-panel) :is(h3,label,legend,strong,dd) { color:#f1f5f9; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh .equipment-record-summary > dl > div { min-width:0; border-color:#607895; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh .equipment-record-summary dt { color:#b5c4d8; font-size:12px; line-height:1.45; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh .equipment-record-summary dd { color:#f1f5f9; font-size:14px; line-height:1.5; overflow-wrap:anywhere; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.equipment-record-summary header span,.equipment-editor header span,.equipment-repair-panel header span) { color:#93c5fd; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.service-schedule-summary,.service-schedule-preview,.equipment-editor .ops-check-grid label) { background:#1b2b43; color:#e2e8f0; border-color:#607895; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.service-schedule-summary,.service-schedule-preview) :is(strong,span) { color:inherit; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.equipment-editor,.equipment-repair-panel,.service-schedule-fields) :is(p,small) { color:#b5c4d8; opacity:1; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh .inventory-editor-footer [role=alert] { color:#fecaca; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.equipment-service-note,.asset-attention-list li) { background:#443219; color:#fde8b4; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh .asset-attention-list li[data-severity=critical] { background:#472126; color:#fecaca; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh .asset-attention-list li[data-severity=unknown] { background:#1b2b43; color:#b5c4d8; }
+.inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.equipment-record-summary,.equipment-editor,.equipment-repair-panel) button { transition:none; }
 }
