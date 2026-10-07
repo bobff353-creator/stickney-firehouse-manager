@@ -82,6 +82,16 @@
   .workspace.bento-rest.bento-rest .mini-summary > div {background:#1b2b43;border-color:#607895}
   .workspace.bento-rest.bento-rest .mini-summary span {color:#b5c4d8}
   .workspace.bento-rest.bento-rest .timesheet-phone-day {background:#1b2b43;color:#f1f5f9;border-color:#607895}
+  /* Native text fill must follow the screen palette, including saved and locked hours. */
+  #portal-workspace .timesheet-card :is(input,select,textarea,option) {background:#0e1728;color:#f1f5f9;-webkit-text-fill-color:currentColor;border-color:#607895;color-scheme:dark}
+  #portal-workspace .timesheet-card .entry-grid input {font-weight:650}
+  #portal-workspace .timesheet-card .entry-grid input:is(.timesheet-readonly,:read-only,:disabled) {background:#24344f;color:#e2e8f0;opacity:1}
+  #portal-workspace .timesheet-card .entry-grid input.saving {background:#443219;color:#fde8b4}
+  #portal-workspace .timesheet-card .entry-grid input[aria-invalid=true],
+  #portal-workspace .timesheet-card .entry-grid .row-warning {background:#472126;color:#fecaca;border-color:#d58b97}
+  #portal-workspace .timesheet-card .entry-grid [role=alert] {color:#fecaca}
+  #portal-workspace .timesheet-card :is(input,select,textarea):focus-visible {outline:3px solid #93c5fd;outline-offset:2px}
+  #portal-workspace .timesheet-card .entry-grid :is(thead th,td:first-child,tfoot td) {background:#1b2b43;color:#f1f5f9}
   .workspace.bento-rest.bento-rest :is(.pay-calculation,.pay-calculation-line,.pay-calculation-total) {background:#141e30;color:#f1f5f9;border-color:#607895}
   .workspace.bento-rest.bento-rest .pay-calculation-line span {color:#b5c4d8}
   .workspace.bento-rest.bento-rest .pay-calculation-line b {color:#f1f5f9}
