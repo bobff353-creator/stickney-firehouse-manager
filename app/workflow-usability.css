@@ -133,8 +133,11 @@
 .settings-layout .input-unit b, .settings-layout .rate-row label b { color:#466173; }
 .logbook-page .log-note-composer, .logbook-page .log-note-entry.open,
 .logbook-page .log-handoff-next, .logbook-page .log-required-checks { color:#173e59; }
-.logbook-page .log-note-composer label>span { color:#173e59; }
+.logbook-page .notes-card label>span { color:#173e59; }
 @media (prefers-color-scheme:dark) {
+  .logbook-page .notes-card label>span { color:#eef4f7; }
+  .logbook-page .log-note-composer { border-color:#536b78; background:#183443; color:#eef4f7; }
+  .logbook-page .log-note-composer>small { color:#c8d5dc; }
   .workspace-wayfinding, .workspace-wayfinding [aria-current],
   .workspace-guide:not([open]) summary { color:#d5e6f0; }
   .workspace-guide[open] { color:#173e59; }
