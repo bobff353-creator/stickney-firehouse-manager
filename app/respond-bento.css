@@ -26,7 +26,9 @@
 .respond-page .respond-empty { background:#172237; color:var(--respond-muted); border-color:var(--respond-border); }
 .respond-page .respond-empty strong { color:#f8fafc; }
 .respond-page .cad-update { background:#1b2940; border-color:#60a5fa; color:#f8fafc; border-radius:10px; padding:14px; }
-.respond-page .cad-update time { color:var(--respond-muted); }
+.respond-page .cad-update > div { flex-wrap:wrap; align-items:baseline; }
+.respond-page .cad-update p { color:#f8fafc; font-size:16px; line-height:1.65; overflow-wrap:anywhere; }
+.respond-page .cad-update time,.respond-page .cad-update small { color:var(--respond-muted); font-size:13px; line-height:1.5; }
 .respond-page .respond-attachments,.respond-page .respond-hose-lays,.respond-page .respond-quick-building,.respond-page .respond-quick { background:var(--respond-surface); border-color:var(--respond-border); color:#f8fafc; border-radius:16px; }
 .respond-page .respond-attachments h2,.respond-page .respond-hose-lays h2,.respond-page .respond-quick-building h2 { color:#f8fafc; }
 .respond-page .respond-attachments p,.respond-page .respond-hose-lays p { color:var(--respond-muted); }
