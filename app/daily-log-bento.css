@@ -15,6 +15,10 @@
 .logbook-page.logbook-page :focus-visible { outline-color: #60a5fa; }
 .logbook-page.logbook-page .notes-card label > span { color: #f1f5f9; }
 .logbook-page.logbook-page :is(input:not([type=checkbox]),select,textarea) { background: #0e1728; color: #f1f5f9; border-color: #415575; border-radius: 8px; color-scheme: dark; }
+/* Callback attendance retains a paper surface inside the dark log workspace. */
+.logbook-page.logbook-page .callback-panel { background: #fff; color: #102a43; }
+.logbook-page.logbook-page .callback-panel :is(strong,label) { color: #102a43; }
+.logbook-page.logbook-page .callback-panel .helper-note { color: #40566b; }
 .logbook-page.logbook-page .shift-card-grid { gap: 12px; }
 .logbook-page.logbook-page .shift-card > summary { background: #1b2b43; color: #f1f5f9; padding: 16px 20px; }
 .logbook-page.logbook-page .shift-card em { background: #1e40af; color: #dbeafe; }
