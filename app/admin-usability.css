@@ -80,3 +80,27 @@
 }
 @media print { .admin-save-bar,.employee-profile-form .employee-form-footer,.admin-preview-banner { display:none !important; } }
 @media print { .box-sheet-scroll { overflow:visible; max-width:none; } }
+
+/* Keep every roster field and action visible within the available workspace. */
+@media screen {
+  .employee-roster-card .table-wrap { overflow:visible; border:0; }
+  .employee-roster-card table { display:block; width:100%; min-width:0; }
+  .employee-roster-card thead { display:none; }
+  .employee-roster-card tbody { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr)); gap:14px; }
+  .employee-roster-card tr { display:grid; min-width:0; padding:14px; border:1px solid #ccd7de; border-radius:10px; }
+  .employee-roster-card td,
+  .employee-roster-card td:first-child { display:grid; grid-template-columns:minmax(0,min(40%,120px)) minmax(0,1fr); gap:10px; align-items:center; min-width:0; min-height:44px; height:auto; padding:8px 0; border-bottom:1px solid #e5eaed; white-space:normal; overflow-wrap:anywhere; text-align:left; }
+  .employee-roster-card td::before { content:attr(data-label); font-size:11px; font-weight:750; text-align:left; }
+  .employee-roster-card td > * { min-width:0; max-width:100%; }
+  .employee-roster-card td:first-child { grid-template-columns:36px minmax(0,1fr); }
+  .employee-roster-card td:first-child::before { grid-column:1 / -1; }
+  .employee-roster-card td:first-child .person-icon { display:flex; width:36px; height:36px; }
+  .employee-roster-card .employee-roster-rate { grid-column:2; margin-top:0; white-space:normal; }
+  .employee-roster-card td:last-child { grid-template-columns:minmax(0,1fr); border-bottom:0; }
+  .employee-roster-card .employee-row-actions { display:flex; justify-content:flex-start; flex-wrap:wrap; gap:8px; }
+  .employee-roster-card .employee-row-actions button { min-height:44px; min-width:0; max-width:100%; white-space:normal; }
+  .employee-roster-card :is(.employment-status,.ao-eligibility,.employee-account-badge) { justify-self:start; white-space:normal; overflow-wrap:anywhere; }
+  .employee-roster-card .section-header { flex-wrap:wrap; gap:12px; }
+  .employee-roster-card .section-header > * { min-width:0; max-width:100%; }
+  .employee-roster-card .employee-form-actions { flex-wrap:wrap; }
+}
