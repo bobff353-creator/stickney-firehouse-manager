@@ -74,6 +74,21 @@
   .field-preplans-page.field-preplans-page .field-map-layout aside > header > span {background:#1b2b43;color:#f1f5f9}
   .field-preplans-page.field-preplans-page .field-map-layout aside > p {color:#b5c4d8}
   .workspace.bento-rest.bento-rest .callback-rule-version {background:#15382a;color:#bbf7d0}
+  /* Callback submissions retain light cards and semantic rule/review surfaces. */
+  .workspace.bento-rest.bento-rest .callback-review-item {color:#102a43}
+  .workspace.bento-rest.bento-rest .callback-review-item :is(strong,label) {color:#102a43}
+  .workspace.bento-rest.bento-rest .callback-review-item small {color:#526b7a}
+  .workspace.bento-rest.bento-rest .callback-hour-summary span {color:#526b7a}
+  .workspace.bento-rest.bento-rest .callback-review-item .callback-rule-results :is(strong,small) {color:inherit}
+  .workspace.bento-rest.bento-rest .callback-review-item .callback-reviewed-summary :is(strong,small) {color:inherit}
+  /* Employee details use paper fieldsets; pair their text and controls with them. */
+  .workspace.bento-rest.bento-rest .employee-profile-form fieldset {color:#17324d}
+  .workspace.bento-rest.bento-rest .employee-profile-form fieldset :is(label,legend,strong) {color:#17324d}
+  .workspace.bento-rest.bento-rest .employee-profile-form fieldset :is(p,small,dt) {color:#496578}
+  .workspace.bento-rest.bento-rest .employee-profile-form :is(input:not([type=checkbox]):not([type=radio]),select,textarea,option) {background:#fff;color:#17324d;-webkit-text-fill-color:#17324d;color-scheme:light}
+  .workspace.bento-rest.bento-rest .employee-profile-form :is(input:not([type=checkbox]):not([type=radio]),select,textarea):disabled {background:#edf1f4;color:#526777;-webkit-text-fill-color:#526777;opacity:1}
+  .app-shell:has(#portal-workspace) .workspace .employee-profile-form :is(input,textarea)::placeholder {color:#496578;-webkit-text-fill-color:#496578;opacity:1}
+  .workspace.bento-rest.bento-rest .employee-roster-card td::before {color:#b5c4d8}
   .icb-page.icb-page .icb-empty span {color:#496578}
   .workspace.bento-rest.bento-rest :is(.policy-toc,.policy-toc-head) {background:#141e30;color:#f1f5f9;border-color:#607895}
   .workspace.bento-rest.bento-rest .policy-toc-head > strong {background:#1b2b43;color:#f1f5f9}

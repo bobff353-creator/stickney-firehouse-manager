@@ -33,7 +33,9 @@ test('shared card, status, help and disabled palettes meet 4.5:1 for normal text
 test('input boundaries meet 3:1 against both paper and dark field backgrounds', () => {
   const dark = '#0e1728', paper = '#ffffff';
   const fieldRules = [];
-  sheet.walkRules(rule => { if (rule.selector.includes('input:not([type=checkbox])')) fieldRules.push(rule); });
+  sheet.walkRules(rule => {
+    if (rule.selector.includes('input:not([type=checkbox])') && rule.nodes.some(node => node.prop === 'border-color')) fieldRules.push(rule);
+  });
   assert.equal(fieldRules.length, 2);
   for (const rule of fieldRules) {
     const border = rule.nodes.find(node => node.prop === 'border-color').value;
