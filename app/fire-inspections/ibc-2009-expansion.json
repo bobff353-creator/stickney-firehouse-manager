@@ -1,0 +1,902 @@
+[
+  [
+    "901.4",
+    "Threads",
+    "Fire protection systems",
+    208
+  ],
+  [
+    "901.6",
+    "Supervisory service",
+    "Fire protection systems",
+    208
+  ],
+  [
+    "901.6.1",
+    "Automatic sprinkler systems",
+    "Fire protection systems",
+    208
+  ],
+  [
+    "901.6.2",
+    "Fire alarm systems",
+    "Fire protection systems",
+    208
+  ],
+  [
+    "901.6.3",
+    "Group H",
+    "Fire protection systems",
+    208
+  ],
+  [
+    "901.7",
+    "Fire areas",
+    "Fire protection systems",
+    208
+  ],
+  [
+    "903.1.1",
+    "Alternative protection",
+    "Fire protection systems",
+    211
+  ],
+  [
+    "903.2.1",
+    "Group A",
+    "Fire protection systems",
+    211
+  ],
+  [
+    "903.2.1.1",
+    "Group A-1",
+    "Fire protection systems",
+    211
+  ],
+  [
+    "903.2.1.3",
+    "Group A-3",
+    "Fire protection systems",
+    211
+  ],
+  [
+    "903.2.1.4",
+    "Group A-4",
+    "Fire protection systems",
+    211
+  ],
+  [
+    "903.2.1.5",
+    "Group A-5",
+    "Fire protection systems",
+    211
+  ],
+  [
+    "903.2.2",
+    "Group B ambulatory health care facilities",
+    "Fire protection systems",
+    211
+  ],
+  [
+    "903.2.4.1",
+    "Woodworking operations",
+    "Fire protection systems",
+    212
+  ],
+  [
+    "903.2.5",
+    "Group H",
+    "Fire protection systems",
+    212
+  ],
+  [
+    "903.2.5.2",
+    "Group H-5",
+    "Fire protection systems",
+    212
+  ],
+  [
+    "903.2.5.3",
+    "Pyroxylin plastics",
+    "Fire protection systems",
+    212
+  ],
+  [
+    "903.2.6",
+    "Group I",
+    "Fire protection systems",
+    212
+  ],
+  [
+    "903.2.7.1",
+    "High-piled storage",
+    "Fire protection systems",
+    212
+  ],
+  [
+    "903.2.9.2",
+    "Bulk storage of tires",
+    "Fire protection systems",
+    213
+  ],
+  [
+    "903.2.10",
+    "Group S-2 enclosed parking garages",
+    "Fire protection systems",
+    213
+  ],
+  [
+    "903.2.10.1",
+    "Commercial parking garages",
+    "Fire protection systems",
+    213
+  ],
+  [
+    "903.2.11",
+    "Specific building areas and hazards",
+    "Fire protection systems",
+    213
+  ],
+  [
+    "903.2.11.1",
+    "Stories without openings",
+    "Fire protection systems",
+    213
+  ],
+  [
+    "903.2.11.1.1",
+    "Opening dimensions and access",
+    "Fire protection systems",
+    213
+  ],
+  [
+    "903.2.11.1.2",
+    "Openings on one side only",
+    "Fire protection systems",
+    213
+  ],
+  [
+    "903.2.11.1.3",
+    "Basements",
+    "Fire protection systems",
+    213
+  ],
+  [
+    "903.2.11.2",
+    "Rubbish and linen chutes",
+    "Fire protection systems",
+    213
+  ],
+  [
+    "903.2.11.3",
+    "Buildings 55 feet or more in height",
+    "Fire protection systems",
+    213
+  ],
+  [
+    "903.2.11.4",
+    "Ducts conveying hazardous exhausts",
+    "Fire protection systems",
+    213
+  ],
+  [
+    "903.2.11.6",
+    "Other required suppression systems",
+    "Fire protection systems",
+    213
+  ],
+  [
+    "903.2.12",
+    "During construction",
+    "Fire protection systems",
+    213
+  ],
+  [
+    "903.3",
+    "Installation requirements",
+    "Fire protection systems",
+    213
+  ],
+  [
+    "903.3.1",
+    "Standards",
+    "Fire protection systems",
+    214
+  ],
+  [
+    "903.3.1.1.1",
+    "Exempt locations",
+    "Fire protection systems",
+    214
+  ],
+  [
+    "903.3.1.2.1",
+    "Balconies and decks",
+    "Fire protection systems",
+    214
+  ],
+  [
+    "903.3.1.3",
+    "NFPA 13D sprinkler systems",
+    "Fire protection systems",
+    214
+  ],
+  [
+    "903.3.2",
+    "Quick-response and residential sprinklers",
+    "Fire protection systems",
+    214
+  ],
+  [
+    "903.3.4",
+    "Actuation",
+    "Fire protection systems",
+    214
+  ],
+  [
+    "903.3.5.1",
+    "Domestic services",
+    "Fire protection systems",
+    215
+  ],
+  [
+    "903.3.5.1.1",
+    "Limited area sprinkler systems",
+    "Fire protection systems",
+    215
+  ],
+  [
+    "903.3.5.1.2",
+    "Residential combination services",
+    "Fire protection systems",
+    215
+  ],
+  [
+    "903.3.5.2",
+    "Secondary water supply",
+    "Fire protection systems",
+    215
+  ],
+  [
+    "903.3.6",
+    "Hose threads",
+    "Fire protection systems",
+    215
+  ],
+  [
+    "904.2",
+    "Where required",
+    "Fire protection systems",
+    215
+  ],
+  [
+    "904.3",
+    "Installation",
+    "Fire protection systems",
+    216
+  ],
+  [
+    "904.3.1",
+    "Electrical wiring",
+    "Fire protection systems",
+    216
+  ],
+  [
+    "904.3.5",
+    "Monitoring",
+    "Fire protection systems",
+    216
+  ],
+  [
+    "904.4.1",
+    "Inspection",
+    "Fire protection systems",
+    216
+  ],
+  [
+    "904.4.2",
+    "Alarm testing",
+    "Fire protection systems",
+    216
+  ],
+  [
+    "904.4.2.1",
+    "Audible and visible signals",
+    "Fire protection systems",
+    216
+  ],
+  [
+    "904.4.3",
+    "Monitor testing",
+    "Fire protection systems",
+    216
+  ],
+  [
+    "904.5",
+    "Wet-chemical systems",
+    "Fire protection systems",
+    216
+  ],
+  [
+    "904.6",
+    "Dry-chemical systems",
+    "Fire protection systems",
+    216
+  ],
+  [
+    "904.7",
+    "Foam systems",
+    "Fire protection systems",
+    216
+  ],
+  [
+    "904.8",
+    "Carbon dioxide systems",
+    "Fire protection systems",
+    216
+  ],
+  [
+    "904.9",
+    "Halon systems",
+    "Fire protection systems",
+    216
+  ],
+  [
+    "904.10",
+    "Clean-agent systems",
+    "Fire protection systems",
+    216
+  ],
+  [
+    "904.11.3",
+    "Carbon dioxide systems",
+    "Fire protection systems",
+    217
+  ],
+  [
+    "904.11.3.1",
+    "Ventilation system",
+    "Fire protection systems",
+    217
+  ],
+  [
+    "1001.2",
+    "Minimum requirements",
+    "Exit routes",
+    244
+  ],
+  [
+    "1001.3",
+    "Maintenance",
+    "Exit routes",
+    244
+  ],
+  [
+    "1003.3",
+    "Protruding objects",
+    "Exit routes",
+    246
+  ],
+  [
+    "1003.3.2",
+    "Post-mounted objects",
+    "Exit routes",
+    246
+  ],
+  [
+    "1003.3.4",
+    "Clear width",
+    "Exit routes",
+    246
+  ],
+  [
+    "1003.7",
+    "Elevators, escalators and moving walks",
+    "Exit routes",
+    246
+  ],
+  [
+    "1004.1.1",
+    "Areas without fixed seating",
+    "Exit routes",
+    246
+  ],
+  [
+    "1004.2",
+    "Increased occupant load",
+    "Exit routes",
+    247
+  ],
+  [
+    "1004.4",
+    "Exiting from multiple levels",
+    "Exit routes",
+    247
+  ],
+  [
+    "1004.5",
+    "Egress convergence",
+    "Exit routes",
+    247
+  ],
+  [
+    "1004.6",
+    "Mezzanine levels",
+    "Exit routes",
+    247
+  ],
+  [
+    "1004.8",
+    "Outdoor areas",
+    "Exit routes",
+    247
+  ],
+  [
+    "1004.9",
+    "Multiple occupancies",
+    "Exit routes",
+    248
+  ],
+  [
+    "1005.3",
+    "Door hardware encroachment",
+    "Exit routes",
+    248
+  ],
+  [
+    "1007.2",
+    "Continuity and components",
+    "Accessible egress",
+    249
+  ],
+  [
+    "1007.2.1",
+    "Elevators required",
+    "Accessible egress",
+    249
+  ],
+  [
+    "1007.3",
+    "Stairways",
+    "Accessible egress",
+    249
+  ],
+  [
+    "1007.4",
+    "Elevators",
+    "Accessible egress",
+    249
+  ],
+  [
+    "1007.7.1",
+    "Openness",
+    "Accessible egress",
+    250
+  ],
+  [
+    "1007.7.2",
+    "Exterior exit stairway",
+    "Accessible egress",
+    250
+  ],
+  [
+    "1007.8.1",
+    "System requirements",
+    "Accessible egress",
+    250
+  ],
+  [
+    "1007.8.2",
+    "Directions",
+    "Accessible egress",
+    250
+  ],
+  [
+    "1007.9",
+    "Signage",
+    "Accessible egress",
+    250
+  ],
+  [
+    "1007.5",
+    "Platform lifts",
+    "Accessible egress",
+    250
+  ],
+  [
+    "1007.5.1",
+    "Openness",
+    "Accessible egress",
+    250
+  ],
+  [
+    "1007.6.1",
+    "Size",
+    "Accessible egress",
+    250
+  ],
+  [
+    "1007.6.2",
+    "Separation",
+    "Accessible egress",
+    250
+  ],
+  [
+    "1007.6.3",
+    "Two-way communication",
+    "Accessible egress",
+    250
+  ],
+  [
+    "1007.7",
+    "Exterior area for assisted rescue",
+    "Accessible egress",
+    250
+  ],
+  [
+    "1008.1.1.1",
+    "Projections into clear width",
+    "Doors and hardware",
+    251
+  ],
+  [
+    "1008.1",
+    "Doors",
+    "Doors and hardware",
+    251
+  ],
+  [
+    "1007.11",
+    "Instructions",
+    "Accessible egress",
+    251
+  ],
+  [
+    "1008.1.3.1",
+    "Location of applied forces",
+    "Doors and hardware",
+    252
+  ],
+  [
+    "1008.1.4",
+    "Special doors",
+    "Doors and hardware",
+    252
+  ],
+  [
+    "1008.1.4.1",
+    "Revolving doors",
+    "Doors and hardware",
+    252
+  ],
+  [
+    "1008.1.4.1.1",
+    "Egress component",
+    "Doors and hardware",
+    252
+  ],
+  [
+    "1008.1.4.1.2",
+    "Other than egress component",
+    "Doors and hardware",
+    252
+  ],
+  [
+    "1008.1.4.2",
+    "Power-operated doors",
+    "Doors and hardware",
+    253
+  ],
+  [
+    "1008.1.4.3",
+    "Horizontal sliding doors",
+    "Doors and hardware",
+    253
+  ],
+  [
+    "1008.1.9",
+    "Door operations",
+    "Doors and hardware",
+    254
+  ],
+  [
+    "1008.1.9.2",
+    "Hardware height",
+    "Doors and hardware",
+    254
+  ],
+  [
+    "1008.1.10.1",
+    "Installation",
+    "Doors and hardware",
+    256
+  ],
+  [
+    "1008.1.10.2",
+    "Balanced doors",
+    "Doors and hardware",
+    256
+  ],
+  [
+    "1008.2",
+    "Gates",
+    "Doors and hardware",
+    257
+  ],
+  [
+    "1008.2.1",
+    "Stadiums",
+    "Doors and hardware",
+    257
+  ],
+  [
+    "1008.3",
+    "Turnstiles",
+    "Doors and hardware",
+    257
+  ],
+  [
+    "1008.3.1",
+    "High turnstile",
+    "Doors and hardware",
+    257
+  ],
+  [
+    "1008.3.2",
+    "Additional door",
+    "Doors and hardware",
+    257
+  ],
+  [
+    "1009.3",
+    "Walkline",
+    "Stairs and ramps",
+    257
+  ],
+  [
+    "1009.4",
+    "Stair treads and risers",
+    "Stairs and ramps",
+    257
+  ],
+  [
+    "1009.4.1",
+    "Dimension reference surfaces",
+    "Stairs and ramps",
+    257
+  ],
+  [
+    "1009.4.3",
+    "Winder treads",
+    "Stairs and ramps",
+    258
+  ],
+  [
+    "1009.4.5",
+    "Profile",
+    "Stairs and ramps",
+    258
+  ],
+  [
+    "1009.6.1",
+    "Stairway walking surface",
+    "Stairs and ramps",
+    259
+  ],
+  [
+    "1009.6.2",
+    "Outdoor conditions",
+    "Stairs and ramps",
+    259
+  ],
+  [
+    "1009.6.3",
+    "Enclosures under stairways",
+    "Stairs and ramps",
+    259
+  ],
+  [
+    "1009.7",
+    "Vertical rise",
+    "Stairs and ramps",
+    259
+  ],
+  [
+    "1009.8",
+    "Curved stairways",
+    "Stairs and ramps",
+    259
+  ],
+  [
+    "1009.9",
+    "Spiral stairways",
+    "Stairs and ramps",
+    259
+  ],
+  [
+    "1009.10",
+    "Alternating tread devices",
+    "Stairs and ramps",
+    259
+  ],
+  [
+    "703.2",
+    "Fire-resistance ratings",
+    "Fire and smoke separation",
+    121
+  ],
+  [
+    "703.2.1",
+    "Nonsymmetrical wall construction",
+    "Fire and smoke separation",
+    121
+  ],
+  [
+    "703.2.2",
+    "Combustible components",
+    "Fire and smoke separation",
+    121
+  ],
+  [
+    "703.2.3",
+    "Restrained classification",
+    "Fire and smoke separation",
+    121
+  ],
+  [
+    "703.3",
+    "Alternative methods for determining fire resistance",
+    "Fire and smoke separation",
+    122
+  ],
+  [
+    "703.4",
+    "Noncombustibility tests",
+    "Fire and smoke separation",
+    122
+  ],
+  [
+    "703.4.1",
+    "Elementary materials",
+    "Fire and smoke separation",
+    122
+  ],
+  [
+    "703.4.2",
+    "Composite materials",
+    "Fire and smoke separation",
+    122
+  ],
+  [
+    "703.5",
+    "Fire-resistance-rated glazing",
+    "Fire and smoke separation",
+    122
+  ],
+  [
+    "704.1",
+    "Requirements",
+    "Fire and smoke separation",
+    122
+  ],
+  [
+    "704.2",
+    "Column protection",
+    "Fire and smoke separation",
+    122
+  ],
+  [
+    "704.4",
+    "Protection of secondary members",
+    "Fire and smoke separation",
+    122
+  ],
+  [
+    "704.4.1",
+    "Light-frame construction",
+    "Fire and smoke separation",
+    123
+  ],
+  [
+    "704.5",
+    "Truss protection",
+    "Fire and smoke separation",
+    123
+  ],
+  [
+    "704.6",
+    "Attachments to structural members",
+    "Fire and smoke separation",
+    123
+  ],
+  [
+    "704.7",
+    "Reinforcing",
+    "Fire and smoke separation",
+    123
+  ],
+  [
+    "704.8",
+    "Embedments and enclosures",
+    "Fire and smoke separation",
+    123
+  ],
+  [
+    "704.9",
+    "Impact protection",
+    "Fire and smoke separation",
+    123
+  ],
+  [
+    "704.10",
+    "Exterior structural members",
+    "Fire and smoke separation",
+    123
+  ],
+  [
+    "704.11",
+    "Bottom flange protection",
+    "Fire and smoke separation",
+    123
+  ],
+  [
+    "704.12",
+    "Seismic isolation systems",
+    "Fire and smoke separation",
+    123
+  ],
+  [
+    "704.13",
+    "Sprayed fire-resistant materials (SFRM)",
+    "Fire and smoke separation",
+    123
+  ],
+  [
+    "704.13.1",
+    "Fire-resistance rating",
+    "Fire and smoke separation",
+    123
+  ],
+  [
+    "704.13.3",
+    "Substrate condition",
+    "Fire and smoke separation",
+    123
+  ],
+  [
+    "704.13.3.1",
+    "Surface conditions",
+    "Fire and smoke separation",
+    123
+  ],
+  [
+    "704.13.3.2",
+    "Primers, paints and encapsulants",
+    "Fire and smoke separation",
+    123
+  ],
+  [
+    "704.13.4",
+    "Temperature",
+    "Fire and smoke separation",
+    124
+  ],
+  [
+    "705.2",
+    "Projections",
+    "Fire and smoke separation",
+    124
+  ],
+  [
+    "705.2.1",
+    "Type I and II construction",
+    "Fire and smoke separation",
+    124
+  ],
+  [
+    "705.2.2",
+    "Type III, IV or V construction",
+    "Fire and smoke separation",
+    124
+  ]
+]

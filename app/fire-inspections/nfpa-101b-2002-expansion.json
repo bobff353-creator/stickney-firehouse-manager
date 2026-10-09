@@ -1,0 +1,902 @@
+[
+  [
+    "5.1.3.1",
+    "Walking route surfaces — § 5.1.3.1",
+    "Exit routes",
+    18
+  ],
+  [
+    "5.1.3.2",
+    "Walking route surfaces — § 5.1.3.2",
+    "Exit routes",
+    18
+  ],
+  [
+    "5.1.3.3",
+    "Walking route surfaces — § 5.1.3.3",
+    "Exit routes",
+    18
+  ],
+  [
+    "5.1.3.4",
+    "Walking route surfaces — § 5.1.3.4",
+    "Exit routes",
+    18
+  ],
+  [
+    "5.2.1.1.2",
+    "Door identification and occupancy — § 5.2.1.1.2",
+    "Doors and hardware",
+    18
+  ],
+  [
+    "5.2.1.1.3",
+    "Door identification and occupancy — § 5.2.1.1.3",
+    "Doors and hardware",
+    18
+  ],
+  [
+    "5.2.1.2.1",
+    "Door capacity measurement — § 5.2.1.2.1",
+    "Doors and hardware",
+    18
+  ],
+  [
+    "5.1.5",
+    "Guards and route obstructions — § 5.1.5",
+    "Exit routes",
+    18
+  ],
+  [
+    "5.1.6",
+    "Guards and route obstructions — § 5.1.6",
+    "Exit routes",
+    18
+  ],
+  [
+    "5.2.1.1.1",
+    "Door construction review — § 5.2.1.1.1",
+    "Doors and hardware",
+    18
+  ],
+  [
+    "5.2.1.2.3",
+    "Door clear opening review — § 5.2.1.2.3",
+    "Doors and hardware",
+    18
+  ],
+  [
+    "5.2.1.2.4",
+    "Door clear opening review — § 5.2.1.2.4",
+    "Doors and hardware",
+    18
+  ],
+  [
+    "5.2.1.3",
+    "Floor levels at doors — § 5.2.1.3",
+    "Doors and hardware",
+    19
+  ],
+  [
+    "5.2.1.4.1",
+    "Door opening arrangements — § 5.2.1.4.1",
+    "Doors and hardware",
+    19
+  ],
+  [
+    "5.2.1.4.2",
+    "Door opening arrangements — § 5.2.1.4.2",
+    "Doors and hardware",
+    19
+  ],
+  [
+    "5.2.1.4.3",
+    "Door opening arrangements — § 5.2.1.4.3",
+    "Doors and hardware",
+    19
+  ],
+  [
+    "5.2.1.4.4",
+    "Door opening arrangements — § 5.2.1.4.4",
+    "Doors and hardware",
+    19
+  ],
+  [
+    "5.2.1.4.5",
+    "Door opening arrangements — § 5.2.1.4.5",
+    "Doors and hardware",
+    19
+  ],
+  [
+    "5.2.1.4.6",
+    "Door clearance and opening effort — § 5.2.1.4.6",
+    "Doors and hardware",
+    19
+  ],
+  [
+    "5.2.1.4.7",
+    "Door clearance and opening effort — § 5.2.1.4.7",
+    "Doors and hardware",
+    19
+  ],
+  [
+    "5.2.1.5.1",
+    "Door locks and releases — § 5.2.1.5.1",
+    "Doors and hardware",
+    20
+  ],
+  [
+    "5.2.1.5.2",
+    "Door locks and releases — § 5.2.1.5.2",
+    "Doors and hardware",
+    20
+  ],
+  [
+    "5.2.1.5.5",
+    "Door locks and releases — § 5.2.1.5.5",
+    "Doors and hardware",
+    20
+  ],
+  [
+    "5.2.1.5.6",
+    "Door locks and releases — § 5.2.1.5.6",
+    "Doors and hardware",
+    20
+  ],
+  [
+    "5.2.1.5.7",
+    "Door locks and releases — § 5.2.1.5.7",
+    "Doors and hardware",
+    20
+  ],
+  [
+    "5.2.1.5.4",
+    "Stair door roof reentry — § 5.2.1.5.4",
+    "Doors and hardware",
+    20
+  ],
+  [
+    "5.2.13.5",
+    "Elevator protection and operation — § 5.2.13.5",
+    "Accessible egress",
+    32
+  ],
+  [
+    "5.2.13.6",
+    "Elevator protection and operation — § 5.2.13.6",
+    "Accessible egress",
+    32
+  ],
+  [
+    "5.2.13.7",
+    "Elevator protection and operation — § 5.2.13.7",
+    "Accessible egress",
+    32
+  ],
+  [
+    "5.2.13.8",
+    "Elevator protection and operation — § 5.2.13.8",
+    "Accessible egress",
+    32
+  ],
+  [
+    "5.3.1.3",
+    "Occupant load increase review — § 5.3.1.3",
+    "Exit routes",
+    32
+  ],
+  [
+    "5.3.1.3.1",
+    "Occupant load increase review — § 5.3.1.3.1",
+    "Exit routes",
+    32
+  ],
+  [
+    "5.3.1.3.2",
+    "Occupant load increase review — § 5.3.1.3.2",
+    "Exit routes",
+    32
+  ],
+  [
+    "5.2.13.9",
+    "Elevator operation and inspection — § 5.2.13.9",
+    "Accessible egress",
+    32
+  ],
+  [
+    "5.2.13.10",
+    "Elevator operation and inspection — § 5.2.13.10",
+    "Accessible egress",
+    32
+  ],
+  [
+    "5.2.13.11",
+    "Elevator operation and inspection — § 5.2.13.11",
+    "Accessible egress",
+    32
+  ],
+  [
+    "5.2.13.12",
+    "Elevator operation and inspection — § 5.2.13.12",
+    "Accessible egress",
+    32
+  ],
+  [
+    "5.2.13.2",
+    "Elevator evacuation capacity — § 5.2.13.2",
+    "Accessible egress",
+    32
+  ],
+  [
+    "5.2.13.2.1",
+    "Elevator evacuation capacity — § 5.2.13.2.1",
+    "Accessible egress",
+    32
+  ],
+  [
+    "5.2.13.2.2",
+    "Elevator evacuation capacity — § 5.2.13.2.2",
+    "Accessible egress",
+    32
+  ],
+  [
+    "5.3.1",
+    "Occupant load review — § 5.3.1",
+    "Exit routes",
+    32
+  ],
+  [
+    "5.3.1.1",
+    "Occupant load review — § 5.3.1.1",
+    "Exit routes",
+    32
+  ],
+  [
+    "5.2.13.3",
+    "Elevator lobby protection — § 5.2.13.3",
+    "Accessible egress",
+    32
+  ],
+  [
+    "5.2.13.4",
+    "Elevator lobby protection — § 5.2.13.4",
+    "Accessible egress",
+    32
+  ],
+  [
+    "5.3.1.2",
+    "Occupant load calculation — § 5.3.1.2",
+    "Exit routes",
+    32
+  ],
+  [
+    "5.3.1.7",
+    "Assembly occupant load review — § 5.3.1.7",
+    "Exit routes",
+    34
+  ],
+  [
+    "5.3.2",
+    "Exit width measurement — § 5.3.2",
+    "Exit routes",
+    34
+  ],
+  [
+    "5.3.3",
+    "Egress capacity factors — § 5.3.3",
+    "Exit routes",
+    34
+  ],
+  [
+    "5.3.3.1",
+    "Egress capacity factors — § 5.3.3.1",
+    "Exit routes",
+    34
+  ],
+  [
+    "5.3.1.3.3",
+    "Assembly occupant load and waiting areas — § 5.3.1.3.3",
+    "Exit routes",
+    34
+  ],
+  [
+    "5.3.1.3.4",
+    "Assembly occupant load and waiting areas — § 5.3.1.3.4",
+    "Exit routes",
+    34
+  ],
+  [
+    "5.3.1.3.5",
+    "Assembly occupant load and waiting areas — § 5.3.1.3.5",
+    "Exit routes",
+    34
+  ],
+  [
+    "5.3.1.4",
+    "Floor occupant load review — § 5.3.1.4",
+    "Exit routes",
+    34
+  ],
+  [
+    "5.3.1.5",
+    "Floor occupant load review — § 5.3.1.5",
+    "Exit routes",
+    34
+  ],
+  [
+    "5.3.3.2",
+    "Corridor and stair capacity review — § 5.3.3.2",
+    "Exit routes",
+    34
+  ],
+  [
+    "5.3.3.3",
+    "Corridor and stair capacity review — § 5.3.3.3",
+    "Exit routes",
+    34
+  ],
+  [
+    "5.3.1.6",
+    "Interior balcony occupant load — § 5.3.1.6",
+    "Exit routes",
+    34
+  ],
+  [
+    "5.3.4",
+    "Minimum route width — § 5.3.4",
+    "Exit routes",
+    34
+  ],
+  [
+    "5.3.4.1",
+    "Minimum route width — § 5.3.4.1",
+    "Exit routes",
+    34
+  ],
+  [
+    "5.3.4.7",
+    "School corridor and aisle width — § 5.3.4.7",
+    "Exit routes",
+    35
+  ],
+  [
+    "5.3.4.8",
+    "School corridor and aisle width — § 5.3.4.8",
+    "Exit routes",
+    35
+  ],
+  [
+    "5.3.4.9",
+    "Health care route width — § 5.3.4.9",
+    "Exit routes",
+    35
+  ],
+  [
+    "5.3.4.9.1",
+    "Health care route width — § 5.3.4.9.1",
+    "Exit routes",
+    35
+  ],
+  [
+    "5.3.4.9.2",
+    "Health care route width — § 5.3.4.9.2",
+    "Exit routes",
+    35
+  ],
+  [
+    "5.4.1.2.1",
+    "Balcony and elevated work area exits — § 5.4.1.2.1",
+    "Exit routes",
+    35
+  ],
+  [
+    "5.4.1.2.2",
+    "Balcony and elevated work area exits — § 5.4.1.2.2",
+    "Exit routes",
+    35
+  ],
+  [
+    "5.4.1.2.3",
+    "Balcony and elevated work area exits — § 5.4.1.2.3",
+    "Exit routes",
+    35
+  ],
+  [
+    "5.4.1.3",
+    "Residential exit arrangements — § 5.4.1.3",
+    "Exit routes",
+    35
+  ],
+  [
+    "5.4.1.3.1",
+    "Residential exit arrangements — § 5.4.1.3.1",
+    "Exit routes",
+    35
+  ],
+  [
+    "5.3.4.2",
+    "Business corridor width — § 5.3.4.2",
+    "Exit routes",
+    35
+  ],
+  [
+    "5.3.4.3",
+    "Assembly corridor width — § 5.3.4.3",
+    "Exit routes",
+    35
+  ],
+  [
+    "5.3.4.4",
+    "Hotel and dormitory corridor width — § 5.3.4.4",
+    "Exit routes",
+    35
+  ],
+  [
+    "5.3.4.10",
+    "Ambulatory health care corridor width — § 5.3.4.10",
+    "Exit routes",
+    35
+  ],
+  [
+    "5.3.4.11",
+    "Detention corridor width — § 5.3.4.11",
+    "Exit routes",
+    35
+  ],
+  [
+    "5.3.4.12",
+    "Retail aisle width — § 5.3.4.12",
+    "Exit routes",
+    35
+  ],
+  [
+    "5.3.4.12.1",
+    "Retail aisle width — § 5.3.4.12.1",
+    "Exit routes",
+    35
+  ],
+  [
+    "5.3.4.12.2",
+    "Retail aisle width — § 5.3.4.12.2",
+    "Exit routes",
+    35
+  ],
+  [
+    "5.3.4.5",
+    "Apartment and care-home corridor width — § 5.3.4.5",
+    "Exit routes",
+    35
+  ],
+  [
+    "5.3.4.6",
+    "Apartment and care-home corridor width — § 5.3.4.6",
+    "Exit routes",
+    35
+  ],
+  [
+    "5.3.4.13",
+    "Exit-access capacity continuity — § 5.3.4.13",
+    "Exit routes",
+    35
+  ],
+  [
+    "5.4.1",
+    "Exit count and mezzanine review — § 5.4.1",
+    "Exit routes",
+    35
+  ],
+  [
+    "5.4.1.1",
+    "Exit count and mezzanine review — § 5.4.1.1",
+    "Exit routes",
+    35
+  ],
+  [
+    "5.4.1.2",
+    "Exit count and mezzanine review — § 5.4.1.2",
+    "Exit routes",
+    35
+  ],
+  [
+    "5.4.1.4",
+    "Retail exit count review — § 5.4.1.4",
+    "Exit routes",
+    36
+  ],
+  [
+    "5.4.1.4.1",
+    "Retail exit count review — § 5.4.1.4.1",
+    "Exit routes",
+    36
+  ],
+  [
+    "5.4.1.4.2",
+    "Retail exit count review — § 5.4.1.4.2",
+    "Exit routes",
+    36
+  ],
+  [
+    "5.4.1.5",
+    "Business exit count review — § 5.4.1.5",
+    "Exit routes",
+    36
+  ],
+  [
+    "5.4.1.7",
+    "Storage and parking exit count review — § 5.4.1.7",
+    "Exit routes",
+    36
+  ],
+  [
+    "5.4.1.7.1",
+    "Storage and parking exit count review — § 5.4.1.7.1",
+    "Exit routes",
+    36
+  ],
+  [
+    "5.4.1.7.2",
+    "Storage and parking exit count review — § 5.4.1.7.2",
+    "Exit routes",
+    36
+  ],
+  [
+    "5.4.1.7.3",
+    "Storage and parking exit count review — § 5.4.1.7.3",
+    "Exit routes",
+    36
+  ],
+  [
+    "5.4.1.7.4",
+    "Storage and parking exit count review — § 5.4.1.7.4",
+    "Exit routes",
+    36
+  ],
+  [
+    "5.4.1.7.5",
+    "Storage and parking exit count review — § 5.4.1.7.5",
+    "Exit routes",
+    36
+  ],
+  [
+    "5.4.1.3.2",
+    "Apartment single-exit review — § 5.4.1.3.2",
+    "Exit routes",
+    36
+  ],
+  [
+    "5.4.1.5.3",
+    "Business mezzanine and tenant exits — § 5.4.1.5.3",
+    "Exit routes",
+    36
+  ],
+  [
+    "5.4.1.5.4",
+    "Business mezzanine and tenant exits — § 5.4.1.5.4",
+    "Exit routes",
+    36
+  ],
+  [
+    "5.4.1.6",
+    "Industrial exit count review — § 5.4.1.6",
+    "Exit routes",
+    36
+  ],
+  [
+    "5.4.1.5.1",
+    "Business floor exit arrangements — § 5.4.1.5.1",
+    "Exit routes",
+    36
+  ],
+  [
+    "5.4.1.5.2",
+    "Business floor exit arrangements — § 5.4.1.5.2",
+    "Exit routes",
+    36
+  ],
+  [
+    "5.4.1.7.5.1",
+    "Parking structure exit options — § 5.4.1.7.5.1",
+    "Exit routes",
+    36
+  ],
+  [
+    "5.4.1.7.5.2",
+    "Parking structure exit options — § 5.4.1.7.5.2",
+    "Exit routes",
+    36
+  ],
+  [
+    "5.4.1.7.5.3",
+    "Parking structure exit options — § 5.4.1.7.5.3",
+    "Exit routes",
+    36
+  ],
+  [
+    "5.4.1.8",
+    "Day-care home exit review — § 5.4.1.8",
+    "Exit routes",
+    37
+  ],
+  [
+    "5.4.1.8.1",
+    "Day-care home exit review — § 5.4.1.8.1",
+    "Exit routes",
+    37
+  ],
+  [
+    "5.4.1.8.2",
+    "Day-care home exit review — § 5.4.1.8.2",
+    "Exit routes",
+    37
+  ],
+  [
+    "5.4.1.8.3",
+    "Day-care home exit review — § 5.4.1.8.3",
+    "Exit routes",
+    37
+  ],
+  [
+    "5.4.1.8.4",
+    "Day-care home exit review — § 5.4.1.8.4",
+    "Exit routes",
+    37
+  ],
+  [
+    "5.4.1.11",
+    "Pier exit review — § 5.4.1.11",
+    "Exit routes",
+    37
+  ],
+  [
+    "5.4.2",
+    "Exit numbers for occupant loads — § 5.4.2",
+    "Exit routes",
+    37
+  ],
+  [
+    "5.4.3",
+    "Exit numbers for occupant loads — § 5.4.3",
+    "Exit routes",
+    37
+  ],
+  [
+    "5.4.1.9",
+    "Open structure and tower exits — § 5.4.1.9",
+    "Exit routes",
+    37
+  ],
+  [
+    "5.4.1.9.1",
+    "Open structure and tower exits — § 5.4.1.9.1",
+    "Exit routes",
+    37
+  ],
+  [
+    "5.4.1.9.2",
+    "Open structure and tower exits — § 5.4.1.9.2",
+    "Exit routes",
+    37
+  ],
+  [
+    "5.4.1.10",
+    "Open structure and tower exits — § 5.4.1.10",
+    "Exit routes",
+    37
+  ],
+  [
+    "5.4.1.10.1",
+    "Open structure and tower exits — § 5.4.1.10.1",
+    "Exit routes",
+    37
+  ],
+  [
+    "5.4.4",
+    "Industrial and detention exit counts — § 5.4.4",
+    "Exit routes",
+    37
+  ],
+  [
+    "5.4.5",
+    "Industrial and detention exit counts — § 5.4.5",
+    "Exit routes",
+    37
+  ],
+  [
+    "5.4.6",
+    "Industrial and detention exit counts — § 5.4.6",
+    "Exit routes",
+    37
+  ],
+  [
+    "5.4.7",
+    "Accessible exits and floor loads — § 5.4.7",
+    "Exit routes",
+    37
+  ],
+  [
+    "5.4.8",
+    "Accessible exits and floor loads — § 5.4.8",
+    "Exit routes",
+    37
+  ],
+  [
+    "5.4.1.10.2",
+    "Tower exit arrangements — § 5.4.1.10.2",
+    "Exit routes",
+    37
+  ],
+  [
+    "5.4.9",
+    "Elevator exit-access review — § 5.4.9",
+    "Exit routes",
+    37
+  ],
+  [
+    "5.4.10",
+    "Elevator exit-access review — § 5.4.10",
+    "Exit routes",
+    37
+  ],
+  [
+    "5.4.11",
+    "Assembly main entrance exits — § 5.4.11",
+    "Exit routes",
+    37
+  ],
+  [
+    "5.4.11.1",
+    "Assembly main entrance exits — § 5.4.11.1",
+    "Exit routes",
+    37
+  ],
+  [
+    "5.4.11.2",
+    "Assembly exits other than the main entrance — § 5.4.11.2",
+    "Exit routes",
+    38
+  ],
+  [
+    "5.5.1.3",
+    "Exit arrangement and remoteness — § 5.5.1.3",
+    "Exit routes",
+    38
+  ],
+  [
+    "5.4.12",
+    "Assembly decks and health care exits — § 5.4.12",
+    "Exit routes",
+    38
+  ],
+  [
+    "5.4.13",
+    "Assembly decks and health care exits — § 5.4.13",
+    "Exit routes",
+    38
+  ],
+  [
+    "5.4.13.1",
+    "Assembly decks and health care exits — § 5.4.13.1",
+    "Exit routes",
+    38
+  ],
+  [
+    "5.4.13.2",
+    "Assembly decks and health care exits — § 5.4.13.2",
+    "Exit routes",
+    38
+  ],
+  [
+    "5.4.14",
+    "Assembly decks and health care exits — § 5.4.14",
+    "Exit routes",
+    38
+  ],
+  [
+    "5.5.1.4",
+    "Exit separation and interconnected stairs — § 5.5.1.4",
+    "Exit routes",
+    38
+  ],
+  [
+    "5.5.1.5",
+    "Exit separation and interconnected stairs — § 5.5.1.5",
+    "Exit routes",
+    38
+  ],
+  [
+    "5.5.1",
+    "Exit arrangement and access — § 5.5.1",
+    "Exit routes",
+    38
+  ],
+  [
+    "5.5.1.1",
+    "Exit arrangement and access — § 5.5.1.1",
+    "Exit routes",
+    38
+  ],
+  [
+    "5.5.1.2",
+    "Exit arrangement and access — § 5.5.1.2",
+    "Exit routes",
+    38
+  ],
+  [
+    "5.5.1.6",
+    "Exit arrangement and access — § 5.5.1.6",
+    "Exit routes",
+    38
+  ],
+  [
+    "5.5.1.7",
+    "Exit arrangement and access — § 5.5.1.7",
+    "Exit routes",
+    38
+  ],
+  [
+    "5.5.1.9.3.3",
+    "Smoke control standby power — § 5.5.1.9.3.3",
+    "Exit routes",
+    39
+  ],
+  [
+    "5.5.1.8",
+    "Common path of travel and dead ends — § 5.5.1.8",
+    "Exit routes",
+    39
+  ],
+  [
+    "5.5.1.9",
+    "Underground structure exits — § 5.5.1.9",
+    "Exit routes",
+    39
+  ],
+  [
+    "5.5.1.9.1",
+    "Underground structure exits — § 5.5.1.9.1",
+    "Exit routes",
+    39
+  ],
+  [
+    "5.5.1.9.2",
+    "Underground structure exits — § 5.5.1.9.2",
+    "Exit routes",
+    39
+  ],
+  [
+    "5.5.1.9.3.4",
+    "Emergency communication for underground structures — § 5.5.1.9.3.4",
+    "Exit routes",
+    39
+  ],
+  [
+    "5.5.1.10",
+    "Industrial ancillary exits and parking structure exits — § 5.5.1.10",
+    "Exit routes",
+    39
+  ],
+  [
+    "5.5.1.10.1",
+    "Industrial ancillary exits and parking structure exits — § 5.5.1.10.1",
+    "Exit routes",
+    39
+  ],
+  [
+    "5.5.1.10.2",
+    "Industrial ancillary exits and parking structure exits — § 5.5.1.10.2",
+    "Exit routes",
+    39
+  ],
+  [
+    "5.5.1.11",
+    "Industrial ancillary exits and parking structure exits — § 5.5.1.11",
+    "Exit routes",
+    39
+  ],
+  [
+    "5.5.1.12",
+    "Day-care closet doors — § 5.5.1.12",
+    "Exit routes",
+    39
+  ]
+]

@@ -1,0 +1,752 @@
+[
+  [
+    "4.1",
+    "General — Goals",
+    "Life safety systems"
+  ],
+  [
+    "4.2",
+    "General — Objectives",
+    "Life safety systems"
+  ],
+  [
+    "4.3",
+    "General — Assumptions",
+    "Life safety systems"
+  ],
+  [
+    "4.4",
+    "General — Life Safety Compliance Options",
+    "Life safety systems"
+  ],
+  [
+    "4.5",
+    "General — Fundamental Requirements",
+    "Life safety systems"
+  ],
+  [
+    "4.6",
+    "General — General Requirements",
+    "Life safety systems"
+  ],
+  [
+    "4.7",
+    "General — Fire Drills",
+    "Life safety systems"
+  ],
+  [
+    "4.8",
+    "General — Emergency Action Plan",
+    "Life safety systems"
+  ],
+  [
+    "4.9",
+    "General — Modular Rooms and Sleep Pods",
+    "Life safety systems"
+  ],
+  [
+    "6.1",
+    "Classification of Occupancy and Hazard of Contents — Classification of Occupancy",
+    "Life safety systems"
+  ],
+  [
+    "6.2",
+    "Classification of Occupancy and Hazard of Contents — Hazard of Contents",
+    "Life safety systems"
+  ],
+  [
+    "7.11",
+    "Means of Egress — Special Provisions for Occupancies with High-Hazard Contents",
+    "Life safety systems"
+  ],
+  [
+    "7.12",
+    "Means of Egress — Special Provisions for Hazardous Materials",
+    "Life safety systems"
+  ],
+  [
+    "7.13",
+    "Means of Egress — Mechanical Equipment Rooms, Boiler Rooms, and Furnace Rooms",
+    "Life safety systems"
+  ],
+  [
+    "7.14",
+    "Means of Egress — Normally Unoccupied Building Service Equipment Support Areas",
+    "Life safety systems"
+  ],
+  [
+    "7.15",
+    "Means of Egress — Occupant Evacuation Elevators",
+    "Life safety systems"
+  ],
+  [
+    "7.16",
+    "Means of Egress — Emergency Stair Travel Devices",
+    "Life safety systems"
+  ],
+  [
+    "8.1",
+    "Features of Fire Protection — General",
+    "Life safety systems"
+  ],
+  [
+    "8.2",
+    "Features of Fire Protection — Construction and Compartmentation",
+    "Life safety systems"
+  ],
+  [
+    "9.3",
+    "Building Service, Fire Protection, and Life Safety Equipment — Smoke Control",
+    "Life safety systems"
+  ],
+  [
+    "9.4",
+    "Building Service, Fire Protection, and Life Safety Equipment — Elevators, Escalators, and Conveyors",
+    "Life safety systems"
+  ],
+  [
+    "9.5",
+    "Building Service, Fire Protection, and Life Safety Equipment — Waste Chutes, Incinerators, and Laundry Chutes",
+    "Life safety systems"
+  ],
+  [
+    "9.8",
+    "Building Service, Fire Protection, and Life Safety Equipment — Other Automatic Extinguishing Equipment",
+    "Life safety systems"
+  ],
+  [
+    "9.12",
+    "Building Service, Fire Protection, and Life Safety Equipment — Carbon Monoxide (CO) Detection and Warning Equipment",
+    "Life safety systems"
+  ],
+  [
+    "9.13",
+    "Building Service, Fire Protection, and Life Safety Equipment — Special Inspections and Tests",
+    "Life safety systems"
+  ],
+  [
+    "9.14",
+    "Building Service, Fire Protection, and Life Safety Equipment — Risk Analysis for Mass Notification Systems",
+    "Life safety systems"
+  ],
+  [
+    "9.15",
+    "Building Service, Fire Protection, and Life Safety Equipment — In-Building Emergency Responder Communications Enhancement Systems",
+    "Life safety systems"
+  ],
+  [
+    "9.16",
+    "Building Service, Fire Protection, and Life Safety Equipment — Fuel-Gas Detection",
+    "Life safety systems"
+  ],
+  [
+    "10.1",
+    "Interior Finish, Contents, and Furnishings — General",
+    "Life safety systems"
+  ],
+  [
+    "10.3",
+    "Interior Finish, Contents, and Furnishings — Contents and Furnishings",
+    "Life safety systems"
+  ],
+  [
+    "10.4",
+    "Interior Finish, Contents, and Furnishings — Outdoor Furniture",
+    "Life safety systems"
+  ],
+  [
+    "10.6",
+    "Interior Finish, Contents, and Furnishings — Inflatable Amusement Devices",
+    "Life safety systems"
+  ],
+  [
+    "10.7",
+    "Interior Finish, Contents, and Furnishings — Modular Rooms and Sleep Pods",
+    "Life safety systems"
+  ],
+  [
+    "10.8",
+    "Interior Finish, Contents, and Furnishings — Toilet Room Privacy Partitions",
+    "Life safety systems"
+  ],
+  [
+    "11.1",
+    "Special Structures and High-Rise Buildings — General Requirements",
+    "Life safety systems"
+  ],
+  [
+    "11.2",
+    "Special Structures and High-Rise Buildings — Open Structures",
+    "Life safety systems"
+  ],
+  [
+    "11.3",
+    "Special Structures and High-Rise Buildings — Towers",
+    "Life safety systems"
+  ],
+  [
+    "11.4",
+    "Special Structures and High-Rise Buildings — Water-Surrounded Structures",
+    "Life safety systems"
+  ],
+  [
+    "11.5",
+    "Special Structures and High-Rise Buildings — Piers",
+    "Life safety systems"
+  ],
+  [
+    "11.6",
+    "Special Structures and High-Rise Buildings — Vehicles and Vessels",
+    "Life safety systems"
+  ],
+  [
+    "11.7",
+    "Special Structures and High-Rise Buildings — Underground Structures and Limited-Access Structures",
+    "Life safety systems"
+  ],
+  [
+    "11.8",
+    "Special Structures and High-Rise Buildings — High-Rise Buildings",
+    "Life safety systems"
+  ],
+  [
+    "11.9",
+    "Special Structures and High-Rise Buildings — Permanent Membrane Structures",
+    "Life safety systems"
+  ],
+  [
+    "11.10",
+    "Special Structures and High-Rise Buildings — Temporary Membrane Structures",
+    "Life safety systems"
+  ],
+  [
+    "11.11",
+    "Special Structures and High-Rise Buildings — Tents",
+    "Life safety systems"
+  ],
+  [
+    "11.12",
+    "Special Structures and High-Rise Buildings — Animal Housing Facilities",
+    "Life safety systems"
+  ],
+  [
+    "12.1",
+    "New Assembly Occupancies — General Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "12.2",
+    "New Assembly Occupancies — Means of Egress Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "12.3",
+    "New Assembly Occupancies — Protection",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "12.7",
+    "New Assembly Occupancies — Operating Features",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "13.1",
+    "Existing Assembly Occupancies — General Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "13.2",
+    "Existing Assembly Occupancies — Means of Egress Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "13.3",
+    "Existing Assembly Occupancies — Protection",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "13.7",
+    "Existing Assembly Occupancies — Operating Features",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "14.1",
+    "New Educational Occupancies — General Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "14.2",
+    "New Educational Occupancies — Means of Egress Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "14.3",
+    "New Educational Occupancies — Protection",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "14.7",
+    "New Educational Occupancies — Operating Features",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "15.1",
+    "Existing Educational Occupancies — General Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "15.2",
+    "Existing Educational Occupancies — Means of Egress Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "15.3",
+    "Existing Educational Occupancies — Protection",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "15.7",
+    "Existing Educational Occupancies — Operating Features",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "16.1",
+    "New Day-Care Occupancies — General Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "16.2",
+    "New Day-Care Occupancies — Means of Egress Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "16.3",
+    "New Day-Care Occupancies — Protection",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "16.7",
+    "New Day-Care Occupancies — Operating Features",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "17.1",
+    "Existing Day-Care Occupancies — General Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "17.2",
+    "Existing Day-Care Occupancies — Means of Egress Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "17.3",
+    "Existing Day-Care Occupancies — Protection",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "17.7",
+    "Existing Day-Care Occupancies — Operating Features",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "18.1",
+    "New Health Care Occupancies — General Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "18.2",
+    "New Health Care Occupancies — Means of Egress Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "18.3",
+    "New Health Care Occupancies — Protection",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "18.7",
+    "New Health Care Occupancies — Operating Features",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "19.1",
+    "Existing Health Care Occupancies — General Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "19.2",
+    "Existing Health Care Occupancies — Means of Egress Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "19.3",
+    "Existing Health Care Occupancies — Protection",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "19.7",
+    "Existing Health Care Occupancies — Operating Features",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "20.1",
+    "New Ambulatory Health Care Occupancies — General Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "20.2",
+    "New Ambulatory Health Care Occupancies — Means of Egress Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "20.3",
+    "New Ambulatory Health Care Occupancies — Protection",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "20.7",
+    "New Ambulatory Health Care Occupancies — Operating Features",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "21.1",
+    "Existing Ambulatory Health Care Occupancies — General Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "21.2",
+    "Existing Ambulatory Health Care Occupancies — Means of Egress Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "21.3",
+    "Existing Ambulatory Health Care Occupancies — Protection",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "21.7",
+    "Existing Ambulatory Health Care Occupancies — Operating Features",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "24.1",
+    "One- and Two-Family Dwellings — General Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "24.2",
+    "One- and Two-Family Dwellings — Means of Escape Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "24.3",
+    "One- and Two-Family Dwellings — Protection",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "26.1",
+    "Lodging or Rooming Houses — General Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "26.2",
+    "Lodging or Rooming Houses — Means of Escape Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "26.3",
+    "Lodging or Rooming Houses — Protection",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "26.7",
+    "Lodging or Rooming Houses — Operating Features",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "28.1",
+    "New Hotels and Dormitories — General Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "28.2",
+    "New Hotels and Dormitories — Means of Egress Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "28.3",
+    "New Hotels and Dormitories — Protection",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "28.7",
+    "New Hotels and Dormitories — Operating Features",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "29.1",
+    "Existing Hotels and Dormitories — General Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "29.2",
+    "Existing Hotels and Dormitories — Means of Egress Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "29.3",
+    "Existing Hotels and Dormitories — Protection",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "29.7",
+    "Existing Hotels and Dormitories — Operating Features",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "30.1",
+    "New Apartment Buildings — General Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "30.2",
+    "New Apartment Buildings — Means of Egress Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "30.3",
+    "New Apartment Buildings — Protection",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "30.7",
+    "New Apartment Buildings — Operating Features",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "31.1",
+    "Existing Apartment Buildings — General Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "31.2",
+    "Existing Apartment Buildings — Means of Egress Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "31.3",
+    "Existing Apartment Buildings — Protection",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "31.7",
+    "Existing Apartment Buildings — Operating Features",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "32.1",
+    "New Residential Board and Care Occupancies — General Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "32.2",
+    "New Residential Board and Care Occupancies — Small Facilities",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "32.3",
+    "New Residential Board and Care Occupancies — Large Facilities",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "32.7",
+    "New Residential Board and Care Occupancies — Operating Features",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "33.1",
+    "Existing Residential Board and Care Occupancies — General Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "33.2",
+    "Existing Residential Board and Care Occupancies — Small Facilities",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "33.3",
+    "Existing Residential Board and Care Occupancies — Large Facilities",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "33.7",
+    "Existing Residential Board and Care Occupancies — Operating Features",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "36.1",
+    "New Mercantile Occupancies — General Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "36.2",
+    "New Mercantile Occupancies — Means of Egress Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "36.3",
+    "New Mercantile Occupancies — Protection",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "36.7",
+    "New Mercantile Occupancies — Operating Features",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "37.1",
+    "Existing Mercantile Occupancies — General Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "37.2",
+    "Existing Mercantile Occupancies — Means of Egress Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "37.3",
+    "Existing Mercantile Occupancies — Protection",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "37.7",
+    "Existing Mercantile Occupancies — Operating Features",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "38.1",
+    "New Business Occupancies — General Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "38.2",
+    "New Business Occupancies — Means of Egress Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "38.3",
+    "New Business Occupancies — Protection",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "38.7",
+    "New Business Occupancies — Operating Features",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "39.1",
+    "Existing Business Occupancies — General Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "39.2",
+    "Existing Business Occupancies — Means of Egress Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "39.3",
+    "Existing Business Occupancies — Protection",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "39.7",
+    "Existing Business Occupancies — Operating Features",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "40.1",
+    "Industrial Occupancies — General Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "40.2",
+    "Industrial Occupancies — Means of Egress Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "40.3",
+    "Industrial Occupancies — Protection",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "40.7",
+    "Industrial Occupancies — Operating Features",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "42.1",
+    "Storage Occupancies — General Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "42.2",
+    "Storage Occupancies — Means of Egress Requirements",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "42.3",
+    "Storage Occupancies — Protection",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "42.7",
+    "Storage Occupancies — Special Provisions for Grain Handling, Processing, Milling, or Other Bulk Storage Facilities",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "43.1",
+    "Building Rehabilitation — General",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "43.2",
+    "Building Rehabilitation — Special Definitions",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "43.3",
+    "Building Rehabilitation — Repairs",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "43.7",
+    "Building Rehabilitation — Change of Use or Occupancy Classification",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "12.4",
+    "New Assembly Occupancies — Special Provisions",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "12.5",
+    "New Assembly Occupancies — Building Services",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "13.4",
+    "Existing Assembly Occupancies — Special Provisions",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "13.5",
+    "Existing Assembly Occupancies — Building Services",
+    "Occupancy-specific provisions"
+  ],
+  [
+    "14.4",
+    "New Educational Occupancies — Special Provisions",
+    "Occupancy-specific provisions"
+  ]
+]
