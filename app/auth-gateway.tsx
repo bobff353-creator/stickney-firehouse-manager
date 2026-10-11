@@ -8,6 +8,8 @@ import { pinLoginError } from "./login-response";
 import SessionIdleLock from "./session-idle-lock";
 import RememberDeviceOption from "./remember-device-option";
 import { clearCachedRespondPackets } from "./preplans/offline-cache";
+import {clearInspectionRecovery} from './fire-inspections/durable-store';
+import {inspectionPilotAccess} from './fire-inspections/access';
 import { getSupabaseBrowserClient } from "./supabase-browser";
 import type { PortalDepartment } from './department-portal';
 
@@ -72,6 +74,7 @@ export default function AuthGateway({
     if (blocking) verifiedUserIdRef.current = null;
     const generation = sessionGenerationRef.current;
     const request = (async () => {
+      if(!inspectionPilotAccess(nextUser.email))void clearInspectionRecovery().catch(()=>undefined);
       setUser(nextUser);
       if (blocking) setMode("checking");
       try {
@@ -171,6 +174,7 @@ export default function AuthGateway({
     const { data } = client.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT" || !session?.user) {
         if (event === "SIGNED_OUT") {
+          void clearInspectionRecovery().catch(() => undefined);
           invalidateSession();
           clearAccessCache();
           void clearCachedRespondPackets().catch(() => undefined);
@@ -181,6 +185,7 @@ export default function AuthGateway({
         return;
       }
       if (event === "SIGNED_IN") {
+        if(!inspectionPilotAccess(session.user.email))void clearInspectionRecovery().catch(()=>undefined);
         if (pinLoginRef.current) return;
         if (verifiedUserIdRef.current === session.user.id) {
           void checkAccess(session.user, false);
@@ -332,6 +337,7 @@ export default function AuthGateway({
     invalidateSession();
     setMode("checking");
     clearAccessCache();
+    await clearInspectionRecovery().catch(() => undefined);
     await clearCachedRespondPackets().catch(() => undefined);
     await fetch("/api/auth/pin", { method: "DELETE", signal: AbortSignal.timeout(8_000) }).catch(() => undefined);
     await getSupabaseBrowserClient().auth.signOut({ scope: "local" });

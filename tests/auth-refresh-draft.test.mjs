@@ -11,7 +11,7 @@ const user={id:'fictional-owner',email:'owner@example.invalid'};
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 async function fixture(){
   const hooks=[],effects=[],transitions=[],requests=[];
-  let index=0,listener,signouts=0;
+  let index=0,listener,signouts=0,recoveryClears=0;
   const react={
     useState(initial){const slot=index++;hooks[slot]??={value:initial};return[hooks[slot].value,value=>{hooks[slot].value=value;if(slot===0)transitions.push(value);}];},
     useRef(initial){const slot=index++;return hooks[slot]??=( {current:initial});},
@@ -29,6 +29,8 @@ async function fixture(){
     if(name==='./supabase-browser')return{getSupabaseBrowserClient:()=>({auth})};
     if(name==='./auth-failure-policy')return{boundedAuthRead:p=>p,definitiveAuthFailure:()=>false};
     if(name==='./preplans/offline-cache')return{clearCachedRespondPackets:async()=>{}};
+    if(name==='./fire-inspections/access')return{inspectionPilotAccess:email=>email===user.email};
+    if(name==='./fire-inspections/durable-store')return{clearInspectionRecovery:async()=>{recoveryClears++;}};
     return{};
   },fetch:()=>new Promise(resolve=>requests.push(resolve)),AbortSignal,document:{cookie:''},window:{addEventListener(){},removeEventListener(){}}});
   exports.default({});
@@ -38,7 +40,7 @@ async function fixture(){
   assert.equal(hooks[0].value,'checking');
   await reply();assert.equal(hooks[0].value,'authorized');
   transitions.length=0;
-  return{emit(event='SIGNED_IN',nextUser=user){listener(event,{user:nextUser});},reply,requests,transitions,get mode(){return hooks[0].value;},get signouts(){return signouts;}};
+  return{emit(event='SIGNED_IN',nextUser=user){listener(event,{user:nextUser});},reply,requests,transitions,get mode(){return hooks[0].value;},get signouts(){return signouts;},get recoveryClears(){return recoveryClears;}};
 }
 
 test('repeat sign-in and refresh events preserve the verified tool while rechecking server access',async()=>{
@@ -70,6 +72,7 @@ test('a different account blocks immediately and cannot inherit an in-flight ver
   const f=await fixture();f.emit();
   f.emit('TOKEN_REFRESHED',{id:'other-fictional-user',email:'other@example.invalid'});
   assert.equal(f.mode,'checking');assert.equal(f.requests.length,2);
+  assert.ok(f.recoveryClears>0,'account changes clear private inspection recovery');
   await f.reply();assert.equal(f.mode,'checking','old account response must be ignored');
   await f.reply(403,{error:'No department membership'});assert.equal(f.mode,'waiting');
 });
@@ -77,4 +80,5 @@ test('a different account blocks immediately and cannot inherit an in-flight ver
 test('sign-out invalidates a pending successful access response',async()=>{
   const f=await fixture();f.emit();f.emit('SIGNED_OUT');
   assert.equal(f.mode,'sign-in');await f.reply();assert.equal(f.mode,'sign-in');
+  assert.ok(f.recoveryClears>0,'sign-out clears private inspection recovery');
 });

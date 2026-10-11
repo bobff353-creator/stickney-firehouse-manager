@@ -1,4 +1,6 @@
 import {reviewBasis} from '../../fire-inspections/alternative-review';
+import {emptyTeam,ownerIdentityId,reviewBasis as teamBasis,reviewTransition} from '../../fire-inspections/team-workflow';
+import {hasPermission} from '../../server-permissions';
 import { ensureDatabase } from '../../../db/bootstrap';
 import { inspectionBoundary,inspectionJson,inspectionSnapshot,decodeInspection,inspectionColumns,type StoredInspection,type InspectionDb } from '../../fire-inspections/server';
 import { normalizeInspection,validateInspection,followUpRecord,followUpId,blankSignature,type InspectionRecord } from '../../fire-inspections/model';
@@ -6,14 +8,14 @@ export async function GET(request:Request){
  const denied=inspectionBoundary(request);if(denied)return denied;
  try{const db=await ensureDatabase(),department=request.headers.get('x-department-id')!,id=new URL(request.url).searchParams.get('history');
  if(id)return inspectionJson({history:(await db.prepare('SELECT version,payload,archived,actor,created_at createdAt FROM fire_inspection_pilot_audit WHERE department_id=? AND record_id=? ORDER BY version DESC').bind(department,id).all()).results});
- return inspectionJson(await inspectionSnapshot(db,department));}catch{return inspectionJson({error:'Inspections could not load. Retry; saved records have not changed.'},503);}
+ return inspectionJson({...await inspectionSnapshot(db,department),viewerEmail:request.headers.get('oai-authenticated-user-email')!.trim().toLowerCase()});}catch{return inspectionJson({error:'Inspections could not load. Retry; saved records have not changed.'},503);}
 }
 function writes(db:InspectionDb,r:InspectionRecord,department:string,actor:string,time:string){
  const payload=JSON.stringify(r.data),archived=r.archived?1:0;
  return[r.version?db.prepare('UPDATE fire_inspection_pilot_records SET payload=?,version=version+1,archived=?,updated_at=?,updated_by=? WHERE department_id=? AND id=? AND version=?').bind(payload,archived,time,actor,department,r.id,r.version).expectChanges(1):db.prepare('INSERT INTO fire_inspection_pilot_records(id,department_id,kind,payload,version,archived,created_at,updated_at,updated_by) VALUES(?,?,?,?,1,?,?,?,?)').bind(r.id,department,r.kind,payload,archived,time,time,actor).expectChanges(1),db.prepare('INSERT INTO fire_inspection_pilot_audit(id,department_id,record_id,version,kind,payload,archived,actor,created_at) VALUES(?,?,?,?,?,?,?,?,?)').bind(crypto.randomUUID(),department,r.id,r.version+1,r.kind,payload,archived,actor,time)];
 }
 // Ignore server-generated signature timestamp when recognizing a safe retry.
-function comparable(r:InspectionRecord){return JSON.stringify({...r.data,representative:{...r.data.representative,signedAt:''},inspectorSignature:{...r.data.inspectorSignature,signedAt:''}});}
+function comparable(r:InspectionRecord){return JSON.stringify({...r.data,team:{...r.data.team,actedBy:'',actedAt:''},representative:{...r.data.representative,signedAt:''},inspectorSignature:{...r.data.inspectorSignature,signedAt:''}});}
 export async function POST(request:Request){
  const denied=inspectionBoundary(request,true);if(denied)return denied;let writing=false;
  try{
@@ -30,7 +32,7 @@ export async function POST(request:Request){
   if(current?.data.status==='Completed'){
    if(comparable(current)!==comparable(r)){
     if(data.status!=='Draft'||!data.changeReason)throw Error('Reopen the completed report with a correction reason before changing it.');
-    data.representative=blankSignature();data.inspectorSignature=blankSignature();data.inspectorAttested=false;
+    data.representative=blankSignature();data.inspectorSignature=blankSignature();data.inspectorAttested=false;data.team={...data.team,state:'Draft',actedBy:'',actedAt:''};
    }
   }
   if(current?.data.alternativeReview?.enabled){
@@ -47,6 +49,18 @@ export async function POST(request:Request){
   for(const key of ['representative','inspectorSignature'] as const)if(data[key].state==='Signed')data[key].signedAt=current?.data[key]&&JSON.stringify({...current.data[key],signedAt:''})===JSON.stringify({...data[key],signedAt:''})?current.data[key].signedAt:time;
   for(const reference of [...data.codeBasis,...data.checks.flatMap(c=>c.citations)]){const source=await db.prepare('SELECT payload FROM fire_inspection_code_audit WHERE department_id=? AND code_id=? AND version=?').bind(department,reference.id,reference.version).first<{payload:string}>();if(!source)throw Error('A selected code version is unavailable in this department.');const original=JSON.parse(source.payload);if(Object.keys(original).some(k=>original[k]!==reference[k as keyof typeof reference]))throw Error('The selected code differs from the saved library version. Select it again.');}
 
+  if(current?.data.team&&JSON.stringify(current.data.team)!==JSON.stringify(emptyTeam())&&!Object.hasOwn(body.data,'team'))throw Error('Refresh the app before saving so assignments are retained.');
+  if(kind==='template'&&(data.team.assignees.length||data.team.required||data.team.state!=='Not requested'))throw Error('Assignments belong to visits, not checklist templates.');
+  let reviewerEmail='';
+  if(data.team.assignees.length||data.team.reviewerId){
+   if(!await hasPermission(request,db,'employees.manage'))return inspectionJson({error:'Employee management access is required for assignments.'},403);
+   for(const identity of new Set([...data.team.assignees.map(a=>a.id),data.team.reviewerId].filter(Boolean))){
+    let email=actor;
+    if(identity!==ownerIdentityId){const person=await db.prepare("SELECT COALESCE(ep.email,'') email FROM employees e LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1 AND (ep.end_date IS NULL OR ep.end_date='' OR ep.end_date>=?)").bind(identity,new Intl.DateTimeFormat('en-CA',{timeZone:'America/Chicago'}).format(new Date())).first<{email:string}>();if(!person)throw Error('Choose an active employee in this department.');email=person.email.trim().toLowerCase();}
+    if(identity===data.team.reviewerId)reviewerEmail=email;
+   }
+  }
+  data.team=reviewTransition(current?.data.team||emptyTeam(),data.team,actor,reviewerEmail,time,Boolean(current&&teamBasis(current.data)!==teamBasis(data)));
   if(!(current?.data.status==='Completed'&&comparable(current)===comparable(r)))validateInspection(kind,data);
   const batch=writes(db,r,department,actor,time),followUps:InspectionRecord[]=[];
   if(kind==='inspection'&&data.status==='Completed'&&current?.data.status!=='Completed'&&!r.archived){

@@ -53,7 +53,7 @@ export async function replayInspections(rows: PendingInspection[], send: (record
         remaining.push({ ...row, state: reply.status === 409 ? 'conflict' : 'failed', error: reply.error || 'Save was not confirmed.' });
         if ([401,403].includes(reply.status)) { remaining.push(...rows.slice(rows.indexOf(row)+1)); break; }
       }
-    } catch { remaining.push({ ...row, state: 'failed', error: 'Connection lost. This entry remains on this tab.' }); remaining.push(...rows.slice(rows.indexOf(row)+1)); break; }
+    } catch { remaining.push({ ...row, state: 'failed', error: 'Connection lost. This entry remains in browser recovery until confirmed or discarded.' }); remaining.push(...rows.slice(rows.indexOf(row)+1)); break; }
   }
   return remaining;
 }

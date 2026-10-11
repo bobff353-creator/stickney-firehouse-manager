@@ -2,11 +2,13 @@ import {emptyAlternativeReview,normalizeAlternativeReview,validateAlternativeRev
 import {normalizeCode, codeLabel, type CodeSelection, type CodeEntry} from './codes';
 import { inspectionChecks, starterSections, inspectionTypes } from './catalog';
 import { normalizeObservations, type FieldObservations } from './field-workflow';
+import {emptyTeam,normalizeTeam,type InspectionTeam} from './team-workflow';
 export const resultOptions = ['Not checked', 'Acceptable', 'Needs attention', 'Corrected on site', 'Not applicable', 'Not inspected'] as const;
 export type CheckResult = typeof resultOptions[number];
 export type InspectionCheck = { id: string; section: string; label: string; source: string; result: CheckResult; location: string; observation: string; correction: string; code: string; dueDate: string; correctedDate: string; priority: string; citations: CodeSelection[] };
 export type Signature = { name: string; role: string; state: 'Not requested' | 'Signed' | 'Declined' | 'Not present'; strokes: number[][][]; signedAt: string };
 export type InspectionData = {
+  team: InspectionTeam;
   preplanObservations: FieldObservations;
   alternativeReview: AlternativeReview;
   title: string; address: string; propertyId: string; occupancy: string; owner: string; contact: string; phone: string; email: string;
@@ -20,7 +22,7 @@ export type InspectionData = {
 export type InspectionRecord = { id: string; kind: 'inspection' | 'template'; data: InspectionData; version: number; archived: boolean; createdAt: string; updatedAt: string; updatedBy: string };
 export type InspectionFile = { id: string; recordId: string; filename: string; size: number; contentType: string; createdAt: string; checkId?:string; caption?:string; codeId?:string; recordVersion?:number };
 export type Property = { id: string; name: string; address: string; updatedAt?: string; latitude?: number; longitude?: number; accessInfo?: string; knoxBox?: string; fdc?: string; alarmSystem?: string; sprinklerSystem?: string };
-export type InspectionSnapshot = { records: InspectionRecord[]; properties: Property[]; attachments: InspectionFile[]; departmentId?:string; codes?:CodeEntry[] };
+export type InspectionSnapshot = { records: InspectionRecord[]; properties: Property[]; attachments: InspectionFile[]; departmentId?:string; viewerEmail?:string; codes?:CodeEntry[] };
 export const todayChicago = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(new Date());
 export function validDate(s: string) { return /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s)) && new Date(s).toISOString().slice(0,10) === s; }
 export function addMonths(date: string, months: number) {
@@ -35,7 +37,7 @@ export function checkpointFromCode(entry:CodeEntry,id:string):InspectionCheck {
  if(entry.archived)throw Error('Choose an active code reference.');
  return freshCheck({id,section:'Code library',label:entry.data.title,source:checkpointSource(entry)});
 }
-export function emptyInspection(): InspectionData { return { preplanObservations:{},alternativeReview:emptyAlternativeReview(),title:'',address:'',propertyId:'',occupancy:'',owner:'',contact:'',phone:'',email:'',type:inspectionTypes[0],status:'Draft',scheduledDate:'',scheduledTime:'',actualDate:'',startTime:'',endTime:'',inspector:'',others:'',reason:'',codeEdition:'',localAmendments:'',checks:inspectionChecks.filter(c=>starterSections.includes(c.section)).map(freshCheck),sections:[...starterSections],notes:'',outcome:'',repeatMonths:0,nextDueDate:'',followUpDate:'',parentId:'',followUpKind:'',codeBasis:[],reinspectionDecision:'',reinspectionReason:'',reinspectionTime:'',inspectorSignature:blankSignature(),representative:blankSignature(),inspectorAttested:false,changeReason:'',test:false }; }
+export function emptyInspection(): InspectionData { return { team:emptyTeam(),preplanObservations:{},alternativeReview:emptyAlternativeReview(),title:'',address:'',propertyId:'',occupancy:'',owner:'',contact:'',phone:'',email:'',type:inspectionTypes[0],status:'Draft',scheduledDate:'',scheduledTime:'',actualDate:'',startTime:'',endTime:'',inspector:'',others:'',reason:'',codeEdition:'',localAmendments:'',checks:inspectionChecks.filter(c=>starterSections.includes(c.section)).map(freshCheck),sections:[...starterSections],notes:'',outcome:'',repeatMonths:0,nextDueDate:'',followUpDate:'',parentId:'',followUpKind:'',codeBasis:[],reinspectionDecision:'',reinspectionReason:'',reinspectionTime:'',inspectorSignature:blankSignature(),representative:blankSignature(),inspectorAttested:false,changeReason:'',test:false }; }
 const text=(v: unknown,max=4000)=>String(v??'').trim().slice(0,max);
 export function normalizeInspection(value: unknown): InspectionData {
   if (!value || typeof value !== 'object') throw Error('Inspection details are missing.');
@@ -53,6 +55,7 @@ export function normalizeInspection(value: unknown): InspectionData {
   d.codeBasis=normalizeSelections(v.codeBasis);
   d.alternativeReview=normalizeAlternativeReview(v.alternativeReview);
   d.preplanObservations=normalizeObservations(v.preplanObservations);
+  d.team=normalizeTeam(v.team);
   for(const key of ['representative','inspectorSignature'] as const){const s=(v[key]??{}) as Partial<Signature>;
   if(s.state&&!['Not requested','Signed','Declined','Not present'].includes(s.state))throw Error('Choose a valid signature status.');
   const strokes=Array.isArray(s.strokes)?s.strokes:[];
@@ -66,7 +69,7 @@ export function updateInspectionDetail<K extends keyof InspectionData>(d:Inspect
  const signing=['representative','inspectorSignature','inspectorAttested'].includes(key);
  const review=d.alternativeReview??emptyAlternativeReview();
  const alternativeReview=key==='alternativeReview'?value as AlternativeReview:['propertyId','title','address','occupancy'].includes(key)&&d[key]!==value&&review.enabled?restartAlternativeReview(review):review;
- return {...d,[key]:value,alternativeReview,representative:key==='representative'?value as Signature:signing?d.representative:blankSignature(),inspectorSignature:key==='inspectorSignature'?value as Signature:signing?d.inspectorSignature:blankSignature(),inspectorAttested:key==='inspectorAttested'?value as boolean:false};
+ return {...d,[key]:value,team:key==='team'?value as InspectionTeam:!signing&&['Submitted','Approved','Changes requested'].includes(d.team.state)?{...d.team,state:'Draft',actedBy:'',actedAt:''}:d.team,alternativeReview,representative:key==='representative'?value as Signature:signing?d.representative:blankSignature(),inspectorSignature:key==='inspectorSignature'?value as Signature:signing?d.inspectorSignature:blankSignature(),inspectorAttested:key==='inspectorAttested'?value as boolean:false};
 }
 export function findings(d:InspectionData){return d.checks.filter(c=>['Needs attention','Corrected on site'].includes(c.result));}
 export function validateInspection(kind:InspectionRecord['kind'],d:InspectionData,today=todayChicago()) {
@@ -82,6 +85,7 @@ export function validateInspection(kind:InspectionRecord['kind'],d:InspectionDat
   if(kind==='template'){if(d.status!=='Draft')throw Error('Checklists are saved as templates, not completed inspections.');return;}
   if(d.status==='Scheduled'&&!d.scheduledDate)throw Error('Choose the scheduled date, or save as Needs scheduling.');
   if(d.status!=='Completed')return;
+  if(d.team.required&&d.team.state!=='Approved')throw Error('The assigned reviewer must approve this version before finishing.');
   if(!d.actualDate||!d.inspector||!d.outcome||!d.inspectorAttested)throw Error('To finish, record the actual date, inspector, outcome, and your review acknowledgment.');
   const unchecked=d.checks.filter(c=>c.result==='Not checked');
   if(unchecked.length)throw Error(`${unchecked.length} checkpoints are unanswered. Inspect them or explicitly mark Not inspected / Not applicable.`);

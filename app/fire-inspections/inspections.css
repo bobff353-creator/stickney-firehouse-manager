@@ -30,3 +30,27 @@
  .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace .fi-success :is(p,strong){color:inherit}
  .fi-workspace .fi-panel{overflow-wrap:anywhere;min-width:0}
 }
+/* Field navigation fits the viewport; controls stay within each checkpoint. */
+@media screen {
+ .fi-workspace,.fi-workspace *{min-width:0;box-sizing:border-box}
+ .fi-workspace{max-width:100%;overflow-wrap:anywhere}
+ .fi-workspace .fi-tabs,.fi-workspace .fi-steps{flex-wrap:wrap;overflow:visible}
+ .fi-workspace :is(button,input,select,textarea,.fi-button){max-width:100%}
+ .fi-workspace button{white-space:normal;min-height:44px}
+ .fi-workspace .fi-toolbar>.fi-field:first-child{min-width:0}
+ .fi-check-filters{margin-bottom:14px}
+ .fi-check-filters button[aria-pressed=true]{border:2px solid #17597e;font-weight:800}
+}
+@media screen and (max-width:600px){
+ .fi-workspace .fi-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+ .fi-workspace .fi-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+ .fi-workspace .fi-steps button{padding:8px;justify-content:center;gap:4px}
+ .fi-workspace .fi-row,.fi-workspace .fi-grid{grid-template-columns:minmax(0,1fr)}
+ .fi-workspace .fi-toolbar{align-items:stretch;flex-direction:column}
+ .fi-workspace .fi-actions>button{flex:1 1 130px}
+ .fi-workspace .fi-result-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+ .fi-workspace .fi-result-buttons button{width:100%}
+ .fi-workspace .fi-editor-footer{position:sticky;bottom:calc(76px + env(safe-area-inset-bottom,0px));padding:8px}
+ .fi-workspace .fi-editor-footer button{flex:1 1 130px}
+ .fi-workspace .fi-saved-check summary{flex-wrap:wrap}
+}
