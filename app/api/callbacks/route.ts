@@ -5,7 +5,7 @@ import {
   parseCallbackRuleList,
   type CallbackRuleCall,
 } from "../../callback-rules";
-import { holidayForDate } from "../../holidays";
+import {holidayForPayrollDate} from "../../payroll-holidays-server";
 import { hasPermission } from "../../server-permissions";
 
 type Database = Awaited<ReturnType<typeof ensureDatabase>>;
@@ -109,7 +109,7 @@ export async function GET(request: Request) {
       callbackSnapshotsNearDate(db, date),
       actorEmployee(request, db),
     ]);
-    const holiday = holidayForDate(date);
+    const holiday = await holidayForPayrollDate(db,date);
     const employeeRows = employees.results
       .map((employee) => {
         const onDuty = staffing.some((row) => row.employeeId === employee.employeeId && employeeWasOnDutyAtCall(row, call.timeOut));
@@ -198,7 +198,7 @@ export async function POST(request: Request) {
     ]);
     const active = new Set(activeEmployees.results.map((employee) => employee.id));
     if (employeeIds.some((id) => !active.has(id))) return Response.json({ error: "One or more selected members are not active employees for this call date." }, { status: 409 });
-    const holiday = holidayForDate(logDate);
+    const holiday = await holidayForPayrollDate(db,logDate);
     const evaluations = [];
     const writes = [];
     for (const employeeId of employeeIds) {

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 import ts from 'typescript';
+import {holidayForDate} from '../app/holidays.ts';
 import { parseSavedTime } from '../app/workflow-status.ts';
 import { logDifferences } from '../app/daily-log-recovery.ts';
 
@@ -13,7 +14,7 @@ const compiled = ts.transpileModule(source.slice(start, end), { compilerOptions:
 function harness(fetch) {
   const state = {};
   const timers = [];
-  const scope = { fetch, Error, Date, Map, Boolean, JSON, parseSavedTime, logDifferences, useCallback: fn => fn,
+  const scope = { fetch, Error, Date, Map, Boolean, Object, JSON, holidayForDate, parseSavedTime, logDifferences, useCallback: fn => fn,
     loadRequest: { current: 0 }, loaded: { current: false }, autosaveAuthorized: { current: false },
     saveRetryRequired: { current: false },
     savedVersions: { current: new Map() }, draftKey: date => date,

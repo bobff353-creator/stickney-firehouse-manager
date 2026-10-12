@@ -4,7 +4,7 @@ import regionalBoxCards from "./regional-box-card-seed.json";
 import { formatEmployeeName } from "../app/employee-names";
 import { normalizeMilitaryTime } from "../app/military-time";
 import { dailyLogPayrollEntries, dailyLogPayrollTotals, type PayrollStaffingRow } from "../app/payroll-hours";
-import { holidayForDate } from "../app/holidays";
+import {holidayForPayrollDate} from "../app/payroll-holidays-server";
 import { polygonAreaSquareFeet, suggestedFireFlow, type ConstructionGroup, type OccupancyFlowCategory, type Point, type SprinklerStandard } from "../app/preplan-fire-flow";
 import { importedBuildingSeeds, importedBuildingSource } from "../app/preplan-imported-buildings";
 import { createPostgresD1Adapter } from "./postgres-adapter";
@@ -165,7 +165,7 @@ async function reconcileExactLogPayrollRange(db: Awaited<ReturnType<typeof getDa
   const dpwEmployees = new Set(dpwRows.results.map((row) => row.employeeId));
   for (const logDate of datesInRange("2026-07-11", "2026-07-25")) {
     const staffing = await db.prepare("SELECT employee_id AS employeeId, time_in AS timeIn, time_out AS timeOut, shift_key AS shiftKey, acting_officer AS actingOfficer FROM daily_log_staffing WHERE log_date = ? AND employee_id IS NOT NULL").bind(logDate).all<PayrollStaffingRow>();
-    const totals = dailyLogPayrollTotals(staffing.results, holidayForDate(logDate));
+    const totals = dailyLogPayrollTotals(staffing.results, await holidayForPayrollDate(db,logDate));
     const period = historicalPayrollPeriod(logDate);
     const writes = [
       db.prepare("INSERT OR IGNORE INTO pay_periods (start_date, end_date, status) VALUES (?, ?, 'draft')").bind(period.start, period.end),

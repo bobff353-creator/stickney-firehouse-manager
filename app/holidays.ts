@@ -1,4 +1,4 @@
-export type DepartmentHoliday = { name: string; date: string; note?: string; overnightOnly?: boolean };
+export type DepartmentHoliday = { name: string; date: string; note?: string; overnightOnly?: boolean; windowStart?: string; windowEnd?: string };
 
 function iso(year: number, month: number, day: number) { return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`; }
 function nthWeekday(year: number, month: number, weekday: number, nth: number) { const first = new Date(year, month - 1, 1, 12); const day = 1 + ((7 + weekday - first.getDay()) % 7) + (nth - 1) * 7; return iso(year, month, day); }
@@ -21,7 +21,7 @@ export function departmentHolidays(year: number): DepartmentHoliday[] {
     { name: "Columbus Day", date: nthWeekday(year, 10, 1, 2) },
     { name: "Veterans Day", date: iso(year, 11, 11) },
     { name: "Thanksgiving", date: nthWeekday(year, 11, 4, 4) },
-    { name: "Christmas Eve", date: iso(year, 12, 24), note: "Night shift only", overnightOnly: true },
+    { name: "Christmas Eve", date: iso(year, 12, 24), note: "Night shift only", overnightOnly: true, windowStart: "18:00", windowEnd: "06:00" },
     { name: "Christmas Day", date: iso(year, 12, 25) },
   ];
 }

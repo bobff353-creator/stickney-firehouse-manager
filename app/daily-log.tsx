@@ -9,7 +9,7 @@ import { useWorkspaceViewState } from "./workspace-view-state";
 import { CALLBACK_QUALIFYING_CALL_TYPES } from "./callback-rules";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { holidayForDate } from "./holidays";
+import { holidayForDate,type DepartmentHoliday } from "./holidays";
 import ConfirmDialog from "./confirm-dialog";
 import DailyLogNotes from "./daily-log-notes";
 import { callIsComplete, currentLogShift, readLogNotes } from "./daily-log-workflow";
@@ -100,6 +100,7 @@ type CallbackPayload = {
   error?: string;
 };
 type LogPayload = {
+  holiday?: DepartmentHoliday|null;
   log: {
     shiftNotes: string;
     locked: number;
@@ -429,6 +430,7 @@ export default function DailyLog({
   const [logDate, setLogDate] = useWorkspaceViewState("daily-log-date",
     () => chicagoOperationalContext().operationalDate,
   );
+  const [savedHoliday,setSavedHoliday]=useState<{date:string;holiday:DepartmentHoliday|null}|null>(null);
   const [staffing, setStaffing] = useState<StaffingRow[]>([]);
   const [calls, setCalls] = useState<CallRow[]>([]);
   const [shiftNotes, setShiftNotes] = useState("");
@@ -488,7 +490,7 @@ export default function DailyLog({
   const latestSave = useRef({ logDate, staffing, calls, shiftNotes });
   const readOnly = loading || loadError || loadedDate !== logDate || (locked && !adminUnlocked) || saveConflict;
   useUnsavedWork(dirty, saving || handoffSaving);
-  const holiday = useMemo(() => holidayForDate(logDate), [logDate]);
+  const holiday = useMemo(() => savedHoliday?.date===logDate?savedHoliday.holiday:holidayForDate(logDate), [logDate,savedHoliday]);
   useEffect(() => {
     latestSave.current = { logDate, staffing, calls, shiftNotes };
   }, [calls, logDate, shiftNotes, staffing]);
@@ -534,6 +536,7 @@ export default function DailyLog({
         actingOfficer: Boolean(row.actingOfficer),
       }));
       const callRows = [...(restore ? draft!.calls : data.calls)];
+      setSavedHoliday({date,holiday:Object.hasOwn(data,"holiday")?data.holiday??null:holidayForDate(date)});
       setStaffing(rows);
       setCalls(callRows);
       setShiftNotes(restore ? draft!.shiftNotes : (data.log?.shiftNotes ?? ""));

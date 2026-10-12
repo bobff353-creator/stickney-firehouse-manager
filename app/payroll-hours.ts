@@ -29,7 +29,7 @@ export function workedHours(timeIn: string, timeOut: string) {
 
 export function dailyLogPayrollTotals(
   rows: PayrollStaffingRow[],
-  holiday: { overnightOnly?: boolean } | null,
+  holiday: { overnightOnly?: boolean; windowStart?: string; windowEnd?: string } | null,
 ) {
   const totals = new Map<string, DailyLogPayrollTotal>();
   for (const row of rows) {
@@ -38,8 +38,16 @@ export function dailyLogPayrollTotals(
     if (!employeeId || hours <= 0) continue;
     const current = totals.get(employeeId) ?? { shift: 0, holiday: 0, actingOfficer: 0 };
     const holidayApplies = Boolean(holiday && (!holiday.overnightOnly || String(row.shiftKey ?? "") === "overnight"));
-    if (holidayApplies) current.holiday += hours;
-    else current.shift += hours;
+    let holidayHours=holidayApplies?hours:0;
+    if(holidayApplies&&holiday?.overnightOnly&&holiday.windowStart&&holiday.windowEnd){
+      const minute=(time:string)=>Number(time.slice(0,2))*60+Number(time.slice(3));
+      let start=minute(String(row.timeIn));
+      if(start<360)start+=1440;const end=start+hours*60;
+      const windowStart=minute(holiday.windowStart),windowEnd=minute(holiday.windowEnd)+1440;
+      holidayHours=Math.min(hours,Math.round(Math.max(0,Math.min(end,windowEnd)-Math.max(start,windowStart))/60*100)/100);
+    }
+    current.holiday+=holidayHours;
+    current.shift+=Math.round((hours-holidayHours)*100)/100;
     if (row.actingOfficer) current.actingOfficer += hours;
     totals.set(employeeId, current);
   }

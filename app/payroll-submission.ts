@@ -1,3 +1,4 @@
+import {calendarHolidayForDate,type HolidayCalendar} from "./payroll-holidays.ts";
 import { summarizePayroll } from "./payroll-calculation.ts";
 import { dailyLogPayrollEntries, dailyLogPayrollTotals } from "./payroll-hours.ts";
 import { scheduledStaffingForLog, type DepartmentScheduleAssignment } from "./department-schedule.ts";
@@ -11,6 +12,7 @@ export type SubmissionEntry = Omit<PayEntry, "category"> & { category: PayCatego
 export type PayEmployee = { id: string; name: string; rank: string; regularRate: number; overtimeRate: number; holidayRate: number; isDpw: number; payScaleId: string };
 export type PaySettings = { overtimeThreshold: number; dpwMultiplier: number; actingOfficerPremium: number };
 export type PayrollSources = {
+  holidayCalendars?: HolidayCalendar[];
   version: number; period: string; status: string;
   employees: PayEmployee[]; settings: PaySettings; entries: PayEntry[];
   schedule: DepartmentScheduleAssignment[];
@@ -108,7 +110,7 @@ export function buildSubmission(source: PayrollSources, staffingThrough: string,
   for (const date of projectedDates) {
     const rows = scheduledStaffingForLog(source.schedule, date);
     if (!rows.length) blockers.push(`${date}: no assigned schedule positions. An empty schedule is not assumed to mean zero staffing.`);
-    const projected = dailyLogPayrollEntries(dailyLogPayrollTotals(rows, holidayForDate(date)), new Set(source.employees.filter(e => e.isDpw).map(e => e.id)));
+    const projected = dailyLogPayrollEntries(dailyLogPayrollTotals(rows, (source.holidayCalendars?calendarHolidayForDate(date,source.holidayCalendars):holidayForDate(date))), new Set(source.employees.filter(e => e.isDpw).map(e => e.id)));
     for (const row of projected) entries.push({ ...row, workDate: date, category: row.category === "dailyLogDpw" ? "dpw" : row.category, basis: "schedule-estimate", sourceIds: rows.filter(r => r.employeeId === row.employeeId).map(r => r.id) });
   }
   if (projectedDates.length) warnings.push("Schedule estimates use the saved department schedule, not live Aladtec. Each work date covers 06:00 through 06:00 the following day. Acting Officer stipends are not inferred from a scheduled role; confirm them in the actual Daily Log.");

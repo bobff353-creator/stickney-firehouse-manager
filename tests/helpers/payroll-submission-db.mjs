@@ -6,6 +6,8 @@ import { gzipSync, gunzipSync } from 'node:zlib';
 import { sqlLiteral } from '../../db/sql-literal.ts';
 import { PGlite } from '@electric-sql/pglite';
 import * as logic from '../../app/payroll-submission.ts';
+import {trainingModules} from './training-modules.mjs';
+const {loadHolidayCalendar}=trainingModules()('app/payroll-holidays-server.ts');
 import { ACTING_OFFICER_STIPEND_PER_HOUR, PAYROLL_PREMIUM_MULTIPLIER } from '../../app/payroll-calculation.ts';
 
 const root = new URL('../../', import.meta.url);
@@ -33,6 +35,7 @@ export async function payrollDatabaseFixture() {
     CREATE TABLE firehouse.station_shift_types(id text PRIMARY KEY,start_time text,end_time text,active int DEFAULT 1);
     CREATE TABLE firehouse.station_schedule_entries(id text PRIMARY KEY,entry_date text,shift_type_id text);
     CREATE TABLE firehouse.station_shift_slots(id text PRIMARY KEY,entry_id text,employee_id text,role text,status text,start_time text,end_time text);
+    CREATE TABLE firehouse.system_meta(key text PRIMARY KEY,value text,updated_at text);
     CREATE TABLE firehouse.record_revisions(id text PRIMARY KEY,record_type text,record_id text,revision_number int,action text,summary text,actor text);
     CREATE FUNCTION public.firehouse_sql(p_sql text,p_mode text DEFAULT 'all',p_secret text DEFAULT NULL) RETURNS jsonb LANGUAGE plpgsql SET search_path=firehouse AS $$
     DECLARE result jsonb; affected bigint;
@@ -76,7 +79,7 @@ export async function payrollDatabaseFixture() {
     } catch(error){return {data:null,error};}
   }};
   const db=adapter.createPostgresD1Adapter(async()=>client,'firehouse_sql','fictional-test-only');
-  const server=moduleFromFile('app/payroll-submission-server.ts',{...logic,createHash,gzipSync,gunzipSync,ACTING_OFFICER_STIPEND_PER_HOUR,PAYROLL_PREMIUM_MULTIPLIER});
+  const server=moduleFromFile('app/payroll-submission-server.ts',{...logic,loadHolidayCalendar,createHash,gzipSync,gunzipSync,ACTING_OFFICER_STIPEND_PER_HOUR,PAYROLL_PREMIUM_MULTIPLIER});
   const api=moduleFromFile('app/api/payroll-submissions/route.ts',{...logic,...server,ensureDatabase:async()=>db,permissionsForEmail:async()=>new Set(state.manager?['payroll.manage']:['payroll.view_own'])});
   const request=(body,origin='https://fixture.test')=>new Request('https://fixture.test/api/payroll-submissions',{method:'POST',headers:{origin,'content-type':'application/json','oai-authenticated-user-email':'admin@example.test'},body:JSON.stringify(body)});
   return {pg,db,state,server,api,request,async post(body,origin){const response=await api.POST(request(body,origin));return {status:response.status,body:await response.json()};},async get(period='2026-09-11'){const response=await api.GET(new Request(`https://fixture.test/api/payroll-submissions?period=${period}`,{headers:{'oai-authenticated-user-email':'admin@example.test'}}));return {status:response.status,body:await response.json()};}};

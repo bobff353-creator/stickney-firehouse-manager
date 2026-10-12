@@ -1,3 +1,4 @@
+import {loadHolidayCalendar} from "./payroll-holidays-server";
 import { createHash } from "node:crypto";
 import { gzipSync, gunzipSync } from "node:zlib";
 import { ACTING_OFFICER_STIPEND_PER_HOUR, PAYROLL_PREMIUM_MULTIPLIER } from "./payroll-calculation";
@@ -42,10 +43,11 @@ export async function loadPayrollSources(db: Database, period: string): Promise<
     db.prepare("SELECT log_date AS logDate,shift_key AS shiftKey,sign_out_at AS signOutAt FROM daily_log_approvals WHERE log_date BETWEEN ? AND ? ORDER BY log_date,shift_key").bind(period, end).all<PayrollSources["approvals"][number]>(),
     db.prepare("SELECT status FROM pay_periods WHERE start_date=?").bind(period).first<{ status: string }>(),
   ]);
+  const holidayCalendars=await Promise.all(Array.from(new Set([Number(period.slice(0,4)),Number(end.slice(0,4))])).map(year=>loadHolidayCalendar(db,year)));
   if (!settings) throw new Error("Payroll settings are missing. No pay rules were assumed.");
   if (version !== await sourceVersion(db)) throw new Error("SAVE_CONFLICT: Records changed during review. Refresh the preview.");
   const numeric = (value: unknown) => value == null || value === "" ? Number.NaN : Number(value);
-  return { version, period, status: status?.status ?? "draft", employees: employees.results.map(e => {
+  return { holidayCalendars, version, period, status: status?.status ?? "draft", employees: employees.results.map(e => {
     const rate = rates.results.find(r => r.payScaleId === e.payScaleId) ?? e;
     return { ...e, regularRate: numeric(rate.regularRate), overtimeRate: numeric(rate.regularRate) * PAYROLL_PREMIUM_MULTIPLIER, holidayRate: numeric(rate.regularRate) * PAYROLL_PREMIUM_MULTIPLIER };
   }), settings: { overtimeThreshold: numeric(settings.overtimeThreshold), dpwMultiplier: PAYROLL_PREMIUM_MULTIPLIER, actingOfficerPremium: ACTING_OFFICER_STIPEND_PER_HOUR }, entries: entries.results.map(e => ({ ...e, hours: numeric(e.hours) })), schedule: schedule.results, logs: logs.results, staffing: staffing.results, approvals: approvals.results };

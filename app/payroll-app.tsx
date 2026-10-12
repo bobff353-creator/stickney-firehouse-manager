@@ -26,6 +26,7 @@ import { matchesWorkspace } from "./workspace-help";
 import { portalConnectionState, readPortalJson } from "./portal-status";
 const DailyLog = dynamic(() => import("./daily-log"), { loading: () => <ModuleLoading /> });
 const CallbackReviews = dynamic(() => import("./callback-reviews"), { loading: () => <ModuleLoading /> });
+const PayrollHolidayManager = dynamic(() => import("./payroll-holiday-manager"), { loading: () => <ModuleLoading /> });
 const HolidayPolicy = dynamic(() => import("./holiday-policy"), { loading: () => <ModuleLoading /> });
 const PhoneNumbers = dynamic(() => import("./phone-numbers"), { loading: () => <ModuleLoading /> });
 const EmployeeDirectory = dynamic(() => import("./employee-directory"), { loading: () => <ModuleLoading /> });
@@ -1139,6 +1140,7 @@ export default function PayrollApp({
           {!testMember && ((activeNav === "Payroll" && data.viewer.canManagePayroll) || activeNav === "My Timesheet") && <PayrollCorrections key={`${data.period.startDate}-${activeNav}`} period={data.period.startDate} end={data.period.endDate} mode={activeNav === "Payroll" ? "manager" : "member"} />}
           {!testMember && activeNav === "Payroll" && data.viewer.canManagePayroll && <PayrollSubmissions key={data.period.startDate} period={data.period.startDate} end={data.period.endDate} finalized={data.period.status === "finalized"} disabled={savingCells.size > 0 || dirtyCellCount > 0 || Object.keys(failedCells).length > 0} onSaved={handleSubmissionSaved} />}
           {activeNav === "Payroll" && submissionState?.period === data.period.startDate && submissionState.state.submission && <p className="helper-note">The table below shows working actuals, not the fixed submitted copy. Export CSV downloads the submitted copy above. Continue recording actual work, then reconcile from the receiving period.</p>}
+          {!testMember && activeNav === "Payroll" && data.viewer.isAdmin && data.viewer.canManagePayroll && <PayrollHolidayManager initialYear={Number(data.period.startDate.slice(0,4))} />}
           {activeNav === 'Payroll' && data.viewer.canManagePayroll && <PayrollTimekeepingPanel flags={timekeepingFlags} from={data.period.startDate} through={data.period.endDate} onMember={id => openTimesheet(id)} />}
           {activeNav === "Payroll" && <div className={data.period.status === "finalized" ? "record-finalized" : "record-editable"}>
             {data.period.status === "finalized" && <div className="record-state-banner finalized"><span className="state-lock" aria-hidden="true">✓</span><div><strong>Finalized payroll · Read only</strong><span>This pay period is closed. Hours and payroll totals can no longer be changed.</span></div></div>}

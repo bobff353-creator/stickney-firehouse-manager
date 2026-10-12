@@ -1,0 +1,2 @@
+import {createServer} from 'vite';import react from '@vitejs/plugin-react';import {fileURLToPath} from 'node:url';
+const root=fileURLToPath(new URL('../',import.meta.url));const server=await createServer({configFile:false,cacheDir:root+'/node_modules/.vite-holidays',root:root+'/tests/fixtures',plugins:[react()],server:{host:'127.0.0.1',port:4184,strictPort:true,fs:{allow:[root]}}});await server.listen();console.log('Local fictional payroll holiday verification: http://127.0.0.1:4184/payroll-holidays.html');

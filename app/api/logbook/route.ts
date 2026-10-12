@@ -2,7 +2,7 @@ import { ensureDatabase } from "../../../db/bootstrap";
 import { scheduleQueryDates, scheduledStaffingForLog, type DepartmentScheduleAssignment } from "../../department-schedule";
 import { completedDispatchReportNumbers } from "../../dispatch-closure";
 import { projectDispatchIntoDailyLog } from "../../dispatch-daily-log";
-import { holidayForDate } from "../../holidays";
+import {holidayForPayrollDate} from "../../payroll-holidays-server";
 import { chicagoOperationalContext } from "../../operational-day";
 import { dailyLogPayrollEntries, dailyLogPayrollTotals } from "../../payroll-hours";
 import { hasPermission } from "../../server-permissions";
@@ -136,6 +136,7 @@ export async function GET(request: Request) {
     }
     return Response.json({
       log: { ...(log as object), saveVersion: snapshot?.saveVersion, revisions: revisions.results },
+      holiday: await holidayForPayrollDate(db,date),
       staffing: staffingRows,
       staffingSource: schedulePrefilled ? "department_schedule" : "daily_log",
       schedulePrefilled,
@@ -252,7 +253,7 @@ export async function POST(request: Request) {
     if (completedReports.length) {
       logWrites.push(db.prepare(`UPDATE dispatch_incidents SET active = 0, cleared_at = COALESCE(cleared_at, CURRENT_TIMESTAMP) WHERE trim(incident_id) IN (${completedReports.map(() => "?").join(", ")})`).bind(...completedReports.map(report => report.trim())));
     }
-    const holiday = holidayForDate(date);
+    const holiday = await holidayForPayrollDate(db,date);
     const totals = dailyLogPayrollTotals(staffing, holiday);
     const periodStart = payrollPeriodStart(date), periodEnd = payrollPeriodEnd(periodStart);
     const dpwEmployeeRows = await db.prepare("SELECT employee_id AS employeeId FROM employee_profiles WHERE is_dpw = 1").all();
