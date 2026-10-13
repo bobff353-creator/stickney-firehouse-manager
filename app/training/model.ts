@@ -6,13 +6,14 @@ export type TrainingKind = typeof trainingKinds[number];
 export type TrainingField = { id: string; label: string; type: 'text'|'number'|'date'|'choice'|'yes-no'; options: string[]; required: boolean };
 export type TrainingData = {
   title: string; category: string; description: string; date: string; dueDate: string; startTime: string;
+  endTime: string; endDate: string; timeNote: string; breakMinutes: number;
   hours: number | null; instructor: string; location: string; employeeIds: string[];
   activityId: string; assignmentId: string; credentialId: string; certificationId: string;
   status: 'draft'|'saved'|'completed'; delivery: string; sourceUrl: string; sourceEdition: string;
   externalId: string; cycleStart: string; issuedDate: string; credentialNumber: string;
   jpr: string; sourcePage: string; evaluator: string; method: string; result: string;
   points: number | null; pointsBasis: string; test: boolean; verified: boolean;
-  fields: TrainingField[]; answers: Record<string,string>; attendance: Record<string,number>;
+  fields: TrainingField[]; answers: Record<string,string>; attendance: Record<string,number>; paidHours: Record<string,number>;
   osfmTaskIds: string[]; osfmBookHashes: Record<string,string>;
   requiredJprs: string[]; receipt: string; submissionDate: string; reviewNote: string;
   repeatEveryDays: number | null; seriesId: string; issuingAuthority: string;
@@ -25,7 +26,27 @@ export type TrainingSnapshot = { records: TrainingRecord[]; members: TrainingMem
 export const categories = ['Company training','Driver / operator','Officer development','EMS','Hazardous materials','Technical rescue','Fire prevention / inspection','Instructor development','Health and safety','Compliance','New member onboarding','Facility / live fire','Fire investigation','Communications','Traffic incident management','Mental health','Other'];
 export const todayChicago = () => new Intl.DateTimeFormat('en-CA', { timeZone:'America/Chicago', year:'numeric',month:'2-digit',day:'2-digit' }).format(new Date());
 export function emptyTrainingData(): TrainingData {
-  return { title:'',category:'Company training',description:'',date:'',dueDate:'',startTime:'',hours:null,instructor:'',location:'',employeeIds:[],activityId:'',assignmentId:'',credentialId:'',certificationId:'',status:'draft',delivery:'Hands-on',sourceUrl:'',sourceEdition:'',externalId:'',cycleStart:'',issuedDate:'',credentialNumber:'',jpr:'',sourcePage:'',evaluator:'',method:'Training',result:'Practiced',points:null,pointsBasis:'',test:false,verified:false,fields:[],answers:{},attendance:{},osfmTaskIds:[],osfmBookHashes:{},requiredJprs:[],receipt:'',submissionDate:'',reviewNote:'',repeatEveryDays:null,seriesId:'',issuingAuthority:'',renewalMonths:null,documentType:'Other' };
+  return { title:'',category:'Company training',description:'',date:'',dueDate:'',startTime:'',endTime:'',endDate:'',timeNote:'',breakMinutes:0,hours:null,instructor:'',location:'',employeeIds:[],activityId:'',assignmentId:'',credentialId:'',certificationId:'',status:'draft',delivery:'Hands-on',sourceUrl:'',sourceEdition:'',externalId:'',cycleStart:'',issuedDate:'',credentialNumber:'',jpr:'',sourcePage:'',evaluator:'',method:'Training',result:'Practiced',points:null,pointsBasis:'',test:false,verified:false,fields:[],answers:{},attendance:{},paidHours:{},osfmTaskIds:[],osfmBookHashes:{},requiredJprs:[],receipt:'',submissionDate:'',reviewNote:'',repeatEveryDays:null,seriesId:'',issuingAuthority:'',renewalMonths:null,documentType:'Other' };
+}
+const chicagoClock=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+function sessionInstant(date:string,time:string) {
+  if(!validDate(date)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))throw Error('Enter valid session dates and 24-hour times.');
+  const wall=Date.parse(`${date}T${time}:00Z`), matches=[5,6].map(offset=>wall+offset*3600000).filter(value=>{
+    const parts=Object.fromEntries(chicagoClock.formatToParts(new Date(value)).map(p=>[p.type,p.value]));
+    return `${parts.year}-${parts.month}-${parts.day}`===date&&`${parts.hour}:${parts.minute}`===time;
+  });
+  if(matches.length!==1)throw Error('This time is missing or repeated during the daylight-saving change. Save a draft and confirm the exact time before completing.');
+  return matches[0];
+}
+export function sessionHours(data:Pick<TrainingData,'date'|'startTime'|'endTime'|'endDate'|'breakMinutes'>):number|null {
+  if(!data.date||!data.startTime||!data.endTime)return null;
+  const elapsed=(sessionInstant(data.endDate||data.date,data.endTime)-sessionInstant(data.date,data.startTime))/3600000;
+  const hours=elapsed-(data.breakMinutes||0)/60;
+  if(hours<=0||elapsed>24)throw Error('End must follow start within 24 hours. For an overnight drill, enter the next day as the end date.');
+  return Math.round(hours*1000000)/1000000;
+}
+export function repeatedCompletionData(data:TrainingData):Partial<TrainingData> {
+  return {...data,status:'draft',date:'',startTime:'',endTime:'',endDate:'',timeNote:'',breakMinutes:0,employeeIds:[],attendance:{},paidHours:{},assignmentId:'',credentialId:'',externalId:'',receipt:'',submissionDate:'',answers:{},repeatEveryDays:null,seriesId:''};
 }
 export function validDate(value: string) { const d=new Date(value+'T12:00:00Z');return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(d.getTime()) && d.toISOString().slice(0,10)===value; }
 export function shiftDate(date: string, days: number) { const d=new Date(date+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10); }
@@ -53,9 +74,11 @@ export function normalizeTrainingData(input: unknown): TrainingData {
   out.fields=(Array.isArray(raw.fields)?raw.fields:[]).slice(0,40).map((f:Record<string,unknown>)=>({id:String(f.id??'').slice(0,80),label:String(f.label??'').trim().slice(0,160),type:['text','number','date','choice','yes-no'].includes(String(f.type))?f.type as TrainingField['type']:'text',options:(Array.isArray(f.options)?f.options:[]).map(String).map(s=>s.trim().slice(0,120)).filter(Boolean).slice(0,50),required:f.required===true}));
   if(out.fields.some(f=>!f.id||!f.label||(f.type==='choice'&&!f.options.length))||new Set(out.fields.map(f=>f.id)).size!==out.fields.length)throw new Error('Each custom field needs a unique ID, label, and any selection options.');
   for(const [key,value] of Object.entries(raw.answers&&typeof raw.answers==='object'?raw.answers:{}).slice(0,40)) if(/^[a-zA-Z0-9_-]{1,80}$/.test(key))out.answers[key]=String(value??'').slice(0,2000);
-  for(const [id,value] of Object.entries(raw.attendance&&typeof raw.attendance==='object'?raw.attendance:{}).slice(0,500)) {const n=Number(value);if(!Number.isFinite(n)||n<0||n>24)throw new Error('Attendance hours must be between 0 and 24.');out.attendance[id]=n;}
-  for(const key of ['date','dueDate','cycleStart','issuedDate','submissionDate'] as const) if(out[key]&&!validDate(out[key]))throw new Error(`Enter a valid ${key.replace(/[A-Z]/g,m=>' '+m.toLowerCase())}.`);
-  if(out.startTime&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(out.startTime))throw new Error('Enter time as HH:MM, from 00:00 to 23:59.');
+  for(const field of ['attendance','paidHours'] as const)for(const [id,value] of Object.entries(raw[field]&&typeof raw[field]==='object'?raw[field]:{}).slice(0,500)) {const n=Number(value);if(!Number.isFinite(n)||n<0||n>24)throw new Error('Individual hours must be between 0 and 24.');out[field][id]=n;}
+  out.breakMinutes=Number(raw.breakMinutes??0);
+  if(!Number.isInteger(out.breakMinutes)||out.breakMinutes<0||out.breakMinutes>1440)throw Error('Break minutes must be a whole number from 0 to 1440.');
+  for(const key of ['date','endDate','dueDate','cycleStart','issuedDate','submissionDate'] as const) if(out[key]&&!validDate(out[key]))throw new Error(`Enter a valid ${key.replace(/[A-Z]/g,m=>' '+m.toLowerCase())}.`);
+  for(const field of ['startTime','endTime'] as const)if(out[field]&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(out[field]))throw new Error('Enter time as HH:MM, from 00:00 to 23:59.');
   if(out.sourceUrl&&!safeLink(out.sourceUrl))throw new Error('Source links must start with https://.');
   if(out.certificationId&&out.certificationId!=='custom'&&!certificationCatalog.some(c=>c.id===out.certificationId))throw new Error('Choose a certification from the official catalog or Other credential.');
   return out;
@@ -78,6 +101,11 @@ export function validateTraining(kind: TrainingKind, data: TrainingData, records
     if(!data.date||data.date>today)throw new Error('Choose the actual completion date, today or earlier.');
     if(data.hours===null||data.hours<=0||data.hours>24)throw new Error('Enter actual hours, greater than zero and no more than 24 per day.');
     if(!data.instructor)throw new Error('Enter the instructor or training provider.');
+    if(data.endTime) {
+      const calculated=sessionHours(data);
+      if(calculated===null)throw Error('Enter the session date and start time with its end time.');
+      if(Math.abs(calculated-data.hours)>0.00001)throw Error(`Session times and breaks total ${calculated} hours. Resolve the different duration before completing.`);
+    }
     if(data.employeeIds.some(id=>data.attendance[id]!==undefined&&data.attendance[id]>data.hours!))throw new Error('A member cannot receive more hours than the training duration.');
     const activity=linked(data.activityId,'activity');
     for(const f of activity?.data.fields??[]) {const answer=data.answers[f.id]?.trim()??'';if(f.required&&!answer)throw new Error(`Complete ${f.label}.`);if(answer&&f.type==='choice'&&!f.options.includes(answer))throw new Error(`Choose a listed answer for ${f.label}.`);if(answer&&f.type==='number'&&!Number.isFinite(Number(answer)))throw new Error(`Enter a number for ${f.label}.`);if(answer&&f.type==='date'&&!validDate(answer))throw new Error(`Enter a date for ${f.label}.`);if(answer&&f.type==='yes-no'&&!['Yes','No','Not applicable'].includes(answer))throw new Error(`Choose an answer for ${f.label}.`);}
@@ -112,7 +140,7 @@ export function deadlineLabel(due:string,today=todayChicago()) {
 }
 export function csvCell(value:unknown) { let s=String(value??'');if(/^[\s]*[=+@-]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"'; }
 export function trainingCsv(records:TrainingRecord[], members:TrainingMember[]) {
-  const rows:unknown[][]=[['Record ID','Training','Member','Date','Hours','Instructor / provider','Location','Category','Assignment ID','Source','Recorded by','OSFM tasks / references']];
-  for(const r of records.filter(r=>r.kind==='completion'&&!r.archived&&!r.data.test&&r.data.status==='completed'))for(const id of r.data.employeeIds)rows.push([r.id,r.data.title,members.find(m=>m.id===id)?.name??id,r.data.date,r.data.attendance[id]??r.data.hours,r.data.instructor,r.data.location,r.data.category,r.data.assignmentId,r.data.sourceUrl,r.updatedBy,(r.data.osfmTaskIds??[]).map(id=>taskReference(id)?.label??id).join('; ')]);
+  const rows:unknown[][]=[['Record ID','Training','Member','Date','Hours','Instructor / provider','Location','Category','Assignment ID','Source','Recorded by','OSFM tasks / references','Start time','End date','End time','Break minutes','Time clarification','Paid hours reference']];
+  for(const r of records.filter(r=>r.kind==='completion'&&!r.archived&&!r.data.test&&r.data.status==='completed'))for(const id of r.data.employeeIds)rows.push([r.id,r.data.title,members.find(m=>m.id===id)?.name??id,r.data.date,r.data.attendance[id]??r.data.hours,r.data.instructor,r.data.location,r.data.category,r.data.assignmentId,r.data.sourceUrl,r.updatedBy,(r.data.osfmTaskIds??[]).map(id=>taskReference(id)?.label??id).join('; '),r.data.startTime,r.data.endDate,r.data.endTime,r.data.breakMinutes,r.data.timeNote,r.data.paidHours[id]??'']);
   return rows.map(row=>row.map(csvCell).join(',')).join('\r\n');
 }
