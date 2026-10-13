@@ -1,0 +1,126 @@
+/* Rates and holiday controls keep each text/background pair together. */
+:is(.payroll-rules-fields,.payroll-holiday-manager) {
+  --pa-text:#17364a; --pa-muted:#40596c; --pa-panel:#fff;
+  --pa-soft:#f3f7fa; --pa-control:#fff; --pa-line:#8ba2b4;
+  --pa-derived:#e8f1f8; --pa-derived-text:#214f70; --pa-focus:#155f9b;
+  --pa-error:#8c241c; --pa-error-bg:#fff1ed;
+  min-width:0; max-width:100%; line-height:1.55;
+}
+@media screen {
+  .workspace.bento-rest.bento-rest :is(.payroll-rules-fields,.payroll-holiday-manager) {
+    --pa-text:#f1f5f9; --pa-muted:#c4d2e2; --pa-panel:#141e30;
+    --pa-soft:#101a2c; --pa-control:#0e1728; --pa-line:#647b96;
+    --pa-derived:#20364f; --pa-derived-text:#e0efff; --pa-focus:#93c5fd;
+    --pa-error:#fecaca; --pa-error-bg:#472126;
+    color-scheme:dark;
+  }
+}
+
+/* Extra scope protects these controls from shared portal and field styles. */
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) :is(.payroll-rules-fields.payroll-rules-fields,.payroll-holiday-manager.payroll-holiday-manager) {
+  color:var(--pa-text);
+}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields .content-card,
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-holiday-manager.payroll-holiday-manager {
+  background:var(--pa-panel); border-color:var(--pa-line); padding:24px;
+}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) :is(.payroll-rules-fields.payroll-rules-fields,.payroll-holiday-manager.payroll-holiday-manager) :is(h2,h3,label,legend,strong,b,summary) {
+  color:var(--pa-text);
+}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) :is(.payroll-rules-fields.payroll-rules-fields,.payroll-holiday-manager.payroll-holiday-manager) :is(p,small,time,.mobile-rate-label,.rate-head,.rate-history>div,.ph-list span,summary span) {
+  color:var(--pa-muted); font-size:14px; line-height:1.55; opacity:1;
+}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) :is(.payroll-rules-fields.payroll-rules-fields,.payroll-holiday-manager.payroll-holiday-manager) :is(input,select) {
+  background:var(--pa-control); color:var(--pa-text); -webkit-text-fill-color:var(--pa-text);
+  border-color:var(--pa-line); font-size:16px; opacity:1;
+}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) :is(.payroll-rules-fields.payroll-rules-fields,.payroll-holiday-manager.payroll-holiday-manager) :is(input,select,button,summary):focus-visible {
+  outline:3px solid var(--pa-focus); outline-offset:3px;
+}
+
+/* Rule values, their units and the explanatory hints remain readable. */
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields .settings-grid {
+  background:transparent; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:16px;
+}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields .settings-grid>label {
+  background:var(--pa-soft); border:1px solid var(--pa-line); border-radius:12px;
+  padding:16px; font-size:15px; gap:10px;
+}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields .input-unit {
+  background:var(--pa-control); border-color:var(--pa-line); min-height:52px; padding:8px 12px;
+}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields .input-unit input {
+  background:transparent; font-size:18px; font-weight:750;
+}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields .input-unit b {
+  color:var(--pa-muted); font-size:14px;
+}
+
+/* Effective dates, calculated rates and rate history use the same palette. */
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields :is(.rate-effective-control,.rate-head,.rate-row) {
+  background:var(--pa-soft); border-color:var(--pa-line); border-radius:0;
+}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields .rate-effective-control {
+  border-radius:12px; padding:18px; gap:20px;
+}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields :is(.rate-list,.rate-history,.rate-history>div) {
+  border-color:var(--pa-line);
+}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields .rate-list {border-radius:12px}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields :is(.rate-head,.rate-row) {
+  grid-template-columns:minmax(200px,1.2fr) repeat(3,minmax(160px,1fr)); padding:18px; gap:16px;
+}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields .rate-row>label {
+  background:var(--pa-control); border-color:var(--pa-line); min-height:52px; height:auto; padding:10px 12px;
+}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields .rate-row input {
+  background:transparent; font-weight:750; min-height:30px; font-variant-numeric:tabular-nums;
+}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields .rate-row>.calculated-rate {
+  background:var(--pa-derived);
+}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields .calculated-rate :is(input,b,em) {
+  color:var(--pa-derived-text); -webkit-text-fill-color:var(--pa-derived-text);
+}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields .calculated-rate em {
+  background:var(--pa-soft); font-size:11px; padding:4px 7px;
+}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields .rate-history>div {padding:12px 0}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields .rate-row.selected-employee-scale {outline:2px solid var(--pa-focus);outline-offset:-2px}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields .workflow-save-status :is(strong,small,span) {color:inherit;font-size:14px}
+
+/* Holiday disclosure, calendar dates and shift windows are explicit text. */
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-holiday-manager.payroll-holiday-manager>summary {
+  font-size:17px; min-height:48px; padding:6px 0;
+}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-holiday-manager.payroll-holiday-manager>summary::marker {color:var(--pa-focus)}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-holiday-manager.payroll-holiday-manager[open]>summary {
+  border-bottom:1px solid var(--pa-line); padding-bottom:16px;
+}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-holiday-manager.payroll-holiday-manager .ph-content {padding-top:20px}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-holiday-manager.payroll-holiday-manager .ph-form {
+  background:var(--pa-soft); border-color:var(--pa-line); gap:18px;
+}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-holiday-manager.payroll-holiday-manager .ph-list li {
+  border-color:var(--pa-line); padding:18px 0;
+}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-holiday-manager.payroll-holiday-manager .ph-list time {
+  color:var(--pa-text); font-size:16px; font-weight:750; font-variant-numeric:tabular-nums;
+}
+:is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-holiday-manager.payroll-holiday-manager .ph-error.ph-error {
+  background:var(--pa-error-bg); color:var(--pa-error); border-color:var(--pa-error);
+}
+@media(max-width:1050px) {
+  :is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields .rate-head {display:none}
+  :is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields .rate-row {grid-template-columns:minmax(0,1fr)}
+  :is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields .mobile-rate-label {display:block;flex:1;min-width:0}
+  :is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields .rate-row input {flex:0 1 110px;max-width:110px}
+}
+@media(max-width:600px) {
+  :is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields .content-card,
+  :is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-holiday-manager.payroll-holiday-manager {padding:16px}
+  :is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields .rate-effective-control {align-items:stretch;flex-direction:column}
+  :is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields .rate-effective-control label {min-width:0}
+  :is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields .rate-row>label {flex-wrap:wrap;gap:8px}
+  :is(.workspace.bento-rest.bento-rest,.payroll-admin-preview) .payroll-rules-fields.payroll-rules-fields .rate-row .mobile-rate-label {flex-basis:100%}
+}
