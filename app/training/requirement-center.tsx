@@ -1,11 +1,12 @@
 'use client';
+import {useUnsavedWork} from '../use-unsaved-work';
 import {useState} from 'react';
 import {requirementProgress,trainingAuditPacket,type RequirementPlan} from './requirements';
 import {newTrainingRecord} from './editor';
 import type {TrainingRecord,TrainingSnapshot} from './model';
 export function downloadTrainingPacket(record:TrainingRecord,snapshot:TrainingSnapshot){const url=URL.createObjectURL(new Blob([JSON.stringify(trainingAuditPacket(record,snapshot),null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='training-review-'+record.id+'-v'+record.version+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 export default function RequirementCenter({snapshot,onSave,onOpen}:{snapshot:TrainingSnapshot;onSave:(r:TrainingRecord)=>Promise<TrainingRecord>;onOpen:(id:string)=>void}){
- const [draft,setDraft]=useState<TrainingRecord|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);const plans=snapshot.records.filter(r=>r.kind==='resource'&&r.data.requirementPlan&&!r.archived&&r.data.status==='saved');
+ const [draft,setDraft]=useState<TrainingRecord|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);useUnsavedWork(Boolean(draft),busy);const plans=snapshot.records.filter(r=>r.kind==='resource'&&r.data.requirementPlan&&!r.archived&&r.data.status==='saved');
  function start(r?:TrainingRecord){setDraft(r?structuredClone(r):newTrainingRecord('resource',{title:'',description:'Approved department training plan',status:'saved',requirementPlan:{from:'',through:'',targetHours:0,source:'',approvedBy:'',objective:'',category:''}}));setError('');}
  const set=(patch:Partial<RequirementPlan>)=>setDraft(r=>r?{...r,data:{...r.data,requirementPlan:{...r.data.requirementPlan!,...patch}}}:r);
  async function save(){if(!draft)return;setBusy(true);setError('');try{await onSave(draft);setDraft(null);}catch(e){setError(e instanceof Error?e.message:'Save not confirmed. Keep the plan and retry.');}finally{setBusy(false);}}

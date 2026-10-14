@@ -4,7 +4,7 @@ export type ProgramKind=typeof programKinds[number];
 export type HydrantWork={hydrantId:string;work:'inspection'|'flushing';result:'pending'|'completed'|'follow_up';completedDate:string;notes:string;flushId:string};
 export type ProgramData={title:string;date:string;status:'planned'|'completed'|'cancelled';ownerId:string;notes:string;items:HydrantWork[];audience:string;location:string;attendees:number|null;staffHours:number|null;equipmentId:string;reason:string;estimateCents:number|null;actualCents:number|null;costSource:string};
 export type ProgramRecord={id:string;kind:ProgramKind;data:ProgramData;version:number;updatedAt:string;updatedBy:string};
-export type ProgramSource={id:string;name:string;status?:string;expirationDate?:string;purchaseDate?:string;flushes?:{id:string;date:string}[]};
+export type ProgramSource={id:string;name:string;status?:string;latitude?:number|null;longitude?:number|null;expirationDate?:string;purchaseDate?:string;flushes?:{id:string;date:string}[]};
 export type ProgramPacket={records:ProgramRecord[];canEdit:boolean;members:{id:string;name:string}[];sources:ProgramSource[];sourceState:'ready'|'unavailable';generatedAt:string};
 export function blankProgram():ProgramData{return {title:'',date:'',status:'planned',ownerId:'',notes:'',items:[],audience:'',location:'',attendees:null,staffHours:null,equipmentId:'',reason:'',estimateCents:null,actualCents:null,costSource:''};}
 const text=(x:unknown,n=2000)=>String(x??'').trim().slice(0,n);

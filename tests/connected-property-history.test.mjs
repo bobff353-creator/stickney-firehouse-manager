@@ -9,7 +9,7 @@ test('connected history retains old/archived versions, excludes tests/other prop
     for(let n=0;n<31;n++)await insert('v'+String(n).padStart(3,'0'),'property-a','fixture-department',false,n+1);
     await insert('other-property','property-b');await insert('other-dept','property-a','other-department');await insert('test','property-a','fixture-department',true);
     await h.pg.exec("INSERT INTO field_preplan_revisions VALUES('revision','property-a',1,'draft','Fixture preplan revision','fixture@example.invalid','2026-10-13T10:00:00Z');");
-    let working=true;
+    await h.pg.exec("ALTER TABLE field_preplans ADD COLUMN updated_at text DEFAULT 'old';ALTER TABLE field_preplans ADD COLUMN revision_number integer DEFAULT 1;ALTER TABLE field_preplans ADD COLUMN next_review_date text DEFAULT '';CREATE TABLE fire_inspection_pilot_records(id text,department_id text,kind text,payload text,version integer,archived integer,updated_at text);");let working=true;
     const load=trainingModules({[resolve('db/bootstrap.ts')]:{ensureDatabase:async()=>h.db},[resolve('app/server-permissions.ts')]:{preplanReadAccess:async()=>({canViewPublished:true,canViewWorking:working}),canReadPreplanLifecycle:()=>true}}),api=load('app/api/fire-inspections/property-history/route.ts');
     const get=(params='',email='bobff353@gmail.com')=>api.GET(new Request('http://localhost/api/fire-inspections/property-history?property=property-a'+params,{headers:{'oai-authenticated-user-email':email,'x-department-id':'fixture-department'}}));
     assert.equal((await get('','member@example.invalid')).status,403);
