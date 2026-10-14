@@ -55,7 +55,7 @@ import PayrollPayBreakdown from "./payroll-pay-breakdown";
 import { buildPayrollReference, payrollReferenceCsv } from "./payroll-reference-export";
 import EmployeePayScale, { payScaleLabel } from "./employee-pay-scale";
 const WorkDetails = dynamic(() => import("./work-details"), { loading: () => <ModuleLoading /> });
-import StationScheduler from "./station-scheduler";
+const StationScheduler = dynamic(() => import("./station-scheduler"), { loading: () => <ModuleLoading /> });
 import { RequiredConfirmation } from './required-confirmation';
 const PermissionSettings = dynamic(() => import("./permission-settings"), { loading: () => <ModuleLoading /> });
 const FieldPreplans = dynamic(() => import("./field-preplans"), { loading: () => <ModuleLoading /> });
@@ -1105,9 +1105,9 @@ export default function PayrollApp({
           {activeNav === "Inventory" && <section className="content-card action-empty-state"><div><h1>Apparatus Checks &amp; Inventory</h1><p>Open the dedicated workspace to choose an apparatus, complete checks, and find equipment.</p></div><button type="button" className="primary-action" disabled={openingInventory} onClick={() => void openInventory()}>{openingInventory ? "Checking access…" : "Open Apparatus Checks"}</button></section>}
           {activeNav === "Command Center" && <CommandCenter onNavigate={navigate} preview={Boolean(testMember)} />}
           {activeNav === "Work Details" && <WorkDetails onPayrollChanged={(approvedPeriodStart) => { setPeriodStart(approvedPeriodStart); }} />}
-          {activeNav === "Scheduling" && <StationScheduler key={navigationVersion} testMember={testMember} />}
+          {activeNav === "Scheduling" && <StationScheduler key={`StationScheduler:${navigationVersion}`} testMember={testMember} />}
 
-          {activeNav !== "Task Queue" && <TaskQueueReturn key={navigationVersion}/>}
+          {activeNav !== "Task Queue" && <TaskQueueReturn key={`TaskQueueReturn:${navigationVersion}`}/>}
           {activeNav === "Activity Timeline" && <ActivityTimeline />}
           {activeNav === "Task Queue" && !testMember && <TaskQueue />}
           {activeNav === "Command Board" && <IncidentCommandBoard />}
@@ -1134,18 +1134,18 @@ export default function PayrollApp({
             </article>
           </section>}
           {activeNav === "Daily Duties" && <DailyDuties />}
-          {activeNav === "Phone Numbers" && <PhoneNumbers key={navigationVersion} />}
+          {activeNav === "Phone Numbers" && <PhoneNumbers key={`PhoneNumbers:${navigationVersion}`} />}
           {activeNav === "CAD Integration" && viewerPermissions.includes("settings.manage") && <CadIntegrationSettings />}
           {activeNav === "Departments" && viewerPermissions.includes("settings.manage") && <DepartmentSettings />}
           {activeNav === "System Health" && viewerPermissions.includes("settings.manage") && <SystemHealth permissions={viewerPermissions} />}
 
-          {activeNav === "Employee Contacts" && <EmployeeDirectory key={navigationVersion} contacts initialSearch={employeeSearch} />}
+          {activeNav === "Employee Contacts" && <EmployeeDirectory key={`EmployeeDirectory:${navigationVersion}`} contacts initialSearch={employeeSearch} />}
 
-          {activeNav === "Policies" && <PoliciesPage key={navigationVersion} />}
+          {activeNav === "Policies" && <PoliciesPage key={`PoliciesPage:${navigationVersion}`} />}
 
-          {activeNav === "Box Cards" && <BoxCardsPage key={navigationVersion} />}
+          {activeNav === "Box Cards" && <BoxCardsPage key={`BoxCardsPage:${navigationVersion}`} />}
 
-          {(activeNav === "Permissions" || activeNav === "Test View") && viewerPermissions.includes("permissions.manage") && <PermissionSettings key={navigationVersion} initialSelection={permissionSelection} onSelectionChange={setPermissionSelection} initialTab={activeNav === "Test View" ? "test" : "permissions"} testEmployeeId={testMember?.id ?? ""} onTestEmployee={changeTestMember} onPermissionsSaved={permissionsSaved} />}
+          {(activeNav === "Permissions" || activeNav === "Test View") && viewerPermissions.includes("permissions.manage") && <PermissionSettings key={`PermissionSettings:${navigationVersion}`} initialSelection={permissionSelection} onSelectionChange={setPermissionSelection} initialTab={activeNav === "Test View" ? "test" : "permissions"} testEmployeeId={testMember?.id ?? ""} onTestEmployee={changeTestMember} onPermissionsSaved={permissionsSaved} />}
 
         </>}
         {portalNeedsPayroll(activeNav) && visibleNav.includes(activeNav) && (loading && !data ? <PortalSkeleton page={activeNav} /> : data && <>
@@ -1224,7 +1224,7 @@ export default function PayrollApp({
 
           {activeNav === "My Timesheet" && !selectedEmployee && <div className="content-card action-empty-state"><div><h2>No timesheet available for this period</h2><p>Your account may not be linked to an employee on this payroll. Try another pay period or ask a payroll administrator to check the account link.</p></div></div>}
           {activeNav === "Daily Log" && <DailyLog employees={data.employees} onHome={() => navigate(homePage)} onPayrollSynced={() => { void loadPayroll(periodStart); }} />}
-          {activeNav === "Employees" && !data.viewer.canManageEmployees && <EmployeeDirectory key={navigationVersion} initialSearch={employeeSearch} />}
+          {activeNav === "Employees" && !data.viewer.canManageEmployees && <EmployeeDirectory key={`EmployeeDirectory:${navigationVersion}`} initialSearch={employeeSearch} />}
           {activeNav === "Employees" && data.viewer.canManageEmployees && <section className="employee-page">
             <div className="standard-page-header"><div><span className="page-icon"><Icon name="users" size={25}/></span><div><p className="eyebrow">Personnel administration</p><h1>Employees</h1><p>Manage employment, contact, access, driver status, and emergency information.</p></div></div><button type="button" className="primary-action" disabled={!access.permissions.includes("permissions.manage")} title="Creating an account requires Manage permissions access." onClick={() => editEmployee()}>Add Employee</button></div>
             {inviteMessage && <div className="employee-invite-message" role="status">{inviteMessage}<button type="button" aria-label="Dismiss invitation message" onClick={() => setInviteMessage("")}>×</button></div>}
