@@ -1,0 +1,2 @@
+import {validQueueDate} from './task-queue-model';
+export function activitySourceHref(type:string,date:string,shift=''){if(!validQueueDate(date))return '';if(type==='payroll'&&!['11','26'].includes(date.slice(-2)))return '';if(!['dailyLog','payroll'].includes(type))return '';return '/?'+new URLSearchParams({display:'portal',page:type==='payroll'?'payroll':'daily-log',[type==='payroll'?'payrollPeriod':'logDate']:date,...(type==='dailyLog'&&['morning','afternoon','overnight'].includes(shift)?{logShift:shift}:{})});}

@@ -1,4 +1,5 @@
 "use client";
+import {validQueueDate} from './task-queue-model';
 import { fleetChecksForShift } from "./fleet-check-shift";
 import { parseSavedTime, savedTimeLabel } from "./workflow-status";
 import { requestDailyLogSave } from "./daily-log-save-request";
@@ -428,7 +429,7 @@ export default function DailyLog({
   onHome?: () => void;
 }) {
   const [logDate, setLogDate] = useWorkspaceViewState("daily-log-date",
-    () => chicagoOperationalContext().operationalDate,
+    () => {const date=typeof window==='undefined'?'':new URLSearchParams(window.location.search).get('logDate')||'';return validQueueDate(date)?date:chicagoOperationalContext().operationalDate;},
   );
   const [savedHoliday,setSavedHoliday]=useState<{date:string;holiday:DepartmentHoliday|null}|null>(null);
   const [staffing, setStaffing] = useState<StaffingRow[]>([]);
@@ -440,7 +441,7 @@ export default function DailyLog({
   const [apparatusChecks, setApparatusChecks] = useState<ApparatusCheck[]>([]);
   const [apparatusChecksAvailable, setApparatusChecksAvailable] = useState(false);
   const [checksRefreshing, setChecksRefreshing] = useState(false);
-  const [expandedShifts, setExpandedShifts] = useState<string[]>(() => [currentLogShift()]);
+  const [expandedShifts, setExpandedShifts] = useState<string[]>(() => {const shift=typeof window==='undefined'?'':new URLSearchParams(window.location.search).get('logShift');return [shift&&['morning','afternoon','overnight'].includes(shift)?shift:currentLogShift()];});
   const [editingCalls, setEditingCalls] = useState<string[]>([]);
   const [removeCall, setRemoveCall] = useState<CallRow | null>(null);
   const [saveError, setSaveError] = useState(false);

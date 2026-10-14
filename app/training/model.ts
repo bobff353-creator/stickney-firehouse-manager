@@ -1,3 +1,4 @@
+import {completedMemberIds} from './completion-members';
 import { certificationCatalog } from './osfm-catalog';
 import { normalizeOsfmSelections,taskReference } from './osfm-selection';
 
@@ -138,7 +139,7 @@ export function creditedHours(record:TrainingRecord, employeeId?:string) {
   return ids.reduce((sum,id)=>sum+(record.data.attendance[id]??record.data.hours??0),0);
 }
 export function assignmentProgress(record:TrainingRecord, records:TrainingRecord[]) {
-  const complete=new Set(records.filter(r=>r.kind==='completion'&&!r.archived&&!r.data.test&&r.data.status==='completed'&&r.data.assignmentId===record.id).flatMap(r=>r.data.employeeIds.filter(id=>(r.data.attendance[id]??r.data.hours??0)>0)));
+  const complete=new Set(records.filter(r=>r.data.assignmentId===record.id).flatMap(completedMemberIds));
   return { completed:record.data.employeeIds.filter(id=>complete.has(id)).length,total:record.data.employeeIds.length };
 }
 export function deadlineLabel(due:string,today=todayChicago()) {

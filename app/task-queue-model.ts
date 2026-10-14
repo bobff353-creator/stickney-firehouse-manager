@@ -1,7 +1,8 @@
-export type TaskSource = 'Inspections' | 'Training' | 'Credentials' | 'Repairs' | 'Hydrants' | 'Outreach' | 'Replacements';
+import {completedMemberIds} from './training/completion-members.ts';
+export type TaskSource = 'Inspections' | 'Training' | 'Credentials' | 'Repairs' | 'Hydrants' | 'Outreach' | 'Replacements' | 'Preplans';
 export type DueState = 'Overdue' | 'Today' | 'Next 30 days' | 'Later' | 'Date needed' | 'Date needs review';
 export type QueueTask = { id: string; source: TaskSource; title: string; detail: string; status: string; dueDate: string; invalidDate: boolean; assignedIds: string[]; assignees: string[]; href: string };
-export type PilotTaskRow = { id: string; kind: string; payload: string };
+export type PilotTaskRow = { id: string; kind: string; payload: string; archived?:boolean|number };
 type Data = Record<string, unknown>;
 const text = (v: unknown) => typeof v === 'string' ? v.trim() : '';
 const strings = (v: unknown) => Array.isArray(v) ? v.filter((s): s is string => typeof s === 'string' && Boolean(s.trim())).map(s=>s.trim()) : [];
@@ -44,7 +45,7 @@ export function trainingTasks(rows: PilotTaskRow[], names: Map<string,string>): 
   const completedByAssignment=new Map<string,Set<string>>();
   for(const {row,d} of decoded)if(row.kind==='completion'&&d.status==='completed'&&text(d.assignmentId)){
     const key=text(d.assignmentId),ids=completedByAssignment.get(key)||new Set<string>();
-    for(const id of strings(d.employeeIds))ids.add(id);completedByAssignment.set(key,ids);
+    for(const id of completedMemberIds({kind:row.kind,archived:row.archived,data:d}))ids.add(id);completedByAssignment.set(key,ids);
   }
   return decoded.flatMap(({row,d})=>{
     if(row.kind!=='assignment' && row.kind!=='credential')return [];
@@ -71,3 +72,5 @@ export function repairTasks(rows: Data[]): QueueTask[] {
     return {id:'repair:'+id,source:'Repairs',title:text(row.summary)||'Repair',detail:[text(row.priority),text(row.details).slice(0,200)].filter(Boolean).join(' · '),status:text(row.status)||'Open',dueDate,invalidDate,assignedIds,assignees:assignees.length ? assignees : text(row.assigned_to) ? [text(row.assigned_to)] : [],href:'/inventory?'+new URLSearchParams({adminTask:'service',workOrder:id}).toString()};
   });
 }
+
+export function preplanTasks(rows:Record<string,unknown>[]):QueueTask[]{return rows.filter(r=>['published',''].includes(text(r.publicationStatus))).map(r=>{const id=text(r.id),date=text(r.nextReviewDate);return {id:'preplan:'+id,source:'Preplans',title:text(r.name)||'Published preplan',detail:[text(r.address),r.lastVerifiedAt?'Last recorded verification: '+text(r.lastVerifiedAt):'Verification date not recorded'].filter(Boolean).join(' · '),status:'Published plan review',dueDate:date,invalidDate:Boolean(date&&!validQueueDate(date)),assignedIds:[],assignees:[],href:recordHref('field-preplans','preplan',id)};});}

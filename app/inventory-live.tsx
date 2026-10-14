@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import PortalModuleMenu from "./components/PortalModuleMenu";
 import InventoryOperations from "./inventory-operations";
+import TaskQueueReturn from './task-queue-return';
 import { WorkspaceViewMemory } from "./workspace-view-state";
 import { confirmLeavingWork } from "./use-unsaved-work";
 import { RequiredConfirmation } from './required-confirmation';
@@ -600,7 +601,7 @@ export default function Inventory360({
 
   if (!access.confirmation || access.confirmation.required) return <main className="inventory-app-shell"><RequiredConfirmation status={access.confirmation}/><Link href="/?page=respond&display=portal">Open Respond</Link></main>;
   return (
-    <WorkspaceViewMemory key={access.identity}><main className={`inventory-app-shell inventory-portal-refresh${view === "check" ? " inventory-task-focused" : ""}`}>
+    <WorkspaceViewMemory key={access.identity}><main className={`inventory-app-shell inventory-portal-refresh${view === "check" ? " inventory-task-focused" : ""}`}><TaskQueueReturn/>
       <header className="topbar">
         <PortalModuleMenu permissions={permissions} currentPage="Inventory" departmentName={activeDepartmentName}/>
         <button className="brand" onClick={() => setView("due")} aria-label="Inventory and Apparatus Checks home">

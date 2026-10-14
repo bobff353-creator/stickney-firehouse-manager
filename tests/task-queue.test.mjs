@@ -15,9 +15,9 @@ test('inspection queue keeps open observations, skips canceled/test/finished vis
   assert.equal(tasks[1].dueDate,'2026-10-10');assert.equal(taskDueState(tasks[1],'2026-10-13'),'Date needs review');
 });
 test('training completion only clears members linked by assignment ID, with test/draft completions excluded',()=>{
-  const rows=[row('assignment','assignment',{status:'saved',employeeIds:['member-a','member-b']}),row('completion','completion',{status:'completed',assignmentId:'assignment',employeeIds:['member-a']}),row('test','completion',{status:'completed',test:true,assignmentId:'assignment',employeeIds:['member-b']}),row('draft','completion',{status:'draft',assignmentId:'assignment',employeeIds:['member-b']}),row('wrong','completion',{status:'completed',assignmentId:'another',employeeIds:['member-b']})];
+  const rows=[row('assignment','assignment',{status:'saved',employeeIds:['member-a','member-b']}),row('completion','completion',{status:'completed',hours:2,assignmentId:'assignment',employeeIds:['member-a']}),row('test','completion',{status:'completed',test:true,assignmentId:'assignment',employeeIds:['member-b']}),row('draft','completion',{status:'draft',assignmentId:'assignment',employeeIds:['member-b']}),row('wrong','completion',{status:'completed',hours:2,assignmentId:'another',employeeIds:['member-b']})];
   assert.deepEqual(trainingTasks(rows,names)[0].assignedIds,['member-b']);
-  rows.push(row('last','completion',{status:'completed',assignmentId:'assignment',employeeIds:['member-b']}));assert.equal(trainingTasks(rows,names).length,0);
+  rows.push(row('last','completion',{status:'completed',hours:2,assignmentId:'assignment',employeeIds:['member-b']}));assert.equal(trainingTasks(rows,names).length,0);
 });
 test('credential reminders retain undated records and exclude drafts/test data; links use the existing credentials tab',()=>{
   const tasks=trainingTasks([row('saved','credential',{status:'saved',title:'Fixture credential',employeeIds:['member-a'],dueDate:''}),row('draft','credential',{status:'draft'}),row('test','credential',{status:'saved',test:true})],names);

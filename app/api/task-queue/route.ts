@@ -4,7 +4,7 @@ import { inspectionPilotAccess } from '../../fire-inspections/access';
 import { trainingPilotAccess } from '../../training/access';
 import { verifyInventoryRequest } from '../../lib/inventory-session';
 import { createInventorySupabaseClient } from '../../lib/supabase-server';
-import { chicagoQueueDate, inspectionTasks, repairTasks, sortQueue, trainingTasks, type QueueTask, type PilotTaskRow } from '../../task-queue-model';
+import { chicagoQueueDate, inspectionTasks, repairTasks, sortQueue, trainingTasks, preplanTasks, type QueueTask, type PilotTaskRow } from '../../task-queue-model';
 import type {ProgramData,ProgramKind} from '../../operational-program-model';
 const json=(body:unknown,status=200)=>Response.json(body,{status,headers:{'Cache-Control':'private, no-store, max-age=0',Vary:'Cookie'}});
 export async function GET(request:Request){
@@ -39,6 +39,7 @@ export async function GET(request:Request){
       if(result.error||!result.data||result.data.length>1000)throw Error('Open Repairs to review the current queue.');
       return repairTasks(result.data);
     }});
+    if(permissions.has('field_preplans.view'))tasks.push({name:'Preplan reviews',run:async()=>{const rows=await db.prepare("SELECT id,business_name name,address,COALESCE(NULLIF(trim(publication_status),''),'published') publicationStatus,next_review_date nextReviewDate,last_verified_at lastVerifiedAt FROM field_preplans WHERE COALESCE(NULLIF(trim(publication_status),''),'published')='published' ORDER BY id LIMIT 10001").all<Record<string,unknown>>();if(rows.results.length>10000)throw Error('Open Preplans to review the larger register.');return preplanTasks(rows.results);}});
     const programKinds:ProgramKind[]=[];
     if(permissions.has('field_preplans.view'))programKinds.push('hydrants');
     if(permissions.has('command_center.view')){programKinds.push('outreach');if(permissions.has('inventory.view'))programKinds.push('replacement');}

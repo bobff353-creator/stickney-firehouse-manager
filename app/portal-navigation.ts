@@ -20,7 +20,7 @@ export function portalPageUrl(pathname: string, search: string, page: PortalPage
   const params = new URLSearchParams(search);
   params.set("page", pageSlug(page));
   params.set("display", "portal");
-  for (const key of ["preplan", "hydrant", "edit", "policy", "boxCard", "query", "adminTask", "trainingRecord", "trainingTab", "inspectionRecord", "inspectionTab", "inspectionProperty", "nerisRecord", "incident", "equipment", "scheduleDate"]) params.delete(key);
+  for (const key of ["queueReturn", "queueView", "logDate", "logShift", "payrollPeriod", "preplan", "hydrant", "edit", "policy", "boxCard", "query", "adminTask", "trainingRecord", "trainingTab", "inspectionRecord", "inspectionTab", "inspectionProperty", "nerisRecord", "incident", "equipment", "scheduleDate"]) params.delete(key);
   if (page === "Command Board" && record?.incident) params.set("incident", record.incident);
   if (record?.adminTask) params.set("adminTask", record.adminTask);
   if(page==="Scheduling"&&record?.scheduleDate&&validQueueDate(record.scheduleDate))params.set("scheduleDate",record.scheduleDate);

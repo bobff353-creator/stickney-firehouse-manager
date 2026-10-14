@@ -13,6 +13,8 @@ import { PayrollTimekeepingPanel } from './payroll-timekeeping-panel';
 import PayrollCorrections from "./payroll-corrections";
 import PayrollSubmissions, { type SubmissionState } from "./payroll-submissions";
 import { submittedPayrollReference, withApprovedAdjustments, submittedExportRows, adjustmentExportRows } from "./payroll-submission-export";
+import TaskQueueReturn from './task-queue-return';
+import {validQueueDate} from './task-queue-model';
 import { portalPageFromSearch, portalPageLabel, portalPageUrl, type PortalPage, type PortalRecord } from "./portal-navigation";
 import { featuredNavItems, featuredNavPages, adminNavGroups, navPermission, portalNavigationForPermissions } from "./portal-menu-items";
 import { confirmLeavingWork, useUnsavedWork } from "./use-unsaved-work";
@@ -936,6 +938,7 @@ export default function PayrollApp({
     }
     setInventoryError("Apparatus Checks could not verify secure access. Retry, or dismiss this message to keep working here.");
   }
+  useEffect(()=>{if(activeNav!=='Payroll')return;const period=new URLSearchParams(window.location.search).get('payrollPeriod');if(period&&validQueueDate(period)&&['11','26'].includes(period.slice(-2)))void Promise.resolve().then(()=>setPeriodStart(period));},[activeNav,navigationVersion]);
   function navigate(page: NavItem, record?: PortalRecord, fromBack = false) {
     if (!visibleNav.includes(page)) { setNavigationNotice("This account does not have access to that tool. Choose a tool from Home or contact your administrator."); return; }
     if (!confirmLeavingWork()) return;
@@ -1104,6 +1107,7 @@ export default function PayrollApp({
           {activeNav === "Work Details" && <WorkDetails onPayrollChanged={(approvedPeriodStart) => { setPeriodStart(approvedPeriodStart); }} />}
           {activeNav === "Scheduling" && <StationScheduler key={navigationVersion} testMember={testMember} />}
 
+          {activeNav !== "Task Queue" && <TaskQueueReturn key={navigationVersion}/>}
           {activeNav === "Activity Timeline" && <ActivityTimeline />}
           {activeNav === "Task Queue" && !testMember && <TaskQueue />}
           {activeNav === "Command Board" && <IncidentCommandBoard />}
