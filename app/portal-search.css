@@ -1,0 +1,45 @@
+.global-search-dialog {
+  --search-surface: #f6f8fb;
+  --search-card: #ffffff;
+  --search-text: #17354b;
+  --search-secondary: #40586c;
+  --search-line: #607895;
+  background: var(--search-surface);
+  color: var(--search-text);
+}
+.global-search-dialog .global-search-head :is(h2,p),
+.global-search-dialog .global-search-results strong { color: var(--search-text); }
+.global-search-dialog .global-search-input,
+.global-search-dialog .global-search-results button,
+.global-search-dialog .global-search-head > button {
+  background: var(--search-card);
+  color: var(--search-text);
+  border-color: var(--search-line);
+}
+.global-search-dialog .global-search-input input {
+  background: transparent;
+  color: var(--search-text);
+  opacity: 1;
+  font-size: 16px;
+}
+.global-search-dialog .global-search-input input::placeholder { color: var(--search-secondary); opacity: 1; }
+.global-search-dialog .global-search-results :is(small,p),
+.global-search-dialog :is(.global-search-notice,.global-search-empty) {
+  color: var(--search-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.global-search-dialog .search-type { background: #e6f1f8; color: #16435f; }
+.global-search-dialog .global-search-results strong { font-size: 16px; }
+.global-search-dialog :is(button,input):focus-visible { outline: 3px solid #b76b00; outline-offset: 3px; }
+@media (prefers-color-scheme: dark) {
+  .global-search-dialog {
+    --search-surface: #101c30;
+    --search-card: #17263e;
+    --search-text: #f1f5f9;
+    --search-secondary: #cad8e6;
+    --search-line: #829ab7;
+  }
+  .global-search-dialog .search-type { background: #dceaf5; color: #143c59; }
+  .global-search-dialog :is(button,input):focus-visible { outline-color: #fbbf24; }
+}

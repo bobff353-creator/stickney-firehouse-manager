@@ -146,7 +146,7 @@ export async function GET(request: Request) {
             .all<Row>(),
           db
             .prepare(
-              "SELECT id,hydrant_number hydrantNumber,address,latitude,longitude,service_status serviceStatus FROM field_hydrants ORDER BY updated_at DESC LIMIT 500",
+              "SELECT id,hydrant_number hydrantNumber,address,latitude,longitude,service_status serviceStatus FROM field_hydrants WHERE service_status<>'archived' ORDER BY updated_at DESC LIMIT 500",
             )
             .all<Row>(),
           db
@@ -366,7 +366,7 @@ export async function GET(request: Request) {
             .all<Row>(),
           db
             .prepare(
-              "SELECT lay.id,lay.level_id levelId,lay.name,lay.source_hydrant_id sourceHydrantId,hydrant.hydrant_number sourceHydrantNumber,hydrant.address sourceHydrantAddress,lay.total_distance_feet totalDistanceFeet,lay.hose_size_inches hoseSizeInches,lay.recommended_hose_feet recommendedHoseFeet,lay.supply_line_label supplyLineLabel,lay.apparatus_capacity_feet apparatusCapacityFeet,lay.path,lay.notes FROM field_preplan_hose_lays lay LEFT JOIN field_hydrants hydrant ON hydrant.id=lay.source_hydrant_id WHERE lay.preplan_id=? AND lay.archived=0 ORDER BY lay.name",
+              "SELECT lay.id,lay.level_id levelId,lay.name,lay.source_hydrant_id sourceHydrantId,hydrant.hydrant_number sourceHydrantNumber,hydrant.address sourceHydrantAddress,hydrant.service_status sourceHydrantStatus,lay.total_distance_feet totalDistanceFeet,lay.hose_size_inches hoseSizeInches,lay.recommended_hose_feet recommendedHoseFeet,lay.supply_line_label supplyLineLabel,lay.apparatus_capacity_feet apparatusCapacityFeet,lay.path,lay.notes FROM field_preplan_hose_lays lay LEFT JOIN field_hydrants hydrant ON hydrant.id=lay.source_hydrant_id WHERE lay.preplan_id=? AND lay.archived=0 ORDER BY lay.name",
             )
             .bind(preplanId)
             .all<Row>(),
@@ -490,7 +490,7 @@ export async function GET(request: Request) {
         .all<Row>(),
       db
         .prepare(
-          "SELECT id,hydrant_number hydrantNumber,address,latitude,longitude,service_status serviceStatus FROM field_hydrants",
+          "SELECT id,hydrant_number hydrantNumber,address,latitude,longitude,service_status serviceStatus FROM field_hydrants WHERE service_status<>'archived'",
         )
         .all<Row>(),
     ]);

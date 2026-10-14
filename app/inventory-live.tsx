@@ -336,6 +336,7 @@ export default function Inventory360({
   initialApparatusId = "",
   initialCheckType = "",
   initialAdminTask = "",
+  initialEquipmentId = "",
   permissions: initialPermissions,
 }: {
   departmentId: string;
@@ -343,6 +344,7 @@ export default function Inventory360({
   initialApparatusId?: string;
   initialCheckType?: "daily" | "weekly" | "inventory" | "air_pack" | "";
   initialAdminTask?: string;
+  initialEquipmentId?: string;
   permissions: string[];
 }) {
   void initialPermissions; // Server gate controls initial access; live grants are reverified below.
@@ -354,7 +356,7 @@ export default function Inventory360({
     // explanation and recovery controls in view instead of above the viewport.
     if (!accessAllowed) window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [accessAllowed]);
-  const [view, setViewState] = useState<View>(() => initialApparatusId && initialCheckType ? "check" : "due");
+  const [view, setViewState] = useState<View>(() => initialEquipmentId ? "equipment" : initialApparatusId && initialCheckType ? "check" : "due");
   const setView = useCallback((next: View) => { if (confirmLeavingWork()) setViewState(next); }, []);
   const [selectedApparatusId, setSelectedApparatusId] = useState(initialApparatusId);
   const [selectedCheckType, setSelectedCheckType] = useState(initialCheckType);
@@ -870,7 +872,7 @@ export default function Inventory360({
       {view === "equipment" ? (
         <section className="page equipment-page">
           <div className="page-heading compact crew-heading"><div><span className="eyebrow">DEPARTMENT EQUIPMENT</span><h1>Find an asset, compartment, or kit.</h1><p>Search across every apparatus and scan an asset tag without guessing where it is stored.</p></div></div>
-          <InventoryOperations onRecords={receiveOperations} view="equipment" onSetup={() => setView("setup")} onAir={() => setView("air")} scanRequest={scanRequest} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+          <InventoryOperations onRecords={receiveOperations} view="equipment" initialEquipmentId={initialEquipmentId} onSetup={() => setView("setup")} onAir={() => setView("air")} scanRequest={scanRequest} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
         </section>
       ) : null}
 

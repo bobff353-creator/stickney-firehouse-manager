@@ -378,6 +378,7 @@ export default function InventoryOperations({
   view,
   onSetup,
   initialApparatusId = "",
+  initialEquipmentId = "",
   initialCheckType = "",
   onOpenUnit,
   scanRequest = 0,
@@ -393,6 +394,7 @@ export default function InventoryOperations({
   view: OperationsView;
   onSetup: () => void;
   initialApparatusId?: string;
+  initialEquipmentId?: string;
   initialCheckType?: "daily" | "weekly" | "inventory" | "air_pack" | "";
   onOpenUnit?: (apparatusId: string, checkType: "daily" | "weekly" | "inventory" | "air_pack") => void;
   scanRequest?: number;
@@ -443,6 +445,8 @@ export default function InventoryOperations({
   const [numericReadings, setNumericReadings] = useState<Record<string, string>>({});
   const [editingEquipment, setEditingEquipment] = useState<Row | null>(null);
   const [selectedDirectoryEquipment, setSelectedDirectoryEquipment] = useState<Row | null>(null);
+  const equipmentLinkApplied=useRef(false);
+
   const [scannerTarget, setScannerTarget] = useState<"create" | "edit" | "search">("create");
   const [equipmentSearch, setEquipmentSearch] = useWorkspaceViewState("equipment-search", "");
   const [equipmentRigFilter, setEquipmentRigFilter] = useWorkspaceViewState("equipment-rig", "all");
@@ -573,6 +577,12 @@ export default function InventoryOperations({
       if (controller.signal.aborted || readGeneration !== itemSaveGeneration.current || itemSavePending.current) return false;
       appliedRevision.current = revision;
       onRecords?.({ equipment: payload.equipment || [], checks: payload.checks || [], checkItems: payload.checkItems || [] });
+      if(initialEquipmentId&&!equipmentLinkApplied.current){
+        equipmentLinkApplied.current=true;
+        const item=(payload.equipment||[]).find(row=>value(row,'id')===initialEquipmentId&&!value(row,'retired_at'));
+        if(item)setSelectedDirectoryEquipment(item);
+        else setMessage('The requested equipment record is unavailable or retired. Search the active directory.');
+      }
       setData({
         configured: true,
         apparatus: payload.apparatus || [],
@@ -621,7 +631,7 @@ export default function InventoryOperations({
     readPending.current = request;
     try { return await request; }
     finally { if (readPending.current === request) { readPending.current = null; readController.current = null; } }
-  }, [initialApparatusId, onRecords]);
+  }, [initialApparatusId, initialEquipmentId, onRecords]);
 
   useEffect(() => {
     // Loading is intentionally kicked off once when this operational panel opens.

@@ -1,6 +1,6 @@
 export const portalPages = ["Dashboard", "Command Center", "Operations Board", "Activity Timeline", "Respond", "Command Board", "Field Preplans", "Road Closures", "Safety Inspections", "Fire Inspections", "NERIS Reporting", "Training", "Scheduling", "Payroll", "Work Details", "Daily Log", "Timesheets", "Callback Reviews", "My Timesheet", "Employees", "Employee Contacts", "Policies", "Box Cards", "Holiday Policy", "EMS", "Daily Duties", "Inventory", "Phone Numbers", "Rates & Rules", "Departments", "System Health", "Permissions", "CAD Integration", "Respond Device Modes", "Test View"] as const;
 export type PortalPage = typeof portalPages[number];
-export type PortalRecord = { preplan?: string; hydrant?: string; policy?: string; boxCard?: string; query?: string; adminTask?: string; incident?: string };
+export type PortalRecord = { preplan?: string; hydrant?: string; policy?: string; boxCard?: string; query?: string; adminTask?: string; incident?: string; equipment?: string; trainingRecord?: string; trainingTab?: string; inspectionRecord?: string; inspectionTab?: string; nerisRecord?: string };
 export function portalParentPage(page: PortalPage, home: PortalPage, allowed: readonly PortalPage[]) {
   const parent = ({ Timesheets: "Payroll", "Callback Reviews": "Payroll", "Work Details": "Payroll", "Employee Contacts": "Employees" } as Partial<Record<PortalPage, PortalPage>>)[page];
   return parent && allowed.includes(parent) ? parent : home;
@@ -19,7 +19,7 @@ export function portalPageUrl(pathname: string, search: string, page: PortalPage
   const params = new URLSearchParams(search);
   params.set("page", pageSlug(page));
   params.set("display", "portal");
-  for (const key of ["preplan", "hydrant", "edit", "policy", "boxCard", "query", "adminTask", "trainingRecord", "trainingTab", "inspectionRecord", "inspectionTab", "nerisRecord", "incident"]) params.delete(key);
+  for (const key of ["preplan", "hydrant", "edit", "policy", "boxCard", "query", "adminTask", "trainingRecord", "trainingTab", "inspectionRecord", "inspectionTab", "inspectionProperty", "nerisRecord", "incident", "equipment"]) params.delete(key);
   if (page === "Command Board" && record?.incident) params.set("incident", record.incident);
   if (record?.adminTask) params.set("adminTask", record.adminTask);
   if (page === "Field Preplans") {
@@ -28,6 +28,10 @@ export function portalPageUrl(pathname: string, search: string, page: PortalPage
   }
   if (page === "Policies" && record?.policy) params.set("policy", record.policy);
   if (page === "Box Cards" && record?.boxCard) params.set("boxCard", record.boxCard);
+  if(page==='Training'){if(record?.trainingRecord)params.set('trainingRecord',record.trainingRecord);if(record?.trainingTab)params.set('trainingTab',record.trainingTab);}
+  if(page==='Fire Inspections'){if(record?.inspectionRecord)params.set('inspectionRecord',record.inspectionRecord);if(record?.inspectionTab)params.set('inspectionTab',record.inspectionTab);}
+  if(page==='NERIS Reporting'&&record?.nerisRecord)params.set('nerisRecord',record.nerisRecord);
+  if(page==='Inventory'&&record?.equipment)params.set('equipment',record.equipment);
   if (["Employees", "Employee Contacts", "Phone Numbers"].includes(page) && record?.query) params.set("query", record.query);
   return `${pathname}?${params.toString()}`;
 }

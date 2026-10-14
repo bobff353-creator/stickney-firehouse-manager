@@ -44,7 +44,8 @@ test("hose-lay authoring persists measured segments, a verified source, and audi
   assert.match(panel, /Inventory verified at/);
   assert.match(panel, /archiveOperationalRecord\("hoseLay",item\.id\)/);
   assert.match(route, /Route segment distances must equal the measured route total/);
-  assert.match(route, /The selected source hydrant was not found/);
+  assert.match(route, /The selected source hydrant is archived or unavailable/);
+  assert.match(route, /WHERE id=\? AND service_status<>'archived'/);
   assert.match(route, /Verified apparatus capacity requires an apparatus reference and verification date/);
   assert.match(route, /The selected active apparatus was not found/);
   assert.match(route, /FROM fleet_apparatus/);

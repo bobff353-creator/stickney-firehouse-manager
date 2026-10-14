@@ -33,7 +33,7 @@ test("hydrant identity retains GPS provenance and unverified port values", () =>
   assert.match(page, /The map uses this hydrant’s saved GPS location/);
   assert.match(page, /<option value="0">Unknown — verify in field<\/option>/);
   assert.match(page, /Port layout is unverified/);
-  assert.match(page, /saveHydrantAction\(\{action:"saveHydrant",\.\.\.hydrantDraft\}/);
+  assert.match(page, /saveHydrantAction\(\{action:'saveHydrant',\.\.\.hydrantDraft,id:hydrantDraft.id\|\|hydrantCreateId.current\}/);
   assert.match(css, /\.hydrant-editor \.hydrant-summary>strong\.out_of_service\{background:#f8e5e2;color:#9a3328\}/);
 });
 

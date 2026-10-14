@@ -12,7 +12,8 @@ test("preview database routing uses deployment Supabase coordinates instead of D
   assert.match(config, /process\.env\.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);
   assert.match(server, /getPublicSupabaseConfig/);
   assert.match(adapter, /getSupabaseServerClient/);
-  assert.match(adapter, /supabase\.rpc\(rpc/);
+  assert.match(adapter, /supabase\.rpc\(department\.isolated \? `department_\$\{rpc\}` : rpc/);
+  assert.match(adapter, /department\.isolated \? \{ p_department: department\.id \}/);
   assert.doesNotMatch(`${config}\n${server}\n${adapter}`, /DATABASE_URL/);
 });
 

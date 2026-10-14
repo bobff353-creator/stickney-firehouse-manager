@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ apparatus?: string; check?: string; adminTask?: string }>;
+  searchParams: Promise<{ apparatus?: string; check?: string; adminTask?: string; equipment?: string }>;
 }) {
   const session = await verifyInventoryServerSession();
   if (!session.ok) {
@@ -32,6 +32,7 @@ export default async function Home({
       <Inventory360
         departmentId={session.context.department.id}
         departmentName={session.context.department.name}
+        initialEquipmentId={typeof query.equipment==="string"?query.equipment.trim().slice(0,100):""}
         initialApparatusId={initialApparatusId}
         initialCheckType={initialCheckType}
         initialAdminTask={typeof query.adminTask === "string" ? query.adminTask : ""}

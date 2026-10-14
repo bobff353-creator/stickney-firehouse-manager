@@ -11,7 +11,8 @@ export async function GET(request: Request) {
     const client = await getSupabaseServerClient();
     const { data, error } = await client.rpc('department_shared_preplans', { p_viewer: department });
     if (error) throw error;
-    return Response.json({ departments: data, canEdit: false }, { headers: { 'Cache-Control': 'private, no-store' } });
+    const departments=(Array.isArray(data)?data:[]).map((department: { hydrants?: Array<{service_status?:string}> })=>({...department,hydrants:(department.hydrants||[]).filter(hydrant=>hydrant.service_status!=="archived")}));
+    return Response.json({ departments, canEdit: false }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch {
     return Response.json({ error: 'Shared hydrants and preplans could not be loaded. Try again.' }, { status: 503 });
   }

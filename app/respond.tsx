@@ -236,6 +236,7 @@ type RespondData = {
       sourceHydrantId?: string;
       sourceHydrantNumber?: string;
       sourceHydrantAddress?: string;
+      sourceHydrantStatus?: string;
       totalDistanceFeet: number;
       recommendedHoseFeet: number;
       hoseSizeInches: number;
@@ -1986,6 +1987,7 @@ export default function Respond({
                             lay.sourceHydrantAddress ||
                             lay.sourceHydrantId ||
                             "Hydrant not verified"}
+                          {lay.sourceHydrantStatus==="archived"&&<strong> - Archived source: verify another water supply</strong>}
                         </dd>
                       </div>
                       <div>
