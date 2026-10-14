@@ -40,6 +40,7 @@ import ConfirmDialog from "./confirm-dialog";
 import { RecordCredibility, type Revision } from "./record-credibility";
 import OperationsBoard from "./operations-board";
 const ActivityTimeline = dynamic(() => import("./activity-timeline"), { loading: () => <ModuleLoading /> });
+const TaskQueue = dynamic(() => import("./task-queue"), { loading: () => <ModuleLoading /> });
 import SmartAlerts from "./smart-alerts";
 import PwaInstall from "./pwa-install";
 const CommandCenter = dynamic(() => import("./command-center"), { loading: () => <ModuleLoading /> });
@@ -104,8 +105,8 @@ function SearchResultButtons({ items, onNavigate }: { items: GlobalSearchItem[];
 type IconName = "home" | "log" | "box" | "users" | "phone" | "payroll" | "clock" | "rates" | "document" | "holiday" | "settings" | "search" | "bell" | "menu" | "close" | "filter" | "export" | "back" | "next" | "save" | "warning" | "chevron";
 
 type NavItem = PortalPage;
-const adminNavItems: NavItem[] = ["Dashboard", "Command Center", "Operations Board", "Activity Timeline", "Respond", "Command Board", "Field Preplans", "Road Closures", "Safety Inspections", "Scheduling", "Payroll", "Work Details", "Daily Log", "Timesheets", "Callback Reviews", "My Timesheet", "Employees", "Employee Contacts", "Policies", "Box Cards", "Holiday Policy", "EMS", "Daily Duties", "Inventory", "Phone Numbers", "Rates & Rules", "Departments", "System Health", "Permissions", "CAD Integration", "Respond Device Modes", "Test View"];
-const navIcons: Record<NavItem, IconName> = { "NERIS Reporting": "document", "Fire Inspections": "document", Training: "document", Dashboard: "home", "Command Center": "rates", "Operations Board": "log", "Activity Timeline": "clock", Respond: "log", "Command Board": "warning", "Field Preplans": "search", "Road Closures": "warning", "Safety Inspections": "document", Scheduling: "clock", Payroll: "payroll", "Work Details": "document", "Daily Log": "log", Timesheets: "clock", "Callback Reviews": "log", "My Timesheet": "clock", Employees: "users", "Employee Contacts": "phone", Policies: "document", "Box Cards": "box", "Holiday Policy": "holiday", EMS: "document", "Daily Duties": "clock", Inventory: "box", "Phone Numbers": "phone", "Rates & Rules": "rates", Departments: "settings", "System Health": "warning", Permissions: "settings", "CAD Integration": "settings", "Respond Device Modes": "settings", "Test View": "users" };
+const adminNavItems: NavItem[] = ["Dashboard", "Command Center", "Operations Board", "Activity Timeline", "Task Queue", "Respond", "Command Board", "Field Preplans", "Road Closures", "Safety Inspections", "Scheduling", "Payroll", "Work Details", "Daily Log", "Timesheets", "Callback Reviews", "My Timesheet", "Employees", "Employee Contacts", "Policies", "Box Cards", "Holiday Policy", "EMS", "Daily Duties", "Inventory", "Phone Numbers", "Rates & Rules", "Departments", "System Health", "Permissions", "CAD Integration", "Respond Device Modes", "Test View"];
+const navIcons: Record<NavItem, IconName> = { "NERIS Reporting": "document", "Fire Inspections": "document", Training: "document", Dashboard: "home", "Command Center": "rates", "Operations Board": "log", "Activity Timeline": "clock", "Task Queue": "document", Respond: "log", "Command Board": "warning", "Field Preplans": "search", "Road Closures": "warning", "Safety Inspections": "document", Scheduling: "clock", Payroll: "payroll", "Work Details": "document", "Daily Log": "log", Timesheets: "clock", "Callback Reviews": "log", "My Timesheet": "clock", Employees: "users", "Employee Contacts": "phone", Policies: "document", "Box Cards": "box", "Holiday Policy": "holiday", EMS: "document", "Daily Duties": "clock", Inventory: "box", "Phone Numbers": "phone", "Rates & Rules": "rates", Departments: "settings", "System Health": "warning", Permissions: "settings", "CAD Integration": "settings", "Respond Device Modes": "settings", "Test View": "users" };
 function navigationForViewer(_viewer: PayrollData["viewer"] | undefined, permissions: string[] | null) {
   return portalNavigationForPermissions(permissions);
 }
@@ -1104,6 +1105,7 @@ export default function PayrollApp({
           {activeNav === "Scheduling" && <StationScheduler key={navigationVersion} testMember={testMember} />}
 
           {activeNav === "Activity Timeline" && <ActivityTimeline />}
+          {activeNav === "Task Queue" && !testMember && <TaskQueue />}
           {activeNav === "Command Board" && <IncidentCommandBoard />}
           {activeNav === "Field Preplans" && <FieldPreplans department={department} inspectionPilot={viewerPermissions.includes("inspections.pilot")} />}
           {activeNav === "Road Closures" && <RoadClosures />}

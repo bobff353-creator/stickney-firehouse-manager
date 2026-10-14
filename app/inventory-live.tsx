@@ -337,6 +337,7 @@ export default function Inventory360({
   initialCheckType = "",
   initialAdminTask = "",
   initialEquipmentId = "",
+  initialWorkOrderId = "",
   permissions: initialPermissions,
 }: {
   departmentId: string;
@@ -345,6 +346,7 @@ export default function Inventory360({
   initialCheckType?: "daily" | "weekly" | "inventory" | "air_pack" | "";
   initialAdminTask?: string;
   initialEquipmentId?: string;
+  initialWorkOrderId?: string;
   permissions: string[];
 }) {
   void initialPermissions; // Server gate controls initial access; live grants are reverified below.
@@ -356,7 +358,7 @@ export default function Inventory360({
     // explanation and recovery controls in view instead of above the viewport.
     if (!accessAllowed) window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [accessAllowed]);
-  const [view, setViewState] = useState<View>(() => initialEquipmentId ? "equipment" : initialApparatusId && initialCheckType ? "check" : "due");
+  const [view, setViewState] = useState<View>(() => initialWorkOrderId ? "service" : initialEquipmentId ? "equipment" : initialApparatusId && initialCheckType ? "check" : "due");
   const setView = useCallback((next: View) => { if (confirmLeavingWork()) setViewState(next); }, []);
   const [selectedApparatusId, setSelectedApparatusId] = useState(initialApparatusId);
   const [selectedCheckType, setSelectedCheckType] = useState(initialCheckType);
@@ -948,7 +950,7 @@ export default function Inventory360({
               <p>Repair notices appear on assigned employee home pages and Live Ops until the repair is completed.</p>
             </div>
           </div>
-          <InventoryOperations onRecords={receiveOperations} view="service" onSetup={() => setView("setup")} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+          <InventoryOperations onRecords={receiveOperations} view="service" initialWorkOrderId={initialWorkOrderId} onSetup={() => setView("setup")} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
         </section>
       ) : null}
 

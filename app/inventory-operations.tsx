@@ -379,6 +379,7 @@ export default function InventoryOperations({
   onSetup,
   initialApparatusId = "",
   initialEquipmentId = "",
+  initialWorkOrderId = "",
   initialCheckType = "",
   onOpenUnit,
   scanRequest = 0,
@@ -395,6 +396,7 @@ export default function InventoryOperations({
   onSetup: () => void;
   initialApparatusId?: string;
   initialEquipmentId?: string;
+  initialWorkOrderId?: string;
   initialCheckType?: "daily" | "weekly" | "inventory" | "air_pack" | "";
   onOpenUnit?: (apparatusId: string, checkType: "daily" | "weekly" | "inventory" | "air_pack") => void;
   scanRequest?: number;
@@ -446,6 +448,8 @@ export default function InventoryOperations({
   const [editingEquipment, setEditingEquipment] = useState<Row | null>(null);
   const [selectedDirectoryEquipment, setSelectedDirectoryEquipment] = useState<Row | null>(null);
   const equipmentLinkApplied=useRef(false);
+  const repairLinkApplied=useRef(false);
+  const [linkedRepairId,setLinkedRepairId]=useState('');
 
   const [scannerTarget, setScannerTarget] = useState<"create" | "edit" | "search">("create");
   const [equipmentSearch, setEquipmentSearch] = useWorkspaceViewState("equipment-search", "");
@@ -583,6 +587,12 @@ export default function InventoryOperations({
         if(item)setSelectedDirectoryEquipment(item);
         else setMessage('The requested equipment record is unavailable or retired. Search the active directory.');
       }
+      if(initialWorkOrderId&&!repairLinkApplied.current){
+        repairLinkApplied.current=true;
+        const item=(payload.workOrders||[]).find(row=>value(row,'id')===initialWorkOrderId);
+        if(item){setLinkedRepairId(initialWorkOrderId);setRepairFilter('all');}
+        else setMessage('The requested repair is unavailable in this department. Review the saved repair list.');
+      }
       setData({
         configured: true,
         apparatus: payload.apparatus || [],
@@ -631,7 +641,7 @@ export default function InventoryOperations({
     readPending.current = request;
     try { return await request; }
     finally { if (readPending.current === request) { readPending.current = null; readController.current = null; } }
-  }, [initialApparatusId, initialEquipmentId, onRecords]);
+  }, [initialApparatusId, initialEquipmentId, initialWorkOrderId, onRecords]);
 
   useEffect(() => {
     // Loading is intentionally kicked off once when this operational panel opens.
@@ -1025,7 +1035,7 @@ export default function InventoryOperations({
     && item.assigned_employee_ids.includes(viewerEmployeeId)
   ));
   const maintenanceOrders = useMemo(() => data.workOrders.filter((item) => maintenanceApparatusId === "all" || value(item, "apparatus_id") === maintenanceApparatusId), [data.workOrders, maintenanceApparatusId]);
-  const filteredRepairs = filterRepairOrders(data.workOrders, { query: repairSearch, apparatus: repairApparatus, status: repairFilter, priority: repairPriority });
+  const filteredRepairs = filterRepairOrders(data.workOrders, { query: repairSearch, apparatus: repairApparatus, status: repairFilter, priority: repairPriority }).filter(item=>!linkedRepairId||value(item,'id')===linkedRepairId);
   const openRepairs = data.workOrders.filter(openRepair);
   const openEquipmentIds = useMemo(() => new Set([...data.exceptions, ...data.workOrders.filter(openRepair)].filter(row => !["resolved", "cancelled"].includes(value(row, "status"))).map(row => value(row, "equipment_id")).filter(Boolean)), [data.exceptions, data.workOrders]);
   const attentionForAsset = (item: Row) => assetAttention(item, Date.now(), openEquipmentIds.has(value(item, "id")));
@@ -1663,6 +1673,7 @@ export default function InventoryOperations({
               <label>Repair priority<select value={repairPriority} onChange={event => setRepairPriority(event.target.value)}><option value="all">All priorities</option>{["critical", "high", "medium", "routine"].map(priority => <option key={priority} value={priority}>{formatStatus(priority)}</option>)}</select></label>
               <button type="button" onClick={() => { setRepairSearch(""); setRepairApparatus("all"); setRepairFilter("open"); setRepairPriority("all"); }}>Reset to open repairs</button>
             </div>
+            {linkedRepairId&&<p role="status">Showing the repair opened from its saved record link. <button type="button" onClick={()=>setLinkedRepairId('')}>Show all repairs</button></p>}
             <p role="status">{filteredRepairs.length} of {data.workOrders.length} repair records shown</p>
             {filteredRepairs.length ? <div className="repair-board repair-board-filtered">{repairStages.filter(([stage]) => repairFilter === "all" || (repairFilter === "open" ? stage !== "closed" : repairFilter === stage)).map(([stage, label]) => {
               const stageItems = filteredRepairs.filter((item) => normalizedRepairStatus(item) === stage);

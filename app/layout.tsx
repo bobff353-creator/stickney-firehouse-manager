@@ -18,6 +18,7 @@ import "./remaining-bento.css";
 import "./portal-contrast.css";
 import "./payroll-administration.css";
 import "./portal-search.css";
+import "./connected-work.css";
 
 export const viewport: Viewport = {
   width: "device-width",

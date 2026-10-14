@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import ConnectedPropertyHistory from '../connected-property-history';
 import { nearbyHydrants, observationFields, openFindings, propertyVisits, type FieldObservations } from './field-workflow';
 import { type InspectionRecord, type Property } from './model';
 
@@ -16,6 +17,7 @@ export function PropertyHistory({property,records,includeTests,onOpen,onStart}:{
     <div className="fi-actions"><a className="fi-button" href={`?page=field-preplans&display=portal&preplan=${encodeURIComponent(property.id)}`}>Open visual preplan</a><button onClick={onStart}>Schedule a visit →</button><button disabled={busy} onClick={loadHydrants}>{busy?'Checking hydrants…':'Nearby hydrant references'}</button></div>
     {hydrants&&<div><p>Straight-line distance from saved coordinates. Confirm access, location, service status and flow on site.</p>{hydrants.map(h=><p key={h.id}><a href={`?page=field-preplans&display=portal&hydrant=${encodeURIComponent(h.id)}`}>Hydrant {h.hydrantNumber||'Number not recorded'}</a> · about {h.distanceFeet} ft · {h.serviceStatus||'Status unknown'} · {h.address}</p>)}{!hydrants.length&&<p>No saved coordinates or accessible hydrant references are available for this property.</p>}</div>}{error&&<p role="alert" className="fi-error">{error}</p>}
     <h4>Inspection history</h4>{visits.map(r=><article className="fi-row" key={r.id}><button className="fi-row-title" onClick={()=>onOpen(r.id)}><strong>{r.data.test?'TEST · ':''}{r.data.type}</strong><span>{r.data.actualDate||r.data.scheduledDate||'Visit date not set'} · {r.archived?'Archived · ':''}{r.data.status} · version {r.version}</span></button><span>{openFindings(r).length} unresolved observations in this report</span></article>)}{!visits.length&&<p>No linked inspection history recorded. Legacy unlinked visits remain in the work queue.</p>}
+    <ConnectedPropertyHistory key={property.id} propertyId={property.id}/>
   </section>;
 }
 export function PreplanReview({record,property,onRefresh}:{record:InspectionRecord;property?:Property;onRefresh:()=>Promise<void>}) {
