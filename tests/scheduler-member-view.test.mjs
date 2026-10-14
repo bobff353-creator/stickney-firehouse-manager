@@ -8,7 +8,7 @@ const { memberShiftList, shiftTimeLabel, canRequestRole, shiftHasNotStarted } = 
 test('calendar department view changes visibility without changing edit permissions or availability privacy', async () => {
   const component = await readFile(new URL('../app/station-scheduler.tsx', import.meta.url), 'utf8');
   const calendar = component.split('function CalendarScreen(')[1].split('function DaySlotTimeEditor(')[0];
-  assert.ok(calendar.includes('<option value="all">All scheduled</option>'));
+  assert.ok(calendar.includes("onClick={() => setCalendarScope('all')}>All scheduled</button>"));
   assert.ok(calendar.includes('const showAllSchedule = isAdmin || calendarScope === "all"'));
   assert.ok(calendar.includes('.filter((slot) => showAllSchedule || slot.employeeId === myId)'));
   assert.ok(calendar.includes('calendarDayShifts(entries, data.shiftTypes, slotsByDate.get(date) ?? [], myId, showAllSchedule, activeWindow)'));

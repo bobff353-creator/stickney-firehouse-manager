@@ -129,3 +129,11 @@
 .scheduler .scheduler-reminder-fields label { display: grid; gap: .4rem; min-width: 0; }
 .scheduler .scheduler-reminder-fields input,.scheduler .scheduler-reminder-fields select { min-width: 0; width: 100%; box-sizing: border-box; font-size: 1rem; }
 @media(max-width:600px) { .scheduler .scheduler-reminder-rule .inline-form { display: grid; grid-template-columns: 1fr; } .scheduler .scheduler-reminder-rule .entry-head { align-items: stretch; flex-direction: column; } }
+
+/* Direct calendar choices remain readable and tappable on narrow screens. */
+.scheduler .scheduler-calendar-choices { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.scheduler .scheduler-calendar-choices button { flex: 1 1 120px; min-height: 48px; padding: 12px; background: #ffffff; color: #102b40; border: 2px solid #647f96; border-radius: 10px; white-space: normal; }
+.scheduler .scheduler-calendar-choices button[aria-pressed="true"] { background: #175b7b; color: #ffffff; border-color: #175b7b; box-shadow: inset 0 0 0 2px #ffffff; }
+.scheduler .scheduler-calendar-choices button:focus-visible { outline: 3px solid #f6b93b; outline-offset: 3px; }
+.scheduler .scheduler-calendar-choices strong, .scheduler .scheduler-calendar-choices small { display: block; color: inherit; }
+.scheduler-calendar-time-picker { width: 100%; min-width: 0; }

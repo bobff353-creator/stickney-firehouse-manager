@@ -391,9 +391,9 @@ function CalendarScreen({ data, isAdmin, adminDayMode, setAdminDayMode, selected
   onTrade: (slotId: string) => void;
 }) {
   const [newShiftType, setNewShiftType] = useState("");
-  const [rotationIndex, setRotationIndex] = useState(0);
+  const [rotationIndex, setRotationIndex] = useWorkspaceViewState("scheduler-calendar-time-index", 0);
   const [rotationPaused, setRotationPaused] = useState(true);
-  const [calendarWindow, setCalendarWindow] = useState<'all' | 'block'>('all');
+  const [calendarWindow, setCalendarWindow] = useWorkspaceViewState<'all' | 'block'>('scheduler-calendar-time-window', 'all');
   const [dayViewOpen, setDayViewOpen] = useState(false);
   const [calendarScope, setCalendarScope] = useWorkspaceViewState("scheduler-calendar-scope", "mine");
   const showAllSchedule = isAdmin || calendarScope === "all";
@@ -447,7 +447,7 @@ function CalendarScreen({ data, isAdmin, adminDayMode, setAdminDayMode, selected
     if (rotationPaused || calendarWindow === 'all' || (isAdmin && adminDayMode)) return;
     const timer = window.setInterval(() => { if (!document.hidden) setRotationIndex((current) => (current + 1) % calendarTimeBlocks.length); }, 12_000);
     return () => window.clearInterval(timer);
-  }, [rotationPaused, calendarWindow, isAdmin, adminDayMode]);
+  }, [rotationPaused, calendarWindow, isAdmin, adminDayMode, setRotationIndex]);
 
   const activeWindow = calendarWindow === 'all' ? null : calendarTimeBlocks[rotationIndex % calendarTimeBlocks.length];
 
@@ -471,9 +471,10 @@ function CalendarScreen({ data, isAdmin, adminDayMode, setAdminDayMode, selected
     <div className="scheduler-grid">
       {isAdmin && <div className="scheduler-admin-calendar-toolbar"><button aria-pressed={adminDayMode} onClick={() => { setAdminDayMode(true); setDayViewOpen(false); }}>Day staffing</button><button aria-pressed={!adminDayMode} onClick={() => { setAdminDayMode(false); setDayViewOpen(false); }}>Month calendar</button><button className="link" onClick={() => setSelectedDate(data.today)}>Today</button></div>}
       {(!isAdmin || !adminDayMode) && <section className="wide scheduler-month-card">
-        {!isAdmin && <label className="scheduler-calendar-scope"><span>Show on calendar</span><select value={calendarScope} onChange={(event) => setCalendarScope(event.target.value)}>
-          <option value="mine">My shifts</option><option value="all">All scheduled</option>
-        </select></label>}
+        {!isAdmin && <div className="scheduler-calendar-scope"><span>Show on calendar</span><div className="scheduler-calendar-choices" role="group" aria-label="Show on calendar">
+          <button type="button" aria-pressed={calendarScope === 'mine'} onClick={() => setCalendarScope('mine')}>My shifts</button>
+          <button type="button" aria-pressed={calendarScope === 'all'} onClick={() => setCalendarScope('all')}>All scheduled</button>
+        </div></div>}
         <div className="scheduler-month-head">
           <h3>{monthTitle(selectedDate)}{!isAdmin && <small className="personal-calendar-label">{showAllSchedule ? "All scheduled · department view" : "My shifts only"}</small>}</h3>
           <div className="scheduler-month-actions">
@@ -482,14 +483,12 @@ function CalendarScreen({ data, isAdmin, adminDayMode, setAdminDayMode, selected
           </div>
         </div>
         <div className="scheduler-calendar-time-controls">
-          <label><span>Show times</span><select aria-label="Show calendar times" value={activeWindow ? String(rotationIndex % calendarTimeBlocks.length) : 'all'} onChange={event => {
-            setRotationPaused(true);
-            setCalendarWindow(event.target.value === 'all' ? 'all' : 'block');
-            if (event.target.value !== 'all') setRotationIndex(Number(event.target.value));
-          }}>
-            <option value="all">All times</option>
-            {calendarTimeBlocks.map((block, index) => <option key={block.id} value={index}>{block.label}</option>)}
-          </select></label>
+          <div className="scheduler-calendar-time-picker"><span>Show times</span><div className="scheduler-calendar-choices" role="group" aria-label="Show calendar times">
+            <button type="button" aria-pressed={!activeWindow} onClick={() => { setRotationPaused(true); setCalendarWindow('all'); }}>All times</button>
+            {calendarTimeBlocks.map((block, index) => <button key={block.id} type="button" aria-pressed={Boolean(activeWindow && rotationIndex % calendarTimeBlocks.length === index)} onClick={() => { setRotationPaused(true); setCalendarWindow('block'); setRotationIndex(index); }}>
+              <strong>{['Morning', 'Noon', 'Night'][index]}</strong><small>{shiftTimeLabel(block.startTime, block.endTime)}</small>
+            </button>)}
+          </div></div>
           <button type="button" className="calendar-rotation-button" aria-pressed={!rotationPaused} onClick={() => {
             if (!rotationPaused) { setRotationPaused(true); return; }
             if (calendarWindow === 'all') setRotationIndex(0);
