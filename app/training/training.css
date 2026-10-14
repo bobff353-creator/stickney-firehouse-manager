@@ -50,3 +50,5 @@
   #portal-workspace .training-workspace.training-workspace a.tr-file {background:#fff;color:#075a83}
   #portal-workspace .training-workspace.training-workspace button:disabled {background:#e6eff5;color:#315368;opacity:1;cursor:not-allowed}
 }
+.tr-report-center,.tr-activity-browser,.tr-coverage{min-width:0}.tr-report-center h4,.tr-activity-browser h4{color:var(--tr-ink);margin:.5rem 0}.tr-report-center .tr-panel,.tr-activity-browser .tr-panel{overflow-wrap:anywhere}.tr-report-center details button{margin:.3rem;max-width:100%;white-space:normal}.tr-report-center .tr-inline-actions{flex-wrap:wrap}.tr-report-center nav span{color:var(--tr-ink)}
+@media print{.tr-report-center>:not(.tr-print-report){display:none!important}.tr-report-center .tr-print-report{display:block!important}}

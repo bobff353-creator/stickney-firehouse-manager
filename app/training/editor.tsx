@@ -1,4 +1,5 @@
 'use client';
+import ActivityBrowser from './activity-browser';
 import { useState } from 'react';
 import { categories,emptyTrainingData,normalizeTrainingData,validateTraining,todayChicago,safeLink,sessionHours,type TrainingRecord,type TrainingSnapshot,type TrainingData,type TrainingField } from './model';
 import { useUnsavedWork } from '../use-unsaved-work';
@@ -62,7 +63,7 @@ export default function TrainingEditor({initial,snapshot,onSave,onAttach,onCance
     {step===0&&<>
       <p className="tr-muted">Add what you know. Extra detail is optional; a draft can be finished later.</p>
       {kind==='completion'&&<section className="tr-panel"><label className="tr-checkbox"><input type="checkbox" checked={data.paperSource} onChange={e=>set('paperSource',e.target.checked)}/>Enter from an original paper training sheet</label>{data.paperSource&&<><p>One report represents one actual session. A combined Wednesday-night / Thursday-morning sheet needs two dated reports with separately confirmed rosters. Do not assume every paper uses that pattern.</p>{field('sourceLabel','Original sheet / file name *')}{field('sourcePage','Original page or pages *')}{field('sourceHeaderDate','Date printed on the paper header (reference only)','date')}<p>The paper header does not set the actual training date below. Unknown dates, handwriting or attendee matches stay unresolved in a draft.</p></>}</section>}
-      {(kind==='completion'||kind==='assignment')&&<label className="tr-field">Start with an activity<select value={data.activityId} onChange={e=>chooseActivity(e.target.value)}><option value="">Enter training directly</option>{activities.map(a=><option key={a.id} value={a.id}>{a.data.title}</option>)}</select></label>}
+      {(kind==='completion'||kind==='assignment')&&<ActivityBrowser records={snapshot.records} selectedId={data.activityId} onChoose={chooseActivity}/> }
       {field('title',kind==='activity'?'Activity name *':'Name *')}
       <label className="tr-checkbox"><input type="checkbox" checked={data.test} onChange={e=>setData(d=>({...d,sourceReviewVerified:false,test:e.target.checked,title:e.target.checked?'test/training':d.title}))}/>Test only — excluded from credit and official exports</label>
       {['activity','completion','assignment'].includes(kind)&&<div className="tr-grid">{select('category','Category',categories)}{select('delivery','Method',['Hands-on','Classroom','Online','Blended','Incident experience','External course','Other'])}{kind!=='completion'&&field('hours','Suggested duration (hours)','number')}</div>}
