@@ -1,4 +1,4 @@
-export type TaskSource = 'Inspections' | 'Training' | 'Credentials' | 'Repairs';
+export type TaskSource = 'Inspections' | 'Training' | 'Credentials' | 'Repairs' | 'Hydrants' | 'Outreach' | 'Replacements';
 export type DueState = 'Overdue' | 'Today' | 'Next 30 days' | 'Later' | 'Date needed' | 'Date needs review';
 export type QueueTask = { id: string; source: TaskSource; title: string; detail: string; status: string; dueDate: string; invalidDate: boolean; assignedIds: string[]; assignees: string[]; href: string };
 export type PilotTaskRow = { id: string; kind: string; payload: string };

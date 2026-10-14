@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWorkspaceViewState, restoreWorkspaceScroll } from "./workspace-view-state";
 import { useWorkspaceTaskReturn } from "./workspace-task-navigation";
 import { SaveStatus } from "./save-status";
+import OperationalPrograms from './operational-programs';
 import { availableHydrantFlow, hydrantOutletFlow, nfpa291FlowClass } from "./hydrant-flow";
 import GoogleFieldMap from "./google-field-map";
 import { preplanLocationView, stickneyMapOverview } from "./preplan-map-location";
@@ -546,6 +547,7 @@ export default function FieldPreplans({ department, inspectionPilot=false }: { d
       </div>
     </>}
     {!recordFocused&&<>
+    <details><summary>Scheduled hydrant inspection &amp; flushing batches</summary><OperationalPrograms kind="hydrants"/></details>
     <header className="field-preplan-header"><div><p className="eyebrow">Field intelligence</p><h1>Preplans & Hydrants</h1><p>Find a building or water supply record, then open it in a focused workspace.</p></div><div className="field-preplan-actions"><label><span>Search the entire department</span><input type="search" value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="Business, address, street, or hydrant ID…" aria-label="Search all preplans and hydrants"/></label>{canEdit&&<><button className="primary-action" onClick={beginNewPreplan}>+ New Preplan</button><button className="primary-action hydrant-add" onClick={addHydrant}>+ New Hydrant</button></>}</div></header>
     <nav className="field-directory-tabs" aria-label="Preplan workspaces"><button className={directoryView==="map"?"active":""} aria-pressed={directoryView==='map'} onClick={()=>setDirectoryView("map")}><strong>Find & open a record</strong><span>Search or select on map · {plans.length} preplans · {hydrants.filter(item=>item.serviceStatus!=="archived").length} active hydrants</span></button><button className={directoryView==="starters"?"active":""} aria-pressed={directoryView==='starters'} onClick={()=>{setMapExpanded(false);setDirectoryView("starters");}}><strong>Finish imported addresses</strong><span>{imports.filter((item)=>item.status!=="completed").length} addresses still need a completed preplan</span></button></nav>
     <button className="quiet-button" type="button" onClick={()=>setShowShared(value=>!value)}>{showShared?"Close shared records":"View other departments’ hydrants & preplans"}</button>

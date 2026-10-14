@@ -20,6 +20,7 @@ import "./payroll-administration.css";
 import "./portal-search.css";
 import "./connected-work.css";
 import "./daily-log-contrast.css";
+import "./operational-programs.css";
 
 export const viewport: Viewport = {
   width: "device-width",

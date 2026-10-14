@@ -44,6 +44,8 @@
   #portal-workspace .logbook-page.logbook-page .handoff-modal :is(.notes-scroll,.notes-scroll article,.equipment-row,.accept-check) {background:#1b2b43;color:#f1f5f9;border-color:#91abc8}
   #portal-workspace .logbook-page.logbook-page .handoff-modal .accept-check.ready {background:#193b30;color:#dcfce7}
   #portal-workspace .logbook-page.logbook-page .handoff-modal .accept-check.ready span {color:#dcfce7}
+  #portal-workspace .logbook-page.logbook-page .handoff-modal .workflow-save-status {background:#1b2b43;color:#f1f5f9;border-color:#91abc8}
+  #portal-workspace .logbook-page.logbook-page .handoff-modal .workflow-save-status :is(strong,span,p) {color:#f1f5f9}
   #portal-workspace .logbook-page.logbook-page .handoff-modal :is(input:not([type=checkbox]),select,textarea,option) {background:#0e1728;color:#f1f5f9;-webkit-text-fill-color:currentColor;border-color:#91abc8}
   #portal-workspace .logbook-page.logbook-page .handoff-modal :is(input,textarea)::placeholder {color:#cbd5e1;opacity:1;-webkit-text-fill-color:#cbd5e1}
   #portal-workspace .logbook-page.logbook-page .handoff-modal button:disabled {background:#33455d;color:#e2e8f0;opacity:1;border:1px dashed #91abc8;-webkit-text-fill-color:currentColor}

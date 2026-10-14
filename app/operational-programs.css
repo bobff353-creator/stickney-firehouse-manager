@@ -1,0 +1,13 @@
+@media screen {
+  #portal-workspace .operational-programs.operational-programs {margin:20px 0}
+  #portal-workspace .operational-programs .op-fields,#portal-workspace .operational-programs .op-filter {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;padding:16px 0;border:0;min-width:0}
+  #portal-workspace .operational-programs .op-wide {grid-column:1/-1;min-width:0}
+  #portal-workspace .operational-programs label {display:grid;gap:8px;min-width:0;color:var(--cw-ink)}
+  #portal-workspace .operational-programs :is(input,select,textarea,option) {width:100%;min-width:0;max-width:100%;background:var(--cw-bg);color:var(--cw-ink);-webkit-text-fill-color:currentColor;border:1px solid var(--cw-line);border-radius:8px;padding:10px;min-height:44px}
+  #portal-workspace .operational-programs :is(input,select,textarea):disabled {opacity:1;background:var(--cw-panel);color:var(--cw-muted)}
+  #portal-workspace .operational-programs :is(pre,p,h3,summary) {overflow-wrap:anywhere;white-space:normal;color:var(--cw-ink)}
+  #portal-workspace .operational-programs pre {white-space:pre-wrap;font-size:14px}
+  #portal-workspace .operational-programs [role=alert] {background:var(--cw-panel);padding:12px;border:2px solid var(--cw-line)}
+  #portal-workspace .operational-programs :focus-visible {outline:3px solid var(--cw-accent);outline-offset:3px}
+  @media(max-width:640px){#portal-workspace .operational-programs .op-fields,#portal-workspace .operational-programs .op-filter {grid-template-columns:minmax(0,1fr)}}
+}
