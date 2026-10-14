@@ -39,3 +39,7 @@
   .inventory-app-shell .inventory-ops .repair-completion-disclosure .repair-completion-form { grid-template-columns:minmax(0,1fr); }
 }
 .inventory-app-shell .inventory-ops .ops-refresh-status { margin:0; padding:10px 14px; border:1px solid #b7cbd3; border-radius:8px; background:#f2f7fa; color:#25495f; font-size:13px; line-height:1.5; }
+
+.equipment-continuity{min-width:0;padding:16px;border:1px solid #7891a4;border-radius:12px;background:#f1f6fa;color:#132c40;overflow-wrap:anywhere}.equipment-continuity :is(h3,h4,p,strong,label,summary){color:inherit!important}.equipment-continuity a{display:block;color:#07577b!important;text-decoration:underline;padding:8px 0}.equipment-continuity :is(button,select){color:#132c40!important;background:#fff!important;border:1px solid #7891a4!important;max-width:100%}.equipment-continuity article{border-top:1px solid #7891a4;padding:12px 0}.bulk-pass-panel fieldset{min-width:0;margin:12px 0;padding:12px}.bulk-pass-panel fieldset label{display:grid;gap:8px}.bulk-pass-panel :is(input,select,textarea){max-width:100%;box-sizing:border-box}.bulk-pass-panel p{overflow-wrap:anywhere}
+@media(prefers-color-scheme:dark){.equipment-continuity{background:#192b42;color:#f3f7ff}.equipment-continuity a{color:#b8e5ff!important}}
+:root[data-theme="dark"] .equipment-continuity{background:#192b42;color:#f3f7ff}:root[data-theme="dark"] .equipment-continuity a{color:#b8e5ff!important}

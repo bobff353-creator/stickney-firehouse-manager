@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { startVisiblePolling } from './visible-poller';
 import { HISTORY_PAGE_SIZE, type CheckReport, type HistoryPage, type HistoryReport } from './inventory-history';
 import { rowValue as value, type InventoryRow } from './inventory-index';
@@ -66,8 +66,8 @@ export function InventoryAirHistory({ equipmentId }: { equipmentId: string }) {
   </details>;
 }
 
-export default function InventoryReports({ apparatus, canReview, busy, onReview, children }: {
-  apparatus: InventoryRow[]; canReview: boolean; busy: boolean; children?: ReactNode;
+export default function InventoryReports({initialReportId="", apparatus, canReview, busy, onReview, children }: {
+  initialReportId?:string;apparatus: InventoryRow[]; canReview: boolean; busy: boolean; children?: ReactNode;
   onReview: (id: string, decision: string, notes: string) => Promise<boolean>;
 }) {
   const [filters, setFilters] = useState({ apparatus: '', type: '', review: '', from: '', to: '' });
@@ -87,7 +87,7 @@ export default function InventoryReports({ apparatus, canReview, busy, onReview,
   const changeFilter = (key: keyof typeof filters, input: string) => { setFilters(current => ({ ...current, [key]: input })); setCursors(['']); };
   useEffect(() => () => request.current?.abort(), []);
 
-  async function openReport(id: string, purpose: 'view' | 'print' | 'email' = 'view') {
+  const openReport=useCallback(async (id: string, purpose: 'view' | 'print' | 'email' = 'view')=> {
     request.current?.abort();
     const controller = new AbortController(); request.current = controller;
     setLastRequest({ id, output: purpose }); setDetail(null); setDetailLoading(true); setDetailError(''); setOutput('view');
@@ -99,7 +99,8 @@ export default function InventoryReports({ apparatus, canReview, busy, onReview,
     } catch (error) {
       if (!controller.signal.aborted) setDetailError(error instanceof Error ? error.message : 'Could not load the complete report.');
     } finally { if (!controller.signal.aborted) setDetailLoading(false); }
-  }
+  },[]);
+  useEffect(()=>{if(initialReportId)void Promise.resolve().then(()=>openReport(initialReportId));},[initialReportId,openReport]);
 
   useEffect(() => {
     if (!detail) return;

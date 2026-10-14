@@ -1,4 +1,7 @@
 "use client";
+import EquipmentContinuity from './equipment-continuity';
+import InventoryBulkReview from './inventory-bulk-review';
+import {repairsForFinding} from './equipment-continuity-model';
 import { checkNextAction } from "./workflow-status";
 import { SaveStatus } from "./save-status";
 import { ServiceScheduleFields, ServiceScheduleSummary } from "./inventory-service-fields";
@@ -379,7 +382,7 @@ export default function InventoryOperations({
   onSetup,
   initialApparatusId = "",
   initialEquipmentId = "",
-  initialWorkOrderId = "",
+  initialWorkOrderId = "",initialReportId="",
   initialCheckType = "",
   onOpenUnit,
   scanRequest = 0,
@@ -396,7 +399,7 @@ export default function InventoryOperations({
   onSetup: () => void;
   initialApparatusId?: string;
   initialEquipmentId?: string;
-  initialWorkOrderId?: string;
+  initialWorkOrderId?: string;initialReportId?:string;
   initialCheckType?: "daily" | "weekly" | "inventory" | "air_pack" | "";
   onOpenUnit?: (apparatusId: string, checkType: "daily" | "weekly" | "inventory" | "air_pack") => void;
   scanRequest?: number;
@@ -884,7 +887,6 @@ export default function InventoryOperations({
   const apparatusById = useMemo(() => indexFirstBy(data.apparatus, row => value(row, 'id')), [data.apparatus]);
   const checkItemsByCheck = useMemo(() => groupByKey(data.checkItems, row => value(row, 'check_id')), [data.checkItems]);
   const scbaEntriesByCheck = useMemo(() => groupByKey(data.scbaEntries, row => value(row, 'check_id')), [data.scbaEntries]);
-  const openOrdersByEquipment = useMemo(() => groupByKey(data.workOrders.filter(order => !['completed', 'closed', 'cancelled'].includes(value(order, 'status'))), order => value(order, 'equipment_id')), [data.workOrders]);
   const apparatusActiveChecks = useMemo(() => data.checks.filter((check) => (
     value(check, "status") === "in_progress"
     && (!selectedApparatusId || value(check, "apparatus_id") === selectedApparatusId)
@@ -968,7 +970,7 @@ export default function InventoryOperations({
     const savedReading = displayNumericReading(item.numeric_reading);
     const reading = numericReadings[itemId] ?? numericReadingInputValue(item.numeric_reading);
     const compartment = value(item, "compartment_label") || "Location not assigned";
-    const existingRepairs = preview ? [] : openOrdersByEquipment.get(value(item, 'equipment_id')) || [];
+    const existingRepairs = preview ? [] : repairsForFinding(item,data.exceptions,data.workOrders);
     const allowsRelocation = preview ? templateType === "inventory" : activeAllowsRelocation;
     const pendingLocationChange = !preview && allowsRelocation
       ? pendingLocationChangeByEquipmentId.get(value(item, "equipment_id"))
@@ -978,7 +980,7 @@ export default function InventoryOperations({
         <div className="check-item-copy">
           <strong>{value(item, "equipment_name")}{Number(item.quantity_required || 1) > 1 ? ` × ${item.quantity_required}` : ""}</strong>
           <small>{compartment}</small>
-          {existingRepairs.length > 0 && <details className="check-known-issue"><summary>Existing repair — review before reporting again</summary>{existingRepairs.map(order => <p key={value(order, "id")}>{value(order, "summary")} · {formatStatus(order.status)}</p>)}<button type="button" onClick={() => { if (confirmLeavingWork()) onRepairs(); }}>Open Repairs</button></details>}
+          {existingRepairs.length > 0 && <details className="check-known-issue"><summary>Existing repair — review before reporting again</summary>{existingRepairs.map(order => <p key={String(order.id)}><a href={'/inventory?view=readiness&workOrder='+encodeURIComponent(String(order.id))}>{String(order.summary)} · {formatStatus(String(order.status))} · Saved repair {String(order.id)}</a>{order.linked_exception_id?' · Linked finding '+String(order.linked_exception_id):' · Equipment-linked repair'}</p>)}<button type="button" onClick={() => { if (confirmLeavingWork()) onRepairs(); }}>Open Repairs</button></details>}
           {value(item, "source_form") ? <details className="check-item-details"><summary>Details</summary><p>{value(item, "source_form")}</p></details> : null}
           {pendingLocationChange ? <small className="location-change-pending">Wrong location reported · awaiting administrator review</small> : null}
         </div>
@@ -1283,7 +1285,7 @@ export default function InventoryOperations({
                 <div><dt>Contained equipment</dt><dd>{containedItems.length ? `${containedItems.length} linked item${containedItems.length === 1 ? "" : "s"}` : "None"}</dd></div>
               </dl>
               <ServiceScheduleSummary item={data.equipment.find(item => item.id === selectedDirectoryEquipment.id) || selectedDirectoryEquipment} />{attentionForAsset(selectedDirectoryEquipment).length > 0 && <ul className="asset-attention-list" aria-label="Selected asset attention">{attentionForAsset(selectedDirectoryEquipment).map(entry => <li key={entry.kind} data-severity={entry.severity}>{entry.label}</li>)}</ul>}
-              {value(selectedDirectoryEquipment, "service_notes") ? <p className="equipment-service-note">{value(selectedDirectoryEquipment, "service_notes")}</p> : null}
+              <EquipmentContinuity key={value(selectedDirectoryEquipment,"id")} equipmentId={value(selectedDirectoryEquipment,"id")} orders={data.workOrders} documents={data.workOrderDocuments}/>{value(selectedDirectoryEquipment, "service_notes") ? <p className="equipment-service-note">{value(selectedDirectoryEquipment, "service_notes")}</p> : null}
               <div className="equipment-record-actions">
                 {canSetup ? <button className="ops-primary" type="button" onClick={() => openEquipmentEditor(selectedDirectoryEquipment)}>Edit complete asset record</button> : null}
                 {canManageRepairs ? <button type="button" onClick={() => setRepairEquipment(selectedDirectoryEquipment)}>Create repair ticket</button> : null}
@@ -1295,7 +1297,7 @@ export default function InventoryOperations({
         </section>
       ) : null}
 
-      {view === "reports" ? <InventoryReports apparatus={data.apparatus} canReview={canSetup} busy={Boolean(busy)}
+      {view === "reports" ? <InventoryReports initialReportId={initialReportId} apparatus={data.apparatus} canReview={canSetup} busy={Boolean(busy)}
         onReview={(checkId, decision, reviewNotes) => action(`review-${checkId}`, { action: "review_check", checkId, decision, reviewNotes })}>
           <section className="ops-card inventory-lifecycle-report">
             <header><div><span>ASSET LIFECYCLE</span><h2>Repairs and retired equipment</h2></div><b>{data.workOrders.length + data.retiredEquipment.length} records</b></header>
@@ -1438,7 +1440,7 @@ export default function InventoryOperations({
                   <section className="check-location-group" hidden={currentSection !== "all" && currentSection !== label} key={label}>
                     <header>
                       <div><span>LOCATION</span><h3>{label}</h3><small>{items.length} shown</small></div>
-                      {value(activeCheck, "check_type") === "inventory" && pendingStandardItems.length > 1 ? <button type="button" disabled={Boolean(busy) || !canCheck} onClick={() => setBulkPassGroup({ label, itemIds: pendingStandardItems.map((item) => value(item, "id")) })}>Pass remaining in this location</button> : null}
+                      {value(activeCheck, "check_type") === "inventory" && pendingStandardItems.length > 1 ? <button type="button" disabled={Boolean(busy) || !canCheck} onClick={() => setBulkPassGroup({ label, itemIds: pendingStandardItems.map((item) => value(item, "id")) })}>Review results for this location</button> : null}
                     </header>
                     <div className="check-location-items">{items.map(item => renderActiveItem(item))}</div>
                   </section>
@@ -1706,7 +1708,7 @@ export default function InventoryOperations({
           </section>
           {selectedMaintenanceOrder ? <section className="ops-card maintenance-ticket-print-host">
             <header><div><span>STICKNEY FIRE DEPARTMENT · APPARATUS SERVICE TICKET</span><h2>{value(selectedMaintenanceOrder, "apparatus_name")} · {value(selectedMaintenanceOrder, "summary")}</h2></div><button type="button" onClick={() => setSelectedMaintenanceOrder(null)}>Close</button></header>
-            <div className="report-metadata"><span><b>Ticket ID</b>{value(selectedMaintenanceOrder, "id")}</span><span><b>Service type</b>{formatStatus(selectedMaintenanceOrder.service_type)}</span><span><b>Status</b>{formatStatus(selectedMaintenanceOrder.status)}</span><span><b>Opened</b>{formatDate(selectedMaintenanceOrder.opened_at)}</span><span><b>Service date</b>{value(selectedMaintenanceOrder, "repair_date") || "Pending"}</span><span><b>Performed by</b>{value(selectedMaintenanceOrder, "performed_by") || value(selectedMaintenanceOrder, "vendor") || "Not recorded"}</span><span><b>Odometer</b>{value(selectedMaintenanceOrder, "odometer") || "Not recorded"}</span><span><b>Labor</b>{value(selectedMaintenanceOrder, "labor_hours") ? `${value(selectedMaintenanceOrder, "labor_hours")} hours` : "Not recorded"}</span><span><b>Cost</b>${Number(selectedMaintenanceOrder.repair_cost || 0).toFixed(2)}</span><span><b>Invoice / PO</b>{value(selectedMaintenanceOrder, "invoice_number") || "Not recorded"}</span></div>
+            <div className="report-metadata"><span><b>Ticket ID</b>{value(selectedMaintenanceOrder, "id")}</span><span><b>Service type</b>{formatStatus(selectedMaintenanceOrder.service_type)}</span><span><b>Status</b>{formatStatus(selectedMaintenanceOrder.status)}</span><span><b>Opened</b>{formatDate(selectedMaintenanceOrder.opened_at)}</span><span><b>Service date</b>{value(selectedMaintenanceOrder, "repair_date") || "Pending"}</span><span><b>Performed by</b>{value(selectedMaintenanceOrder, "performed_by") || value(selectedMaintenanceOrder, "vendor") || "Not recorded"}</span><span><b>Odometer</b>{value(selectedMaintenanceOrder, "odometer") || "Not recorded"}</span><span><b>Labor</b>{value(selectedMaintenanceOrder, "labor_hours") ? `${value(selectedMaintenanceOrder, "labor_hours")} hours` : "Not recorded"}</span><span><b>Cost</b>{recordedRepairCost(selectedMaintenanceOrder.repair_cost)}</span><span><b>Invoice / PO</b>{value(selectedMaintenanceOrder, "invoice_number") || "Not recorded"}</span></div>
             <h3>Reported condition</h3><p>{value(selectedMaintenanceOrder, "details") || "Not recorded"}</p><h3>Work completed</h3><p>{value(selectedMaintenanceOrder, "resolution_notes") || "Pending"}</p><h3>Parts and materials</h3><p>{value(selectedMaintenanceOrder, "parts_used") || "None recorded"}</p>
             <footer><span>Closed by: {value(selectedMaintenanceOrder, "closed_by") || "Pending"}</span><span>Next service: {value(selectedMaintenanceOrder, "next_service_due_date") || "Not scheduled"}</span><span>Generated {formatDate(Date.now())}</span></footer>
             <button type="button" onClick={() => window.print()}>Print / Save PDF</button>
@@ -1815,11 +1817,8 @@ export default function InventoryOperations({
       ) : null}
       {bulkPassGroup && activeCheck ? (
         <div className="camera-overlay" role="presentation">
-          <section className="camera-panel bulk-pass-panel" role="dialog" aria-modal="true" aria-label="Confirm passing remaining inventory items">
-            <header><div><span>CONFIRM LOCATION</span><h3>Pass {bulkPassGroup.itemIds.length} items in {bulkPassGroup.label}?</h3></div><button type="button" onClick={() => setBulkPassGroup(null)}>Cancel</button></header>
-            <p>Use this only after physically checking every listed item in this location. Mileage and odometer entries still require a number. Engine oil and transmission fluid require a level selection. These items are excluded.</p>
-            <div className="bulk-pass-actions"><button type="button" onClick={() => setBulkPassGroup(null)}>Go back</button><button className="ops-primary" type="button" disabled={Boolean(busy) || !canCheck} onClick={() => void recordCheckItems("bulk-pass", { action: "bulk_record_check_items", checkId: value(activeCheck, "id"), checkItemIds: bulkPassGroup.itemIds }).then((saved) => { if (saved) setBulkPassGroup(null); })}>Confirm {bulkPassGroup.itemIds.length} items passed</button></div>
-          </section>
+          <InventoryBulkReview items={activeChecklistRows.filter(i=>bulkPassGroup.itemIds.includes(value(i,'id')))} onCancel={()=>setBulkPassGroup(null)} onSave={async d=>{let evidencePhotoId:string|undefined;if(d.result==='failed'&&d.photo)evidencePhotoId=await uploadEvidence(selectedApparatusId,d.photo,d.id);return recordCheckItems('bulk-'+d.id,{action:'record_check_item',checkItemId:d.id,result:d.result,notes:d.notes,...(evidencePhotoId?{evidencePhotoId,issueCategories:['equipment'],assignedEmployeeIds:[],assignedEmployeeNames:[]}:{})});}}/>
+
         </div>
       ) : null}
       {relocationItem && activeCheck && activeAllowsRelocation ? (
