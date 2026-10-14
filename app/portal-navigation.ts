@@ -1,6 +1,7 @@
+import { validQueueDate } from "./task-queue-model.ts";
 export const portalPages = ["Dashboard", "Command Center", "Operations Board", "Activity Timeline", "Task Queue", "Respond", "Command Board", "Field Preplans", "Road Closures", "Safety Inspections", "Fire Inspections", "NERIS Reporting", "Training", "Scheduling", "Payroll", "Work Details", "Daily Log", "Timesheets", "Callback Reviews", "My Timesheet", "Employees", "Employee Contacts", "Policies", "Box Cards", "Holiday Policy", "EMS", "Daily Duties", "Inventory", "Phone Numbers", "Rates & Rules", "Departments", "System Health", "Permissions", "CAD Integration", "Respond Device Modes", "Test View"] as const;
 export type PortalPage = typeof portalPages[number];
-export type PortalRecord = { preplan?: string; hydrant?: string; policy?: string; boxCard?: string; query?: string; adminTask?: string; incident?: string; equipment?: string; trainingRecord?: string; trainingTab?: string; inspectionRecord?: string; inspectionTab?: string; nerisRecord?: string };
+export type PortalRecord = { preplan?: string; hydrant?: string; policy?: string; boxCard?: string; query?: string; adminTask?: string; incident?: string; equipment?: string; trainingRecord?: string; trainingTab?: string; inspectionRecord?: string; inspectionTab?: string; nerisRecord?: string; scheduleDate?: string };
 export function portalParentPage(page: PortalPage, home: PortalPage, allowed: readonly PortalPage[]) {
   const parent = ({ Timesheets: "Payroll", "Callback Reviews": "Payroll", "Work Details": "Payroll", "Employee Contacts": "Employees" } as Partial<Record<PortalPage, PortalPage>>)[page];
   return parent && allowed.includes(parent) ? parent : home;
@@ -19,9 +20,10 @@ export function portalPageUrl(pathname: string, search: string, page: PortalPage
   const params = new URLSearchParams(search);
   params.set("page", pageSlug(page));
   params.set("display", "portal");
-  for (const key of ["preplan", "hydrant", "edit", "policy", "boxCard", "query", "adminTask", "trainingRecord", "trainingTab", "inspectionRecord", "inspectionTab", "inspectionProperty", "nerisRecord", "incident", "equipment"]) params.delete(key);
+  for (const key of ["preplan", "hydrant", "edit", "policy", "boxCard", "query", "adminTask", "trainingRecord", "trainingTab", "inspectionRecord", "inspectionTab", "inspectionProperty", "nerisRecord", "incident", "equipment", "scheduleDate"]) params.delete(key);
   if (page === "Command Board" && record?.incident) params.set("incident", record.incident);
   if (record?.adminTask) params.set("adminTask", record.adminTask);
+  if(page==="Scheduling"&&record?.scheduleDate&&validQueueDate(record.scheduleDate))params.set("scheduleDate",record.scheduleDate);
   if (page === "Field Preplans") {
     if (record?.preplan) params.set("preplan", record.preplan);
     else if (record?.hydrant) params.set("hydrant", record.hydrant);

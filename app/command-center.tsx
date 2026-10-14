@@ -5,6 +5,7 @@ import { readPortalJson } from "./portal-status";
 import { ChiefReport, type ReportData, type ReportNavigation } from './chief-report';
 import { callHour, metricSources, trendPeriodKeys } from './reporting-metrics';
 import { ResponseTypePanel } from "./response-type-panel";
+import ReadinessReview from './readiness-review';
 
 type Daily = { date: string; staffingGaps: number; overtimeHours: number; aoHours: number; calls: number; equipmentIssues: number; payrollCost: number };
 type StaffingDetail = { date: string; shiftKey: string; shiftLabel: string; timeRange: string; filled: number; required: number; gaps: number; holidayName: string | null };
@@ -84,7 +85,7 @@ function PayrollDialog({ breakdown, mode, onClose }: { breakdown: { totalCost: n
   </DetailDialog>;
 }
 
-export default function CommandCenter({ onNavigate }: { onNavigate?: ReportNavigation }) {
+export default function CommandCenter({ onNavigate, preview=false }: { onNavigate?: ReportNavigation; preview?:boolean }) {
   const [data, setData] = useState<Data | null>(null);
   const [mode, setMode] = useState<"weekly" | "monthly">("weekly");
   const [loading, setLoading] = useState(true);
@@ -180,6 +181,7 @@ export default function CommandCenter({ onNavigate }: { onNavigate?: ReportNavig
   return <section className="command-center-page">
     <header className="standard-page-header command-center-header"><div><span className="page-icon">⌁</span><div><p className="eyebrow">Department analytics</p><h1>Department Command Center</h1><p>Operational readiness, activity, and payroll trends from official department records.</p></div></div><div className="trend-toggle"><button className={mode === "weekly" ? "active" : ""} onClick={() => setMode("weekly")}>Weekly</button><button className={mode === "monthly" ? "active" : ""} onClick={() => setMode("monthly")}>Monthly</button></div></header>
     {error && <div className="error-banner"><span>{error}</span><button onClick={() => void load()}>Retry</button></div>}
+    {!preview&&<ReadinessReview/>}
     {loading ? <div className="command-center-loading">{metricInfo.map((item) => <i key={item.key}/>)}</div> : data ? <>
       <ChiefReport key={data.generatedAt} data={data} stale={!!error} onNavigate={onNavigate}/><section className="fiscal-pay-card"><div><span>Fiscal year pay to date</span><strong>{data.sources.payroll === 'ready' ? money(data.fiscalYear.payToDate || 0) : data.sources.payroll === 'restricted' ? 'Restricted' : 'Unavailable'}</strong><small>Calculated department gross pay recorded from {data?.fiscalYear ? shortDate(data.fiscalYear.startDate) : "May 1"} through today</small></div><b>FY {data?.fiscalYear ? `${data.fiscalYear.startDate.slice(0, 4)}–${data.fiscalYear.endDate.slice(2, 4)}` : "—"}</b></section>
       <div className="trend-card-grid">{metricInfo.map((item) => {

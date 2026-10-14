@@ -84,7 +84,7 @@ export function apparatusCheckRequired(status: unknown, checkType: unknown) {
   return normalizedStatus !== "out_of_service" || !["daily", "weekly"].includes(normalizedCheckType);
 }
 
-function scheduledCheckCompleted(check: { status?: unknown; completed_at?: unknown; review_status?: unknown }, checkType: string, date: string) {
+export function scheduledCheckCompleted(check: { status?: unknown; completed_at?: unknown; review_status?: unknown }, checkType: string, date: string) {
   if (check.status !== "completed" || !check.completed_at || check.review_status === "changes_requested") return false;
   const completedDate = chicagoCalendarDate(String(check.completed_at));
   if (checkType !== "weekly") return completedDate === date;

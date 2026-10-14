@@ -17,6 +17,8 @@ import { canRequestRole, memberShiftList, shiftTimeLabel, shiftHasNotStarted } f
 import { calendarDayShifts, calendarShiftText } from './scheduler-calendar-view';
 import { SchedulerCoverage } from "./scheduler-coverage";
 import { ScheduleSafetyPanel } from './schedule-safety-panel';
+import ReadinessReview from './readiness-review';
+import { validQueueDate } from './task-queue-model';
 import type { SavedScheduleSafety } from './schedule-safety-store';
 import { filterOpenPositions, scheduleDateOffset, type VacancyFilters } from "./scheduler-overview";
 
@@ -135,21 +137,24 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
     }
   }, [tab]);
   const [schedulerView, setSchedulerView] = useWorkspaceViewState<"admin" | "employee">("scheduler-view", "employee");
+  const [selectedDate, setSelectedDate] = useWorkspaceViewState("scheduler-date", todayIso);
+  const [adminDayMode, setAdminDayMode] = useWorkspaceViewState("scheduler-day-mode", true);
   const adminDestinationApplied = useRef(false);
   useEffect(() => {
     if (!data || adminDestinationApplied.current) return;
     adminDestinationApplied.current = true;
-    const requested = new URLSearchParams(window.location.search).get("adminTask") || "";
+    const requestedParams = new URLSearchParams(window.location.search);
+    const requested = requestedParams.get("adminTask") || "";
+    const reviewDate = requestedParams.get('scheduleDate') || '';
+    if(!testMember&&data.viewer.isAdmin&&validQueueDate(reviewDate)){setSelectedDate(reviewDate);setAdminDayMode(true);}
     if (!testMember && data.viewer.isAdmin && schedulerAdminTask(requested)) {
       setSchedulerView("admin");
       setTab(requested);
     } else if (requested === "calendar") setTab("calendar");
-  }, [data, testMember, setTab, setSchedulerView]);
+  }, [data, testMember, setTab, setSchedulerView, setSelectedDate, setAdminDayMode]);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const [selectedDate, setSelectedDate] = useWorkspaceViewState("scheduler-date", todayIso);
-  const [adminDayMode, setAdminDayMode] = useWorkspaceViewState("scheduler-day-mode", true);
   const [dayReturn, setDayReturn] = useState("overview");
   const openStaffingDay = (date: string) => { setDayReturn(tab === "openAdmin" ? "openAdmin" : "overview"); setSelectedDate(date); setAdminDayMode(true); setTab("calendar"); };
   const [tradeSlotId, setTradeSlotId] = useState("");
@@ -279,7 +284,7 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
         </ol></details>
       </section>}
       {isAdmin && tab === "openAdmin" && <AdminOpenPositions data={data} onDay={openStaffingDay} />}
-      {isAdmin && tab === "safety" && <ScheduleSafetyPanel slots={data.slots} members={data.employees} saved={data.scheduleSafety} today={data.today} canEdit={!previewMember && !testMember} busy={busy || refreshing || Boolean(error)} onSave={act} onDay={openStaffingDay} />}
+      {isAdmin && tab === "safety" && <><ScheduleSafetyPanel slots={data.slots} members={data.employees} saved={data.scheduleSafety} today={data.today} canEdit={!previewMember && !testMember} busy={busy || refreshing || Boolean(error)} onSave={act} onDay={openStaffingDay} />{!previewMember&&!testMember&&<ReadinessReview scope="staffing"/>}</>}
 
       {!isAdmin && !data.viewer.employeeId && <p role="status">Your login is not linked to a member record. Ask an administrator to link it before making personal requests. Administrator tools remain available above.</p>}
       {tab === "myshifts" && !isAdmin && <><div className="scheduler-member-shortcuts" aria-label="My scheduling actions"><button type="button" onClick={() => setTab("availability")}>Update my availability →</button><button type="button" onClick={() => setTab("myrequests")}>Track my requests →</button><button type="button" onClick={() => setTab("accepttrades")}>Trade offers · {incomingTradesFor(data).length} →</button></div><MemberShifts data={data} onOpen={() => setTab("open")} onTrade={(id) => { setTradeSlotId(id); setTab("trades"); }} /></>}
