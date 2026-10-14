@@ -1,0 +1,56 @@
+/* Pair officer review text with its actual surface; preserve all approval gates. */
+@media screen {
+  #portal-workspace .logbook-page.logbook-page .staff-labels {
+    color: #dce7f5;
+    font-size: 12px;
+  }
+  #portal-workspace .logbook-page.logbook-page .officer-actions button {
+    background: #eaf2fc;
+    color: #15334e;
+    border-color: #91abc8;
+    min-height: 44px;
+    opacity: 1;
+    -webkit-text-fill-color: currentColor;
+  }
+  #portal-workspace .logbook-page.logbook-page .officer-actions button:hover:not(:disabled) {
+    background: #fff;
+    color: #15334e;
+  }
+  #portal-workspace .logbook-page.logbook-page .officer-actions button.approved {
+    background: #dff5e8;
+    color: #16432e;
+  }
+  #portal-workspace .logbook-page.logbook-page .officer-actions button.fleet-blocked {
+    background: #ffe9e5;
+    color: #742b23;
+  }
+  #portal-workspace .logbook-page.logbook-page .officer-actions button:disabled {
+    background: #33455d;
+    color: #e2e8f0;
+    border-color: #91abc8;
+    border-style: dashed;
+    opacity: 1;
+    cursor: not-allowed;
+  }
+  #portal-workspace .logbook-page.logbook-page .handoff-modal {
+    background: #141e30;
+    color: #f1f5f9;
+    border: 1px solid #91abc8;
+    color-scheme: dark;
+  }
+  #portal-workspace .logbook-page.logbook-page .handoff-modal :is(h2,h3,strong,label,label span) {color:#f1f5f9}
+  #portal-workspace .logbook-page.logbook-page .handoff-modal :is(.review-notes,.equipment-check) {background:#141e30;color:#f1f5f9;border-color:#91abc8}
+  #portal-workspace .logbook-page.logbook-page .handoff-modal :is(p,.eyebrow,.equipment-row span,.scroll-end) {color:#cbd5e1}
+  #portal-workspace .logbook-page.logbook-page .handoff-modal :is(.notes-scroll,.notes-scroll article,.equipment-row,.accept-check) {background:#1b2b43;color:#f1f5f9;border-color:#91abc8}
+  #portal-workspace .logbook-page.logbook-page .handoff-modal .accept-check.ready {background:#193b30;color:#dcfce7}
+  #portal-workspace .logbook-page.logbook-page .handoff-modal .accept-check.ready span {color:#dcfce7}
+  #portal-workspace .logbook-page.logbook-page .handoff-modal :is(input:not([type=checkbox]),select,textarea,option) {background:#0e1728;color:#f1f5f9;-webkit-text-fill-color:currentColor;border-color:#91abc8}
+  #portal-workspace .logbook-page.logbook-page .handoff-modal :is(input,textarea)::placeholder {color:#cbd5e1;opacity:1;-webkit-text-fill-color:#cbd5e1}
+  #portal-workspace .logbook-page.logbook-page .handoff-modal button:disabled {background:#33455d;color:#e2e8f0;opacity:1;border:1px dashed #91abc8;-webkit-text-fill-color:currentColor}
+  #portal-workspace .logbook-page.logbook-page :is(.officer-actions button,.handoff-modal button,.handoff-modal input,.handoff-modal select,.handoff-modal textarea):focus-visible {outline:3px solid #93c5fd;outline-offset:3px}
+  @media (max-width:640px) {
+    #portal-workspace .logbook-page.logbook-page .handoff-backdrop {padding:10px}
+    #portal-workspace .logbook-page.logbook-page .handoff-modal {padding:16px;max-height:calc(100dvh - 20px)}
+    #portal-workspace .logbook-page.logbook-page .handoff-modal :is(p,label,span,button) {overflow-wrap:anywhere}
+  }
+}
