@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from "react";
-import CommandReviewTools from './command-review-tools';
+import CommandReviewTools,{SavedCommandEvidence} from './command-review-tools';
 import ConfirmDialog from "./confirm-dialog";
 import { formatEmployeeName } from "./employee-names";
 import styles from "./incident-command-board.module.css";
@@ -554,6 +554,7 @@ export default function IncidentCommandBoard() {
       <small>INCIDENT ENDED · BOARD LOCKED</small>
       <h2 id="icb-closeout-title">Command report is ready</h2>
       <p>Ended {new Date(state.closeout.endedAt).toLocaleString()} by {state.closeout.endedBy}. All {data.events.length} recorded changes remain timestamped.</p>
+      <SavedCommandEvidence incidentId={data.incident.incidentId} revision={state.revision} closed/>
       <div><button type="button" onClick={() => window.print()}>Print Report</button><a href={emailReportHref}>Email Report</a><button type="button" onClick={() => setHistoryOpen(true)}>View Activity</button><button type="button" className="secondary" onClick={() => { window.location.href = window.location.pathname; }}>Return to Portal</button></div>
     </section>}
     <section className="icb-print-report" aria-hidden="true">
