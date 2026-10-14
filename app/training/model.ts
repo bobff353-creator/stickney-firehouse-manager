@@ -1,3 +1,4 @@
+import {normalizeTrainingEvidence,validateTrainingEvidence,type RequirementPlan,type ObjectiveAllocation,type TrainingResource} from './requirements';
 import {completedMemberIds} from './completion-members';
 import { certificationCatalog } from './osfm-catalog';
 import { normalizeOsfmSelections,taskReference } from './osfm-selection';
@@ -7,6 +8,7 @@ export type TrainingKind = typeof trainingKinds[number];
 export type TrainingField = { id: string; label: string; type: 'text'|'number'|'date'|'choice'|'yes-no'; options: string[]; required: boolean };
 export type SourceRosterRow = {id:string;name:string;writtenId:string;employeeId:string;resolution:'unresolved'|'matched'|'excluded';note:string};
 export type TrainingData = {
+  requirementPlan:RequirementPlan|null;allocations:ObjectiveAllocation[];resources:TrainingResource[];
   paperSource:boolean;sourceLabel:string;sourceHeaderDate:string;sourceRoster:SourceRosterRow[];sourceReviewVerified:boolean;evidenceRecordId:string;duplicateReviewNote:string;
   title: string; category: string; description: string; date: string; dueDate: string; startTime: string;
   endTime: string; endDate: string; timeNote: string; breakMinutes: number;
@@ -29,7 +31,7 @@ export type TrainingSnapshot = { records: TrainingRecord[]; members: TrainingMem
 export const categories = ['Company training','Driver / operator','Officer development','EMS','Hazardous materials','Technical rescue','Fire prevention / inspection','Instructor development','Health and safety','Compliance','New member onboarding','Facility / live fire','Fire investigation','Communications','Traffic incident management','Mental health','Other'];
 export const todayChicago = () => new Intl.DateTimeFormat('en-CA', { timeZone:'America/Chicago', year:'numeric',month:'2-digit',day:'2-digit' }).format(new Date());
 export function emptyTrainingData(): TrainingData {
-  return { paperSource:false,sourceLabel:'',sourceHeaderDate:'',sourceRoster:[],sourceReviewVerified:false,evidenceRecordId:'',duplicateReviewNote:'',title:'',category:'Company training',description:'',date:'',dueDate:'',startTime:'',endTime:'',endDate:'',timeNote:'',breakMinutes:0,hours:null,instructor:'',location:'',employeeIds:[],activityId:'',assignmentId:'',credentialId:'',certificationId:'',status:'draft',delivery:'Hands-on',sourceUrl:'',sourceEdition:'',externalId:'',cycleStart:'',issuedDate:'',credentialNumber:'',jpr:'',sourcePage:'',evaluator:'',method:'Training',result:'Practiced',points:null,pointsBasis:'',test:false,verified:false,fields:[],answers:{},attendance:{},paidHours:{},osfmTaskIds:[],osfmBookHashes:{},requiredJprs:[],receipt:'',submissionDate:'',reviewNote:'',repeatEveryDays:null,seriesId:'',issuingAuthority:'',renewalMonths:null,documentType:'Other' };
+  return { requirementPlan:null,allocations:[],resources:[],paperSource:false,sourceLabel:'',sourceHeaderDate:'',sourceRoster:[],sourceReviewVerified:false,evidenceRecordId:'',duplicateReviewNote:'',title:'',category:'Company training',description:'',date:'',dueDate:'',startTime:'',endTime:'',endDate:'',timeNote:'',breakMinutes:0,hours:null,instructor:'',location:'',employeeIds:[],activityId:'',assignmentId:'',credentialId:'',certificationId:'',status:'draft',delivery:'Hands-on',sourceUrl:'',sourceEdition:'',externalId:'',cycleStart:'',issuedDate:'',credentialNumber:'',jpr:'',sourcePage:'',evaluator:'',method:'Training',result:'Practiced',points:null,pointsBasis:'',test:false,verified:false,fields:[],answers:{},attendance:{},paidHours:{},osfmTaskIds:[],osfmBookHashes:{},requiredJprs:[],receipt:'',submissionDate:'',reviewNote:'',repeatEveryDays:null,seriesId:'',issuingAuthority:'',renewalMonths:null,documentType:'Other' };
 }
 const chicagoClock=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
 function sessionInstant(date:string,time:string) {
@@ -49,7 +51,7 @@ export function sessionHours(data:Pick<TrainingData,'date'|'startTime'|'endTime'
   return Math.round(hours*1000000)/1000000;
 }
 export function repeatedCompletionData(data:TrainingData):Partial<TrainingData> {
-  return {...data,status:'draft',date:'',startTime:'',endTime:'',endDate:'',timeNote:'',breakMinutes:0,employeeIds:[],attendance:{},paidHours:{},assignmentId:'',credentialId:'',externalId:'',receipt:'',submissionDate:'',answers:{},repeatEveryDays:null,seriesId:'',paperSource:false,sourceLabel:'',sourceHeaderDate:'',sourceRoster:[],sourceReviewVerified:false,evidenceRecordId:'',duplicateReviewNote:''};
+  return {...data,requirementPlan:null,allocations:[],resources:[],status:'draft',date:'',startTime:'',endTime:'',endDate:'',timeNote:'',breakMinutes:0,employeeIds:[],attendance:{},paidHours:{},assignmentId:'',credentialId:'',externalId:'',receipt:'',submissionDate:'',answers:{},repeatEveryDays:null,seriesId:'',paperSource:false,sourceLabel:'',sourceHeaderDate:'',sourceRoster:[],sourceReviewVerified:false,evidenceRecordId:'',duplicateReviewNote:''};
 }
 export function validDate(value: string) { const d=new Date(value+'T12:00:00Z');return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(d.getTime()) && d.toISOString().slice(0,10)===value; }
 export function shiftDate(date: string, days: number) { const d=new Date(date+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10); }
@@ -58,6 +60,7 @@ export function safeLink(value: string) { try { const u=new URL(value); return u
 export function normalizeTrainingData(input: unknown): TrainingData {
   if(!input || typeof input!=='object' || Array.isArray(input))throw new Error('The training details are missing.');
   const raw=input as Record<string,unknown>, out=emptyTrainingData();
+  Object.assign(out,normalizeTrainingEvidence(raw));
   for(const key of Object.keys(out) as (keyof TrainingData)[]) {
     if(typeof out[key]==='string') (out as unknown as Record<string,unknown>)[key]=String(raw[key]??'').trim().slice(0,key==='description'?12000:2000);
   }
@@ -91,6 +94,7 @@ export function normalizeTrainingData(input: unknown): TrainingData {
   return out;
 }
 export function validateTraining(kind: TrainingKind, data: TrainingData, records: TrainingRecord[], members: TrainingMember[], today=todayChicago()) {
+  validateTrainingEvidence(kind,data);
   if(!data.title)throw new Error('Give this record a name.');
   if(data.test && data.title!=='test/training')throw new Error('Test records must be named test/training.');
   if(data.employeeIds.some(id=>!members.some(m=>m.id===id)))throw new Error('A selected member no longer exists. Reload the roster.');

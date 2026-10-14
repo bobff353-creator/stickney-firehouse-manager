@@ -38,6 +38,8 @@ export async function POST(request:Request) {
     if(current&&current.version===version+1&&JSON.stringify(current.data)===payload&&current.archived===archived)return trainingJson({record:current,saved:true});
     if((current?.version??0)!==version)return trainingJson({error:'This record changed in another tab. Your draft is kept. Reload the saved record before trying again.',code:'SAVE_CONFLICT'},409);
     validateTraining(kind,data,snapshot.records,snapshot.members);
+    const additions=data.resources.filter(r=>!current?.data.resources.some(saved=>saved.kind===r.kind&&saved.id===r.id&&saved.label===r.label));
+    if(additions.length){const {GET:trainingResources}=await import('./resources/route');const response=await trainingResources(request);if(!response.ok)return trainingJson({error:'Resource choices could not be verified. Keep the draft and retry.'},503);const choices=await response.json();if(additions.some(r=>!choices.sources.some((s:{items:{kind:string;id:string;label:string}[]})=>s.items.some(item=>item.kind===r.kind&&item.id===r.id&&item.label===r.label))))return trainingJson({error:'Choose an available saved resource. Existing references remain in history.'},400);}
     if(!archived)validateSourceReview(kind,data,snapshot,id);
     if(data.status==='completed'&&kind!=='completion')return trainingJson({error:'Only a training completion can earn completion credit.'},400);
     if(kind==='completion'&&data.status==='saved')return trainingJson({error:'Save this completion as a draft or a completed record.'},400);

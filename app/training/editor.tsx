@@ -1,4 +1,5 @@
 'use client';
+import TrainingResourceEditor from './resource-editor';
 import ActivityBrowser from './activity-browser';
 import { useState } from 'react';
 import { categories,emptyTrainingData,normalizeTrainingData,validateTraining,todayChicago,safeLink,sessionHours,type TrainingRecord,type TrainingSnapshot,type TrainingData,type TrainingField } from './model';
@@ -106,6 +107,7 @@ export default function TrainingEditor({initial,snapshot,onSave,onAttach,onCance
       {kind==='completion'&&selectedMembers.length>0&&<details><summary>Paid hours (optional, separate from training credit)</summary><p>Reference only. These hours do not change training credit or write to payroll. Leave blank when pay is not recorded.</p>{selectedMembers.map(m=><label className="tr-field" key={m.id}>{m.name} · paid hours<input type="number" min="0" max="24" step="0.25" value={data.paidHours[m.id]??''} onChange={e=>{const paid={...data.paidHours};if(e.target.value==='')delete paid[m.id];else paid[m.id]=Number(e.target.value);set('paidHours',paid);}}/></label>)}</details>}
     </>}
     {kind==='completion'&&step===2&&<>
+      <TrainingResourceEditor data={data} snapshot={snapshot} onChange={patch=>setData(d=>({...d,...patch,sourceReviewVerified:false}))}/>
       <h3>Objectives and original evidence</h3><p>Choose only the tasks actually covered. Training attendance does not award proficiency or certification.</p>
       <details className="tr-panel"><summary>Find OSFM tasks by number or description · {data.osfmTaskIds.length} selected</summary><OsfmTaskBrowser selected={data.osfmTaskIds} onChange={ids=>set('osfmTaskIds',ids)}/></details>
       <section className="tr-panel"><h3>Original PDF or photo</h3><p>The original stays separate from your narrative. Attaching to a new report first saves a draft, which gives no credit.</p>

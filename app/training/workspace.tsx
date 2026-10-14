@@ -1,4 +1,5 @@
 'use client';
+import RequirementCenter,{downloadTrainingPacket} from './requirement-center';
 import { useCallback,useEffect,useMemo,useState } from 'react';
 import ActivityBrowser from './activity-browser';
 import TrainingReportCenter from './report-center';
@@ -15,7 +16,7 @@ import { CredentialRegister } from './credential-register';
 import { documentTypes,nextAssignmentData } from './phase-four';
 import {separateSourceSession,paperEvidence} from './source-review';
 
-const tabs=['Overview','Assignments','History & reports','Credentials & task books','OSFM task books','Activity library','Calendar','Files & groups','OSFM guide'] as const;
+const tabs=['Overview','Requirements & progress','Assignments','History & reports','Credentials & task books','OSFM task books','Activity library','Calendar','Files & groups','OSFM guide'] as const;
 type Tab=typeof tabs[number];
 async function fetchTraining(signal?:AbortSignal):Promise<TrainingSnapshot>{const r=await fetch('/api/training',{cache:'no-store',signal});const j=await r.json();if(!r.ok)throw new Error(j.error||'Training could not load.');return j;}
 const blank:TrainingSnapshot={records:[],members:[],attachments:[]};
@@ -73,7 +74,7 @@ export default function TrainingWorkspace() {
       {selected.kind==='proficiency'&&<dl className="tr-review"><dt>JPR</dt><dd>{selected.data.jpr}</dd><dt>Result</dt><dd>{selected.data.result}</dd><dt>Performed</dt><dd>{selected.data.date}</dd><dt>Evaluator</dt><dd>{selected.data.evaluator||'Not recorded'}</dd><dt>Evidence review</dt><dd>{selected.data.verified?'Reviewed by '+selected.updatedBy:'Not reviewed'}</dd><dt>Edition / PDF page</dt><dd>{selected.data.sourceEdition} · {selected.data.sourcePage}</dd>{selected.data.points!==null&&<><dt>Investigator points</dt><dd>{selected.data.points} · {selected.data.pointsBasis}</dd></>}</dl>}
       </div>
       {selected.kind==='credential'&&<CredentialDetail record={selected} snapshot={snapshot} onTask={data=>create('proficiency',data)} onOpen={id=>route(tab,id)} onExport={()=>{try{download(`osfm-handoff-${selected.id}.json`,JSON.stringify(osfmHandoff(selected,snapshot),null,2));setNotice('Review package downloaded. Nothing was sent to OSFM.');}catch(e){setError(e instanceof Error?e.message:'Unable to export.');}}}/>}
-      <section className="tr-panel"><h3>Files & evidence</h3>{attachments(selected.id)}{!selected.archived&&uploadControl(selected.id)}<p className="tr-muted">Use signed task sheets, course certificates, rosters, and supporting photos. Originals remain separate from your notes.</p></section>
+      <section className="tr-panel"><button onClick={()=>downloadTrainingPacket(selected,snapshot)}>Download audit review packet · version {selected.version}</button><p>Includes saved dates, source evidence, resource IDs and missing fields. Review only; no official submission.</p><h3>Files & evidence</h3>{attachments(selected.id)}{!selected.archived&&uploadControl(selected.id)}<p className="tr-muted">Use signed task sheets, course certificates, rosters, and supporting photos. Originals remain separate from your notes.</p></section>
       <section className="tr-panel"><button disabled={busy} onClick={()=>void audit(selected)}>View revision history</button>{history&&history.map(h=><details key={h.version}><summary>Version {h.version} · {new Date(h.createdAt).toLocaleString()} · {h.actor}{h.archived?' · Archived':''}</summary><pre className="tr-json">{JSON.stringify(JSON.parse(h.payload),null,2)}</pre></details>)}</section>
     </>:selectedId?<div className="tr-empty">That training record was not found. <button onClick={()=>route('Overview')}>Back to Training</button></div>:<>
     {tab==='Overview'&&<>
@@ -85,6 +86,7 @@ export default function TrainingWorkspace() {
       <section className="tr-panel"><h2>Continue a draft</h2>{recordList(snapshot.records.filter(r=>!r.archived&&r.data.status==='draft'),'No unfinished drafts.')}</section>
       <details className="tr-panel"><summary>Coming from Vector / TargetSolutions?</summary><p><strong>Record Completions</strong> → Record training. <strong>Create Assignments</strong> → Assign training. <strong>My History</strong> → History & reports. <strong>My Credentials</strong> → Credentials & task books. <strong>Activities Builder</strong> → Activity library. <strong>File Center</strong> → Files & groups.</p><p>This private pilot stores your records separately. Licensed Vector course content and its OSFM connection are not copied.</p></details>
     </>}
+    {tab==='Requirements & progress'&&<RequirementCenter snapshot={snapshot} onSave={async r=>{const saved=await save(r);route('Requirements & progress');return saved;}} onOpen={id=>route('Requirements & progress',id)}/>}
     {tab==='Assignments'&&<>{search}<div className="tr-heading"><div><h2>Assignments</h2><p>Choose who needs training and when. Completion is recorded separately.</p></div><button className="tr-primary" onClick={()=>create('assignment')}>+ Assign training</button></div>{recordList(recordsOf('assignment'),'No assignments yet. Assign training to create the first one.')}</>}
     {tab==='History & reports'&&<TrainingReportCenter snapshot={snapshot} onOpen={id=>route('History & reports',id)} onNew={()=>create('completion')}/> }
     {tab==='Credentials & task books'&&<>{search}<div className="tr-heading"><div><h2>Credentials & task books</h2><p>Track official dates and documented proficiency. The app does not award certifications.</p><button onClick={()=>route('OSFM task books')}>Browse prebuilt OSFM task books</button></div><button className="tr-primary" onClick={()=>create('credential')}>+ Add credential</button></div><CredentialRegister snapshot={snapshot} onOpen={id=>route(tab,id)}/>{recordList(recordsOf('credential'),'No credentials recorded. Add a member’s verified certificate or initial-certification task book.')}</>}
