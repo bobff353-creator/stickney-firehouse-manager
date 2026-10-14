@@ -38,3 +38,15 @@
 
 .training-workspace input[type=time]{color-scheme:light}
 .tr-editor .tr-review{background:#f4f8fb;border:1px solid var(--tr-line);border-radius:10px;padding:18px}
+.tr-source-rows{display:grid;gap:16px;margin:16px 0;min-width:0}
+.tr-source-row{padding:16px;border:1px solid var(--tr-line);border-radius:10px;background:#f4f8fb;min-width:0}
+.training-workspace .tr-source-row h4{color:var(--tr-ink);margin:0 0 12px}
+.training-workspace .tr-source-roster :is(p,label,small){color:var(--tr-ink)}
+.training-workspace .tr-source-roster :is(input,select,textarea){max-width:100%;min-width:0}
+.training-workspace .tr-source-roster button{min-height:44px;white-space:normal;overflow-wrap:anywhere}
+.training-workspace .tr-source-roster a{overflow-wrap:anywhere}
+@media screen {
+  #portal-workspace .training-workspace.training-workspace a {color:#075a83}
+  #portal-workspace .training-workspace.training-workspace a.tr-file {background:#fff;color:#075a83}
+  #portal-workspace .training-workspace.training-workspace button:disabled {background:#e6eff5;color:#315368;opacity:1;cursor:not-allowed}
+}

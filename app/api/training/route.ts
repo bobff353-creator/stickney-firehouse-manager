@@ -2,6 +2,7 @@ import { ensureDatabase } from '../../../db/bootstrap';
 import { trainingBoundary, trainingJson, trainingSnapshot, decodeTraining, type StoredTrainingRow } from '../../training/server';
 import { trainingKinds, normalizeTrainingData, validateTraining, type TrainingKind } from '../../training/model';
 import { repeatAssignment } from '../../training/repeat-server';
+import {validateSourceReview} from '../../training/source-review';
 
 export async function GET(request:Request) {
   const denied=trainingBoundary(request);if(denied)return denied;
@@ -37,6 +38,7 @@ export async function POST(request:Request) {
     if(current&&current.version===version+1&&JSON.stringify(current.data)===payload&&current.archived===archived)return trainingJson({record:current,saved:true});
     if((current?.version??0)!==version)return trainingJson({error:'This record changed in another tab. Your draft is kept. Reload the saved record before trying again.',code:'SAVE_CONFLICT'},409);
     validateTraining(kind,data,snapshot.records,snapshot.members);
+    if(!archived)validateSourceReview(kind,data,snapshot,id);
     if(data.status==='completed'&&kind!=='completion')return trainingJson({error:'Only a training completion can earn completion credit.'},400);
     if(kind==='completion'&&data.status==='saved')return trainingJson({error:'Save this completion as a draft or a completed record.'},400);
     writing=true;

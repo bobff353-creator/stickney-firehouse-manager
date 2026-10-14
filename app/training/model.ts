@@ -4,7 +4,9 @@ import { normalizeOsfmSelections,taskReference } from './osfm-selection';
 export const trainingKinds = ['activity','completion','assignment','credential','proficiency','group','resource'] as const;
 export type TrainingKind = typeof trainingKinds[number];
 export type TrainingField = { id: string; label: string; type: 'text'|'number'|'date'|'choice'|'yes-no'; options: string[]; required: boolean };
+export type SourceRosterRow = {id:string;name:string;writtenId:string;employeeId:string;resolution:'unresolved'|'matched'|'excluded';note:string};
 export type TrainingData = {
+  paperSource:boolean;sourceLabel:string;sourceHeaderDate:string;sourceRoster:SourceRosterRow[];sourceReviewVerified:boolean;evidenceRecordId:string;duplicateReviewNote:string;
   title: string; category: string; description: string; date: string; dueDate: string; startTime: string;
   endTime: string; endDate: string; timeNote: string; breakMinutes: number;
   hours: number | null; instructor: string; location: string; employeeIds: string[];
@@ -26,7 +28,7 @@ export type TrainingSnapshot = { records: TrainingRecord[]; members: TrainingMem
 export const categories = ['Company training','Driver / operator','Officer development','EMS','Hazardous materials','Technical rescue','Fire prevention / inspection','Instructor development','Health and safety','Compliance','New member onboarding','Facility / live fire','Fire investigation','Communications','Traffic incident management','Mental health','Other'];
 export const todayChicago = () => new Intl.DateTimeFormat('en-CA', { timeZone:'America/Chicago', year:'numeric',month:'2-digit',day:'2-digit' }).format(new Date());
 export function emptyTrainingData(): TrainingData {
-  return { title:'',category:'Company training',description:'',date:'',dueDate:'',startTime:'',endTime:'',endDate:'',timeNote:'',breakMinutes:0,hours:null,instructor:'',location:'',employeeIds:[],activityId:'',assignmentId:'',credentialId:'',certificationId:'',status:'draft',delivery:'Hands-on',sourceUrl:'',sourceEdition:'',externalId:'',cycleStart:'',issuedDate:'',credentialNumber:'',jpr:'',sourcePage:'',evaluator:'',method:'Training',result:'Practiced',points:null,pointsBasis:'',test:false,verified:false,fields:[],answers:{},attendance:{},paidHours:{},osfmTaskIds:[],osfmBookHashes:{},requiredJprs:[],receipt:'',submissionDate:'',reviewNote:'',repeatEveryDays:null,seriesId:'',issuingAuthority:'',renewalMonths:null,documentType:'Other' };
+  return { paperSource:false,sourceLabel:'',sourceHeaderDate:'',sourceRoster:[],sourceReviewVerified:false,evidenceRecordId:'',duplicateReviewNote:'',title:'',category:'Company training',description:'',date:'',dueDate:'',startTime:'',endTime:'',endDate:'',timeNote:'',breakMinutes:0,hours:null,instructor:'',location:'',employeeIds:[],activityId:'',assignmentId:'',credentialId:'',certificationId:'',status:'draft',delivery:'Hands-on',sourceUrl:'',sourceEdition:'',externalId:'',cycleStart:'',issuedDate:'',credentialNumber:'',jpr:'',sourcePage:'',evaluator:'',method:'Training',result:'Practiced',points:null,pointsBasis:'',test:false,verified:false,fields:[],answers:{},attendance:{},paidHours:{},osfmTaskIds:[],osfmBookHashes:{},requiredJprs:[],receipt:'',submissionDate:'',reviewNote:'',repeatEveryDays:null,seriesId:'',issuingAuthority:'',renewalMonths:null,documentType:'Other' };
 }
 const chicagoClock=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
 function sessionInstant(date:string,time:string) {
@@ -46,7 +48,7 @@ export function sessionHours(data:Pick<TrainingData,'date'|'startTime'|'endTime'
   return Math.round(hours*1000000)/1000000;
 }
 export function repeatedCompletionData(data:TrainingData):Partial<TrainingData> {
-  return {...data,status:'draft',date:'',startTime:'',endTime:'',endDate:'',timeNote:'',breakMinutes:0,employeeIds:[],attendance:{},paidHours:{},assignmentId:'',credentialId:'',externalId:'',receipt:'',submissionDate:'',answers:{},repeatEveryDays:null,seriesId:''};
+  return {...data,status:'draft',date:'',startTime:'',endTime:'',endDate:'',timeNote:'',breakMinutes:0,employeeIds:[],attendance:{},paidHours:{},assignmentId:'',credentialId:'',externalId:'',receipt:'',submissionDate:'',answers:{},repeatEveryDays:null,seriesId:'',paperSource:false,sourceLabel:'',sourceHeaderDate:'',sourceRoster:[],sourceReviewVerified:false,evidenceRecordId:'',duplicateReviewNote:''};
 }
 export function validDate(value: string) { const d=new Date(value+'T12:00:00Z');return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(d.getTime()) && d.toISOString().slice(0,10)===value; }
 export function shiftDate(date: string, days: number) { const d=new Date(date+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10); }
@@ -60,6 +62,10 @@ export function normalizeTrainingData(input: unknown): TrainingData {
   }
   out.status=['draft','saved','completed'].includes(String(raw.status))?raw.status as TrainingData['status']:'draft';
   out.test=raw.test===true;out.verified=raw.verified===true;
+  out.paperSource=raw.paperSource===true;out.sourceReviewVerified=raw.sourceReviewVerified===true;
+  if(Array.isArray(raw.sourceRoster)&&raw.sourceRoster.length>500)throw Error('Split larger rosters into separate source reports.');
+  out.sourceRoster=(Array.isArray(raw.sourceRoster)?raw.sourceRoster:[]).map((value:unknown)=>{if(!value||typeof value!=='object'||Array.isArray(value))throw Error('A source roster row is invalid.');const row=value as Record<string,unknown>;if(!['unresolved','matched','excluded'].includes(String(row.resolution)))throw Error('Choose each roster row resolution.');return {id:String(row.id??'').trim().slice(0,100),name:String(row.name??'').trim().slice(0,240),writtenId:String(row.writtenId??'').trim().slice(0,100),employeeId:String(row.employeeId??'').trim().slice(0,100),resolution:row.resolution as SourceRosterRow['resolution'],note:String(row.note??'').trim().slice(0,2000)};});
+  if(out.sourceRoster.some(row=>!row.id)||new Set(out.sourceRoster.map(row=>row.id)).size!==out.sourceRoster.length)throw Error('Source roster rows need distinct IDs.');
   for(const key of ['repeatEveryDays','renewalMonths'] as const) {
     if(typeof raw[key]==='boolean'||typeof raw[key]==='object'&&raw[key]!==null)throw Error('Enter a numeric interval or leave it blank.');
     const value=raw[key];out[key]=value===null||value===undefined||value===''?null:Number(value);
@@ -77,7 +83,7 @@ export function normalizeTrainingData(input: unknown): TrainingData {
   for(const field of ['attendance','paidHours'] as const)for(const [id,value] of Object.entries(raw[field]&&typeof raw[field]==='object'?raw[field]:{}).slice(0,500)) {const n=Number(value);if(!Number.isFinite(n)||n<0||n>24)throw new Error('Individual hours must be between 0 and 24.');out[field][id]=n;}
   out.breakMinutes=Number(raw.breakMinutes??0);
   if(!Number.isInteger(out.breakMinutes)||out.breakMinutes<0||out.breakMinutes>1440)throw Error('Break minutes must be a whole number from 0 to 1440.');
-  for(const key of ['date','endDate','dueDate','cycleStart','issuedDate','submissionDate'] as const) if(out[key]&&!validDate(out[key]))throw new Error(`Enter a valid ${key.replace(/[A-Z]/g,m=>' '+m.toLowerCase())}.`);
+  for(const key of ['date','endDate','dueDate','cycleStart','issuedDate','submissionDate','sourceHeaderDate'] as const) if(out[key]&&!validDate(out[key]))throw new Error(`Enter a valid ${key.replace(/[A-Z]/g,m=>' '+m.toLowerCase())}.`);
   for(const field of ['startTime','endTime'] as const)if(out[field]&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(out[field]))throw new Error('Enter time as HH:MM, from 00:00 to 23:59.');
   if(out.sourceUrl&&!safeLink(out.sourceUrl))throw new Error('Source links must start with https://.');
   if(out.certificationId&&out.certificationId!=='custom'&&!certificationCatalog.some(c=>c.id===out.certificationId))throw new Error('Choose a certification from the official catalog or Other credential.');
@@ -140,7 +146,7 @@ export function deadlineLabel(due:string,today=todayChicago()) {
 }
 export function csvCell(value:unknown) { let s=String(value??'');if(/^[\s]*[=+@-]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"'; }
 export function trainingCsv(records:TrainingRecord[], members:TrainingMember[]) {
-  const rows:unknown[][]=[['Record ID','Training','Member','Date','Hours','Instructor / provider','Location','Category','Assignment ID','Source','Recorded by','OSFM tasks / references','Start time','End date','End time','Break minutes','Time clarification','Paid hours reference']];
-  for(const r of records.filter(r=>r.kind==='completion'&&!r.archived&&!r.data.test&&r.data.status==='completed'))for(const id of r.data.employeeIds)rows.push([r.id,r.data.title,members.find(m=>m.id===id)?.name??id,r.data.date,r.data.attendance[id]??r.data.hours,r.data.instructor,r.data.location,r.data.category,r.data.assignmentId,r.data.sourceUrl,r.updatedBy,(r.data.osfmTaskIds??[]).map(id=>taskReference(id)?.label??id).join('; '),r.data.startTime,r.data.endDate,r.data.endTime,r.data.breakMinutes,r.data.timeNote,r.data.paidHours[id]??'']);
+  const rows:unknown[][]=[['Record ID','Training','Member','Date','Hours','Instructor / provider','Location','Category','Assignment ID','Source','Recorded by','OSFM tasks / references','Start time','End date','End time','Break minutes','Time clarification','Paid hours reference','Original sheet','Original pages','Paper header date','Original evidence record ID','Source review confirmed','Duplicate review explanation']];
+  for(const r of records.filter(r=>r.kind==='completion'&&!r.archived&&!r.data.test&&r.data.status==='completed'))for(const id of r.data.employeeIds)rows.push([r.id,r.data.title,members.find(m=>m.id===id)?.name??id,r.data.date,r.data.attendance[id]??r.data.hours,r.data.instructor,r.data.location,r.data.category,r.data.assignmentId,r.data.sourceUrl,r.updatedBy,(r.data.osfmTaskIds??[]).map(id=>taskReference(id)?.label??id).join('; '),r.data.startTime,r.data.endDate,r.data.endTime,r.data.breakMinutes,r.data.timeNote,r.data.paidHours[id]??'',r.data.paperSource?r.data.sourceLabel:'',r.data.paperSource?r.data.sourcePage:'',r.data.paperSource?r.data.sourceHeaderDate:'',r.data.paperSource?r.data.evidenceRecordId||r.id:'',r.data.paperSource?r.data.sourceReviewVerified?'Yes':'No':'',r.data.duplicateReviewNote]);
   return rows.map(row=>row.map(csvCell).join(',')).join('\r\n');
 }
