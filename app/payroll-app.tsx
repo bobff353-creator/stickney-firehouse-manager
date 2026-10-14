@@ -55,7 +55,7 @@ import PayrollPayBreakdown from "./payroll-pay-breakdown";
 import { buildPayrollReference, payrollReferenceCsv } from "./payroll-reference-export";
 import EmployeePayScale, { payScaleLabel } from "./employee-pay-scale";
 const WorkDetails = dynamic(() => import("./work-details"), { loading: () => <ModuleLoading /> });
-const StationScheduler = dynamic(() => import("./station-scheduler"), { loading: () => <ModuleLoading /> });
+import StationScheduler from "./station-scheduler";
 import { RequiredConfirmation } from './required-confirmation';
 const PermissionSettings = dynamic(() => import("./permission-settings"), { loading: () => <ModuleLoading /> });
 const FieldPreplans = dynamic(() => import("./field-preplans"), { loading: () => <ModuleLoading /> });

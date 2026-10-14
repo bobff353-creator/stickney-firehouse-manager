@@ -7,7 +7,7 @@ test("the Claude Station Scheduler replaces the removed scheduling interface", a
     readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
-  assert.match(shell, /const StationScheduler = dynamic\(\(\) => import\("\.\/station-scheduler"\)/);
+  assert.match(shell, /import StationScheduler from "\.\/station-scheduler"/);
   assert.match(await readFile(new URL("../app/portal-menu-items.ts", import.meta.url), "utf8"), /page: "Scheduling"/);
   assert.match(shell, /activeNav === "Scheduling" && <StationScheduler/);
   assert.doesNotMatch(shell, /Employee Schedule Portal/);
