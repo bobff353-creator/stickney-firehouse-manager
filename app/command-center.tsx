@@ -6,6 +6,7 @@ import { ChiefReport, type ReportData, type ReportNavigation } from './chief-rep
 import { callHour, metricSources, trendPeriodKeys } from './reporting-metrics';
 import { ResponseTypePanel } from "./response-type-panel";
 import ReadinessReview from './readiness-review';
+import ReportLibrary from './report-library';
 import OperationalPrograms from './operational-programs';
 
 type Daily = { date: string; staffingGaps: number; overtimeHours: number; aoHours: number; calls: number; equipmentIssues: number; payrollCost: number };
@@ -183,7 +184,7 @@ export default function CommandCenter({ onNavigate, preview=false }: { onNavigat
     <header className="standard-page-header command-center-header"><div><span className="page-icon">⌁</span><div><p className="eyebrow">Department analytics</p><h1>Department Command Center</h1><p>Operational readiness, activity, and payroll trends from official department records.</p></div></div><div className="trend-toggle"><button className={mode === "weekly" ? "active" : ""} onClick={() => setMode("weekly")}>Weekly</button><button className={mode === "monthly" ? "active" : ""} onClick={() => setMode("monthly")}>Monthly</button></div></header>
     {error && <div className="error-banner"><span>{error}</span><button onClick={() => void load()}>Retry</button></div>}
     {!preview&&<ReadinessReview/>}
-    {!preview&&<><details><summary>Outreach events &amp; reports</summary><OperationalPrograms kind="outreach"/></details><details><summary>Equipment replacement plans &amp; reports</summary><OperationalPrograms kind="replacement"/></details></>}
+    {!preview&&<><ReportLibrary/><details><summary>Outreach events &amp; reports</summary><OperationalPrograms kind="outreach"/></details><details><summary>Equipment replacement plans &amp; reports</summary><OperationalPrograms kind="replacement"/></details></>}
     {loading ? <div className="command-center-loading">{metricInfo.map((item) => <i key={item.key}/>)}</div> : data ? <>
       <ChiefReport key={data.generatedAt} data={data} stale={!!error} onNavigate={onNavigate}/><section className="fiscal-pay-card"><div><span>Fiscal year pay to date</span><strong>{data.sources.payroll === 'ready' ? money(data.fiscalYear.payToDate || 0) : data.sources.payroll === 'restricted' ? 'Restricted' : 'Unavailable'}</strong><small>Calculated department gross pay recorded from {data?.fiscalYear ? shortDate(data.fiscalYear.startDate) : "May 1"} through today</small></div><b>FY {data?.fiscalYear ? `${data.fiscalYear.startDate.slice(0, 4)}–${data.fiscalYear.endDate.slice(2, 4)}` : "—"}</b></section>
       <div className="trend-card-grid">{metricInfo.map((item) => {

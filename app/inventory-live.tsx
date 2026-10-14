@@ -338,7 +338,7 @@ export default function Inventory360({
   initialCheckType = "",
   initialAdminTask = "",
   initialEquipmentId = "",
-  initialWorkOrderId = "",initialReportId="",
+  initialWorkOrderId = "",initialReportId="",initialReportsView=false,
   permissions: initialPermissions,
 }: {
   departmentId: string;
@@ -347,7 +347,7 @@ export default function Inventory360({
   initialCheckType?: "daily" | "weekly" | "inventory" | "air_pack" | "";
   initialAdminTask?: string;
   initialEquipmentId?: string;
-  initialWorkOrderId?: string;initialReportId?:string;
+  initialWorkOrderId?: string;initialReportId?:string;initialReportsView?:boolean;
   permissions: string[];
 }) {
   void initialPermissions; // Server gate controls initial access; live grants are reverified below.
@@ -359,7 +359,7 @@ export default function Inventory360({
     // explanation and recovery controls in view instead of above the viewport.
     if (!accessAllowed) window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [accessAllowed]);
-  const [view, setViewState] = useState<View>(() => initialReportId?"reports":initialWorkOrderId ? "service" : initialEquipmentId ? "equipment" : initialApparatusId && initialCheckType ? "check" : "due");
+  const [view, setViewState] = useState<View>(() => initialReportId||initialReportsView?"reports":initialWorkOrderId ? "service" : initialEquipmentId ? "equipment" : initialApparatusId && initialCheckType ? "check" : "due");
   const setView = useCallback((next: View) => { if (confirmLeavingWork()) setViewState(next); }, []);
   const [selectedApparatusId, setSelectedApparatusId] = useState(initialApparatusId);
   const [selectedCheckType, setSelectedCheckType] = useState(initialCheckType);

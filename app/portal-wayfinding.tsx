@@ -1,4 +1,5 @@
 "use client";
+import ScenarioHelp from './scenario-help';
 import { useId, useRef, useState, type ReactNode } from "react";
 import { useWorkspaceViewState } from "./workspace-view-state";
 import { portalPageLabel, type PortalPage, type PortalRecord } from "./portal-navigation";
@@ -28,7 +29,7 @@ export function WorkspaceGuide({ page, backLabel, onBack, returnLabel, onReturn,
     {setupTools}
     <details className="workspace-guide" key={page} onToggle={event => { if (!event.currentTarget.open) setHelpSection("Start & next"); }}>
       <summary aria-label="Help: next steps, saving and notifications">Help</summary>
-      <div className="workspace-help-content"><strong>{guide.purpose}</strong>
+      <div className="workspace-help-content"><ScenarioHelp page={page}/><strong>{guide.purpose}</strong>
         <div className="workspace-help-tabs" role="group" aria-label="Help topics">{["Start & next", "Save & change", "Set up", "Notify"].map(label => <button key={label} type="button" aria-pressed={helpSection === label} onClick={() => setHelpSection(label)}>{label}</button>)}</div>
         <div className="workspace-help-answer" aria-live="polite">
           {helpSection === "Start & next" && <ol>{guide.steps.map(step => <li key={step}>{step}</li>)}</ol>}

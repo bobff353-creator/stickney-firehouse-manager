@@ -1,4 +1,5 @@
 "use client";
+import ReportLibrary from './report-library';
 import {validQueueDate} from './task-queue-model';
 import { fleetChecksForShift } from "./fleet-check-shift";
 import { parseSavedTime, savedTimeLabel } from "./workflow-status";
@@ -1683,6 +1684,7 @@ export default function DailyLog({
                 ×
               </button>
             </div>
+            {handoff.mode==='out'&&<ReportLibrary handoff logDate={logDate}/>}
             <label className="handoff-officer">
               <span>Officer completing approval</span>
               <select

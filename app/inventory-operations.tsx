@@ -1,4 +1,5 @@
 "use client";
+import ScenarioHelp from './scenario-help';
 import EquipmentContinuity from './equipment-continuity';
 import InventoryBulkReview from './inventory-bulk-review';
 import {repairsForFinding} from './equipment-continuity-model';
@@ -1170,7 +1171,7 @@ export default function InventoryOperations({
   }
 
   return (
-    <div className="inventory-ops">
+    <div className="inventory-ops"><section className="equipment-continuity"><ScenarioHelp page="Inventory"/></section>
       <p className="ops-refresh-status">Updates every {inventoryRefreshInterval(view) < 60_000 ? `${inventoryRefreshInterval(view) / 1000} seconds` : `${inventoryRefreshInterval(view) / 60_000} minutes`} while this screen is visible. Your saved changes appear immediately.{lastSyncedAt ? ` Last received ${formatDate(lastSyncedAt)}.` : ""}</p>
       {message ? <div className="ops-message" role="status">{message}</div> : null}
       {saveReceipt && <div className="ops-save-receipt" role="status">Server confirmed {formatDate(saveReceipt.at)}{saveReceipt.reference && <small>Record: {saveReceipt.reference}</small>}<small>Saved results are not submission, approval, or confirmation that equipment is safe to use.</small></div>}

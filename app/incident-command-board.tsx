@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from "react";
+import CommandReviewTools from './command-review-tools';
 import ConfirmDialog from "./confirm-dialog";
 import { formatEmployeeName } from "./employee-names";
 import styles from "./incident-command-board.module.css";
@@ -548,6 +549,7 @@ export default function IncidentCommandBoard() {
       <div>{data.events.length ? data.events.map((event) => <article key={event.id}><time>{new Date(event.createdAt).toLocaleString()}</time><strong>{event.summary}</strong><span>{event.actor} · revision {event.revision}</span></article>) : <p>No Command Board changes have been recorded yet.</p>}</div>
     </aside>}
 
+    <CommandReviewTools state={state} incidentId={data.incident.incidentId}/>
     {state.closeout.endedAt && <section className="icb-closeout" role="dialog" aria-modal="true" aria-labelledby="icb-closeout-title">
       <small>INCIDENT ENDED · BOARD LOCKED</small>
       <h2 id="icb-closeout-title">Command report is ready</h2>
