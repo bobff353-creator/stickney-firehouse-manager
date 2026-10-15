@@ -21,5 +21,5 @@ export function privateSearchItem(kind: 'inspection' | 'training' | 'neris', row
     return { id: `incident-${row.id}`, type: 'Incident', title: String(local.title || 'Untitled incident'), detail: String(local.status || 'Draft')+' · Local report', page: 'NERIS Reporting', record: { nerisRecord: row.id } };
   }
   if (kind === 'inspection') return { id: `inspection-${row.id}`, type: 'Inspection', title: String(data.title || data.propertyName || 'Inspection'), detail: String(data.status || 'Draft'), page: 'Fire Inspections', record: { inspectionRecord: row.id, inspectionTab: 'Work queue' } };
-  return { id: `training-${row.id}`, type: 'Training', title: String(data.title || 'Training record'), detail: [row.kind, data.status].filter(Boolean).join(' · '), page: 'Training', record: { trainingRecord: row.id, trainingTab: 'History & reports' } };
+  return { id: `training-${row.id}`, type: 'Training', title: String(data.title || 'Training record'), detail: [row.kind, data.status, data.date, data.category, data.description].filter(Boolean).join(' · '), page: 'Training', record: { trainingRecord: row.id, trainingTab: 'History & reports' } };
 }

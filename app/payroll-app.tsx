@@ -1,4 +1,5 @@
 "use client";
+import { searchScore, searchExcerpt } from "./search-matching";
 import { EmployeeAccountBadge, EmployeeAccountSetup, useEmployeeAccounts } from "./employee-account-setup";
 import { employmentStatus } from "./employment-status";
 /* eslint-disable @next/next/no-img-element -- direct static assets avoid runtime image-proxy failures for the department patch. */
@@ -101,8 +102,8 @@ type PayrollData = {
 };
 type GlobalSearchItem = { id: string; type: "Employee" | "Contact" | "Policy" | "Box Card" | "Important Number" | "Preplan" | "Screen" | "Action" | "Hydrant" | "Equipment" | "Inspection" | "Training" | "Incident"; title: string; detail: string; page: NavItem; record?: PortalRecord };
 
-function SearchResultButtons({ items, onNavigate }: { items: GlobalSearchItem[]; onNavigate: (page: NavItem, record?: PortalRecord) => void }) {
-  return items.map(item => <button key={item.id} onClick={() => onNavigate(item.page, item.record)}><span className={`search-type ${item.type.toLowerCase().replace(" ", "-")}`}>{item.type}</span><strong>{item.title}</strong><small>{item.detail || `Open ${item.page}`}</small><b aria-hidden="true"><Icon name="chevron" size={18}/></b></button>);
+function SearchResultButtons({ items, onNavigate, query = "" }: { items: GlobalSearchItem[]; query?: string; onNavigate: (page: NavItem, record?: PortalRecord) => void }) {
+  return items.map(item => <button data-search-result key={item.id} onKeyDown={event => { if (!['ArrowDown','ArrowUp','Home','End'].includes(event.key)) return; event.preventDefault(); const controls=Array.from(event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[data-search-result]')||[]); const index=controls.indexOf(event.currentTarget); controls[event.key==='Home'?0:event.key==='End'?controls.length-1:(index+(event.key==='ArrowDown'?1:-1)+controls.length)%controls.length]?.focus(); }} onClick={() => onNavigate(item.page, item.record)}><span className={`search-type ${item.type.toLowerCase().replace(" ", "-")}`}>{item.type}</span><strong>{item.title}</strong><small>{searchExcerpt(item.detail, query) || `Open ${item.page}`}</small><b aria-hidden="true"><Icon name="chevron" size={18}/></b></button>);
 }
 type IconName = "home" | "log" | "box" | "users" | "phone" | "payroll" | "clock" | "rates" | "document" | "holiday" | "settings" | "search" | "bell" | "menu" | "close" | "filter" | "export" | "back" | "next" | "save" | "warning" | "chevron";
 
@@ -285,8 +286,10 @@ export default function PayrollApp({
   const [moreToolsOpen, setMoreToolsOpen] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
+  const [searchCategory, setSearchCategory] = useState("All");
   const [sharedSearchItems, setSharedSearchItems] = useState<GlobalSearchItem[]>([]);
   const [operationalSearchItems,setOperationalSearchItems]=useState<GlobalSearchItem[]>([]);
+  const [operationalSearchLimited,setOperationalSearchLimited]=useState(false);
   const [operationalSearchBusy,setOperationalSearchBusy]=useState(false);
   const [operationalSearchError,setOperationalSearchError]=useState("");
   const [operationalSearchRetry,setOperationalSearchRetry]=useState(0);
@@ -411,6 +414,7 @@ export default function PayrollApp({
   const openGlobalSearch = useCallback(async () => {
     searchTriggerRef.current = document.activeElement as HTMLElement;
     setGlobalSearchOpen(true);
+    setSearchCategory("All");
     if (globalSearchLoading) return;
     setGlobalSearchLoading(true);
     setGlobalSearchError("");
@@ -419,15 +423,16 @@ export default function PayrollApp({
         ? adminNavItems.filter((item) => item !== "Training" && (!navPermission[item] || testMember.effectivePermissions.includes(navPermission[item]!)))
         : navigationForViewer(data?.viewer, viewerPermissions);
       const sources = [
-        { url: "/api/resources?type=policy", page: "Policies" }, { url: "/api/resources?type=boxCard", page: "Box Cards" },
+        { url: "/api/employee-directory?contacts=1", page: "Employee Contacts" }, { url: "/api/resources?type=policy", page: "Policies" }, { url: "/api/resources?type=boxCard", page: "Box Cards" },
         { url: "/api/phone-numbers", page: "Phone Numbers" }, { url: "/api/field-preplans", page: "Field Preplans" },
       ];
-      type SearchPayload = { items?: Array<Record<string,string>>; numbers?: Array<Record<string,string>>; preplans?: Array<Record<string,string>> };
+      type SearchPayload = { employees?: Array<Record<string,string>>; items?: Array<Record<string,string>>; numbers?: Array<Record<string,string>>; preplans?: Array<Record<string,string>> };
       const results = await Promise.allSettled(sources.map(source => searchableScreens.includes(source.page as NavItem)
         ? readPortalJson<SearchPayload>(source.url, "Search source unavailable") : Promise.resolve({} as SearchPayload)));
-      const [policies, boxCards, numbers, preplans] = results.map(result => result.status === "fulfilled" ? result.value : {} as SearchPayload);
+      const [directory, policies, boxCards, numbers, preplans] = results.map(result => result.status === "fulfilled" ? result.value : {} as SearchPayload);
       if (results.some(result => result.status === "rejected")) setGlobalSearchError("Some records could not be loaded. Screen shortcuts and available results still work.");
       setSharedSearchItems([
+        ...(directory.employees ?? []).map(item=>({id:`contact-${item.id}`,type:'Contact' as const,title:displayName(item.name),detail:[item.rank,item.phone,item.email].filter(Boolean).join(' · '),page:'Employee Contacts' as const,record:{query:item.name}})),
         ...(policies.items ?? []).map((item) => ({ id: `policy-${item.id}`, type: "Policy" as const, title: item.title, detail: [item.policyNumber, item.category, item.body].filter(Boolean).join(" · "), page: "Policies" as const, record: { policy: item.id } })),
         ...(boxCards.items ?? []).map((item) => ({ id: `box-${item.id}`, type: "Box Card" as const, title: item.title, detail: [item.boxNumber, item.address, item.accessNotes, item.details].filter(Boolean).join(" · "), page: "Box Cards" as const, record: { boxCard: item.id } })),
         ...(numbers.numbers ?? []).map((item) => ({ id: `phone-${item.id}`, type: "Important Number" as const, title: item.name, detail: [item.emergencyNumber, item.nonEmergencyNumber, item.notes].filter(Boolean).join(" · "), page: "Phone Numbers" as const, record: { query: item.name } })),
@@ -502,16 +507,16 @@ export default function PayrollApp({
 
   useEffect(()=>{
     const controller=new AbortController();
-    setOperationalSearchItems([]);setOperationalSearchError('');setOperationalSearchBusy(false);
+    setOperationalSearchItems([]);setOperationalSearchLimited(false);setOperationalSearchError('');setOperationalSearchBusy(false);
     const term=globalSearch.trim();
     if(!globalSearchOpen||term.length<2||testMember)return()=>controller.abort();
     const timer=window.setTimeout(()=>{
       setOperationalSearchBusy(true);
       void fetch(`/api/portal-search?q=${encodeURIComponent(term)}`,{cache:'no-store',signal:controller.signal}).then(async response=>{
-        const result=await response.json() as {items?:GlobalSearchItem[];unavailable?:string[];error?:string};
+        const result=await response.json() as {items?:GlobalSearchItem[];unavailable?:string[];limited?:string[];error?:string};
         if(!response.ok)throw Error(result.error||'Operational search unavailable.');
         if(controller.signal.aborted)return;
-        setOperationalSearchItems(Array.isArray(result.items)?result.items:[]);
+        setOperationalSearchItems(Array.isArray(result.items)?result.items:[]);setOperationalSearchLimited(Boolean(result.limited?.length));
         if(result.unavailable?.length)setOperationalSearchError('Some permitted operational records could not be searched. Other results remain available.');
       }).catch(()=>{if(!controller.signal.aborted)setOperationalSearchError('Operational search unavailable. Retry your search; screen shortcuts still work.');}).finally(()=>{if(!controller.signal.aborted)setOperationalSearchBusy(false);});
     },250);
@@ -529,9 +534,11 @@ export default function PayrollApp({
       { id: `contact-${employee.id}`, type: "Contact" as const, title: displayName(employee.name), detail: [employee.phone, employee.rank, employee.driverStatus].filter(Boolean).join(" · "), page: "Employee Contacts" as const, record: { query: employee.name } },
     ]);
     const term = globalSearch.trim().toLowerCase();
-    if (!term) return screens.slice(0, 12);
-    return [...operationalSearchItems, ...screens, ...employeeItems, ...sharedSearchItems].filter((item) => permittedPages.includes(item.page) && (operationalSearchItems.includes(item) || (item.type === "Screen" ? matchesWorkspace(item.page, term) : `${item.type} ${item.title} ${item.detail}`.toLowerCase().includes(term)))).slice(0, 30);
-  }, [data?.employees, data?.viewer, globalSearch, sharedSearchItems, operationalSearchItems, testMember, viewerPermissions]);
+    if (!term) return searchCategory==='All'||searchCategory==='Tools' ? screens.slice(0, 12) : [];
+    const ranked = [...operationalSearchItems, ...screens, ...employeeItems, ...sharedSearchItems].filter(item => permittedPages.includes(item.page)).map(item => ({item, score: searchScore(item.title,item.detail,term,item.type) || (operationalSearchItems.includes(item) ? 20 : item.type==='Screen' && matchesWorkspace(item.page,term) ? 30 : 0)})).filter(result => result.score>0).sort((a,b)=>b.score-a.score || a.item.title.localeCompare(b.item.title) || a.item.id.localeCompare(b.item.id));
+    const unique = [...new Map(ranked.map(result=>[result.item.id,result.item])).values()];
+    return unique.filter(item => searchCategory==='All' || (searchCategory==='People' ? ['Employee','Contact'].includes(item.type) : searchCategory==='Tools' ? ['Screen','Action'].includes(item.type) : searchCategory==='Reports' ? ['Inspection','Training','Incident'].includes(item.type) : searchCategory==='Properties' ? ['Preplan','Hydrant','Box Card'].includes(item.type) : searchCategory==='Equipment' ? item.type==='Equipment' : ['Policy','Important Number'].includes(item.type))).slice(0,30);
+  }, [data?.employees, data?.viewer, globalSearch, sharedSearchItems, operationalSearchItems, searchCategory, testMember, viewerPermissions]);
 
   async function post(payload: Record<string, unknown>) {
     const response = await fetch("/api/payroll", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
@@ -1065,7 +1072,7 @@ export default function PayrollApp({
         <button className={mobileMenuOpen?"current":""} aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen((current) => !current)}><Icon name="menu"/><span>More</span></button>
       </nav>
 
-      {globalSearchOpen && <div className="global-search-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setGlobalSearchOpen(false); }}><section ref={searchDialogRef} className="global-search-dialog" role="dialog" aria-modal="true" aria-labelledby="global-search-title"><div className="global-search-head"><div><p className="eyebrow">Department-wide search</p><h2 id="global-search-title">Find anything</h2></div><button aria-label="Close search" onClick={() => setGlobalSearchOpen(false)}><Icon name="close"/></button></div><label className="global-search-input"><Icon name="search"/><input autoFocus maxLength={80} value={globalSearch} onChange={(event) => setGlobalSearch(event.target.value)} placeholder="Find a person, hydrant, equipment, report, address, or policy…" /></label><div className="global-search-results">{globalSearchError && <div className="global-search-notice" role="status">{globalSearchError}<button onClick={() => void openGlobalSearch()} disabled={globalSearchLoading}>Retry records</button></div>}{operationalSearchBusy&&<p role="status">Searching operational records…</p>}{operationalSearchError&&<p role="status">{operationalSearchError} <button type="button" onClick={()=>setOperationalSearchRetry(n=>n+1)}>Retry search</button></p>}{globalSearchLoading && <p className="global-search-notice" role="status">Loading record results… Screen shortcuts are available now.</p>}{globalSearchResults.length ? <SearchResultButtons items={globalSearchResults} onNavigate={navigate} /> : <div className="global-search-empty">No results found for “{globalSearch}”.</div>}</div></section></div>}
+      {globalSearchOpen && <div className="global-search-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setGlobalSearchOpen(false); }}><section ref={searchDialogRef} className="global-search-dialog" role="dialog" aria-modal="true" aria-labelledby="global-search-title"><div className="global-search-head"><div><p className="eyebrow">Department-wide search</p><h2 id="global-search-title">Find anything</h2></div><button aria-label="Close search" onClick={() => setGlobalSearchOpen(false)}><Icon name="close"/></button></div><label className="global-search-input"><Icon name="search"/><input autoFocus maxLength={80} value={globalSearch} onChange={(event) => setGlobalSearch(event.target.value)} aria-label="Search department records" onKeyDown={event=>{if(event.key==='ArrowDown'){event.preventDefault();searchDialogRef.current?.querySelector<HTMLButtonElement>('[data-search-result]')?.focus();}}} placeholder="Name, address, serial number, topic, or tool…" /></label><div className="search-category-choices" role="group" aria-label="Filter search results">{['All','People','Equipment','Properties','Reports','Policies & numbers','Tools'].map(category=><button type="button" key={category} aria-pressed={searchCategory===category} onClick={()=>setSearchCategory(category)}>{category}</button>)}</div><p className="search-result-summary" role="status">{globalSearch.trim() ? `Showing ${globalSearchResults.length===30?'the top 30':globalSearchResults.length} matching results.` : 'Choose a tool or type at least two characters to search saved records.'}</p><div className="global-search-results">{operationalSearchLimited&&<p role="status">Some sources have more matches. Add a name, address or serial number to narrow your search.</p>}{globalSearchError && <div className="global-search-notice" role="status">{globalSearchError}<button onClick={() => void openGlobalSearch()} disabled={globalSearchLoading}>Retry records</button></div>}{operationalSearchBusy&&<p role="status">Searching operational records…</p>}{operationalSearchError&&<p role="status">{operationalSearchError} <button type="button" onClick={()=>setOperationalSearchRetry(n=>n+1)}>Retry search</button></p>}{globalSearchLoading && <p className="global-search-notice" role="status">Loading record results… Screen shortcuts are available now.</p>}{globalSearchResults.length ? <SearchResultButtons items={globalSearchResults} query={globalSearch} onNavigate={navigate} /> : !operationalSearchBusy && !globalSearchLoading ? <div className="global-search-empty">{globalSearch.trim() ? `No matching results in ${searchCategory}. Try fewer words, another category, or a serial number.` : 'Type a search above to find saved records.'}</div> : null}</div></section></div>}
       <ConfirmDialog open={finalizeConfirmOpen} title="Finalize this payroll period?" description={`This will lock payroll for ${data ? periodLabel(data.period.startDate, data.period.endDate) : "the selected period"}. Timesheets will become read only and additional changes will require an administrator workflow.`} confirmLabel="Finalize Payroll" tone="warning" busy={finalizing} onCancel={() => setFinalizeConfirmOpen(false)} onConfirm={() => void finalizePayroll()} />
       <ConfirmDialog open={Boolean(employeeToDelete)} title={`Delete ${employeeToDelete ? displayName(employeeToDelete.name) : "employee"}?`} description="This permanently deletes the employee record. This cannot be undone. Employees with payroll or Daily Log history cannot be deleted." confirmLabel="Confirm Delete" tone="danger" busy={deletingEmployee} onCancel={() => setEmployeeToDelete(null)} onConfirm={() => void deleteEmployee()} />
 

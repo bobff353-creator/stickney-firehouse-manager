@@ -9,6 +9,7 @@ import { defaultPermissionsForRank, permissionCatalog, resolveEmployeePermission
 import "../../app/globals.css";
 import "../../app/mobile-usability.css";
 import "../../app/portal-usability.css";
+import "../../app/portal-search.css";
 import "../../app/admin-usability.css";
 import "../../app/workflow-usability.css";
 
@@ -50,7 +51,7 @@ const unknown = new Set<string>();
 const errors: string[] = [];
 const accessRequests: string[] = [];
 const startupRequests: string[] = [];
-let accessOverrides: Record<string, Record<string, "allow" | "deny">> = {};
+let accessOverrides: Record<string, Record<string, "allow" | "deny">> = params.has("search-audit") ? { [employee.id]: {"contacts.view":"allow"} } : {};
 let accessRevision = 1;
 Object.assign(window, { portalAudit: { errors, unknown, requests: startupRequests, setFailWrite(value: boolean) { failWrite = value; }, setFailRead(value: boolean) { failRead = value; }, writes: () => writes } });
 window.addEventListener("error", event => errors.push(event.message));
@@ -278,6 +279,12 @@ window.fetch = async (input, init) => {
   if ((allFailed && !["/api/payroll", "/api/permissions", "/api/alerts"].includes(url.pathname)) || failRead) return Response.json({ error: "Simulated service unavailable" }, { status: 503 });
   if (url.pathname === "/api/resources") return Response.json({ canEdit: isAdmin, items: url.searchParams.get("type") === "policy" ? policies : cards });
   if (url.pathname === "/api/phone-numbers") return Response.json({ numbers, canEdit: isAdmin });
+  if(params.has('search-audit') && url.pathname==='/api/employee-directory')return Response.json({employees});
+  if(params.has('search-audit') && url.pathname==='/api/portal-search'){
+    const q=(url.searchParams.get('q')||'').toLowerCase();
+    if(q==='unavailable')return Response.json({error:'Fictional unavailable source'},{status:503});
+    return Response.json({items:q.includes('air')?[{id:'equipment-fixture',type:'Equipment',title:'Preview SCBA',detail:'Serial XY2 · Preview only',page:'Inventory',record:{equipment:'fixture-equipment'}}]:q.includes('pershing')?[{id:'hydrant-fixture',type:'Hydrant',title:'17',detail:'Pershing Road · Preview only',page:'Field Preplans',record:{hydrant:'fixture-hydrant'}}]:q==='private'?[{id:'private-fixture',type:'Training',title:'Private training canary',detail:'Preview only',page:'Training',record:{trainingRecord:'fixture-private'}}]:[],unavailable:[],limited:q==='limited'?['Equipment']:[]});
+  }
   if (payloads[url.pathname]) return Response.json(payloads[url.pathname]);
   unknown.add(url.pathname);
   return Response.json({ error: "This service is intentionally unavailable in the fictional audit." }, { status: 503 });

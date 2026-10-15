@@ -261,3 +261,16 @@
 .pay-calculation-total { border-top: 2px solid #91aebe; font-size: 18px; }
 .timesheet-card #employee-select, .timesheet-card .entry-grid input { color: #17324d; -webkit-text-fill-color: #17324d; color-scheme: light; background: #fff; }
 .timesheet-card .entry-grid thead th, .timesheet-card .entry-grid td:first-child, .timesheet-card .entry-grid tfoot td { color: #17324d; background: #edf4f8; }
+
+.search-category-choices { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
+.global-search-dialog .search-category-choices button { min-height:44px; padding:8px 12px; border:1px solid #64849b; border-radius:9px; background:#fff; color:#17364e; font-weight:700; }
+.global-search-dialog .search-category-choices button[aria-pressed="true"] { background:#175b7b; color:#fff; border-color:#175b7b; box-shadow:inset 0 0 0 2px #fff; }
+.global-search-dialog .search-result-summary { color:inherit; font-size:.9rem; margin:8px 0; }
+.global-search-dialog [data-search-result]:focus-visible { outline:3px solid #e8a82f; outline-offset:2px; }
+.global-search-dialog .global-search-input input { min-width:0; width:100%; font-size:16px; }
+@media(max-width:700px) { .global-search-dialog { min-height:0; max-height:calc(100dvh - 32px); overflow:auto; } .global-search-dialog .search-category-choices button { flex:1 1 auto; } }
+
+.global-search-dialog .global-search-results button { min-width:0; }
+.global-search-dialog .global-search-results button :is(strong,small) { min-width:0; white-space:normal; overflow-wrap:anywhere; }
+.global-search-dialog .global-search-results button small { font-size:.9rem; line-height:1.45; }
+@media(max-width:700px) { .global-search-dialog .global-search-results > button { grid-template-columns:1fr; } .global-search-dialog .global-search-results :is(strong,small) { grid-column:1; } .global-search-dialog .search-type { grid-row:auto; } }
