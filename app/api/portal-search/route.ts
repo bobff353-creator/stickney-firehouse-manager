@@ -43,11 +43,18 @@ export async function GET(request: Request) {
       const equipmentTerms=terms.filter(term=>term!=='equipment');
       const anchor=[...equipmentTerms].sort((a,b)=>b.length-a.length)[0]||'';
       const anchors=anchor==='scba'?['scba','air pack','breathing apparatus']:[anchor];
-      const responses=await Promise.all(anchors.flatMap(anchor=>['name','serial_number','barcode'].map(field=>supabase.from('inventory_equipment').select('id,name,serial_number,barcode,service_status').eq('department_id',department).is('retired_at',null).ilike(field,searchPattern(anchor)).order('name').order('id').limit(50))));
+      const responses=await Promise.all(anchors.flatMap(anchor=>['name','serial_number','barcode'].map(field=>supabase.from('inventory_equipment').select('id,name,serial_number,barcode,service_status,apparatus_id,compartment_id').eq('department_id',department).is('retired_at',null).ilike(field,searchPattern(anchor)).order('name').order('id').limit(50))));
       if(responses.some(response=>response.error))throw Error('Equipment search unavailable.');
       if(responses.some(response=>(response.data||[]).length>=50))limited.add('Equipment');
       const rows=new Map(responses.flatMap(response=>response.data||[]).map(row=>[row.id,row]));
-      return [...rows.values()].filter(row=>searchScore(row.name||'', [row.serial_number,row.barcode,row.service_status].filter(Boolean).join(' '),query,'Equipment')>0).sort((a,b)=>searchScore(b.name||'',`${b.serial_number||''} ${b.barcode||''}`,query,'Equipment')-searchScore(a.name||'',`${a.serial_number||''} ${a.barcode||''}`,query,'Equipment')||String(a.id).localeCompare(String(b.id))).slice(0,12).map(row=>({id:`equipment-${row.id}`,type:'Equipment',title:row.name||'Equipment',detail:[row.serial_number,row.barcode,row.service_status].filter(Boolean).join(' · '),page:'Inventory',record:{equipment:row.id,adminTask:'equipment'}}));
+      const matches=[...rows.values()].filter(row=>searchScore(row.name||'', [row.serial_number,row.barcode,row.service_status].filter(Boolean).join(' '),query,'Equipment')>0).sort((a,b)=>searchScore(b.name||'',`${b.serial_number||''} ${b.barcode||''}`,query,'Equipment')-searchScore(a.name||'',`${a.serial_number||''} ${a.barcode||''}`,query,'Equipment')||String(a.id).localeCompare(String(b.id))).slice(0,12);
+      const apparatusIds=[...new Set(matches.map(row=>row.apparatus_id).filter(Boolean))], compartmentIds=[...new Set(matches.map(row=>row.compartment_id).filter(Boolean))];
+      const [apparatus,compartments]=await Promise.all([
+        apparatusIds.length?supabase.from('inventory_apparatus_profiles').select('id,name').eq('department_id',department).in('id',apparatusIds):Promise.resolve({data:[],error:null}),
+        compartmentIds.length?supabase.from('inventory_compartments').select('id,label').eq('department_id',department).in('id',compartmentIds):Promise.resolve({data:[],error:null}),
+      ]);
+      const apparatusNames=new Map((apparatus.data||[]).map(row=>[row.id,row.name])), compartmentNames=new Map((compartments.data||[]).map(row=>[row.id,row.label]));
+      return matches.map(row=>({id:`equipment-${row.id}`,type:'Equipment',title:row.name||'Equipment',detail:[apparatusNames.get(row.apparatus_id),compartmentNames.get(row.compartment_id),row.serial_number,row.barcode,row.service_status?.replaceAll('_',' ')].filter(Boolean).join(' · '),page:'Inventory',record:{equipment:row.id,adminTask:'equipment'}}));
     }});
     const results=await Promise.allSettled(tasks.map(task=>task.run()));
     return json({items:results.flatMap(result=>result.status==='fulfilled'?result.value:[]),limited:[...limited].sort(),unavailable:tasks.filter((_,index)=>results[index].status==='rejected').map(task=>task.name)});

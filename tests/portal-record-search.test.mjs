@@ -23,7 +23,7 @@ test('equipment search matches name and serial together, deduplicates sources an
   const calls = [];
   let validSession = true;
   const rows = [
-    { id: 'matched', name: 'SCBA cylinder', serial_number: 'XY2', barcode: 'B1', service_status: 'in_service' },
+    { id: 'matched', apparatus_id:'engine-1', compartment_id:'cab', name: 'SCBA cylinder', serial_number: 'XY2', barcode: 'B1', service_status: 'in_service' },
     { id: 'unrelated', name: 'SCBA cylinder', serial_number: 'ZZ9', barcode: 'B2', service_status: 'in_service' },
   ];
   const client = { from(table) {
@@ -31,6 +31,7 @@ test('equipment search matches name and serial together, deduplicates sources an
     const builder = {
       select() { return this; }, eq(field, value) { call[field] = value; return this; },
       is(field, value) { call[field] = value; return this; }, ilike(field, value) { call.pattern = [field,value]; return this; },
+      in(field,value) { call.ids=value; return Promise.resolve({data:table==='inventory_apparatus_profiles'?[{id:'engine-1',name:'Fixture Engine'}]:[{id:'cab',label:'Driver cab'}],error:null}); },
       order() { return this; }, limit() { return Promise.resolve({data: rows,error: null}); },
     };
     return builder;
@@ -45,7 +46,10 @@ test('equipment search matches name and serial together, deduplicates sources an
   const result = await (await api.GET(request())).json();
   assert.deepEqual(result.items.map(item => item.id), ['equipment-matched']);
   assert.ok(calls.length > 0);
-  assert.ok(calls.every(call => call.table === 'inventory_equipment' && call.department_id === 'fixture-department' && call.retired_at === null));
+  assert.ok(calls.every(call => call.department_id === 'fixture-department'));
+  assert.ok(calls.filter(call=>call.table==='inventory_equipment').every(call=>call.retired_at===null));
+  assert.equal(result.items[0].detail,'Fixture Engine · Driver cab · XY2 · B1 · in service');
+  assert.deepEqual(calls.find(call=>call.table==='inventory_apparatus_profiles').ids,['engine-1']);
   validSession = false; calls.length = 0;
   const denied = await (await api.GET(request())).json();
   assert.deepEqual(denied.items, []);
