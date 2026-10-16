@@ -27,12 +27,14 @@ import '../../app/portal-search.css';
 import '../../app/connected-work.css';
 import '../../app/daily-log-contrast.css';
 import '../../app/operational-programs.css';
+import '../../app/portal-layout.css';
 import '../../app/inventory/./inventory.css';
 import '../../app/inventory/./usability.css';
 import '../../app/inventory/./air-systems.css';
 import '../../app/inventory/./service-schedule.css';
 import '../../app/inventory/../suite-theme.css';
 import '../../app/inventory/./bento.css';
+import '../../app/inventory/layout-fit.css';
 
 if (!['127.0.0.1', 'localhost'].includes(location.hostname)) throw Error('Local fixtures only');
 const performanceAudit = new URLSearchParams(location.search).has('performance');

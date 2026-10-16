@@ -26,6 +26,7 @@ import "../../app/portal-search.css";
 import "../../app/connected-work.css";
 import "../../app/daily-log-contrast.css";
 import "../../app/operational-programs.css";
+import "../../app/portal-layout.css";
 
 // Actual client UI, fictional responses only. No credentials or production writes.
 const params = new URLSearchParams(location.search);

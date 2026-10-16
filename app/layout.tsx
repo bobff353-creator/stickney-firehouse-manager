@@ -21,6 +21,7 @@ import "./portal-search.css";
 import "./connected-work.css";
 import "./daily-log-contrast.css";
 import "./operational-programs.css";
+import "./portal-layout.css";
 
 export const viewport: Viewport = {
   width: "device-width",
