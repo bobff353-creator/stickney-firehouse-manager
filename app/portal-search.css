@@ -43,3 +43,8 @@
   .global-search-dialog .search-type { background: #dceaf5; color: #143c59; }
   .global-search-dialog :is(button,input):focus-visible { outline-color: #fbbf24; }
 }
+/* Search notices need a paired palette in both device themes. */
+.global-search-dialog .global-search-notice {background:#fff5de;color:#644910;border:1px solid #a18450}
+@media (prefers-color-scheme: dark) {
+  .global-search-dialog .global-search-notice {background:#443219;color:#fde8b4}
+}

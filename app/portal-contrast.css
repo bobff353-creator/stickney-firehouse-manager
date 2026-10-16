@@ -140,3 +140,53 @@
     .workspace.bento-rest.bento-rest .mini-summary {grid-template-columns:minmax(0,1fr)}
   }
 }
+/* Empty, disconnected and expanded states need the same complete palette as active calls. */
+@media screen {
+  .respond-page.respond-page .respond-title p,
+  .respond-page.respond-page .respond-title-actions small,
+  .respond-page.respond-page .respond-monitor-status > small,
+  .respond-page.respond-page .respond-monitor-status .primary :is(span,small),
+  .respond-page.respond-page .respond-task-guide span,
+  .respond-page.respond-page .respond-map-options > summary span,
+  .respond-page.respond-page .respond-call-rail-empty > span {color:#b8c5d8}
+  .respond-page.respond-page .respond-monitor-status .primary strong,
+  .respond-page.respond-page .respond-task-guide strong,
+  .respond-page.respond-page .respond-map-options > summary,
+  .respond-page.respond-page .respond-call-rail-empty strong {color:#f8fafc}
+  .respond-page.respond-page .location-disconnected {background:#443219;color:#fde8b4;border:1px solid #a18450}
+  .respond-page.respond-page .location-message {color:#fde8b4}
+  .respond-page.respond-page .respond-call-rail > footer small {color:#496578}
+  .icb-page.icb-page .icb-preview-grid article small {color:#b8c5d8}
+  #portal-workspace .scenario-guide {background:#141e30;color:#e2e8f0;border:1px solid #607895;border-radius:12px;padding:12px 16px;line-height:1.6}
+  #portal-workspace .scenario-guide > summary {min-height:44px;display:list-item;align-content:center;color:#f1f5f9;cursor:pointer;font-weight:700}
+  #portal-workspace .scenario-guide :is(li,p) {color:#c6d2e4}
+  #portal-workspace .scenario-guide :focus-visible {outline:3px solid #93c5fd;outline-offset:3px}
+}
+/* Selected reporting tabs must remain selected when hovered or focused. */
+@media screen {
+  .workspace.bento-rest.bento-rest .nr-workspace.nr-workspace button:is(.nr-primary,[aria-current]):is(:hover,:focus-visible) {background:#155a7c;color:#fff;border-color:#155a7c}
+  #portal-workspace .nr-workspace.nr-workspace a {color:#175a7b;text-decoration:underline;text-underline-offset:3px}
+  #portal-workspace .nr-workspace.nr-workspace a:focus-visible {outline:3px solid #986000;outline-offset:3px}
+}
+/* Effective dates and full policy documents remain readable on slate cards. */
+@media screen {
+  .workspace.bento-rest.bento-rest .rate-effective-control label > span {color:#e2e8f0}
+  .workspace.bento-rest.bento-rest .policy-reader :is(.resource-copy,.resource-record-head span,.resource-record-head time) {color:#c6d2e4}
+  .workspace.bento-rest.bento-rest .policy-reader .resource-copy {font-size:16px;line-height:1.75;overflow-wrap:anywhere}
+}
+@media screen {
+  .workspace.bento-rest.bento-rest .ao-eligibility:not(.eligible) {background:#1b2b43;color:#c6d2e4}
+  .field-preplans-page.field-preplans-page .preplan-editor > header {background:#141e30;color:#f1f5f9;border-color:#607895}
+  .field-preplans-page.field-preplans-page :is(.preplan-focus-header,.preplan-editor > header) > div > span {color:#b5c4d8}
+  .field-preplans-page.field-preplans-page .preplan-capture-help strong {color:#173e59}
+  .field-preplans-page.field-preplans-page .preplan-workflow-footer > span {color:#c6d2e4}
+  .field-preplans-page.field-preplans-page .workflow-save-status {background:#1b2b43;color:#e2e8f0;border-color:#607895}
+  .field-preplans-page.field-preplans-page .workflow-save-status.unsaved {background:#443219;color:#fde8b4;border-color:#a18450}
+  .field-preplans-page.field-preplans-page .workflow-save-status.failed {background:#472126;color:#fecaca;border-color:#b87079}
+  .field-preplans-page.field-preplans-page .workflow-save-status.saved {background:#15382a;color:#bbf7d0;border-color:#508b6a}
+  .field-preplans-page.field-preplans-page .workflow-save-status :is(strong,span,p) {color:inherit}
+}
+@media screen {
+  .app-shell:has(#portal-workspace) .workspace .portal-task-directory input::placeholder {color:#496578;opacity:1}
+  .mobile-nav-panel .mobile-core-nav h2 {color:#496578}
+}

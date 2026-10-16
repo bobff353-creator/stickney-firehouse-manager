@@ -56,3 +56,7 @@
     #portal-workspace .logbook-page.logbook-page .handoff-modal :is(p,label,span,button) {overflow-wrap:anywhere}
   }
 }
+/* The apparatus-check section uses paper cards inside the dark Daily Log. */
+@media screen {
+  #portal-workspace .logbook-page .apparatus-check-log a.log-next {background:#e6f0f7;color:#17435e;border:1px solid #698495;border-radius:8px;padding:10px 14px;display:inline-block;min-height:44px;align-content:center}
+}

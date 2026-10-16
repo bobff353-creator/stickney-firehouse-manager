@@ -76,3 +76,11 @@ body:has(.inventory-app-shell) { background:#0b1120; }
 .inventory-app-shell.inventory-app-shell.inventory-portal-refresh .asset-attention-list li[data-severity=unknown] { background:#1b2b43; color:#b5c4d8; }
 .inventory-app-shell.inventory-app-shell.inventory-portal-refresh :is(.equipment-record-summary,.equipment-editor,.equipment-repair-panel) button { transition:none; }
 }
+/* Stock details share their parent slate palette, including expanded receipt controls. */
+@media screen {
+  .inventory-app-shell.inventory-app-shell.inventory-portal-refresh .stock-grid :is(small,b,summary) {color:#c6d2e4}
+}
+@media screen {
+  .inventory-app-shell.inventory-app-shell.inventory-portal-refresh .inventory-ops .stock-grid :is(small,summary),
+  .inventory-app-shell.inventory-app-shell.inventory-portal-refresh .inventory-ops .stock-grid article > span {color:#c6d2e4}
+}

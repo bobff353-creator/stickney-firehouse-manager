@@ -56,3 +56,9 @@
 .scheduler.scheduler .calendar-slot small { font-size:12px; white-space:normal; overflow:visible; }
 .scheduler.scheduler .calendar-slot .calendar-slot-time { color:#f1f5f9; font-weight:700; }
 }
+/* Available/unavailable choices retain readable descriptions and a visible selected state. */
+@media screen {
+  #portal-workspace .scheduler .availability-status-options button {background:#1b2940;color:#e2e8f0;border:1px solid #607895;min-height:64px}
+  #portal-workspace .scheduler .availability-status-options button :is(b,small) {color:inherit;opacity:1}
+  #portal-workspace .scheduler .availability-status-options button[aria-pressed=true] {background:#1d4ed8;color:#fff;border:2px solid #bfdbfe;box-shadow:inset 0 -4px 0 #bfdbfe}
+}

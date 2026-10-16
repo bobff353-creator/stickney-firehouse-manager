@@ -60,10 +60,10 @@ test("inspection attachments preserve checkmarks and navigation protects unsaved
 test("navigation and search handle unavailable sources and browser history", () => {
   const source=fs.readFileSync("app/payroll-app.tsx","utf8");
   assert.match(source,/Promise.allSettled/);
-  assert.match(source,/if \(!term\) return screens.slice/);
+  assert.match(source,/if \(!term\) return searchCategory==='All'\|\|searchCategory==='Tools' \? screens.slice/);
   assert.match(source,/permittedPages.includes\(item.page\)/);
   assert.match(source,/onNavigate\(item.page, item.record\)/);
-  assert.match(source,/<SearchResultButtons items=\{globalSearchResults\} onNavigate=\{navigate\}/);
+  assert.match(source,/<SearchResultButtons items=\{globalSearchResults\} query=\{globalSearch\} onNavigate=\{navigate\}/);
   assert.match(source,/addEventListener\("popstate", fromHistory, \{ capture: true \}\)/);
   assert.match(source,/if \(!confirmLeavingWork\(\)\) return/);
 });

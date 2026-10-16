@@ -3,10 +3,10 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import test from 'node:test';
+import * as navigation from '../app/portal-navigation.ts';
 
 const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 function compile(path,dependencies={}){const exports={};vm.runInNewContext(ts.transpileModule(read(path),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,require:name=>{if(!(name in dependencies))throw Error('Unexpected dependency '+name);return dependencies[name];},URLSearchParams});return exports;}
-const navigation=compile('app/portal-navigation.ts');
 const menu=compile('app/portal-menu-items.ts',{'./portal-navigation':navigation});
 
 test('shared portal navigation fails closed and honors individual grants/removals',()=>{

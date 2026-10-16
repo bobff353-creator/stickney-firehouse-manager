@@ -22,7 +22,7 @@ test('shared navigation guards access and retains bounded return context', () =>
   const code = source('payroll-app.tsx');
   assert.match(code, /if \(!visibleNav.includes\(page\)\)/);
   assert.match(code, /trail.slice\(-19\)/);
-  assert.match(code, /key=\{navigationVersion\}/);
+  for (const component of ['StationScheduler','PhoneNumbers','PoliciesPage','BoxCardsPage','PermissionSettings']) assert.ok(code.includes('key={`'+component+':${navigationVersion}`}'), component+' needs a distinct navigation identity');
   assert.match(code, /Skip to workspace/);
   assert.doesNotMatch(code, />Portal Support<|>Version 1.1 · Support</);
 });

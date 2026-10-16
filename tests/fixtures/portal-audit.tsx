@@ -6,12 +6,26 @@ import ResetPasswordPage from "../../app/reset-password/page";
 import AcceptInvitePage from "../../app/accept-invite/page";
 import { emptyIncidentCommandState } from "../../app/incident-command-state";
 import { defaultPermissionsForRank, permissionCatalog, resolveEmployeePermissions } from "../../app/permissions";
+
 import "../../app/globals.css";
 import "../../app/mobile-usability.css";
 import "../../app/portal-usability.css";
-import "../../app/portal-search.css";
 import "../../app/admin-usability.css";
 import "../../app/workflow-usability.css";
+import "../../app/home-bento.css";
+import "../../app/operations-bento.css";
+import "../../app/respond-bento.css";
+import "../../app/daily-log-bento.css";
+import "../../app/scheduler-bento.css";
+import "../../app/preplans/bento.css";
+import "../../app/road-closures-bento.css";
+import "../../app/remaining-bento.css";
+import "../../app/portal-contrast.css";
+import "../../app/payroll-administration.css";
+import "../../app/portal-search.css";
+import "../../app/connected-work.css";
+import "../../app/daily-log-contrast.css";
+import "../../app/operational-programs.css";
 
 // Actual client UI, fictional responses only. No credentials or production writes.
 const params = new URLSearchParams(location.search);
@@ -62,7 +76,7 @@ function accessPayload() {
   return { confirmation:confirmationStatus(),catalog: permissionCatalog, viewerPermissions: isAdmin ? defaultPermissionsForRank("Firefighter",true) : memberPermissions, identity: "fictional:"+String(isAdmin), revision: String(accessRevision), ranks: ["Firefighter"], rankSettings: { Firefighter: defaultPermissionsForRank("Firefighter") }, overrides: accessOverrides, employees: [{ ...accessEmployee, effectivePermissions: memberPermissions }] };
 }
 Object.assign(window, { liveAccessAudit: { requests: accessRequests, errors, setGrant(effect?: "allow" | "deny") { accessOverrides = effect ? { [employee.id]: { "operations_board.view": effect } } : {}; accessRevision++; window.dispatchEvent(new Event("firehouse:permissions-changed")); } } });
-const briefing = { asOf: now, currentShift: "morning", priorShift: "night", onDuty: [], newMembers: [], officerInCharge: null, staffing: { filled: 0, required: 4, complete: false }, equipmentIssues: [], approvals: { logs: 0, payroll: 0 }, previousShift: { officer: null, note: "Fictional handoff", calls: [] }, activeCalls: [], apparatus: [], roadClosures: [] };
+const briefing = { date, staffingSource:"daily_log", fleet:[], fleetIssuesAvailable:true, checksDue:0, nextShift:null, asOf: now, currentShift: "morning", priorShift: "night", onDuty: [], newMembers: [], officerInCharge: null, staffing: { filled: 0, required: 4, complete: false }, equipmentIssues: [], approvals: { logs: 0, payroll: 0 }, previousShift: { officer: null, note: "Fictional handoff", calls: [] }, activeCalls: [], apparatus: [], roadClosures: [] };
 const payloads: Record<string, unknown> = {
   "/api/payroll": payroll,
   "/api/permissions": { viewerPermissions: null, catalog: [{ key: "dashboard.view", label: "Home", group: "General" }], ranks: ["Firefighter"], rankSettings: { Firefighter: ["dashboard.view"] }, overrides: {}, employees: employees.map(item => ({ ...item, isAdmin: 0, effectivePermissions: ["dashboard.view", "documents.view", "scheduling.view", "inventory.view"] })) },
@@ -70,7 +84,7 @@ const payloads: Record<string, unknown> = {
   "/api/dashboard": briefing,
   "/api/live-operations": { dashboard: {ok:true,status:200,payload:briefing}, duties: {ok:true,status:200,payload:{currentDuty:null,dailyFleetChecks:[]}}, fleet: {ok:true,status:200,payload:{apparatus:[]}} },
   "/api/department-schedule": { items: [], upcomingShifts: [], assignments: [], shifts: [], employees: [], entries: [], slots: [] },
-  "/api/command-center": { daily: [], responseTypeDaily: [], callTiming: [], staffingDetails: [], payrollDetails: [], fiscalYear: { startDate: date, endDate: date, payToDate: 0 }, generatedAt: now },
+  "/api/command-center": { sources:{staffing:"ready",payroll:"ready",calls:"ready",equipment:"ready"},coverage:{earliest:date,latest:date},integrations:{cad:{state:"unavailable",credentialsConfigured:null,receipts:[],liveVerified:false},neris:{state:"unavailable"},ai:{state:"unavailable",note:"Fictional audit only"}}, daily: [], responseTypeDaily: [], callTiming: [], staffingDetails: [], payrollDetails: [], fiscalYear: { startDate: date, endDate: date, payToDate: 0 }, generatedAt: now },
   "/api/activity": { events: [] },
   "/api/daily-duties": { items: [], canEdit: isAdmin, current: null, requiredFleetChecks: [] },
   "/api/daily-log": { log: { shiftNotes: "", locked: 0, adminUnlocked: 0, updatedAt: now, saveVersion: 1 }, staffing: [], calls: [], approvals: [], recentNotes: [], addresses: [], canUnlock: isAdmin },
@@ -240,7 +254,7 @@ window.fetch = async (input, init) => {
     if(method==='POST'){confirmedVersion=confirmationVersion;return Response.json({ok:true});}
     confirmationVersion++;confirmationMessage={...body,version:'00000000-0000-4000-8000-'+String(confirmationVersion).padStart(12,'0')};return Response.json({ok:true,version:confirmationMessage.version});
   }
-  if(url.pathname==='/api/permissions'&&method==='GET'&&!params.has('live-access'))return Response.json({...payloads[url.pathname] as object,viewerPermissions:defaultPermissionsForRank('Firefighter',isAdmin),identity:'fixture:preview@example.invalid',revision:'fixture-1',confirmation:confirmationStatus()});
+  if(url.pathname==='/api/permissions'&&method==='GET'&&!params.has('live-access'))return Response.json({...payloads[url.pathname] as object,viewerPermissions:[...defaultPermissionsForRank('Firefighter',isAdmin),...(params.has('visual-audit')&&isAdmin?['training.pilot','inspections.pilot','neris.pilot']:[])],identity:'fixture:preview@example.invalid',revision:'fixture-1',confirmation:confirmationStatus()});
   if(url.pathname==='/api/station-scheduler'&&method==='POST'&&params.has('reminders')){
     writes++;if(failWrite){failWrite=false;return Response.json({error:'Simulated failed reminder save. Your draft remains.'},{status:503});}
     const body=JSON.parse(String(init?.body||'{}'));const scheduler=payloads[url.pathname] as {reminderRules:Array<Record<string,unknown>>;requestDeadlines:Array<{id:string;deadline:string}>};
@@ -284,6 +298,15 @@ window.fetch = async (input, init) => {
     const q=(url.searchParams.get('q')||'').toLowerCase();
     if(q==='unavailable')return Response.json({error:'Fictional unavailable source'},{status:503});
     return Response.json({items:q.includes('air')?[{id:'equipment-fixture',type:'Equipment',title:'Preview SCBA',detail:'Serial XY2 · Preview only',page:'Inventory',record:{equipment:'fixture-equipment'}}]:q.includes('pershing')?[{id:'hydrant-fixture',type:'Hydrant',title:'17',detail:'Pershing Road · Preview only',page:'Field Preplans',record:{hydrant:'fixture-hydrant'}}]:q==='private'?[{id:'private-fixture',type:'Training',title:'Private training canary',detail:'Preview only',page:'Training',record:{trainingRecord:'fixture-private'}}]:[],unavailable:[],limited:q==='limited'?['Equipment']:[]});
+  }
+  if(params.has('visual-audit')) {
+    if(url.pathname==='/api/training/report-views')return Response.json({views:[]});
+    if(url.pathname==='/api/neris/desk')return Response.json({rows:[],hasOlderCalls:false,generatedAt:now,scope:'Fictional local audit'});
+    if(url.pathname.startsWith('/api/training'))return Response.json({records:[],members:employees,attachments:[]});
+    if(url.pathname==='/api/fire-inspections/team')return Response.json({identities:[],accessRollout:false});
+    if(url.pathname.startsWith('/api/fire-inspections'))return Response.json({records:[],properties:[],attachments:[],codes:[],departmentId:'fixture',viewerEmail:'preview@example.invalid'});
+    if(url.pathname.startsWith('/api/neris'))return Response.json({records:[],incidents:[],members:employees,apparatus:[],attachments:[],integration:{configured:false}});
+    if(url.pathname==='/api/employee-directory')return Response.json({employees});
   }
   if (payloads[url.pathname]) return Response.json(payloads[url.pathname]);
   unknown.add(url.pathname);
