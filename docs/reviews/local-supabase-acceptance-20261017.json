@@ -1,0 +1,143 @@
+{
+  "source": "272e39ed3423b559ff48a19b561a3f3cfa9d45ba",
+  "environment": "Local WSL Ubuntu 24.04.5; Supabase CLI 2.121.0 native",
+  "hostedWrites": 0,
+  "cases": [
+    {
+      "case": "create synthetic member",
+      "pass": true
+    },
+    {
+      "case": "real Auth login member",
+      "pass": true
+    },
+    {
+      "case": "create synthetic foreign",
+      "pass": true
+    },
+    {
+      "case": "real Auth login foreign",
+      "pass": true
+    },
+    {
+      "case": "create synthetic revoked",
+      "pass": true
+    },
+    {
+      "case": "real Auth login revoked",
+      "pass": true
+    },
+    {
+      "case": "anonymous cannot execute member SQL",
+      "pass": true
+    },
+    {
+      "case": "authenticated member without server proof denied",
+      "pass": true
+    },
+    {
+      "case": "foreign department denied",
+      "pass": true
+    },
+    {
+      "case": "revoked membership denied",
+      "pass": true
+    },
+    {
+      "case": "authorized member server request succeeds",
+      "pass": true
+    },
+    {
+      "case": "cross schema SQL remains denied",
+      "pass": true
+    },
+    {
+      "case": "direct membership reads do not expose users",
+      "pass": true
+    },
+    {
+      "case": "direct portal table route is unavailable",
+      "pass": true
+    },
+    {
+      "case": "baseline has no new columns",
+      "pass": true
+    },
+    {
+      "case": "exact additive migration applies on real PostgreSQL",
+      "pass": true
+    },
+    {
+      "case": "both existing schemas receive all eight columns",
+      "pass": true
+    },
+    {
+      "case": "newly cloned department structure inherits columns",
+      "pass": true
+    },
+    {
+      "case": "actual PostgREST batch persists explicit endpoints",
+      "pass": true
+    },
+    {
+      "case": "stored fold endpoints preserve one elapsed hour",
+      "pass": true
+    },
+    {
+      "case": "database rejects malformed instant strings",
+      "pass": true
+    },
+    {
+      "case": "RPC failure rolls back earlier successful insert",
+      "pass": true
+    },
+    {
+      "case": "two real concurrent RPC saves accept exactly one version",
+      "pass": true
+    },
+    {
+      "case": "stale save leaves exactly one staffing record",
+      "pass": true
+    },
+    {
+      "case": "revocation denies an already issued Auth token",
+      "pass": true
+    },
+    {
+      "case": "background batch denies wrong server credential",
+      "pass": true
+    },
+    {
+      "case": "actual anonymous server RPC accepts only correct credential",
+      "pass": true
+    },
+    {
+      "case": "background multi-statement failure rolls back earlier write",
+      "pass": true
+    },
+    {
+      "case": "background transaction retry returns success",
+      "pass": true
+    },
+    {
+      "case": "background retry keeps a single durable record",
+      "pass": true
+    },
+    {
+      "case": "exact migration reapplies without errors",
+      "pass": true
+    },
+    {
+      "case": "migration preserves historical IDs hours RLS and grants",
+      "pass": true
+    },
+    {
+      "case": "historical staffing receives blank default occurrences",
+      "pass": true
+    },
+    {
+      "case": "reapplication preserves existing explicit occurrence records",
+      "pass": true
+    }
+  ]
+}
