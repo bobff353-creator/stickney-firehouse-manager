@@ -31,7 +31,8 @@ test("builder exposes scanning, truthful review, and department verification", a
   assert.match(source, /Decode VIN/);
   assert.match(source, /NHTSA vPIC/);
   assert.match(source, /Missing values mean not reported/);
-  assert.match(source, /Save & mark service details verified/);
+  assert.match(source, /Save apparatus information/);
+  assert.match(source, /type="checkbox" name="verifyServiceProfile"/);
   assert.match(source, /ownerManualUrl/);
   assert.match(source, /partsCatalogUrl/);
   assert.match(source, /maintenanceSchedule/);

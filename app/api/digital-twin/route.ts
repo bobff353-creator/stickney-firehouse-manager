@@ -74,7 +74,7 @@ export async function GET(request: Request) {
     const [profilesResult, fleetResult] = await Promise.all([
       supabase
         .from("inventory_apparatus_profiles")
-        .select("id,name,asset_type,vin,manufacturer,model,year,weekly_due_day,vin_decoded_json,vin_decoded_at,vin_source,oil_specification,oil_capacity,transmission_fluid_specification,coolant_specification,front_tire_size,rear_tire_size,tire_pressure_notes,fuel_capacity,battery_specification,filter_part_numbers,maintenance_schedule,owner_manual_url,service_manual_url,parts_catalog_url,preferred_vendor,ordering_notes,service_profile_verified_at,created_at")
+        .select("id,name,asset_type,vin,manufacturer,model,year,weekly_due_day,vin_decoded_json,vin_decoded_at,vin_source,oil_specification,oil_capacity,transmission_fluid_specification,coolant_specification,front_tire_size,rear_tire_size,tire_pressure_notes,fuel_capacity,battery_specification,filter_part_numbers,maintenance_schedule,owner_manual_url,service_manual_url,parts_catalog_url,preferred_vendor,ordering_notes,service_profile_verified_at,created_at,updated_at")
         .eq("department_id", session.context.department.id)
         .order("name"),
       supabase
@@ -458,8 +458,8 @@ export async function POST(request: Request) {
         parts_catalog_url: url(body.partsCatalogUrl),
         preferred_vendor: clean(body.preferredVendor, 300),
         ordering_notes: clean(body.orderingNotes, 2000),
-        service_profile_verified_at: new Date().toISOString(),
-        service_profile_verified_by: session.context.user.id,
+        service_profile_verified_at: body.verifyServiceProfile === true ? new Date().toISOString() : null,
+        service_profile_verified_by: body.verifyServiceProfile === true ? session.context.user.id : null,
         updated_at: new Date().toISOString(),
       };
       const { data: apparatus, error } = await supabase
@@ -471,7 +471,7 @@ export async function POST(request: Request) {
         .maybeSingle();
       if (error) throw error;
       if (!apparatus) return privateJson({ error: "Apparatus not found." }, 404);
-      await audit(session.context, "apparatus.service_profile_verified", "apparatus", apparatusId, changes, request);
+      await audit(session.context, body.verifyServiceProfile === true ? "apparatus.service_profile_verified" : "apparatus.service_profile_updated", "apparatus", apparatusId, changes, request);
       return privateJson({ apparatus });
     }
     if (action === "create_compartment") {

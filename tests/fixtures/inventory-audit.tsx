@@ -33,6 +33,15 @@ window.fetch=async(input,init)=>{
  if(init?.method==='POST'){
   const body=JSON.parse(String(init.body)); writes++;document.getElementById('audit-writes')!.textContent=`Test writes: ${writes} · ${body.action}`;
   if((document.getElementById('fail-save') as HTMLInputElement).checked){(document.getElementById('fail-save') as HTMLInputElement).checked=false;return Response.json({error:'Simulated save failure. Your edits were not saved.'},{status:503});}
+  if(body.action==='update_vehicle_service_profile'){
+    const target=data.apparatus.find(r=>r.id===body.apparatusId);
+    if(!target)return Response.json({error:'Fixture apparatus not found'},{status:404});
+    const fields=['oilSpecification','oilCapacity','transmissionFluidSpecification','coolantSpecification','frontTireSize','rearTireSize','tirePressureNotes','fuelCapacity','batterySpecification','filterPartNumbers','maintenanceSchedule','ownerManualUrl','serviceManualUrl','partsCatalogUrl','preferredVendor','orderingNotes'];
+    Object.assign(target,Object.fromEntries(fields.map(key=>[key.replace(/[A-Z]/g,c=>'_'+c.toLowerCase()),String(body[key]??'')])));
+    Object.assign(target,{updated_at:new Date().toISOString(),service_profile_verified_at:body.verifyServiceProfile===true?new Date().toISOString():null});
+    Object.assign(audit,{lastServiceSave:body});
+    return Response.json({apparatus:target});
+  }
   if(body.action==='update_equipment'){const target=data.equipment.find(e=>e.id===body.equipmentId)!;Object.assign(target,{name:body.name,quantity_required:Number(body.quantityRequired),check_types:body.checkTypes,response_type:body.responseType,barcode:body.barcode});return Response.json({ok:true});}
   if(body.action==='record_check_item'){if(audit.emptySave){audit.emptySave=false;return Response.json({checkItems:[]});}const target=data.checkItems.find(e=>e.id===body.checkItemId)!;Object.assign(target,{result:body.result,numeric_reading:body.numericReading,checked_at:new Date().toISOString(),checked_by:'Preview member'});return Response.json({checkItems:[target]});}
   if(body.action==='complete_check'){Object.assign(data.checks[0],{status:'completed',review_status:'pending',completed_at:new Date().toISOString()});return Response.json({ok:true});}

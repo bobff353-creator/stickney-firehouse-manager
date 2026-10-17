@@ -8,6 +8,7 @@ import { scannedVin } from './inventory-camera';
 type ApparatusVehicleProfile = {
   id: string;
   name: string;
+  updated_at?: string;
   vin?: string;
   vin_decoded_json?: Record<string, unknown>;
   vin_decoded_at?: string;
@@ -100,11 +101,11 @@ export default function InventoryVinProfile({ apparatus, onReload, notify }: {
     const form = new FormData(event.currentTarget);
     const payload = Object.fromEntries(form.entries());
     try {
-      const response = await fetch("/api/digital-twin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "update_vehicle_service_profile", apparatusId: apparatus.id, ...payload }) });
+      const response = await fetch("/api/digital-twin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "update_vehicle_service_profile", apparatusId: apparatus.id, ...payload, verifyServiceProfile: form.get("verifyServiceProfile") === "on" }) });
       const result = await response.json() as { error?: string };
       if (!response.ok) throw new Error(result.error || "The service profile could not be saved.");
       await onReload();
-      notify("Department-verified vehicle service profile saved.");
+      notify(`Apparatus information saved for ${apparatus.name}.${form.get("verifyServiceProfile") === "on" ? " Marked department verified." : " Awaiting department verification."}`);
     } catch (caught) { setError(caught instanceof Error ? caught.message : "The service profile could not be saved."); }
     finally { setBusy(""); }
   }
@@ -124,28 +125,29 @@ export default function InventoryVinProfile({ apparatus, onReload, notify }: {
       <dl>{decodedFields.filter(([key]) => stringValue(decoded[key])).map(([key, label]) => <div key={String(key)}><dt>{label}</dt><dd>{stringValue(decoded[key])}{key === "displacementLiters" ? " L" : ""}</dd></div>)}</dl>
       {decoded.decodeMessage ? <p className="vin-decode-message">Decoder note: {decoded.decodeMessage}</p> : null}
     </div> : null}
-    <form className="service-profile-form" onSubmit={saveServiceProfile} key={`${apparatus.id}-${apparatus.service_profile_verified_at || "new"}`}>
+    <form className="service-profile-form" onSubmit={saveServiceProfile} key={`${apparatus.id}-${apparatus.updated_at || apparatus.service_profile_verified_at || "new"}`}>
+      <p>Edit or clear the details below, then save. Changes apply only to {apparatus.name}. Select another working apparatus to edit that unit.</p>
       <fieldset><legend>Fluids, tires &amp; service parts</legend><div className="service-fields">
         <label>Engine oil specification<input name="oilSpecification" defaultValue={apparatus.oil_specification || ""} placeholder="Grade and manufacturer specification" /></label>
         <label>Oil capacity<input name="oilCapacity" defaultValue={apparatus.oil_capacity || ""} placeholder="Include units and filter allowance" /></label>
-        <label>Transmission fluid<input name="transmissionFluidSpecification" defaultValue={apparatus.transmission_fluid_specification || ""} /></label>
-        <label>Coolant specification<input name="coolantSpecification" defaultValue={apparatus.coolant_specification || ""} /></label>
+        <label>Transmission fluid &amp; capacity<textarea name="transmissionFluidSpecification" maxLength={300} defaultValue={apparatus.transmission_fluid_specification || ""} /></label>
+        <label>Coolant type &amp; capacity<textarea name="coolantSpecification" maxLength={300} defaultValue={apparatus.coolant_specification || ""} /></label>
         <label>Front tire size<input name="frontTireSize" defaultValue={apparatus.front_tire_size || ""} /></label>
         <label>Rear tire size<input name="rearTireSize" defaultValue={apparatus.rear_tire_size || ""} /></label>
         <label>Tire pressure / axle notes<textarea name="tirePressureNotes" defaultValue={apparatus.tire_pressure_notes || ""} /></label>
         <label>Fuel capacity<input name="fuelCapacity" defaultValue={apparatus.fuel_capacity || ""} /></label>
         <label>Battery specification<input name="batterySpecification" defaultValue={apparatus.battery_specification || ""} /></label>
         <label>Filter part numbers<textarea name="filterPartNumbers" defaultValue={apparatus.filter_part_numbers || ""} placeholder="Oil, fuel, air, transmission…" /></label>
-      </div></fieldset>
+      </div><label>Additional fluids, source notes &amp; ordering<textarea name="orderingNotes" rows={10} maxLength={2000} defaultValue={apparatus.ordering_notes || ""} placeholder="Steering, axle, cab tilt, pump and A/C fluids; label or manual references; ordering notes" /><small>Keep units and source references. Mark unclear specifications as unconfirmed.</small></label></fieldset>
       <fieldset><legend>Maintenance schedule</legend><label>Department-approved intervals<textarea name="maintenanceSchedule" defaultValue={apparatus.maintenance_schedule || ""} placeholder="Example: engine hours/miles/calendar intervals and inspection tasks" /></label></fieldset>
       <fieldset><legend>Manuals, catalogs &amp; ordering</legend><div className="service-fields">
         <label>Owner/operator manual URL<input type="url" name="ownerManualUrl" defaultValue={apparatus.owner_manual_url || ""} placeholder="https://…" /></label>
         <label>Service manual URL<input type="url" name="serviceManualUrl" defaultValue={apparatus.service_manual_url || ""} placeholder="https://…" /></label>
         <label>Parts catalog URL<input type="url" name="partsCatalogUrl" defaultValue={apparatus.parts_catalog_url || ""} placeholder="https://…" /></label>
         <label>Preferred vendor<input name="preferredVendor" defaultValue={apparatus.preferred_vendor || ""} /></label>
-        <label>Ordering notes / approved equivalents<textarea name="orderingNotes" defaultValue={apparatus.ordering_notes || ""} /></label>
       </div></fieldset>
-      <div className="service-save-row"><span>{apparatus.service_profile_verified_at ? `Last department verification: ${departmentTimestamp(apparatus.service_profile_verified_at)}` : "Not yet department verified"}</span><button className="primary" disabled={busy === "service"}>{busy === "service" ? "Saving…" : "Save & mark service details verified"}</button></div>
+      <label><input type="checkbox" name="verifyServiceProfile" /> I checked these details against the apparatus label, manual or vendor and confirm they are department verified.</label>
+      <div className="service-save-row"><span>{apparatus.service_profile_verified_at ? `Last department verification: ${departmentTimestamp(apparatus.service_profile_verified_at)}. Saving edits requires verification again.` : "Not yet department verified"}</span><button className="primary" disabled={Boolean(busy)}>{busy === "service" ? "Saving…" : "Save apparatus information"}</button></div>
     </form>
   </section>;
 }
