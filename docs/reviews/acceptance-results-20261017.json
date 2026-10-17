@@ -11,8 +11,8 @@
     "todo": 0
   },
   "patched": {
-    "tests": 1417,
-    "pass": 1417,
+    "tests": 1426,
+    "pass": 1426,
     "fail": 0,
     "cancelled": 0,
     "skipped": 0,
@@ -148,7 +148,7 @@
     "actingOfficer": "One concurrent appointment department-wide; consecutive members permitted",
     "intervals": "Start-inclusive/end-exclusive instants anchored to the Chicago operational log date",
     "daylightSavingPay": "Actual America/Chicago elapsed hours: ordinary 12, spring-forward 11, fall-back 13",
-    "ambiguousOrNonexistentEndpoints": "Reject; no guessed offset or repeated-hour occurrence",
+    "ambiguousOrNonexistentEndpoints": "Require persisted explicit occurrence/date for repeated endpoints; reject nonexistent times and missing/forged/stale selections",
     "historicalPay": "No backfill or frozen-history rewrite; reject incidental conversion of legacy posted clock-hour pay",
     "eligibilityAndApprovalPolicyChanged": false
   },
@@ -172,9 +172,28 @@
     "overflow": 0
   },
   "clarifiedRuleRemainingLimitations": [
-    "Existing HH:MM record format cannot persist first/second repeated-hour occurrence; those endpoints are rejected.",
     "AO eligibility/exception/approval criteria were not newly specified and remain unchanged.",
     "Historical payroll still needs original attendance/approvals and independently approved exports for reconciliation.",
     "Manual hours-only payroll adjustments are not operational AO interval assignments."
-  ]
+  ],
+  "beforeRepeatedHourSelections": {
+    "tests": 1417,
+    "pass": 1417,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "todo": 0
+  },
+  "repeatedHourFixCommit": "2115932f50a55d9c720b2d7af2c9942995214884",
+  "repeatedHourAcceptance": {
+    "focusedTests": 21,
+    "focusedPass": 21,
+    "newRegressions": 9,
+    "browserCases": 8,
+    "browserErrors": 0,
+    "horizontalOverflowCases": 0,
+    "migration": "supabase/migrations/20261017004550_explicit_chicago_time_instants.sql",
+    "migrationAppliedToHostedDatabase": false,
+    "releaseOrder": "Approved isolated staging verification, then approved migration before application deployment"
+  }
 }

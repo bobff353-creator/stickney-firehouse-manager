@@ -1,3 +1,5 @@
+> Follow-up: repeated-hour endpoints now have explicit persisted occurrence selections. See [repeated-hour-selections-20261017.md](repeated-hour-selections-20261017.md). Counts and limitations below describe the earlier acceptance run.
+
 # Clarified AO coverage and elapsed-time payroll rules
 
 Bob's instruction on October 17, 2026 at 00:25:59 UTC resolves AO concurrency and
