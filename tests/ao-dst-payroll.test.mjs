@@ -1,3 +1,5 @@
+import { payrollReviewIssues } from '../app/payroll-review.ts';
+import { timekeepingReview } from '../app/payroll-timekeeping-review.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
@@ -134,4 +136,16 @@ test('work-detail API rejects ambiguous/nonexistent optional timestamps before a
     assert.equal(response.status,400);assert.match((await response.json()).error,new RegExp(message));
   }
   assert.equal(writes,0);
+});
+
+test('payroll review accepts a 25-hour fall tour limit and flags legacy spring pay without rewriting it',()=>{
+  const rows=[{...row('a','06:00','06:00',false),logDate:'2026-10-31'}];
+  const issues=payrollReviewIssues([{workDate:'2026-10-31',category:'shift',hours:25}],rows);
+  assert.ok(!issues.some(message=>message.includes('duty hours exceed')));
+  assert.ok(issues.some(message=>message.includes('count as 25 hours')));
+  const entries=[{employeeId:'a',workDate:'2026-03-07',category:'shift',hours:12}];
+  const original=structuredClone(entries);
+  const flags=timekeepingReview([{id:'a',name:'Synthetic'}],entries,[{...row('a','18:00','06:00',false),logDate:'2026-03-07'}],'2026-03-07','2026-03-07');
+  assert.ok(flags.some(flag=>flag.message.includes('11.00 Daily Log duty hours versus 12.00')));
+  assert.deepEqual(entries,original);
 });
