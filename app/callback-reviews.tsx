@@ -97,10 +97,11 @@ export default function CallbackReviews() {
       <div className="callback-reviewer-row"><label><span>Reviewer</span><select value={reviewerId} onChange={(event) => setReviewerId(event.target.value)}><option value="">Select reviewer…</option>{payload.reviewers.map((reviewer) => <option key={reviewer.id} value={reviewer.id}>{formatEmployeeName(reviewer.name)} · {reviewer.rank}</option>)}</select></label><button className="primary-action compact" disabled={!reviewerId || saving || loading || Boolean(error)} onClick={() => void send({ action: "setReviewer", reviewerEmployeeId: reviewerId })}>Save Reviewer</button></div>
     </article>
 
-    <article className="content-card callback-rules-card">
-      <div className="section-header"><div><h2>Callback approval rules</h2><p>Rules suggest hours and explain every flag. They never automatically deny a callback.</p></div><span className="callback-rule-version">Active</span></div>
+    <details className="content-card callback-rules-card">
+      <summary><span><strong>Callback approval rules</strong><span>View the active rules used to suggest hours and flag submissions.</span></span></summary>
+      <p>Rules suggest hours and explain every flag. They never automatically deny a callback.</p>
       <div className="callback-rule-grid">{callbackRules.map(([name, detail]) => <div key={name}><strong>{name}</strong><span>{detail}</span></div>)}</div>
-    </article>
+    </details>
 
     <article className="content-card">
       <div className="section-header"><div><h2>Submissions</h2><p>Pending and flagged submissions are shown first.</p></div><span className="count-badge">{payload.submissions.filter((item) => item.status === "pending").length} pending</span></div>
@@ -116,7 +117,7 @@ export default function CallbackReviews() {
           {item.matches.length > 0 && <div className="callback-rule-results matches"><strong>Qualifying rules</strong><ul>{item.matches.map((match) => <li key={match}>{match}</li>)}</ul></div>}
           {item.flags.length > 0 && <div className="callback-rule-results flags" role="alert"><strong>Approval flags</strong><ul>{item.flags.map((flag) => <li key={flag}>{flag}</li>)}</ul><small>Flagged for human review — not automatically denied.</small></div>}
           {item.status === "pending" ? <div className="callback-review-form">
-            <label><span>Approved hours</span><input type="number" min="0.25" max="24" step="0.25" value={approvedHours} onChange={(event) => setHours((current) => ({ ...current, [item.id]: Number(event.target.value) }))} /></label>
+            <label><span>Approved hours</span><input aria-label={`Approved hours for ${formatEmployeeName(item.employeeName)}`} type="number" min="0.25" max="24" step="0.25" value={approvedHours} onChange={(event) => setHours((current) => ({ ...current, [item.id]: Number(event.target.value) }))} /></label>
             <label className="callback-review-note"><span>Review note</span><input aria-label={`Review note for ${formatEmployeeName(item.employeeName)}`} placeholder="Optional review note" value={notes[item.id] ?? ""} onChange={(event) => setNotes((current) => ({ ...current, [item.id]: event.target.value }))} /></label>
             <div className="callback-review-actions"><button disabled={saving || loading || Boolean(error)} onClick={() => void send({ action: "review", id: item.id, status: "denied", reviewNote: notes[item.id] ?? "" })}>Deny</button><button className="primary-action compact" disabled={saving || loading || Boolean(error)} onClick={() => void send({ action: "review", id: item.id, status: "approved", approvedHours, reviewNote: notes[item.id] ?? "" })}>Approve &amp; Post Payroll</button></div>
           </div> : <div className="callback-reviewed-summary"><strong>{item.status === "approved" ? `${item.approvedHours.toFixed(2)} callback hours posted to payroll` : "Callback denied by reviewer"}</strong>{item.reviewNote && <span>{item.reviewNote}</span>}<small>Reviewer: {formatEmployeeName(item.reviewerName)}</small></div>}

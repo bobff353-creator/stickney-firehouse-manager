@@ -3212,3 +3212,39 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .alert-popover[hidden]{display:none!important}.device-push-status{font:inherit;font-size:.72rem;border:1px solid #bacbd5;background:#fff4df;color:#714609;border-radius:8px;padding:5px 8px;white-space:nowrap}.device-push-status.on{background:#edf8f0;color:#176241}.smart-alerts{display:flex;align-items:center;gap:6px}.account-setup-status{display:block;min-width:170px;color:#15364b}.account-setup-status small{display:block;white-space:normal;font-size:.75rem;line-height:1.4;margin-top:4px;color:#526878}.account-setup-panel{margin-bottom:20px}.account-setup-panel fieldset{margin-top:16px;padding:16px;border:1px solid #bacbd5;border-radius:10px}.account-setup-panel .primary-action{margin-top:16px}@media(max-width:600px){.smart-alerts{gap:3px}.device-push-status{max-width:55px;white-space:normal;font-size:.65rem;padding:4px}.account-setup-panel .section-header{flex-wrap:wrap}.account-setup-panel select{max-width:100%}}
 
 .inventory-more-tools{padding:10px 0}.inventory-more-tools summary{cursor:pointer;font-weight:650;min-height:40px;padding:10px;border-radius:8px}.inventory-more-tools summary:focus-visible{outline:3px solid #287ea6}
+
+/* Focused callback approval readability trial; existing department palette. */
+.callback-review-page { color: #17324d; line-height: 1.5; }
+.callback-review-page .content-card { min-width: 0; }
+.callback-review-page .callback-rules-card summary { cursor: pointer; min-height: 44px; padding: 4px 0; color: #17324d; }
+.callback-review-page .callback-rules-card summary > span { display: inline-grid; gap: 4px; vertical-align: top; max-width: calc(100% - 24px); }
+.callback-review-page .callback-rules-card summary strong { font-size: 17px; }
+.callback-review-page .callback-rules-card summary span span { font-size: 14px; font-weight: 400; color: #40566b; }
+.callback-review-page .callback-rules-card[open] summary { margin-bottom: 16px; }
+.callback-review-page .callback-review-heading > div { min-width: 0; overflow-wrap: anywhere; }
+.callback-review-page .callback-review-heading strong { font-size: 19px; line-height: 1.3; }
+.callback-review-page .callback-review-heading span:not(.callback-status),
+.callback-review-page .callback-review-heading small,
+.callback-review-page .callback-reviewed-summary small { font-size: 14px; color: #40566b; }
+.callback-review-page .callback-status { flex-shrink: 0; text-transform: capitalize; }
+.callback-review-page .callback-hour-summary span { font-size: 13px; text-transform: none; letter-spacing: normal; color: #40566b; }
+.callback-review-page .callback-hour-summary strong { font-size: 17px; overflow-wrap: anywhere; }
+.callback-review-page .callback-rule-grid span,
+.callback-review-page .callback-rule-results li,
+.callback-review-page .callback-rule-results small { font-size: 14px; line-height: 1.55; }
+.callback-review-page .callback-review-form label,
+.callback-review-page .callback-reviewer-row label { font-size: 14px; }
+.callback-review-page input,
+.callback-review-page select { min-height: 44px; min-width: 0; width: 100%; font-size: 16px; box-sizing: border-box; }
+.callback-review-page button { min-height: 44px; white-space: normal; line-height: 1.4; padding-top: 10px; padding-bottom: 10px; }
+.callback-review-page .callback-review-actions { flex-wrap: wrap; }
+.callback-review-page .callback-review-actions .primary-action { background: #17364a; color: #fff; border-color: #17364a; }
+.callback-review-page :is(button,input,select,summary):focus-visible { outline: 3px solid #166b9b; outline-offset: 3px; }
+.callback-review-page .callback-review-item { gap: 16px; }
+@media (max-width: 600px) {
+  .callback-review-page .callback-review-heading { flex-direction: column; gap: 8px; }
+  .callback-review-page .callback-review-actions { flex-direction: column; gap: 10px; }
+  .callback-review-page .callback-review-actions button { width: 100%; }
+  .callback-review-page .callback-hour-summary > div { min-height: 0; padding: 10px 12px; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .callback-review-page .callback-hour-summary strong { text-align: right; }
+}
