@@ -1,0 +1,76 @@
+{
+  "branch": "codex/app-readability-20261017",
+  "base": "ca1d7ce2514437095e8ddbefe05d044a466281e6",
+  "correctnessAncestor": "335de0f41b27970b80d0b33a423ae227e9f1fe27",
+  "implementationCommits": [
+    "a6ae4c55207fc0da645059f0b3e472d15f3cf934",
+    "3b356cff98f6294caa7cce83832f52eb035dbcc1"
+  ],
+  "tests": {
+    "command": "npm test",
+    "pass": 1427,
+    "fail": 0,
+    "skipped": 0
+  },
+  "finalBuild": "passed",
+  "typecheck": "passed",
+  "changedFileLint": {
+    "errors": 0,
+    "inheritedWarnings": 1
+  },
+  "fullLint": {
+    "errors": 19,
+    "warnings": 21,
+    "errorsReproducedOnBaseline": 19
+  },
+  "portalMatrix": {
+    "cases": 288,
+    "widths": [
+      320,
+      390,
+      768,
+      1280
+    ],
+    "preferences": [
+      "light",
+      "dark"
+    ],
+    "runtimeErrors": 0,
+    "overflowOverOnePixel": 0
+  },
+  "postchecks": 59,
+  "extraCases": 48,
+  "touchSweepRoutes": 36,
+  "loadingCases": 8,
+  "interactionFlows": [
+    {
+      "workflow": "employee search/edit/failure/retry",
+      "pass": true
+    },
+    {
+      "workflow": "policy reader and list return",
+      "pass": true
+    },
+    {
+      "workflow": "timesheet day and full comparison retain rows",
+      "pass": true
+    },
+    {
+      "workflow": "permission filter without changing grants",
+      "pass": true
+    },
+    {
+      "workflow": "wide table keyboard scroll and final-column action",
+      "pass": true
+    },
+    {
+      "workflow": "member navigation remains restricted",
+      "pass": true
+    }
+  ],
+  "screenshots": 16,
+  "pushed": false,
+  "deployed": false,
+  "hostedMutations": false,
+  "migrationChanges": false
+}
