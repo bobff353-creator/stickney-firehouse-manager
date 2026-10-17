@@ -1,3 +1,4 @@
+import { calendarWorkedHours } from "../../staffing-time";
 import { hasAnyPermission } from "../../server-permissions";
 import { hasPermission } from "../../server-permissions";
 import { ensureDatabase } from "../../../db/bootstrap";
@@ -65,6 +66,7 @@ export async function POST(request: Request) {
       const employeeIds = [...new Set(Array.isArray(payload.employeeIds) ? payload.employeeIds.map(String).filter(Boolean) : [])];
       const totalHours = Number(payload.totalHours);
       if (startTime === null || endTime === null) return Response.json({ error: "Enter valid 24-hour times, such as 0830 or 08:30." }, { status: 400 });
+      if (startTime && endTime) calendarWorkedHours(workDate,startTime,endTime);
       if ((startTime && !endTime) || (!startTime && endTime)) return Response.json({ error: "Enter both optional times or leave both blank." }, { status: 400 });
       if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate) || !requestingOfficerId || !approverId || !workType || !description || !payload.certified || employeeIds.length === 0 || !Number.isFinite(totalHours) || totalHours <= 0) return Response.json({ error: "Complete every required field, enter total time, select at least one member, and certify the sheet." }, { status: 400 });
       const validEmployees = await db.prepare(`SELECT COUNT(*) AS count FROM employees WHERE active = 1 AND id IN (${employeeIds.map(() => "?").join(",")})`).bind(...employeeIds).first<{ count: number }>();
@@ -103,6 +105,7 @@ export async function POST(request: Request) {
     }
     return Response.json({ error: "Unsupported work detail action." }, { status: 400 });
   } catch (error) {
+    if (error instanceof Error && error.name === "StaffingTimeError") return Response.json({error:error.message},{status:400});
     return Response.json({ error: error instanceof Error ? error.message : "Unable to save work detail" }, { status: 500 });
   }
 }

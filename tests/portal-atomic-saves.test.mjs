@@ -7,6 +7,8 @@ import { webcrypto } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
 import { roundPayrollToCent } from '../app/payroll-rounding.ts';
 import { dailyLogPayrollEntries, dailyLogPayrollTotals } from '../app/payroll-hours.ts';
+import { trainingModules } from './helpers/training-modules.mjs';
+const {actingOfficerSaveGuards,historicalStaffingPayGuard}=trainingModules()('app/staffing-payroll-server.ts');
 import { completedDispatchReportNumbers } from '../app/dispatch-closure.ts';
 
 // Runs the actual migration and adapter against an isolated PostgreSQL engine.
@@ -185,7 +187,7 @@ test('actual callback review route rolls back approval on payroll failure and pr
     `);
     const routeSource=fs.readFileSync(new URL('../app/api/callbacks/route.ts',import.meta.url),'utf8').replace(/^import[\s\S]*?;\r?\n/gm,'');
     let permitted=true;
-    const context={exports:{},Error,Response,URL,crypto:webcrypto,console:{error(){}},ensureDatabase:async()=>db,hasPermission:async()=>permitted};
+    const context={exports:{},actingOfficerSaveGuards,historicalStaffingPayGuard,Error,Response,URL,crypto:webcrypto,console:{error(){}},ensureDatabase:async()=>db,hasPermission:async()=>permitted};
     vm.runInNewContext(ts.transpileModule(routeSource,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,context);
     const request=()=>new Request('https://fixture.test/api/callbacks',{method:'POST',headers:{'content-type':'application/json','oai-authenticated-user-email':'fixture@example.test'},body:JSON.stringify({action:'review',id:'submission',status:'approved',approvedHours:2})});
     const fractionalRequest = new Request('https://fixture.test/api/callbacks', {method:'POST',headers:{'content-type':'application/json','oai-authenticated-user-email':'fixture@example.test'},body:JSON.stringify({action:'review',id:'submission',status:'approved',approvedHours:2.1})});
@@ -235,7 +237,7 @@ test('actual Daily Log and payroll entry routes reject stale, finalized and unau
       INSERT INTO firehouse.employee_profiles(employee_id,email,is_admin) VALUES('member','fixture@example.test',1);
       INSERT INTO firehouse.daily_logs(log_date) VALUES('2026-09-07');
     `);
-    const context={exports:{},Error,Response,URL,crypto:webcrypto,console:{error(){}},ensureDatabase:async()=>db,
+    const context={exports:{},actingOfficerSaveGuards,historicalStaffingPayGuard,Error,Response,URL,crypto:webcrypto,console:{error(){}},ensureDatabase:async()=>db,
       hasPermission:async(_request,_db,permission)=>permission!=='permissions.manage',
       chicagoOperationalContext:()=>({operationalDate:'2026-09-07',lockBeforeDate:'2026-09-07'}),
       completedDispatchReportNumbers:()=>[],holidayForPayrollDate:()=>null,
@@ -293,7 +295,7 @@ test('administrator unlock returns the exact new version so corrections save and
    INSERT INTO firehouse.daily_logs(log_date,shift_notes,locked,locked_by,locked_at) VALUES('2026-09-06','original',1,'System','existing lock');
   `);
   let admin=true;
-  const context={exports:{},Error,Response,URL,crypto:webcrypto,console:{error(){}},ensureDatabase:async()=>db,
+  const context={exports:{},actingOfficerSaveGuards,historicalStaffingPayGuard,Error,Response,URL,crypto:webcrypto,console:{error(){}},ensureDatabase:async()=>db,
    hasPermission:async(_request,_db,permission)=>permission!=='permissions.manage'||admin,
    chicagoOperationalContext:()=>({operationalDate:'2026-09-07',lockBeforeDate:'2026-09-07'}),
    completedDispatchReportNumbers,holidayForPayrollDate:()=>null,dailyLogPayrollEntries,dailyLogPayrollTotals};
@@ -349,7 +351,7 @@ test('bulk Daily Log save preserves every row, hours, manual entries and atomic 
       INSERT INTO firehouse.time_entries(id,period_start,hours,employee_id,work_date,category) VALUES('manual','2026-08-26',2,'member','2026-09-07','callback');
     `);
     let allowed = true;
-    const context = { exports: {}, Error, Response, URL, crypto: webcrypto, console: { error() {} }, ensureDatabase: async () => db,
+    const context = { exports: {}, actingOfficerSaveGuards, historicalStaffingPayGuard, Error, Response, URL, crypto: webcrypto, console: { error() {} }, ensureDatabase: async () => db,
       hasPermission: async () => allowed,
       chicagoOperationalContext: () => ({ operationalDate: '2026-09-07', lockBeforeDate: '2026-09-07' }),
       completedDispatchReportNumbers, holidayForPayrollDate: () => ({ name: 'Fixture holiday' }), dailyLogPayrollEntries, dailyLogPayrollTotals,
@@ -371,7 +373,7 @@ test('bulk Daily Log save preserves every row, hours, manual entries and atomic 
     assert.ok(version > 0);
     // 205 calls use three inserts, not 205 independently authorized statements.
     assert.equal(batches[0].filter(s => /INSERT INTO daily_log_calls/.test(s.sql)).length, 3);
-    assert.equal(batches[0].length, 14);
+    assert.equal(batches[0].length, 15);
     const calls = (await pg.query('SELECT * FROM firehouse.daily_log_calls ORDER BY sort_order')).rows;
     assert.equal(calls.length, 205);
     assert.equal(calls[204].address, "Fixture 204 Officer's Lane");

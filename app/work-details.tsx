@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatEmployeeName } from "./employee-names";
-import { workedHours } from "./payroll-hours";
+import { calendarWorkedHours } from "./staffing-time";
 import { normalize24HourTime } from "./military-time";
 
 type Person = { id: string; name: string; rank: string; isAdmin?: number };
@@ -10,7 +10,7 @@ type Detail = { id: string; workDate: string; requestingOfficerName: string; app
 type Data = { viewer: { employeeId: string | null; isAdmin: boolean }; employees: Person[]; officers: Person[]; approvers: Person[]; requests: Detail[] };
 type WorkDetailsProps = { onPayrollChanged?: (periodStart: string) => void };
 const localToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
-const initialForm = () => ({ workDate: localToday(), requestingOfficerId: "", approverId: "", startTime: "", endTime: "", totalHours: "", workType: "", description: "", certified: false });
+const initialForm = () => ({ workDate: localToday(), requestingOfficerId: "", approverId: "", startTime: "", endTime: "", totalHours: "", timeError: "", workType: "", description: "", certified: false });
 
 export default function WorkDetails({ onPayrollChanged }: WorkDetailsProps) {
   const [data, setData] = useState<Data | null>(null);
@@ -30,11 +30,15 @@ export default function WorkDetails({ onPayrollChanged }: WorkDetailsProps) {
   }, []);
   useEffect(() => { void load().catch((caught) => setError(caught instanceof Error ? caught.message : "Unable to load work details")); }, [load]);
   const hours = Number(form.totalHours);
-  function setOptionalTime(field: "startTime" | "endTime", value: string) {
+  function setOptionalTime(field: "startTime" | "endTime" | "workDate", value: string) {
     setForm((current) => {
       const next = { ...current, [field]: value };
       const start = normalize24HourTime(next.startTime), end = normalize24HourTime(next.endTime);
-      if (start && end) next.totalHours = workedHours(start, end).toFixed(2);
+      next.timeError = "";
+      if (start && end) {
+        try { next.totalHours = calendarWorkedHours(next.workDate,start,end).toFixed(2); }
+        catch (error) { next.totalHours = ""; next.timeError = error instanceof Error ? error.message : "Verify the attendance times before submitting."; }
+      }
       return next;
     });
   }
@@ -46,14 +50,14 @@ export default function WorkDetails({ onPayrollChanged }: WorkDetailsProps) {
   const filtered = useMemo(() => (data?.employees ?? []).filter((person) => `${person.name} ${person.rank}`.toLowerCase().includes(search.toLowerCase())), [data, search]);
   const selectedNames = (data?.employees ?? []).filter((person) => selected.includes(person.id)).map((person) => formatEmployeeName(person.name));
   async function post(payload: Record<string, unknown>) { const response = await fetch("/api/work-details", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) }); const result = await response.json() as { error?: string; periodStart?: string }; if (!response.ok) throw new Error(result.error || "Unable to save work detail"); return result; }
-  async function submit(event: React.FormEvent) { event.preventDefault(); const startTime = normalize24HourTime(form.startTime), endTime = normalize24HourTime(form.endTime); if (startTime === null || endTime === null) { setError("Enter valid 24-hour times, such as 0830 or 08:30."); return; } if (Boolean(startTime) !== Boolean(endTime)) { setError("Enter both optional times or leave both blank."); return; } setBusy(true); setError(""); try { await post({ action: "submit", ...form, startTime, endTime, employeeIds: selected }); setForm({ ...initialForm(), requestingOfficerId: data?.officers[0]?.id || "", approverId: data?.approvers[0]?.id || "" }); setSelected([]); setMessage("Work detail submitted for approval"); await load(); } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to submit work detail"); } finally { setBusy(false); } }
+  async function submit(event: React.FormEvent) { event.preventDefault(); if (form.timeError) { setError(form.timeError); return; } const startTime = normalize24HourTime(form.startTime), endTime = normalize24HourTime(form.endTime); if (startTime === null || endTime === null) { setError("Enter valid 24-hour times, such as 0830 or 08:30."); return; } if (Boolean(startTime) !== Boolean(endTime)) { setError("Enter both optional times or leave both blank."); return; } setBusy(true); setError(""); try { await post({ action: "submit", ...form, startTime, endTime, employeeIds: selected }); setForm({ ...initialForm(), requestingOfficerId: data?.officers[0]?.id || "", approverId: data?.approvers[0]?.id || "" }); setSelected([]); setMessage("Work detail submitted for approval"); await load(); } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to submit work detail"); } finally { setBusy(false); } }
   async function review(id: string, action: "approve" | "reject") { let note = ""; if (action === "reject") { note = window.prompt("Reason for rejection")?.trim() ?? ""; if (!note) return; } setBusy(true); setError(""); try { const result = await post({ action, id, note }); if (action === "approve" && result.periodStart) onPayrollChanged?.(result.periodStart); setMessage(action === "approve" ? "Approved hours were added to payroll and the timesheet was refreshed" : "Work detail rejected"); await load(); } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to review work detail"); } finally { setBusy(false); } }
   return <div className="work-detail-page">
     <section className="content-card work-detail-form-card"><div className="section-header"><div><p className="eyebrow">Payroll workflow</p><h2>New Work Detail Sheet</h2><p>Hours enter employee timesheets only after approval.</p></div><span className="count-badge">{data?.requests.filter((item) => item.status === "pending").length ?? 0} pending</span></div>
-      {error && <div className="error-banner" role="alert"><span>{error}</span><button type="button" disabled={busy} onClick={() => void load().then(() => setError("")).catch(caught => setError(caught instanceof Error ? caught.message : "Unable to load work details"))}>Retry work details</button></div>}{message && <div className="work-detail-message" role="status">{message}</div>}
+      {error && <div className="error-banner" role="alert"><span>{error}</span><button type="button" disabled={busy} onClick={() => void load().then(() => setError("")).catch(caught => setError(caught instanceof Error ? caught.message : "Unable to load work details"))}>Retry work details</button></div>}{form.timeError && <p role="alert">{form.timeError}</p>}{message && <div className="work-detail-message" role="status">{message}</div>}
       <form onSubmit={submit} className="work-detail-form"><fieldset><legend>Assignment</legend><div className="work-detail-fields">
         <label className="member-picker-field"><span>Employees on detail *</span><button type="button" className="member-picker-trigger" onClick={() => setPickerOpen((current) => !current)}>{selectedNames.length ? `${selectedNames.length} selected: ${selectedNames.join(", ")}` : "Select one or more employees"}<b>⌄</b></button>{pickerOpen && <div className="member-picker"><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search roster…" /><div>{filtered.map((person) => <label key={person.id}><input type="checkbox" checked={selected.includes(person.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, person.id] : current.filter((id) => id !== person.id))}/><span><strong>{formatEmployeeName(person.name)}</strong><small>{person.rank}</small></span></label>)}</div><button type="button" onClick={() => setPickerOpen(false)}>Done · {selected.length} selected</button></div>}</label>
-        <label><span>Date *</span><input type="date" required value={form.workDate} onChange={(event) => setForm({ ...form, workDate: event.target.value })}/></label>
+        <label><span>Date *</span><input type="date" required value={form.workDate} onChange={(event) => setOptionalTime("workDate", event.target.value)}/></label>
         <label><span>Requesting officer *</span><select required value={form.requestingOfficerId} onChange={(event) => setForm({ ...form, requestingOfficerId: event.target.value })}><option value="">Select officer</option>{data?.officers.map((person) => <option key={person.id} value={person.id}>{formatEmployeeName(person.name)} - {person.rank}</option>)}</select></label>
         <label><span>Send for approval to *</span><select required value={form.approverId} onChange={(event) => setForm({ ...form, approverId: event.target.value })}><option value="">Select approver</option>{data?.approvers.map((person) => <option key={person.id} value={person.id}>{formatEmployeeName(person.name)} - {person.rank}</option>)}</select></label>
         <label><span>Start time <small>(optional · 24-hour)</small></span><input type="text" inputMode="numeric" placeholder="08:30" aria-describedby="work-detail-time-help" value={form.startTime} onChange={(event) => { event.currentTarget.setCustomValidity(""); setOptionalTime("startTime", event.target.value); }} onBlur={(event) => finishTime("startTime", event.currentTarget)}/><small id="work-detail-time-help">Military time: enter 0830 or 08:30.</small></label>

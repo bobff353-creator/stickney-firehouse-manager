@@ -10,6 +10,8 @@ import { completedApparatusChecksForDate, incompleteRequiredFleetChecks, type Re
 import { fleetChecksForShift } from "../../fleet-check-shift";
 import { createInventorySupabaseClient } from "../../lib/supabase-server";
 
+import { actingOfficerSaveGuards, historicalStaffingPayGuard } from "../../staffing-payroll-server";
+
 const shifts = ["morning", "afternoon", "overnight"];
 const actorFor = (request: Request) => request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() || "System";
 // Fewer statements/auth checks inside the same atomic transaction. Query text
@@ -223,7 +225,7 @@ export async function POST(request: Request) {
         }
       }
       await db.batch([
-        db.prepare("UPDATE daily_logs SET updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE log_date = ? AND (locked=0 OR admin_unlocked=1)").bind(actor, date).expectChanges(1),
+        db.prepare("UPDATE daily_logs SET updated_by = ?, updated_at = CURRENT_TIMESTAMP, save_version=save_version+1 WHERE log_date = ? AND (locked=0 OR admin_unlocked=1)").bind(actor, date).expectChanges(1),
         db.prepare("INSERT OR IGNORE INTO daily_log_approvals (id, log_date, shift_key) VALUES (?, ?, ?)").bind(crypto.randomUUID(), date, shiftKey),
         mode === "in"
           ? db.prepare("UPDATE daily_log_approvals SET sign_in_officer_id = ?, sign_in_at = CURRENT_TIMESTAMP, sign_in_equipment = ?, sign_in_note = ?, reviewed_notes = 1 WHERE log_date = ? AND shift_key = ? AND sign_in_at IS NULL").bind(officerId, equipment, note, date, shiftKey).expectChanges(1)
@@ -257,10 +259,12 @@ export async function POST(request: Request) {
       logWrites.push(db.prepare(`UPDATE dispatch_incidents SET active = 0, cleared_at = COALESCE(cleared_at, CURRENT_TIMESTAMP) WHERE trim(incident_id) IN (${completedReports.map(() => "?").join(", ")})`).bind(...completedReports.map(report => report.trim())));
     }
     const holiday = await holidayForPayrollDate(db,date);
-    const totals = dailyLogPayrollTotals(staffing, holiday);
+    const totals = dailyLogPayrollTotals(staffing, holiday, date);
+    const actingGuards = await actingOfficerSaveGuards(db, date, staffing);
     const periodStart = payrollPeriodStart(date), periodEnd = payrollPeriodEnd(periodStart);
     const dpwEmployeeRows = await db.prepare("SELECT employee_id AS employeeId FROM employee_profiles WHERE is_dpw = 1").all();
     const dpwEmployees = new Set(dpwEmployeeRows.results.map((row) => String((row as { employeeId: string }).employeeId)));
+    await historicalStaffingPayGuard(db, date, operational.operationalDate, dpwEmployees, holiday);
     const payrollWrites = [
       db.prepare("INSERT OR IGNORE INTO pay_periods (start_date, end_date, status) VALUES (?, ?, 'draft')").bind(periodStart, periodEnd),
       // Daily Log owns these categories for this date. Manual drill, detail,
@@ -278,11 +282,13 @@ export async function POST(request: Request) {
     const saved = await db.batch<{ saveVersion: number }>([
       payrollWrites[0],
       db.prepare("UPDATE pay_periods SET updated_by = ? WHERE start_date = ? AND status <> 'finalized'").bind(actor, periodStart).expectChanges(1),
-      ...logWrites, ...payrollWrites.slice(1),
+      ...actingGuards, ...logWrites, ...payrollWrites.slice(1),
       db.prepare("SELECT save_version AS saveVersion FROM daily_logs WHERE log_date = ?").bind(date).batchFirst(),
     ]);
     return Response.json({ ok: true, saveVersion: saved.at(-1)?.saveVersion, payrollEmployeesUpdated: totals.size, periodStart, holiday: holiday?.name ?? null });
   } catch (error) {
+    if (error instanceof Error && error.name === "StaffingTimeError") return Response.json({ error: error.message }, { status: 400 });
+    if (error instanceof Error && error.name === "HistoricalStaffingPayError") return Response.json({ error: error.message }, { status: 409 });
     console.error("Daily Log save failed", error);
     if (error instanceof Error && /SAVE_CONFLICT|PAYROLL_FINALIZED/.test(error.message)) return Response.json({ error: "This log changed, was locked, or its payroll period was finalized. Your draft is retained on this device. Reload and review the saved record before trying again." }, { status: 409 });
     return Response.json({ error: "The server could not confirm the Daily Log and payroll save. Keep your draft and retry. If it already completed, reload and review the saved record when prompted." }, { status: 500 });

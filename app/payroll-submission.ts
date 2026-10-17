@@ -110,7 +110,10 @@ export function buildSubmission(source: PayrollSources, staffingThrough: string,
   for (const date of projectedDates) {
     const rows = scheduledStaffingForLog(source.schedule, date);
     if (!rows.length) blockers.push(`${date}: no assigned schedule positions. An empty schedule is not assumed to mean zero staffing.`);
-    const projected = dailyLogPayrollEntries(dailyLogPayrollTotals(rows, (source.holidayCalendars?calendarHolidayForDate(date,source.holidayCalendars):holidayForDate(date))), new Set(source.employees.filter(e => e.isDpw).map(e => e.id)));
+    let totals;
+    try { totals = dailyLogPayrollTotals(rows, (source.holidayCalendars?calendarHolidayForDate(date,source.holidayCalendars):holidayForDate(date)), date); }
+    catch (error) { blockers.push(`${date}: ${error instanceof Error ? error.message : "Staffing time could not be verified."}`); continue; }
+    const projected = dailyLogPayrollEntries(totals, new Set(source.employees.filter(e => e.isDpw).map(e => e.id)));
     for (const row of projected) entries.push({ ...row, workDate: date, category: row.category === "dailyLogDpw" ? "dpw" : row.category, basis: "schedule-estimate", sourceIds: rows.filter(r => r.employeeId === row.employeeId).map(r => r.id) });
   }
   if (projectedDates.length) warnings.push("Schedule estimates use the saved department schedule, not live Aladtec. Each work date covers 06:00 through 06:00 the following day. Acting Officer stipends are not inferred from a scheduled role; confirm them in the actual Daily Log.");
