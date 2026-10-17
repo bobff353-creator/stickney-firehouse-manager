@@ -47,10 +47,15 @@ test("individual item results update locally instead of reloading the dashboard"
   assert.match(operations, /recordCheckItems\("deficiency"/);
 });
 
-test("bulk location pass requires confirmation and excludes numeric readings", () => {
-  assert.match(operations, /CONFIRM LOCATION/);
-  assert.match(operations, /physically checking every listed item/);
-  assert.match(operations, /action: "bulk_record_check_items"/);
+test("bulk location review keeps numeric readings separate and requires individual decisions", async () => {
+  const bulk = await readFile(new URL("../app/inventory-bulk-review.tsx", import.meta.url), "utf8");
+  assert.match(operations, /pendingStandardItems = items.filter\(\(item\) => value\(item, "result"\) === "pending" && !isNumericReadingItem\(item\) && !isFluidLevelItem\(item\)\)/);
+  assert.match(operations, /Review results for this location/);
+  assert.match(bulk, /result:''/);
+  assert.match(bulk, /Nothing starts as passed/);
+  assert.match(bulk, /bulkDecisionReady\(d\)/);
+  assert.match(bulk, /Save reviewed items \/ retry unconfirmed/);
+  assert.match(operations, /action:'record_check_item',checkItemId:d.id,result:d.result,notes:d.notes/);
   assert.match(route, /check\.check_type !== "inventory"/);
   assert.match(route, /\(mileage\|odometer\)/);
   assert.match(route, /\.eq\("result", "pending"\)/);

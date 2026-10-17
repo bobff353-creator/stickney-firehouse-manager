@@ -154,7 +154,7 @@ test('server grants live scopes only for the verified department and matching pe
   const saved=process.env.PAYROLL_DEPARTMENT_ID;process.env.PAYROLL_DEPARTMENT_ID=dept;
   const reads=[],tasks=[];
   const server=load('app/lib/operational-signals.ts',{
-    'server-only':{},'next/server':{after:fn=>tasks.push(fn)},
+    'server-only':{},'next/server':{after:fn=>tasks.push(fn)},'../department-portal':{getPortalDepartment:async()=>({id:dept,isolated:false})},
     './apparatus-location-store':{locationDatabase:()=>({prepare(query){return{bind(...args){reads.push({query,args});return this;},first:async()=>({signal:{verified:true}})};}})},
     '../resend-dispatch-sync':{syncRecentResendDispatches:async()=>{}},
   });

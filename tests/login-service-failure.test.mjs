@@ -21,7 +21,7 @@ test('a database verification failure returns 503 without invoking Auth or faile
  const source=readFileSync(new URL('../app/api/auth/login/route.ts',import.meta.url),'utf8');
  const output=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
  const calls=[],logs=[];const exports={};
- const deps={
+ const deps={'../../../department-portal':{getPortalDepartment:async()=>({id:'test-department',isolated:false})},
   '@supabase/ssr':{createServerClient(){throw Error('Must not reach Auth');}},
   'next/headers':{cookies(){throw Error('Must not set cookies');}},
   'next/server':{},

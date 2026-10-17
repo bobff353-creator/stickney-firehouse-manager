@@ -50,14 +50,14 @@ test('call detection remains eager and polling intervals are unchanged', () => {
 
 test('Inventory shares concurrent background reads but fetches anew after a save', async () => {
   const source=fs.readFileSync('app/inventory-operations.tsx','utf8');
-  const block=source.slice(source.indexOf('  const load = useCallback('),source.indexOf('  }, [initialApparatusId, onRecords]);')+'  }, [initialApparatusId, onRecords]);'.length);
+  const block=source.slice(source.indexOf('  const load = useCallback('),source.indexOf('  }, [initialApparatusId, initialEquipmentId, initialWorkOrderId, onRecords]);')+'  }, [initialApparatusId, initialEquipmentId, initialWorkOrderId, onRecords]);'.length);
   assert.match(block,/fresh = false/);
   const code=ts.transpileModule(block,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
   let shown=null;const replies=[],records=[];
   const ref=current=>({current});
   const env={useCallback:fn=>fn,document:{visibilityState:'visible'},navigator:{onLine:true},
     itemSavePending:ref(false),itemSaveGeneration:ref(0),readPending:ref(null),readController:ref(null),readerMounted:ref(true),appliedRevision:ref(null),
-    initialApparatusId:'fixture',setLoading(){},setAccessRequired(){},setData(data){shown=data;},setViewerEmployeeId(){},setEmployees(){},setSelectedApparatusId(){},setLastSyncedAt(){},setRefreshError(){},onRecords:r=>records.push(r),
+    initialEquipmentId:'',initialWorkOrderId:'',initialApparatusId:'fixture',setLoading(){},setAccessRequired(){},setData(data){shown=data;},setViewerEmployeeId(){},setEmployees(){},setSelectedApparatusId(){},setLastSyncedAt(){},setRefreshError(){},onRecords:r=>records.push(r),
     fetch:async url=>url==='/api/operations'?await new Promise(resolve=>replies.push(resolve)):Response.json({}),
   };
   env.packetReader=ref({read:env.fetch});

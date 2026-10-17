@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import ts from 'typescript';
+import {trainingModules} from './helpers/training-modules.mjs';
 import * as jsx from 'react/jsx-runtime';
 import { renderToStaticMarkup } from 'react-dom/server';
 
@@ -13,7 +14,7 @@ const compiled=ts.transpileModule(helpers+renderer+'\nreturn renderActiveItem;',
 function fixture(reading='',canCheck=true) {
  const state={saved:[],issue:null};
  const scope={value:(row,key)=>String(row[key]??''),canCheck,numericReadings:{item:reading},busy:'',openOrdersByEquipment:new Map(),activeAllowsRelocation:false,pendingLocationChangeByEquipmentId:new Map(),itemSaveError:null,
-  setNumericReadings:()=>{},recordCheckItems:(_key,payload)=>state.saved.push(payload),setDeficiencyAssignees:()=>{},setDeficiencyItem:item=>{state.issue=item;}};
+  data:{exceptions:[],workOrders:[]},repairsForFinding:trainingModules()('app/equipment-continuity-model.ts').repairsForFinding,setNumericReadings:()=>{},recordCheckItems:(_key,payload)=>state.saved.push(payload),setDeficiencyAssignees:()=>{},setDeficiencyItem:item=>{state.issue=item;}};
  const render=new Function('require','exports',...Object.keys(scope),compiled)(()=>jsx,{},...Object.values(scope));
  return {state,render:(name,extra={})=>render({id:'item',equipment_name:name,result:'pending',response_type:'pass_fail',...extra})};
 }

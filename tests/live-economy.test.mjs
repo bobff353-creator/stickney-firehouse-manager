@@ -73,7 +73,7 @@ test('all TVs derive the same rotations from time, without a network timer',()=>
 test('Home summaries require document access but do not read document bodies or history',async()=>{
   const sql=[];let allowed=true;
   const db={prepare(query){sql.push(query);return{first:async()=>({count:17})};}};
-  const api=compileRoute('app/api/resources/route.ts',{'../../../db/bootstrap':{ensureDatabase:async()=>db},'../../server-permissions':{hasPermission:async()=>allowed}});
+  const api=compileRoute('app/api/resources/route.ts',{'../../document-workflow-store':{},'../../document-workflow':{},'../../../db/bootstrap':{ensureDatabase:async()=>db},'../../server-permissions':{hasPermission:async()=>allowed}});
   const request=new Request('https://fixture.invalid/api/resources?type=policy&summary=1');
   assert.deepEqual(await (await api.GET(request)).json(),{count:17});assert.deepEqual(sql,['SELECT COUNT(*) count FROM policies']);
   allowed=false;assert.equal((await api.GET(request)).status,403);assert.equal(sql.length,1);

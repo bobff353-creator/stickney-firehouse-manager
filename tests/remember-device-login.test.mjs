@@ -12,7 +12,7 @@ const loginResponse=await import(`data:text/javascript;base64,${Buffer.from(logi
 const compiled=ts.transpileModule(read('../app/api/auth/login/route.ts'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
 function harness({verified=true,rpcError=null,loginAllowed=true}={}) {
   const calls=[],cookies=[];
-  const modules={
+  const modules={'../../../department-portal':{getPortalDepartment:async()=>({id:'verified-department',isolated:false})},
     '@supabase/ssr':{createServerClient:(_url,_key,options)=>({auth:{signInWithPassword:async()=>{
       options.cookies.setAll([{name:'auth-session',value:'fixture-session',options:{secure:true}}]);return {data:{user:{id:'fixture-user'}},error:null};
     }},rpc:async(name,args)=>{calls.push({name,args});return {data:[{ok:verified,unlock_token:name==='verify_portal_pin_with_device'?'rd1_'+'c'.repeat(64):'legacy-token',remembered_until:new Date(Date.now()+604800000).toISOString()}],error:rpcError};}})},

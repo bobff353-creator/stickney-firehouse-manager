@@ -7,7 +7,7 @@ import { resolve } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { trainingModules } from './helpers/training-modules.mjs';
 
-const load = trainingModules({ [resolve('app/supabase-server.ts')]: {} });
+const load = trainingModules({ [resolve('app/supabase-server.ts')]: {}, [resolve('app/department-portal.ts')]: {getPortalDepartment:async()=>({id:'synthetic-distribution',isolated:false})} });
 const consent = load('app/station-distribution.ts');
 const logic = load('app/station-scheduler-logic.ts');
 const position = { id:'slot', role:'FF/Attendant', entryDate:'2099-01-07', shiftTypeId:'red-1', startTime:'06:00',endTime:'12:00',shiftStartTime:'06:00',shiftEndTime:'12:00',anchorDate:'2099-01-01',repeatEveryDays:6,shiftActive:1,isExtra:0 };

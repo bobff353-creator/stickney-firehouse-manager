@@ -7,12 +7,12 @@ import ts from 'typescript';
 function load(file, dependencies = {}) {
   const source = fs.readFileSync(new URL('../' + file, import.meta.url), 'utf8');
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-  const module = { exports: {} };
+  const compiledModule = { exports: {} };
   new Function('require', 'module', 'exports', code)(name => {
     if (!(name in dependencies)) throw Error('Unstubbed import: ' + name);
     return dependencies[name];
-  }, module, module.exports);
-  return module.exports;
+  }, compiledModule, compiledModule.exports);
+  return compiledModule.exports;
 }
 
 function fixture() {
@@ -22,15 +22,16 @@ function fixture() {
     const source = bootstrap.split('\n').find(line => line.includes(`CREATE TABLE IF NOT EXISTS ${name} (`));
     sql.exec(JSON.parse(source.match(/db\.prepare\((".*")\)/)[1]));
   }
+  sql.function('employee_id_for_login',email=>sql.prepare('SELECT employee_id FROM employee_profiles WHERE email=?').get(email)?.employee_id??null);
   sql.exec(`ALTER TABLE employee_profiles ADD COLUMN single_role INTEGER DEFAULT 0;
     INSERT INTO pay_scales VALUES('firefighter','Firefighter',23,34.5,34.5,1);
     INSERT INTO employees(id,name,pay_scale_id,sort_order) VALUES('fixture','Member, Test','firefighter',3);
     INSERT INTO employee_profiles(employee_id,email,phone,secondary_email,notes) VALUES('fixture','work@example.invalid','(708) 555-0101','old@example.invalid','Preserved note');`);
   const permissions = new Set(['employees.manage', 'employees.view', 'payroll.view_own', 'permissions.manage']);
-  const db = { failSecondary: false, prepare(query) { return { query, args: [], bind(...args) { this.args = args; return this; },
+  const db = { failSecondary: false, prepare(query) { return { query, args: [], bind(...args) { this.args = args; return this; }, expectChanges(count) { this.expected=count; return this; },
     async first() { return sql.prepare(query).get(...this.args) ?? null; },
     async all() { return { results: sql.prepare(query).all(...this.args) }; },
-    async run() { return sql.prepare(query).run(...this.args); },
+    async run() { const result=sql.prepare(query).run(...this.args); if(this.expected!=null&&result.changes!==this.expected)throw Error('SAVE_CONFLICT'); return result; },
   }; }, async batch(statements) {
     sql.exec('BEGIN');
     try {
@@ -43,7 +44,7 @@ function fixture() {
   } };
   const dependencies = { '../../../db/bootstrap': { ensureDatabase: async () => db }, '../../server-permissions': { permissionsForEmail: async email => email === 'work@example.invalid' ? permissions : new Set() } };
   const payroll = load('app/api/payroll/route.ts', { ...dependencies, '../../employee-names': load('app/employee-names.ts'), '../../phone-format': load('app/phone-format.ts'), '../../payroll-rounding': {}, '../../payroll-calculation': {} });
-  const directory = load('app/api/employee-directory/route.ts', dependencies);
+  const directory = load('app/api/employee-directory/route.ts', {...dependencies,'../../employment-status':load('app/employment-status.ts')});
   const payload = { action: 'saveEmployee', id: 'fixture', lastName: 'Member', firstName: 'Test', payScaleId: 'firefighter', email: 'work@example.invalid', phone: '7085550101', notes: 'Preserved note' };
   const request = (body, email = 'work@example.invalid') => new Request('https://portal.test/api/payroll', { method: 'POST', headers: { 'content-type': 'application/json', 'oai-authenticated-user-email': email }, body: JSON.stringify(body) });
   const read = () => ({ ...sql.prepare('SELECT email,secondary_email,phone,notes,is_admin FROM employee_profiles').get() });

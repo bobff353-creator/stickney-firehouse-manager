@@ -50,7 +50,7 @@ test("verified invited email login confirms once and then uses email plus PIN", 
 
 test("the portal does not render authorized records until the PIN session is verified", () => {
   assert.match(authContext, /__Secure-firehouse-access=verified/);
-  assert.match(page, /<AuthGateway \/>/);
+  assert.match(page, /<AuthGateway department=\{await getPortalDepartment\(\)\} \/>/);
   assert.match(gateway, /useState<Mode>\("loading"\)/);
   assert.match(gateway, /checkAccess\(data\.user, true\)/);
   assert.match(gateway, /event === "TOKEN_REFRESHED"/);
@@ -200,9 +200,9 @@ test("30 minutes of inactivity locks without unmounting unfinished work", () => 
 });
 
 test("the verified portal opens Inventory without a second sign-in", () => {
-  assert.match(payrollApp, /async function openInventory\(adminTask\?: string\)/);
+  assert.match(payrollApp, /async function openInventory\(adminTask\?: string, equipment\?: string\)/);
   assert.match(payrollApp, /fetch\("\/api\/auth\/pin", \{ method: "PATCH", cache: "no-store" \}\)/);
-  assert.match(payrollApp, /if \(response\?\.ok\) \{\s+window\.location\.assign\(inventoryAdminDestination\(adminTask\)\)/);
+  assert.match(payrollApp, /if \(response\?\.ok\) \{\s+const destination=new URL\(inventoryAdminDestination\(adminTask\),window\.location\.origin\)/);
   assert.match(payrollApp, /response\?\.status === 423[\s\S]*firehouse:session-lock/);
   assert.match(sessionIdleLock, /addEventListener\("firehouse:session-lock", forceLock\)/);
   assert.doesNotMatch(payrollApp, /if \(page === "Inventory"\) \{\s+window\.location\.assign/);

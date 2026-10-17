@@ -196,7 +196,8 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(page, /action:"deleteFeature"/);
   assert.match(page, /Delete feature/);
   assert.match(page, /canDeletePreplan&&<DeleteFeatureControl/);
-  assert.match(page, /action:"deleteHydrant"/);
+  assert.match(page, /action:restore\?'restoreHydrant':'archiveHydrant'/);
+  assert.match(page, /confirmation:'ARCHIVE'/);
   assert.match(api, /action === "deleteFeature"/);
   assert.match(api, /Administrator privileges are required to delete a mapped feature/);
   assert.match(api, /WHERE feature_id=\? AND preplan_id=\?/);
@@ -244,9 +245,10 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(photoApi, /WHERE id=\? AND preplan_id=\?/);
   assert.match(photoApi, /selected feature does not belong to this preplan/);
   assert.match(api, /linked_preplan_id=NULL/);
-  assert.match(hydrantApi, /action==="deleteHydrant"/);
-  assert.match(hydrantApi, /DELETE FROM field_hydrant_flow_tests/);
-  assert.match(hydrantApi, /DELETE FROM field_hydrant_flushes/);
+  assert.match(hydrantApi, /action==='deleteHydrant'/);
+  assert.doesNotMatch(hydrantApi, /DELETE FROM field_hydrant_flow_tests/);
+  assert.doesNotMatch(hydrantApi, /DELETE FROM field_hydrant_flushes/);
+  assert.match(hydrantApi, /changeHydrantArchive\(db,id,auth.actor,restore\)/);
   assert.match(bootstrap, /CREATE TABLE IF NOT EXISTS field_preplans/);
   assert.match(bootstrap, /CREATE TABLE IF NOT EXISTS field_preplan_features/);
   assert.match(bootstrap, /CREATE TABLE IF NOT EXISTS field_preplan_photos/);

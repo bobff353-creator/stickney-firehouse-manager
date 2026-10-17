@@ -87,7 +87,7 @@ test('preplan photos validate content signatures and reject active SVG or disgui
 });
 
 test('attachment routes isolate legacy content and disable MIME sniffing', async () => {
-  const config = route('next.config.ts').default;
+  const config = route('next.config.ts',{buildReleaseMetadata:()=>({})}).default;
   const rules = await config.headers();
   const attachment = rules.find(rule => rule.source.includes('field-preplans/photos'));
   for (const path of ['field-preplans/assets','safety-inspections/attachments','chief-board/attachments','employee-photo','digital-twin/media','operations/evidence','operations/documents']) assert.ok(attachment.source.includes(path));
