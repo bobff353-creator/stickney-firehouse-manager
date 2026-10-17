@@ -70,3 +70,7 @@
   #portal-workspace .road-closure-form :is(label,small) { font-size:14px; line-height:1.5; }
   #portal-workspace .road-closure-form :is(input,textarea) { min-height:44px; font-size:16px; max-width:100%; box-sizing:border-box; }
 }
+@media screen {
+  /* Paper workspaces and sign-in cards need the darker brand blue for focus contrast. */
+  :is(#portal-workspace,.login-shell) :is(.fi-workspace,.training-workspace,.nr-workspace,.login-card) :focus-visible { outline-color:#166b9b; }
+}
