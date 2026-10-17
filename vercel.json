@@ -2,6 +2,11 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "outputDirectory": ".next",
+  "git": {
+    "deploymentEnabled": {
+      "codex/recovered-dot-20261017": false
+    }
+  },
   "crons": [
     {
       "path": "/api/cron/dispatch-recovery",
