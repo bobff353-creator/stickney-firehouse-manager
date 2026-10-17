@@ -1,7 +1,11 @@
 # Isolated staging and restore-verification plan
 
-Status: reviewable plan only. No service provisioned, production backup downloaded,
-restore run, security settings changed, or production notification sent.
+Status: production staging/restore steps remain a reviewable plan. No service was
+provisioned, production backup downloaded, security setting changed, or production
+notification sent. The follow-up completed a synthetic local PGlite snapshot and
+separate file-byte restore into a fresh database; see the follow-up report and
+`tests/isolated-restore.test.mjs`. That exercise does not verify the production
+backup, hosted Supabase Auth/Storage, PITR, or production RPO/RTO.
 
 ## Establish isolation first
 

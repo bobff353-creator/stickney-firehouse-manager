@@ -89,20 +89,28 @@ repository records of instructions, not newly obtained signed personnel policy.
 
 ## Verification
 
+Follow-up: the 43 remaining failures from the first pass were investigated and
+repaired in `2422aee5a9f22a471c43bc4f241f7ae5983d6f7e`. The failure classification,
+additional behavior tests, exact policy questions and local restore evidence are
+in `followup-failure-classification-and-policy-questions.md`. The acceptance JSON
+records the final complete run: **`npm test` passed the build and 1,406 tests
+with zero failures/skips**. The intermediate comparison below is retained
+as evidence rather than the current release-test result.
+
 - Node 24.19.0; committed lock installed with `npm ci --ignore-scripts` using a
   writable temporary npm cache. No packages or dependency versions changed.
 - Focused isolated acceptance: **186 passed, 0 failed** across 25 test files.
   Includes actual handlers and PGlite transactions with synthetic data, replay,
   fault injection, concurrent deliveries/saves, roles, payroll, and recovery.
 - TypeScript and changed-file ESLint passed; `git diff --check` passed.
-- Production build passed (97 generated pages). Final full isolated suite:
+- Production build passed (97 generated pages). First-pass full isolated suite:
   **1,360 passed / 1,403 tests; 43 failed**. Untouched base under the same isolation
   guard/dependencies: **1,343 passed / 1,397 tests; 54 failed**. Every remaining
   failed test name also fails on the base; there are no new failed names. These
   include stale source-text expectations and incomplete mocks (department request
   context, employment status, repair helpers, release metadata). They are retained
-  as failures, not skipped or weakened to manufacture a green run. This branch is
-  **not release-ready** until the full acceptance gate is reconciled.
+  as failures in that run, not skipped or weakened to manufacture a green run. This branch is
+  **not release-ready at that point** until the full acceptance gate was reconciled.
   `acceptance-results-20261017.json` lists the exact remaining tests/files and
   comparison. The current run adds six test cases; fixture repairs also recover
   the previously broken atomic-save/outbox acceptance tests.
@@ -143,12 +151,13 @@ owner review. A push itself may trigger Vercel, so this handoff stays local.
    retrieved. Independent reconciliation of actual employee pay is **incomplete**.
    Missing or incomplete original time records must be flagged, not reconstructed
    from schedules or current database totals.
-4. Reconcile inherited full-suite failures and review any exact-source failures
-   before release. Do not treat an RLS table/bucket count as access-control proof;
+4. The inherited full-suite failures have been repaired; final results are in
+   the acceptance JSON. Do not treat an RLS table/bucket count as access-control proof;
    verify actual deployed policies, function grants, direct Data API and storage
    behavior for each role in an approved isolated environment.
 5. Confirm an isolated staging target and a usable backup/restore path using the
-   companion plan. No restore has been performed or verified here.
+   companion plan. A synthetic local database/file restore passed in the follow-up;
+   a production-backup/Supabase restore remains unverified.
 6. Parent must request any consequential action: pushing (deployment hooks),
    release, applying any future policy migration, production access/configuration,
    backup/export of sensitive records, external credentials or paid provisioning.

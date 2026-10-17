@@ -1,0 +1,34 @@
+{
+  "repository": "bobff353-creator/stickney-firehouse-manager",
+  "verificationWindow": "October 16-17, 2026 review",
+  "remoteMainAtVerification": "e03428842255febd9a83539516a4d720265ce43c",
+  "remoteDeployedBranch": "codex/eso-review-fixes",
+  "verifiedBaseCommit": "f8466609294970261d74e717256675e367aff66b",
+  "vercelInspection": {
+    "deploymentId": "dpl_AmHgNY5EQM5AUU9yxbuoKsaivk3A",
+    "projectId": "prj_RTtTvD39FwyEGUovkPg8wxrdJCtF",
+    "state": "READY",
+    "source": "cli",
+    "gitSourceMetadataPresent": false,
+    "productionAlias": "stickney-firehouse-manager.vercel.app",
+    "sameDeploymentAliases": [
+      "test-firehouse-manager.vercel.app",
+      "stickney-firehouse-manager.vercel.app",
+      "stickney-firehouse-manager-fire-pre-plan-pro.vercel.app"
+    ]
+  },
+  "retainedSourceManifest": {
+    "path": "src/.release-source.json",
+    "deploymentFileId": "697f909a50d924a63f24d56a85a47b0f167be2ef",
+    "base64Response": "eyJjb21taXQiOiJmODQ2NjYwOTI5NDk3MDI2MWQ3NGU3MTcyNTY2NzVlMzY3YWZmNjZiIn0=",
+    "decoded": { "commit": "f8466609294970261d74e717256675e367aff66b" }
+  },
+  "publicHealthReadStatus": 403,
+  "authenticatedBypassCreated": false,
+  "liveMutationTestsRun": false,
+  "limitations": [
+    "Retained source identity establishes baseline selection; it does not attest every uploaded byte.",
+    "Neither a deployed source manifest nor RLS/bucket counts verify live authorization or restore correctness.",
+    "The test hostname aliases production and cannot establish isolation."
+  ]
+}
