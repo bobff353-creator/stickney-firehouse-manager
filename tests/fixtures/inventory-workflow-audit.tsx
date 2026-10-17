@@ -35,6 +35,8 @@ import '../../app/inventory/./service-schedule.css';
 import '../../app/inventory/../suite-theme.css';
 import '../../app/inventory/./bento.css';
 import '../../app/inventory/layout-fit.css';
+import '../../app/readability.css';
+import '../../app/inventory/readability.css';
 
 if (!['127.0.0.1', 'localhost'].includes(location.hostname)) throw Error('Local fixtures only');
 const performanceAudit = new URLSearchParams(location.search).has('performance');

@@ -12,3 +12,35 @@
   .inventory-app-shell.inventory-portal-refresh :is(.inventory-command-hero,.equipment-search-tools) { gap:12px; }
   .inventory-app-shell.inventory-portal-refresh :is(.inventory-actions,.inventory-toolbar,.inventory-command-actions) { flex-wrap:wrap; gap:10px; }
 }
+
+/* The apparatus builder uses paper cards inside the slate inventory shell.
+   Keep their ink paired with those surfaces instead of inheriting slate text. */
+@media screen {
+  .inventory-app-shell.inventory-app-shell.inventory-portal-refresh .builder-live {
+    background:#f5f8fb; color:#17324d;
+  }
+  .inventory-app-shell.inventory-app-shell.inventory-portal-refresh .builder-live :is(h2,h3,h4,strong,label,legend) {
+    color:#17324d;
+  }
+  .inventory-app-shell.inventory-app-shell.inventory-portal-refresh .builder-live :is(p,small,.eyebrow),
+  .inventory-app-shell.inventory-app-shell.inventory-portal-refresh .builder-live .capture-head > div > span {
+    color:#40566b;
+  }
+  .inventory-app-shell.inventory-app-shell.inventory-portal-refresh .builder-live button :is(span,b,small,strong,.eyebrow) {
+    color:inherit;
+  }
+  .inventory-app-shell.inventory-app-shell.inventory-portal-refresh .builder-live :focus-visible {
+    outline:3px solid #166b9b; outline-offset:3px;
+  }
+
+  .inventory-app-shell.inventory-app-shell.inventory-portal-refresh .builder-live .builder-section-nav button > span {
+    background:#e6ecee; color:#17324d;
+  }
+  .inventory-app-shell.inventory-app-shell.inventory-portal-refresh .builder-live :is(.compartment-manager > article,.compartment-photo-pair > div) {
+    background:#fff; color:#17324d;
+  }
+  .inventory-app-shell.inventory-app-shell.inventory-portal-refresh .builder-live :is(.compartment-manager header span,.compartment-photo-pair > div > span) {
+    color:#40566b;
+  }
+  .inventory-app-shell.inventory-app-shell.inventory-portal-refresh .builder-live .compartment-photo-pair > div > span { background:#eef2f2; color:#40566b; }
+}
