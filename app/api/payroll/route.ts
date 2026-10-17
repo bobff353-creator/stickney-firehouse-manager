@@ -132,8 +132,8 @@ export async function POST(request: Request) {
       const workDate = String(payload.workDate ?? "");
       const category = String(payload.category ?? "");
       const hours = Number(payload.hours ?? 0);
-      if (!employeeId || !/^\d{4}-\d{2}-\d{2}$/.test(workDate) || !categories.includes(category as typeof categories[number]) || !Number.isFinite(hours) || hours < 0 || hours > 48) {
-        return Response.json({ error: "Invalid time entry" }, { status: 400 });
+      if (!employeeId || !/^\d{4}-\d{2}-\d{2}$/.test(workDate) || !categories.includes(category as typeof categories[number]) || !Number.isFinite(hours) || !Number.isInteger(hours * 4) || hours < 0 || hours > 48) {
+        return Response.json({ error: "Time entries must be between 0 and 48 hours in quarter-hour increments." }, { status: 400 });
       }
       if (workDate < periodStart || workDate > periodEnd(periodStart) || new Date(`${workDate}T12:00:00Z`).toISOString().slice(0, 10) !== workDate) return Response.json({ error: "The work date must be inside this payroll period." }, { status: 400 });
       const automaticDpw = category === "dpw"

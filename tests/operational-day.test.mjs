@@ -26,3 +26,17 @@ test("the prior operational log locks at 7:00 AM", () => {
   assert.equal(atSeven.inLockGracePeriod, false);
   assert.equal(dailyLogDateIsAutoLocked("2026-07-26", new Date("2026-07-27T12:00:00Z")), true);
 });
+
+test('Chicago 6 a.m. operational boundaries follow both DST offsets without changing calendar dates', () => {
+  for (const [before, at, priorDate, newDate] of [
+    ['2026-03-08T10:59:59Z','2026-03-08T11:00:00Z','2026-03-07','2026-03-08'],
+    ['2026-11-01T11:59:59Z','2026-11-01T12:00:00Z','2026-10-31','2026-11-01'],
+    ['2027-01-01T11:59:59Z','2027-01-01T12:00:00Z','2026-12-31','2027-01-01'],
+  ]) {
+    assert.equal(chicagoOperationalContext(new Date(before)).operationalDate, priorDate);
+    assert.equal(chicagoOperationalContext(new Date(at)).operationalDate, newDate);
+  }
+  for (const repeatedHour of ['2026-11-01T06:30:00Z','2026-11-01T07:30:00Z']) {
+    assert.equal(chicagoOperationalContext(new Date(repeatedHour)).operationalDate, '2026-10-31');
+  }
+});

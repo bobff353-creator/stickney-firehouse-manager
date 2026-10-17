@@ -139,10 +139,10 @@ test('durable CAD queue: actual migration and delivery worker against local Post
      if(args.p_sql.includes('finish_cad_push_batch'))counters.acks++;
      return{data:await execute(pg,args.p_sql,args.p_mode),error:null};
    }catch(error){return{data:null,error:{message:error.message}};}}};
-   const adapter=loadTs('../db/postgres-adapter.ts',{'../app/supabase-server':{getSupabaseServerClient:async()=>client},'./sql-literal':loadTs('../db/sql-literal.ts')});
+   const adapter=loadTs('../db/postgres-adapter.ts',{'../app/supabase-server':{getSupabaseServerClient:async()=>client},'./sql-literal':loadTs('../db/sql-literal.ts'),'../app/department-portal':{getPortalDepartment:async()=>({id:department,isolated:false})}});
    const db=adapter.createPostgresD1Adapter(async()=>client,'firehouse_server_sql','fixture-only');
    const worker=loadTs('../app/cad-push-worker.ts',{'server-only':{},'next/server':{after:fn=>callbacks.push(fn)},'../db/postgres-adapter':adapter,'./supabase-system':{getSupabaseSystemClient:async()=>client},'./portal-server-headers':{portalServerHeaders:()=>({'x-firehouse-server-key':'fixture-only'})},'./cad-push':{webPushPublicConfig:()=>({configured:true}),deliverCadPush:async()=>{counters.sends++;}},'./cad-push-delivery':{drainCadPush}});
-   const bridge=loadTs('../app/api/dispatch-bridge/route.ts',{'../../../db/bootstrap':{ensureDatabase:async()=>db},'../../dispatch-daily-log':{projectDispatchIntoDailyLog:async()=>{assert.equal(await count('cad_push_events'),1);assert.equal(callbacks.length>0,true);}},'../../cad-push-worker':worker});
+   const bridge=loadTs('../app/api/dispatch-bridge/route.ts',{'../../../db/bootstrap':{ensureDatabase:async()=>db},'../../dispatch-daily-log':{dispatchDailyLogStatements:()=>[db.prepare('SELECT 1')]},'../../cad-push-worker':worker});
    const prior=process.env.DISPATCH_BRIDGE_READ_TOKEN;process.env.DISPATCH_BRIDGE_READ_TOKEN='local-fixture-token';
    try {
      const request=authorized=>new Request('https://fixture.invalid/api/dispatch-bridge',{method:'POST',headers:{authorization:authorized?'Bearer local-fixture-token':'Bearer wrong','Content-Type':'application/json'},body:JSON.stringify({reportNumber:'FIXTURE-CALL-1',callType:'LOCAL TEST',dispatchedAt:new Date().toISOString(),narrative:'Fixture text with SQL words: call; no credentials'})});
@@ -176,7 +176,7 @@ test('durable CAD queue: actual migration and delivery worker against local Post
  } finally {await pg.close();}
 });
 
-test('all CAD entry points schedule durable delivery after the commit, before Daily Log projection',()=>{
+test('CAD entry points commit Daily Log and durable outbox before scheduling delivery',()=>{
  for(const file of ['app/api/cad/cis/route.ts','app/api/dispatch-bridge/route.ts','app/api/resend-dispatch/route.ts']) {
    const source=readFileSync(new URL('../'+file,import.meta.url),'utf8');
    assert.doesNotMatch(source,/sendCadPushNotifications|incidentAlreadyStored/);
@@ -186,8 +186,8 @@ test('all CAD entry points schedule durable delivery after the commit, before Da
      assert.ok(ingest.indexOf('dispatchDailyLogStatements(db')<ingest.indexOf('await db.batch(statements)'),'CIS log and outbox commit together');
      assert.ok(source.indexOf('await ingestCisDelivery(')<source.indexOf('scheduleCadPushDelivery(pushIncidentId)'));
    } else {
-     assert.match(source,/WITH cad_push_enabled AS MATERIALIZED.*FROM cad_push_enabled ON CONFLICT/);
-     assert.ok(source.indexOf('scheduleCadPushDelivery(',source.indexOf('export'))<source.indexOf('await projectDispatchIntoDailyLog'));
+     assert.match(source,/await db.batch\(\[incidentWrite, \.\.\.dispatchDailyLogStatements/);
+     assert.ok(source.indexOf('await db.batch(')<source.indexOf('scheduleCadPushDelivery(',source.indexOf('export')));
    }
  }
  const worker=readFileSync(new URL('../app/cad-push-worker.ts',import.meta.url),'utf8');

@@ -16,13 +16,15 @@ export async function projectDispatchIntoDailyLog(db: Database, incident: DailyL
   await db.batch(dispatchDailyLogStatements(db, incident));
 }
 
-export function dispatchDailyLogStatements(db: Database, incident: DailyLogDispatch, cisAuthoritative = false) {
+export function dispatchDailyLogStatements(db: Database, incident: DailyLogDispatch, cisAuthoritative = false, onlyActive = false) {
   const logDate = chicagoOperationalContext(new Date(incident.dispatchedAt)).operationalDate;
   const callId = `dispatch:${incident.reportNumber}`;
 
+  // The bridge must acknowledge late deliveries without changing a closed call.
+  const protectedIncident = onlyActive ? "(source_system='CIS CAD' OR active=0 OR cleared_at IS NOT NULL)" : "source_system='CIS CAD'";
   return [
-    db.prepare("INSERT OR IGNORE INTO daily_logs (log_date, created_by, updated_by) SELECT ?, 'CAD email', 'CAD email' WHERE ?=1 OR NOT EXISTS (SELECT 1 FROM dispatch_incidents WHERE incident_id=? AND source_system='CIS CAD')").bind(logDate, cisAuthoritative ? 1 : 0, incident.reportNumber),
-    db.prepare("UPDATE daily_log_calls SET time_out = ?, responding_units = ?, address = ?, call_type = ? WHERE log_date = ? AND report_number = ? AND (?=1 OR NOT EXISTS (SELECT 1 FROM dispatch_incidents WHERE incident_id=? AND source_system='CIS CAD'))").bind(
+    db.prepare(`INSERT OR IGNORE INTO daily_logs (log_date, created_by, updated_by) SELECT ?, 'CAD email', 'CAD email' WHERE ?=1 OR NOT EXISTS (SELECT 1 FROM dispatch_incidents WHERE incident_id=? AND ${protectedIncident})`).bind(logDate, cisAuthoritative ? 1 : 0, incident.reportNumber),
+    db.prepare(`UPDATE daily_log_calls SET time_out = ?, responding_units = ?, address = ?, call_type = ? WHERE log_date = ? AND report_number = ? AND (?=1 OR NOT EXISTS (SELECT 1 FROM dispatch_incidents WHERE incident_id=? AND ${protectedIncident}))`).bind(
       incident.timeOut,
       incident.respondingUnits,
       incident.address,
@@ -33,7 +35,7 @@ export function dispatchDailyLogStatements(db: Database, incident: DailyLogDispa
       incident.reportNumber,
     ),
     db.prepare(
-      "INSERT INTO daily_log_calls (id, log_date, report_number, time_out, time_in, responding_units, address, call_type, sort_order) SELECT ?, ?, ?, ?, '', ?, ?, ?, COALESCE((SELECT MAX(sort_order) + 1 FROM daily_log_calls WHERE log_date = ?), 0) WHERE NOT EXISTS (SELECT 1 FROM daily_log_calls WHERE log_date = ? AND report_number = ?) AND (?=1 OR NOT EXISTS (SELECT 1 FROM dispatch_incidents WHERE incident_id=? AND source_system='CIS CAD'))"
+      `INSERT INTO daily_log_calls (id, log_date, report_number, time_out, time_in, responding_units, address, call_type, sort_order) SELECT ?, ?, ?, ?, '', ?, ?, ?, COALESCE((SELECT MAX(sort_order) + 1 FROM daily_log_calls WHERE log_date = ?), 0) WHERE NOT EXISTS (SELECT 1 FROM daily_log_calls WHERE log_date = ? AND report_number = ?) AND (?=1 OR NOT EXISTS (SELECT 1 FROM dispatch_incidents WHERE incident_id=? AND ${protectedIncident}))`
     ).bind(
       callId,
       logDate,

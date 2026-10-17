@@ -13,7 +13,7 @@ import { completedDispatchReportNumbers } from '../app/dispatch-closure.ts';
 // No production credentials, records, or network requests are used.
 const migration = fs.readFileSync(new URL('../supabase/migrations/20260908032620_portal_atomic_saves.sql', import.meta.url), 'utf8');
 const source = fs.readFileSync(new URL('../db/postgres-adapter.ts',import.meta.url),'utf8').replace(/^import .*;\r?\n/gm,'');
-const sandbox = { exports: {}, Error, getSupabaseServerClient: () => { throw new Error('No production client in tests'); }, sqlLiteral: v => v == null ? 'NULL' : typeof v === 'number' ? String(v) : `'${String(v).replaceAll("'", "''")}'` };
+const sandbox = { exports: {}, Error, getPortalDepartment: async () => ({ id: 'synthetic', isolated: false }), getSupabaseServerClient: () => { throw new Error('No production client in tests'); }, sqlLiteral: v => v == null ? 'NULL' : typeof v === 'number' ? String(v) : `'${String(v).replaceAll("'", "''")}'` };
 vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,sandbox);
 
 async function setup() {
@@ -33,6 +33,9 @@ async function setup() {
       EXECUTE 'SELECT coalesce(jsonb_agg(to_jsonb(r)),''[]''::jsonb) FROM ('||p_sql||') r' INTO result; RETURN result;
     END $$;
     CREATE FUNCTION public.firehouse_server_sql(p_sql text,p_mode text DEFAULT 'all',p_secret text DEFAULT NULL) RETURNS jsonb LANGUAGE sql AS $$ SELECT public.firehouse_sql(p_sql,p_mode,p_secret) $$;`);
+  await pg.exec(`CREATE FUNCTION firehouse.employee_id_for_login(login_email text) RETURNS text LANGUAGE plpgsql AS $$
+    DECLARE member_id text;
+    BEGIN EXECUTE 'SELECT employee_id FROM firehouse.employee_profiles WHERE lower(email)=lower($1)' INTO member_id USING login_email; RETURN member_id; END $$;`);
   await pg.exec(migration);
   await pg.exec(`CREATE FUNCTION public.inventory_save_air_asset(uuid,uuid,timestamp with time zone,jsonb)
     RETURNS jsonb LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'Fixture stale asset' USING ERRCODE='40001'; END $$;`);
@@ -185,6 +188,9 @@ test('actual callback review route rolls back approval on payroll failure and pr
     const context={exports:{},Error,Response,URL,crypto:webcrypto,console:{error(){}},ensureDatabase:async()=>db,hasPermission:async()=>permitted};
     vm.runInNewContext(ts.transpileModule(routeSource,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,context);
     const request=()=>new Request('https://fixture.test/api/callbacks',{method:'POST',headers:{'content-type':'application/json','oai-authenticated-user-email':'fixture@example.test'},body:JSON.stringify({action:'review',id:'submission',status:'approved',approvedHours:2})});
+    const fractionalRequest = new Request('https://fixture.test/api/callbacks', {method:'POST',headers:{'content-type':'application/json','oai-authenticated-user-email':'fixture@example.test'},body:JSON.stringify({action:'review',id:'submission',status:'approved',approvedHours:2.1})});
+    assert.equal((await context.exports.POST(fractionalRequest)).status,400);
+    assert.equal((await pg.query('SELECT status FROM firehouse.daily_log_callback_submissions')).rows[0].status,'pending');
     assert.equal((await context.exports.POST(request())).status,500);
     assert.equal((await pg.query('SELECT status FROM firehouse.daily_log_callback_submissions')).rows[0].status,'pending');
     assert.equal((await pg.query('SELECT count(*)::int AS n FROM firehouse.callback_payroll_aggregates')).rows[0].n,0);
@@ -232,7 +238,7 @@ test('actual Daily Log and payroll entry routes reject stale, finalized and unau
     const context={exports:{},Error,Response,URL,crypto:webcrypto,console:{error(){}},ensureDatabase:async()=>db,
       hasPermission:async(_request,_db,permission)=>permission!=='permissions.manage',
       chicagoOperationalContext:()=>({operationalDate:'2026-09-07',lockBeforeDate:'2026-09-07'}),
-      completedDispatchReportNumbers:()=>[],holidayForDate:()=>null,
+      completedDispatchReportNumbers:()=>[],holidayForPayrollDate:()=>null,
       dailyLogPayrollTotals:()=>new Map([['member',6]]),
       dailyLogPayrollEntries:()=>[{employeeId:'member',category:'shift',hours:6}],
     };
@@ -290,7 +296,7 @@ test('administrator unlock returns the exact new version so corrections save and
   const context={exports:{},Error,Response,URL,crypto:webcrypto,console:{error(){}},ensureDatabase:async()=>db,
    hasPermission:async(_request,_db,permission)=>permission!=='permissions.manage'||admin,
    chicagoOperationalContext:()=>({operationalDate:'2026-09-07',lockBeforeDate:'2026-09-07'}),
-   completedDispatchReportNumbers,holidayForDate:()=>null,dailyLogPayrollEntries,dailyLogPayrollTotals};
+   completedDispatchReportNumbers,holidayForPayrollDate:()=>null,dailyLogPayrollEntries,dailyLogPayrollTotals};
   const route=fs.readFileSync(new URL('../app/api/logbook/route.ts',import.meta.url),'utf8').replace(/^import[\s\S]*?;\r?\n/gm,'');
   vm.runInNewContext(ts.transpileModule(route,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,context);
   const request=body=>new Request('https://fixture.test/api/logbook',{method:'POST',headers:{'content-type':'application/json','oai-authenticated-user-email':'fixture@example.test'},body:JSON.stringify({logDate:'2026-09-06',...body})});
@@ -346,7 +352,7 @@ test('bulk Daily Log save preserves every row, hours, manual entries and atomic 
     const context = { exports: {}, Error, Response, URL, crypto: webcrypto, console: { error() {} }, ensureDatabase: async () => db,
       hasPermission: async () => allowed,
       chicagoOperationalContext: () => ({ operationalDate: '2026-09-07', lockBeforeDate: '2026-09-07' }),
-      completedDispatchReportNumbers, holidayForDate: () => ({ name: 'Fixture holiday' }), dailyLogPayrollEntries, dailyLogPayrollTotals,
+      completedDispatchReportNumbers, holidayForPayrollDate: () => ({ name: 'Fixture holiday' }), dailyLogPayrollEntries, dailyLogPayrollTotals,
     };
     const route = fs.readFileSync(new URL('../app/api/logbook/route.ts', import.meta.url), 'utf8').replace(/^import[\s\S]*?;\r?\n/gm, '');
     vm.runInNewContext(ts.transpileModule(route, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, context);

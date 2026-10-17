@@ -167,8 +167,8 @@ export async function POST(request: Request) {
       }
 
       const requestedHours = Number(body.approvedHours ?? submission.suggestedHours);
-      const approvedHours = Math.round(requestedHours * 4) / 4;
-      if (!Number.isFinite(approvedHours) || approvedHours < 0.25 || approvedHours > 24) return Response.json({ error: "Approved callback hours must be between 0.25 and 24 in quarter-hour increments." }, { status: 400 });
+      const approvedHours = requestedHours;
+      if (!Number.isFinite(approvedHours) || !Number.isInteger(approvedHours * 4) || approvedHours < 0.25 || approvedHours > 24) return Response.json({ error: "Approved callback hours must be between 0.25 and 24 in quarter-hour increments." }, { status: 400 });
       const period = payrollPeriod(submission.logDate);
       await db.batch([
         db.prepare("INSERT OR IGNORE INTO pay_periods(start_date,end_date,status) VALUES(?,?,'draft')").bind(period.start, period.end),
