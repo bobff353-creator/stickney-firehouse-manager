@@ -1,5 +1,10 @@
 # Follow-up: baseline failures, policy questions and missing payroll evidence
 
+Update: Bob clarified AO concurrency and actual elapsed DST hours on October 17
+at 00:25:59 UTC. Those questions below are retained as historical review evidence,
+not current unresolved decisions. See `clarified-ao-and-dst-rules-20261017.md` for
+the implemented rule, tests and remaining representation/eligibility limitations.
+
 Branch: `codex/firehouse-correctness-20261017`.
 Application fixes remain in `c13979feff437d7f12bc4ab8dd3251ff7c212e24`.
 The follow-up repairs in `2422aee5a9f22a471c43bc4f241f7ae5983d6f7e` repair test defects; no additional application or live security

@@ -1,5 +1,10 @@
 # Correctness and recovery review — October 17, 2026
 
+Update: Bob clarified AO concurrency and actual elapsed DST hours on October 17
+at 00:25:59 UTC. Those questions below are retained as historical review evidence,
+not current unresolved decisions. See `clarified-ao-and-dst-rules-20261017.md` for
+the implemented rule, tests and remaining representation/eligibility limitations.
+
 ## Scope and source
 
 Bob's October 16 instruction authorized safe source fixes and isolated regression

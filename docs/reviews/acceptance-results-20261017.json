@@ -11,8 +11,8 @@
     "todo": 0
   },
   "patched": {
-    "tests": 1406,
-    "pass": 1406,
+    "tests": 1417,
+    "pass": 1417,
     "fail": 0,
     "cancelled": 0,
     "skipped": 0,
@@ -127,8 +127,54 @@
       "anon",
       "authenticated"
     ],
-    "canonicalRestoreCheckElapsedMs": 372,
+    "canonicalRestoreCheckElapsedMs": 402,
     "productionBackupVerified": false
   },
-  "productionRestoreVerified": false
+  "productionRestoreVerified": false,
+  "beforeClarifiedRules": {
+    "tests": 1406,
+    "pass": 1406,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "todo": 0
+  },
+  "clarifiedRuleFixCommits": [
+    "916ac69d162a1d496ab294cc7919d30344552ec3",
+    "6cad9afd0068c0c6fc59d0979345375c72a2b708"
+  ],
+  "clarifiedRules": {
+    "instructionAtUtc": "2026-10-17T00:25:59Z",
+    "actingOfficer": "One concurrent appointment department-wide; consecutive members permitted",
+    "intervals": "Start-inclusive/end-exclusive instants anchored to the Chicago operational log date",
+    "daylightSavingPay": "Actual America/Chicago elapsed hours: ordinary 12, spring-forward 11, fall-back 13",
+    "ambiguousOrNonexistentEndpoints": "Reject; no guessed offset or repeated-hour occurrence",
+    "historicalPay": "No backfill or frozen-history rewrite; reject incidental conversion of legacy posted clock-hour pay",
+    "eligibilityAndApprovalPolicyChanged": false
+  },
+  "clarifiedRuleBrowser": {
+    "cases": 8,
+    "widths": [
+      320,
+      390,
+      768,
+      1280
+    ],
+    "schemes": [
+      "light",
+      "dark"
+    ],
+    "ordinaryHours": 12,
+    "springHours": 11,
+    "fallHours": 13,
+    "ambiguousAndNonexistentRejected": true,
+    "pageErrors": 0,
+    "overflow": 0
+  },
+  "clarifiedRuleRemainingLimitations": [
+    "Existing HH:MM record format cannot persist first/second repeated-hour occurrence; those endpoints are rejected.",
+    "AO eligibility/exception/approval criteria were not newly specified and remain unchanged.",
+    "Historical payroll still needs original attendance/approvals and independently approved exports for reconciliation.",
+    "Manual hours-only payroll adjustments are not operational AO interval assignments."
+  ]
 }
