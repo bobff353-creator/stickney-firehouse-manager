@@ -1,10 +1,11 @@
 "use client";
+import {selectedInstantLabel} from './staffing-time';
 import { useMemo, useRef, useEffect, useState } from "react";
 import { formatEmployeeName } from "./employee-names";
 import { readLogNotes } from "./daily-log-workflow";
 import { logDifferences, resolveLogDifferences, type LogSnapshot, type LogDifference, type RecoveryChoice } from "./daily-log-recovery";
 
-const fieldNames: Record<string, string> = { shiftKey: "Shift", employeeId: "Employee", timeIn: "Time in", timeOut: "Time out", actingOfficer: "Acting Officer", reportNumber: "Report number", respondingUnits: "Responding units", address: "Address", callType: "Call type", shiftNotes: "Notes & Handoff", row: "Entry" };
+const fieldNames: Record<string, string> = { shiftKey: "Shift", employeeId: "Employee", timeIn: "Time in", timeOut: "Time out", timeInInstant:"Time in occurrence",timeOutInstant:"Time out occurrence", actingOfficer: "Acting Officer", reportNumber: "Report number", respondingUnits: "Responding units", address: "Address", callType: "Call type", shiftNotes: "Notes & Handoff", row: "Entry" };
 const shiftNames: Record<string, string> = { morning: "6 AM–Noon", afternoon: "Noon–6 PM", overnight: "6 PM–6 AM" };
 
 export default function DailyLogRecoveryReview({ draft, saved, employees, locked, canUnlock, onUnlock, onApply, onBack }: {
@@ -35,9 +36,10 @@ export default function DailyLogRecoveryReview({ draft, saved, employees, locked
     if (value === undefined) return "Entry not in this copy — choosing this removes it from the final log.";
     if (typeof value === "boolean") return value ? "Yes" : "No";
     if (typeof value === "object") {
-      if ("employeeId" in value) return `${name(value.employeeId)}\n${shiftNames[value.shiftKey] || value.shiftKey}\nIn: ${value.timeIn || "Not entered"} · Out: ${value.timeOut || "Not entered"}\nActing Officer: ${value.actingOfficer ? "Yes" : "No"}`;
+      if ("employeeId" in value) return `${name(value.employeeId)}\n${shiftNames[value.shiftKey] || value.shiftKey}\nIn: ${value.timeIn || "Not entered"} · Out: ${value.timeOut || "Not entered"}${value.timeInInstant?" · In occurrence "+selectedInstantLabel(value.timeInInstant):""}${value.timeOutInstant?" · Out occurrence "+selectedInstantLabel(value.timeOutInstant):""}\nActing Officer: ${value.actingOfficer ? "Yes" : "No"}`;
       return `Report: ${value.reportNumber || "Not entered"}\n${value.callType} · ${value.address || "No address"}\nOut: ${value.timeOut || "Not entered"} · In: ${value.timeIn || "Not entered"}\nUnits: ${value.respondingUnits || "Not entered"}`;
     }
+    if(item.field==='timeInInstant'||item.field==='timeOutInstant')return value?selectedInstantLabel(value):'No explicit occurrence selected';
     if (item.field === "employeeId") return name(value);
     if (item.field === "shiftKey") return shiftNames[value] || value;
     if (item.field === "shiftNotes") {

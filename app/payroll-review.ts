@@ -1,7 +1,7 @@
 import { calendarWorkedHours, staffingInterval } from './staffing-time.ts';
 import { scheduleWindow } from './schedule-safety.ts';
 type Entry = { workDate: string; category: string; hours: number };
-export type ReviewStaffing = { employeeId: string; logDate: string; shiftKey: string; timeIn: string; timeOut: string };
+export type ReviewStaffing = { employeeId: string; logDate: string; shiftKey: string; timeIn: string; timeOut: string; timeInInstant?: string; timeOutInstant?: string };
 export function payrollReviewIssues(entries: Entry[], staffing: ReviewStaffing[], range?: { from: string; through: string }) {
   const issues: string[] = [];
   const dates = new Set([...entries.map(e => e.workDate), ...staffing.map(s => s.logDate)]);

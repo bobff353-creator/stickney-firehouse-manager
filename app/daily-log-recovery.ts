@@ -1,5 +1,5 @@
 export type RecoveryStaff = {
-  id: string; shiftKey: string; employeeId: string; timeIn: string; timeOut: string; actingOfficer: boolean;
+  id: string; shiftKey: string; employeeId: string; timeIn: string; timeOut: string; timeInInstant?: string; timeOutInstant?: string; actingOfficer: boolean;
 };
 export type RecoveryCall = {
   id: string; reportNumber: string; timeOut: string; timeIn: string; respondingUnits: string; address: string; callType: string;
@@ -12,7 +12,7 @@ export type LogDifference = {
   draft: string | boolean | RecoveryStaff | RecoveryCall | undefined;
   saved: string | boolean | RecoveryStaff | RecoveryCall | undefined;
 };
-const staffFields = ["shiftKey", "employeeId", "timeIn", "timeOut", "actingOfficer"] as const;
+const staffFields = ["shiftKey", "employeeId", "timeIn", "timeOut", "timeInInstant", "timeOutInstant", "actingOfficer"] as const;
 const callFields = ["reportNumber", "timeOut", "timeIn", "respondingUnits", "address", "callType"] as const;
 
 // Ignore API-only metadata and empty editor placeholders, just as saving does.
@@ -21,6 +21,7 @@ export function logSnapshot(value: LogSnapshot): LogSnapshot {
     staffing: value.staffing.filter(row => row.employeeId).map(row => ({
       id: row.id, shiftKey: row.shiftKey, employeeId: row.employeeId,
       timeIn: row.timeIn || "", timeOut: row.timeOut || "", actingOfficer: Boolean(row.actingOfficer),
+      ...(row.timeInInstant?{timeInInstant:row.timeInInstant}:{}),...(row.timeOutInstant?{timeOutInstant:row.timeOutInstant}:{}),
     })),
     calls: value.calls.filter(row => callFields.some(field => row[field] && row[field] !== "EMS")).map(row => ({
       id: row.id, reportNumber: row.reportNumber || "", timeOut: row.timeOut || "", timeIn: row.timeIn || "",

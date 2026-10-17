@@ -17,7 +17,7 @@ export type PayrollSources = {
   employees: PayEmployee[]; settings: PaySettings; entries: PayEntry[];
   schedule: DepartmentScheduleAssignment[];
   logs: { logDate: string; updatedBy: string }[];
-  staffing: { employeeId: string; logDate: string; shiftKey: string; timeIn: string; timeOut: string }[];
+  staffing: { employeeId: string; logDate: string; shiftKey: string; timeIn: string; timeOut: string; timeInInstant?: string; timeOutInstant?: string }[];
   approvals: { logDate: string; shiftKey: string; signOutAt: string | null }[];
 };
 export type PayAdjustment = {

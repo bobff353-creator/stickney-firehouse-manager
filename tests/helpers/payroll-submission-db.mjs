@@ -64,6 +64,7 @@ export async function payrollDatabaseFixture() {
     INSERT INTO station_schedule_entries VALUES('24','2026-09-24','morning'),('25','2026-09-25','morning');
     INSERT INTO station_shift_slots VALUES('slot24','24','a','Officer/AO','filled','',''),('slot25','25','a','Officer/AO','filled','','');
   `);
+  await pg.exec(fs.readFileSync(new URL('supabase/migrations/20261017004550_explicit_chicago_time_instants.sql',root),'utf8'));
   const state={manager:true,failAudit:false,delayMs:0,loseResponse:false,beforeBatch:null};
   const adapter=moduleFromFile('db/postgres-adapter.ts',{getSupabaseServerClient:()=>{throw new Error('Live database forbidden in tests');},getPortalDepartment:async()=>({id:'fixture',isolated:false}),sqlLiteral});
   const client={async rpc(name,args){

@@ -99,7 +99,7 @@ export async function GET(request: Request) {
     const snapshot = await db.prepare("SELECT save_version AS saveVersion FROM daily_logs WHERE log_date = ?").bind(date).first<{ saveVersion: number }>();
     const [log, staffing, calls, addresses, approvals, recentNotes, revisions] = await Promise.all([
       db.prepare("SELECT log_date AS logDate, shift_notes AS shiftNotes, CASE WHEN log_date < ? THEN 1 ELSE locked END AS locked, admin_unlocked AS adminUnlocked, created_by AS createdBy, COALESCE(created_at, updated_at) AS createdAt, updated_by AS updatedBy, updated_at AS updatedAt, locked_by AS lockedBy, locked_at AS lockedAt FROM daily_logs WHERE log_date = ?").bind(operational.lockBeforeDate, date).first(),
-      db.prepare("SELECT id, shift_key AS shiftKey, employee_id AS employeeId, time_in AS timeIn, time_out AS timeOut, acting_officer AS actingOfficer, sort_order AS sortOrder FROM daily_log_staffing WHERE log_date = ? ORDER BY shift_key, sort_order").bind(date).all(),
+      db.prepare("SELECT id, shift_key AS shiftKey, employee_id AS employeeId, time_in AS timeIn, time_out AS timeOut, time_in_instant AS timeInInstant,time_out_instant AS timeOutInstant, acting_officer AS actingOfficer, sort_order AS sortOrder FROM daily_log_staffing WHERE log_date = ? ORDER BY shift_key, sort_order").bind(date).all(),
       db.prepare("SELECT id, report_number AS reportNumber, time_out AS timeOut, time_in AS timeIn, responding_units AS respondingUnits, address, call_type AS callType, sort_order AS sortOrder FROM daily_log_calls WHERE log_date = ? ORDER BY sort_order").bind(date).all(),
       db.prepare("SELECT address FROM daily_log_calls WHERE address <> '' GROUP BY address ORDER BY MAX(log_date) DESC, MAX(sort_order) DESC LIMIT 50").all(),
       db.prepare("SELECT shift_key AS shiftKey, sign_in_officer_id AS signInOfficerId, sign_in_at AS signInAt, sign_in_equipment AS signInEquipment, sign_in_note AS signInNote, reviewed_notes AS reviewedNotes, sign_out_officer_id AS signOutOfficerId, sign_out_at AS signOutAt, sign_out_equipment AS signOutEquipment, sign_out_note AS signOutNote, fleet_duties_acknowledged AS fleetDutiesAcknowledged FROM daily_log_approvals WHERE log_date = ?").bind(date).all(),
@@ -178,6 +178,10 @@ export async function POST(request: Request) {
     if (action === "save" && (body.staffing as Array<Record<string, unknown>>).some(row =>
       [row.timeIn, row.timeOut].some(value => value != null && value !== "" && (typeof value !== "string" || !/^([01]\d|2[0-3]):(00|15|30|45)$/.test(value)))
     )) return Response.json({ error: "Staffing times must use HH:MM in 15-minute increments. Incomplete times may be left blank; no records were changed." }, { status: 400 });
+    if(action==="save"&&(body.staffing as Array<Record<string,unknown>>).some(row=>
+      [row.timeInInstant,row.timeOutInstant].some(value=>value!=null&&value!==""&&typeof value!=="string") ||
+      Boolean(row.timeInInstant||row.timeOutInstant)&&(!row.timeIn||!row.timeOut)
+    ))return Response.json({error:"An occurrence selection needs complete clock times and a valid selected occurrence."},{status:400});
     const actor = actorFor(request);
     await db.prepare("UPDATE daily_logs SET locked = 1, locked_by = COALESCE(locked_by, 'System · 7:00 AM Lock'), locked_at = COALESCE(locked_at, CURRENT_TIMESTAMP) WHERE log_date < ? AND (locked = 0 OR locked_by IS NULL OR locked_at IS NULL)").bind(operational.lockBeforeDate).run();
     const existing = await db.prepare("SELECT locked, admin_unlocked AS adminUnlocked FROM daily_logs WHERE log_date = ?").bind(date).first<{ locked: number; adminUnlocked: number }>();
@@ -245,9 +249,9 @@ export async function POST(request: Request) {
       db.prepare("DELETE FROM daily_log_calls WHERE log_date = ?").bind(date),
     ];
     logWrites.push(...insertRows(db,
-      "INSERT INTO daily_log_staffing (id, log_date, shift_key, employee_id, time_in, time_out, acting_officer, sort_order)",
-      "(?, ?, ?, ?, ?, ?, ?, ?)",
-      staffing.map((row, index) => [String(row.id || crypto.randomUUID()), date, String(row.shiftKey), String(row.employeeId ?? "") || null, String(row.timeIn ?? ""), String(row.timeOut ?? ""), row.actingOfficer ? 1 : 0, index]),
+      "INSERT INTO daily_log_staffing (id, log_date, shift_key, employee_id, time_in, time_out, acting_officer, sort_order,time_in_instant,time_out_instant)",
+      "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      staffing.map((row, index) => [String(row.id || crypto.randomUUID()), date, String(row.shiftKey), String(row.employeeId ?? "") || null, String(row.timeIn ?? ""), String(row.timeOut ?? ""), row.actingOfficer ? 1 : 0, index,String(row.timeInInstant??""),String(row.timeOutInstant??"")]),
     ));
     logWrites.push(...insertRows(db,
       "INSERT INTO daily_log_calls (id, log_date, report_number, time_out, time_in, responding_units, address, call_type, sort_order)",
@@ -264,7 +268,7 @@ export async function POST(request: Request) {
     const periodStart = payrollPeriodStart(date), periodEnd = payrollPeriodEnd(periodStart);
     const dpwEmployeeRows = await db.prepare("SELECT employee_id AS employeeId FROM employee_profiles WHERE is_dpw = 1").all();
     const dpwEmployees = new Set(dpwEmployeeRows.results.map((row) => String((row as { employeeId: string }).employeeId)));
-    await historicalStaffingPayGuard(db, date, operational.operationalDate, dpwEmployees, holiday);
+    await historicalStaffingPayGuard(db, date, operational.operationalDate, dpwEmployees, holiday, staffing);
     const payrollWrites = [
       db.prepare("INSERT OR IGNORE INTO pay_periods (start_date, end_date, status) VALUES (?, ?, 'draft')").bind(periodStart, periodEnd),
       // Daily Log owns these categories for this date. Manual drill, detail,

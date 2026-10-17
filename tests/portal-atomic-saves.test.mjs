@@ -39,6 +39,7 @@ async function setup() {
     DECLARE member_id text;
     BEGIN EXECUTE 'SELECT employee_id FROM firehouse.employee_profiles WHERE lower(email)=lower($1)' INTO member_id USING login_email; RETURN member_id; END $$;`);
   await pg.exec(migration);
+  await pg.exec(fs.readFileSync(new URL('../supabase/migrations/20261017004550_explicit_chicago_time_instants.sql',import.meta.url),'utf8'));
   await pg.exec(`CREATE FUNCTION public.inventory_save_air_asset(uuid,uuid,timestamp with time zone,jsonb)
     RETURNS jsonb LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'Fixture stale asset' USING ERRCODE='40001'; END $$;`);
   await pg.exec(fs.readFileSync(new URL('../supabase/migrations/20260923215051_nonretryable_save_conflicts.sql',import.meta.url),'utf8'));

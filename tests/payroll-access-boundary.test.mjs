@@ -16,7 +16,7 @@ test('actual payroll API restricts employees to their own records and honors exp
       ALTER TABLE firehouse.pay_periods ADD created_by text,ADD created_at text,ADD updated_by text,ADD updated_at text,ADD finalized_by text,ADD finalized_at text;
       CREATE FUNCTION firehouse.employee_id_for_login(login_email text) RETURNS text LANGUAGE sql AS $$ SELECT employee_id FROM firehouse.employee_profiles WHERE email=login_email $$;
       INSERT INTO firehouse.time_entries VALUES('member-own','b','2026-09-11','2026-09-24','shift',6);
-      INSERT INTO firehouse.daily_log_staffing VALUES('staff-a','2026-09-24','a','morning','06:00','12:00'),('staff-b','2026-09-24','b','afternoon','12:00','18:00');
+      INSERT INTO firehouse.daily_log_staffing(id,log_date,employee_id,shift_key,time_in,time_out) VALUES('staff-a','2026-09-24','a','morning','06:00','12:00'),('staff-b','2026-09-24','b','afternoon','12:00','18:00');
     `);
     let manager = false;
     let permitted = true;

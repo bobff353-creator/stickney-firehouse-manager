@@ -17,7 +17,7 @@ export function timekeepingReview(members: TimekeepingMember[], entries: Timekee
       const tours = ownStaffing.filter(row => row.logDate === date);
       if (tours.some(row => !/^([01]\d|2[0-3]):[0-5]\d$/.test(row.timeIn) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(row.timeOut))) continue;
       let attendance: number;
-      try { attendance = tours.reduce((sum, row) => sum + workedHours(row.timeIn, row.timeOut, date), 0); }
+      try { attendance = tours.reduce((sum, row) => sum + workedHours(row.timeIn, row.timeOut, date,row.timeInInstant,row.timeOutInstant), 0); }
       catch (error) { flags.push({employeeId:member.id,employeeName:member.name,date,message:error instanceof Error?error.message:"Attendance time could not be verified."}); continue; }
       const recorded = ownEntries.filter(entry => entry.workDate === date && ['shift', 'holiday', 'dpw', 'dailyLogDpw'].includes(entry.category)).reduce((sum, entry) => sum + entry.hours, 0);
       if (Number.isFinite(recorded) && Math.abs(attendance - recorded) > 0.011) flags.push({ employeeId: member.id, employeeName: member.name, date, message: `${date}: ${attendance.toFixed(2)} Daily Log duty hours versus ${recorded.toFixed(2)} recorded duty-pay hours. Verify the source or documented adjustment; callbacks, drills and stipends are excluded.` });

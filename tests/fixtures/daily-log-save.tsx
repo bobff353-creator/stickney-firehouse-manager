@@ -13,6 +13,7 @@ let posts = 0, version = 0;
 let saved: { staffing: unknown[]; calls: unknown[]; shiftNotes: string } | null = null;
 const params = new URLSearchParams(location.search);
 const startsLocked = params.get('locked') === '1';
+if(params.has('fold')){saved=JSON.parse(sessionStorage.getItem('synthetic-fold-saved')||'null');version=Number(sessionStorage.getItem('synthetic-fold-version')||0);}
 let unlocked = false;
 const recovery = params.get('recovery');
 if (recovery) {
@@ -47,6 +48,7 @@ window.fetch = async (input, init) => {
   if (mode === 'failure') return Response.json({ error: 'Simulated server failure. Draft retained; retry when ready.' }, { status: 500 });
   if (body.expectedVersion !== version) return Response.json({ error: 'Fixture version changed. Reload and review.' }, { status: 409 });
   saved = body; version++;
+  if(params.has('fold')){sessionStorage.setItem('synthetic-fold-saved',JSON.stringify(saved));sessionStorage.setItem('synthetic-fold-version',String(version));}
   return Response.json({ ok: true, saveVersion: version });
 };
 

@@ -30,7 +30,7 @@ function payrollPeriod(workDate: string) {
 }
 
 async function requestRows(db: Awaited<ReturnType<typeof ensureDatabase>>) {
-  const requests = await db.prepare("SELECT w.id, w.work_date AS workDate, w.requesting_officer_id AS requestingOfficerId, ro.name AS requestingOfficerName, w.approver_id AS approverId, ap.name AS approverName, w.start_time AS startTime, w.end_time AS endTime, w.total_hours AS totalHours, w.work_type AS workType, w.description, w.certified, w.status, w.submitted_by AS submittedBy, w.submitted_at AS submittedAt, w.approved_by AS approvedBy, w.approved_at AS approvedAt, w.rejection_note AS rejectionNote FROM work_detail_requests w JOIN employees ro ON ro.id = w.requesting_officer_id JOIN employees ap ON ap.id = w.approver_id ORDER BY CASE w.status WHEN 'pending' THEN 0 ELSE 1 END, w.work_date DESC, w.submitted_at DESC LIMIT 100").all<Record<string, unknown>>();
+  const requests = await db.prepare("SELECT w.id, w.work_date AS workDate, w.requesting_officer_id AS requestingOfficerId, ro.name AS requestingOfficerName, w.approver_id AS approverId, ap.name AS approverName, w.start_time AS startTime, w.end_time AS endTime,w.time_in_instant AS timeInInstant,w.time_out_instant AS timeOutInstant, w.total_hours AS totalHours, w.work_type AS workType, w.description, w.certified, w.status, w.submitted_by AS submittedBy, w.submitted_at AS submittedAt, w.approved_by AS approvedBy, w.approved_at AS approvedAt, w.rejection_note AS rejectionNote FROM work_detail_requests w JOIN employees ro ON ro.id = w.requesting_officer_id JOIN employees ap ON ap.id = w.approver_id ORDER BY CASE w.status WHEN 'pending' THEN 0 ELSE 1 END, w.work_date DESC, w.submitted_at DESC LIMIT 100").all<Record<string, unknown>>();
   const rows = [];
   for (const item of requests.results) {
     const members = await db.prepare("SELECT e.id, e.name, p.label AS rank FROM work_detail_members m JOIN employees e ON e.id = m.employee_id JOIN pay_scales p ON p.id = e.pay_scale_id WHERE m.request_id = ? ORDER BY e.name COLLATE NOCASE").bind(String(item.id)).all();
@@ -66,7 +66,8 @@ export async function POST(request: Request) {
       const employeeIds = [...new Set(Array.isArray(payload.employeeIds) ? payload.employeeIds.map(String).filter(Boolean) : [])];
       const totalHours = Number(payload.totalHours);
       if (startTime === null || endTime === null) return Response.json({ error: "Enter valid 24-hour times, such as 0830 or 08:30." }, { status: 400 });
-      if (startTime && endTime) calendarWorkedHours(workDate,startTime,endTime);
+      if((payload.timeInInstant||payload.timeOutInstant)&&(!startTime||!endTime))return Response.json({error:"An occurrence selection needs both optional clock times."},{status:400});
+      if (startTime && endTime) calendarWorkedHours(workDate,startTime,endTime,payload.timeInInstant,payload.timeOutInstant);
       if ((startTime && !endTime) || (!startTime && endTime)) return Response.json({ error: "Enter both optional times or leave both blank." }, { status: 400 });
       if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate) || !requestingOfficerId || !approverId || !workType || !description || !payload.certified || employeeIds.length === 0 || !Number.isFinite(totalHours) || totalHours <= 0) return Response.json({ error: "Complete every required field, enter total time, select at least one member, and certify the sheet." }, { status: 400 });
       const validEmployees = await db.prepare(`SELECT COUNT(*) AS count FROM employees WHERE active = 1 AND id IN (${employeeIds.map(() => "?").join(",")})`).bind(...employeeIds).first<{ count: number }>();
@@ -74,7 +75,7 @@ export async function POST(request: Request) {
       const approver = await db.prepare("SELECT p.label AS rank, COALESCE(ep.is_admin, 0) AS isAdmin FROM employees e JOIN pay_scales p ON p.id = e.pay_scale_id LEFT JOIN employee_profiles ep ON ep.employee_id = e.id WHERE e.id = ? AND e.active = 1").bind(approverId).first<{ rank: string; isAdmin: number }>();
       if (Number(validEmployees?.count ?? 0) !== employeeIds.length || !requestingOfficer || !isOfficer(requestingOfficer.rank) || !approver || (!approver.isAdmin && !isOfficer(approver.rank))) return Response.json({ error: "One or more selected personnel records are invalid." }, { status: 400 });
       const id = crypto.randomUUID();
-      await db.batch([db.prepare("INSERT INTO work_detail_requests (id, work_date, requesting_officer_id, approver_id, start_time, end_time, total_hours, work_type, description, certified, status, submitted_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'pending', ?)").bind(id, workDate, requestingOfficerId, approverId, startTime, endTime, totalHours, workType, description, current.name), ...employeeIds.map((employeeId) => db.prepare("INSERT INTO work_detail_members (request_id, employee_id) VALUES (?, ?)").bind(id, employeeId))]);
+      await db.batch([db.prepare("INSERT INTO work_detail_requests (id, work_date, requesting_officer_id, approver_id, start_time, end_time, total_hours, work_type, description, certified, status, submitted_by,time_in_instant,time_out_instant) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'pending', ?,?,?)").bind(id, workDate, requestingOfficerId, approverId, startTime, endTime, totalHours, workType, description, current.name,String(payload.timeInInstant??""),String(payload.timeOutInstant??"")), ...employeeIds.map((employeeId) => db.prepare("INSERT INTO work_detail_members (request_id, employee_id) VALUES (?, ?)").bind(id, employeeId))]);
       return Response.json({ ok: true, id });
     }
 

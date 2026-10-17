@@ -6,9 +6,8 @@ import { resolve } from 'node:path';
 import { calendarWorkedHours, staffingInterval, chicagoLocalInstant, assertActingOfficerCoverage } from '../app/staffing-time.ts';
 import { dailyLogPayrollTotals, dailyLogPayrollEntries, workedHours } from '../app/payroll-hours.ts';
 import { summarizePayroll } from '../app/payroll-calculation.ts';
-import { payrollDatabaseFixture } from './helpers/payroll-submission-db.mjs';
+import {fixture} from './helpers/ao-dst-db.mjs';
 import { trainingModules } from './helpers/training-modules.mjs';
-import * as operational from '../app/operational-day.ts';
 const row=(employeeId,timeIn,timeOut,actingOfficer=true)=>({employeeId,timeIn,timeOut,actingOfficer,shiftKey:'overnight'});
 
 test('elapsed Chicago nights pay 12 ordinary, 11 spring-forward and 13 fall-back hours, including each AO allowance',()=>{
@@ -43,26 +42,6 @@ test('ambiguous and nonexistent endpoints fail safely; valid surrounding endpoin
   assert.throws(()=>chicagoLocalInstant('2026-02-30','06:00'),/valid/);
 });
 
-async function fixture() {
-  const f=await payrollDatabaseFixture();
-  await f.pg.exec(`ALTER TABLE firehouse.daily_logs ADD locked int DEFAULT 0,ADD locked_by text,ADD locked_at text,ADD admin_unlocked int DEFAULT 0,ADD updated_at text;
-    ALTER TABLE firehouse.daily_log_staffing ADD acting_officer int DEFAULT 0,ADD sort_order int;
-    ALTER TABLE firehouse.daily_log_calls ADD report_number text,ADD time_out text,ADD time_in text,ADD responding_units text,ADD address text,ADD call_type text,ADD sort_order int;
-    ALTER TABLE firehouse.pay_periods ADD updated_by text;
-    ALTER TABLE firehouse.time_entries ADD updated_at text;
-    ALTER TABLE firehouse.employee_profiles ADD acting_officer_eligible int DEFAULT 1;
-    ALTER TABLE firehouse.daily_log_approvals ADD sign_in_at text,ADD sign_in_officer_id text,ADD sign_out_officer_id text,ADD sign_in_equipment text,ADD sign_in_note text,ADD reviewed_notes int,ADD sign_out_equipment text,ADD sign_out_note text,ADD fleet_duties_acknowledged int;
-    CREATE TABLE firehouse.dispatch_incidents(incident_id text,active int,cleared_at text);`);
-  const api=trainingModules({[resolve('db/bootstrap.ts')]:{ensureDatabase:async()=>f.db},[resolve('app/server-permissions.ts')]:{hasPermission:async()=>true},[resolve('app/operational-day.ts')]:{...operational,chicagoOperationalContext:()=>({operationalDate:'2026-10-16',lockBeforeDate:'1900-01-01'})}})('app/api/logbook/route.ts');
-  const prepare=async date=>f.pg.query('INSERT INTO firehouse.daily_logs(log_date) VALUES($1) ON CONFLICT DO NOTHING',[date]);
-  const version=async date=>(await f.pg.query('SELECT save_version FROM firehouse.daily_logs WHERE log_date=$1',[date])).rows[0].save_version;
-  const post=async(date,rows,expectedVersion=undefined)=>{
-    const response=await api.POST(new Request('https://fixture.invalid/api/logbook',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({logDate:date,action:'save',expectedVersion:expectedVersion??await version(date),staffing:rows,calls:[],shiftNotes:'Synthetic clarified rules'})}));
-    return{status:response.status,body:await response.json()};
-  };
-  const handoff=async date=>api.POST(new Request('https://fixture.invalid/api/logbook',{method:'POST',headers:{'content-type':'application/json','oai-authenticated-user-email':'admin@example.test'},body:JSON.stringify({logDate:date,action:'handoff',shiftKey:'morning',mode:'in',officerId:'a',reviewedNotes:true})}));
-  return{...f,prepare,version,post,handoff};
-}
 test('actual save posts elapsed hours and AO handoffs atomically; bad edits and finalized payroll preserve records',async()=>{
   const f=await fixture();try{
     for(const [date,hours] of [['2026-03-07',11],['2026-10-31',13],['2026-10-16',12]]) {

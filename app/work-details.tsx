@@ -2,15 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatEmployeeName } from "./employee-names";
-import { calendarWorkedHours } from "./staffing-time";
+import TimeOccurrenceSelect from './time-occurrence-select';
+import { calendarWorkedHours, selectedInstantLabel } from "./staffing-time";
 import { normalize24HourTime } from "./military-time";
 
 type Person = { id: string; name: string; rank: string; isAdmin?: number };
-type Detail = { id: string; workDate: string; requestingOfficerName: string; approverId: string; approverName: string; startTime: string; endTime: string; totalHours: number; workType: string; description: string; status: string; rejectionNote?: string; members: Person[] };
+type Detail = { id: string; workDate: string; requestingOfficerName: string; approverId: string; approverName: string; startTime: string; endTime: string; timeInInstant?:string;timeOutInstant?:string; totalHours: number; workType: string; description: string; status: string; rejectionNote?: string; members: Person[] };
 type Data = { viewer: { employeeId: string | null; isAdmin: boolean }; employees: Person[]; officers: Person[]; approvers: Person[]; requests: Detail[] };
 type WorkDetailsProps = { onPayrollChanged?: (periodStart: string) => void };
 const localToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
-const initialForm = () => ({ workDate: localToday(), requestingOfficerId: "", approverId: "", startTime: "", endTime: "", totalHours: "", timeError: "", workType: "", description: "", certified: false });
+const initialForm = () => ({ workDate: localToday(), requestingOfficerId: "", approverId: "", startTime: "", endTime: "", totalHours: "", timeInInstant:"",timeOutInstant:"",timeError: "", workType: "", description: "", certified: false });
 
 export default function WorkDetails({ onPayrollChanged }: WorkDetailsProps) {
   const [data, setData] = useState<Data | null>(null);
@@ -30,13 +31,15 @@ export default function WorkDetails({ onPayrollChanged }: WorkDetailsProps) {
   }, []);
   useEffect(() => { void load().catch((caught) => setError(caught instanceof Error ? caught.message : "Unable to load work details")); }, [load]);
   const hours = Number(form.totalHours);
-  function setOptionalTime(field: "startTime" | "endTime" | "workDate", value: string) {
+  function setOptionalTime(field: "startTime" | "endTime" | "workDate" | "timeInInstant" | "timeOutInstant", value: string) {
     setForm((current) => {
       const next = { ...current, [field]: value };
+      if(field==='workDate'||field==='startTime'){next.timeInInstant="";next.timeOutInstant="";}
+      if(field==='endTime')next.timeOutInstant="";
       const start = normalize24HourTime(next.startTime), end = normalize24HourTime(next.endTime);
       next.timeError = "";
       if (start && end) {
-        try { next.totalHours = calendarWorkedHours(next.workDate,start,end).toFixed(2); }
+        try { next.totalHours = calendarWorkedHours(next.workDate,start,end,next.timeInInstant,next.timeOutInstant).toFixed(2); }
         catch (error) { next.totalHours = ""; next.timeError = error instanceof Error ? error.message : "Verify the attendance times before submitting."; }
       }
       return next;
@@ -62,11 +65,13 @@ export default function WorkDetails({ onPayrollChanged }: WorkDetailsProps) {
         <label><span>Send for approval to *</span><select required value={form.approverId} onChange={(event) => setForm({ ...form, approverId: event.target.value })}><option value="">Select approver</option>{data?.approvers.map((person) => <option key={person.id} value={person.id}>{formatEmployeeName(person.name)} - {person.rank}</option>)}</select></label>
         <label><span>Start time <small>(optional · 24-hour)</small></span><input type="text" inputMode="numeric" placeholder="08:30" aria-describedby="work-detail-time-help" value={form.startTime} onChange={(event) => { event.currentTarget.setCustomValidity(""); setOptionalTime("startTime", event.target.value); }} onBlur={(event) => finishTime("startTime", event.currentTarget)}/><small id="work-detail-time-help">Military time: enter 0830 or 08:30.</small></label>
         <label><span>End time <small>(optional · 24-hour)</small></span><input type="text" inputMode="numeric" placeholder="17:00" aria-describedby="work-detail-end-time-help" value={form.endTime} onChange={(event) => { event.currentTarget.setCustomValidity(""); setOptionalTime("endTime", event.target.value); }} onBlur={(event) => finishTime("endTime", event.currentTarget)}/><small id="work-detail-end-time-help">An earlier end time means the next day.</small></label>
+        <TimeOccurrenceSelect date={form.workDate} timeIn={normalize24HourTime(form.startTime)||''} timeOut={normalize24HourTime(form.endTime)||''} endpoint="in" value={form.timeInInstant} onChange={value=>setOptionalTime('timeInInstant',value)} label="Start time" disabled={busy}/>
+        <TimeOccurrenceSelect date={form.workDate} timeIn={normalize24HourTime(form.startTime)||''} timeOut={normalize24HourTime(form.endTime)||''} endpoint="out" value={form.timeOutInstant} onChange={value=>setOptionalTime('timeOutInstant',value)} label="End time" disabled={busy}/>
         <label className="total-time"><span>Total time *</span><input type="number" required min="0.01" step="0.01" inputMode="decimal" value={form.totalHours} onChange={(event) => setForm({ ...form, totalHours: event.target.value })} placeholder="Hours for each employee"/></label>
         <label><span>Type of work *</span><select required value={form.workType} onChange={(event) => setForm({ ...form, workType: event.target.value })}><option value="">Select work type</option><option>Station maintenance</option><option>Apparatus maintenance</option><option>Training support</option><option>Public education</option><option>Inspection support</option><option>Administrative assignment</option><option>Special event</option><option>Other</option></select></label>
         <label className="work-description"><span>Description of work *</span><textarea required rows={4} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Describe the assignment and work completed."/></label>
       </div></fieldset><label className="certification-check"><input type="checkbox" checked={form.certified} onChange={(event) => setForm({ ...form, certified: event.target.checked })}/><span><strong>I approve the information entered above.</strong><small>I certify the selected members, date, total time, and work description are accurate.</small></span></label><button className="primary-action" disabled={busy || !form.certified || selected.length === 0 || !Number.isFinite(hours) || hours <= 0}>{busy ? "Saving…" : "Submit for Approval"}</button></form>
     </section>
-    <section className="content-card work-detail-queue"><div className="section-header"><div><h2>Work Detail Approval Queue</h2><p>Pending requests appear first. Approved hours are posted automatically.</p></div></div>{!data ? <p role="status">Work-detail records are not loaded.</p> : !data.requests.length ? <div className="action-empty-state"><span>✓</span><div><strong>No work detail sheets</strong><p>Create the first sheet using the form above.</p></div></div> : <div className="work-detail-list">{data.requests.map((detail) => { const canApprove = detail.status === "pending" && (data.viewer.isAdmin || data.viewer.employeeId === detail.approverId); const timeRange = detail.startTime && detail.endTime ? `${detail.startTime}–${detail.endTime} · ` : ""; return <article key={detail.id} className={detail.status}><header><div><span>{detail.workDate}</span><strong>{detail.workType}</strong></div><b>{detail.status}</b></header><p>{detail.description}</p><dl><div><dt>Members</dt><dd>{detail.members.map((person) => formatEmployeeName(person.name)).join(", ")}</dd></div><div><dt>Time</dt><dd>{timeRange}{detail.totalHours.toFixed(2)} hours each</dd></div><div><dt>Requesting officer</dt><dd>{formatEmployeeName(detail.requestingOfficerName)}</dd></div><div><dt>Approver</dt><dd>{formatEmployeeName(detail.approverName)}</dd></div></dl>{detail.rejectionNote && <small className="rejection-note">Rejected: {detail.rejectionNote}</small>}{canApprove && <footer><button disabled={busy} onClick={() => void review(detail.id, "reject")}>Reject</button><button disabled={busy} onClick={() => void review(detail.id, "approve")}>Approve & Add Hours</button></footer>}</article>; })}</div>}</section>
+    <section className="content-card work-detail-queue"><div className="section-header"><div><h2>Work Detail Approval Queue</h2><p>Pending requests appear first. Approved hours are posted automatically.</p></div></div>{!data ? <p role="status">Work-detail records are not loaded.</p> : !data.requests.length ? <div className="action-empty-state"><span>✓</span><div><strong>No work detail sheets</strong><p>Create the first sheet using the form above.</p></div></div> : <div className="work-detail-list">{data.requests.map((detail) => { const canApprove = detail.status === "pending" && (data.viewer.isAdmin || data.viewer.employeeId === detail.approverId); const timeRange = detail.startTime && detail.endTime ? `${detail.startTime}${detail.timeInInstant?" ("+selectedInstantLabel(detail.timeInInstant)+")":""}–${detail.endTime}${detail.timeOutInstant?" ("+selectedInstantLabel(detail.timeOutInstant)+")":""} · ` : ""; return <article key={detail.id} className={detail.status}><header><div><span>{detail.workDate}</span><strong>{detail.workType}</strong></div><b>{detail.status}</b></header><p>{detail.description}</p><dl><div><dt>Members</dt><dd>{detail.members.map((person) => formatEmployeeName(person.name)).join(", ")}</dd></div><div><dt>Time</dt><dd>{timeRange}{detail.totalHours.toFixed(2)} hours each</dd></div><div><dt>Requesting officer</dt><dd>{formatEmployeeName(detail.requestingOfficerName)}</dd></div><div><dt>Approver</dt><dd>{formatEmployeeName(detail.approverName)}</dd></div></dl>{detail.rejectionNote && <small className="rejection-note">Rejected: {detail.rejectionNote}</small>}{canApprove && <footer><button disabled={busy} onClick={() => void review(detail.id, "reject")}>Reject</button><button disabled={busy} onClick={() => void review(detail.id, "approve")}>Approve & Add Hours</button></footer>}</article>; })}</div>}</section>
   </div>;
 }

@@ -1,6 +1,8 @@
 import { chicagoLocalInstant, staffingInterval } from './staffing-time.ts';
 import { addCalendarDays } from './operational-day.ts';
 export type PayrollStaffingRow = {
+  timeInInstant?: unknown;
+  timeOutInstant?: unknown;
   employeeId?: unknown;
   timeIn?: unknown;
   timeOut?: unknown;
@@ -14,8 +16,8 @@ export type DailyLogPayrollTotal = {
   actingOfficer: number;
 };
 
-export function workedHours(timeIn: string, timeOut: string, logDate?: string) {
-  if (logDate) { const interval = staffingInterval(logDate, { timeIn, timeOut }); return interval ? (interval.end - interval.start) / 3600000 : 0; }
+export function workedHours(timeIn: string, timeOut: string, logDate?: string, timeInInstant?: unknown,timeOutInstant?:unknown) {
+  if (logDate) { const interval = staffingInterval(logDate, { timeIn, timeOut,timeInInstant,timeOutInstant }); return interval ? (interval.end - interval.start) / 3600000 : 0; }
   const minutes = (value: string) => {
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) return Number.NaN;
     const [hours, mins] = value.split(":").map(Number);
@@ -38,7 +40,7 @@ export function dailyLogPayrollTotals(
   const totals = new Map<string, DailyLogPayrollTotal>();
   for (const row of rows) {
     const employeeId = String(row.employeeId ?? "");
-    const hours = workedHours(String(row.timeIn ?? ""), String(row.timeOut ?? ""), logDate);
+    const hours = workedHours(String(row.timeIn ?? ""), String(row.timeOut ?? ""), logDate,row.timeInInstant,row.timeOutInstant);
     if (!employeeId || hours <= 0) continue;
     const current = totals.get(employeeId) ?? { shift: 0, holiday: 0, actingOfficer: 0 };
     const holidayApplies = Boolean(holiday && (!holiday.overnightOnly || String(row.shiftKey ?? "") === "overnight"));

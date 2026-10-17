@@ -1,4 +1,6 @@
 "use client";
+import {staffingInterval} from './staffing-time';
+import TimeOccurrenceSelect from './time-occurrence-select';
 import ReportLibrary from './report-library';
 import {validQueueDate} from './task-queue-model';
 import { fleetChecksForShift } from "./fleet-check-shift";
@@ -39,6 +41,8 @@ type StaffingRow = {
   timeIn: string;
   timeOut: string;
   actingOfficer: boolean;
+  timeInInstant?: string;
+  timeOutInstant?: string;
 };
 type CallRow = {
   id: string;
@@ -244,11 +248,6 @@ function blankCall(): CallRow {
   };
 }
 const displayName = formatEmployeeName;
-function shiftMinutes(value: string, shiftKey: string) {
-  const [hours, minutes] = value.split(":").map(Number);
-  const total = hours * 60 + minutes;
-  return shiftKey === "overnight" && total <= 360 ? total + 1440 : total;
-}
 const fleetCheckList = (checks: RequiredFleetCheck[]) =>
   checks.map((check) => `${check.unit} ${check.checkType.replaceAll("_", " ")} (${check.startTime}–${check.endTime})`).join(", ");
 
@@ -841,16 +840,14 @@ export default function DailyLog({
       if (!target) return rows;
       if (!employeeId) target.actingOfficer = false;
       if (employeeId) {
-        const targetStart = shiftMinutes(target.timeIn, target.shiftKey),
-          targetEnd = shiftMinutes(target.timeOut, target.shiftKey);
         for (const other of rows) {
           if (other.id === id || other.employeeId !== employeeId) continue;
-          const otherStart = shiftMinutes(other.timeIn, other.shiftKey),
-            otherEnd = shiftMinutes(other.timeOut, other.shiftKey);
-          if (otherStart <= targetStart && targetStart < otherEnd)
-            other.timeOut = target.timeIn;
-          else if (targetStart <= otherStart && otherStart < targetEnd)
-            target.timeOut = other.timeIn;
+          try {
+            const current=staffingInterval(logDate,target),previous=staffingInterval(logDate,other);
+            if(!current||!previous)continue;
+            if(previous.start<=current.start&&current.start<previous.end){other.timeOut=target.timeIn;other.timeOutInstant=target.timeInInstant;}
+            else if(current.start<=previous.start&&previous.start<current.end){target.timeOut=other.timeIn;target.timeOutInstant=other.timeInInstant;}
+          } catch { /* An unresolved occurrence must be chosen explicitly, never auto-truncated. */ }
         }
       }
       return rows;
@@ -865,13 +862,13 @@ export default function DailyLog({
   }
   function setStaffTimeIn(id: string, timeIn: string) {
     setStaffing((rows) =>
-      rows.map((row) => (row.id === id ? { ...row, timeIn } : row)),
+      rows.map((row) => (row.id === id ? { ...row, timeIn,timeInInstant:"",timeOutInstant:"" } : row)),
     );
     markDirty();
   }
   function setStaffTimeOut(id: string, timeOut: string) {
     setStaffing((rows) =>
-      rows.map((row) => (row.id === id ? { ...row, timeOut } : row)),
+      rows.map((row) => (row.id === id ? { ...row, timeOut,timeOutInstant:"" } : row)),
     );
     markDirty();
   }
@@ -1349,6 +1346,8 @@ export default function DailyLog({
                             </option>
                           ))}
                         </select>
+                        <TimeOccurrenceSelect date={logDate} timeIn={row.timeIn} timeOut={row.timeOut} endpoint="in" operational value={row.timeInInstant} label="Time in" disabled={readOnly} onChange={value=>{setStaffing(rows=>rows.map(item=>item.id===row.id?{...item,timeInInstant:value}:item));markDirty();}}/>
+                        <TimeOccurrenceSelect date={logDate} timeIn={row.timeIn} timeOut={row.timeOut} endpoint="out" operational value={row.timeOutInstant} label="Time out" disabled={readOnly} onChange={value=>{setStaffing(rows=>rows.map(item=>item.id===row.id?{...item,timeOutInstant:value}:item));markDirty();}}/>
                         {(
                           <button
                             className="remove-row"
