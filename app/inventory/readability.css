@@ -1,0 +1,14 @@
+/* Dedicated inventory inherits shared typography without changing check workflows. */
+@media screen {
+  .inventory-app-shell.inventory-portal-refresh :is(button,a.inventory-command-back,summary) { min-height:44px; line-height:1.4; white-space:normal; }
+  .inventory-app-shell.inventory-portal-refresh :is(input:not([type=checkbox]):not([type=radio]):not([type=range]),select,textarea) { min-height:44px; min-width:0; max-width:100%; font-size:16px; box-sizing:border-box; }
+  .inventory-app-shell.inventory-portal-refresh :is(label,small,.helper-note) { font-size:14px; line-height:1.5; }
+  .inventory-app-shell.inventory-portal-refresh :is(p,li,dd) { line-height:1.55; overflow-wrap:anywhere; }
+  .inventory-app-shell.inventory-portal-refresh :is(.equipment-card,.inventory-card,.repair-column,.inventory-command-hero,.inventory-search-tools) { min-width:0; }
+  .inventory-app-shell.inventory-portal-refresh :is(h1,h2,h3,strong) { overflow-wrap:anywhere; }
+  .inventory-app-shell.inventory-portal-refresh :focus-visible { outline:3px solid #93c5fd; outline-offset:3px; scroll-margin-block:100px; }
+}
+@media screen and (max-width:600px) {
+  .inventory-app-shell.inventory-portal-refresh :is(.inventory-command-hero,.equipment-search-tools) { gap:12px; }
+  .inventory-app-shell.inventory-portal-refresh :is(.inventory-actions,.inventory-toolbar,.inventory-command-actions) { flex-wrap:wrap; gap:10px; }
+}

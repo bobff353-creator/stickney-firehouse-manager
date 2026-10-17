@@ -27,6 +27,7 @@ import "../../app/connected-work.css";
 import "../../app/daily-log-contrast.css";
 import "../../app/operational-programs.css";
 import "../../app/portal-layout.css";
+import "../../app/readability.css";
 
 // Actual client UI, fictional responses only. No credentials or production writes.
 const params = new URLSearchParams(location.search);
@@ -50,9 +51,15 @@ const date = now.slice(0, 10);
 const scale = { id: "firefighter", payScaleId: "firefighter", label: "Firefighter", regularRate: 20, overtimeRate: 30, holidayRate: 30 };
 const employee = { ...scale, id: "fixture-member", name: "Preview, Member", rank: "Firefighter", active: 1, phone: "555-0100", email: "preview@example.invalid", employeeNumber: "FIXTURE", startDate: "2026-01-01" };
 const employees = [employee, { ...employee, id: "fixture-officer", name: "Preview, Officer", rank: "Lieutenant" }];
+if(params.has('readability')) {
+  employees[0].name='Example-Montgomery, Alexandra Elizabeth';
+  employees[1].name='Example-Richardson, Christopher Alexander';
+  employees[0].phone='555-0100';
+}
 const viewer = { email: "preview@example.invalid", isAdmin, canManageEmployees: isAdmin, canManagePayroll: isAdmin, employeeId: employee.id, displayName: employee.name, name: employee.name, canComplete: true, canManage: isAdmin };
 const payroll = { viewer, employees, period: { startDate: "2026-09-11", endDate: "2026-09-25", status: "draft" }, entries: [], payScales: [scale], rateHistory: [], settings: { overtimeThreshold: 40, actingOfficerPremium: 1, dpwMultiplier: 1 } };
 const policies = [{ id: "fixture-policy-1", title: "Fictional first policy", policyNumber: "001", category: "Fixture", effectiveDate: date, body: "Fictional policy text. Not department guidance." }, { id: "fixture-policy-2", title: "Fictional second policy", policyNumber: "002", category: "Fixture", effectiveDate: date, body: "Second fictional policy selected correctly." }];
+if(params.has('readability'))policies[0].title+=' — extended interdepartmental reference and review notes';
 const cards = [{ id: "fixture-box", title: "Fictional response card", department: "Preview department", boxNumber: "DEMO", address: "Fictional area", accessNotes: "Not operational", details: "", layoutData: "" }];
 let numbers = [{ id: "fixture-phone", category: "misc", name: "Fictional test contact", emergencyNumber: "", nonEmergencyNumber: "555-0199", notes: "Do not call — fixture", sortOrder: 0 }];
 let failWrite = false;
@@ -77,7 +84,7 @@ function accessPayload() {
   return { confirmation:confirmationStatus(),catalog: permissionCatalog, viewerPermissions: isAdmin ? defaultPermissionsForRank("Firefighter",true) : memberPermissions, identity: "fictional:"+String(isAdmin), revision: String(accessRevision), ranks: ["Firefighter"], rankSettings: { Firefighter: defaultPermissionsForRank("Firefighter") }, overrides: accessOverrides, employees: [{ ...accessEmployee, effectivePermissions: memberPermissions }] };
 }
 Object.assign(window, { liveAccessAudit: { requests: accessRequests, errors, setGrant(effect?: "allow" | "deny") { accessOverrides = effect ? { [employee.id]: { "operations_board.view": effect } } : {}; accessRevision++; window.dispatchEvent(new Event("firehouse:permissions-changed")); } } });
-const briefing = { date, staffingSource:"daily_log", fleet:[], fleetIssuesAvailable:true, checksDue:0, nextShift:null, asOf: now, currentShift: "morning", priorShift: "night", onDuty: [], newMembers: [], officerInCharge: null, staffing: { filled: 0, required: 4, complete: false }, equipmentIssues: [], approvals: { logs: 0, payroll: 0 }, previousShift: { officer: null, note: "Fictional handoff", calls: [] }, activeCalls: [], apparatus: [], roadClosures: [] };
+const briefing = { date, staffingSource:"daily_log", fleet:[], fleetIssuesAvailable:true, checksDue:0, nextShift:null, asOf: now, currentShift: "morning", priorShift: "night", onDuty: [] as Array<{employeeId:string;name:string;rank:string;timeIn:string;timeOut:string;actingOfficer:boolean}>, newMembers: [], officerInCharge: null, staffing: { filled: 0, required: 4, complete: false }, equipmentIssues: [], approvals: { logs: 0, payroll: 0 }, previousShift: { officer: null, note: "Fictional handoff", calls: [] }, activeCalls: [], apparatus: [], roadClosures: [] };
 const payloads: Record<string, unknown> = {
   "/api/payroll": payroll,
   "/api/permissions": { viewerPermissions: null, catalog: [{ key: "dashboard.view", label: "Home", group: "General" }], ranks: ["Firefighter"], rankSettings: { Firefighter: ["dashboard.view"] }, overrides: {}, employees: employees.map(item => ({ ...item, isAdmin: 0, effectivePermissions: ["dashboard.view", "documents.view", "scheduling.view", "inventory.view"] })) },
@@ -108,6 +115,16 @@ const payloads: Record<string, unknown> = {
   },
 };
 payloads["/api/logbook"] = payloads["/api/daily-log"];
+if(params.has('readability')) {
+  Object.assign(payloads['/api/logbook'] as object,{
+    staffing:[{id:'readability-staff',employeeId:employee.id,shiftKey:'morning',timeIn:'06:00',timeOut:'12:00',actingOfficer:false}],
+    calls:[{id:'readability-call',reportNumber:'FICTIONAL-2026-EXTENDED-REFERENCE',timeOut:'0900',timeIn:'0930',respondingUnits:'Preview Engine / Preview Ambulance',address:'Fictional demonstration location — not an operational address',callType:'EMS'}],
+    fleetVerificationAvailable:true,incompleteFleetChecks:[],apparatusChecks:[],apparatusChecksAvailable:true,
+    log:{shiftNotes:'Synthetic handoff note: retain all of this longer explanation when the layout wraps. No department records or notifications are involved.',locked:0,adminUnlocked:0,updatedAt:now,saveVersion:1,revisions:[]},
+  });
+  briefing.onDuty.push(...employees.map(person=>({employeeId:person.id,name:person.name,rank:person.rank,timeIn:'06:00',timeOut:'12:00',actingOfficer:false})));
+}
+
 const threePassKey = 'three-pass-fictional-records-v1';
 let threePassRecords: Record<string, unknown> = {};
 if (params.has('three-pass')) {

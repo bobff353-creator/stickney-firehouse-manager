@@ -1,4 +1,5 @@
 "use client";
+import TableViewport from "./table-viewport";
 
 import { useCallback, useEffect, useState } from "react";
 import CisRoutingSettings from './cis-routing-settings';
@@ -150,7 +151,7 @@ export default function CadIntegrationSettings() {
       <section className="content-card cad-receipts-card">
         <div className="section-header"><div><h2>Recent CIS deliveries</h2><p>Only receipt status is shown here; raw call messages stay protected.</p></div><div className="cad-counts"><span>{data?.acceptedCount ?? 0} accepted</span><span>{data?.failedCount ?? 0} rejected</span></div></div>
         {!data?.receipts.length ? <div className="action-empty-state"><span>↯</span><div><strong>No CIS deliveries received</strong><p>This is expected until CIS/Cicero Dispatch completes the connection.</p></div></div> :
-          <div className="table-wrap"><table><thead><tr><th>Received</th><th>Incident</th><th>Event</th><th>Format</th><th>Result</th></tr></thead><tbody>{data.receipts.map((receipt) => <tr key={receipt.id}><td>{dateTime(receipt.receivedAt)}</td><td>{receipt.incidentId || "Not mapped"}</td><td>{receipt.eventType || "—"}</td><td>{receipt.payloadFormat || "—"}</td><td><span className={`cad-receipt-status ${receipt.status}`}>{receipt.status}</span>{receipt.errorMessage && <small>{receipt.errorMessage}</small>}</td></tr>)}</tbody></table></div>}
+          <TableViewport className="table-wrap" label="CAD delivery history"><table><thead><tr><th>Received</th><th>Incident</th><th>Event</th><th>Format</th><th>Result</th></tr></thead><tbody>{data.receipts.map((receipt) => <tr key={receipt.id}><td>{dateTime(receipt.receivedAt)}</td><td>{receipt.incidentId || "Not mapped"}</td><td>{receipt.eventType || "—"}</td><td>{receipt.payloadFormat || "—"}</td><td><span className={`cad-receipt-status ${receipt.status}`}>{receipt.status}</span>{receipt.errorMessage && <small>{receipt.errorMessage}</small>}</td></tr>)}</tbody></table></TableViewport>}
       </section>
 
       <section className="content-card cad-needed-card">

@@ -5,6 +5,7 @@ import "./service-schedule.css";
 import "../suite-theme.css";
 import "./bento.css";
 import "./layout-fit.css";
+import "./readability.css";
 
 export const metadata = {
   title: "Inventory & Apparatus Checks | Stickney Firehouse Manager",

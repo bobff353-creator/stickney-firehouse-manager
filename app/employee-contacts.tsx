@@ -1,4 +1,5 @@
 "use client";
+import TableViewport from "./table-viewport";
 
 import { useState } from "react";
 import { formatPhoneNumber } from "./phone-format";
@@ -34,7 +35,7 @@ export default function EmployeeContacts({ employees, initialSearch = "", direct
       {search && <p className="portal-inline-status" role="status">{alphabetical.length} matching contacts <button type="button" className="quiet-button" onClick={() => setSearch("")}>Clear search</button></p>}
       <div className="contact-list-band">Firefighters &amp; Officers</div>
       {!search && alphabetical.length === 0 && <div className="action-empty-state"><span aria-hidden="true">☎</span><div><strong>No employee contacts yet</strong><p>Contacts appear automatically after an administrator adds employees and their phone numbers.</p></div></div>}
-      <div className="table-wrap contact-table-wrap"><table className="contact-table">
+      <TableViewport className="table-wrap contact-table-wrap" label="Employee contact comparison"><table className="contact-table">
         <thead><tr><th>Rank</th><th>Name</th>{!directoryOnly && <><th>Cell Number</th><th>Email addresses</th></>}</tr></thead>
         <tbody>{alphabetical.map((employee) => <tr key={employee.id}>
           <td data-label="Rank"><strong>{employee.rank}</strong></td>
@@ -42,7 +43,7 @@ export default function EmployeeContacts({ employees, initialSearch = "", direct
           {!directoryOnly && <td data-label="Cell Number">{employee.phone ? <a className="employee-call-link" href={phoneHref(employee.phone)}>{formatPhoneNumber(employee.phone)}</a> : "Not provided"}</td>}
           {!directoryOnly && <td data-label="Email addresses"><div className="employee-email-list">{employee.email && <div><small>Primary</small><a href={`mailto:${employee.email}`}>{employee.email}</a></div>}{employee.secondaryEmail && <div><small>Secondary / personal</small><a href={`mailto:${employee.secondaryEmail}`}>{employee.secondaryEmail}</a></div>}{!employee.email && !employee.secondaryEmail && "Not provided"}</div></td>}
         </tr>)}</tbody>
-      </table></div>
+      </table></TableViewport>
     </section>
     <p className="contact-source-note">An authorized employee manager can update these details on Employee Information.</p>
   </section>;

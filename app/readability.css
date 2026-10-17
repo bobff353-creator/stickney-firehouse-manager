@@ -1,0 +1,72 @@
+/* App-wide reading and interaction pass. Preserve surface palettes and print layouts.
+   Operational canvases keep their specialized density; shared navigation still improves. */
+@media screen {
+  :is(#portal-workspace,.inventory-app-shell,.login-shell) :focus-visible { outline:3px solid #60a5fa; outline-offset:3px; scroll-margin-block:100px; }
+  :is(.topbar,.sidebar,.mobile-nav,.portal-footer) :is(button,a) { min-height:44px; }
+  :is(.topbar,.sidebar,.mobile-nav,.portal-footer) :focus-visible { outline:3px solid #93c5fd; outline-offset:3px; }
+  #portal-workspace:not([data-page="Operations Board"]):not([data-page="Command Board"]):not([data-page="Respond"]) {
+    --readable-line:1.55; line-height:var(--readable-line);
+  }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.content-card,.standard-page-header,.section-header,.settings-grid,.settings-layout,.employee-fields,.rate-row,.resource-card,.work-detail-form,.table-wrap,.entry-grid-wrap) { min-width:0; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.standard-page-header,.section-header,.period-row,.toolbar,.review-bar,.settings-actions,.resource-actions,.record-actions) { flex-wrap:wrap; gap:12px; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.standard-page-header,.section-header) > div { min-width:0; max-width:100%; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.standard-page-header h1,.section-header h2,.employee-profile-header,.resource-card h3,.policy-reader h1,.department-card h3) { overflow-wrap:anywhere; text-wrap:pretty; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.content-card,.settings-grid,.resource-page,.employee-profile-form,.policy-reader,.document-reader,.work-detail-form,.callback-review-page,.safety-inspections-page,.fi-workspace,.training-workspace,.nr-workspace) :is(p,li,dd) { line-height:1.55; overflow-wrap:anywhere; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.content-card,.settings-grid,.employee-profile-form,.work-detail-form,.safety-inspections-page,.fi-workspace,.training-workspace,.nr-workspace) :is(small,label,dt) { font-size:14px; line-height:1.5; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.content-card,.settings-grid,.employee-profile-form,.work-detail-form,.safety-inspections-page,.fi-workspace,.training-workspace,.nr-workspace) :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]),select,textarea) {
+    min-height:44px; min-width:0; max-width:100%; font-size:16px; line-height:1.4; box-sizing:border-box;
+  }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.content-card,.standard-page-header,.section-header,.settings-grid,.employee-profile-form,.work-detail-form,.safety-inspections-page,.fi-workspace,.training-workspace,.nr-workspace,.workspace-wayfinding,.period-row,.toolbar,.task-action-bar) :is(button,a.primary-action,a.quiet-button) {
+    min-height:44px; max-width:100%; white-space:normal; line-height:1.4; overflow-wrap:anywhere;
+  }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.content-card,.settings-grid,.employee-profile-form,.work-detail-form) textarea { min-height:100px; resize:vertical; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.error-banner,[role=alert],.board-alert,.helper-note,.empty-state,.action-empty-state) { line-height:1.55; overflow-wrap:anywhere; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.error-banner,[role=alert]) { opacity:1; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(th,td) { line-height:1.5; overflow-wrap:anywhere; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.number,.rate-value,.payroll-table td.number) { font-variant-numeric:tabular-nums; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) .accessible-table-viewport { max-width:100%; overflow-x:auto; overscroll-behavior-inline:contain; }
+  .table-navigation-hint { color:inherit; font-size:14px; line-height:1.5; margin:8px 0; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) .table-navigation-hint { color:inherit; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) .accessible-table-viewport:focus-visible { outline:3px solid #60a5fa; outline-offset:3px; }
+  .login-shell :is(input,select,button,a.login-text-link) { min-height:44px; font-size:16px; }
+  .login-shell :is(p,label,small) { line-height:1.55; overflow-wrap:anywhere; }
+  .login-shell .login-card { min-width:0; max-width:100%; }
+}
+@media screen and (max-width:700px) {
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.standard-page-header,.section-header,.period-row) { align-items:flex-start; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.standard-page-header,.section-header) h1 { font-size:clamp(25px,6vw,34px); line-height:1.2; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.standard-page-header,.section-header) h2 { font-size:22px; line-height:1.3; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.standard-page-header,.section-header) p { margin-block:6px 0; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.settings-actions,.resource-actions,.record-actions,.review-bar) > :is(button,a) { flex:1 1 140px; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.employee-fields,.settings-grid,.settings-layout,.rate-settings-grid) { grid-template-columns:minmax(0,1fr); }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.employee-profile-form,.work-detail-form) fieldset { min-width:0; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.error-banner,.board-alert) { flex-wrap:wrap; gap:10px; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.error-banner,.board-alert) > button { min-height:44px; white-space:normal; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.payroll-table,.contact-table-wrap,.employee-roster-card) td::before { line-height:1.4; }
+}
+@media print { .table-navigation-hint { display:none; } }
+@media screen {
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.today-workspace,.scheduler,.logbook-page,.logbook,.permission-page,.rate-list,.activity-page,.task-queue) :is(small,label,.helper-note,.today-source,.today-received span) { font-size:14px; line-height:1.5; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.today-workspace,.scheduler,.logbook-page,.logbook,.permission-page,.rate-list,.activity-page,.task-queue) :is(button,summary) { min-height:44px; white-space:normal; line-height:1.4; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.today-workspace,.scheduler,.logbook-page,.logbook,.permission-page,.rate-list,.activity-page,.task-queue) :is(input:not([type=checkbox]):not([type=radio]):not([type=range]),select,textarea) { min-height:44px; font-size:16px; min-width:0; max-width:100%; box-sizing:border-box; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) .today-workspace :is(p,.today-inbox-card span,.today-inbox-card small,.today-person-mark) { font-size:14px; line-height:1.5; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) .today-crew li > div { min-width:0; overflow-wrap:anywhere; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) .today-heading > div { min-width:0; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) .today-panel { min-width:0; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.today-panel,.logbook-page,.scheduler) :is(p,small,strong) { overflow-wrap:anywhere; }
+  html:has(#portal-workspace) { scroll-padding-bottom:110px; }
+}
+@media screen {
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.content-card,.settings-grid,.employee-profile-form,.work-detail-form,.safety-inspections-page,.fi-workspace,.training-workspace,.nr-workspace) summary { cursor:pointer; min-height:44px; line-height:1.5; }
+  #portal-workspace:not([data-page="Operations Board"],[data-page="Command Board"],[data-page="Respond"]) :is(.content-card,.settings-grid,.employee-profile-form,.work-detail-form,.logbook-page) label:has(>input:is([type=checkbox],[type=radio])) { min-height:44px; align-content:center; }
+  .inventory-app-shell.inventory-portal-refresh label:has(>input:is([type=checkbox],[type=radio])) { min-height:44px; align-content:center; }
+}
+@media screen {
+  /* Explicit toolbar targets, without resizing incident/map geometry or markers. */
+  #portal-workspace .command-center-page > details > summary { min-height:44px; cursor:pointer; line-height:1.5; }
+  #portal-workspace :is(.record-print,.road-map-toolbar button,.road-drawing-dock button,.road-closure-form button,.board-control-buttons button,.icb-fullscreen) { min-height:44px; line-height:1.4; }
+  #portal-workspace .respond-page button:not(.respond-map-marker):not(.respond-apparatus-marker) { min-height:44px; }
+  #portal-workspace .respond-page .respond-map-zoom { min-width:44px; }
+  #portal-workspace .road-closure-form :is(label,small) { font-size:14px; line-height:1.5; }
+  #portal-workspace .road-closure-form :is(input,textarea) { min-height:44px; font-size:16px; max-width:100%; box-sizing:border-box; }
+}

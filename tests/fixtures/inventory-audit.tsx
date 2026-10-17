@@ -11,6 +11,10 @@ import '../../app/inventory/air-systems.css';
 import '../../app/inventory/service-schedule.css';
 import '../../app/suite-theme.css';
 import '../../app/workflow-usability.css';
+import '../../app/inventory/bento.css';
+import '../../app/inventory/layout-fit.css';
+import '../../app/readability.css';
+import '../../app/inventory/readability.css';
 
 const rig={id:'fixture-engine',name:'Preview Engine',asset_type:'engine',status:'in_service'};
 const location={id:'fixture-cabinet',apparatus_id:rig.id,label:'Driver side · rear equipment cabinet',side:'driver',sort_order:1};
