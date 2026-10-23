@@ -8,6 +8,7 @@ import { RequiredConfirmationAdmin } from './required-confirmation';
 import { useWorkspaceViewState } from './workspace-view-state';
 import { useWorkspaceTaskReturn } from './workspace-task-navigation';
 import { confirmLeavingWork, useUnsavedWork } from './use-unsaved-work';
+import { containDialogTab } from './dialog-keyboard';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { normalizeScheduleTime, scheduleTimeBlocks } from "./schedule-time";
@@ -403,9 +404,20 @@ function CalendarScreen({ data, isAdmin, adminDayMode, setAdminDayMode, selected
   const [rotationPaused, setRotationPaused] = useState(true);
   const [calendarWindow, setCalendarWindow] = useWorkspaceViewState<'all' | 'block'>('scheduler-calendar-time-window', 'all');
   const [dayViewOpen, setDayViewOpen] = useState(false);
+  const dayDialog = useRef<HTMLDialogElement>(null);
+  const dayCloseButton = useRef<HTMLButtonElement>(null);
+  const dayOpener = useRef<HTMLButtonElement | null>(null);
+  const calendarRoot = useRef<HTMLDivElement>(null);
+  const returnFocusFrame = useRef<number | null>(null);
   const [calendarScope, setCalendarScope] = useWorkspaceViewState("scheduler-calendar-scope", "mine");
   const showAllSchedule = isAdmin || calendarScope === "all";
   const inlineDayView = isAdmin && adminDayMode;
+  const modalDayOpen = dayViewOpen && !inlineDayView;
+  const DayContainer = inlineDayView ? "section" : "dialog";
+  const closeDayView = () => {
+    if (busy || !confirmLeavingWork()) return;
+    setDayViewOpen(false);
+  };
   const myId = data.viewer.employeeId;
   const activeShiftIds = useMemo(() => new Set(data.shiftTypes.filter((shift) => shift.active).map((shift) => shift.id)), [data.shiftTypes]);
   const entriesByDate = useMemo(() => {
@@ -460,23 +472,35 @@ function CalendarScreen({ data, isAdmin, adminDayMode, setAdminDayMode, selected
   const activeWindow = calendarWindow === 'all' ? null : calendarTimeBlocks[rotationIndex % calendarTimeBlocks.length];
 
   useEffect(() => {
-    if (!dayViewOpen || inlineDayView) return;
+    const element = dayDialog.current;
+    if (!modalDayOpen || !element) return;
+    if (returnFocusFrame.current !== null) window.cancelAnimationFrame(returnFocusFrame.current);
+    const opener = dayOpener.current;
+    const calendar = calendarRoot.current;
     const previousOverflow = document.body.style.overflow;
-    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setDayViewOpen(false); };
     document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", closeOnEscape);
+    element.showModal();
+    dayCloseButton.current?.focus({ preventScroll: true });
     return () => {
+      element.close();
       document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", closeOnEscape);
+      // A confirmed save can refresh the calendar before dismissal. Restore a
+      // connected day button after React finishes that update, including when
+      // changing month replaced the original opener.
+      returnFocusFrame.current = window.requestAnimationFrame(() => {
+        const target = opener?.isConnected ? opener : calendar?.isConnected ? calendar.querySelector<HTMLButtonElement>('button[data-calendar-date].selected') : null;
+        target?.focus({ preventScroll: true });
+        returnFocusFrame.current = null;
+      });
     };
-  }, [dayViewOpen, inlineDayView]);
+  }, [modalDayOpen]);
 
   useEffect(() => {
     setNewShiftType("");
   }, [selectedDate]);
 
   return (
-    <div className="scheduler-grid">
+    <div className="scheduler-grid" ref={calendarRoot}>
       {isAdmin && <div className="scheduler-admin-calendar-toolbar"><button aria-pressed={adminDayMode} onClick={() => { setAdminDayMode(true); setDayViewOpen(false); }}>Day staffing</button><button aria-pressed={!adminDayMode} onClick={() => { setAdminDayMode(false); setDayViewOpen(false); }}>Month calendar</button><button className="link" onClick={() => setSelectedDate(data.today)}>Today</button></div>}
       {(!isAdmin || !adminDayMode) && <section className="wide scheduler-month-card">
         {!isAdmin && <div className="scheduler-calendar-scope"><span>Show on calendar</span><div className="scheduler-calendar-choices" role="group" aria-label="Show on calendar">
@@ -531,7 +555,7 @@ function CalendarScreen({ data, isAdmin, adminDayMode, setAdminDayMode, selected
                 "--calendar-shift-tint": `${shiftHex}30`,
                 "--calendar-shift-text": shiftTextColor(shift.color),
               } as CSSProperties : undefined;
-              return <button type="button" role="gridcell" key={date} style={calendarStyle} className={`${date === selectedDate ? "selected " : ""}${date === data.today ? "today " : ""}${shift ? "calendar-has-shift" : ""}`} onClick={() => { setRotationPaused(true); setSelectedDate(date); setDayViewOpen(true); }} aria-label={ariaLabel}>
+              return <button type="button" role="gridcell" key={date} data-calendar-date={date} style={calendarStyle} className={`${date === selectedDate ? "selected " : ""}${date === data.today ? "today " : ""}${shift ? "calendar-has-shift" : ""}`} onClick={(event) => { dayOpener.current = event.currentTarget; setRotationPaused(true); setSelectedDate(date); setDayViewOpen(true); }} aria-label={ariaLabel}>
                 <span className="calendar-day-header">
                   <span className="calendar-day-number">{day}</span>
                   {!!availability.length && <span className="calendar-availability-summary">
@@ -564,13 +588,20 @@ function CalendarScreen({ data, isAdmin, adminDayMode, setAdminDayMode, selected
       </section>}
 
       {(dayViewOpen || (isAdmin && adminDayMode)) && (
-        <div className={inlineDayView ? "scheduler-inline-day" : "scheduler-day-backdrop"} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDayViewOpen(false); }}>
-          <section className="scheduler-day-dialog scheduler-day-card" role={inlineDayView ? "region" : "dialog"} aria-modal={inlineDayView ? undefined : true} aria-labelledby="scheduler-day-title">
+        <div className={inlineDayView ? "scheduler-inline-day" : "scheduler-day-backdrop"} role="presentation">
+          <DayContainer ref={inlineDayView ? undefined : dayDialog} className="scheduler-day-dialog scheduler-day-card" role={inlineDayView ? "region" : "dialog"} aria-modal={inlineDayView ? undefined : true} aria-busy={inlineDayView ? undefined : busy} aria-labelledby="scheduler-day-title" tabIndex={inlineDayView ? undefined : -1}
+            onCancel={inlineDayView ? undefined : event => { event.preventDefault(); closeDayView(); }}
+            onKeyDown={inlineDayView ? undefined : event => containDialogTab({ key: event.key, shiftKey: event.shiftKey, currentTarget: event.currentTarget as HTMLDialogElement, preventDefault: () => event.preventDefault() })}
+            onMouseDown={inlineDayView ? undefined : event => {
+              if (event.target !== event.currentTarget) return;
+              const bounds = event.currentTarget.getBoundingClientRect();
+              if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) closeDayView();
+            }}>
             <header className="scheduler-day-dialog-head">
               <div><span className="section-kicker">Day schedule</span><h3 id="scheduler-day-title">{friendlyDate(selectedDate)}</h3></div>
               <div>
-                <input aria-label="Choose another date" type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
-                {!inlineDayView && <button type="button" className="scheduler-day-close" aria-label="Close day view" autoFocus onClick={() => setDayViewOpen(false)}>×</button>}
+                <input aria-label="Choose another date" type="date" value={selectedDate} disabled={!inlineDayView && busy} onChange={(e) => { if (!inlineDayView && (busy || !confirmLeavingWork())) return; setSelectedDate(e.target.value); }} />
+                {!inlineDayView && <button ref={dayCloseButton} type="button" className="scheduler-day-close" aria-label="Close day view" autoFocus disabled={busy} onClick={closeDayView}>×</button>}
               </div>
             </header>
             <div className="scheduler-day-dialog-body">
@@ -633,7 +664,7 @@ function CalendarScreen({ data, isAdmin, adminDayMode, setAdminDayMode, selected
                 );
               })}
             </div>
-          </section>
+          </DayContainer>
         </div>
       )}
     </div>

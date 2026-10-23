@@ -36,7 +36,7 @@ const inventorySections: Array<[View, string]> = [
 ];
 
 const workspaceCopy: Record<View, { eyebrow: string; title: string; description: string }> = {
-  due: { eyebrow: "OPERATIONAL RECORDS", title: "Inventory & checks", description: "Choose the job you need to complete." },
+  due: { eyebrow: "OPERATIONAL RECORDS", title: "Apparatus & checks", description: "Start or resume a required apparatus check below." },
   fleet: { eyebrow: "INVENTORY WORKSPACE", title: "Operational checks", description: "Daily, weekly, inventory, and air-pack checks by apparatus." },
   inventory: { eyebrow: "APPARATUS INVENTORY", title: "Inventory checks", description: "Start or resume the saved inventory for each apparatus." },
   check: { eyebrow: "ACTIVE WORK", title: "Complete this check", description: "Work one location at a time. Every result saves to the department record." },
@@ -583,6 +583,16 @@ export default function Inventory360({
     window.dispatchEvent(new Event("firehouse:inventory-refresh"));
     showToast("Refresh requested. Check each section’s connection status before relying on its records.");
   }
+  const departmentSummary = <details className="inventory-status-details" open={view === "fleet"}>
+    <summary>Department summary · apparatus &amp; unfinished checks</summary>
+    <div className="inventory-status-strip" aria-label="Inventory status summary">
+      <button type="button" onClick={() => openFleetFilter("in-service")}><strong>{inService}</strong><span>In service</span></button>
+      <button type="button" onClick={() => openFleetFilter("out-impaired")}><strong>{outOfService.length}</strong><span>Out / impaired</span></button>
+      <button type="button" onClick={() => setView("readiness")}><strong>{inventoryEvents.length}</strong><span>Readiness updates</span></button>
+      <button type="button" onClick={() => setView("fleet")}><strong>{fleetSummaryReady ? checksInProgress : "—"}</strong><span>All unfinished checks</span><small>All dates · includes Inventory counts</small></button>
+    </div>
+  </details>;
+  const moreInventoryTools = <details className="inventory-more-tools" open={['inventory','air','reports','stock','setup'].includes(view)}><summary>More tools · inventory, repairs, air packs &amp; reports</summary><nav className="inventory-section-nav" aria-label="More inventory tools">{[...inventorySections.filter(([id]) => ['inventory','air','reports','stock'].includes(id) || (view === "due" && id === "service")), ...(canSetup ? [["setup","Build & templates"]] as Array<[View,string]> : [])].map(([id,label])=><button type="button" key={id} className={view===id?'active':''} aria-current={view===id?'page':undefined} onClick={()=>setView(id)}>{label}</button>)}</nav></details>;
 
   if (!accessAllowed) return (
     <main className="inventory-app-shell inventory-access-shell">
@@ -601,13 +611,13 @@ export default function Inventory360({
 
   if (!access.confirmation || access.confirmation.required) return <main className="inventory-app-shell"><RequiredConfirmation status={access.confirmation}/><Link href="/?page=respond&display=portal">Open Respond</Link></main>;
   return (
-    <WorkspaceViewMemory key={access.identity}><main className={`inventory-app-shell inventory-portal-refresh${view === "check" ? " inventory-task-focused" : ""}`}><TaskQueueReturn/>
+    <WorkspaceViewMemory key={access.identity}><main className={`inventory-app-shell inventory-portal-refresh${view === "check" ? " inventory-task-focused" : ""}${view === "due" ? " inventory-due-focused" : ""}`}><TaskQueueReturn/>
       <header className="topbar">
         <PortalModuleMenu permissions={permissions} currentPage="Inventory" departmentName={activeDepartmentName}/>
-        <button className="brand" onClick={() => setView("due")} aria-label="Inventory and Apparatus Checks home">
+        <button className="brand" onClick={() => setView("due")} aria-label="Apparatus and checks home">
           <span>
             <small>{activeDepartmentName}</small>
-            <b>Inventory &amp; Apparatus Checks</b>
+            <b>Apparatus &amp; checks</b>
           </span>
         </button>
         <div className="top-actions">
@@ -635,25 +645,20 @@ export default function Inventory360({
       </header>
 
       <section ref={workspaceHeadingRef} className="inventory-command-header" aria-labelledby="inventory-workspace-title">
-        {view === "due" && <Link className="inventory-command-back" href="/?page=dashboard&display=portal" prefetch={false} onClick={event => { if (!confirmLeavingWork()) event.preventDefault(); }}>← Back to portal home</Link>}
-        {view !== "due" && view !== "check" && <button className="inventory-command-back" type="button" onClick={() => setView("due")}>← Back to inventory home</button>}
-        <div className="inventory-command-hero">
+        {view === "due" && <div className="inventory-due-toolbar"><Link className="inventory-command-back" href="/?page=dashboard&display=portal" prefetch={false} onClick={event => { if (!confirmLeavingWork()) event.preventDefault(); }}>← Portal home</Link><h1 id="inventory-workspace-title">{activeWorkspace.title}</h1><button type="button" onClick={refreshWorkspace}>Refresh</button></div>}
+        {view !== "due" && view !== "check" && <button className="inventory-command-back" type="button" onClick={() => setView("due")}>← Back to apparatus &amp; checks</button>}
+        {view !== "due" && <div className="inventory-command-hero">
           <div>
             <span>{activeWorkspace.eyebrow}</span>
             <h1 id="inventory-workspace-title">{activeWorkspace.title}</h1>
             <p>{activeWorkspace.description}</p>
-            <small><i /> Live department records · no sample inventory</small>
+            <small><i /> Saved department records · refresh to check for changes</small>
           </div>
           <button type="button" onClick={refreshWorkspace}>Refresh</button>
-        </div>
-        {view === "due" || view === "fleet" ? (
-          <div className="inventory-status-strip" aria-label="Inventory status summary">
-            <button type="button" onClick={() => openFleetFilter("in-service")}><strong>{inService}</strong><span>In service</span></button>
-            <button type="button" onClick={() => openFleetFilter("out-impaired")}><strong>{outOfService.length}</strong><span>Out / impaired</span></button>
-            <button type="button" onClick={() => setView("readiness")}><strong>{inventoryEvents.length}</strong><span>Readiness updates</span></button>
-            <button type="button" onClick={() => setView("fleet")}><strong>{fleetSummaryReady ? checksInProgress : "—"}</strong><span>All unfinished checks</span><small>All dates · includes Inventory counts</small></button>
-          </div>
-        ) : null}
+        </div>}
+        {view === "due" && suiteState !== "ready" && <div className="inventory-priority-notice" role="status"><strong>{suiteState === "loading" ? "Apparatus service status is loading" : "Apparatus service status could not be refreshed"}</strong><span>{suite.apparatus.length ? "Last received apparatus records may be out of date." : "No apparatus service status has been verified in this view."} Required checks have their own connection status below.</span></div>}
+        {view === "due" && outOfService.length > 0 && <div className="inventory-priority-notice" role="status"><div><strong>{outOfService.length} apparatus out of service or impaired{suiteState !== "ready" ? " · last received" : ""}</strong><span>{outOfService.map(unit => unit.call_sign || unit.unit_name).join(" · ")}</span></div><button type="button" onClick={() => openFleetFilter("out-impaired")}>Review apparatus status →</button></div>}
+        {view === "fleet" ? departmentSummary : null}
         <label className="inventory-mobile-destination">What do you need to do?<select aria-label="Inventory workspace" value={view === "check" ? (selectedCheckType === "air_pack" ? "air" : "fleet") : view} onChange={event => setView(event.target.value as View)}>{inventorySections.map(([id,label]) => <option key={id} value={id}>{label}</option>)}{view === "readiness" && <option value="readiness">Items needing attention</option>}{canSetup && <option value="setup">Admin: checks &amp; equipment</option>}</select></label>
         <nav className="inventory-section-nav" aria-label="Inventory sections">
           {[
@@ -663,14 +668,14 @@ export default function Inventory360({
               key={id}
               type="button"
               className={view === id || (view === "check" && id === (selectedCheckType === "air_pack" ? "air" : "fleet")) ? "active" : ""}
-              aria-current={view === id ? "page" : undefined}
+              aria-current={view === id || (view === "check" && id === (selectedCheckType === "air_pack" ? "air" : "fleet")) ? "page" : undefined}
               onClick={() => setView(id)}
             >
               {label}
             </button>
           ))}
         </nav>
-        <details className="inventory-more-tools" open={['inventory','air','reports','stock','setup'].includes(view)}><summary>More tools · inventory counts, air packs, reports &amp; stock</summary><nav className="inventory-section-nav" aria-label="More inventory tools">{[...inventorySections.filter(([id]) => ['inventory','air','reports','stock'].includes(id)), ...(canSetup ? [["setup","Build & templates"]] as Array<[View,string]> : [])].map(([id,label])=><button type="button" key={id} className={view===id?'active':''} aria-current={view===id?'page':undefined} onClick={()=>setView(id)}>{label}</button>)}</nav></details>
+        {view !== "due" && moreInventoryTools}
       </section>
 
       {view === "due" ? (
@@ -693,7 +698,7 @@ export default function Inventory360({
               <b>Report or follow up a repair</b><small>Track failed items and work already underway</small>
             </button>
           </nav>
-          <InventoryOperations onNavigate={setView} onRepairs={() => setView("service")} onRecords={receiveOperations} view="due" onAir={() => setView("air")} onSetup={() => setView("setup")} onOpenUnit={(apparatusId, checkType) => { setSelectedApparatusId(apparatusId); setSelectedCheckType(checkType); window.history.replaceState(null, "", `/inventory?apparatus=${encodeURIComponent(apparatusId)}&check=${checkType}`); setView("check"); }} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+          <InventoryOperations afterDueChecks={<div className="inventory-secondary-tools">{departmentSummary}{moreInventoryTools}</div>} onNavigate={setView} onRepairs={() => setView("service")} onRecords={receiveOperations} view="due" onAir={() => setView("air")} onSetup={() => setView("setup")} onOpenUnit={(apparatusId, checkType) => { setSelectedApparatusId(apparatusId); setSelectedCheckType(checkType); window.history.replaceState(null, "", `/inventory?apparatus=${encodeURIComponent(apparatusId)}&check=${checkType}`); setView("check"); }} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
         </section>
       ) : null}
 
@@ -1035,6 +1040,7 @@ export default function Inventory360({
           <button
             key={id}
             className={view === id ? "active" : ""}
+            aria-current={view === id ? "page" : undefined}
             onClick={() => setView(id)}
           >
             <InventoryNavIcon view={id} />

@@ -5,7 +5,7 @@ type IconName = "home" | "log" | "box" | "users" | "phone" | "payroll" | "clock"
 export const featuredNavItems: Array<{ page: NavItem; label: string; tone: string }> = [
   { page: "Dashboard", label: "Today", tone: "home" },
   { page: "Respond", label: "Response", tone: "respond" },
-  { page: "Inventory", label: "Operations", tone: "apparatus" },
+  { page: "Inventory", label: "Apparatus & checks", tone: "apparatus" },
   { page: "Scheduling", label: "Schedule", tone: "schedule" },
 ];
 export const featuredNavPages = new Set<NavItem>(featuredNavItems.map((item) => item.page));
@@ -17,7 +17,7 @@ export const adminNavGroups: Array<{ label: string; icon: IconName; items: Array
   { label: "Personnel", icon: "users", items: [{ label: "Employees", page: "Employees" }, { label: "Contacts", page: "Employee Contacts" }] },
   { label: "Payroll", icon: "payroll", items: [{ label: "Payroll", page: "Payroll" }, { label: "Work Detail", page: "Work Details" }, { label: "Timesheets", page: "Timesheets" }, { label: "Callback Reviews", page: "Callback Reviews" }, { label: "Rates", page: "Rates & Rules" }] },
   { label: "Documents", icon: "document", items: [{ label: "Policies", page: "Policies" }, { label: "Holiday Policy", page: "Holiday Policy" }, { label: "EMS", page: "EMS" }] },
-  { label: "Station Duties", icon: "clock", items: [{ label: "Daily Duties", page: "Daily Duties" }, { label: "Inventory & Apparatus Checks", page: "Inventory" }] },
+  { label: "Station Duties", icon: "clock", items: [{ label: "Daily Duties", page: "Daily Duties" }, { label: "Apparatus & checks", page: "Inventory" }] },
   { label: "Administration", icon: "settings", items: [{ label: "System Health & Backups", page: "System Health" }, { label: "Departments", page: "Departments" }, { label: "Important Phone Numbers", page: "Phone Numbers" }, { label: "Permissions", page: "Permissions" }, { label: "CIS CAD Integration", page: "CAD Integration" }, { label: "Respond Device Modes", page: "Respond Device Modes" }, { label: "Test as Member", page: "Test View" }] },
 ];
 export const navPermission: Partial<Record<NavItem, string>> = { "NERIS Reporting": "neris.pilot", "Fire Inspections": "inspections.pilot", Training: "training.pilot", Dashboard: "dashboard.view", "Command Center": "command_center.view", "Operations Board": "operations_board.view", "Activity Timeline": "command_center.view", "Task Queue": "dashboard.view", Respond: "field_preplans.view", "Command Board": "incident_command.view", "Field Preplans": "field_preplans.view", "Road Closures": "road_closures.view", "Safety Inspections": "safety_inspections.view", Scheduling: "scheduling.view", Payroll: "payroll.manage", "Work Details": "scheduling.manage", "Daily Log": "daily_log.view", Timesheets: "payroll.manage", "Callback Reviews": "payroll.manage", "My Timesheet": "payroll.view_own", Employees: "employees.manage", "Employee Contacts": "contacts.view", Policies: "documents.view", "Box Cards": "documents.view", "Holiday Policy": "documents.view", EMS: "documents.view", "Daily Duties": "documents.view", Inventory: "inventory.view", "Phone Numbers": "settings.manage", "Rates & Rules": "payroll.manage", Departments: "settings.manage", "System Health": "settings.manage", Permissions: "permissions.manage", "CAD Integration": "settings.manage", "Respond Device Modes": "settings.manage", "Test View": "permissions.manage" };

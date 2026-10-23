@@ -9,11 +9,11 @@ const portal = await readFile(new URL("../app/payroll-app.tsx", import.meta.url)
 const menu = await readFile(new URL("../app/portal-menu-items.ts", import.meta.url), "utf8");
 const styles = await readFile(new URL("../app/inventory/inventory.css", import.meta.url), "utf8");
 
-test("inventory is named Inventory & Apparatus Checks throughout the application shell", () => {
+test("crew apparatus navigation is distinct from Live Operations without changing Inventory routes", () => {
   assert.match(layout, /Inventory & Apparatus Checks/);
   assert.match(shell, /Inventory &amp; Apparatus Checks/);
   assert.match(portal, /import \{ featuredNavItems, featuredNavPages, adminNavGroups,/);
-  assert.match(menu, /label: "Inventory & Apparatus Checks", page: "Inventory"/);
+  assert.match(menu, /label: "Apparatus & checks", page: "Inventory"/);
   assert.match(shell, /Admin Configuration/);
 });
 

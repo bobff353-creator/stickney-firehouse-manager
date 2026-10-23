@@ -11,7 +11,7 @@ import { serviceDateLabel, serviceReminders, serviceScheduleInput } from "./inve
 /* Authenticated inventory images must load directly so the browser sends the department session cookie. */
 /* eslint-disable @next/next/no-img-element */
 
-import { FormEvent, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { inventoryPreviewItems } from "./inventory-preview";
 import { useWorkspaceViewState } from "./workspace-view-state";
@@ -395,6 +395,7 @@ export default function InventoryOperations({
   onReports,
   onRecords,
   onNavigate,
+  afterDueChecks,
 }: {
   view: OperationsView;
   onSetup: () => void;
@@ -411,6 +412,7 @@ export default function InventoryOperations({
   onAir?: () => void;
   onReports?: () => void;
   onNavigate?: (view: "equipment" | "service" | "stock") => void;
+  afterDueChecks?: ReactNode;
   onRecords?: (records: Pick<OperationsData, "equipment" | "checks" | "checkItems"> | null) => void;
 }) {
   const [data, setData] = useState<OperationsData>(emptyData);
@@ -1135,6 +1137,10 @@ export default function InventoryOperations({
     const pending = checkItems.filter((item) => value(item, "result") === "pending").length;
     return [{ apparatusId, name: value(apparatus, "name"), checkType: "inventory" as const, active, pending, total: checkItems.length, configured }];
   });
+  const unfinishedRoutineChecks = data.checks.filter((check) => value(check, "status") === "in_progress" && value(check, "check_type") !== "inventory" && !routineCheckNotNeeded(data.apparatus.find((apparatus) => value(apparatus, "id") === value(check, "apparatus_id")), value(check, "check_type"))).length;
+  const criticalAssetCount = view === "due" ? data.equipment.filter(item => !item.retired_at && value(item, "service_status") !== "retired" && attentionForAsset(item).some(attention => attention.severity === "critical")).length : 0;
+  const urgentRepairCount = view === "due" ? openRepairs.filter(item => ["critical", "high"].includes(value(item, "priority"))).length : 0;
+  const apparatusSearch = <div className="inventory-find-unit"><label>Find your apparatus<input type="search" value={unitSearch} onChange={event => setUnitSearch(event.target.value)} placeholder="Unit name or check type" /></label>{unitSearch && <button type="button" onClick={() => setUnitSearch("")}>Clear search</button>}<p>Choose your apparatus → check each item → submit for review.</p></div>;
 
   const renderCheckCards = (
     checks: CheckCard[],
@@ -1157,42 +1163,45 @@ export default function InventoryOperations({
     });
   }
 
-  if (loading) return <div className="ops-state">Loading saved Inventory records…</div>;
+  if (loading) return <div className="inventory-ops"><div className="ops-state">Loading saved Inventory records…</div>{view === "due" && afterDueChecks}</div>;
   if ((error || refreshError) && !data.configured) {
     return (
-      <div className="ops-state ops-error" role="alert">
+      <div className="inventory-ops"><div className="ops-state ops-error" role="alert">
         {error || refreshError}
         <div className="ops-state-actions">
           {accessRequired ? <Link href="/">Return to department portal</Link> : null}
           <button type="button" onClick={() => void load()}>Try again</button>
         </div>
-      </div>
+      </div>{view === "due" && afterDueChecks}</div>
     );
   }
 
   return (
-    <div className="inventory-ops"><section className="equipment-continuity"><ScenarioHelp page="Inventory"/></section>
-      <p className="ops-refresh-status">Updates every {inventoryRefreshInterval(view) < 60_000 ? `${inventoryRefreshInterval(view) / 1000} seconds` : `${inventoryRefreshInterval(view) / 60_000} minutes`} while this screen is visible. Your saved changes appear immediately.{lastSyncedAt ? ` Last received ${formatDate(lastSyncedAt)}.` : ""}</p>
+    <div className="inventory-ops">{view !== "due" && <section className="equipment-continuity"><ScenarioHelp page="Inventory"/></section>}
+      <p className="ops-refresh-status">{view === "due" ? `Saved snapshot · ${lastSyncedAt ? `received ${formatDate(lastSyncedAt)}` : "no successful receipt confirmed yet"}` : <>Saved snapshot · checks for updates every {inventoryRefreshInterval(view) < 60_000 ? `${inventoryRefreshInterval(view) / 1000} seconds` : `${inventoryRefreshInterval(view) / 60_000} minutes`} while visible.{lastSyncedAt ? ` Last received ${formatDate(lastSyncedAt)}.` : " No successful receipt confirmed yet."}</>}</p>
       {message ? <div className="ops-message" role="status">{message}</div> : null}
       {saveReceipt && <div className="ops-save-receipt" role="status">Server confirmed {formatDate(saveReceipt.at)}{saveReceipt.reference && <small>Record: {saveReceipt.reference}</small>}<small>Saved results are not submission, approval, or confirmation that equipment is safe to use.</small></div>}
       {submittedCheck && onReports && <div className="ops-message"><strong>Submitted · awaiting administrator review</strong><p>Submission is not approval. Review the saved report and its status next.</p><button type="button" onClick={onReports}>View saved reports →</button></div>}
       {error ? <div className="ops-message ops-error" role="alert">{error}</div> : null}
       {refreshError ? <div className="ops-message ops-error" role="alert">Live refresh unavailable. Previously loaded records may be out of date. {refreshError} <button type="button" disabled={Boolean(busy)} onClick={() => void load({ background: true, fresh: true })}>Retry refresh</button></div> : null}
+      {view === "due" && (criticalAssetCount > 0 || urgentRepairCount > 0 || stockStatusCounts.expired > 0) && <section className="inventory-priority-notice inventory-critical-work" aria-label="Saved critical issues"><strong>{refreshError ? "Last received critical issues · update unavailable" : "Saved critical issues to review"}</strong><div>{criticalAssetCount > 0 && <button type="button" disabled={!onNavigate} onClick={() => onNavigate?.("equipment")}>{criticalAssetCount} asset{criticalAssetCount === 1 ? "" : "s"} with critical issues →</button>}{urgentRepairCount > 0 && <button type="button" disabled={!onNavigate} onClick={() => onNavigate?.("service")}>{urgentRepairCount} high / critical repair{urgentRepairCount === 1 ? "" : "s"} →</button>}{stockStatusCounts.expired > 0 && <button type="button" disabled={!onNavigate} onClick={() => onNavigate?.("stock")}>{stockStatusCounts.expired} suppl{stockStatusCounts.expired === 1 ? "y" : "ies"} with expired stock →</button>}</div><small>Department-wide saved records. Review the original issue and service status before use.</small></section>}
       {view === "air" ? <InventoryAirSystems data={data} busy={Boolean(busy)} canSetup={canSetup} canManageRepairs={canManageRepairs} canCheck={canCheck} onSave={action} onOpenCheck={id => onOpenUnit?.(id, "air_pack")} onRepairs={onRepairs}
         renderTemplate={apparatus => { const template = data.scbaTemplates.find(item => item.apparatus_id === apparatus.id); return <ScbaTemplateEditor key={`${apparatus.id}-${template?.updated_at}`} apparatus={apparatus} template={template} busy={Boolean(busy)} onSave={payload => action("air-template", payload)} />; }}
         uploadDocument={uploadMaintenanceDocument} uploadPhoto={async (asset, file) => { await uploadEquipmentPhoto(asset, file); await load({ background: true, fresh: true }); }} /> : null}
-      {view === "due" || view === "inventory" ? <div className="inventory-find-unit"><label>Find your apparatus<input type="search" value={unitSearch} onChange={event => setUnitSearch(event.target.value)} placeholder="Unit name or check type" /></label>{unitSearch && <button type="button" onClick={() => setUnitSearch("")}>Clear search</button>}<p>Choose your apparatus → check each item → submit for review.</p></div> : null}
+      {view === "inventory" ? apparatusSearch : null}
 
-      {view === "due" && onNavigate && <OperationsOverview data={data} onNavigate={onNavigate} delayed={Boolean(refreshError)} />}
       {view === "due" ? (
         <>
-          <nav className="check-job-filter" aria-label="Choose a check job">{[["all", "All due checks"], ["daily", "Daily"], ["weekly", "Weekly"], ["air_pack", "Air packs & bottles"]].map(([id, label]) => <button key={id} type="button" aria-pressed={dueType === id} onClick={() => setDueType(id)}>{label}</button>)}</nav>
+          <div className="inventory-due-job-tools"><nav className="check-job-filter" aria-label="Choose a check job">{[["all", "All", "All due checks"], ["daily", "Daily", "Daily checks"], ["weekly", "Weekly", "Weekly checks"], ["air_pack", "Air packs", "Air packs & bottles checks"]].map(([id, label, accessibleLabel]) => <button key={id} type="button" aria-label={accessibleLabel} aria-pressed={dueType === id} onClick={() => setDueType(id)}>{label}</button>)}</nav>{unitSearch && <button type="button" className="inventory-active-unit-filter" onClick={() => setUnitSearch("")}>Clear apparatus filter: {unitSearch} ×</button>}</div>
           <section className="ops-card due-now-card">
-            <header><div><span>APPARATUS CHECKS DUE NOW</span><h2>{dueChecks.length ? `${dueChecks.length} required check${dueChecks.length === 1 ? "" : "s"}` : "No scheduled checks due now"}</h2></div><b title="All unfinished apparatus and air-pack checks, including earlier dates; Inventory counts are separate.">{data.checks.filter((check) => value(check, "status") === "in_progress" && value(check, "check_type") !== "inventory" && !routineCheckNotNeeded(data.apparatus.find((apparatus) => value(apparatus, "id") === value(check, "apparatus_id")), value(check, "check_type"))).length} in progress</b></header>
-            <p className="muted">In progress includes unfinished apparatus and air-pack checks from all dates. Inventory counts are listed separately below.</p>
+            <header><div><h2>{dueChecks.length ? `${dueChecks.length} required check${dueChecks.length === 1 ? "" : "s"}` : "No scheduled checks due now"}</h2></div></header>
             {dueChecks.filter(item => dueType === "all" || item.checkType === dueType).length ? renderCheckCards(dueChecks.filter(item => dueType === "all" || item.checkType === dueType), (checkType) => `${formatStatus(checkType)} · DUE TODAY`) : <div className="ops-empty due-clear"><strong>No checks waiting in this view.</strong><p>Completed scheduled checks fall off this list automatically. Choose All due checks to see other jobs; unscheduled templates are available in Apparatus checks.</p></div>}
             {notNeededChecks.length ? <div className="due-check-exemptions" role="status"><strong>Not needed — apparatus Out of Service</strong><div>{notNeededChecks.map((check) => <span key={`${check.apparatusId}-${check.checkType}`}>{check.name} · {formatStatus(check.checkType)}</span>)}</div><small>These checks will resume automatically when Fleet returns the apparatus to service.</small></div> : null}
+            <p className="due-progress-scope">{unfinishedRoutineChecks} in progress · all dates. Inventory counts are separate.</p>
           </section>
+          <details className="inventory-apparatus-finder" open={Boolean(unitSearch)}><summary>Find apparatus{unitSearch ? ` · ${unitSearch}` : " (optional)"}</summary>{apparatusSearch}</details>
+          {afterDueChecks}
+          <details className="inventory-operating-summary"><summary>More status &amp; help · assets, repairs, supplies</summary><p>In progress includes unfinished apparatus and air-pack checks from all dates. Inventory counts are listed separately below. This screen checks for updates every {inventoryRefreshInterval(view) / 60_000} minutes while visible.</p>{onNavigate && <OperationsOverview data={data} onNavigate={onNavigate} delayed={Boolean(refreshError)} />}<section className="equipment-continuity"><ScenarioHelp page="Inventory"/></section></details>
           <details className="ops-card service-reminders" aria-label="Service reminders">
             <summary>Equipment service reminders · {serviceReminders(data.equipment).length}</summary>
             <header><div><span>PLAN EQUIPMENT SERVICE</span><h2>Service reminders</h2></div></header>

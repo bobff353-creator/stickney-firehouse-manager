@@ -21,16 +21,19 @@ export default function TodayDashboard({ departmentName, allowedPages, onNavigat
   const [refreshing, setRefreshing] = useState(false);
   const [clock, setClock] = useState(0);
   const [severity, setSeverity] = useState("all");
+  const [online, setOnline] = useState(true);
   const inFlight = useRef<AbortSignal | null>(null);
+  const connectionRevision = useRef(0);
   const can = (page: PortalPage) => allowedPages.includes(page);
   const load = useCallback(async (signal: AbortSignal) => {
     if (inFlight.current && !inFlight.current.aborted) return;
     inFlight.current = signal;
+    const startedConnection = connectionRevision.current;
     setRefreshing(true);
     setClock(Date.now());
     try {
       const value = await readPortalJson<ShiftPacket>("/api/dashboard?scope=today", "Today’s shift could not load", signal);
-      if (!signal.aborted) { setPacket(value); setClock(Date.now()); setError(""); }
+      if (!signal.aborted && navigator.onLine && connectionRevision.current === startedConnection) { setPacket(value); setClock(Date.now()); setError(""); }
     } catch {
       if (!signal.aborted) setError("Today could not refresh. Displayed records may be out of date. Reconnect and retry before relying on readiness.");
     } finally {
@@ -39,17 +42,28 @@ export default function TodayDashboard({ departmentName, allowedPages, onNavigat
     }
   }, []);
   useEffect(() => {
+    const connection = () => {
+      setOnline(navigator.onLine);
+      if (!navigator.onLine) {
+        connectionRevision.current += 1;
+        setRefreshing(false);
+        setError("Connection lost. Displayed records are unverified. Reconnect and refresh before relying on readiness.");
+      }
+    };
+    const initialConnection = window.setTimeout(connection, 0);
+    window.addEventListener("online", connection);
+    window.addEventListener("offline", connection);
     const poller = startVisiblePolling(load, 60_000);
     const timer = window.setInterval(() => setClock(Date.now()), 15_000);
-    return () => { poller.stop(); window.clearInterval(timer); };
+    return () => { poller.stop(); window.clearInterval(timer); window.clearTimeout(initialConnection); window.removeEventListener("online", connection); window.removeEventListener("offline", connection); };
   }, [load]);
   const overview = packet ? shiftOverview(packet, allowedPages) : null;
-  const stale = shiftPacketStale(packet, clock, Boolean(error));
+  const stale = !online || shiftPacketStale(packet, clock, Boolean(error));
   const attention = overview?.items.filter(item => severity === "all" || item.severity === severity) ?? [];
   const partial = overview?.parts.some(part => part.state === "unknown") || !can("Inventory") || !can("Daily Log");
 
   return <section className="today-workspace" data-test-safe aria-labelledby="today-title">
-    <header className="today-heading"><div><p className="eyebrow">{departmentName} · Firehouse Studio</p><h1 id="today-title">Today</h1><p>{packet ? `${packet.date} · Daily Log period ${periodLabels[packet.currentShift] || packet.currentShift}` : "Your crew, current work and what needs attention."}</p></div><div className="today-received" role="status"><strong>{error || (packet && stale) ? "Update unavailable" : packet ? refreshing ? "Refreshing" : "Latest shift briefing" : "Loading shift"}</strong><span>{packet ? `Last received ${savedTimeLabel(packet.asOf)}` : "Status not yet verified"}</span><button type="button" disabled={refreshing} onClick={() => void load(new AbortController().signal)}>{refreshing ? "Refreshing…" : "Refresh"}</button></div></header>
+    <header className="today-heading"><div><p className="eyebrow">{departmentName} · Firehouse Studio</p><h1 id="today-title">Today</h1><p>{packet ? `${packet.date} · Daily Log period ${periodLabels[packet.currentShift] || packet.currentShift}` : "Your crew, current work and what needs attention."}</p></div><div className="today-received" role="status"><strong>{!online ? "Offline · last received records" : error || (packet && stale) ? "Update unavailable" : packet ? refreshing ? "Refreshing" : "Latest shift briefing" : "Loading shift"}</strong><span>{packet ? `Last received ${savedTimeLabel(packet.asOf)}` : "Status not yet verified"}</span><button type="button" disabled={refreshing || !online} onClick={() => void load(new AbortController().signal)}>{refreshing ? "Refreshing…" : "Refresh"}</button></div></header>
     {error && <div className="error-banner" role="alert">{error}{packet ? " Showing the last received briefing." : ""}</div>}
     <nav className="today-actions" aria-label="Start shift work">{([
       ["Daily Log", "Start shift / Daily Log", "Staffing, calls and handoff"],

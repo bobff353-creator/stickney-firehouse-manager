@@ -85,6 +85,12 @@
 .scheduler .scheduler-inline-day { min-width: 0; grid-column: 1 / -1; }
 .scheduler .scheduler-inline-day .scheduler-day-dialog { width: 100%; max-height: none; overflow: visible; box-shadow: none; }
 .scheduler .scheduler-inline-day .scheduler-day-dialog-body { overflow: visible; padding-bottom: 20px; }
+.scheduler .scheduler-day-backdrop:has(> dialog.scheduler-day-dialog) { background: transparent; }
+.scheduler dialog.scheduler-day-dialog { position: fixed; inset: 0; margin: auto; padding: 0; width: min(980px, calc(100vw - 56px)); max-width: calc(100vw - 56px); max-height: min(850px, calc(100dvh - 56px)); }
+.scheduler dialog.scheduler-day-dialog::backdrop { background: rgba(3, 9, 15, .78); }
+@media (max-width: 700px) {
+  .scheduler dialog.scheduler-day-dialog { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; border: 0; border-radius: 0; }
+}
 .scheduler-assignment-editor { min-width: 0; flex: 1; }
 .scheduler-assignment-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; }
 .scheduler-assignment-actions > span { font-size: 12px; color: #f3c96a; }
@@ -137,3 +143,6 @@
 .scheduler .scheduler-calendar-choices button:focus-visible { outline: 3px solid #f6b93b; outline-offset: 3px; }
 .scheduler .scheduler-calendar-choices strong, .scheduler .scheduler-calendar-choices small { display: block; color: inherit; }
 .scheduler-calendar-time-picker { width: 100%; min-width: 0; }
+/* Keep the calendar's safe close and date controls easy to activate on every viewport. */
+.scheduler dialog.scheduler-day-dialog .scheduler-day-dialog-head :is(input,button){min-height:44px}
+.scheduler dialog.scheduler-day-dialog button.scheduler-day-close{width:44px;min-width:44px;height:44px;min-height:44px}

@@ -1066,7 +1066,7 @@ export default function PayrollApp({
         {([
           ["Dashboard", "Today", "home"],
           ["Respond", "Response", "warning"],
-          ["Inventory", "Operations", "box"],
+          ["Inventory", "Apparatus & checks", "box"],
           ["Scheduling", "Schedule", "clock"],
         ] as Array<[NavItem, string, IconName]>).filter(([page]) => visibleNav.includes(page)).map(([page,label,icon]) => <button key={page} className={activeNav===page?"current":""} onClick={() => navigate(page)}><Icon name={icon}/><span>{label}</span></button>)}
         <button className={mobileMenuOpen?"current":""} aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen((current) => !current)}><Icon name="menu"/><span>More</span></button>
@@ -1109,7 +1109,7 @@ export default function PayrollApp({
         </div>}
         {visibleNav.includes(activeNav) && <>
           {activeNav === "Dashboard" && <TodayDashboard departmentName={departmentName} onNavigate={navigate} allowedPages={visibleNav} showPersonalShift={!testMember} />}
-          {activeNav === "Inventory" && <section className="content-card action-empty-state"><div><h1>Apparatus Checks &amp; Inventory</h1><p>Open the dedicated workspace to choose an apparatus, complete checks, and find equipment.</p></div><button type="button" className="primary-action" disabled={openingInventory} onClick={() => void openInventory()}>{openingInventory ? "Checking access…" : "Open Apparatus Checks"}</button></section>}
+          {activeNav === "Inventory" && <section className="content-card action-empty-state"><div><h1>Apparatus &amp; checks</h1><p>Open the dedicated workspace to choose an apparatus, complete checks, and find equipment.</p></div><button type="button" className="primary-action" disabled={openingInventory} onClick={() => void openInventory()}>{openingInventory ? "Checking access…" : "Open Apparatus & checks"}</button></section>}
           {activeNav === "Command Center" && <CommandCenter onNavigate={navigate} preview={Boolean(testMember)} />}
           {activeNav === "Work Details" && <WorkDetails onPayrollChanged={(approvedPeriodStart) => { setPeriodStart(approvedPeriodStart); }} />}
           {activeNav === "Scheduling" && <StationScheduler key={`StationScheduler:${navigationVersion}`} testMember={testMember} />}

@@ -56,6 +56,12 @@ const initial={configured:true,apparatus:[rig,{...rig,id:'fixture-ambulance',nam
 const data:any=JSON.parse(sessionStorage.getItem(key)||JSON.stringify(initial));
 if (!data.stock.some((row:any)=>row.lot_id==='fixture-lot-2')) data.stock.push({...data.stock[0],lot_id:'fixture-lot-2',lot_number:'TEST-LOT-2',quantity_on_hand:3,location_id:'TEST cabinet B',expires_at:'2020-01-01'});
 const admin=new URLSearchParams(location.search).get('role')!=='member';
+if (new URLSearchParams(location.search).has('compact-review')) {
+ data.inspectionSchedules=Array.from({length:7},(_,day)=>({id:`fixture-daily-${day}`,apparatus_id:rig.id,check_type:'daily',day_of_week:day,active:true,start_time:'06:00',end_time:'12:00'}));
+ data.checks=[{id:'fixture-current-daily',apparatus_id:rig.id,apparatus_name:rig.name,check_type:'daily',status:'in_progress',started_at:new Date().toISOString(),started_by:'Fictional crew'}];
+ data.checkItems=data.equipment.filter((item:any)=>item.check_types.includes('daily')).map((item:any)=>({id:`fixture-result-${item.id}`,check_id:'fixture-current-daily',equipment_id:item.id,equipment_name:item.name,result:'pending'}));
+ if(!new URLSearchParams(location.search).has('workspace-review'))data.stock.forEach((lot:any)=>{lot.expires_at='2099-01-01';});
+}
 if (new URLSearchParams(location.search).has('workspace-review')) {
  data.workOrders = [
   { id:'preview-open',apparatus_id:rig.id,apparatus_name:rig.name,status:'open',priority:'high',summary:'TEST broken scene light',details:'Fictional repair for filter verification',opened_at:'2026-09-29T12:00:00Z',assigned_employee_ids:['fixture-member'],assigned_employee_names:['Fictional crew'] },

@@ -1,5 +1,23 @@
 /* Dedicated inventory inherits shared typography without changing check workflows. */
 @media screen {
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-due-toolbar { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:12px; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-due-toolbar h1 { margin:0; font-size:25px; line-height:1.2; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-due-toolbar .inventory-command-back { margin:0; font-size:14px; white-space:nowrap; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-due-toolbar > button { min-height:44px; padding:8px 14px; font-size:14px; font-weight:700; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-command-header > .inventory-mobile-destination { display:none; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-command-header > .inventory-section-nav { display:grid!important; overflow:visible; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-command-header > .inventory-section-nav button { min-width:0; padding:6px 8px; font-size:14px; line-height:1.3; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-due-job-tools { display:flex; flex-wrap:wrap; align-items:start; gap:8px; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-due-job-tools > .check-job-filter { flex:1 1 auto; margin:0; gap:6px; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .check-job-filter button { min-height:44px; padding:8px 10px; font-size:14px; line-height:1.3; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-apparatus-finder { border:1px solid #607895; border-radius:8px; min-width:0; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-apparatus-finder > summary { min-height:44px; padding:10px 12px; box-sizing:border-box; font-size:14px; line-height:1.5; cursor:pointer; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-apparatus-finder[open] { flex-basis:100%; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-secondary-tools { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-secondary-tools > details { margin:0; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-secondary-tools > .inventory-more-tools { display:block!important; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-secondary-tools .inventory-section-nav { display:grid!important; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); overflow:visible; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-secondary-tools summary { min-height:44px; padding:10px 12px; box-sizing:border-box; font-size:14px; line-height:1.5; cursor:pointer; }
   .inventory-app-shell.inventory-portal-refresh :is(button,a.inventory-command-back,summary) { min-height:44px; line-height:1.4; white-space:normal; }
   .inventory-app-shell.inventory-portal-refresh :is(input:not([type=checkbox]):not([type=radio]):not([type=range]),select,textarea) { min-height:44px; min-width:0; max-width:100%; font-size:16px; box-sizing:border-box; }
   .inventory-app-shell.inventory-portal-refresh :is(label,small,.helper-note) { font-size:14px; line-height:1.5; }
@@ -7,6 +25,64 @@
   .inventory-app-shell.inventory-portal-refresh :is(.equipment-card,.inventory-card,.repair-column,.inventory-command-hero,.inventory-search-tools) { min-width:0; }
   .inventory-app-shell.inventory-portal-refresh :is(h1,h2,h3,strong) { overflow-wrap:anywhere; }
   .inventory-app-shell.inventory-portal-refresh :focus-visible { outline:3px solid #93c5fd; outline-offset:3px; scroll-margin-block:100px; }
+}
+
+/* Due Now opens on the crew's next check; department totals remain available on demand. */
+@media screen {
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-command-header { padding-top:8px; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-command-back { display:inline-flex; align-items:center; margin-bottom:6px; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-section-nav { margin-top:8px; padding:4px; grid-template-columns:repeat(4,minmax(0,1fr)); }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-section-nav button { min-height:44px; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused > .due-now-page { padding-top:12px; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-ops { gap:12px; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-find-unit { padding:10px 12px; margin-bottom:0; gap:10px; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-find-unit label { grid-template-columns:auto minmax(140px,1fr); align-items:center; gap:10px; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-find-unit > p { display:none; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .ops-refresh-status { padding:8px 12px; font-size:13px; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .due-now-card { padding:12px; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .due-now-card > header { margin-bottom:10px; padding-bottom:10px; flex-wrap:wrap; gap:8px; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .due-now-card > header h2 { font-size:22px; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .due-progress-scope { margin:12px 0 0; font-size:13px; color:#b5c4d8; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .due-check-grid { gap:12px; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .due-check-grid > article { padding:12px; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .due-check-grid > article > button { align-self:start; }
+  .inventory-app-shell :is(.inventory-status-details,.inventory-operating-summary) { min-width:0; border:1px solid #b7cbd3; border-radius:10px; color:#25495f; background:#f2f7fa; }
+  .inventory-app-shell .inventory-status-details { margin-top:8px; }
+  .inventory-app-shell :is(.inventory-status-details,.inventory-operating-summary) > summary { min-height:44px; padding:10px 14px; box-sizing:border-box; align-content:center; cursor:pointer; font-size:14px; font-weight:700; line-height:1.5; }
+  .inventory-app-shell :is(.inventory-status-details,.inventory-operating-summary)[open] > summary { border-bottom:1px solid #7891a4; }
+  .inventory-app-shell .inventory-status-details .inventory-status-strip { margin:10px; }
+  .inventory-app-shell .inventory-operating-summary > :not(summary) { margin:12px; }
+  .inventory-app-shell .inventory-priority-notice { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; padding:10px 14px; border:1px solid #b38737; border-left:5px solid #a8660d; border-radius:9px; background:#fff4df; color:#65440f; font-size:14px; line-height:1.5; }
+  .inventory-command-header > .inventory-priority-notice { margin-top:8px; }
+  .inventory-app-shell .inventory-priority-notice > div { min-width:0; display:flex; flex-wrap:wrap; gap:8px; }
+  .inventory-command-header > .inventory-priority-notice > div { display:grid; gap:2px; flex:1; }
+  .inventory-app-shell .inventory-priority-notice :is(span,small) { overflow-wrap:anywhere; color:inherit; }
+  .inventory-app-shell .inventory-priority-notice button { min-height:44px; padding:8px 12px; font-size:14px; font-weight:700; cursor:pointer; }
+  .inventory-app-shell .inventory-critical-work > strong,.inventory-app-shell .inventory-critical-work > small { flex-basis:100%; }
+  .inventory-app-shell.inventory-portal-refresh :is(.inventory-status-details,.inventory-operating-summary) { background:#141e30; color:#e2e8f0; border-color:#415575; }
+  .inventory-app-shell.inventory-portal-refresh .inventory-priority-notice { background:#332918; border-color:#b58b45; color:#ffe2a8; }
+  .inventory-app-shell.inventory-portal-refresh .inventory-priority-notice :is(strong,span,small) { color:#ffe2a8; }
+}
+@media screen and (max-width:600px) {
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-due-toolbar { grid-template-columns:minmax(0,1fr) auto; gap:4px 10px; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-due-toolbar > .inventory-command-back { grid-column:1; grid-row:1; justify-self:start; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-due-toolbar > button { grid-column:2; grid-row:1; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-due-toolbar h1 { grid-column:1/-1; grid-row:2; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-due-toolbar h1 { font-size:23px; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-command-header > .inventory-section-nav { display:none!important; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .check-job-filter { width:100%; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .check-job-filter button { min-width:0; padding:6px 4px; white-space:normal; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-active-unit-filter { min-height:44px; padding:8px 10px; font-size:14px; overflow-wrap:anywhere; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .due-check-grid > article { grid-template-columns:minmax(0,1fr); gap:6px; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .due-check-grid > article > div:first-child { display:contents; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .due-check-grid > article > div:first-child > span { grid-column:1; grid-row:1; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .due-check-grid > article > div:first-child > h3 { grid-column:1; grid-row:2; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .due-check-grid > article > button { grid-column:1; grid-row:3; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .due-check-grid > article > div:first-child > p { grid-column:1; grid-row:4; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .due-check-grid > article > .due-progress { grid-column:1; grid-row:5; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-secondary-tools { grid-template-columns:minmax(0,1fr); }
+  .inventory-app-shell.inventory-portal-refresh.inventory-due-focused .inventory-find-unit label { grid-template-columns:minmax(0,1fr); }
+  .inventory-app-shell .inventory-priority-notice > button { width:100%; }
 }
 @media screen and (max-width:600px) {
   .inventory-app-shell.inventory-portal-refresh :is(.inventory-command-hero,.equipment-search-tools) { gap:12px; }

@@ -5,12 +5,13 @@ import { useWorkspaceViewState } from "./workspace-view-state";
 import { portalPageLabel, type PortalPage, type PortalRecord } from "./portal-navigation";
 import { portalWorkflows } from "./portal-workflows";
 import { useWorkspaceTaskNavigation } from "./workspace-task-navigation";
-import { matchesWorkspace, workspaceHelp } from "./workspace-help";
+import { matchesWorkspace, workspaceHelp, workspaceConnectionHelp } from "./workspace-help";
 import { availableAdminTasks } from "./admin-tasks";
 
 export function WorkspaceGuide({ page, backLabel, onBack, returnLabel, onReturn, allowedPages = [], permissions = [], onNavigate, setupTools }: { page: PortalPage; home: PortalPage; backLabel?: string; onBack: () => void; returnLabel?: string; onReturn?: () => void; allowedPages?: readonly PortalPage[]; permissions?: readonly string[]; onNavigate: (page: PortalPage, record?: PortalRecord) => void; setupTools?: ReactNode }) {
   const guide = portalWorkflows[page];
   const help = workspaceHelp[page];
+  const connectionHelp = workspaceConnectionHelp(page);
   const toolsDialog = useRef<HTMLDialogElement>(null);
   const [helpSection, setHelpSection] = useState("Start & next");
   const related = (help.related ?? []).filter(item => allowedPages.includes(item));
@@ -30,11 +31,12 @@ export function WorkspaceGuide({ page, backLabel, onBack, returnLabel, onReturn,
     <details className="workspace-guide" key={page} onToggle={event => { if (!event.currentTarget.open) setHelpSection("Start & next"); }}>
       <summary aria-label="Help: next steps, saving and notifications">Help</summary>
       <div className="workspace-help-content"><ScenarioHelp page={page}/><strong>{guide.purpose}</strong>
-        <div className="workspace-help-tabs" role="group" aria-label="Help topics">{["Start & next", "Save & change", "Set up", "Notify"].map(label => <button key={label} type="button" aria-pressed={helpSection === label} onClick={() => setHelpSection(label)}>{label}</button>)}</div>
+        <div className="workspace-help-tabs" role="group" aria-label="Help topics">{["Start & next", "Save & change", "Set up", "Notify", ...(connectionHelp ? ["Connection"] : [])].map(label => <button key={label} type="button" aria-pressed={helpSection === label} onClick={() => setHelpSection(label)}>{label}</button>)}</div>
         <div className="workspace-help-answer" aria-live="polite">
           {helpSection === "Start & next" && <ol>{guide.steps.map(step => <li key={step}>{step}</li>)}</ol>}
           {helpSection === "Save & change" && <p>{help.save}</p>}
           {helpSection === "Notify" && <p>{help.notify}</p>}
+          {helpSection === "Connection" && connectionHelp && <ul>{connectionHelp.map(text => <li key={text}>{text}</li>)}</ul>}
           {helpSection === "Set up" && (setup.length ? <div className="workspace-setup-actions">{setup.map(task => <button key={task.id} type="button" onClick={() => onNavigate(task.page, { adminTask: task.id })}><strong>{task.title} →</strong><small>{task.steps}</small></button>)}</div> : <p>{permissions.length ? "There are no setup tools for your account on this screen. Use the related tools below, or ask your department administrator to change its configuration." : "Use the screen’s available controls. Your department administrator manages setup and access."}</p>)}
         </div>
         {related.length > 0 && <div className="workspace-related"><span>Related work</span>{related.map(item => <button type="button" key={item} onClick={() => onNavigate(item)}>{portalPageLabel(item)} →</button>)}</div>}

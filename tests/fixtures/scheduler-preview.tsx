@@ -22,6 +22,7 @@ const data = {
   otInterest: [], otOffers: [], awardBySlot: {}, otStandings: {}, notice: { openShifts: 1, overdueShifts: 0, pendingTrades: 0, pendingClaims: 0, pendingTimeOff: 0 },
 };
 const previewOptions = new URLSearchParams(window.location.search);
+const saveDelay = Math.min(15000, Math.max(0, Number(previewOptions.get("saveDelay")) || 0));
 if (previewOptions.has("availability-layout")) {
   Object.assign(shift, { name: "Preview day crew", startTime: "06:00", endTime: "12:00" });
   Object.assign(data, { availability: [
@@ -37,6 +38,7 @@ window.fetch = async (input, init) => {
   if (String(input) !== "/api/station-scheduler") throw new Error("Fixture blocks all other API requests");
   if (init?.method === "POST") {
     const body = JSON.parse(String(init.body));
+    if (saveDelay) await new Promise(resolve => window.setTimeout(resolve, saveDelay));
     if (["assignSlot", "clearSlot"].includes(body.action)) {
       writes++;
       document.getElementById("fixture-status")!.textContent = `Fictional test only · assignment attempts: ${writes}`;

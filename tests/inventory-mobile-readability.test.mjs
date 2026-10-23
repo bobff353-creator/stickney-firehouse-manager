@@ -41,7 +41,7 @@ test("inventory uses one clear workspace header and section bar", async () => {
 
   assert.match(inventory, /className="inventory-command-hero"/);
   assert.match(inventory, /aria-label="Inventory sections"/);
-  assert.match(inventory, /Live department records · no sample inventory/);
+  assert.match(inventory, /Saved department records · refresh to check for changes/);
   assert.match(styles, /\.inventory-section-nav\{/);
   assert.match(styles, /\.inventory-command-hero\{/);
 });

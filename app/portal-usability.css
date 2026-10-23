@@ -72,6 +72,9 @@
 .workspace-help-tabs button[aria-pressed=true],.preplan-reader-tabs button[aria-pressed=true],.preplan-directory-controls button[aria-pressed=true] { background:#163e56; color:#fff; border-color:#163e56; }
 .workspace-help-answer { min-height:64px; }
 .workspace-help-answer p { font-size:15px; max-width:80ch; color:#27485d; }
+.workspace-help-answer ul { padding-left:22px; max-width:80ch; font-size:15px; line-height:1.65; }
+.workspace-help-answer li + li { margin-top:10px; }
+.workspace-help-tabs button { min-height:44px; }
 .workspace-related { align-items:center; border-top:1px solid #ccdae2; padding-top:12px; }
 .workspace-related > span { font-weight:700; font-size:13px; }
 .workspace-related button { font-size:13px; }
