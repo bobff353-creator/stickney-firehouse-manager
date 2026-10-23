@@ -19,17 +19,17 @@ const compile=path=>ts.transpileModule(readFileSync(new URL(path,import.meta.url
 function walk(node,parents=[],out=[]){if(Array.isArray(node)){node.forEach(item=>walk(item,parents,out));return out;}if(node&&typeof node==='object'){out.push({node,parents});walk(node.props?.children,[...parents,node],out);}return out;}
 const text=node=>Array.isArray(node)?node.map(text).join(''):node&&typeof node==='object'?text(node.props?.children):typeof node==='boolean'?'':String(node??'');
 
-function fixture({critical=true,loading=false,unavailable=false}={}){
+function fixture({critical=true,loading=false,unavailable=false,equipmentRows,canLeave=true}={}){
   let state=0,data;
   const navigations=[],opened=[];
   const react={useState(initial){const slot=state++;return[slot===0?data:slot===1?loading:slot===14&&unavailable?'Preview source unavailable':typeof initial==='function'?initial():initial,()=>{}];},useRef:initial=>({current:initial}),useEffect(){},useCallback:fn=>fn,useMemo:fn=>fn(),useDeferredValue:value=>value};
   const mods={react,'react/jsx-runtime':jsx,'./inventory-index':indices,'./inventory-check-flow':workflow,'./workflow-status':statuses,'./inventory-service-schedule':services,'./inventory-workspace-filters':filters,'./inventory-asset-attention':attention,'./inventory-air-checks':air,
-    './workspace-view-state':{useWorkspaceViewState:(_key,initial)=>[initial,()=>{}]},'./use-unsaved-work':{useUnsavedWork(){},confirmLeavingWork:()=>true},'./inventory-save-reference':{createInventorySaveReferences:()=>({})},'./conditional-json-reader':{createConditionalJsonReader:()=>({})},
+    './workspace-view-state':{useWorkspaceViewState:(_key,initial)=>[initial,()=>{}]},'./use-unsaved-work':{useUnsavedWork(){},confirmLeavingWork:()=>canLeave},'./inventory-save-reference':{createInventorySaveReferences:()=>({})},'./conditional-json-reader':{createConditionalJsonReader:()=>({})},
   };
   const target={exports:{}};
   new Function('require','module','exports','Date',compile('../app/inventory-operations.tsx'))(name=>mods[name]??{},target,target.exports,Clock);
   const rig={id:'preview-engine',name:'Preview Engine',status:'in_service'};
-  data={...structuredClone(target.exports.emptyData),configured:!unavailable,apparatus:[rig],equipment:[{id:'preview-radio',apparatus_id:rig.id,name:'Preview radio',check_types:['daily','inventory'],service_status:critical?'out_of_service':'in_service'}],
+  data={...structuredClone(target.exports.emptyData),configured:!unavailable,apparatus:[rig],equipment:equipmentRows??[{id:'preview-radio',apparatus_id:rig.id,name:'Preview radio',compartment_label:'Preview shelf',check_types:['daily','inventory'],service_status:critical?'out_of_service':'in_service'}],
     checks:[{id:'preview-daily',apparatus_id:rig.id,check_type:'daily',status:'in_progress',started_at:'2026-10-22T12:00:00Z'},{id:'preview-inventory',apparatus_id:rig.id,check_type:'inventory',status:'in_progress'}],
     checkItems:[{id:'preview-result',check_id:'preview-daily',equipment_id:'preview-radio',result:'pending'}],inspectionSchedules:[{id:'preview-schedule',apparatus_id:rig.id,check_type:'daily',day_of_week:5,active:true}],
     workOrders:critical?[{id:'preview-urgent',status:'open',priority:'high'},{id:'preview-closed',status:'closed',priority:'critical'}]:[],
@@ -59,9 +59,37 @@ test('critical issues remain outside collapsed summaries and use department-wide
   assert.ok(warning);assert.ok(!warning.parents.some(parent=>parent.type==='details'));
   assert.match(text(warning.node),/1 asset with critical issues/);assert.match(text(warning.node),/1 high \/ critical repair/);assert.match(text(warning.node),/1 supply with expired stock/);assert.match(text(warning.node),/Department-wide saved records/);
   const actions=walk(warning.node).filter(({node})=>node.type==='button');actions.forEach(({node})=>node.props.onClick());
-  assert.deepEqual(f.navigations,['equipment','service','stock']);
+  assert.deepEqual(f.navigations,['service','stock']);
+  const equipmentLink=walk(warning.node).find(({node})=>node.type==='a');
+  assert.equal(equipmentLink.node.props.href,'/inventory?equipment=preview-radio');
+  assert.match(text(equipmentLink.node),/Preview radio/);assert.match(text(equipmentLink.node),/Preview Engine · Preview shelf/);assert.match(text(equipmentLink.node),/Out of service/);
   const clear=fixture({critical:false});assert.ok(!clear.items.some(({node})=>node.props?.className==='inventory-priority-notice inventory-critical-work'),'absence of saved critical issues does not manufacture a warning');
   assert.ok(clear.items.some(({node})=>node.props?.className==='ops-card due-now-card'));
+});
+
+test('critical warnings name each item and all saved critical reasons with a distinct encoded record link',()=>{
+  const f=fixture({equipmentRows:[
+    {id:'preview/radio?one',name:'Preview radio',apparatus_id:'preview-engine',compartment_label:'Shelf A',service_status:'out_of_service',expiration_date:'2020-01-01'},
+    {id:'preview-second',name:'Preview radio',apparatus_id:'preview-engine',compartment_label:'Shelf B',service_status:'in_repair'},
+    {id:'preview-retired',name:'Retired preview',service_status:'out_of_service',retired_at:'2026-01-01'},
+    {id:'preview-cleared',name:'Clear preview',service_status:'in_service'},
+  ]});
+  const warning=f.items.find(({node})=>node.props?.className==='inventory-priority-notice inventory-critical-work');
+  const links=walk(warning.node).filter(({node})=>node.type==='a');
+  assert.equal(links.length,2,'multiple reasons for one item must not duplicate its warning');
+  assert.match(text(warning.node),/2 assets with critical issues/);
+  assert.deepEqual(links.map(({node})=>new URL(node.props.href,'https://preview.invalid').searchParams.get('equipment')),['preview/radio?one','preview-second']);
+  assert.match(text(links[0].node),/Shelf A/);assert.match(text(links[0].node),/Out of service · Expiration overdue/);
+  assert.match(text(links[1].node),/Shelf B/);assert.match(text(links[1].node),/In repair/);
+  assert.doesNotMatch(text(warning.node),/Retired preview|Clear preview/);
+});
+
+test('opening a warning record honors cancelled unsaved-work navigation',()=>{
+  const f=fixture({canLeave:false});let prevented=false;
+  const link=f.items.find(({node})=>node.props?.className==='inventory-critical-asset-link');
+  link.node.props.onClick({preventDefault(){prevented=true;}});assert.equal(prevented,true);
+  const allowed=fixture();prevented=false;
+  allowed.items.find(({node})=>node.props?.className==='inventory-critical-asset-link').node.props.onClick({preventDefault(){prevented=true;}});assert.equal(prevented,false);
 });
 
 test('loading and initial source failure retain the secondary inventory navigation',()=>{

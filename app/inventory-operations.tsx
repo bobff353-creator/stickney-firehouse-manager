@@ -473,7 +473,11 @@ export default function InventoryOperations({
   const directorySummaryRef = useRef<HTMLElement>(null);
   const builderTopRef = useRef<HTMLElement>(null);
   const scheduleEditorRef = useRef<HTMLDetailsElement>(null);
-  useEffect(() => { if (selectedDirectoryEquipment) directorySummaryRef.current?.scrollIntoView({block:"start", behavior:"smooth"}); }, [selectedDirectoryEquipment]);
+  useEffect(() => {
+    if (view !== "equipment" || loading || !selectedDirectoryEquipment) return;
+    directorySummaryRef.current?.focus({ preventScroll: true });
+    directorySummaryRef.current?.scrollIntoView({ block: "start", behavior: "instant" });
+  }, [loading, selectedDirectoryEquipment, view]);
   const openEquipmentEditor = (item: Row) => { if (item.scba_asset_kind) { onAir(); return; } setEditorSection("basics"); setEditingEquipment(item); };
   const changeBuilderTask = (task: string) => {
     setBuilderTask(task);
@@ -1138,7 +1142,12 @@ export default function InventoryOperations({
     return [{ apparatusId, name: value(apparatus, "name"), checkType: "inventory" as const, active, pending, total: checkItems.length, configured }];
   });
   const unfinishedRoutineChecks = data.checks.filter((check) => value(check, "status") === "in_progress" && value(check, "check_type") !== "inventory" && !routineCheckNotNeeded(data.apparatus.find((apparatus) => value(apparatus, "id") === value(check, "apparatus_id")), value(check, "check_type"))).length;
-  const criticalAssetCount = view === "due" ? data.equipment.filter(item => !item.retired_at && value(item, "service_status") !== "retired" && attentionForAsset(item).some(attention => attention.severity === "critical")).length : 0;
+  const criticalAssets = view === "due" ? data.equipment.flatMap(item => {
+    if (item.retired_at || value(item, "service_status") === "retired") return [];
+    const reasons = attentionForAsset(item).filter(attention => attention.severity === "critical");
+    return reasons.length ? [{ item, reasons }] : [];
+  }) : [];
+  const criticalAssetCount = criticalAssets.length;
   const urgentRepairCount = view === "due" ? openRepairs.filter(item => ["critical", "high"].includes(value(item, "priority"))).length : 0;
   const apparatusSearch = <div className="inventory-find-unit"><label>Find your apparatus<input type="search" value={unitSearch} onChange={event => setUnitSearch(event.target.value)} placeholder="Unit name or check type" /></label>{unitSearch && <button type="button" onClick={() => setUnitSearch("")}>Clear search</button>}<p>Choose your apparatus → check each item → submit for review.</p></div>;
 
@@ -1184,7 +1193,23 @@ export default function InventoryOperations({
       {submittedCheck && onReports && <div className="ops-message"><strong>Submitted · awaiting administrator review</strong><p>Submission is not approval. Review the saved report and its status next.</p><button type="button" onClick={onReports}>View saved reports →</button></div>}
       {error ? <div className="ops-message ops-error" role="alert">{error}</div> : null}
       {refreshError ? <div className="ops-message ops-error" role="alert">Live refresh unavailable. Previously loaded records may be out of date. {refreshError} <button type="button" disabled={Boolean(busy)} onClick={() => void load({ background: true, fresh: true })}>Retry refresh</button></div> : null}
-      {view === "due" && (criticalAssetCount > 0 || urgentRepairCount > 0 || stockStatusCounts.expired > 0) && <section className="inventory-priority-notice inventory-critical-work" aria-label="Saved critical issues"><strong>{refreshError ? "Last received critical issues · update unavailable" : "Saved critical issues to review"}</strong><div>{criticalAssetCount > 0 && <button type="button" disabled={!onNavigate} onClick={() => onNavigate?.("equipment")}>{criticalAssetCount} asset{criticalAssetCount === 1 ? "" : "s"} with critical issues →</button>}{urgentRepairCount > 0 && <button type="button" disabled={!onNavigate} onClick={() => onNavigate?.("service")}>{urgentRepairCount} high / critical repair{urgentRepairCount === 1 ? "" : "s"} →</button>}{stockStatusCounts.expired > 0 && <button type="button" disabled={!onNavigate} onClick={() => onNavigate?.("stock")}>{stockStatusCounts.expired} suppl{stockStatusCounts.expired === 1 ? "y" : "ies"} with expired stock →</button>}</div><small>Department-wide saved records. Review the original issue and service status before use.</small></section>}
+      {view === "due" && (criticalAssetCount > 0 || urgentRepairCount > 0 || stockStatusCounts.expired > 0) && <section className="inventory-priority-notice inventory-critical-work" aria-label="Saved critical issues">
+        <strong>{refreshError ? "Last received critical issues · update unavailable" : "Saved critical issues to review"}</strong>
+        {criticalAssetCount > 0 && <>
+          <span>{criticalAssetCount} asset{criticalAssetCount === 1 ? "" : "s"} with critical issues</span>
+          <ul className="inventory-critical-assets" aria-label="Equipment with critical issues">{criticalAssets.map(({ item, reasons }) => {
+            const apparatus = data.apparatus.find(row => value(row, "id") === value(item, "apparatus_id"));
+            return <li key={value(item, "id")}><a className="inventory-critical-asset-link" href={`/inventory?equipment=${encodeURIComponent(value(item, "id"))}`} onClick={event => { if (!confirmLeavingWork()) event.preventDefault(); }}>
+              <strong>{value(item, "name") || "Unnamed equipment"}</strong>
+              <small>{apparatus ? value(apparatus, "name") : "Apparatus not recorded"} · {value(item, "compartment_label") || "Location not recorded"}</small>
+              <span>{reasons.map(reason => reason.label).join(" · ")}</span>
+              <b>Open equipment record →</b>
+            </a></li>;
+          })}</ul>
+        </>}
+        {(urgentRepairCount > 0 || stockStatusCounts.expired > 0) && <div>{urgentRepairCount > 0 && <button type="button" disabled={!onNavigate} onClick={() => onNavigate?.("service")}>{urgentRepairCount} high / critical repair{urgentRepairCount === 1 ? "" : "s"} →</button>}{stockStatusCounts.expired > 0 && <button type="button" disabled={!onNavigate} onClick={() => onNavigate?.("stock")}>{stockStatusCounts.expired} suppl{stockStatusCounts.expired === 1 ? "y" : "ies"} with expired stock →</button>}</div>}
+        <small>Department-wide saved records. Review the original issue and service status before use.</small>
+      </section>}
       {view === "air" ? <InventoryAirSystems data={data} busy={Boolean(busy)} canSetup={canSetup} canManageRepairs={canManageRepairs} canCheck={canCheck} onSave={action} onOpenCheck={id => onOpenUnit?.(id, "air_pack")} onRepairs={onRepairs}
         renderTemplate={apparatus => { const template = data.scbaTemplates.find(item => item.apparatus_id === apparatus.id); return <ScbaTemplateEditor key={`${apparatus.id}-${template?.updated_at}`} apparatus={apparatus} template={template} busy={Boolean(busy)} onSave={payload => action("air-template", payload)} />; }}
         uploadDocument={uploadMaintenanceDocument} uploadPhoto={async (asset, file) => { await uploadEquipmentPhoto(asset, file); await load({ background: true, fresh: true }); }} /> : null}
@@ -1276,7 +1301,7 @@ export default function InventoryOperations({
             const apparatus = data.apparatus.find((row) => value(row, "id") === value(selectedDirectoryEquipment, "apparatus_id"));
             const parent = data.equipment.find((item) => value(item, "id") === value(selectedDirectoryEquipment, "parent_equipment_id"));
             const containedItems = data.equipment.filter((item) => value(item, "parent_equipment_id") === value(selectedDirectoryEquipment, "id"));
-            return <article ref={directorySummaryRef} className="equipment-record-summary" aria-label="Selected equipment record">
+            return <article ref={directorySummaryRef} tabIndex={-1} className="equipment-record-summary" aria-label="Selected equipment record">
               <header><div><span>SELECTED EQUIPMENT</span><h3>{value(selectedDirectoryEquipment, "name")}</h3></div><button type="button" onClick={() => setSelectedDirectoryEquipment(null)}>Close</button></header>
               {value(selectedDirectoryEquipment, "photo_url") ? <img className="equipment-record-photo" src={value(selectedDirectoryEquipment, "photo_url")} alt={value(selectedDirectoryEquipment, "name")} /> : null}
               <dl>
