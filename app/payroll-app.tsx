@@ -45,7 +45,6 @@ import OperationsBoard from "./operations-board";
 const ActivityTimeline = dynamic(() => import("./activity-timeline"), { loading: () => <ModuleLoading /> });
 const TaskQueue = dynamic(() => import("./task-queue"), { loading: () => <ModuleLoading /> });
 import SmartAlerts from "./smart-alerts";
-import PwaInstall from "./pwa-install";
 const CommandCenter = dynamic(() => import("./command-center"), { loading: () => <ModuleLoading /> });
 const DailyDuties = dynamic(() => import("./daily-duties"), { loading: () => <ModuleLoading /> });
 import { compareEmployeeNames, employeeNameFromParts, formatEmployeeName, splitEmployeeName } from "./employee-names";
@@ -1029,7 +1028,6 @@ export default function PayrollApp({
   if (!['Respond','Operations Board'].includes(activeNav) && (!access.confirmation || access.confirmation.required)) return <main className="app-shell sidebar-collapsed"><section className="workspace"><RequiredConfirmation status={access.confirmation} /><div className="required-confirmation-actions">{visibleNav.includes('Respond')&&<button onClick={()=>navigate('Respond')}>Open Respond</button>}{visibleNav.includes('Operations Board')&&<button onClick={()=>navigate('Operations Board')}>Open Live Operations</button>}<button onClick={onSignOut}>Sign out</button></div></section></main>;
   return (
     <WorkspaceViewMemory key={`${access.identity}:${testMember?.id ?? "self"}`}><main className={`app-shell${tvMode ? " tv-shell" : ""}${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
-      {!tvMode && <PwaInstall />}
       <aside id="desktop-navigation" className="desktop-sidebar" aria-hidden={sidebarCollapsed} inert={sidebarCollapsed}>
         <button className="sidebar-brand" onClick={() => navigate(homePage)} aria-label={`${departmentName} Operations Portal home`} title="Dashboard">{department?.isolated ? <b className="department-brand-mark">FD</b> : <img className="brand-patch" src="/stickney-fd-patch.png?v=3" alt="Stickney Fire Department patch" width="64" height="64" />}<span><strong>{departmentName}</strong><small>Operations Portal</small></span></button>
         <nav className="sidebar-nav" aria-label="Primary navigation">
