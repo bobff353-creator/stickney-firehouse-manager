@@ -735,7 +735,6 @@ export default function Respond({
   const [savedCrewProgress, setSavedCrewProgress] = useState<{ key: string | null; progress: RespondProgress | null } | null>(null);
   const progressLoaded = savedCrewProgress?.key === progressScopeKey;
   const crewProgress = progressLoaded ? savedCrewProgress?.progress : null;
-  const canUpdateProgress = Boolean(progressScope && progressLoaded && isOnline && !error && respondSource === "live");
   const [progressError, setProgressError] = useState("");
   const progressActionsRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLElement>(null);
@@ -860,6 +859,9 @@ export default function Respond({
     await load();
   }, [load]);
   const liveConnected = useOperationalUpdates({ scope: 'respond', sections: ['respond'], refresh: refreshLive, fallbackMs: 10_000, nextChangeAt, readFailed: Boolean(error) || !data || respondSource !== 'live' });
+  const freshness = responseFreshness(lastRefresh, statusClock, isOnline, liveConnected, Boolean(error) || respondSource !== "live");
+  const updatesAvailable = !freshness.warning;
+  const canUpdateProgress = Boolean(progressScope && progressLoaded && updatesAvailable);
   useEffect(() => onOperationalPush(() => {
     lastPacketRevision.current = { apparatus: "", reportNumber: "", revision: "" };
     void load();
@@ -1161,7 +1163,6 @@ export default function Respond({
         )
       : [],
     crewProgressActions = nextRespondActions(crewProgress?.status);
-  const freshness = responseFreshness(lastRefresh, statusClock, isOnline, liveConnected, Boolean(error) || respondSource !== "live");
   const contextLine = <aside className={`respond-context-line${freshness.warning ? " stale" : ""}`} aria-label="Response context" role={freshness.warning ? "alert" : "status"}>
     <strong>{apparatus ? `Calls for apparatus ${apparatus}` : "Viewing all department calls"}</strong>
     <span>{call ? `Incident ${call.reportNumber} · ${call.callType || "Type not reported"}` : "No selected incident"}</span>
@@ -1195,7 +1196,6 @@ export default function Respond({
       </section>
     );
   if (!call) {
-    const updatesAvailable = !error && isOnline && respondSource === "live";
     const overview: RespondOverview = data?.overview ?? {
       apparatus: null,
       preplans: [],
@@ -1398,7 +1398,7 @@ export default function Respond({
             {!crewProgressActions.length && <span role="status">{crewProgress ? respondProgressLabels[crewProgress.status] : ""} · saved on this device</span>}
           </div>
           {progressLoaded && progressError && <p role="alert">{progressError}</p>}
-          {(!isOnline || error || respondSource !== "live") && <p role="status">Progress changes paused — reconnect to verify this unit&apos;s call assignment.</p>}
+          {!updatesAvailable && <p role="status">Progress changes paused — refresh to verify this unit&apos;s current call assignment.</p>}
           <small className="respond-progress-note">
             Saved for this unit and call on this browser only · does not change CAD status or other devices
           </small>

@@ -1617,6 +1617,10 @@ td strong { font-size: 16px; }
 .log-loading { min-height: 320px; display: grid; place-items: center; }
 .handoff-backdrop { position: fixed; z-index: 100; inset: 0; padding: 24px; background: rgba(7,24,39,.68); display: grid; place-items: center; overflow-y: auto; }
 .handoff-modal { width: min(820px, 100%); max-height: calc(100vh - 48px); padding: 25px; border-radius: 12px; background: #fbfaf7; box-shadow: 0 24px 70px rgba(0,0,0,.32); overflow-y: auto; }
+dialog.handoff-modal, dialog.confirm-dialog { position: fixed; inset: 0; margin: auto; border: 0; max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; color: inherit; }
+dialog.handoff-modal::backdrop, dialog.confirm-dialog::backdrop { background: rgba(7,24,39,.68); }
+dialog.confirm-dialog h2 { color: #16374a; }
+dialog.confirm-dialog p { color: #405563; }
 .handoff-header { margin-bottom: 20px; display: flex; justify-content: space-between; align-items: start; gap: 20px; }
 .handoff-header h2 { margin: 0; color: var(--navy-deep); font-size: 30px; }
 .handoff-header > button { width: 38px; height: 38px; border: 1px solid #9ba9b4; border-radius: 50%; background: white; color: var(--navy); font-size: 24px; }

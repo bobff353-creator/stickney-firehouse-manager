@@ -15,6 +15,7 @@ import { CALLBACK_QUALIFYING_CALL_TYPES } from "./callback-rules";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { holidayForDate,type DepartmentHoliday } from "./holidays";
 import ConfirmDialog from "./confirm-dialog";
+import { containDialogTab } from "./dialog-keyboard";
 import DailyLogNotes from "./daily-log-notes";
 import { callIsComplete, currentLogShift, readLogNotes } from "./daily-log-workflow";
 import { confirmLeavingWork, useUnsavedWork } from "./use-unsaved-work";
@@ -463,6 +464,21 @@ export default function DailyLog({
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState("");
   const [handoff, setHandoff] = useState<Handoff | null>(null);
+  const handoffDialog = useRef<HTMLDialogElement>(null);
+  const handoffReturnFocus = useRef<HTMLElement | null>(null);
+  const handoffOpen = Boolean(handoff);
+  useEffect(() => {
+    const element = handoffDialog.current;
+    if (!handoffOpen || !element) return;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    element.showModal();
+    return () => {
+      element.close(); document.body.style.overflow = overflow;
+      const opener = handoffReturnFocus.current;
+      queueMicrotask(() => { if (opener?.isConnected) opener.focus({ preventScroll: true }); });
+    };
+  }, [handoffOpen]);
   const [handoffSaving, setHandoffSaving] = useState(false);
   const [handoffError, setHandoffError] = useState("");
   const handoffPending = useRef(false);
@@ -935,6 +951,7 @@ export default function DailyLog({
     shiftTitle: string,
     mode: "in" | "out",
   ) {
+    handoffReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     if (dirty || saving) { setMessage("Wait for all changes to save before officer sign-off. If saving needs attention, resolve it first."); return; }
     if (mode === "out") {
       setMessage("Checking required Fleet inspections…");
@@ -1662,11 +1679,14 @@ export default function DailyLog({
 
       {handoff && (
         <div className="handoff-backdrop" role="presentation">
-          <section
+          <dialog
+            ref={handoffDialog}
             className="handoff-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="handoff-title"
+            onKeyDown={containDialogTab}
+            onCancel={event => { event.preventDefault(); if (!handoffSaving) setHandoff(null); }}
           >
             <div className="handoff-header">
               <div>
@@ -1676,6 +1696,7 @@ export default function DailyLog({
                 </h2>
               </div>
               <button
+                autoFocus
                 aria-label="Close officer approval"
                 disabled={handoffSaving}
                 onClick={() => setHandoff(null)}
@@ -1848,7 +1869,7 @@ export default function DailyLog({
                   : "Acknowledge Duties & Sign Out"}
               </button>
             </div>
-          </section>
+          </dialog>
         </div>
       )}
     </section>

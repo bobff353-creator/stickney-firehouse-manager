@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import ts from 'typescript';
 const source = await readFile(new URL('../app/scheduler-member-view.ts', import.meta.url), 'utf8');
 const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText;
-const { memberShiftList, shiftTimeLabel, canRequestRole, shiftHasNotStarted } = await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
+const { memberShiftList, shiftTimeLabel, canRequestRole, shiftHasNotStarted, shiftHasNotEnded } = await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
 test('calendar department view changes visibility without changing edit permissions or availability privacy', async () => {
   const component = await readFile(new URL('../app/station-scheduler.tsx', import.meta.url), 'utf8');
   const calendar = component.split('function CalendarScreen(')[1].split('function DaySlotTimeEditor(')[0];
@@ -72,6 +72,33 @@ test('overnight and 24-hour shifts explicitly identify the next day', () => {
   assert.equal(shiftTimeLabel('1800', '0600'), '18:00–06:00 (ends next day)');
   assert.equal(shiftTimeLabel('06:00', '06:00'), '06:00–06:00 (ends next day)');
   assert.equal(shiftTimeLabel('06:00', '12:00'), '06:00–12:00');
+});
+
+test('ongoing overnight and 24-hour assignments remain visible after midnight until the end', () => {
+  const slots = [
+    { id: 'overnight', employeeId: 'me', status: 'filled', entryDate: '2026-10-22', startTime: '18:00', endTime: '06:00' },
+    { id: '24hour', employeeId: 'me', status: 'filled', entryDate: '2026-10-22', startTime: '06:00', endTime: '06:00' },
+    { id: 'finished', employeeId: 'me', status: 'filled', entryDate: '2026-10-22', startTime: '06:00', endTime: '18:00' },
+    { id: 'other', employeeId: 'other', status: 'filled', entryDate: '2026-10-22', startTime: '18:00', endTime: '06:00' },
+    { id: 'next', employeeId: 'me', status: 'filled', entryDate: '2026-10-23', startTime: '18:00', endTime: '06:00' },
+  ];
+  const original = JSON.stringify(slots);
+  assert.deepEqual(memberShiftList(slots, 'me', '2026-10-23', new Date('2026-10-23T06:00:00Z')).map(s => s.id), ['24hour', 'overnight', 'next']);
+  assert.deepEqual(memberShiftList(slots, 'me', '2026-10-23', new Date('2026-10-23T11:00:00Z')).map(s => s.id), ['next']);
+  assert.equal(JSON.stringify(slots), original);
+});
+
+test('assignment end uses Central time through winter, spring forward, and fall back', () => {
+  for (const [date, beforeEnd, atEnd] of [
+    ['2026-12-08', '2026-12-09T11:59:00Z', '2026-12-09T12:00:00Z'],
+    ['2026-03-07', '2026-03-08T10:59:00Z', '2026-03-08T11:00:00Z'],
+    ['2026-10-31', '2026-11-01T11:59:00Z', '2026-11-01T12:00:00Z'],
+  ]) {
+    assert.equal(shiftHasNotEnded(date, '1800', '0600', new Date(beforeEnd)), true);
+    assert.equal(shiftHasNotEnded(date, '1800', '0600', new Date(atEnd)), false);
+  }
+  assert.equal(shiftHasNotEnded('2026-02-30', '1800', '0600', new Date()), false);
+  assert.equal(shiftHasNotEnded('2026-10-22', '99:00', '0600', new Date()), false);
 });
 test('open shift role filtering follows recorded clearance, not inferred firefighter eligibility', () => {
   const viewer = { employeeId: 'me', rank: 'Firefighter', roles: ['FF/Attendant'] };

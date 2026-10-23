@@ -34,6 +34,14 @@ type Preplan = {
 type ImportedBuilding = { id:string;businessName:string;address:string;sourceFile:string;sourceRow:number;sourceExternalId?:string;sourcePayload?:Record<string,unknown>;status:string;latitude:number|null;longitude:number|null;geocodeNote:string;linkedPreplanId:string|null };
 type Form = Omit<Preplan,"features"|"photos"|"updatedBy"|"updatedAt"> & { street:string; city:string; state:string; zipCode:string; contacts:PreplanContact[] };
 type LocationState = "locating"|"current"|"fallback"|"record";
+type FieldReadState = {loading:boolean;receivedAt:string;error:string};
+const initialFieldRead:FieldReadState={loading:true,receivedAt:"",error:""};
+function fieldReadLabel(state:FieldReadState){
+  if(state.loading)return state.receivedAt?"Refreshing saved records…":"Loading saved records…";
+  if(!state.receivedAt)return "Unavailable · no records verified";
+  const received=new Date(state.receivedAt).toLocaleString("en-US",{timeZone:"America/Chicago",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
+  return `${state.error?"Update failed · ":""}Last received ${received} Central`;
+}
 
 const defaultAddress = { street:"",city:"",state:"",zipCode:"" };
 function addressParts(address:string){
@@ -278,6 +286,9 @@ export default function FieldPreplans({ department, inspectionPilot=false }: { d
   const [imports,setImports]=useState<ImportedBuilding[]>([]),[selectedImport,setSelectedImport]=useState("");
   const [importSort,setImportSort]=useWorkspaceViewState<"street"|"completion">("preplan-sort","street"),[geocodeProgress,setGeocodeProgress]=useState("");
   const [hydrants,setHydrants]=useState<Hydrant[]>([]),[hydrantDraft,setHydrantDraft]=useState<Hydrant|null>(null),[hydrantTab,setHydrantTab]=useState<"quick"|"details"|"flush"|"flow">("quick");
+  const [preplanRead,setPreplanRead]=useState<FieldReadState>(initialFieldRead),[hydrantRead,setHydrantRead]=useState<FieldReadState>(initialFieldRead);
+  const [online,setOnline]=useState(true);
+  const readRequests=useRef({preplans:0,hydrants:0});
   const hydrantDirty=Boolean(hydrantDraft&&hydrantFingerprint(hydrantDraft)!==hydrantBaseline.current);
   const [center,setCenter]=useState<Point>(departmentMapOverview.center),[zoom,setZoom]=useState(departmentMapOverview.zoom),[imagery,setImagery]=useState<"aerial"|"street">("aerial"),[mode,setMode]=useState(""),[tab,setTab]=useState<"quick"|"details"|"photos"|"operational">("quick");
   const [locationState,setLocationState]=useState<LocationState>("locating");
@@ -289,7 +300,6 @@ export default function FieldPreplans({ department, inspectionPilot=false }: { d
   const [operationalOverlay,setOperationalOverlay]=useState<OperationalMapOverlay|null>(null),[operationalMapDraft,setOperationalMapDraft]=useState<OperationalMapDraft>(null);
   const [mapsApiKey,setMapsApiKey]=useState(""),[mapProvider,setMapProvider]=useState<"loading"|"google"|"fallback">("loading");
   const [feature,setFeature]=useState({featureType:"knox",label:"",systemType:"",serviceStatus:"in_service",details:""}),[featurePhoto,setFeaturePhoto]=useState<File|null>(null),[featureLocating,setFeatureLocating]=useState(false),[message,setMessage]=useState(""),[busy,setBusy]=useState(false);
-  useUnsavedWork(hydrantDirty,Boolean(hydrantDraft)&&busy);
   const featurePhotoInput=useRef<HTMLInputElement|null>(null);
   const [editingFeatureId,setEditingFeatureId]=useState(''),[featurePoint,setFeaturePoint]=useState<Point|null>(null);
   const focusMapPanel=useRef<HTMLDivElement|null>(null);
@@ -303,12 +313,38 @@ export default function FieldPreplans({ department, inspectionPilot=false }: { d
   },[]);
   const [flush,setFlush]=useState({flushedAt:nowLocal(),waterClear:true,issues:"",notes:""});
   const [flow,setFlow]=useState({flowHydrantId:"",testedAt:nowLocal(),staticPressure:"",residualPressure:"",desiredResidual:"20",outletDiameter:"2.5",pitotPressure:"",dischargeCoefficient:".9",notes:""});
-  const load=useCallback(async()=>{const response=await fetch("/api/field-preplans",{cache:"no-store"});const body=await response.json() as {preplans?:Preplan[];imports?:ImportedBuilding[];canEdit?:boolean;canManageAttachments?:boolean;canDelete?:boolean;error?:string};if(!response.ok)throw new Error(body.error||"Unable to load preplans");setPlans(body.preplans??[]);setImports(body.imports??[]);setCanEdit(Boolean(body.canEdit));setCanManageAttachments(Boolean(body.canManageAttachments));setCanDeletePreplan(Boolean(body.canDelete));},[]);
-  const loadHydrants=useCallback(async()=>{const response=await fetch("/api/field-hydrants?includeArchived=1",{cache:"no-store"});const body=await response.json() as {hydrants?:Hydrant[];canEdit?:boolean;error?:string};if(!response.ok)throw new Error(body.error||"Unable to load hydrants");setHydrants(body.hydrants??[]);setCanEdit((current)=>current||Boolean(body.canEdit));},[]);
+  const load=useCallback(async()=>{
+    const request=++readRequests.current.preplans;setPreplanRead(current=>({...current,loading:true}));
+    try{
+      const response=await fetch("/api/field-preplans",{cache:"no-store",signal:AbortSignal.timeout(15000)});
+      const body=await response.json() as {preplans?:Preplan[];imports?:ImportedBuilding[];canEdit?:boolean;canManageAttachments?:boolean;canDelete?:boolean;error?:string};
+      if(!response.ok)throw new Error(body.error||"Unable to load preplans");
+      if(request!==readRequests.current.preplans)return;
+      setPlans(body.preplans??[]);setImports(body.imports??[]);setCanEdit(Boolean(body.canEdit));setCanManageAttachments(Boolean(body.canManageAttachments));setCanDeletePreplan(Boolean(body.canDelete));
+      setPreplanRead({loading:false,receivedAt:new Date().toISOString(),error:""});
+    }catch(error){if(request===readRequests.current.preplans)setPreplanRead(current=>({...current,loading:false,error:error instanceof Error?error.message:"Unable to load preplans"}));throw error;}
+  },[]);
+  const loadHydrants=useCallback(async()=>{
+    const request=++readRequests.current.hydrants;setHydrantRead(current=>({...current,loading:true}));
+    try{
+      const response=await fetch("/api/field-hydrants?includeArchived=1",{cache:"no-store",signal:AbortSignal.timeout(15000)});
+      const body=await response.json() as {hydrants?:Hydrant[];canEdit?:boolean;error?:string};
+      if(!response.ok)throw new Error(body.error||"Unable to load hydrants");
+      if(request!==readRequests.current.hydrants)return;
+      setHydrants(body.hydrants??[]);setCanEdit((current)=>current||Boolean(body.canEdit));
+      setHydrantRead({loading:false,receivedAt:new Date().toISOString(),error:""});
+    }catch(error){if(request===readRequests.current.hydrants)setHydrantRead(current=>({...current,loading:false,error:error instanceof Error?error.message:"Unable to load hydrants"}));throw error;}
+  },[]);
+  const refreshFieldRecords=useCallback(async()=>{await Promise.allSettled([load(),loadHydrants()]);},[load,loadHydrants]);
+  useEffect(()=>{
+    const update=()=>setOnline(navigator.onLine);update();
+    window.addEventListener("online",update);window.addEventListener("offline",update);
+    return()=>{window.removeEventListener("online",update);window.removeEventListener("offline",update);};
+  },[]);
   useEffect(()=>{
     let cancelled=false;
     const initialize=async()=>{
-      try{await Promise.all([load(),loadHydrants()]);}catch(error){setMessage(error instanceof Error?error.message:"Unable to load field records");}
+      await refreshFieldRecords();
       try{const response=await fetch("/api/maps-config",{cache:"no-store"});const body=await response.json() as {configured?:boolean;apiKey?:string};if(response.ok&&body.configured&&body.apiKey)setMapsApiKey(body.apiKey);else setMapProvider("fallback");}catch{setMapProvider("fallback");}
     };
     void initialize();
@@ -327,7 +363,7 @@ export default function FieldPreplans({ department, inspectionPilot=false }: { d
       navigator.geolocation.getCurrentPosition((position)=>applyLocation({lat:position.coords.latitude,lng:position.coords.longitude}),()=>applyLocation(),{enableHighAccuracy:true,timeout:12000,maximumAge:60000});
     }
     return()=>{cancelled=true;};
-  },[load,loadHydrants]);
+  },[refreshFieldRecords]);
   useEffect(()=>{
     const syncFocusedPreplan=(fromHistory=false)=>{
       const url=new URL(window.location.href),id=url.searchParams.get("preplan");
@@ -350,6 +386,12 @@ export default function FieldPreplans({ department, inspectionPilot=false }: { d
     if(!item)return;
     activeHydrantKey.current=item.id;hydrantBaseline.current=hydrantFingerprint(item);setHydrantLocationSource("record");setHydrantDraft({...item});setSelected("");setDraft(null);setFocusedPreplan(false);setHydrantTab("details");setCenter({lat:item.latitude,lng:item.longitude});setZoom(20);setMode("");
   },[hydrants,hydrantDraft?.id]);
+  useEffect(()=>{
+    if(!hydrantDraft?.id||hydrantDirty)return;
+    const latest=hydrants.find(item=>item.id===hydrantDraft.id);
+    if(!latest||JSON.stringify(latest)===JSON.stringify(hydrantDraft))return;
+    hydrantBaseline.current=hydrantFingerprint(latest);setHydrantDraft({...latest});
+  },[hydrants,hydrantDraft,hydrantDirty]);
   useEffect(()=>{
     if(!mapExpanded)return;
     const previousOverflow=document.body.style.overflow;
@@ -380,7 +422,7 @@ export default function FieldPreplans({ department, inspectionPilot=false }: { d
   const current=plans.find((plan)=>plan.id===selected);
   const formDirty=Boolean(draft&&recordMode==='edit'&&formSignature(draft)!==savedForm);
   const leavingDirty=formDirty||operationalDirty||Boolean(featurePhoto)||Boolean(tab==='details'&&detailsStep==='add'&&(editingFeatureId||feature.label||feature.details))||Boolean(mode&&mode!=='footprint'&&mode!=='aSide');
-  useEffect(()=>{if(!leavingDirty)return;const warn=(event:BeforeUnloadEvent)=>{event.preventDefault();};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[leavingDirty]);
+  useUnsavedWork(leavingDirty||hydrantDirty,busy);
   function canLeave(){return !busy&&(!leavingDirty||window.confirm('Leave this preplan and discard unsaved edits? Previously saved information will stay unchanged.'));}
   function resetFeatureEditor(){setEditingFeatureId('');setFeaturePoint(null);setFeaturePhoto(null);setFeature({featureType:'knox',label:'',systemType:'',serviceStatus:'in_service',details:''});}
   function switchSection(next:typeof tab){if(busy)return;if(operationalDirty&&!window.confirm('Close the open advanced editor? Unsaved edits in that editor will be discarded.'))return;setOperationalDirty(false);setTab(next);setMode('');setOperationalMapDraft(null);requestAnimationFrame(()=>editorPanel.current?.scrollIntoView({block:'start',behavior:'smooth'}));}
@@ -422,7 +464,7 @@ export default function FieldPreplans({ department, inspectionPilot=false }: { d
     navigator.geolocation.getCurrentPosition((position)=>{
       const view=departmentLocationView({lat:position.coords.latitude,lng:position.coords.longitude},17);
       if(!view.located){fallback();return;}
-      setCenter(view.center);setZoom(view.zoom);setLocationState("current");setMessage("Map centered on this device's current location.");if(draft)setDraft({...draft,latitude:view.center.lat,longitude:view.center.lng});
+      setCenter(view.center);setZoom(view.zoom);setLocationState("current");setMessage("Map centered on this device's current location. Saved record locations and open edits are unchanged.");
     },fallback,{enableHighAccuracy:true,timeout:12000,maximumAge:60000});
   }
   const locationLabel=locationState==="locating"?"Locating…":locationState==="current"?"At current location":locationState==="fallback"?"Use current location":"Current location";
@@ -529,27 +571,42 @@ export default function FieldPreplans({ department, inspectionPilot=false }: { d
   const flowClass=nfpa291FlowClass(availablePreview);
   const footprintSquareFeet=draft?Math.round(polygonAreaSquareFeet(draft.footprint)):0;
   const fireFlowPreview=draft?suggestedFireFlow({footprintSquareFeet,floorCount:draft.floorCount,constructionType:draft.constructionType,occupancyFlowCategory:draft.occupancyFlowCategory,sprinklerStandard:draft.sprinklerStandard}):null;
-  const mapPlans=draft?.id ? plans.map((plan)=>plan.id===draft.id?{...plan,...draft}:plan) : plans;
+  const mapPlans=recordMode==="edit"&&draft?.id ? plans.map((plan)=>plan.id===draft.id?{...plan,...draft}:plan) : plans;
   const managedReturn=useWorkspaceTaskReturn("Field Preplans",focusedPreplan&&draft?"Preplan list":null,closePreplan,{record:draft?.businessName||draft?.address||"Building",task:recordMode==="edit"?"Edit building":"View preplan",disabled:busy});
   const recordFocused=focusedPreplan||Boolean(hydrantDraft);
   const capturingFootprint=recordMode==="edit"&&mode==="footprint";
   const writingDetails=focusedPreplan&&recordMode==='edit'&&(tab==='photos'||(tab==='quick'&&quickStep!==1));
+  const focusedDisplay=recordMode==="view"&&current?formFromPlan(current):draft;
+  const recordsLoading=preplanRead.loading||hydrantRead.loading;
+  const recordsFailed=Boolean(preplanRead.error||hydrantRead.error);
+  const recordsVerified=Boolean(preplanRead.receivedAt&&hydrantRead.receivedAt);
+  const recordCountLabel=(state:FieldReadState,count:number,label:string)=>state.receivedAt?`${count} ${state.error?"last received ":""}${label}`:state.loading?`${label} loading`:`${label} unavailable`;
   return <section className={`field-preplans-page${recordFocused?" preplan-builder-focused":""}${hydrantDraft?" hydrant-record-focused":""}${writingDetails?' preplan-form-focused':''}`}>
+    <section className={`field-record-status${!online||recordsFailed?" needs-attention":""}`} aria-label="Field record connection and freshness">
+      <div role={!online||recordsFailed?"alert":"status"} aria-live="polite">
+        <strong>{!online?"Offline · field records may be out of date":recordsLoading?"Loading saved field records…":recordsFailed?"Field records could not be verified":"Saved field records loaded"}</strong>
+        <span>Preplans: {fieldReadLabel(preplanRead)}</span><span>Hydrants: {fieldReadLabel(hydrantRead)}</span>
+        {(preplanRead.error||hydrantRead.error)&&<p>{[preplanRead.error,hydrantRead.error].filter(Boolean).join(" · ")}. Any last received records remain available.</p>}
+        <small>Records are a saved snapshot. Refresh to check for changes before relying on service status. Open edits stay unchanged.</small>
+        {recordMode==="edit"&&draft&&<small>Building edits remain open. Preview the saved preplan to review refreshed building details.</small>}
+      </div>
+      <button type="button" disabled={busy||recordsLoading||!online} onClick={()=>void refreshFieldRecords()}>{recordsLoading?"Loading records…":recordsFailed?"Retry field records":"Refresh field records"}</button>
+    </section>
     {focusedPreplan&&draft&&<>
-      <header className="preplan-focus-header">{!managedReturn&&<button disabled={busy} onClick={closePreplan}>&larr; Back to Preplan list</button>}<div><span>{draft.id?(recordMode==="view"?"VIEW PREPLAN":"EDIT PREPLAN"):"NEW PREPLAN"}</span><h1>{draft.businessName||"New building preplan"}</h1><p>{fullAddress(draft)||"A-side GPS location"} &middot; {draft.status}</p></div>{recordMode==="edit"&&<div className="preplan-save-bar"><SaveStatus state={busy?"saving":buildingSaveError?"failed":formDirty||!draft.id?"unsaved":"saved"} detail={buildingSaveError|| (savedReloadNeeded?"Save acknowledged; reload to verify the saved record.":"Building details save separately from operational review and publication. Existing published building edits may be visible immediately.")} onRetry={()=>void savePlan()} /><button className="primary-action" disabled={busy||savedReloadNeeded||!footprintAccepted||!formDirty} onClick={()=>void savePlan()}>{draft.id?'Save building changes':'Save new preplan'}</button>{current&&<button className="record-focus-view-button" disabled={busy||savedReloadNeeded} onClick={()=>view(current)}>Preview saved preplan</button>}</div>}</header>
+      <header className="preplan-focus-header">{!managedReturn&&<button disabled={busy} onClick={closePreplan}>&larr; Back to Preplan list</button>}<div><span>{draft.id?(recordMode==="view"?"VIEW PREPLAN":"EDIT PREPLAN"):"NEW PREPLAN"}</span><h1>{focusedDisplay?.businessName||"New building preplan"}</h1><p>{focusedDisplay&&fullAddress(focusedDisplay)||"A-side GPS location"} &middot; {focusedDisplay?.status}</p></div>{recordMode==="edit"&&<div className="preplan-save-bar"><SaveStatus state={busy?"saving":buildingSaveError?"failed":formDirty||!draft.id?"unsaved":"saved"} detail={buildingSaveError|| (savedReloadNeeded?"Save acknowledged; reload to verify the saved record.":"Building details save separately from operational review and publication. Existing published building edits may be visible immediately.")} onRetry={()=>void savePlan()} /><button className="primary-action" disabled={busy||savedReloadNeeded||!footprintAccepted||!formDirty} onClick={()=>void savePlan()}>{draft.id?'Save building changes':'Save new preplan'}</button>{current&&<button className="record-focus-view-button" disabled={busy||savedReloadNeeded} onClick={()=>view(current)}>Preview saved preplan</button>}</div>}</header>
       {inspectionPilot&&current&&recordMode==="view"&&<p><a className="fi-button" href={"?page=fire-inspections&display=portal&inspectionProperty="+encodeURIComponent(current.id)}>Property inspections & history →</a></p>}
       {message&&<div role="status" className="field-message preplan-focus-message">{message}</div>}
       {savedReloadNeeded&&<div className="field-message" role="alert"><strong>Saved record needs verification.</strong> <button type="button" disabled={busy} onClick={()=>{setBusy(true);void load().then(()=>{setSavedReloadNeeded(false);setMessage("Saved preplan reloaded. You can now preview or continue.");}).catch(()=>setMessage("The saved record still could not reload. Reconnect, then retry.")).finally(()=>setBusy(false));}}>Reload saved preplan</button></div>}
       <div className="preplan-focus-map-panel" ref={focusMapPanel}>
         <div className="field-map-toolbar"><button onClick={locate}>◎ Current location</button><button className={imagery==="aerial"?"active":""} onClick={()=>setImagery("aerial")}>Aerial</button><button className={imagery==="street"?"active":""} onClick={()=>setImagery("street")}>Streets</button><small>Drag to move &middot; wheel or double-click to zoom</small><em className={`map-provider ${mapProvider}`}>{mapProvider==="google"?`Google Maps · ${imagery==="aerial"?"Satellite":"Streets"}`:mapProvider==="loading"?"Loading map…":"Backup map"}</em><div className="preplan-map-zoom" role="group" aria-label="Map zoom"><button aria-label="Zoom out" onClick={()=>setZoom(Math.max(14,zoom-1))}>−</button><b>Zoom {zoom}</b><button aria-label="Zoom in" onClick={()=>setZoom(Math.min(21,zoom+1))}>+</button></div></div>
         {capturingFootprint&&<p className="preplan-capture-help"><strong>Draw the building outline</strong>Click or tap each outside corner in order. Hydrants and other saved map markers are temporarily hidden; they return after you accept the footprint.</p>}
-        <FieldMap apiKey={mapsApiKey} center={center} zoom={zoom} imagery={imagery} plans={capturingFootprint?[]:mapPlans} hydrants={capturingFootprint?[]:hydrants} selected={selected} draft={draft} mode={operationalMapDraft?`operational-${operationalMapDraft.kind}`:recordMode==="edit"?mode:""} footprintAccepted={footprintAccepted} operationalOverlay={operationalOverlay} operationalDraft={operationalMapDraft} selectedOperationalSpaceId={selectedOperationalSpaceId} onMapClick={operationalMapDraft||recordMode==="edit"?clickMap:()=>{}} onCenter={setCenter} onZoom={setZoom} onProviderChange={setMapProvider} onHydrantSelect={()=>{}} onOperationalDraftChange={setOperationalMapDraft} onOperationalSpaceSelect={setSelectedOperationalSpaceId} onSelect={(id)=>{const plan=plans.find((item)=>item.id===id);if(plan&&plan.id!==selected)view(plan);}}/>
+        <FieldMap apiKey={mapsApiKey} center={center} zoom={zoom} imagery={imagery} plans={capturingFootprint?[]:mapPlans} hydrants={capturingFootprint?[]:hydrants} selected={selected} draft={focusedDisplay} mode={operationalMapDraft?`operational-${operationalMapDraft.kind}`:recordMode==="edit"?mode:""} footprintAccepted={footprintAccepted} operationalOverlay={operationalOverlay} operationalDraft={operationalMapDraft} selectedOperationalSpaceId={selectedOperationalSpaceId} onMapClick={operationalMapDraft||recordMode==="edit"?clickMap:()=>{}} onCenter={setCenter} onZoom={setZoom} onProviderChange={setMapProvider} onHydrantSelect={()=>{}} onOperationalDraftChange={setOperationalMapDraft} onOperationalSpaceSelect={setSelectedOperationalSpaceId} onSelect={(id)=>{const plan=plans.find((item)=>item.id===id);if(plan&&plan.id!==selected)view(plan);}}/>
       </div>
     </>}
     {!recordFocused&&<>
     <details><summary>Scheduled hydrant inspection &amp; flushing batches</summary><OperationalPrograms kind="hydrants"/></details>
     <header className="field-preplan-header"><div><p className="eyebrow">Field intelligence</p><h1>Preplans & Hydrants</h1><p>Find a building or water supply record, then open it in a focused workspace.</p></div><div className="field-preplan-actions"><label><span>Search the entire department</span><input type="search" value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="Business, address, street, or hydrant ID…" aria-label="Search all preplans and hydrants"/></label>{canEdit&&<><button className="primary-action" onClick={beginNewPreplan}>+ New Preplan</button><button className="primary-action hydrant-add" onClick={addHydrant}>+ New Hydrant</button></>}</div></header>
-    <nav className="field-directory-tabs" aria-label="Preplan workspaces"><button className={directoryView==="map"?"active":""} aria-pressed={directoryView==='map'} onClick={()=>setDirectoryView("map")}><strong>Find & open a record</strong><span>Search or select on map · {plans.length} preplans · {hydrants.filter(item=>item.serviceStatus!=="archived").length} active hydrants</span></button><button className={directoryView==="starters"?"active":""} aria-pressed={directoryView==='starters'} onClick={()=>{setMapExpanded(false);setDirectoryView("starters");}}><strong>Finish imported addresses</strong><span>{imports.filter((item)=>item.status!=="completed").length} addresses still need a completed preplan</span></button></nav>
+    <nav className="field-directory-tabs" aria-label="Preplan workspaces"><button className={directoryView==="map"?"active":""} aria-pressed={directoryView==='map'} onClick={()=>setDirectoryView("map")}><strong>Find & open a record</strong><span>Search or select on map · {recordCountLabel(preplanRead,plans.length,"preplans")} · {recordCountLabel(hydrantRead,hydrants.filter(item=>item.serviceStatus!=="archived").length,"active hydrants")}</span></button><button className={directoryView==="starters"?"active":""} aria-pressed={directoryView==='starters'} onClick={()=>{setMapExpanded(false);setDirectoryView("starters");}}><strong>Finish imported addresses</strong><span>{preplanRead.receivedAt?`${imports.filter((item)=>item.status!=="completed").length} addresses still need a completed preplan`:preplanRead.loading?"Loading imported addresses…":"Imported address status unavailable"}</span></button></nav>
     <button className="quiet-button" type="button" onClick={()=>setShowShared(value=>!value)}>{showShared?"Close shared records":"View other departments’ hydrants & preplans"}</button>
     {showShared&&<SharedPreplans/>}
     {message&&<div className="field-message" role="status">{message}</div>}
@@ -557,13 +614,13 @@ export default function FieldPreplans({ department, inspectionPilot=false }: { d
     <div className="preplan-directory-controls" role="group" aria-label="Record list scope"><label><input type="checkbox" checked={showArchivedHydrants} onChange={event=>setShowArchivedHydrants(event.target.checked)}/> Show archived hydrants</label><button type="button" aria-pressed={recordScope==="map"} onClick={()=>setRecordScope("map")}>In map view</button><button type="button" aria-pressed={recordScope==="all"} onClick={()=>setRecordScope("all")}>All department records</button><button type="button" onClick={()=>{setCenter({...departmentMapOverview.center});setZoom(departmentMapOverview.zoom);setLocationState("fallback");}}>Show department map</button>{query&&<button type="button" onClick={()=>setQuery("")}>Clear search</button>}</div>
 <div className={`field-map-workspace${mapExpanded?" expanded":""}`}>
       <div className="field-map-toolbar"><button className={locationState==="current"?"active":""} disabled={locationState==="locating"} onClick={locate}>◎ {locationLabel}</button><button className={imagery==="aerial"?"active":""} onClick={()=>setImagery("aerial")}>Aerial</button><button className={imagery==="street"?"active":""} onClick={()=>setImagery("street")}>Streets</button><small>Drag to move · wheel or double-click to zoom</small><em className={`map-provider ${mapProvider}`}>{mapProvider==="google"?`Google Maps · ${imagery==="aerial"?"Satellite":"Streets"}`:mapProvider==="loading"?"Loading map…":"Backup map"}</em><span/><button type="button" className="field-map-expand-button" aria-pressed={mapExpanded} onClick={()=>setMapExpanded((expanded)=>!expanded)}>{mapExpanded?"✕ Exit expanded view":"⛶ Expand map & records"}</button><button aria-label="Zoom out" onClick={()=>setZoom(Math.max(14,zoom-1))}>−</button><b>Zoom {zoom}</b><button aria-label="Zoom in" onClick={()=>setZoom(Math.min(21,zoom+1))}>+</button></div>
-      <div className="field-map-layout"><FieldMap apiKey={mapsApiKey} center={center} zoom={zoom} imagery={imagery} plans={mapPlans} hydrants={hydrants.filter(item=>item.serviceStatus!=="archived")} selected={selected} draft={draft} mode={mode} footprintAccepted={footprintAccepted} operationalOverlay={null} operationalDraft={null} onMapClick={clickMap} onCenter={setCenter} onZoom={setZoom} onProviderChange={setMapProvider} onHydrantSelect={openHydrant} onSelect={(id)=>{const plan=plans.find((item)=>item.id===id);if(plan)view(plan);}}/><aside><header><b>{normalizedQuery?"Department search results":recordScope==="all"?"All department records":"Records in this map view"}</b><span>{shown.length+shownHydrants.length}</span></header>{shown.map((plan)=><button key={plan.id} className={plan.id===selected?"active":""} onClick={()=>view(plan)}><strong>{plan.businessName}</strong><span>{plan.address||"A-side GPS location"}</span><small>{plan.status} · {plan.features.length} mapped items</small><b className="record-open-label">View preplan →</b></button>)}{shownHydrants.map((hydrant)=><button key={hydrant.id} className={hydrant.id===hydrantDraft?.id?"active hydrant-record":"hydrant-record"} onClick={()=>openHydrant(hydrant.id)}><strong><i className={hydrant.serviceStatus}/>{hydrant.hydrantNumber||"Hydrant"}</strong><span>{hydrant.address||`${hydrant.latitude.toFixed(5)}, ${hydrant.longitude.toFixed(5)}`}</span><small>{hydrant.serviceStatus.replaceAll("_"," ")} · {hydrant.flowTests[0]?`${Math.round(hydrant.flowTests[0].availableFlow).toLocaleString()} GPM @ ${hydrant.flowTests[0].desiredResidual} psi`:"Not flow tested"}</small><b className="record-open-label">Open record →</b></button>)}{!shown.length&&!shownHydrants.length&&<p>{normalizedQuery?"No department preplans or hydrants match this search. Try part of a business name, address, street, or hydrant number.":"No records are visible here. Search the department or move the map."}</p>}</aside></div>
+      <div className="field-map-layout"><FieldMap apiKey={mapsApiKey} center={center} zoom={zoom} imagery={imagery} plans={mapPlans} hydrants={hydrants.filter(item=>item.serviceStatus!=="archived")} selected={selected} draft={draft} mode={mode} footprintAccepted={footprintAccepted} operationalOverlay={null} operationalDraft={null} onMapClick={clickMap} onCenter={setCenter} onZoom={setZoom} onProviderChange={setMapProvider} onHydrantSelect={openHydrant} onSelect={(id)=>{const plan=plans.find((item)=>item.id===id);if(plan)view(plan);}}/><aside><header><b>{normalizedQuery?"Department search results":recordScope==="all"?"All department records":"Records in this map view"}</b><span>{recordsVerified?shown.length+shownHydrants.length:recordsLoading?"Loading":"Partial / unavailable"}</span></header>{shown.map((plan)=><button key={plan.id} className={plan.id===selected?"active":""} onClick={()=>view(plan)}><strong>{plan.businessName}</strong><span>{plan.address||"A-side GPS location"}</span><small>{plan.status} · {plan.features.length} mapped items</small><b className="record-open-label">View preplan →</b></button>)}{shownHydrants.map((hydrant)=><button key={hydrant.id} className={hydrant.id===hydrantDraft?.id?"active hydrant-record":"hydrant-record"} onClick={()=>openHydrant(hydrant.id)}><strong><i className={hydrant.serviceStatus}/>{hydrant.hydrantNumber||"Hydrant"}</strong><span>{hydrant.address||`${hydrant.latitude.toFixed(5)}, ${hydrant.longitude.toFixed(5)}`}</span><small>{hydrant.serviceStatus.replaceAll("_"," ")} · {hydrant.flowTests[0]?`${Math.round(hydrant.flowTests[0].availableFlow).toLocaleString()} GPM @ ${hydrant.flowTests[0].desiredResidual} psi`:"Not flow tested"}</small><b className="record-open-label">Open record →</b></button>)}{!shown.length&&!shownHydrants.length&&<p>{recordsLoading?"Loading saved preplans and hydrants…":recordsFailed?"Field records are unavailable or incomplete. Retry field records above before treating this view as empty.":normalizedQuery?"No department preplans or hydrants match this search. Try part of a business name, address, street, or hydrant number.":"No records are visible here. Search the department or move the map."}</p>}</aside></div>
     </div>
     </>}
     {directoryView==="starters"&&<section className="imported-building-panel">
       <header>
         <div><span>BUILDING IMPORT</span><h2>Preplan Starters</h2><p>Address matches are automatic; crews verify the location and capture the footprint.</p></div>
-        <strong>{imports.filter((item)=>item.status==="completed").length} of {imports.length} completed</strong>
+        <strong>{preplanRead.receivedAt?<>{imports.filter((item)=>item.status==="completed").length} of {imports.length} completed</>:preplanRead.loading?"Loading imported addresses…":"Imported address status unavailable"}</strong>
       </header>
       <div className="imported-building-controls">
         <label>Sort<select value={importSort} onChange={(event)=>setImportSort(event.target.value as "street"|"completion")}><option value="street">By street</option><option value="completion">Needs work first</option></select></label>
@@ -571,7 +628,7 @@ export default function FieldPreplans({ department, inspectionPilot=false }: { d
         {geocodeProgress?<span role="status">{geocodeProgress}</span>:null}
       </div>
       <div className="imported-street-groups">{groupedImports.map(([street,items])=><details key={street} open={Boolean(normalizedQuery)||undefined}><summary>{street}<span>{items.length}</span></summary>{items.map((item)=><article key={item.id} className={item.status==="completed"?"completed":item.status==="geocode_failed"?"needs-review":""}><div><strong>{item.businessName}</strong><span>{item.address}</span><small>{item.status==="completed"?"Preplan completed":item.status==="geocoded"?"Address located · footprint required":item.status==="geocode_failed"?"Address needs manual review":"Waiting for address lookup"}</small></div>{canEdit?<button onClick={()=>startImportedBuilding(item)}>{item.status==="completed"?"Open Preplan":item.status==="geocoded"?"Verify & Build":"Locate & Build"}</button>:<span>{item.status==="completed"?"Completed":"Awaiting field capture"}</span>}</article>)}</details>)}</div>
-      {!shownImports.length&&<p>No imported buildings match this search.</p>}
+      {!shownImports.length&&<p>{preplanRead.loading?"Loading imported buildings…":preplanRead.error?"Imported buildings could not be verified. Retry field records above.":"No imported buildings match this search."}</p>}
     </section>}
     </>}
     {hydrantDraft&&<>

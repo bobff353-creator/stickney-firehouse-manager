@@ -1,14 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type SetStateAction } from "react";
 import CommandReviewTools,{SavedCommandEvidence} from './command-review-tools';
 import ConfirmDialog from "./confirm-dialog";
 import { formatEmployeeName } from "./employee-names";
 import styles from "./incident-command-board.module.css";
 import { canDraftCommand, commandDraftKey, commandDraftReview, commandSaveConfirmed, parseCommandDraft, type CommandDraft } from "./incident-command-recovery";
 import { savedTimeLabel } from "./workflow-status";
+import { changeCommandEditor, commandEditorDirty, reconcileCommandEditors, reviewCommandEditor, type CommandEditors } from "./incident-command-editors";
+import { useUnsavedWork } from "./use-unsaved-work";
 import {
   commandPositions,
+  emptyIncidentCommandState,
   searchPhases,
   supportResources,
   supportStatuses,
@@ -93,7 +96,6 @@ export default function IncidentCommandBoard() {
   const readGeneration = useRef(0);
   const loadingRef = useRef(false);
   const closedRef = useRef(false);
-  const currentDataRef = useRef<BoardData | null>(null);
   const [data, setData] = useState<BoardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -106,7 +108,7 @@ export default function IncidentCommandBoard() {
   const [selectedUnit, setSelectedUnit] = useState("");
   const [selectedLevel, setSelectedLevel] = useState("Level unknown");
   const [confirm, setConfirm] = useState<ConfirmState>(null);
-  const [radioDraft, setRadioDraft] = useState("");
+  const [editorState, setEditorState] = useState<CommandEditors | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showManualUnitEntry, setShowManualUnitEntry] = useState(false);
   const [manualUnitDraft, setManualUnitDraft] = useState("");
@@ -118,16 +120,28 @@ export default function IncidentCommandBoard() {
   const [hazardStatusDraft, setHazardStatusDraft] = useState<HazardStatusDraft | null>(null);
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [ritDraft, setRitDraft] = useState({
-    unitId: "",
-    chiefEmployeeId: "",
-    readiness: "not_reported" as IncidentCommandState["rit"]["readiness"],
+  const editorScope = data?.incident ? `${data.draftScope}:${data.incident.incidentId}` : "";
+  const editors = reconcileCommandEditors(editorState, editorScope, data?.state ?? emptyIncidentCommandState());
+  const radioDraft = editors.radio.draft, ritDraft = editors.rit.draft, rehabDraft = editors.rehab.draft;
+  const editorConflict = editors.radio.conflict || editors.rit.conflict || editors.rehab.conflict;
+  const radioDirty = commandEditorDirty(editors.radio);
+  const ritDirty = commandEditorDirty(editors.rit), rehabDirty = commandEditorDirty(editors.rehab);
+  useUnsavedWork(Boolean(data?.state && (radioDirty || ritDirty || rehabDirty)), saving);
+  const setRadioDraft = (value: string) => setEditorState((current) => {
+    const latest = reconcileCommandEditors(current, editorScope, data?.state ?? emptyIncidentCommandState());
+    return { ...latest, radio: changeCommandEditor(latest.radio, value) };
   });
-  const [rehabDraft, setRehabDraft] = useState({ unitIds: [] as string[], chiefEmployeeId: "", assignmentNote: "" });
+  const setRitDraft = (update: SetStateAction<IncidentCommandState["rit"]>) => setEditorState((current) => {
+    const latest = reconcileCommandEditors(current, editorScope, data?.state ?? emptyIncidentCommandState());
+    return { ...latest, rit: changeCommandEditor(latest.rit, typeof update === "function" ? update(latest.rit.draft) : update) };
+  });
+  const setRehabDraft = (update: SetStateAction<IncidentCommandState["rehab"]>) => setEditorState((current) => {
+    const latest = reconcileCommandEditors(current, editorScope, data?.state ?? emptyIncidentCommandState());
+    return { ...latest, rehab: changeCommandEditor(latest.rehab, typeof update === "function" ? update(latest.rehab.draft) : update) };
+  });
   useLayoutEffect(() => {
     savingRef.current = saving;
     closedRef.current = Boolean(data?.state?.closeout.endedAt);
-    currentDataRef.current = data;
   }, [saving, data]);
 
   const load = useCallback(async (quiet = false) => {
@@ -141,10 +155,11 @@ export default function IncidentCommandBoard() {
       const payload = await response.json() as BoardData;
       if (generation !== readGeneration.current) return;
       if ([401, 403, 423].includes(response.status)) {
-        setData(null); setDraft(null); setDraftStorageReady(false);
+        setData(null); setEditorState(null); setDraft(null); setDraftStorageReady(false);
       }
       if (!response.ok) throw new Error(payload.error || "Unable to load the Command Board.");
       setData(payload);
+      setEditorState((current) => payload.state && payload.incident ? reconcileCommandEditors(current, `${payload.draftScope}:${payload.incident.incidentId}`, payload.state) : null);
       setReadHealthy(true);
       if (!quiet) setNotice("");
       try {
@@ -183,17 +198,6 @@ export default function IncidentCommandBoard() {
     };
   }, [load]);
 
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      const current = currentDataRef.current?.state;
-      if (!current) return;
-      setRadioDraft(current.radioChannel);
-      setRitDraft(current.rit);
-      setRehabDraft(current.rehab);
-    }, 0);
-    return () => window.clearTimeout(timeout);
-  }, [data?.incident?.incidentId, data?.state?.revision]);
-
   const saveDraftLocally = useCallback((entry: CommandDraft) => {
     setDraft(entry);
     try { sessionStorage.setItem(commandDraftKey(entry.scope), JSON.stringify(entry)); setDraftStorageReady(true); }
@@ -215,7 +219,7 @@ export default function IncidentCommandBoard() {
       });
       const payload = await response.json() as MutationResponse;
       if (!response.ok) {
-        if ([401, 403, 423].includes(response.status)) { setData(null); setDraft(null); setDraftStorageReady(false); }
+        if ([401, 403, 423].includes(response.status)) { setData(null); setEditorState(null); setDraft(null); setDraftStorageReady(false); }
         else if (canDraftCommand(entry.mutation)) saveDraftLocally(entry);
         if (response.status === 409) await load(true);
         throw new Error(payload.error || "Unable to save the command-board update.");
@@ -229,6 +233,7 @@ export default function IncidentCommandBoard() {
           state: payload.state ?? current.state,
           events: payload.event ? [payload.event, ...current.events] : current.events,
         } : current);
+        setEditorState((current) => reconcileCommandEditors(current, `${entry.scope}:${entry.incidentId}`, payload.state!));
       }
       if (entry.mutation.action !== "end-call") await load(true);
       setNotice(payload.replayed ? "Previously saved update confirmed. No duplicate was created." : "Command update saved to the department board.");
@@ -309,6 +314,7 @@ export default function IncidentCommandBoard() {
     }
   }, [parSeconds, playAlertTone, state?.par.startedAt, state?.par.status]);
   const floorCount = state?.building.floorCount || data?.preplan?.floorCount || 1;
+  const retainedLevels = levels.filter((level) => level === "Basement" ? state?.building.basement !== "present" : level === "Level unknown" ? Boolean(state?.building.floorCount || data?.preplan?.floorCount) : Number(/^Floor (\d+)$/.exec(level)?.[1]) > floorCount);
   const commandDisabled = !data?.canManage || saving || Boolean(draft) || Boolean(state?.closeout.endedAt);
   const criticalDisabled = commandDisabled || !online || !readHealthy;
   const onSceneUnits = [...new Set([...(data?.cadUnits ?? []), ...(state?.manualUnits ?? [])])];
@@ -509,7 +515,7 @@ export default function IncidentCommandBoard() {
   ];
   const emailReportHref = `mailto:?subject=${encodeURIComponent(`Command Board report ${data.incident.reportNumber || data.incident.address}`)}&body=${encodeURIComponent(reportLines.join("\n"))}`;
 
-  return <section ref={boardRef} className={`icb-page icb-reference${state.mayday.active ? " mayday-active" : ""}${draft || !online || !readHealthy ? ` ${styles.recoveryBoard}` : ""}`}>
+  return <section ref={boardRef} className={`icb-page icb-reference${state.mayday.active ? " mayday-active" : ""}${draft || !online || !readHealthy || editorConflict || radioDirty ? ` ${styles.recoveryBoard}` : ""}`}>
     <ConfirmDialog open={Boolean(confirm)} title={confirmCopy.title} description={confirmCopy.description} confirmLabel={confirmCopy.label} tone={confirmCopy.tone} busy={saving} onCancel={() => setConfirm(null)} onConfirm={() => void confirmAction()} />
 
     {assignmentDraft && <div className="icb-editor-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setAssignmentDraft(null); }}>
@@ -575,7 +581,7 @@ export default function IncidentCommandBoard() {
       <label className="icb-interval"><span>INTERVAL</span><select disabled={criticalDisabled} value={state.par.intervalMinutes} onChange={(event) => void mutate({ action: "set-par-interval", intervalMinutes: Number(event.target.value) })}>{[10, 15, 20, 30].map((minutes) => <option key={minutes} value={minutes}>{minutes}</option>)}</select></label>
       <button className="icb-header-action" disabled={criticalDisabled} onClick={() => { armAlertTone(); void mutate({ action: "toggle-par" }); }}>{state.par.status === "running" ? "Pause" : "Start"}</button>
       <button className="icb-header-action" disabled={criticalDisabled} onClick={() => { armAlertTone(); alertedParRef.current = ""; void mutate({ action: "reset-par" }); }}>Reset</button>
-      <label className="icb-radio"><span>RADIO CHANNEL</span><input disabled={commandDisabled} value={radioDraft} onChange={(event) => setRadioDraft(event.target.value)} onBlur={() => { if (radioDraft !== state.radioChannel) void mutate({ action: "set-radio", radioChannel: radioDraft }); }} placeholder="Not assigned" /></label>
+      <label className="icb-radio"><span>RADIO CHANNEL</span><input disabled={commandDisabled} value={radioDraft} onChange={(event) => setRadioDraft(event.target.value)} onBlur={() => { if (radioDraft !== state.radioChannel && !editors.radio.conflict) void mutate({ action: "set-radio", radioChannel: radioDraft }); }} placeholder="Not assigned" /></label>
       <button className="icb-fullscreen" onClick={() => void toggleFullscreen()}>{isFullscreen ? "EXIT FULL SCREEN" : "FULL SCREEN"}</button>
       <button className={`icb-mayday ${state.mayday.active ? "active" : ""}`} disabled={criticalDisabled} onClick={() => setConfirm({ kind: "mayday", active: !state.mayday.active })}>{state.mayday.active ? "RESOLVE MAYDAY" : "MAYDAY"}</button>
     </header>
@@ -588,6 +594,22 @@ export default function IncidentCommandBoard() {
     {(!online || !readHealthy) && <p className={styles.offlineInfo} role="status">Ordinary changes prepare one local draft for review after reconnecting. Timed and critical confirmations require a successful live refresh. The shared board stays unchanged until a save is confirmed.</p>}
     {notice && <div className="icb-notice" role="alert">{notice}<button onClick={() => setNotice("")}>Dismiss</button></div>}
     {recoveryPanel}
+    {(editorConflict || radioDirty) && <section className={`${styles.recovery} ${styles.editorReview}`} aria-label="Review command edits">
+      <strong>{editorConflict ? "Saved command details changed while you were editing" : "Unsaved radio channel"}</strong>
+      <p>Your draft is retained. Review the current department value before replacing it.</p>
+      {(editors.radio.conflict || radioDirty) && <div className={styles.editorReviewRow}>
+        <p><b>Radio channel</b> · Your draft: {radioDraft || "Not assigned"} · Saved: {editors.radio.saved || "Not assigned"}</p>
+        {editors.radio.conflict ? <><button disabled={commandDisabled} onClick={() => setEditorState({ ...editors, radio: reviewCommandEditor(editors.radio, false) })}>Use saved radio</button><button disabled={commandDisabled} onClick={() => setEditorState({ ...editors, radio: reviewCommandEditor(editors.radio, true) })}>Keep my radio draft</button></> : <button disabled={commandDisabled} onClick={() => void mutate({ action: "set-radio", radioChannel: radioDraft })}>Save radio draft</button>}
+      </div>}
+      {editors.rit.conflict && <div className={styles.editorReviewRow}>
+        <p><b>RIT</b> · Saved: {editors.rit.saved.unitId || "No unit"} · {employeeName(editors.rit.saved.chiefEmployeeId)} · {sentence(editors.rit.saved.readiness)}. Your draft remains in the RIT fields.</p>
+        <button disabled={commandDisabled} onClick={() => setEditorState({ ...editors, rit: reviewCommandEditor(editors.rit, false) })}>Use saved RIT</button><button disabled={commandDisabled} onClick={() => setEditorState({ ...editors, rit: reviewCommandEditor(editors.rit, true) })}>Keep my RIT draft</button>
+      </div>}
+      {editors.rehab.conflict && <div className={styles.editorReviewRow}>
+        <p><b>Rehab</b> · Saved: {editors.rehab.saved.unitIds.join(", ") || "No units"} · {employeeName(editors.rehab.saved.chiefEmployeeId)} · {editors.rehab.saved.assignmentNote || "No location entered"}. Your draft remains in the Rehab fields.</p>
+        <button disabled={commandDisabled} onClick={() => setEditorState({ ...editors, rehab: reviewCommandEditor(editors.rehab, false) })}>Use saved Rehab</button><button disabled={commandDisabled} onClick={() => setEditorState({ ...editors, rehab: reviewCommandEditor(editors.rehab, true) })}>Keep my Rehab draft</button>
+      </div>}
+    </section>}
 
     <div className={`icb-reference-grid ${styles.boardGrid}`}>
       <aside className="icb-reference-left">
@@ -641,6 +663,7 @@ export default function IncidentCommandBoard() {
             </div>
           </header>
 
+          {retainedLevels.length > 0 && <p className={styles.retainedLevels} role="status">Recorded crews, hazards or search results keep {retainedLevels.join(", ")} visible despite the current building profile. Review these levels before clearing any record.</p>}
           <nav className="icb-floor-tabs" aria-label="Building floors">{levels.map((level) => <button key={level} className={activeLevel === level ? "active" : ""} onClick={() => setSelectedLevel(level)}>{level}</button>)}</nav>
 
           {hazardEditorOpen && <form className="icb-hazard-editor" onSubmit={(event) => { event.preventDefault(); if (!hazardDraft.label.trim()) return setNotice("Select or type a hazard."); setHazardEditorOpen(false); void mutate({ action: "add-hazard", ...hazardDraft }); }}>
@@ -675,17 +698,20 @@ export default function IncidentCommandBoard() {
               <label><span>REHAB CREW / AMBULANCE</span><div className="icb-rehab-units">{onSceneUnits.map((unitId) => <button type="button" key={unitId} className={rehabDraft.unitIds.includes(unitId) ? "active" : ""} disabled={!data.canManage} onClick={() => setRehabDraft((current) => ({ ...current, unitIds: current.unitIds.includes(unitId) ? current.unitIds.filter((unit) => unit !== unitId) : [...current.unitIds, unitId] }))}>{unitId}</button>)}</div></label>
               <label><span>REHAB CHIEF</span><datalist id="icb-rehab-chief-suggestions">{data.personnel.map((person) => <option key={person.id} value={formatEmployeeName(person.name)}>{person.rank}</option>)}</datalist><input list="icb-rehab-chief-suggestions" disabled={!data.canManage} maxLength={80} value={commandAssigneeLabel(rehabDraft.chiefEmployeeId)} onChange={(event) => setRehabDraft((current) => ({ ...current, chiefEmployeeId: encodeChiefAssignee(event.target.value) }))} placeholder="Select or type chief name/unit" /></label>
               <label className="icb-rehab-note"><span>REHAB ASSIGNMENT / LOCATION</span><input disabled={!data.canManage} maxLength={120} value={rehabDraft.assignmentNote} onChange={(event) => setRehabDraft((current) => ({ ...current, assignmentNote: event.target.value }))} placeholder="Type assignment or rehab location" /></label>
-              <button disabled={commandDisabled} onClick={() => void mutate({ action: "set-rehab", ...rehabDraft })}>SAVE REHAB</button>
+              {rehabDirty && <p className={styles.editorHint} role="status">{editors.rehab.conflict ? "Saved Rehab changed. Review the comparison above before saving." : "Unsaved Rehab changes"}</p>}
+              <button disabled={commandDisabled || editors.rehab.conflict} onClick={() => void mutate({ action: "set-rehab", ...rehabDraft })}>SAVE REHAB</button>
             </div>
           </section>
 
           <section className="icb-dark-panel icb-rit-team">
-            <header><span>RIT TEAM</span><small className={ritDraft.readiness === "ready" ? "ready" : ""}>{sentence(ritDraft.readiness)}</small></header>
+            <header><span>RIT TEAM</span><small className={state.rit.readiness === "ready" ? "ready" : ""}>{sentence(state.rit.readiness)}</small></header>
             <div className="icb-rit-fields">
               <label><span>RIT CHIEF</span><select disabled={!data.canManage} value={ritDraft.chiefEmployeeId} onChange={(event) => setRitDraft((current) => ({ ...current, chiefEmployeeId: event.target.value }))}><option value="">Assign chief</option>{data.personnel.map((person) => <option key={person.id} value={person.id}>{formatEmployeeName(person.name)}</option>)}</select></label>
               <label><span>RIT UNIT</span><select disabled={!data.canManage} value={ritDraft.unitId} onChange={(event) => setRitDraft((current) => ({ ...current, unitId: event.target.value }))}><option value="">Assign unit</option>{onSceneUnits.map((unitId) => <option key={unitId}>{unitId}</option>)}</select></label>
               <label><span>READINESS</span><select disabled={!data.canManage} value={ritDraft.readiness} onChange={(event) => setRitDraft((current) => ({ ...current, readiness: event.target.value as typeof current.readiness }))}><option value="not_reported">Not reported</option><option value="assembling">Assembling</option><option value="ready">Ready</option></select></label>
-              <button disabled={commandDisabled} onClick={() => void mutate({ action: "set-rit", ...ritDraft })}>SAVE RIT</button>
+              {ritDirty && <p className={styles.editorHint} role="status">{editors.rit.conflict ? "Saved RIT changed. Review the comparison above before saving." : "Unsaved RIT changes"}</p>}
+              {ritDraft.readiness === "ready" && !ritDraft.unitId && <p className={styles.editorHint} role="status">Assign a RIT unit before marking the team ready.</p>}
+              <button disabled={commandDisabled || editors.rit.conflict || (ritDraft.readiness === "ready" && !ritDraft.unitId)} onClick={() => void mutate({ action: "set-rit", ...ritDraft })}>SAVE RIT</button>
             </div>
           </section>
         </div>

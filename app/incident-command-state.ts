@@ -235,7 +235,7 @@ export function reduceIncidentCommandState(current: IncidentCommandState, mutati
   } else if (mutation.action === "assign-unit") {
     const unitId = validUnit(mutation.unitId, context);
     const existing = state.units[unitId] ?? { assignment: "Staging", status: "Responding", floor: "", side: "", crewStrength: null };
-    const crewStrength = mutation.crewStrength == null ? existing.crewStrength : Math.max(1, Math.min(20, Math.round(Number(mutation.crewStrength))));
+    const crewStrength = mutation.crewStrength === undefined ? existing.crewStrength : mutation.crewStrength === null ? null : Math.max(1, Math.min(20, Math.round(Number(mutation.crewStrength))));
     const floor = String(mutation.floor ?? existing.floor).slice(0, 40);
     if (floor && !context.validLevels.has(floor)) throw new Error("Select a valid tactical level.");
     state.units[unitId] = {
@@ -291,6 +291,7 @@ export function reduceIncidentCommandState(current: IncidentCommandState, mutati
     state.searches[mutation.level] = { ...(state.searches[mutation.level] ?? {}), [phase]: status };
     summary = `${mutation.level} ${phase} search marked ${status.replaceAll("_", " ")}`;
   } else if (mutation.action === "set-rit") {
+    if (mutation.readiness === "ready" && !mutation.unitId) throw new Error("Assign a RIT unit before marking the team ready.");
     state.rit = {
       unitId: mutation.unitId ? validUnit(mutation.unitId, context) : "",
       chiefEmployeeId: validEmployee(mutation.chiefEmployeeId, context),
@@ -299,6 +300,12 @@ export function reduceIncidentCommandState(current: IncidentCommandState, mutati
     summary = `RIT status set to ${state.rit.readiness.replaceAll("_", " ")}`;
   } else if (mutation.action === "set-rehab") {
     const unitIds = [...new Set(mutation.unitIds.map((unit) => validUnit(unit, context)))];
+    for (const previousUnit of state.rehab.unitIds) {
+      const existing = state.units[previousUnit];
+      if (!unitIds.includes(previousUnit) && existing?.assignment === "Rehab") {
+        state.units[previousUnit] = { ...existing, assignment: "Staging", status: "Staged", floor: "", side: "" };
+      }
+    }
     state.rehab = {
       unitIds,
       chiefEmployeeId: validChiefAssignee(mutation.chiefEmployeeId, context),
@@ -369,7 +376,13 @@ export function reduceIncidentCommandState(current: IncidentCommandState, mutati
 
 export function tacticalLevels(state: IncidentCommandState, approvedFloorCount?: number | null) {
   const count = state.building.floorCount || approvedFloorCount || 0;
-  const levels = Array.from({ length: count }, (_, index) => `Floor ${count - index}`);
+  // Keep recorded crews, hazards and search results visible if the profile is corrected.
+  const recordedLevels = [...Object.values(state.units).map((unit) => unit.floor), ...state.hazards.map((hazard) => hazard.floor), ...Object.keys(state.searches)].filter(Boolean);
+  const recordedFloorCount = Math.max(0, ...recordedLevels.map((level) => Number(/^Floor (\d+)$/.exec(level)?.[1]) || 0));
+  const visibleCount = Math.max(count, Math.min(99, recordedFloorCount));
+  const levels = Array.from({ length: visibleCount }, (_, index) => `Floor ${visibleCount - index}`);
   if (state.building.basement === "present") levels.push("Basement");
+  if (recordedLevels.includes("Basement") && !levels.includes("Basement")) levels.push("Basement");
+  if (recordedLevels.includes("Level unknown")) levels.push("Level unknown");
   return levels.length ? levels : ["Level unknown"];
 }

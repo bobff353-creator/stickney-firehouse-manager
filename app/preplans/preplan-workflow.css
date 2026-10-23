@@ -1,4 +1,9 @@
 /* Task-focused layout; the map stays mounted but doesn't push forms off phone screens. */
+.field-record-status{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;border:1px solid #b5c8d6;border-radius:10px;background:#f1f7fb;color:#21445c;min-width:0}
+.field-record-status>div{display:grid;gap:4px;min-width:0}.field-record-status strong{font-size:15px}.field-record-status span,.field-record-status small,.field-record-status p{font-size:12px;line-height:1.5;overflow-wrap:anywhere}.field-record-status p{margin:3px 0}.field-record-status.needs-attention{border-left:5px solid #a96a0c;background:#fff7e8}.field-record-status>button{min-height:44px;padding:10px 14px;flex-shrink:0;border:1px solid #819dad;border-radius:8px;background:#fff;color:#21445c;font-weight:750}.field-record-status>button:disabled{opacity:.6;cursor:not-allowed}.field-record-status>button:focus-visible{outline:3px solid #2688cc;outline-offset:3px}
+@media screen{#portal-workspace .field-record-status{background:#141e30;border-color:#415575;color:#f1f5f9}#portal-workspace .field-record-status :is(span,small,p){color:#b5c4d8}#portal-workspace .field-record-status.needs-attention{background:#322919;border-color:#c29545}#portal-workspace .field-record-status>button{background:#1b2b43;border-color:#647995;color:#f1f5f9}}
+@media(max-width:600px){.field-record-status{align-items:stretch;flex-direction:column;gap:12px}.field-record-status>button{width:100%}}
+@media print{.field-record-status{display:none}}
 .field-preplans-page.preplan-form-focused{grid-template-columns:minmax(0,1fr)}
 .preplan-form-focused>.preplan-focus-map-panel{display:none}
 .field-preplans-page.preplan-form-focused>.preplan-editor{grid-column:1;max-height:none;overflow:visible;width:100%}

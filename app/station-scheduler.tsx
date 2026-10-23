@@ -331,15 +331,23 @@ function AdminOpenPositions({ data, onDay }: { data: Data; onDay: (date: string)
 }
 
 function MemberShifts({ data, onOpen, onTrade }: { data: Data; onOpen: () => void; onTrade: (id: string) => void }) {
-  const mine = memberShiftList(data.slots, data.viewer.employeeId, data.today);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const update = () => setNow(new Date());
+    const timer = window.setInterval(update, 30_000);
+    window.addEventListener("focus", update);
+    return () => { window.clearInterval(timer); window.removeEventListener("focus", update); };
+  }, []);
+  const mine = memberShiftList(data.slots, data.viewer.employeeId, data.today, now);
   return <section className="scheduler-member-list" aria-labelledby="my-shifts-heading">
-    <div className="entry-head"><div><h3 id="my-shifts-heading">When am I working?</h3><p className="muted">Your saved assignments from {friendlyDate(data.today)} onward. Times are Central, using the 24-hour clock.</p></div><button onClick={onOpen}>Find an open shift</button></div>
-    {!mine.length && <p>No assignments from today onward in the loaded schedule. You can still check open shifts or submit your availability.</p>}
+    <div className="entry-head"><div><h3 id="my-shifts-heading">When am I working?</h3><p className="muted">Your current and upcoming saved assignments. Overnight duty stays visible until the shift ends. Times are Central, using the 24-hour clock.</p></div><button onClick={onOpen}>Find an open shift</button></div>
+    {!mine.length && <p>No current or upcoming assignments in the loaded schedule. You can still check open shifts or submit your availability.</p>}
     {mine.map((slot) => {
       const pending = data.trades.some((trade) => trade.slotId === slot.id && ["pending", "awaiting_acceptance"].includes(trade.status));
+      const started = !shiftHasNotStarted(slot.entryDate, slot.startTime, now);
       return <article className="scheduler-member-shift" key={slot.id}>
-        <div><span className="section-kicker">{friendlyDate(slot.entryDate)}</span><strong>{shiftTimeLabel(slot.startTime, slot.endTime)}</strong><span>{slot.role} · {data.shiftTypes.find((shift) => shift.id === slot.shiftTypeId)?.name || "Department shift"}</span></div>
-        {pending ? <p className="muted">Change requested — you are still assigned until approved.</p> : <button onClick={() => onTrade(slot.id)} aria-label={`Request a change for ${friendlyDate(slot.entryDate)} ${slot.startTime} ${slot.role}`}>Trade / give away</button>}
+        <div><span className="section-kicker">{friendlyDate(slot.entryDate)}{started ? " · On duty now" : " · Upcoming"}</span><strong>{shiftTimeLabel(slot.startTime, slot.endTime)}</strong><span>{slot.role} · {data.shiftTypes.find((shift) => shift.id === slot.shiftTypeId)?.name || "Department shift"}</span></div>
+        {pending ? <p className="muted">Change requested — you are still assigned until approved.</p> : started ? <p className="muted">Shift underway. Contact the officer for a staffing change.</p> : <button onClick={() => onTrade(slot.id)} aria-label={`Request a change for ${friendlyDate(slot.entryDate)} ${slot.startTime} ${slot.role}`}>Trade / give away</button>}
       </article>;
     })}
   </section>;

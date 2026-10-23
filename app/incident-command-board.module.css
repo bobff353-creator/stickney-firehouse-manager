@@ -231,4 +231,8 @@
 .offlineInfo { padding: 12px; border: 1px solid #c68b25; background: #29251c; color: #ffefc4; font-size: 14px; line-height: 1.5; }
 @media (max-width: 1080px) { .recoveryBoard > :global(.icb-reference-grid) { min-height: 0; } }
 .statusLine:global(.icb-status-line) { min-height: 32px; font-size: 12px; line-height: 1.4; flex-wrap: wrap; color: #cad6e2; }
+.editorReview .editorReviewRow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-top: 8px; border-top: 1px solid currentColor; }
+.editorReviewRow p { flex-basis: 100%; margin: 4px 0; }
+.editorHint { margin: 4px 0; color: #ffdf92; font-size: 12px; line-height: 1.5; }
+.retainedLevels { margin: 8px 12px; padding: 10px; border: 1px solid #bda16a; color: #ffdf92; font-size: 12px; line-height: 1.5; }
 :global(.icb-page.icb-reference):has(> .statusLine) { grid-template-rows: 54px auto minmax(0,1fr) 17px; }
