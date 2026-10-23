@@ -901,7 +901,7 @@ td strong { font-size: 16px; }
 .aladtec-connection-state p { margin: 5px 0 0; color: #725d38; font-size: 12px; line-height: 1.45; }
 .new-member-spotlight { margin-top: 14px; display: grid; grid-template-columns: 112px minmax(0,1fr); align-items: center; gap: 18px; }
 .new-member-photo { width: 112px; height: 138px; border: 3px solid white; border-radius: 11px; background: linear-gradient(145deg,#dbe9f1,#b8cfdd); color: #244f70; box-shadow: 0 5px 18px rgba(14,47,72,.18); display: grid; place-items: center; overflow: hidden; }
-.new-member-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.new-member-photo img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .new-member-photo > span { font-size: 30px; font-weight: 950; letter-spacing: .04em; }
 .new-member-spotlight > div:last-child { min-width: 0; }
 .new-member-spotlight > div > span { color: #b7770b; font-size: 10px; font-weight: 950; letter-spacing: .08em; text-transform: uppercase; }
@@ -996,8 +996,9 @@ td strong { font-size: 16px; }
 .tv-display .staffing-current-list small,.tv-display .schedule-24-list small { font-size: 8px; }
 .tv-display .schedule-24-list time { font-size: 7px; }
 .tv-display .schedule-24-overflow { grid-column: 1/-1; margin: 0 !important; color: #9fc2d3 !important; font-size: 8px; text-align: center; }
-.tv-display .staffing-rotation-panel .new-member-spotlight { grid-template-columns: 96px minmax(0,1fr); gap: 18px; min-height: 100px; }
-.tv-display .staffing-rotation-panel .new-member-photo { width: 100%; height: 100%; min-height: 100px; border-width: 2px; }
+.tv-display .staffing-rotation-panel .new-member-spotlight { grid-template-columns: min(30%,210px,75cqh) minmax(0,1fr); grid-template-rows: minmax(0,1fr); align-items: center; gap: 18px; min-height: 0; }
+.tv-display .staffing-rotation-panel .new-member-photo { width: 100%; height: auto; min-height: 0; border-width: 2px; }
+.tv-display .new-member-spotlight > div:last-child { display: grid; align-content: center; min-height: 0; line-height: 1.15; }
 .tv-display .new-member-photo > span { font-size: 20px; }
 .tv-display .new-member-spotlight > div > span { font-size: 7px; }
 .tv-display .new-member-spotlight strong { font-size: 17px; }
@@ -1301,8 +1302,9 @@ td strong { font-size: 16px; }
 .board-grid.redesigned .current-duty-card > p { font-size: clamp(23px,2.4vw,34px); }
 .staffing-rotation-panel { position: relative; min-height: 0; }
 .staffing-rotation-panel .new-member-spotlight { grid-template-columns: clamp(112px,11vw,160px) minmax(0,1fr); align-items: stretch; gap: 24px; }
-.staffing-rotation-panel .new-member-photo { position: relative; width: 100%; height: 100%; min-height: 150px; box-sizing: border-box; }
-.staffing-rotation-panel .new-member-photo img { position: absolute; inset: 0; object-position: center top; }
+/* Keep the portrait independent of the text height; show the entire uploaded photo. */
+.staffing-rotation-panel .new-member-photo { position: relative; width: 100%; height: auto; aspect-ratio: 3 / 4; align-self: center; min-height: 0; box-sizing: border-box; }
+.staffing-rotation-panel .new-member-photo img { position: absolute; inset: 0; object-position: center; }
 .staffing-rotation-panel .new-member-spotlight > div:last-child { align-self: center; }
 .staffing-rotation-panel > .staffing-rotation-body { align-content: start; }
 .staffing-rotation-panel .staffing-current-list, .staffing-rotation-panel .schedule-24-list, .staffing-rotation-panel .new-member-spotlight { margin-top: 0; }
@@ -1932,7 +1934,7 @@ dialog.confirm-dialog p { color: #405563; }
   .command-card.on-duty, .command-card.previous-shift, .command-card.oic, .command-card.readiness, .command-card.equipment, .command-card.approvals { grid-column: 1; }
   .on-duty-list { grid-template-columns: 1fr; }
   .staffing-current-list, .schedule-24-list { grid-template-columns: 1fr; }
-  .new-member-spotlight { grid-template-columns: 90px minmax(0,1fr); gap: 13px; }
+  .new-member-spotlight, .staffing-rotation-panel .new-member-spotlight { grid-template-columns: 90px minmax(0,1fr); gap: 13px; }
   .new-member-photo { width: 90px; height: 116px; }
   .new-member-spotlight strong { font-size: 20px; }
   .staffing-rotation-card > footer { align-items: flex-start; flex-direction: column; }

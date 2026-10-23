@@ -57,7 +57,8 @@ test("compact TV panels fit without internal staffing scrollbars or oversized he
   assert.match(styles, /\.operations-board \.board-panel > header \{ min-height: 44px/);
   assert.match(styles, /\.operations-board\.tv-display \.board-panel > header \{ min-height: 32px/);
   assert.match(styles, /\.tv-display \.schedule-24-list \{[^}]*overflow: hidden/);
-  assert.match(styles, /\.tv-display \.staffing-rotation-panel \.new-member-photo \{ width: 100%; height: 100%; min-height: 100px/);
+  assert.match(styles, /\.tv-display \.staffing-rotation-panel \.new-member-spotlight \{ grid-template-columns: min\(30%,210px,75cqh\) minmax\(0,1fr\); grid-template-rows: minmax\(0,1fr\); align-items: center/);
+  assert.match(styles, /\.tv-display \.staffing-rotation-panel \.new-member-photo \{ width: 100%; height: auto; min-height: 0/);
   assert.match(styles, /\.tv-display \.board-alert \{ display: none; \}/);
   assert.match(staffing, /groupedSchedule\.slice\(\(current\.page \?\? 0\) \* 6/);
   assert.match(staffing, /remaining members rotate automatically/);
@@ -70,7 +71,9 @@ test("staffing uses content height while the river card fills reclaimed space", 
   assert.match(styles, /\.board-grid\.redesigned \{ grid-template-rows: minmax\(230px,1fr\) auto/);
   assert.match(styles, /\.staffing-rotation-panel \{ position: relative; min-height: 0/);
   assert.match(styles, /\.chief-board-panel > \.chief-board-content \{ flex: 1; align-content: stretch/);
-  assert.match(styles, /\.staffing-rotation-panel \.new-member-photo img \{ position: absolute; inset: 0; object-position: center top/);
+  assert.match(styles, /\.new-member-photo img \{[^}]*object-fit: contain/);
+  assert.match(styles, /\.staffing-rotation-panel \.new-member-photo \{[^}]*height: auto; aspect-ratio: 3 \/ 4; align-self: center; min-height: 0/);
+  assert.match(styles, /\.staffing-rotation-panel \.new-member-photo img \{ position: absolute; inset: 0; object-position: center;/);
 });
 
 test("TV close-call cards adapt to panel height and prioritize source descriptions", async () => {
