@@ -1069,9 +1069,15 @@ td strong { font-size: 16px; }
 .tv-display .fatality-board,.tv-display .fatality-list,.tv-display .training-board,.tv-display .training-course-list { gap: 4px !important; }
 .tv-display .fatality-total { padding: 5px 8px; }
 .tv-display .fatality-total > strong { font-size: 27px; }
-.tv-display .fatality-list a { padding: 3px 6px; }
+.tv-display .fatality-board { display: grid; box-sizing: border-box; height: 100%; min-height: 0; grid-template-rows: auto minmax(0,1fr) auto auto; overflow: hidden; }
+.tv-display .fatality-list { min-height: 0; overflow: hidden; }
+.tv-display .fatality-list a { min-height: 0; padding: 6px 8px; }
+.tv-display .fatality-list strong { font-size: 16px; }
+.tv-display .fatality-list span,.tv-display .fatality-list small { font-size: 12px; }
+@container tv-rotation (max-height: 215px) {
+  .tv-display .fatality-source { display: none; }
+}
 @container tv-rotation (min-height: 440px) {
-  .tv-display .fatality-board { display: grid; height: 100%; min-height: 0; grid-template-rows: auto minmax(0,1fr) auto; }
   .tv-display .fatality-list { min-height: 0; grid-auto-rows: minmax(0,1fr); }
   .tv-display .fatality-list a { min-height: 0; padding: 8px 12px; }
   .tv-display .fatality-list strong { font-size: clamp(16px,1.2vw,22px); }
@@ -1194,21 +1200,24 @@ td strong { font-size: 16px; }
 .close-call-list p { display: -webkit-box; margin: 0 !important; overflow: hidden; color: #d4e0e6 !important; font-size: 13px; font-weight: 550; line-height: 1.5; -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
 .close-call-list small { margin-top: 1px; color: #a9d8ef; font-size: 11px; font-weight: 850; }
 .close-call-list small b { font-size: 13px; }
-.fatality-board { gap: 10px !important; }
+.fatality-board { display: grid; gap: 10px !important; }
 .fatality-total { padding: 13px 15px; border: 1px solid #6f4548; border-radius: 8px; background: #351f23; display: flex; align-items: center; gap: 14px; }
 .fatality-total > strong { color: #ffcbc8 !important; font-size: 42px; line-height: 1; font-variant-numeric: tabular-nums; }
 .fatality-total > div { display: grid; gap: 3px; }
 .fatality-total b { color: white; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; }
 .fatality-total span { color: #c8a7a8; font-size: 9px; }
 .fatality-list { display: grid; gap: 6px; }
-.fatality-list a { padding: 8px 10px; border: 1px solid #4e4549; border-left: 3px solid #b75a59; border-radius: 7px; background: #251f23; color: white; display: grid; grid-template-columns: 48px minmax(0,1fr) auto; align-items: center; gap: 10px; text-decoration: none; }
+.fatality-list a { box-sizing: border-box; padding: 10px 12px; border: 1px solid #4e4549; border-left: 3px solid #b75a59; border-radius: 7px; background: #251f23; color: white; display: grid; grid-template-columns: 48px minmax(0,1fr) auto; align-items: center; gap: 10px; text-decoration: none; }
 .fatality-list a:hover, .fatality-list a:focus-visible { border-color: #b87575; background: #30262a; outline: none; }
 .fatality-list time { color: #e8a6a3; font-size: 10px; font-weight: 900; text-transform: uppercase; }
-.fatality-list div { display: grid; gap: 2px; }
-.fatality-list strong { color: white !important; font-size: 12px; }
-.fatality-list span, .fatality-list small { color: #c5b7ba; font-size: 9px; line-height: 1.2; }
+.fatality-list div { min-width: 0; display: grid; gap: 3px; overflow-wrap: anywhere; }
+.fatality-list strong { color: white !important; font-size: 16px; line-height: 1.25; }
+.fatality-list span, .fatality-list small { color: #ded4d7; font-size: 14px; line-height: 1.25; }
 .fatality-list a > b { color: #d89492; font-size: 12px; }
 .fatality-source { margin: 0; color: #9d898d; font-size: 9px; line-height: 1.35; }
+.fatality-pages { margin: 0; color: #d6c3c6; font-size: 11px; line-height: 1.25; }
+.fatality-details-unavailable { margin: 0; color: #ded4d7; font-size: 14px; line-height: 1.4; }
+.fatality-details-unavailable a { display: inline; padding: 0; border: 0; background: none; color: #d7f1ff; text-decoration: underline; }
 .training-board { gap: 10px !important; }
 .training-provider { padding: 13px 15px; border: 1px solid #3d6978; border-radius: 8px; background: #17333d; display: grid; gap: 3px; }
 .training-provider span { color: #79c6df; font-size: 9px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
