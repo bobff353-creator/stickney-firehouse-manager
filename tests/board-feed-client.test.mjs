@@ -60,3 +60,15 @@ test('published training invalidates only shared bulletins; offline/reconnect re
  h.setOnline(false);client.invalidateBulletins();await h.advance(60_000);assert.equal(h.requests.length,3);assert.ok(client.snapshot().feeds.training_ifsi.data);
  h.setOnline(true);client.resume();client.resume();await h.advance(0);assert.equal(h.requests.length,4);stops.forEach(stop=>stop());assert.equal(h.tasks.size,0);
 });
+
+test('an old browser snapshot with marked USFA tests rechecks bulletins immediately, preserving weather cadence',async()=>{
+ const h=harness();
+ const first=createBoardFeedClient(h.env),stop=first.subscribe(()=>{},true);await h.advance(0);stop();
+ const saved=h.storage.get('bulletins');
+ saved.feeds.usfa.data={year:2026,total:76,items:[{name:'CisatestB Disregard-SecurityTest',department:'Cisatest Test FD'}]};
+ h.requests.length=0;
+ const client=createBoardFeedClient(h.env),stops=[client.subscribe(()=>{},true),client.subscribe(()=>{},true)];await h.advance(0);
+ assert.deepEqual(h.requests.map(request=>request.group),['bulletins']);
+ client.resume();await h.advance(0);assert.equal(h.requests.length,1);
+ stops.forEach(stop=>stop());
+});

@@ -1,5 +1,6 @@
 import { feedGroups, nextFeedSlot, type FeedGroup } from './lib/feed-schedule';
 import type { BoardFeeds, FeedSnapshot } from './lib/board-feed-types';
+import { isMarkedUsfaTestRecord } from './lib/usfa-records';
 
 export type BoardFeedState = { feeds: BoardFeeds['feeds']; unconfirmed: Partial<Record<FeedGroup, boolean>> };
 export const emptyBoardFeeds: BoardFeedState = { feeds: {}, unconfirmed: {} };
@@ -48,6 +49,8 @@ export function createBoardFeedClient(env: Environment) {
       merge(group, saved);
       // Don't trust unbounded/future browser storage to suppress updates.
       next[group] = Math.min(Date.parse(saved.nextCheckAt), nextFeedSlot(feedGroups[group][0], env.now()) + 60_000);
+      const reports = saved.feeds.usfa?.data?.items;
+      if (group === 'bulletins' && Array.isArray(reports) && reports.some(isMarkedUsfaTestRecord)) next[group] = 0;
     }
   }
   function publish() { listeners.forEach((_, callback) => callback()); }

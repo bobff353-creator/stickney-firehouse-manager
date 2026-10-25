@@ -1,8 +1,9 @@
 'use client';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { isMarkedUsfaTestRecord } from './lib/usfa-records';
 
 export type UsfaFatality = { id: number; name: string; department: string; location: string; deathDate: string; url: string };
-export type UsfaData = { year: number; total: number; items: UsfaFatality[]; stale?: boolean };
+export type UsfaData = { year: number; total: number; items: UsfaFatality[]; excludedTestRecords?: number; stale?: boolean };
 
 // Reserve room for a wrapped name, department, and city/state in each TV card.
 export function fatalityPage<T>(items: T[], height: number, pageIndex: number) {
@@ -37,7 +38,9 @@ export default function BoardFatalities({ data, tvMode, active, updatedLabel }: 
     return () => observer.disconnect();
   }, [tvMode, active, available]);
 
-  const items = data?.items ?? emptyReports;
+  const sourceItems = data?.items ?? emptyReports;
+  const items = sourceItems.filter(item => !isMarkedUsfaTestRecord(item));
+  const excludedTestRecords = (data?.excludedTestRecords ?? 0) + sourceItems.length - items.length;
   const page = tvMode ? fatalityPage(items, height, pageIndex) : { items, start: 0, pages: 1 };
   useEffect(() => {
     if (!tvMode || !active || page.pages < 2) return;
@@ -51,7 +54,7 @@ export default function BoardFatalities({ data, tvMode, active, updatedLabel }: 
   const first = page.start + 1, last = page.start + page.items.length;
   const range = first === last ? String(first) : `${first}–${last}`;
   return <div className="fatality-board">
-    <div className="fatality-total"><strong>{data.total}</strong><div><b>firefighter deaths in {data.year}</b><span>{updatedLabel}</span></div></div>
+    <div className="fatality-total"><strong>{data.total}</strong><div><b>USFA-reported deaths in {data.year}</b><span>{updatedLabel}</span></div></div>
     <div ref={list} className="fatality-list" style={tvMode ? { gridTemplateRows: `repeat(${Math.max(1, page.items.length)},minmax(0,1fr))` } as CSSProperties : undefined}>
       {page.items.map(person => {
         const name = sourceText(person.name, 'Name not provided by USFA');
@@ -63,9 +66,9 @@ export default function BoardFatalities({ data, tvMode, active, updatedLabel }: 
           <div><strong>{name}</strong><span>{department}</span><small>{location}</small></div><b aria-hidden="true">↗</b>
         </a>;
       })}
-      {!data.items.length && <p className="fatality-details-unavailable">Recent names and departments are not available in this saved update. <a href="https://apps.usfa.fema.gov/firefighter-fatalities/" target="_blank" rel="noopener noreferrer">Open USFA reports ↗</a></p>}
+      {!items.length && <p className="fatality-details-unavailable">Recent names and departments are not available in this saved update. <a href="https://apps.usfa.fema.gov/firefighter-fatalities/" target="_blank" rel="noopener noreferrer">Open USFA reports ↗</a></p>}
     </div>
-    <p className="fatality-pages">{data.items.length ? `Recent reports ${range} of ${data.items.length}${tvMode && page.pages > 1 ? ' · More reports rotate automatically' : ''}` : 'Recent report details unavailable'}</p>
-    <p className="fatality-source">Provisional on-duty fatality information from the U.S. Fire Administration.</p>
+    <p className="fatality-pages">{items.length ? `Recent reports ${range} of ${items.length}${tvMode && page.pages > 1 ? ' · More reports rotate automatically' : ''}` : 'Recent report details unavailable'}</p>
+    <p className="fatality-source">{excludedTestRecords ? 'Marked test entries excluded from recent reports. Annual total as reported by USFA.' : 'Provisional on-duty fatality information from the U.S. Fire Administration.'}</p>
   </div>;
 }

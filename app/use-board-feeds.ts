@@ -18,7 +18,8 @@ function browserClient() {
     setTimer: (callback, delay) => setTimeout(callback, delay), clearTimer: timer => clearTimeout(timer),
     request: async (group, signal) => {
       const revision = group === 'bulletins' && trainingRevision ? `&revision=${encodeURIComponent(trainingRevision)}` : '';
-      const response = await fetch(`/api/board-feeds?group=${group}${revision}`, { signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]) });
+      const format = group === 'bulletins' ? '&format=usfa-screened-v1' : '';
+      const response = await fetch(`/api/board-feeds?group=${group}${revision}${format}`, { signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]) });
       if (!response.ok) throw new Error('Saved feeds unavailable');
       return response.json() as Promise<BoardFeeds>;
     },

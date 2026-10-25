@@ -5,11 +5,13 @@ import test from 'node:test';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
+import { trainingModules } from './helpers/training-modules.mjs';
 
 const source = readFileSync('app/board-fatalities.tsx', 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText;
 const require = createRequire(import.meta.url), exported = {};
-new Function('require', 'exports', compiled)(require, exported);
+const records = trainingModules()('app/lib/usfa-records.ts');
+new Function('require', 'exports', compiled)(name => name === './lib/usfa-records' ? records : require(name), exported);
 const reports = Array.from({ length: 5 }, (_, index) => ({
   id: index + 1, name: `Fictional firefighter ${index + 1}`, department: `Preview department ${index + 1}`,
   location: 'Fictional city, IL', deathDate: '2026-10-20T00:00:00', url: `https://example.invalid/report-${index + 1}`,
@@ -64,4 +66,16 @@ test('missing source fields are labeled honestly without inventing names or loca
   const html = render({ data: { ...data, items: [{ ...reports[0], name: '', department: '', location: '', deathDate: '' }] } });
   for (const label of ['Name not provided by USFA', 'Department not provided by USFA', 'Location not provided by USFA', 'Date unavailable']) assert.ok(html.includes(label));
   assert.doesNotMatch(html, /Invalid Date|undefined|NaN/);
+});
+
+test('old browser snapshots never present explicitly marked USFA test entries as firefighters', () => {
+  const marked = { ...reports[0], name: 'CisatestB Disregard-SecurityTest', department: 'Cisatest Test FD', location: 'Cisatest, LA' };
+  const html = render({ data: { ...data, items: [marked, reports[1]] } });
+  assert.doesNotMatch(html, /Cisatest|Disregard/);
+  assert.ok(html.includes(reports[1].name));
+  assert.match(html, /Recent reports 1 of 1/);
+  assert.match(html, /Annual total as reported by USFA/);
+  const onlyTests = render({ data: { ...data, items: [marked] } });
+  assert.doesNotMatch(onlyTests, /Cisatest|Disregard/);
+  assert.match(onlyTests, /Recent names and departments are not available/);
 });
