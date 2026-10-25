@@ -5,6 +5,7 @@
 
 import { FormEvent, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { repairAttention, repairStage } from "./repair-attention";
 import type { IScannerControls } from "@zxing/browser";
 
 type OperationsView = "due" | "inventory" | "check" | "equipment" | "reports" | "readiness" | "service" | "stock" | "builder" | "legacy_check" | "legacy_service";
@@ -135,11 +136,11 @@ const repairStages = [
   ["in_repair", "In Repair"],
   ["waiting_parts", "Waiting Parts"],
   ["closed", "Completed"],
+  ["unknown", "Status needs review"],
 ] as const;
 
 function normalizedRepairStatus(item: Row) {
-  const status = value(item, "status");
-  return status === "open" ? "new" : status;
+  return repairStage(item);
 }
 
 type ScannedEquipment = {
@@ -365,6 +366,7 @@ export default function InventoryOperations({
   const [selectedApparatusId, setSelectedApparatusId] = useState(initialApparatusId);
   const [selectedCheckId, setSelectedCheckId] = useState("");
   const [inspectionMenuOpen, setInspectionMenuOpen] = useState(true);
+  const [syncWarning, setSyncWarning] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
   const [deficiencyItem, setDeficiencyItem] = useState<Row | null>(null);
   const [numericReadings, setNumericReadings] = useState<Record<string, string>>({});
@@ -522,9 +524,11 @@ export default function InventoryOperations({
       }
       setSelectedApparatusId((current) => current || initialApparatusId || payload.apparatus?.[0]?.id?.toString() || "");
       setLastSyncedAt(Date.now());
+      setSyncWarning(false);
       setError("");
       setAccessRequired(false);
     } catch (caught) {
+      setSyncWarning(true);
       if (!background) {
         setError(caught instanceof Error ? caught.message : "Operational records are unavailable.");
       }
@@ -652,7 +656,6 @@ export default function InventoryOperations({
           return saved ? { ...item, ...saved } : item;
         }),
       }));
-      setLastSyncedAt(Date.now());
       setMessage(savedItems.length > 1 ? `${savedItems.length} inventory items passed.` : "Inventory item saved.");
       return true;
     } catch (caught) {
@@ -996,6 +999,7 @@ export default function InventoryOperations({
     <div className="inventory-ops">
       {message ? <div className="ops-message" role="status">{message}</div> : null}
       {error ? <div className="ops-message ops-error" role="alert">{error}</div> : null}
+      {syncWarning ? <div className="ops-message ops-error" role="alert">Live refresh failed. Displayed records may be outdated.{lastSyncedAt ? ` Last successful refresh: ${formatDate(lastSyncedAt)}.` : " No successful refresh recorded."} <button type="button" disabled={Boolean(busy)} onClick={() => void load({ background: true })}>Retry refresh</button></div> : null}
 
       {view === "due" ? (
         <>
@@ -1438,10 +1442,10 @@ export default function InventoryOperations({
             {myOpenRepairs.length ? <div className="ops-list">{myOpenRepairs.map((item) => <article key={value(item, "id")}><div><strong>{value(item, "summary")}</strong><small>{value(item, "apparatus_name")} · Opened {formatDate(item.opened_at)}</small></div><span className={`priority-${value(item, "priority")}`}>{value(item, "priority")} · {formatStatus(normalizedRepairStatus(item))}</span><p>{value(item, "details")}</p>{canManageRepairs ? <><RepairStatusControl item={item} busy={Boolean(busy)} onUpdate={action} /><RepairCompletionForm item={item} busy={Boolean(busy)} onComplete={action} /></> : null}</article>)}</div> : <div className="ops-empty"><strong>No repairs assigned to you</strong><p>Open notices assigned to this employee will appear here and on the home page.</p></div>}
           </section>
           <section className="ops-card">
-            <header><div><span>ALL REPAIR RECORDS</span><h2>Open repairs and completed history</h2></div><b>{data.workOrders.filter((item) => value(item, "status") !== "closed").length} open</b></header>
+            <header><div><span>ALL REPAIR RECORDS</span><h2>Open repairs and completed history</h2><p>Check completion does not mean reported defects are repaired. Review open repairs separately; completed repair records do not certify apparatus readiness.</p></div><b>{data.workOrders.filter((item) => value(item, "status") !== "closed").length} open</b></header>
             {data.workOrders.length ? <div className="repair-board">{repairStages.map(([stage, label]) => {
               const stageItems = data.workOrders.filter((item) => normalizedRepairStatus(item) === stage);
-              return <section key={stage} className={`repair-column stage-${stage}`}><header><strong>{label}</strong><span>{stageItems.length}</span></header>{stageItems.length ? stageItems.map((item) => <article key={value(item, "id")}><div><strong>{value(item, "summary")}</strong><small>{value(item, "apparatus_name")} · Opened {formatDate(item.opened_at)}</small></div><span className={`priority-${value(item, "priority")}`}>{formatStatus(item.priority)}</span>{value(item, "details") ? <p>{value(item, "details")}</p> : null}{Array.isArray(item.assigned_employee_names) && item.assigned_employee_names.length ? <small>Assigned to {item.assigned_employee_names.join(", ")}</small> : null}{stage === "closed" ? <p>Repaired {value(item, "repair_date")} · Cost ${Number(item.repair_cost || 0).toFixed(2)}{value(item, "vendor") ? ` · ${value(item, "vendor")}` : ""}<br />{value(item, "resolution_notes")}</p> : canManageRepairs ? <><RepairStatusControl item={item} busy={Boolean(busy)} onUpdate={action} /><RepairCompletionForm item={item} busy={Boolean(busy)} onComplete={action} /></> : null}</article>) : <p className="repair-column-empty">No repairs</p>}</section>;
+              return <section key={stage} className={`repair-column stage-${stage}`}><header><strong>{label}</strong><span>{stageItems.length}</span></header>{stageItems.length ? stageItems.map((item) => <article key={value(item, "id")}><div><strong>{value(item, "summary")}</strong><small>{value(item, "apparatus_name")} · Opened {formatDate(item.opened_at)}</small></div><span className={`priority-${value(item, "priority")}`}>{formatStatus(item.priority)}</span>{value(item, "details") ? <p>{value(item, "details")}</p> : null}{Array.isArray(item.assigned_employee_names) && item.assigned_employee_names.length ? <small>Assigned to {item.assigned_employee_names.join(", ")}</small> : value(item, "assigned_to") ? <small>Assigned to {value(item, "assigned_to")}</small> : null}{repairAttention(item).map((reason) => <p key={reason}><strong>{reason}</strong></p>)}{stage === "closed" ? <p>Repaired {value(item, "repair_date")} · Cost ${Number(item.repair_cost || 0).toFixed(2)}{value(item, "vendor") ? ` · ${value(item, "vendor")}` : ""}<br />{value(item, "resolution_notes")}</p> : canManageRepairs ? <><RepairStatusControl item={item} busy={Boolean(busy)} onUpdate={action} /><RepairCompletionForm item={item} busy={Boolean(busy)} onComplete={action} /></> : null}</article>) : <p className="repair-column-empty">No repairs</p>}</section>;
             })}</div> : <div className="ops-empty"><strong>No repair records yet</strong><p>Failed inspections and assigned repair notices create records automatically.</p></div>}
           </section>
           <section className="ops-card apparatus-maintenance-history">
@@ -1717,7 +1721,8 @@ function RepairStatusControl({
   return (
     <label className="repair-status-control">Repair stage
       <select value={status} disabled={busy} onChange={(event) => void onUpdate(`status-${value(item, "id")}`, { action: "update_work_order_status", workOrderId: value(item, "id"), status: event.target.value })}>
-        {repairStages.filter(([id]) => id !== "closed").map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+        {status === "unknown" ? <option value="unknown" disabled>Status needs review</option> : null}
+        {repairStages.filter(([id]) => id !== "closed" && id !== "unknown").map(([id, label]) => <option key={id} value={id}>{label}</option>)}
       </select>
     </label>
   );

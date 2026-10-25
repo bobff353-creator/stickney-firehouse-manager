@@ -24,3 +24,7 @@ npm test
 
 The public production target is
 `https://stickney-firehouse-manager.vercel.app`.
+
+## Operational readiness
+
+See [operational readiness and handoff](docs/operational-readiness.md) for workflow finish lines, the crew pilot, record ownership, device checks, and recovery acceptance. These checks require recorded evidence before being marked complete.
