@@ -38,12 +38,12 @@ function BoxCardSheet({ card }: { card: BoxCard }) {
   const layout = readLayout(card.layoutData);
   const hasGrid = layout.rows.some((row) => row.cells.some((cell) => cell.trim())) || layout.signature.trim();
   if (!hasGrid && card.documentUrl) return <div className="box-card-image-wrap official-card-image"><Image unoptimized width={1980} height={1530} className="box-card-image" src={boxCardPageImage(card)} alt={`${card.department} Box Card ${card.boxNumber}: ${card.title}`} /></div>;
-  return <div className="mabas-sheet">
+  return <div className="mabas-sheet-scroll" role="region" aria-label={`${card.department} box card ${card.boxNumber} assignments`} tabIndex={0}><div className="mabas-sheet">
     <div className="mabas-header"><div><span>MABAS Division</span><strong>{layout.division || "11"}</strong></div><div><span>Department</span><strong>{card.department}</strong><span>Box Alarm #</span><strong>{card.boxNumber}</strong></div><div><span>Box Alarm Type</span><strong>{card.title}</strong><span>Location or Area</span><strong>{card.address}</strong></div><div><span>Effective Date</span><strong>{card.effectiveDate || "—"}</strong><span>Review Date</span><strong>{card.reviewDate || "—"}</strong><span>Authorized Signature</span><strong>{layout.signature || "—"}</strong></div></div>
-    <div className="mabas-grid"><div className="mabas-grid-head"><strong>Alarm</strong>{responseColumns.map((column) => <strong key={column}>{column}</strong>)}</div>{layout.rows.map((row) => <div className="mabas-grid-row" key={row.alarm}><strong>{row.alarm}</strong>{row.cells.map((cell, index) => <div key={`${row.alarm}-${responseColumns[index]}`}>{cell || "—"}</div>)}</div>)}</div>
+    <div className="mabas-grid"><div className="mabas-grid-head"><strong>Alarm</strong>{responseColumns.map((column) => <strong key={column}>{column}</strong>)}</div>{layout.rows.map((row) => <div className="mabas-grid-row" key={row.alarm}><strong>{row.alarm}</strong>{row.cells.map((cell, index) => <div data-label={responseColumns[index] || `Additional assignment ${index + 1}`} key={`${row.alarm}-${responseColumns[index]}`}>{cell || "—"}</div>)}</div>)}</div>
     <div className="mabas-interdivisional"><strong>Interdivisional Request</strong>{layout.interdivisional.map((choice, index) => <div key={index}><span>{index + 1}{index === 0 ? "st" : index === 1 ? "nd" : "rd"} Choice</span><b>{choice || "—"}</b></div>)}</div>
     {card.accessNotes && <div className="mabas-information"><strong>Information:</strong><span>{card.accessNotes}</span></div>}
-  </div>;
+  </div></div>;
 }
 
 function PolicyRecord({ policy, canEdit, onEdit }: { policy: Policy; canEdit: boolean; onEdit: () => void }) {
