@@ -54,3 +54,14 @@
  .fi-workspace .fi-editor-footer button{flex:1 1 130px}
  .fi-workspace .fi-saved-check summary{flex-wrap:wrap}
 }
+.fi-workspace .fi-eso-facts{display:grid;grid-template-columns:minmax(110px,1fr) minmax(0,3fr);gap:10px 16px}
+.fi-workspace .fi-eso-facts dd{margin:0;overflow-wrap:anywhere}
+.fi-workspace .fi-eso-facts dt{font-weight:700}
+.fi-workspace .fi-eso-photos{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:16px}
+.fi-workspace .fi-eso-photo{margin:12px 0;min-width:0}
+.fi-workspace .fi-eso-photo img{display:block;width:100%;height:auto;max-height:420px;object-fit:contain;background:#e8edf2}
+.fi-workspace .fi-eso-photo figcaption{overflow-wrap:anywhere}
+.fi-workspace .fi-eso-photo small{display:block;margin-top:6px}
+.fi-workspace .fi-eso-note{border-bottom:1px solid #8495aa;padding:12px 0}
+.fi-workspace .fi-eso-raw{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;max-width:100%;max-height:500px;overflow:auto}
+.fi-workspace .fi-eso-hash{overflow-wrap:anywhere}
