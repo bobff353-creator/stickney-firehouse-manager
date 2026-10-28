@@ -146,7 +146,7 @@ function PreplanRecordView({plan,canEdit,onEdit,onShowFeature,onEditPhoto}:{plan
   const [readerSection,setReaderSection]=useState("overview");
   const contacts=parsePreplanContacts(plan.contactInfo).filter((contact)=>contact.name.trim()||contact.phones.some((phone)=>phone.number.trim()));
   const systems=quickSystemFields.map(({key,label})=>({label,value:plan[key]})).filter((item)=>item.value.trim());
-  const exteriorPhotos=plan.photos.filter((photo)=>!photo.featureId&&["A","B","C","D"].includes(photo.side));
+  const exteriorPhotos=plan.photos.filter((photo)=>!photo.featureId&&photo.side!=="FEATURE");
   const constructionLabel=constructionOptions.find((item)=>item.value===simpleConstruction(plan.constructionType))?.label||"Not classified";
   return <section className="preplan-record-view" aria-label={`${plan.businessName} preplan record`}>
     <header className="preplan-record-hero">
@@ -162,7 +162,7 @@ function PreplanRecordView({plan,canEdit,onEdit,onShowFeature,onEditPhoto}:{plan
       <article><span>FOOTPRINT</span><strong>{Math.round(plan.footprintSquareFeet||polygonAreaSquareFeet(plan.footprint)).toLocaleString()} sq ft</strong><small>{plan.footprint.length} mapped corners</small></article>
       <article><span>FIRE FLOW</span><strong>{plan.suggestedFireFlowGpm?`${plan.suggestedFireFlowGpm.toLocaleString()} GPM`:"Needs review"}</strong><small>{plan.suggestedFireFlowDuration?`${plan.suggestedFireFlowDuration} hr duration`:"No duration entered"}</small></article>
     </div>
-    <nav className="preplan-reader-tabs no-print" aria-label="Building record sections">{[["overview","Building"],["systems",`Systems (${plan.features.length})`],["photos",`A–D photos (${exteriorPhotos.length})`],["contacts","Contacts"]].map(([key,label])=><button key={key} type="button" aria-pressed={readerSection===key} onClick={()=>setReaderSection(key)}>{label}</button>)}</nav>
+    <nav className="preplan-reader-tabs no-print" aria-label="Building record sections">{[["overview","Building"],["systems",`Systems (${plan.features.length})`],["photos",`Photos (${exteriorPhotos.length})`],["contacts","Contacts"]].map(([key,label])=><button key={key} type="button" aria-pressed={readerSection===key} onClick={()=>setReaderSection(key)}>{label}</button>)}</nav>
     <div className="preplan-record-grid">
       <article hidden={readerSection!=="overview"} className="preplan-record-card preplan-record-building">
         <header><span>1</span><div><h3>Building information</h3><p>Read-only response details</p></div></header>
@@ -192,8 +192,8 @@ function PreplanRecordView({plan,canEdit,onEdit,onShowFeature,onEditPhoto}:{plan
       </section>})}</div>:<div className="preplan-record-empty preplan-record-feature-empty"><strong>No mapped systems have been added.</strong><span>An administrator can add Knox Boxes, FDCs, risers, alarm panels, shutoffs and other operational features.</span></div>}
     </article>
     <article hidden={readerSection!=="photos"} className="preplan-record-card preplan-record-photos">
-      <header><span>5</span><div><h3>Building exterior photos</h3><p>A, B, C and D sides</p></div><b>{exteriorPhotos.length}</b></header>
-      {exteriorPhotos.length?<div>{exteriorPhotos.map((photo)=><figure key={photo.id}><IllustratedPhotoView photo={photo} alt={photo.caption||`${photo.side} side`}/><figcaption>{photo.side} Side{photo.caption?` · ${photo.caption}`:""}</figcaption>{onEditPhoto&&<button type="button" onClick={()=>onEditPhoto(photo)}>Edit photo symbols & caption</button>}</figure>)}</div>:<p className="preplan-record-empty">No exterior photos have been added.</p>}
+      <header><span>5</span><div><h3>Building photos & reference images</h3><p>Exterior sides, overviews and source annotations</p></div><b>{exteriorPhotos.length}</b></header>
+      {exteriorPhotos.length?<div>{exteriorPhotos.map((photo)=><figure key={photo.id}><IllustratedPhotoView photo={photo} alt={photo.caption||(["A","B","C","D"].includes(photo.side)?`${photo.side} side`:"Building reference photo")}/><figcaption>{["A","B","C","D"].includes(photo.side)?`${photo.side} Side`:"Overview / reference"}{photo.caption?` · ${photo.caption}`:""}</figcaption><a className="preplan-photo-open" href={photo.url} target="_blank" rel="noreferrer">Open full-size original ↗</a>{onEditPhoto&&<button type="button" onClick={()=>onEditPhoto(photo)}>Edit photo symbols & caption</button>}</figure>)}</div>:<p className="preplan-record-empty">No building photos have been added.</p>}
     </article>
   </section>;
 }
