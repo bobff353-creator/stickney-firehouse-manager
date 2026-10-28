@@ -1,5 +1,6 @@
 export type Point = { lat: number; lng: number };
 export type ConstructionGroup =
+  | "unknown"
   | "I"
   | "II"
   | "III"
@@ -12,12 +13,13 @@ export type ConstructionGroup =
   | "IIB_IIIB"
   | "VB";
 export type OccupancyFlowCategory = "other" | "dwelling";
-export type SprinklerStandard = "none" | "nfpa13" | "nfpa13r" | "residential";
+export type SprinklerStandard = "unknown" | "present" | "none" | "nfpa13" | "nfpa13r" | "residential";
 
 export const constructionOptions: Array<{
   value: ConstructionGroup;
   label: string;
 }> = [
+  { value: "unknown", label: "Unknown / not documented" },
   { value: "I", label: "Type I" },
   { value: "II", label: "Type II" },
   { value: "III", label: "Type III" },
@@ -147,7 +149,7 @@ const table = [
 ] as const;
 
 function constructionIndex(value: ConstructionGroup) {
-  return ({ I:0,II:1,III:3,IV:2,V:4,V_LIGHTWEIGHT:4,IA_IB:0,IIA_IIIA:1,IV_VA:2,IIB_IIIB:3,VB:4 } as const)[value];
+  return ({ unknown:undefined,I:0,II:1,III:3,IV:2,V:4,V_LIGHTWEIGHT:4,IA_IB:0,IIA_IIIA:1,IV_VA:2,IIB_IIIB:3,VB:4 } as const)[value];
 }
 export function polygonAreaSquareFeet(points: Point[]) {
   if (points.length < 3) return 0;
@@ -223,6 +225,7 @@ export function fireFlowCalculationArea(
   floorCount: number,
   constructionType: ConstructionGroup,
 ) {
+  if (!Number.isFinite(floorCount) || floorCount < 1) return 0;
   const levels =
     constructionType === "I" || constructionType === "IA_IB"
       ? Math.min(3, Math.max(1, Math.trunc(floorCount)))
@@ -237,6 +240,8 @@ export function suggestedFireFlow(input: {
   occupancyFlowCategory: OccupancyFlowCategory;
   sprinklerStandard: SprinklerStandard;
 }) {
+  const column = constructionIndex(input.constructionType);
+  if (column == null || input.sprinklerStandard === "unknown") return null;
   const calculationArea = fireFlowCalculationArea(
     input.footprintSquareFeet,
     input.floorCount,
@@ -260,7 +265,7 @@ export function suggestedFireFlow(input: {
   const row =
     table.find(
       (item) =>
-        calculationArea <= item.max[constructionIndex(input.constructionType)],
+        calculationArea <= item.max[column],
     ) ?? table.at(-1)!;
   let suggestedGpm: number = row.gpm;
   let reduction = "No sprinkler reduction";

@@ -8,9 +8,9 @@ import { polygonAreaSquareFeet, suggestedFireFlow, type ConstructionGroup, type 
 type Point = { lat:number; lng:number };
 type Db = Awaited<ReturnType<typeof ensureDatabase>>;
 const featureTypes = new Set(["alarm","knox","riser","fdc","sprinkler","gas","water","electric","propane","elevator","elevator_room","standpipe","access","hazard"]);
-const constructionTypes = new Set<ConstructionGroup>(["I","II","III","IV","V","V_LIGHTWEIGHT","IA_IB","IIA_IIIA","IV_VA","IIB_IIIB","VB"]);
+const constructionTypes = new Set<ConstructionGroup>(["unknown","I","II","III","IV","V","V_LIGHTWEIGHT","IA_IB","IIA_IIIA","IV_VA","IIB_IIIB","VB"]);
 const occupancyFlowCategories = new Set<OccupancyFlowCategory>(["other","dwelling"]);
-const sprinklerStandards = new Set<SprinklerStandard>(["none","nfpa13","nfpa13r","residential"]);
+const sprinklerStandards = new Set<SprinklerStandard>(["unknown","present","none","nfpa13","nfpa13r","residential"]);
 type Bucket = { delete(key:string):Promise<void> };
 
 async function access(request: Request, db: Db) {
@@ -128,19 +128,19 @@ export async function POST(request:Request) {
       const businessName = text(body.businessName, 180), address = text(body.address, 240);
       const location = point(body.location), aSide = point(body.aSide), corners = footprint(body.footprint);
       if (!businessName || !location || corners.length < 3) return Response.json({ error:"Business name, map location, and at least three footprint corners are required." }, { status:400 });
-      const floorCount = Math.max(1, Math.min(99, Math.trunc(number(body.floorCount) || 1)));
+      const floorCount = Math.max(0, Math.min(99, Math.trunc(number(body.floorCount) || 0)));
       const requestedConstruction = text(body.constructionType, 20) as ConstructionGroup;
-      const constructionType = constructionTypes.has(requestedConstruction) ? requestedConstruction : "VB";
+      const constructionType = constructionTypes.has(requestedConstruction) ? requestedConstruction : "unknown";
       const requestedOccupancy = text(body.occupancyFlowCategory, 20) as OccupancyFlowCategory;
       const occupancyFlowCategory = occupancyFlowCategories.has(requestedOccupancy) ? requestedOccupancy : "other";
       const requestedSprinkler = text(body.sprinklerStandard, 20) as SprinklerStandard;
-      let sprinklerStandard = sprinklerStandards.has(requestedSprinkler) ? requestedSprinkler : "none";
-      if ((occupancyFlowCategory === "dwelling") !== (sprinklerStandard === "residential") && sprinklerStandard !== "none") sprinklerStandard = "none";
+      let sprinklerStandard = sprinklerStandards.has(requestedSprinkler) ? requestedSprinkler : "unknown";
+      if (["nfpa13","nfpa13r","residential"].includes(sprinklerStandard) && (occupancyFlowCategory === "dwelling") !== (sprinklerStandard === "residential")) sprinklerStandard = "present";
       const footprintSquareFeet = Math.round(polygonAreaSquareFeet(corners));
       if (footprintSquareFeet < 10) return Response.json({ error:"The footprint is too small to represent a building. Zoom in and place the corner points again." }, { status:400 });
       const recommendation = suggestedFireFlow({ footprintSquareFeet, floorCount, constructionType, occupancyFlowCategory, sprinklerStandard });
       const values = [businessName,address,location.lat,location.lng,aSide?.lat ?? null,aSide?.lng ?? null,JSON.stringify(corners),footprintSquareFeet,floorCount,recommendation?.calculationArea ?? 0,constructionType,occupancyFlowCategory,sprinklerStandard,recommendation?.suggestedGpm ?? 0,recommendation?.durationHours ?? 0,text(body.contactInfo),text(body.construction),text(body.accessInfo),text(body.alarmSystem),text(body.knoxBox),text(body.riser),text(body.fdc),text(body.sprinklerSystem),text(body.status,40) || "Quick Preplan",auth.actor];
-      await db.prepare("INSERT INTO field_preplans(id,business_name,address,latitude,longitude,a_side_latitude,a_side_longitude,footprint,footprint_square_feet,floor_count,fire_flow_calculation_area,construction_type,occupancy_flow_category,sprinkler_standard,suggested_fire_flow_gpm,suggested_fire_flow_duration,contact_info,construction,access_info,alarm_system,knox_box,riser,fdc,sprinkler_system,status,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET business_name=excluded.business_name,address=excluded.address,latitude=excluded.latitude,longitude=excluded.longitude,a_side_latitude=excluded.a_side_latitude,a_side_longitude=excluded.a_side_longitude,footprint=excluded.footprint,footprint_square_feet=excluded.footprint_square_feet,floor_count=excluded.floor_count,fire_flow_calculation_area=excluded.fire_flow_calculation_area,construction_type=excluded.construction_type,occupancy_flow_category=excluded.occupancy_flow_category,sprinkler_standard=excluded.sprinkler_standard,suggested_fire_flow_gpm=excluded.suggested_fire_flow_gpm,suggested_fire_flow_duration=excluded.suggested_fire_flow_duration,contact_info=excluded.contact_info,construction=excluded.construction,access_info=excluded.access_info,alarm_system=excluded.alarm_system,knox_box=excluded.knox_box,riser=excluded.riser,fdc=excluded.fdc,sprinkler_system=excluded.sprinkler_system,status=excluded.status,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP")
+      await db.prepare("INSERT INTO field_preplans(publication_status,id,business_name,address,latitude,longitude,a_side_latitude,a_side_longitude,footprint,footprint_square_feet,floor_count,fire_flow_calculation_area,construction_type,occupancy_flow_category,sprinkler_standard,suggested_fire_flow_gpm,suggested_fire_flow_duration,contact_info,construction,access_info,alarm_system,knox_box,riser,fdc,sprinkler_system,status,created_by,updated_by) VALUES('draft',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET business_name=excluded.business_name,address=excluded.address,latitude=excluded.latitude,longitude=excluded.longitude,a_side_latitude=excluded.a_side_latitude,a_side_longitude=excluded.a_side_longitude,footprint=excluded.footprint,footprint_square_feet=excluded.footprint_square_feet,floor_count=excluded.floor_count,fire_flow_calculation_area=excluded.fire_flow_calculation_area,construction_type=excluded.construction_type,occupancy_flow_category=excluded.occupancy_flow_category,sprinkler_standard=excluded.sprinkler_standard,suggested_fire_flow_gpm=excluded.suggested_fire_flow_gpm,suggested_fire_flow_duration=excluded.suggested_fire_flow_duration,contact_info=excluded.contact_info,construction=excluded.construction,access_info=excluded.access_info,alarm_system=excluded.alarm_system,knox_box=excluded.knox_box,riser=excluded.riser,fdc=excluded.fdc,sprinkler_system=excluded.sprinkler_system,status=excluded.status,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP")
         .bind(id,...values,auth.actor).run();
       if (importId) await db.prepare("UPDATE field_preplan_imports SET linked_preplan_id=?,status='completed',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(id,importId).run();
       return Response.json({ ok:true, id });

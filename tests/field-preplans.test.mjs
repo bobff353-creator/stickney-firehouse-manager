@@ -88,6 +88,17 @@ test("IFC Appendix B advisory flow uses total levels and sprinkler assumptions",
   assert.equal(result?.durationHours, 2);
 });
 
+test("incomplete source facts do not create a fire-flow estimate or sprinkler credit", () => {
+  const documented = { footprintSquareFeet:10_000,floorCount:1,constructionType:"VB",occupancyFlowCategory:"other",sprinklerStandard:"none" };
+  assert.equal(suggestedFireFlow({...documented,constructionType:"unknown"}), null);
+  assert.equal(suggestedFireFlow({...documented,floorCount:0}), null);
+  assert.equal(suggestedFireFlow({...documented,sprinklerStandard:"unknown"}), null);
+  assert.equal(fireFlowCalculationArea(10_000,0,"VB"), 0);
+  const withoutStandard = suggestedFireFlow({...documented,sprinklerStandard:"present"});
+  assert.equal(withoutStandard?.suggestedGpm, suggestedFireFlow(documented)?.suggestedGpm);
+  assert.equal(withoutStandard?.reduction, "No sprinkler reduction");
+});
+
 test("Field Preplans provides map-first quick and detailed capture", async () => {
   const [page, api, photoApi, hydrantApi, bootstrap, shell, permissions, googleMap, mapsConfig, styles, fireFlow, layout, menu] = await Promise.all([
     readFile(new URL("../app/field-preplans.tsx", import.meta.url), "utf8"),
