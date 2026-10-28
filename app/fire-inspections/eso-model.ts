@@ -28,6 +28,16 @@ export function validateEsoBundle(value:unknown){
  const referenced=new Set<string>();
  for(const n of esoRows(esoObject(b.notes).data))if(n.noteAttachmentId)referenced.add(esoText(n.noteAttachmentId));
  for(const v of esoRows(esoData(b,'inspectionCodes').violations))for(const a of esoRows(v.attachments))referenced.add(esoText(a.itemId));
+ const contexts=esoRows(esoObject(b.importEvidence).contextImages),history=esoData(b,'history'),contacts=esoRows(esoData(b,'contacts').contacts);
+ if(history.imageUrl&&!contexts.some(c=>c.kind==='property-reference'&&c.sourcePath===history.imageUrl))throw Error('Preserve the property reference image returned by ESO.');
+ for(const contact of contacts)if(contact.imageId&&!contexts.some(c=>c.kind==='contact-thumbnail'&&c.contactId===contact.itemId&&c.sourceImageId===contact.imageId))throw Error('Preserve or explicitly resolve the contact thumbnail returned by ESO.');
+ for(const c of contexts){
+  if(c.sourceDate!==null)throw Error('A reference photo date was not supplied by ESO.');
+  if(c.kind==='property-reference'){if(!history.imageUrl||c.sourcePath!==history.imageUrl)throw Error('The property reference must match the original ESO record.');}
+  else if(c.kind==='contact-thumbnail'){if(!contacts.some(contact=>contact.itemId===c.contactId&&contact.imageId===c.sourceImageId)||c.sourcePath!==`/inspections/api//inspections/${index.inspectionId}/contacts/${c.contactId}/thumbnail`)throw Error('The contact thumbnail must match the original ESO record.');}
+  else throw Error('Unknown reference image source.');
+  referenced.add(esoText(c.attachmentId));
+ }
  const media=esoMedia(b);
  if(new Set(media.map(m=>m.attachmentId)).size!==media.length||media.length!==referenced.size)throw Error('Each original attachment needs exactly one import descriptor.');
  for(const m of media)if(!referenced.has(m.attachmentId)||!esoGuid(m.attachmentId)||!m.filename||m.filename.length>240||/[\r\n\x00-\x1f]/.test(m.filename)||!/^[a-f0-9]{64}$/.test(m.sha256)||!Number.isInteger(m.size)||m.size<1||m.size>16777216||!['image/jpeg','image/png','image/webp','application/pdf'].includes(m.contentType))throw Error('An original attachment descriptor is invalid.');
