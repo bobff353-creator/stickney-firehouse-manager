@@ -62,7 +62,7 @@ export async function buildInspectionPdf(record:InspectionRecord,photos:ReportPh
  if(source){
   heading('Original contacts');for(const c of esoContactCards(source)){pair('Name / role',[c.name,c.title,...c.roles].filter(Boolean).join(' / '));pair('Email',c.emails.join(' / '));pair('Phone',c.phones.map(p=>[p.type,p.number].filter(Boolean).join(': ')).join(' / '));if(c.address)pair('Address',c.address);if(c.note)pair('Contact note',c.note);}
   heading('Original visit sessions');for(const visit of esoRows(esoData(source,'details').times))pair('Visit',[esoDisplayDate(visit.inspectionDate),esoDisplayTime(visit.startTime),esoDisplayTime(visit.endTime)].filter(Boolean).join(' / '));
-  heading('Original acknowledgments');text('These drawings and dates came with the original inspection. They are not new signatures captured in this build.');const signatures=esoData(source,'signatures');
+  room(260);heading('Original acknowledgments');text('These drawings and dates came with the original inspection. They are not new signatures captured in this build.');const signatures=esoData(source,'signatures');
   for(const [label,value,date,name]of [['Representative',signatures.contactSignature,signatures.contactSignedAt,signatures.selectedContact],['Inspector',signatures.leadInspectorSignature,signatures.inspectorSignedAt,d.inspector]]){
    room(180);pair(String(label),esoText(name));pair('Original signature date',esoDisplayTimestamp(date));
    const strokes=Array.isArray(value)?value.filter((s):s is number[]=>Array.isArray(s)&&s.length>=4&&s.length%2===0&&s.every(n=>typeof n==='number'&&Number.isFinite(n))):[];
