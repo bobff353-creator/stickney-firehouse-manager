@@ -18,7 +18,7 @@ export async function materializeEsoInspection(db:InspectionDb,department:string
  for(const f of nativeEsoFiles(b)){
   const original=originals.get(f.attachmentId)!;
   // References reuse the verified private original; no bytes are copied, moved, or overwritten.
-  batch.push(db.prepare('INSERT INTO fire_inspection_pilot_files(id,department_id,record_id,object_key,filename,content_type,size_bytes,created_at,created_by,check_id,caption,record_version) VALUES(?,?,?,?,?,?,?,?,?,?,?,1)').bind(f.id,department,record.id,'eso:'+original.objectKey,f.filename,f.contentType,f.size,f.sourceDate||time,actor,f.checkId,f.caption));
+  batch.push(db.prepare('INSERT INTO fire_inspection_pilot_files(id,department_id,record_id,object_key,filename,content_type,size_bytes,created_at,created_by,check_id,caption,record_version) VALUES(?,?,?,?,?,?,?,?,?,?,?,1)').bind(f.id,department,record.id,`eso:${original.objectKey}#${record.id}`,f.filename,f.contentType,f.size,f.sourceDate||time,actor,f.checkId,f.caption));
  }
  await db.batch(batch);
  const saved=await db.prepare(`SELECT ${inspectionColumns} FROM fire_inspection_pilot_records WHERE department_id=? AND id=?`).bind(department,record.id).first<StoredInspection>();

@@ -10,6 +10,9 @@ export function esoDate(value:unknown) {
  return validDate(day)&&!day.startsWith('0001-')?day:'';
 }
 export function esoTime(value:unknown){const s=esoText(value);return /^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(s)?s.slice(0,5):'';}
+export function esoDisplayDate(value:unknown){const day=esoDate(value);return day?new Intl.DateTimeFormat('en-US',{timeZone:'UTC',dateStyle:'medium'}).format(new Date(day+'T12:00:00Z')):'';}
+export function esoDisplayTime(value:unknown){const time=esoTime(value);if(!time)return '';const [h,m]=time.split(':').map(Number);return `${h%12||12}:${String(m).padStart(2,'0')} ${h<12?'AM':'PM'}`;}
+export function esoDisplayTimestamp(value:unknown){const s=esoText(value);if(!esoDate(s))return '';if(/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(s)&&!Number.isNaN(Date.parse(s)))return new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',year:'numeric',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'}).format(new Date(s));return [esoDisplayDate(s),esoDisplayTime(s.split(' ')[1])].filter(Boolean).join(' · ');}
 export const esoStatus = (value:string):InspectionData['status'] => ({locked:'Completed',inprogress:'In progress',scheduled:'Scheduled',cancelled:'Canceled'} as const)[value as 'locked']||'Draft';
 export function esoContactCards(b:EsoObject){
  return esoRows(esoData(b,'contacts').contacts).map(c=>({
