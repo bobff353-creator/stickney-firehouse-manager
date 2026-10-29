@@ -3,11 +3,12 @@ import {normalizeCode, codeLabel, type CodeSelection, type CodeEntry} from './co
 import { inspectionChecks, starterSections, inspectionTypes } from './catalog';
 import { normalizeObservations, type FieldObservations } from './field-workflow';
 import {emptyTeam,normalizeTeam,type InspectionTeam} from './team-workflow';
-export const resultOptions = ['Not checked', 'Acceptable', 'Needs attention', 'Corrected on site', 'Not applicable', 'Not inspected'] as const;
+export const resultOptions = ['Not checked', 'Acceptable', 'Needs attention', 'Corrected on site', 'Resolved', 'Not applicable', 'Not inspected'] as const;
 export type CheckResult = typeof resultOptions[number];
 export type InspectionCheck = { id: string; section: string; label: string; source: string; result: CheckResult; location: string; observation: string; correction: string; code: string; dueDate: string; correctedDate: string; priority: string; citations: CodeSelection[] };
 export type Signature = { name: string; role: string; state: 'Not requested' | 'Signed' | 'Declined' | 'Not present'; strokes: number[][][]; signedAt: string };
 export type InspectionData = {
+  importedSource?: {system:'ESO';inspectionId:string;inspectionNumber:string;status:string;type:string;sha256:string;importedAt:string;propertyId:string};
   team: InspectionTeam;
   preplanObservations: FieldObservations;
   alternativeReview: AlternativeReview;
@@ -43,14 +44,16 @@ export function normalizeInspection(value: unknown): InspectionData {
   if (!value || typeof value !== 'object') throw Error('Inspection details are missing.');
   const v=value as Record<string,unknown>, d=emptyInspection();
   for (const key of Object.keys(d) as (keyof InspectionData)[]) if (typeof d[key]==='string') (d as unknown as Record<string,unknown>)[key]=text(v[key]);
+  if(v.importedSource!=null){const p=v.importedSource as NonNullable<InspectionData['importedSource']>;if(p.system!=='ESO'||!/^[a-f0-9-]{36}$/i.test(p.inspectionId)||!/^[a-f0-9]{64}$/.test(p.sha256)||[p.inspectionNumber,p.status,p.type,p.importedAt,p.propertyId].some(s=>typeof s!=='string'))throw Error('The inspection source is invalid.');d.importedSource={system:'ESO',inspectionId:p.inspectionId,inspectionNumber:p.inspectionNumber,status:p.status,type:p.type,sha256:p.sha256,importedAt:p.importedAt,propertyId:p.propertyId};}
+  d.notes=text(v.notes,20000);
   d.title=text(v.title,240); d.test=v.test===true; d.inspectorAttested=v.inspectorAttested===true;
   d.repeatMonths=Number(v.repeatMonths??0); if(!Number.isInteger(d.repeatMonths)||d.repeatMonths<0||d.repeatMonths>120)throw Error('Choose a repeat interval from 0 to 120 months.');
   if(!['Draft','Needs scheduling','Scheduled','In progress','Completed','Canceled'].includes(d.status))throw Error('Choose a valid inspection status.');
-  if(!inspectionTypes.includes(d.type))throw Error('Choose an inspection type.');
+  if(!inspectionTypes.includes(d.type)&&d.type!==d.importedSource?.type)throw Error('Choose an inspection type.');
   if(!['','No issues observed','Corrections required','Incomplete / no access'].includes(d.outcome))throw Error('Choose a valid outcome.');
   d.sections=Array.isArray(v.sections)?[...new Set(v.sections.map(x=>text(x,100)))].slice(0,30):[];
   if(!Array.isArray(v.checks)||v.checks.length>200)throw Error('An inspection can contain up to 200 checkpoints.');
-  d.checks=v.checks.map(item=>{if(!item||typeof item!=='object')throw Error('Invalid checkpoint.');const c=item as Record<string,unknown>;const next={} as InspectionCheck;for(const k of Object.keys(freshCheck({id:'',label:'',section:'',source:''})) as (keyof InspectionCheck)[]){if(k!=='citations')(next as unknown as Record<string,string>)[k]=text(c[k],k==='id'?100:4000);}next.citations=normalizeSelections(c.citations);if(!next.id||!next.label||!resultOptions.includes(next.result))throw Error('Each checkpoint needs a label and a valid result.');if(!['Routine','Urgent','Immediate action'].includes(next.priority))throw Error('Choose a valid finding priority.');return next;});
+  d.checks=v.checks.map(item=>{if(!item||typeof item!=='object')throw Error('Invalid checkpoint.');const c=item as Record<string,unknown>;const next={} as InspectionCheck;for(const k of Object.keys(freshCheck({id:'',label:'',section:'',source:''})) as (keyof InspectionCheck)[]){if(k!=='citations')(next as unknown as Record<string,string>)[k]=text(c[k],k==='id'?100:4000);}next.citations=normalizeSelections(c.citations);if(!next.id||!next.label||!resultOptions.includes(next.result))throw Error('Each checkpoint needs a label and a valid result.');if(!['Routine','Urgent','Immediate action'].includes(next.priority)&&!(d.importedSource&&next.priority===''))throw Error('Choose a valid finding priority.');return next;});
   if(new Set(d.checks.map(c=>c.id)).size!==d.checks.length)throw Error('Duplicate checkpoints are not allowed.');
   d.codeBasis=normalizeSelections(v.codeBasis);
   d.alternativeReview=normalizeAlternativeReview(v.alternativeReview);
@@ -71,7 +74,7 @@ export function updateInspectionDetail<K extends keyof InspectionData>(d:Inspect
  const alternativeReview=key==='alternativeReview'?value as AlternativeReview:['propertyId','title','address','occupancy'].includes(key)&&d[key]!==value&&review.enabled?restartAlternativeReview(review):review;
  return {...d,[key]:value,team:key==='team'?value as InspectionTeam:!signing&&['Submitted','Approved','Changes requested'].includes(d.team.state)?{...d.team,state:'Draft',actedBy:'',actedAt:''}:d.team,alternativeReview,representative:key==='representative'?value as Signature:signing?d.representative:blankSignature(),inspectorSignature:key==='inspectorSignature'?value as Signature:signing?d.inspectorSignature:blankSignature(),inspectorAttested:key==='inspectorAttested'?value as boolean:false};
 }
-export function findings(d:InspectionData){return d.checks.filter(c=>['Needs attention','Corrected on site'].includes(c.result));}
+export function findings(d:InspectionData){return d.checks.filter(c=>['Needs attention','Corrected on site','Resolved'].includes(c.result));}
 export function validateInspection(kind:InspectionRecord['kind'],d:InspectionData,today=todayChicago()) {
   if(!d.title)throw Error(kind==='template'?'Name this checklist.':'Enter a business or property name.');
   for(const s of [d.scheduledDate,d.actualDate,d.nextDueDate,d.followUpDate,...d.checks.flatMap(c=>[c.dueDate,c.correctedDate])])if(s&&!validDate(s))throw Error('Use a valid calendar date.');
@@ -92,7 +95,7 @@ export function validateInspection(kind:InspectionRecord['kind'],d:InspectionDat
   if(d.outcome==='No issues observed'&&(!d.checks.some(c=>c.result==='Acceptable'||c.result==='Corrected on site')||d.checks.some(c=>['Needs attention','Not inspected'].includes(c.result))))throw Error('This inspection cannot say No issues observed while there are open issues or uninspected items.');
   for(const c of findings(d)){
     if(!c.observation||!c.location)throw Error(`Add the observation and location for ${c.label}.`);
-    if(c.result==='Corrected on site'&&(!c.correction||!c.correctedDate))throw Error(`Document the correction and date for ${c.label}.`);
+    if(['Corrected on site','Resolved'].includes(c.result)&&(!c.correction||!c.correctedDate))throw Error(`Document the correction and date for ${c.label}.`);
   }
   if(d.checks.some(c=>c.result==='Needs attention')){if(!d.reinspectionDecision)throw Error('Choose what happens next for the failed items: Schedule, Needs scheduling, or Not needed with a reason.');if(d.reinspectionDecision==='Not needed'&&!d.reinspectionReason.trim())throw Error('Explain why no reinspection is needed.');}
   if(d.reinspectionDecision==='Schedule'&&(!d.followUpDate||!d.reinspectionTime))throw Error('Choose a reinspection date and appointment time.');
@@ -112,7 +115,7 @@ export function queueLabel(d:InspectionData,today=todayChicago()) {
 export function followUpRecord(parent:InspectionRecord,mode:'routine'|'reinspection',date:string):InspectionRecord {
   const p=parent.data,d=emptyInspection();
   for(const k of ['title','address','propertyId','occupancy','owner','contact','phone','email','inspector','codeEdition','localAmendments','test'] as const)(d as unknown as Record<string,unknown>)[k]=p[k];
-  d.codeBasis=p.codeBasis||[];d.parentId=parent.id;d.followUpKind=mode;d.status='Needs scheduling';d.nextDueDate=date;d.type=mode==='reinspection'?'Reinspection':p.type;d.repeatMonths=mode==='routine'?p.repeatMonths:0;
+  d.codeBasis=p.codeBasis||[];d.parentId=parent.id;d.followUpKind=mode;d.status='Needs scheduling';d.nextDueDate=date;d.type=mode==='reinspection'?'Reinspection':inspectionTypes.includes(p.type)?p.type:'Routine fire / life safety';d.repeatMonths=mode==='routine'?p.repeatMonths:0;
   if(mode==='reinspection'&&p.reinspectionDecision==='Schedule'){d.scheduledDate=date;d.scheduledTime=p.reinspectionTime;d.status='Scheduled';}
   d.checks=(mode==='reinspection'?p.checks.filter(c=>c.result==='Needs attention'):p.checks).map(c=>({...freshCheck(c),citations:c.citations||[],code:c.code}));d.sections=[...new Set(d.checks.map(c=>c.section))];
   return{id:followUpId(parent.id,mode),kind:'inspection',version:0,archived:false,data:d,createdAt:'',updatedAt:'',updatedBy:''};

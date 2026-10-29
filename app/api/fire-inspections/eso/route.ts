@@ -3,6 +3,7 @@ import {ensureDatabase} from '../../../../db/bootstrap';
 import {getSupabaseServerClient} from '../../../supabase-server';
 import {inspectionBoundary,inspectionJson} from '../../../fire-inspections/server';
 import {esoGuid,esoMedia,esoMime,esoObject,esoSummary,esoText,validateEsoBundle} from '../../../fire-inspections/eso-model';
+import {materializeEsoInspection} from '../../../fire-inspections/eso-materialize';
 const bucket='stickney-fire-inspections-eso';
 const hash=(bytes:Uint8Array|string)=>createHash('sha256').update(bytes).digest('hex');
 type SourceRow={inspectionId:string;sha256:string;objectKey:string;summary:string;importedAt:string};
@@ -59,9 +60,15 @@ export async function POST(request:Request){
   const saved=await source(db,department,id);if(saved?.sha256!==sha)return inspectionJson({error:'Another import saved different source evidence. The existing copy was kept.'},409);
   return inspectionJson({saved:true,sha256:sha,summary:JSON.parse(saved.summary)},201);
  }
- if(!['prepare-file','finish-file'].includes(esoText(body.action)))throw Error('Choose a supported ESO import action.');
+ if(!['prepare-file','finish-file','activate'].includes(esoText(body.action)))throw Error('Choose a supported ESO import action.');
  const row=await source(db,department,esoText(body.inspectionId));if(!row)throw Error('Copy the original inspection before its files.');
- const b=await original(row,client.storage),media=esoMedia(b).find(m=>m.attachmentId===body.attachmentId);if(!media)throw Error('This attachment is not in the preserved ESO inspection.');
+ const b=await original(row,client.storage);
+ if(body.action==='activate'){
+  const files=await db.prepare(`SELECT ${fileColumns} FROM fire_inspection_eso_files WHERE department_id=?`).bind(department).all<FileRow>();
+  const saved=await materializeEsoInspection(db,department,b,row.sha256,time,request.headers.get('oai-authenticated-user-email')!,files.results);
+  return inspectionJson({saved:true,...saved},saved.existing?200:201);
+ }
+ const media=esoMedia(b).find(m=>m.attachmentId===body.attachmentId);if(!media)throw Error('This attachment is not in the preserved ESO inspection.');
  const existing=await db.prepare(`SELECT ${fileColumns} FROM fire_inspection_eso_files WHERE department_id=? AND attachment_id=?`).bind(department,media.attachmentId).first<FileRow>();
  if(existing){if(existing.sha256!==media.sha256||existing.size!==media.size)return inspectionJson({error:'This source attachment ID has conflicting bytes. The saved original was kept.'},409);return inspectionJson({saved:true,existing:true,attachmentId:media.attachmentId,sha256:media.sha256});}
  const extension=({'image/jpeg':'jpg','image/png':'png','image/webp':'webp','application/pdf':'pdf'} as Record<string,string>)[media.contentType];

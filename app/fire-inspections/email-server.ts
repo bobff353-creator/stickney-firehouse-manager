@@ -17,11 +17,11 @@ async function findDelivery(db:InspectionDb,department:string,id:string){return 
 export async function prepareDelivery(db:InspectionDb,department:string,actor:string,id:string,version:number,recipient:string){
  if(!process.env.RESEND_API_KEY)throw Error('Email is not configured. The administrator must configure the report email provider first.');
  const existing=await db.prepare(`SELECT ${deliveryColumns} FROM fire_inspection_email_deliveries WHERE department_id=? AND record_id=? AND record_version=? AND recipient=?`).bind(department,id,version,recipient).first<Delivery>();if(existing)return existing;
- const {record,photos}=await loadReport(db,department,id,version);
+ const {record,photos,source}=await loadReport(db,department,id,version);
  if(record.archived)throw Error('Restore this inspection before emailing a report.');
  if(record.data.status!=='Completed'&&!record.data.test)throw Error('Finish the inspection before emailing its report.');
  if(record.data.test&&recipient!=='bobff353@gmail.com')throw Error('Test reports can only be sent to bobff353@gmail.com.');
- const bytes=await buildInspectionPdf(record,photos),deliveryId=crypto.randomUUID(),pdfKey=`${department}/report-emails/${deliveryId}.pdf`,now=new Date().toISOString(),client=await getSupabaseServerClient();
+ const bytes=await buildInspectionPdf(record,photos,source),deliveryId=crypto.randomUUID(),pdfKey=`${department}/report-emails/${deliveryId}.pdf`,now=new Date().toISOString(),client=await getSupabaseServerClient();
  const uploaded=await client.storage.from(bucket).upload(pdfKey,bytes,{contentType:'application/pdf',upsert:false});if(uploaded.error)throw Error('The report could not be preserved for delivery. No email was sent.');
  try{await db.prepare('INSERT INTO fire_inspection_email_deliveries(id,department_id,record_id,record_version,recipient,sender,subject,report_text,pdf_key,status,created_at,updated_at,created_by) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,? FROM fire_inspection_pilot_records WHERE id=? AND department_id=? AND version=? AND archived=0 ON CONFLICT(record_id,record_version,recipient) DO NOTHING').bind(deliveryId,department,id,version,recipient,inspectionSender(),`${record.data.test?'TEST / TRAINING - ':''}Fire inspection report - ${record.data.title} - ${record.data.actualDate||'Draft'}`,reportText(record),pdfKey,'Prepared',now,now,actor,id,department,version).run();}
  catch{await client.storage.from(bucket).remove([pdfKey]);throw Error('The delivery record could not be saved. No email was sent. Retry.');}

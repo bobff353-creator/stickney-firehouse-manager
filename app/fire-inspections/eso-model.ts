@@ -9,7 +9,7 @@ export type EsoSummary = {inspectionId:string; inspectionNumber:string; title:st
 export type EsoFile = EsoMedia;
 export function esoLabel(b:EsoObject,tab:string,list:string,id:unknown){
  const values=esoRows(esoObject(esoObject(esoObject(b[tab]).lists)[list]).values);
- return esoText(values.find(v=>v.itemId===id)?.itemName)||esoText(id);
+ return esoText(values.find(v=>v.itemId===id)?.itemName)||(esoGuid(id)?'':esoText(id));
 }
 export function esoMedia(b:EsoObject):EsoMedia[]{return esoRows(esoObject(b.importEvidence).media).map(m=>({attachmentId:esoText(m.attachmentId),filename:esoText(m.filename),sha256:esoText(m.sha256),size:Number(m.size),contentType:esoText(m.contentType)}));}
 export function esoChecks(b:EsoObject){
