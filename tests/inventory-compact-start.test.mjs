@@ -22,7 +22,7 @@ const text=node=>Array.isArray(node)?node.map(text).join(''):node&&typeof node==
 function fixture({critical=true,loading=false,unavailable=false,equipmentRows,canLeave=true}={}){
   let state=0,data;
   const navigations=[],opened=[];
-  const react={useState(initial){const slot=state++;return[slot===0?data:slot===1?loading:slot===14&&unavailable?'Preview source unavailable':typeof initial==='function'?initial():initial,()=>{}];},useRef:initial=>({current:initial}),useEffect(){},useCallback:fn=>fn,useMemo:fn=>fn(),useDeferredValue:value=>value};
+  const react={useState(initial){const slot=state++;return[slot===0?data:slot===1?loading:slot===15&&unavailable?'Preview source unavailable':typeof initial==='function'?initial():initial,()=>{}];},useRef:initial=>({current:initial}),useEffect(){},useCallback:fn=>fn,useMemo:fn=>fn(),useDeferredValue:value=>value};
   const mods={react,'react/jsx-runtime':jsx,'./inventory-index':indices,'./inventory-check-flow':workflow,'./workflow-status':statuses,'./inventory-service-schedule':services,'./inventory-workspace-filters':filters,'./inventory-asset-attention':attention,'./inventory-air-checks':air,
     './workspace-view-state':{useWorkspaceViewState:(_key,initial)=>[initial,()=>{}]},'./use-unsaved-work':{useUnsavedWork(){},confirmLeavingWork:()=>canLeave},'./inventory-save-reference':{createInventorySaveReferences:()=>({})},'./conditional-json-reader':{createConditionalJsonReader:()=>({})},
   };

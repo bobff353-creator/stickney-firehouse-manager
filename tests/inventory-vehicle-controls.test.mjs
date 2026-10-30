@@ -5,6 +5,7 @@ import ts from 'typescript';
 import {trainingModules} from './helpers/training-modules.mjs';
 import * as jsx from 'react/jsx-runtime';
 import { renderToStaticMarkup } from 'react-dom/server';
+import {meterTemplate} from '../app/inventory-meter-model.ts';
 
 // Render and exercise the real checklist row without a production session or database.
 const source=fs.readFileSync(new URL('../app/inventory-operations.tsx',import.meta.url),'utf8');
@@ -13,7 +14,7 @@ const renderer=source.slice(source.indexOf('  const renderActiveItem ='),source.
 const compiled=ts.transpileModule(helpers+renderer+'\nreturn renderActiveItem;', {compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
 function fixture(reading='',canCheck=true) {
  const state={saved:[],issue:null};
- const scope={value:(row,key)=>String(row[key]??''),canCheck,numericReadings:{item:reading},busy:'',openOrdersByEquipment:new Map(),activeAllowsRelocation:false,pendingLocationChangeByEquipmentId:new Map(),itemSaveError:null,
+ const scope={meterTemplate,value:(row,key)=>String(row[key]??''),canCheck,numericReadings:{item:reading},busy:'',openOrdersByEquipment:new Map(),activeAllowsRelocation:false,pendingLocationChangeByEquipmentId:new Map(),itemSaveError:null,
   data:{exceptions:[],workOrders:[]},repairsForFinding:trainingModules()('app/equipment-continuity-model.ts').repairsForFinding,setNumericReadings:()=>{},recordCheckItems:(_key,payload)=>state.saved.push(payload),setDeficiencyAssignees:()=>{},setDeficiencyItem:item=>{state.issue=item;}};
  const render=new Function('require','exports',...Object.keys(scope),compiled)(()=>jsx,{},...Object.values(scope));
  return {state,render:(name,extra={})=>render({id:'item',equipment_name:name,result:'pending',response_type:'pass_fail',...extra})};

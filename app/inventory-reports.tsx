@@ -1,4 +1,5 @@
 'use client';
+import { meterResponse, meterSummary } from './inventory-meter-model';
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { startVisiblePolling } from './visible-poller';
@@ -118,7 +119,7 @@ export default function InventoryReports({initialReportId="", apparatus, canRevi
           `Started: ${formatDate(check.started_at)}`, `Completed: ${formatDate(check.completed_at)}`,
           `Completed by: ${value(check, 'started_by') || 'Not recorded'}`, `Review: ${formatStatus(check.review_status)}`,
           `Items: ${items.length} · Passed: ${items.filter(i => i.result === 'pass').length} · Issues: ${items.filter(i => ['failed','missing','damaged'].includes(value(i,'result'))).length}`, '',
-          ...items.filter(i => i.result !== 'pass').map(i => `${value(i, 'equipment_name')}: ${formatStatus(i.result)}${i.notes ? ` — ${i.notes}` : ''}`),
+          ...items.filter(i => i.result !== 'pass' || i.meter_template).map(i => `${i.meter_template ? 'Weekly meter inspection' : value(i, 'equipment_name')}: ${formatStatus(i.result)} — ${i.meter_template ? meterSummary(meterResponse(i.meter_response)) : value(i,'notes')}`),
         ].join('\n');
         window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       }
@@ -137,7 +138,7 @@ export default function InventoryReports({initialReportId="", apparatus, canRevi
   const stateMessage = (page: ReturnType<typeof useHistoryPage>) => page.error
     ? <div className="ops-error" role="alert">{page.error} <button type="button" onClick={() => setRefresh(current => current + 1)}>Retry history</button></div>
     : page.loading ? <p role="status">Loading reports…</p> : null;
-  const reading = (item: InventoryRow) => value(item, 'section')
+  const reading = (item: InventoryRow) => item.meter_template ? meterSummary(meterResponse(item.meter_response)) : value(item, 'section')
     ? [item.harness_number ? `Harness ${item.harness_number}` : '', item.cylinder_number ? `Cylinder ${item.cylinder_number}` : '', item.psi != null ? `${item.psi} PSI` : '', value(item, 'notes')].filter(Boolean).join(' · ') || '—'
     : displayNumericReading(item.numeric_reading) || value(item, 'notes') || '—';
   const unavailable = busy || detailLoading;

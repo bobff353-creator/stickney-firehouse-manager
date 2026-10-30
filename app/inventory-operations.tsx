@@ -2,6 +2,8 @@
 import ScenarioHelp from './scenario-help';
 import EquipmentContinuity from './equipment-continuity';
 import InventoryBulkReview from './inventory-bulk-review';
+import MeterCheckEditor, { MeterTemplateEditor } from './inventory-meter-check';
+import { meterTemplate, type MeterResponse } from './inventory-meter-model';
 import {repairsForFinding} from './equipment-continuity-model';
 import { checkNextAction } from "./workflow-status";
 import { SaveStatus } from "./save-status";
@@ -423,6 +425,8 @@ export default function InventoryOperations({
   const mutationPending = useRef(false);
   const [saveReferences] = useState(createInventorySaveReferences);
   const [scbaDirty, setScbaDirty] = useState<Record<string, boolean>>({});
+  const [meterDirty, setMeterDirty] = useState<Record<string, boolean>>({});
+  const handleMeterDirty = useCallback((id: string, dirty: boolean) => setMeterDirty(current => current[id] === dirty ? current : {...current,[id]:dirty}),[]);
   const [journey, setJourney] = useState<{ checkId: string; section: string } | null>(null);
   const [stockSearch, setStockSearch] = useState("");
   const [stockFilter, setStockFilter] = useState<StockFilter>("all");
@@ -862,6 +866,36 @@ export default function InventoryOperations({
     return payload.photo.id;
   }
 
+  async function saveMeter(item: Row, response: MeterResponse, version: number, complete: boolean, photo: File | null): Promise<Row> {
+    if (itemSavePending.current || mutationPending.current) throw new Error('Wait for the current save to finish.');
+    itemSavePending.current=true; itemSaveGeneration.current+=1; setBusy(`meter-${item.id}`);
+    try {
+      const parent=data.checks.find(check => check.id === item.check_id);
+      if(!parent) throw new Error('Refresh this weekly check before saving.');
+      const photoId=photo ? await uploadEvidence(String(parent.apparatus_id),photo,String(item.id)) : undefined;
+      const result=await fetch('/api/operations/meters',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'save_response',id:item.id,response,version,complete,photoId})});
+      const payload=await result.json();
+      if(!result.ok) throw new Error(payload.error || 'Meter save was not confirmed. Refresh and review before retrying.');
+      const saved=(payload.checkItems as Row[] | undefined)?.find(row => row.id === item.id);
+      if(!saved || !saved.meter_response) throw new Error('The server did not confirm this meter entry. Refresh and review before retrying.');
+      setData(current => ({...current,checkItems:current.checkItems.map(row => row.id === item.id ? {...row,...saved} : row)}));
+      setMeterDirty(current => ({...current,[String(item.id)]:false}));
+      return {...item,...saved};
+    } finally {itemSavePending.current=false;setBusy('');}
+  }
+
+  async function saveMeterTemplate(item: Row,title: string,instructions: string) {
+    if(mutationPending.current || itemSavePending.current) throw new Error('Wait for the current save to finish.');
+    mutationPending.current=true;setBusy('meter-template');
+    try {
+      const result=await fetch('/api/operations/meters',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'save_template',id:item.id,version:Number(item.meter_template_version || 0),title,instructions})});
+      const payload=await result.json();
+      if(!result.ok || !payload.equipment) throw new Error(payload.error || 'Template save was not confirmed.');
+      setData(current => ({...current,equipment:current.equipment.map(row => row.id === item.id ? {...row,...payload.equipment} : row)}));
+      return {...item,...payload.equipment} as Row;
+    } finally {mutationPending.current=false;setBusy('');}
+  }
+
   async function uploadMaintenanceDocument(workOrderId: string, file: File, documentType: string, note: string) {
     const form = new FormData();
     form.set("workOrderId", workOrderId);
@@ -911,7 +945,8 @@ export default function InventoryOperations({
     return reading !== undefined && numericReadingInputValue(reading) !== numericReadingInputValue(item.numeric_reading);
   });
   const unsavedScba = activeScbaEntries.some(item => scbaDirty[value(item, "id")]);
-  const unsavedCheck = unsavedReadings || unsavedScba;
+  const unsavedMeters = activeItems.some(item => meterDirty[value(item,'id')]);
+  const unsavedCheck = unsavedReadings || unsavedScba || unsavedMeters;
   useUnsavedWork(unsavedCheck || noticeSaveState === "unsaved" || noticeSaveState === "failed", Boolean(busy) || noticeSaveState === "saving");
   const pendingItems = activeChecklistRows.filter((item) => value(item, "result") === "pending").length;
   const completedItems = activeChecklistRows.length - pendingItems;
@@ -972,6 +1007,7 @@ export default function InventoryOperations({
   const renderActiveItem = (item: Row, preview = false) => {
     const itemCanCheck = canCheck && !preview;
     const itemId = value(item, "id");
+    if (meterTemplate(item.meter_template) && (!preview || templateType === 'weekly')) return <MeterCheckEditor key={itemId} item={item} apparatus={value(selectedApparatus || {},'name')} employees={employees} busy={Boolean(busy)} preview={preview} canCheck={itemCanCheck} onDirty={handleMeterDirty} onSave={(response,version,complete,photo) => saveMeter(item,response,version,complete,photo)}/>;
     const numericItem = isNumericReadingItem(item);
     const fluidItem = isFluidLevelItem(item);
     const savedReading = displayNumericReading(item.numeric_reading);
@@ -1486,7 +1522,7 @@ export default function InventoryOperations({
               </div>
               <div hidden={currentSection !== "review"}>
                 <div className="check-review-sections">{checkSections.map(section => <button type="button" key={section.id} disabled={Boolean(busy)} onClick={() => changeCheckSection(section.id)}><strong>{section.label}</strong><span>{section.total - section.pending} of {section.total} recorded · {section.pending ? `${section.pending} remaining` : "Review saved results"}</span></button>)}</div>
-                {unsavedCheck && <p role="alert" className="check-draft-warning">There are unsaved readings or air-pack entries. Return to their sections and save them before submitting.</p>}
+                {unsavedCheck && <p role="alert" className="check-draft-warning">There are unsaved readings, meter inspections, or air-pack entries. Return to their sections and save them before submitting.</p>}
                 {refreshError && <p role="alert" className="check-draft-warning">Refresh crew progress successfully before submitting so you can review the latest saved results.</p>}
                 <div className="check-review-issues">{activeChecklistRows.filter(item => ["failed", "missing", "damaged"].includes(value(item, "result"))).map(item => {
                   const notices = data.exceptions.filter(notice => value(notice, "check_item_id") === value(item, "id"));
@@ -1512,10 +1548,11 @@ export default function InventoryOperations({
         <>
         <section ref={builderTopRef} className="ops-card inventory-builder-toolbar">
           <header><div><span>CHECKLIST WORKSPACE</span><h2>Choose an apparatus, then a task</h2><p>Edit saved templates here. Existing check results and historical reports stay intact.</p></div></header>
-          <div className="inventory-builder-context"><label>Apparatus<select value={selectedApparatusId} onChange={event => setSelectedApparatusId(event.target.value)}>{data.apparatus.map(item => <option key={value(item,"id")} value={value(item,"id")}>{value(item,"name")}</option>)}</select></label><label>Checklist<select value={templateType} onChange={event => setTemplateType(event.target.value)}>{inspectionTypes.map(([id,label]) => <option key={id} value={id}>{label}</option>)}</select></label></div>
+          <div className="inventory-builder-context"><label>Apparatus<select value={selectedApparatusId} onChange={event => {if(confirmLeavingWork())setSelectedApparatusId(event.target.value);}}>{data.apparatus.map(item => <option key={value(item,"id")} value={value(item,"id")}>{value(item,"name")}</option>)}</select></label><label>Checklist<select value={templateType} onChange={event => {if(confirmLeavingWork())setTemplateType(event.target.value);}}>{inspectionTypes.map(([id,label]) => <option key={id} value={id}>{label}</option>)}</select></label></div>
           <nav className="inventory-task-nav" aria-label="Checklist administration tasks">{[["items","Edit checklist"],["add","Add an item"],["schedules","Due dates & times"],["scba","Air pack template"],["approvals",`Location requests (${pendingLocationChanges.length})`],["preview","Member preview"]].map(([id,label]) => <button type="button" key={id} aria-pressed={builderTask === id} onClick={() => changeBuilderTask(id)}>{label}</button>)}</nav>
           <p className="inventory-context-note">{selectedApparatus ? value(selectedApparatus,"name") : "Choose an apparatus"} · {inspectionTypes.find(([id]) => id === templateType)?.[1]} · {builderTask === "preview" ? "Read-only saved preview" : "Administrator editing"}</p>
         </section>
+        {templateType === 'weekly' && builderTask === 'items' && data.equipment.filter(item => item.apparatus_id === selectedApparatusId && meterTemplate(item.meter_template)).map(item => <MeterTemplateEditor key={value(item,'id')} item={item} apparatus={value(selectedApparatus || {},'name')} onSave={saveMeterTemplate}/>)}
         {builderTask === "preview" && !refreshError ? <section className="ops-card inventory-member-preview" aria-label="Read-only member checklist preview"><header><div><span>MEMBER PREVIEW · NO RECORDS CREATED</span><h2>{selectedApparatus ? value(selectedApparatus,"name") : "Apparatus"} · {formatStatus(templateType)}</h2><p>Shows the saved template using the member checklist layout. Unsaved edits are not included. Result controls are disabled; this does not start or complete a check.</p></div><button type="button" onClick={() => changeBuilderTask(templateType === "air_pack" ? "scba" : "items")}>Back to editing</button></header>
           {templateType === "air_pack" ? <div>{selectedScbaTemplate && value(selectedScbaTemplate,"apparatus_id") === selectedApparatusId && selectedScbaTemplate.active !== false ? <fieldset disabled className="inventory-preview-fieldset">{[...(Array.isArray(selectedScbaTemplate.pack_positions) ? selectedScbaTemplate.pack_positions.map((label,index) => ({id:`preview-pack-${index}`,section:"pack",label,result:"pending"})) : []), ...(selectedScbaTemplate.include_rit ? [{id:"preview-rit",section:"rit",label:"R.I.T. bag",result:"pending"}] : []), ...Array.from({length:Number(selectedScbaTemplate.spare_bottle_count || 0)},(_,index) => ({id:`preview-spare-${index}`,section:"spare",label:`Spare bottle ${index+1}`,result:"pending"}))].map(entry => <ScbaEntryEditor key={entry.id} entry={entry} busy={false} canCheck={false} onSave={async()=>false} />)}</fieldset> : <p>No saved air pack template for this apparatus.</p>}</div> : (() => { const items = inventoryPreviewItems(data.equipment,data.compartments,selectedApparatusId,templateType); return items.length ? <div className="check-location-items">{items.map(item => renderActiveItem(item,true))}</div> : <div className="ops-empty"><strong>No items on this saved checklist.</strong><p>Add an item or change its Required check parameters.</p></div>; })()}
         </section> : null}

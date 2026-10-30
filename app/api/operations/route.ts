@@ -100,7 +100,7 @@ export async function GET(request: Request) {
         .order("sort_order"),
       collectPages((from, to) => supabase
         .from("inventory_equipment")
-        .select("id,apparatus_id,compartment_id,name,manufacturer,model,serial_number,barcode,quantity_required,equipment_category,check_types,source_form,item_order,retired_at,item_type,parent_equipment_id,purchase_date,in_service_date,expiration_date,response_type,service_status,service_notes,retirement_reason,retired_by,updated_at,scba_asset_kind,asset_number,sku,hydro_test_date,hydro_due_date,scba_notes,scba_check_slot,last_serviced_date,service_interval_months,service_reminder_months")
+        .select("id,apparatus_id,compartment_id,name,manufacturer,model,serial_number,barcode,quantity_required,equipment_category,check_types,source_form,item_order,retired_at,item_type,parent_equipment_id,purchase_date,in_service_date,expiration_date,response_type,service_status,service_notes,retirement_reason,retired_by,updated_at,scba_asset_kind,asset_number,sku,hydro_test_date,hydro_due_date,scba_notes,scba_check_slot,last_serviced_date,service_interval_months,service_reminder_months,meter_template,meter_template_version")
         .eq("department_id", departmentId)
         .order("item_order")
         .order("name")
