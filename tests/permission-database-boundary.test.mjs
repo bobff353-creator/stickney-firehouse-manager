@@ -33,6 +33,7 @@ async function fixture({ beforeLiveAccess = false } = {}) {
  INSERT INTO firehouse.employees VALUES('member','Fictional Member','rank',1);
  CREATE TABLE firehouse.employee_profiles(employee_id text PRIMARY KEY,email text,is_admin int,employee_number text,end_date text,phone text);
  INSERT INTO firehouse.employee_profiles VALUES('member','member@example.invalid',0,'1234',NULL,'555');
+ CREATE FUNCTION firehouse.employee_id_for_login(login text) RETURNS text LANGUAGE sql STABLE AS $$ SELECT e.id FROM firehouse.employees e JOIN firehouse.employee_profiles ep ON ep.employee_id=e.id WHERE lower(ep.email)=lower(login) AND e.active=1 $$;
  CREATE TABLE firehouse.rank_permissions(rank text,permission_key text,allowed int,updated_at text,PRIMARY KEY(rank,permission_key));
  CREATE TABLE firehouse.employee_permission_overrides(employee_id text,permission_key text,effect text,updated_at text,PRIMARY KEY(employee_id,permission_key));
  CREATE FUNCTION firehouse.has_department_access() RETURNS boolean LANGUAGE sql SECURITY DEFINER SET search_path='' AS $$ SELECT EXISTS(SELECT 1 FROM public.department_memberships WHERE department_id='${department}' AND user_id=auth.uid() AND status='active') $$;
@@ -45,6 +46,10 @@ async function fixture({ beforeLiveAccess = false } = {}) {
  `);
  await db.exec(migration);
  if (!beforeLiveAccess) await db.exec(fs.readFileSync(new URL('../supabase/migrations/20260912190645_live_operations_individual_access.sql',import.meta.url),'utf8'));
+ if (!beforeLiveAccess) {
+   const disciplinary=fs.readFileSync(new URL('../supabase/migrations/20261031201258_disciplinary_reports.sql',import.meta.url),'utf8');
+   await db.exec(disciplinary.slice(disciplinary.indexOf('CREATE OR REPLACE FUNCTION private.portal_has_permission'),disciplinary.indexOf('CREATE FUNCTION public.disciplinary_access')));
+ }
  await db.exec(fs.readFileSync(new URL('../supabase/migrations/20260912100948_inventory_invoker_schema_access.sql',import.meta.url),'utf8'));
  await db.exec(`CREATE OR REPLACE FUNCTION public.firehouse_sql(p_sql text,p_mode text DEFAULT 'all',p_secret text DEFAULT NULL) RETURNS jsonb LANGUAGE sql SECURITY INVOKER AS $$ SELECT firehouse.execute_portal_sql(p_sql,p_mode,p_secret) $$;`);
  return db;

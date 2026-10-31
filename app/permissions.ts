@@ -26,6 +26,7 @@ export const permissionCatalog = [
   { key: "payroll.manage", label: "Manage payroll, rates, and all timesheets", group: "Payroll" },
   { key: "employees.view", label: "View employee directory", group: "Personnel" },
   { key: "employees.manage", label: "Manage employee records", group: "Personnel" },
+  { key: "disciplinary.manage", label: "Access disciplinary reports, editing, and history", group: "Personnel" },
   { key: "contacts.view", label: "View employee contacts", group: "Personnel" },
   { key: "documents.view", label: "View policies, duties, and box cards", group: "Documents" },
   { key: "policies.manage", label: "Add and edit policies", group: "Documents" },
@@ -43,7 +44,7 @@ export type PermissionKey = typeof permissionCatalog[number]["key"];
 const allPermissions = permissionCatalog.map((permission) => permission.key);
 const memberPermissions: PermissionKey[] = ["dashboard.view", "road_closures.view", "scheduling.view", "payroll.view_own", "documents.view", "field_preplans.view", "safety_inspections.view", "safety_inspections.complete", "inventory.view", "inventory.check"];
 const firefighterPermissions: PermissionKey[] = [...memberPermissions, "daily_log.view", "daily_log.manage", "field_preplans.edit", "incident_command.view"];
-const officerPermissions: PermissionKey[] = [...firefighterPermissions, "field_preplans.review", "field_preplans.verify_expiring", "employees.view", "contacts.view", "incident_command.manage", "safety_inspections.manage", "inventory.repairs.manage"];
+const officerPermissions: PermissionKey[] = [...firefighterPermissions, "field_preplans.review", "field_preplans.verify_expiring", "employees.view", "contacts.view", "incident_command.manage", "safety_inspections.manage", "inventory.repairs.manage", "disciplinary.manage"];
 
 export function defaultPermissionsForRank(rank: string, isAdmin = false): PermissionKey[] {
   const value = rank.trim().toLowerCase();

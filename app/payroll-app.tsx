@@ -67,6 +67,7 @@ const DepartmentSettings = dynamic(() => import("./department-settings"), { load
 const SystemHealth = dynamic(() => import("./system-health"), { loading: () => <ModuleLoading /> });
 const RoadClosures = dynamic(() => import("./road-closures"), { loading: () => <ModuleLoading /> });
 const FireInspectionsWorkspace = dynamic(() => import("./fire-inspections/workspace"), { loading: () => <ModuleLoading /> });
+const DisciplinaryWorkspace = dynamic(() => import("./disciplinary/workspace"), { loading: () => <ModuleLoading /> });
 const NerisWorkspace = dynamic(() => import("./neris/workspace"), { loading: () => <ModuleLoading /> });
 const TrainingWorkspace = dynamic(() => import("./training/workspace"), { loading: () => <ModuleLoading /> });
 const SafetyInspections = dynamic(() => import("./safety-inspections"), { loading: () => <ModuleLoading /> });
@@ -107,8 +108,8 @@ function SearchResultButtons({ items, onNavigate, query = "" }: { items: GlobalS
 type IconName = "home" | "log" | "box" | "users" | "phone" | "payroll" | "clock" | "rates" | "document" | "holiday" | "settings" | "search" | "bell" | "menu" | "close" | "filter" | "export" | "back" | "next" | "save" | "warning" | "chevron";
 
 type NavItem = PortalPage;
-const adminNavItems: NavItem[] = ["Dashboard", "Command Center", "Operations Board", "Activity Timeline", "Task Queue", "Respond", "Command Board", "Field Preplans", "Road Closures", "Safety Inspections", "Scheduling", "Payroll", "Work Details", "Daily Log", "Timesheets", "Callback Reviews", "My Timesheet", "Employees", "Employee Contacts", "Policies", "Box Cards", "Holiday Policy", "EMS", "Daily Duties", "Inventory", "Phone Numbers", "Rates & Rules", "Departments", "System Health", "Permissions", "CAD Integration", "Respond Device Modes", "Test View"];
-const navIcons: Record<NavItem, IconName> = { "NERIS Reporting": "document", "Fire Inspections": "document", Training: "document", Dashboard: "home", "Command Center": "rates", "Operations Board": "log", "Activity Timeline": "clock", "Task Queue": "document", Respond: "log", "Command Board": "warning", "Field Preplans": "search", "Road Closures": "warning", "Safety Inspections": "document", Scheduling: "clock", Payroll: "payroll", "Work Details": "document", "Daily Log": "log", Timesheets: "clock", "Callback Reviews": "log", "My Timesheet": "clock", Employees: "users", "Employee Contacts": "phone", Policies: "document", "Box Cards": "box", "Holiday Policy": "holiday", EMS: "document", "Daily Duties": "clock", Inventory: "box", "Phone Numbers": "phone", "Rates & Rules": "rates", Departments: "settings", "System Health": "warning", Permissions: "settings", "CAD Integration": "settings", "Respond Device Modes": "settings", "Test View": "users" };
+const adminNavItems: NavItem[] = ["Dashboard", "Command Center", "Operations Board", "Activity Timeline", "Task Queue", "Respond", "Command Board", "Field Preplans", "Road Closures", "Safety Inspections", "Scheduling", "Payroll", "Work Details", "Daily Log", "Timesheets", "Callback Reviews", "My Timesheet", "Employees", "Disciplinary Reports", "Employee Contacts", "Policies", "Box Cards", "Holiday Policy", "EMS", "Daily Duties", "Inventory", "Phone Numbers", "Rates & Rules", "Departments", "System Health", "Permissions", "CAD Integration", "Respond Device Modes", "Test View"];
+const navIcons: Record<NavItem, IconName> = { "NERIS Reporting": "document", "Fire Inspections": "document", Training: "document", Dashboard: "home", "Command Center": "rates", "Operations Board": "log", "Activity Timeline": "clock", "Task Queue": "document", Respond: "log", "Command Board": "warning", "Field Preplans": "search", "Road Closures": "warning", "Safety Inspections": "document", Scheduling: "clock", Payroll: "payroll", "Work Details": "document", "Daily Log": "log", Timesheets: "clock", "Callback Reviews": "log", "My Timesheet": "clock", Employees: "users", "Disciplinary Reports": "document", "Employee Contacts": "phone", Policies: "document", "Box Cards": "box", "Holiday Policy": "holiday", EMS: "document", "Daily Duties": "clock", Inventory: "box", "Phone Numbers": "phone", "Rates & Rules": "rates", Departments: "settings", "System Health": "warning", Permissions: "settings", "CAD Integration": "settings", "Respond Device Modes": "settings", "Test View": "users" };
 function navigationForViewer(_viewer: PayrollData["viewer"] | undefined, permissions: string[] | null) {
   return portalNavigationForPermissions(permissions);
 }
@@ -1121,6 +1122,7 @@ export default function PayrollApp({
           {activeNav === "NERIS Reporting" && !testMember && <NerisWorkspace />}
           {activeNav === "Training" && !testMember && <TrainingWorkspace />}
           {activeNav === "Fire Inspections" && !testMember && <FireInspectionsWorkspace />}
+          {activeNav === "Disciplinary Reports" && !testMember && <DisciplinaryWorkspace />}
           {activeNav === "Safety Inspections" && <SafetyInspections readOnly={Boolean(testMember)} />}
           {activeNav === "Respond Device Modes" && viewerPermissions.includes("settings.manage") && <RespondDeviceSettingsPage onSaved={(settings) => {
             setRespondDeviceSettings(settings);

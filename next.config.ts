@@ -26,7 +26,7 @@ const nextConfig: NextConfig = {
       {
         // Uploaded files are untrusted, including legacy rows. Keep any script
         // in a directly opened attachment away from the portal's origin/session.
-        source: "/api/:path(field-preplans/photos|field-preplans/assets|safety-inspections/attachments|chief-board/attachments|employee-photo|digital-twin/media|operations/evidence|operations/documents)/:id",
+        source: "/api/:path(field-preplans/photos|field-preplans/assets|safety-inspections/attachments|chief-board/attachments|employee-photo|digital-twin/media|operations/evidence|operations/documents|disciplinary/files)/:id",
         headers: [
           { key: "Content-Security-Policy", value: "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'" },
           { key: "X-Content-Type-Options", value: "nosniff" },

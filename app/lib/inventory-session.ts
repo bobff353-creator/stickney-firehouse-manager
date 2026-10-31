@@ -149,6 +149,13 @@ export async function verifyInventoryRequest(request: Request) {
   return verifiedSession();
 }
 
+// Authenticate the same portal session without requiring access to Inventory.
+// Disciplinary authorization is checked separately in its API and database RLS.
+export async function verifyDisciplinaryRequest(request: Request) {
+  void request;
+  return verifiedSession(['payroll.view_own']);
+}
+
 export async function verifyInventoryServerSession() {
   return verifiedSession();
 }
