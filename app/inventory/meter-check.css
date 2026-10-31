@@ -8,6 +8,7 @@
 @media(max-width:640px){.meter-date-entry{grid-template-columns:minmax(0,1fr)}.meter-date-entry>button{width:100%}}
 @media screen{
   .inventory-app-shell.inventory-portal-refresh .inventory-ops:has(.meter-check) .check-progress-summary{background:var(--card,#141e30);color:var(--foreground,#f1f5f9);border-color:var(--border,#607895)}
+  .inventory-app-shell.inventory-portal-refresh .inventory-ops:has(.meter-check) .check-progress-summary>div:first-of-type{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .inventory-app-shell.inventory-portal-refresh .inventory-ops:has(.meter-check) .check-progress-summary :is(strong,small,span){color:inherit!important;opacity:1}
   .inventory-app-shell.inventory-portal-refresh .inventory-ops:has(.meter-check) .check-progress-summary .workflow-save-status{background:var(--background,#101a2c);color:var(--foreground,#f1f5f9);border-color:var(--border,#607895)}
 }
