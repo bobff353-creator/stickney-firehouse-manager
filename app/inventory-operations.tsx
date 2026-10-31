@@ -1460,7 +1460,9 @@ export default function InventoryOperations({
                 <strong>Apparatus {value(selectedApparatus || {}, "name")} · {formatStatus(activeCheck.check_type)}</strong>
                 <div><strong>{completedItems} of {activeChecklistRows.length} completed</strong><span>{pendingItems} remaining</span></div>
                 <div className="check-progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={checkProgress}><i style={{ width: `${checkProgress}%` }} /></div>
-                <SaveStatus state={busy ? "saving" : itemSaveError || error ? "failed" : unsavedCheck || !completedItems ? "unsaved" : "saved"} detail={unsavedCheck ? "Save each changed reading or air-pack entry before submitting." : pendingItems ? `${checkProgress}% recorded · continue with remaining items` : "All results recorded · submission is still required"} />
+                {!busy && !itemSaveError && !error && !unsavedCheck && !completedItems
+                  ? <div className="workflow-save-status not-started" role="status"><strong>No results recorded yet</strong><small>Enter the actual observations and save each item before submitting.</small></div>
+                  : <SaveStatus state={busy ? "saving" : itemSaveError || error ? "failed" : unsavedCheck ? "unsaved" : "saved"} detail={unsavedCheck ? "Save each changed reading, meter inspection, or air-pack entry before submitting." : pendingItems ? `${checkProgress}% recorded · continue with remaining items` : "All results recorded · submission is still required"} />}
                 <button type="button" disabled={Boolean(busy)} onClick={() => changeCheckSection("review")}>Review &amp; submit</button>
               </section>
               <InventoryCheckJourney sections={checkSections} current={currentSection} onChange={changeCheckSection} busy={Boolean(busy)} />

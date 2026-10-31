@@ -3,3 +3,11 @@
 @media(max-width:640px){.meter-grid{grid-template-columns:minmax(0,1fr)}.meter-fields{padding:12px}.meter-check footer>div,.meter-check footer button{width:100%}.meter-check header{flex-direction:column}}
 @media(prefers-color-scheme:dark){.meter-check{background:var(--card,#15263a);color:var(--foreground,#f1f5f9)}.meter-check select option{background:#15263a;color:#f6f9fc}}
 @media print{.meter-check{break-inside:avoid;background:white;color:black}}
+/* Pair the weekly form's progress banner with the portal's actual theme. */
+.meter-date-entry{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:10px;min-width:0}.meter-date-entry>button{min-height:46px;padding:10px 12px}
+@media(max-width:640px){.meter-date-entry{grid-template-columns:minmax(0,1fr)}.meter-date-entry>button{width:100%}}
+@media screen{
+  .inventory-app-shell.inventory-portal-refresh .inventory-ops:has(.meter-check) .check-progress-summary{background:var(--card,#141e30);color:var(--foreground,#f1f5f9);border-color:var(--border,#607895)}
+  .inventory-app-shell.inventory-portal-refresh .inventory-ops:has(.meter-check) .check-progress-summary :is(strong,small,span){color:inherit!important;opacity:1}
+  .inventory-app-shell.inventory-portal-refresh .inventory-ops:has(.meter-check) .check-progress-summary .workflow-save-status{background:var(--background,#101a2c);color:var(--foreground,#f1f5f9);border-color:var(--border,#607895)}
+}
