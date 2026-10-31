@@ -1122,7 +1122,7 @@ export default function PayrollApp({
           {activeNav === "NERIS Reporting" && !testMember && <NerisWorkspace />}
           {activeNav === "Training" && !testMember && <TrainingWorkspace />}
           {activeNav === "Fire Inspections" && !testMember && <FireInspectionsWorkspace />}
-          {activeNav === "Disciplinary Reports" && !testMember && <DisciplinaryWorkspace />}
+          {activeNav === "Disciplinary Reports" && !testMember && <DisciplinaryWorkspace onManageAccess={()=>navigate("Permissions",{adminTask:"rank-access"})}/>}
           {activeNav === "Safety Inspections" && <SafetyInspections readOnly={Boolean(testMember)} />}
           {activeNav === "Respond Device Modes" && viewerPermissions.includes("settings.manage") && <RespondDeviceSettingsPage onSaved={(settings) => {
             setRespondDeviceSettings(settings);
