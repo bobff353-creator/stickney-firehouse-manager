@@ -28,7 +28,7 @@ const sides = new Set([
   "spin",
 ]);
 const doorStates = new Set(["closed", "open", "not_applicable"]);
-const apparatusStatuses = new Set(["in_service", "out_of_service", "impaired"]);
+const apparatusStatuses = new Set(["in_service", "out_of_service", "impaired", "deployed"]);
 
 function clean(value: unknown, limit = 160) {
   return typeof value === "string" ? value.trim().slice(0, limit) : "";

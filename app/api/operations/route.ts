@@ -4,6 +4,7 @@ import { indexFirstBy, groupByKey } from '../../inventory-index';
 import type { LiveCheckPacket } from '../../inventory-history';
 import { airAssetInput, airSaveError } from "../../inventory-air-input";
 import { serviceScheduleInput } from "../../inventory-service-schedule";
+import { equipmentDueForCheck, weeklyRecurrenceInput } from "../../inventory-check-recurrence";
 import {
   canMutateInventory,
   sameOriginInventoryRequest,
@@ -100,7 +101,7 @@ export async function GET(request: Request) {
         .order("sort_order"),
       collectPages((from, to) => supabase
         .from("inventory_equipment")
-        .select("id,apparatus_id,compartment_id,name,manufacturer,model,serial_number,barcode,quantity_required,equipment_category,check_types,source_form,item_order,retired_at,item_type,parent_equipment_id,purchase_date,in_service_date,expiration_date,response_type,service_status,service_notes,retirement_reason,retired_by,updated_at,scba_asset_kind,asset_number,sku,hydro_test_date,hydro_due_date,scba_notes,scba_check_slot,last_serviced_date,service_interval_months,service_reminder_months,meter_template,meter_template_version")
+        .select("id,apparatus_id,compartment_id,name,manufacturer,model,serial_number,barcode,quantity_required,equipment_category,check_types,source_form,item_order,retired_at,item_type,parent_equipment_id,purchase_date,in_service_date,expiration_date,response_type,service_status,service_notes,retirement_reason,retired_by,updated_at,scba_asset_kind,asset_number,sku,hydro_test_date,hydro_due_date,scba_notes,scba_check_slot,last_serviced_date,service_interval_months,service_reminder_months,meter_template,meter_template_version,weekly_recurrence")
         .eq("department_id", departmentId)
         .order("item_order")
         .order("name")
@@ -682,8 +683,12 @@ export async function POST(request: Request) {
       if (body.expectedUpdatedAt !== undefined && body.expectedUpdatedAt !== equipment.updated_at) return privateJson({ error: "This item changed on another screen. Reopen it before saving." }, 409);
       const serviceStatus = clean(body.serviceStatus, 40) || "in_service";
       const retiring = serviceStatus === "retired";
+      let weeklyRecurrence = equipment.weekly_recurrence || "every_week";
+      try { if (body.weeklyRecurrence !== undefined) weeklyRecurrence = weeklyRecurrenceInput(body.weeklyRecurrence); }
+      catch (caught) { return privateJson({ error: caught instanceof Error ? caught.message : "Review the weekly frequency." }, 400); }
       const changes = {
         ...serviceSchedule,
+        weekly_recurrence: weeklyRecurrence,
         apparatus_id: compartment.apparatus_id,
         compartment_id: compartmentId,
         name,
@@ -801,7 +806,7 @@ export async function POST(request: Request) {
           .maybeSingle(),
         supabase
           .from("inventory_equipment")
-          .select("id,check_types")
+          .select("id,check_types,weekly_recurrence")
           .eq("department_id", departmentId)
           .eq("apparatus_id", apparatusId)
           .is("retired_at", null),
@@ -826,7 +831,7 @@ export async function POST(request: Request) {
         return privateJson({ checkId: existingCheck.id, resumed: true });
       }
       const includedEquipment = (equipment || []).filter((item) => (
-        Array.isArray(item.check_types) && item.check_types.includes(checkType)
+        equipmentDueForCheck(item, checkType)
       ));
       if (!includedEquipment.length) {
         return privateJson(

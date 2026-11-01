@@ -16,6 +16,7 @@ import { serviceDateLabel, serviceReminders, serviceScheduleInput } from "./inve
 import { FormEvent, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { inventoryPreviewItems } from "./inventory-preview";
+import { equipmentDueForCheck, weeklyRecurrenceLabel } from "./inventory-check-recurrence";
 import { useWorkspaceViewState } from "./workspace-view-state";
 import { confirmLeavingWork, useUnsavedWork } from "./use-unsaved-work";
 import InventoryAirSystems from "./inventory-air-systems";
@@ -1023,6 +1024,7 @@ export default function InventoryOperations({
         <div className="check-item-copy">
           <strong>{value(item, "equipment_name")}{Number(item.quantity_required || 1) > 1 ? ` × ${item.quantity_required}` : ""}</strong>
           <small>{compartment}</small>
+          {preview && weeklyRecurrenceLabel(item.weekly_recurrence) ? <small>{weeklyRecurrenceLabel(item.weekly_recurrence)}</small> : null}
           {existingRepairs.length > 0 && <details className="check-known-issue"><summary>Existing repair — review before reporting again</summary>{existingRepairs.map(order => <p key={String(order.id)}><a href={'/inventory?view=readiness&workOrder='+encodeURIComponent(String(order.id))}>{String(order.summary)} · {formatStatus(String(order.status))} · Saved repair {String(order.id)}</a>{order.linked_exception_id?' · Linked finding '+String(order.linked_exception_id):' · Equipment-linked repair'}</p>)}<button type="button" onClick={() => { if (confirmLeavingWork()) onRepairs(); }}>Open Repairs</button></details>}
           {value(item, "source_form") ? <details className="check-item-details"><summary>Details</summary><p>{value(item, "source_form")}</p></details> : null}
           {pendingLocationChange ? <small className="location-change-pending">Wrong location reported · awaiting administrator review</small> : null}
@@ -1071,7 +1073,7 @@ export default function InventoryOperations({
       const template = data.scbaTemplates.find((item) => value(item, "apparatus_id") === selectedApparatusId && item.active !== false);
       return airCheckLines(template, data.equipment, selectedApparatusId).length;
     }
-    return selectedEquipment.filter((item) => Array.isArray(item.check_types) && item.check_types.includes(checkType)).length;
+    return selectedEquipment.filter((item) => equipmentDueForCheck(item, checkType, today)).length;
   };
   const myOpenRepairs = data.workOrders.filter((item) => (
     openRepair(item)
@@ -1142,7 +1144,7 @@ export default function InventoryOperations({
       const scbaConfigured = airCheckLines(scbaTemplate, data.equipment, apparatusId).length;
       const configured = checkType === "air_pack"
         ? scbaConfigured
-        : equipment.filter((item) => Array.isArray(item.check_types) && item.check_types.includes(checkType)).length;
+        : equipment.filter((item) => equipmentDueForCheck(item, checkType, today)).length;
       if (!configured) return [];
       const completedInWindow = data.checks.some((check) => value(check, "apparatus_id") === apparatusId
         && value(check, "check_type") === checkType
@@ -2005,7 +2007,7 @@ export default function InventoryOperations({
               try {
                 setBusy("edit-equipment");
                 const schedule = serviceScheduleInput(Object.fromEntries(form.entries()));
-                const saved = await action("edit-equipment", { action: "update_equipment", serviceSchedule: schedule, expectedUpdatedAt: editingEquipment.updated_at ?? null, equipmentId: value(editingEquipment, "id"), compartmentId: form.get("compartmentId"), name: form.get("name"), manufacturer: form.get("manufacturer"), model: form.get("model"), serialNumber: form.get("serialNumber"), barcode: form.get("barcode"), quantityRequired: form.get("quantityRequired"), equipmentCategory: form.get("equipmentCategory"), checkTypes: form.getAll("checkTypes"), itemType: form.get("itemType"), parentEquipmentId: form.get("parentEquipmentId"), purchaseDate: form.get("purchaseDate"), inServiceDate: form.get("inServiceDate"), expirationDate: form.get("expirationDate"), responseType: form.get("responseType"), serviceStatus: form.get("serviceStatus"), serviceNotes: form.get("serviceNotes"), retirementReason: form.get("retirementReason") });
+                const saved = await action("edit-equipment", { action: "update_equipment", serviceSchedule: schedule, expectedUpdatedAt: editingEquipment.updated_at ?? null, equipmentId: value(editingEquipment, "id"), compartmentId: form.get("compartmentId"), name: form.get("name"), manufacturer: form.get("manufacturer"), model: form.get("model"), serialNumber: form.get("serialNumber"), barcode: form.get("barcode"), quantityRequired: form.get("quantityRequired"), equipmentCategory: form.get("equipmentCategory"), checkTypes: form.getAll("checkTypes"), itemType: form.get("itemType"), parentEquipmentId: form.get("parentEquipmentId"), purchaseDate: form.get("purchaseDate"), inServiceDate: form.get("inServiceDate"), expirationDate: form.get("expirationDate"), responseType: form.get("responseType"), weeklyRecurrence: form.get("weeklyRecurrence"), serviceStatus: form.get("serviceStatus"), serviceNotes: form.get("serviceNotes"), retirementReason: form.get("retirementReason") });
                 if (saved && photo instanceof File && photo.size > 0) {
                   await uploadEquipmentPhoto(editingEquipment, photo);
                   await load();
@@ -2070,6 +2072,8 @@ export default function InventoryOperations({
               <label>Check response<select name="responseType" defaultValue={value(editingEquipment, "response_type") || "pass_fail"}><option value="pass_fail">Pass / fail</option><option value="quantity">Quantity count</option><option value="expiration_date">Expiration date</option><option value="numeric">Numeric reading</option><option value="mileage">Mileage / odometer</option><option value="text">Text entry</option></select></label>
               <fieldset className="ops-check-grid ops-span-2"><legend>Required check parameters</legend>{inspectionTypes.map(([id, label]) => <label key={id}><input type="checkbox" name="checkTypes" value={id} defaultChecked={Array.isArray(editingEquipment.check_types) && editingEquipment.check_types.includes(id)} /> {label}</label>)}</fieldset>
               <p className="ops-span-2">Checked boxes include this item in those saved checklists. Existing inspection results are not erased.</p>
+              <label>Weekly frequency<select name="weeklyRecurrence" defaultValue={value(editingEquipment, "weekly_recurrence") || "every_week"}><option value="every_week">Every weekly check</option><option value="first_third_saturday">First and third Saturdays of the month</option></select></label>
+              <p className="ops-span-2">Weekly frequency applies to new weekly checks in America/Chicago time. Saved and in-progress checks keep their original item list.</p>
             </div>
             <div className="inventory-editor-footer">
               <button className="ops-scan-button" type="button" onClick={() => { setScannerTarget("edit"); setScannerOpen(true); }}>Scan barcode</button>

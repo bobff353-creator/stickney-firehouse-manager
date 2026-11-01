@@ -1,0 +1,56 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {readFile} from 'node:fs/promises';
+import {PGlite} from '@electric-sql/pglite';
+
+const migration=await readFile(new URL('../supabase/migrations/20261101021529_apparatus_1211_light_trailer_checks.sql',import.meta.url),'utf8');
+const setup=await readFile(new URL("../scripts/sql/1211-and-div11-light-trailer-checklists.sql",import.meta.url),"utf8");
+const original=await readFile(new URL('../supabase/migrations/20260802002859_seed_1211_classified_checklists.sql',import.meta.url),'utf8');
+const dept='14a76771-4c24-481b-8def-e6cce005c17b',rig='00000000-0000-4000-8000-000000000001',other='00000000-0000-4000-8000-000000000002';
+
+test('source migration reuses all 1211 IDs, adds only the documented trailer and schedules, and preserves saved results',async t=>{
+ const pg=new PGlite();t.after(()=>pg.close());
+ await pg.exec(`
+  CREATE TABLE departments(id uuid PRIMARY KEY,name text);
+  CREATE TABLE department_apparatus(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),department_id uuid,unit_name text,unit_type text,call_sign text,station text DEFAULT '',status text,notes text,CONSTRAINT department_apparatus_status_check CHECK(status IN ('in_service','out_of_service','reserve')));
+  CREATE TABLE inventory_apparatus_profiles(id uuid PRIMARY KEY REFERENCES department_apparatus(id),department_id uuid,name text,asset_type text,weekly_due_day int);
+  CREATE TABLE inventory_compartments(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),department_id uuid,apparatus_id uuid,label text,side text,sort_order int,UNIQUE(apparatus_id,label));
+  CREATE TABLE inventory_equipment(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),department_id uuid,apparatus_id uuid,compartment_id uuid,name text,quantity_required int,equipment_category text,check_types text[],source_key text,source_form text,item_order int,retired_at timestamptz,response_type text DEFAULT 'pass_fail',serial_number text);
+  CREATE UNIQUE INDEX equipment_source_unique ON inventory_equipment(department_id,apparatus_id,source_key) WHERE source_key IS NOT NULL;
+  CREATE TABLE inventory_inspection_schedules(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),department_id uuid,apparatus_id uuid,check_type text,day_of_week int,start_time time,end_time time,active boolean DEFAULT true,feeds_daily_duties boolean DEFAULT true,feeds_operations_board boolean DEFAULT true,require_officer_signoff boolean DEFAULT true,created_by text,updated_by text,UNIQUE(department_id,apparatus_id,check_type,day_of_week));
+  CREATE TABLE inventory_checks(id int,status text);
+  CREATE TABLE inventory_check_items(id int,notes text,result text);
+  INSERT INTO departments VALUES('${dept}','Stickney Fire Department'),('${other}','Other Department');
+  INSERT INTO department_apparatus(id,department_id,unit_name,status) VALUES('${rig}','${dept}','1211','in_service');
+  INSERT INTO inventory_apparatus_profiles VALUES('${rig}','${dept}','1211','Utility',0);
+  INSERT INTO inventory_inspection_schedules(department_id,apparatus_id,check_type,day_of_week,start_time,end_time,created_by) VALUES('${dept}','${rig}','weekly',0,'06:00','12:00','Original saved configuration');
+  INSERT INTO inventory_checks VALUES(1,'completed'),(2,'in_progress');
+  INSERT INTO inventory_check_items VALUES(1,'Original completed finding','failed'),(2,'Original unfinished work','pending');
+ `);
+ await pg.exec(original);
+ await pg.exec(`INSERT INTO inventory_equipment(department_id,apparatus_id,name,source_key,check_types,serial_number) VALUES('${other}','${rig}','Other department item','unrelated',ARRAY['inventory'],'KEEP');`);
+ const originalIds=(await pg.query('SELECT id FROM inventory_equipment WHERE department_id=$1 ORDER BY id',[dept])).rows;
+ const history=(await pg.query('SELECT * FROM inventory_check_items ORDER BY id')).rows;
+ const schedule=(await pg.query('SELECT * FROM inventory_inspection_schedules')).rows[0];
+ await pg.exec(migration);await pg.exec(setup);
+ assert.deepEqual((await pg.query('SELECT id FROM inventory_equipment WHERE department_id=$1 AND apparatus_id=$2 ORDER BY id',[dept,rig])).rows,originalIds);
+ const count=(await pg.query("SELECT count(*) FILTER(WHERE 'daily'=ANY(check_types))::int daily,count(*) FILTER(WHERE 'weekly'=ANY(check_types))::int weekly FROM inventory_equipment WHERE department_id=$1 AND apparatus_id=$2",[dept,rig])).rows[0];
+ assert.deepEqual(count,{daily:24,weekly:32});
+ const trailer=(await pg.query("SELECT * FROM inventory_apparatus_profiles WHERE name='Div 11 Light Trailer'")).rows[0];
+ const items=(await pg.query('SELECT * FROM inventory_equipment WHERE apparatus_id=$1 ORDER BY item_order',[trailer.id])).rows;
+ assert.equal(items.length,25);assert.equal(items.filter(i=>i.weekly_recurrence==='first_third_saturday').length,1);assert.match(items.find(i=>i.weekly_recurrence==='first_third_saturday').name,/20 minutes/);
+ assert.equal(items.find(i=>i.name==='Vapor lights').quantity_required,4);
+ assert.ok(items.every(i=>i.check_types.length===1&&i.check_types[0]==='weekly'));
+ const trailerSchedule=(await pg.query('SELECT check_type,day_of_week,start_time,end_time FROM inventory_inspection_schedules WHERE apparatus_id=$1',[trailer.id])).rows;
+ assert.deepEqual(trailerSchedule,[{check_type:'weekly',day_of_week:6,start_time:'12:00:00',end_time:'18:00:00'}]);
+ assert.deepEqual((await pg.query("SELECT * FROM inventory_inspection_schedules WHERE id=$1",[schedule.id])).rows[0],schedule);
+ assert.equal((await pg.query("SELECT count(*)::int n FROM inventory_inspection_schedules WHERE apparatus_id=$1 AND check_type='daily'",[rig])).rows[0].n,7);
+ assert.deepEqual((await pg.query('SELECT * FROM inventory_check_items ORDER BY id')).rows,history);
+ assert.equal((await pg.query('SELECT serial_number FROM inventory_equipment WHERE department_id=$1',[other])).rows[0].serial_number,'KEEP');
+ await pg.exec(migration);await pg.exec(setup);
+ assert.equal((await pg.query('SELECT count(*)::int n FROM department_apparatus')).rows[0].n,2);
+ assert.equal((await pg.query('SELECT count(*)::int n FROM inventory_equipment WHERE apparatus_id=$1',[trailer.id])).rows[0].n,25);
+ for(const status of ['in_service','out_of_service','deployed'])await pg.query('UPDATE department_apparatus SET status=$1 WHERE id=$2',[status,trailer.id]);
+ await assert.rejects(pg.query("UPDATE department_apparatus SET status='invented' WHERE id=$1",[trailer.id]),/check constraint/);
+ await assert.rejects(pg.query("UPDATE inventory_equipment SET weekly_recurrence='invented' WHERE apparatus_id=$1",[trailer.id]),/check constraint/);
+});

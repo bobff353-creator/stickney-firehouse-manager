@@ -1496,7 +1496,7 @@ function DigitalTwinBuilder({
               >
                 <option value="in_service">In Service</option>
                 <option value="out_of_service">Out of Service</option>
-                <option value="impaired">Impaired</option>
+                {/trailer/i.test(selectedApparatus.asset_type) ? <option value="deployed">Deployed</option> : <option value="impaired">Impaired</option>}
               </select>
             </label>
             <button className="primary" disabled={busy === "fleet-status"}>

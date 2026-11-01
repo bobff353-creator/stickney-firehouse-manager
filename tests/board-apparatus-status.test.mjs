@@ -11,6 +11,12 @@ const fleet = [
 ];
 const call = respondingUnits => ({ respondingUnits });
 
+test('a deployed light trailer is labeled Deployed and never projected as Available',()=>{
+ const result=projectFleet([{unitNumber:'Div 11 Light Trailer',name:'Light tower trailer',status:'deployed'}],[]);
+ assert.equal(result[0].status,'Deployed');
+ const html=renderApparatusRow({apparatus:result});assert.match(html,/Deployed/);assert.doesNotMatch(html,/class="available"/);
+});
+
 test('bottom apparatus row shows active units in red while preserving Fleet statuses', () => {
   const before = structuredClone(fleet);
   const apparatus = projectFleet(fleet, [call('1203, 1205')]);

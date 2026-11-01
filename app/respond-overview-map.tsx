@@ -60,6 +60,7 @@ function statusLabel(value: string) {
   if (normalized === "in_service") return "In service";
   if (normalized === "out_of_service") return "Out of service";
   if (normalized === "impaired") return "Impaired";
+  if (normalized === "deployed") return "Deployed";
   return "Status not reported";
 }
 

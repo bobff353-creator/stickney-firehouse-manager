@@ -1,3 +1,4 @@
+import * as recurrence from "../app/inventory-check-recurrence.ts";
 // Exercise the actual route handler, replacing only authentication and the database transport.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -19,7 +20,7 @@ function harness(options={}){
   }};return builder;
  },async rpc(name,args){state.rpc.push({name,args});return {data:{id:args.p_id,changed:true}};}};
  const session={ok:true,context:{department:{id:'dept'},user:{id:'user',email:'fixture@example.test'}}};
- const imports={
+ const imports={"../../inventory-check-recurrence":recurrence,
   '../../inventory-index':inventoryIndex,
   '../../lib/private-packet-response':{privatePacketResponse},
   '../../lib/supabase-server':{createInventorySupabaseClient:async()=>db},
@@ -31,6 +32,15 @@ function harness(options={}){
  return{state,post:body=>exports.POST(new Request('https://fixture.test/api/operations',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}))};
 }
 const body=(changes={})=>({action:'update_equipment',equipmentId:'item',compartmentId:'place',name:'Spreaders',equipmentCategory:'equipment',itemType:'individual',checkTypes:['inventory'],serviceStatus:'in_service',expectedUpdatedAt:'2026-01-01T00:00:00Z',serviceSchedule:{last_serviced_date:'2025-01-31',service_interval_months:18,service_reminder_months:4},...changes});
+
+test('weekly frequency is editable, preserved for older clients, and validated before any write',async()=>{
+ const h=harness();
+ assert.equal((await h.post(body({checkTypes:['weekly'],weeklyRecurrence:'first_third_saturday'}))).status,200);
+ assert.equal(h.state.row.weekly_recurrence,'first_third_saturday');
+ assert.equal((await h.post(body({expectedUpdatedAt:h.state.row.updated_at}))).status,200);
+ assert.equal(h.state.row.weekly_recurrence,'first_third_saturday');
+ const invalid=harness();assert.equal((await invalid.post(body({weeklyRecurrence:'unknown'}))).status,400);assert.equal(invalid.state.updates,0);
+});
 test('actual generic API writes service fields and asset together and confirms returned row',async()=>{
  const h=harness();const response=await h.post(body());assert.equal(response.status,200);assert.match(response.headers.get('cache-control'),/private, no-store/);
  assert.equal(h.state.updates,1);assert.equal(h.state.row.last_serviced_date,'2025-01-31');assert.equal(h.state.row.service_interval_months,18);assert.equal(h.state.row.service_reminder_months,4);
