@@ -10,3 +10,27 @@
 @media(max-width:700px){.disciplinary-page{padding:14px}.disciplinary-actions>a{justify-content:center}}
 @media(prefers-color-scheme:dark){.disciplinary-page{background:var(--background,#101a2c)}.disciplinary-page button,.disciplinary-button{background:var(--card,#15263a)}.disciplinary-page .primary-action{background:#245f8d}.disciplinary-page a{color:#73bfff}}
 .disciplinary-page a{color:inherit}
+/* The portal uses its dark palette regardless of the operating-system theme. */
+@media screen {
+  .workspace.bento-rest .disciplinary-page.disciplinary-page {
+    --background:#101a2c;
+    --card:#15263a;
+    --foreground:#f1f5f9;
+    --border:#91abc8;
+    background:var(--background);
+    color:var(--foreground);
+    color-scheme:dark;
+  }
+  .workspace.bento-rest .disciplinary-page.disciplinary-page :is(input:not([type=checkbox]),select,textarea,option) {
+    background:var(--background);
+    color:var(--foreground);
+    border-color:var(--border);
+  }
+  .workspace.bento-rest .disciplinary-page.disciplinary-page :is(.disciplinary-tabs,button,.disciplinary-button) {
+    border-color:var(--border);
+  }
+  .workspace.bento-rest .disciplinary-page.disciplinary-page :is(input,textarea)::placeholder {
+    color:#b5c4d8;
+    opacity:1;
+  }
+}
