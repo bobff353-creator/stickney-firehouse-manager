@@ -1185,6 +1185,8 @@ export default function InventoryOperations({
       return [{ apparatusId, name: value(apparatus, "name"), checkType, active, pending, total: checkItems.length, configured, dueStart: value(schedule, "start_time"), dueEnd: value(schedule, "end_time") } as CheckCard];
     });
   });
+  const visibleDueChecks = dueChecks.filter(item => (dueType === "all" || item.checkType === dueType)
+    && `${item.name} ${item.checkType}`.toLowerCase().includes(unitSearch.trim().toLowerCase()));
   const inventoryChecks: CheckCard[] = data.apparatus.flatMap((apparatus) => {
     const apparatusId = value(apparatus, "id");
     const configured = data.equipment.filter((item) => (
@@ -1279,8 +1281,8 @@ export default function InventoryOperations({
         <>
           <div className="inventory-due-job-tools"><nav className="check-job-filter" aria-label="Choose a check job">{[["all", "All", "All due checks"], ["daily", "Daily", "Daily checks"], ["weekly", "Weekly", "Weekly checks"], ["air_pack", "Air packs", "Air packs & bottles checks"], ["drug", "Drugs", "Drug inventory checks"]].map(([id, label, accessibleLabel]) => <button key={id} type="button" aria-label={accessibleLabel} aria-pressed={dueType === id} onClick={() => setDueType(id)}>{label}</button>)}</nav>{unitSearch && <button type="button" className="inventory-active-unit-filter" onClick={() => setUnitSearch("")}>Clear apparatus filter: {unitSearch} ×</button>}</div>
           <section className="ops-card due-now-card">
-            <header><div><h2>{dueChecks.length ? `${dueChecks.length} required check${dueChecks.length === 1 ? "" : "s"}` : "No scheduled checks due now"}</h2></div></header>
-            {dueChecks.filter(item => dueType === "all" || item.checkType === dueType).length ? renderCheckCards(dueChecks.filter(item => dueType === "all" || item.checkType === dueType), (checkType) => `${formatStatus(checkType)} · DUE TODAY`) : <div className="ops-empty due-clear"><strong>No checks waiting in this view.</strong><p>Completed scheduled checks fall off this list automatically. Choose All due checks to see other jobs; unscheduled templates are available in Apparatus checks.</p></div>}
+            <header><div><h2>{visibleDueChecks.length ? `${visibleDueChecks.length} required check${visibleDueChecks.length === 1 ? "" : "s"}` : "No scheduled checks in this view"}</h2></div></header>
+            {visibleDueChecks.length ? renderCheckCards(visibleDueChecks, (checkType) => `${formatStatus(checkType)} · DUE TODAY`) : <div className="ops-empty due-clear"><strong>No checks waiting in this view.</strong><p>Completed scheduled checks fall off this list automatically. Choose All due checks to see other jobs; unscheduled templates are available in Apparatus checks.</p></div>}
             {notNeededChecks.length ? <div className="due-check-exemptions" role="status"><strong>Not needed — apparatus Out of Service</strong><div>{notNeededChecks.map((check) => <span key={`${check.apparatusId}-${check.checkType}`}>{check.name} · {formatStatus(check.checkType)}</span>)}</div><small>These checks will resume automatically when Fleet returns the apparatus to service.</small></div> : null}
             <p className="due-progress-scope">{unfinishedRoutineChecks} in progress · all dates. Inventory counts are separate.</p>
           </section>
