@@ -1,3 +1,4 @@
+import * as drugModel from "../app/inventory-drug-model.ts";
 import * as recurrence from "../app/inventory-check-recurrence.ts";
 // Exercise the actual route handler, replacing only authentication and the database transport.
 import test from 'node:test';
@@ -20,7 +21,7 @@ function harness(options={}){
   }};return builder;
  },async rpc(name,args){state.rpc.push({name,args});return {data:{id:args.p_id,changed:true}};}};
  const session={ok:true,context:{department:{id:'dept'},user:{id:'user',email:'fixture@example.test'}}};
- const imports={"../../inventory-check-recurrence":recurrence,
+ const imports={"../../inventory-drug-model":drugModel,"../../inventory-check-recurrence":recurrence,
   '../../inventory-index':inventoryIndex,
   '../../lib/private-packet-response':{privatePacketResponse},
   '../../lib/supabase-server':{createInventorySupabaseClient:async()=>db},

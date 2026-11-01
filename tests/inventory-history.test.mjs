@@ -1,3 +1,4 @@
+import * as drugModel from "../app/inventory-drug-model.ts";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -72,7 +73,7 @@ test('history route validates cursors/filters, scopes every query, and never mas
   const rows=Array.from({length:26},(_,n)=>({id:id(n+1),started_at:'2026-09-01T12:00:00.123456+00:00'}));
   const paged=history.historyPage(rows);assert.equal(paged.reports.length,25);assert.equal(history.historyParameters(new URLSearchParams({cursor:paged.nextCursor})).p_before_time,rows[0].started_at);
   const state={allowed:true,error:null,data:rows,calls:[]};
-  const imports={
+  const imports={"../../../inventory-drug-model":drugModel,
     '../../../inventory-history':history,
     '../../../lib/supabase-server':{createInventorySupabaseClient:async()=>({rpc:async(name,args)=>{state.calls.push({name,args});return{data:state.data,error:state.error};}})},
     '../../../lib/inventory-session':{verifyInventoryRequest:async()=>({ok:state.allowed,context:{department:{id:dep}}}),sessionFailureResponse:()=>Response.json({error:'Denied'},{status:403})},
@@ -83,6 +84,8 @@ test('history route validates cursors/filters, scopes every query, and never mas
   const first=await get('');assert.equal((await first.json()).reports.length,25);assert.match(first.headers.get('cache-control'),/private, no-store/);assert.equal(state.calls[0].args.p_department,dep);
   assert.equal((await get('asset='+id(8002))).status,200);assert.equal(state.calls.at(-1).name,'inventory_air_check_history');assert.equal(state.calls.at(-1).args.p_equipment,id(8002));assert.equal(state.calls.at(-1).args.p_department,dep);
   assert.equal((await get('asset=bad')).status,400);
+  state.data={check:{id:id(1)},items:[{equipment_name:"Changed future title",drug_schema:JSON.stringify({version:1,title:"Original drug title",mode:"medication",expectedQuantity:1,location:"Original bag"})}]};
+  const drugDetail=await (await get("check="+id(1))).json();assert.equal(drugDetail.items[0].equipment_name,"Original drug title");assert.equal(drugDetail.items[0].compartment_label,"Original bag");
   state.data=null;assert.equal((await get('check='+id(1))).status,404);assert.equal(state.calls.at(-1).name,'inventory_check_report');
   assert.equal((await get('check=bad')).status,400);
   state.error='Database unavailable';assert.equal((await get('')).status,503);

@@ -49,7 +49,7 @@ test("individual item results update locally instead of reloading the dashboard"
 
 test("bulk location review keeps numeric readings separate and requires individual decisions", async () => {
   const bulk = await readFile(new URL("../app/inventory-bulk-review.tsx", import.meta.url), "utf8");
-  assert.match(operations, /pendingStandardItems = items.filter\(\(item\) => value\(item, "result"\) === "pending" && !isNumericReadingItem\(item\) && !isFluidLevelItem\(item\)\)/);
+  assert.match(operations, /pendingStandardItems = items.filter\(\(item\) => value\(item, "result"\) === "pending" && !item.drug_schema && !item.meter_template && !isNumericReadingItem\(item\) && !isFluidLevelItem\(item\)\)/);
   assert.match(operations, /Review results for this location/);
   assert.match(bulk, /result:''/);
   assert.match(bulk, /Nothing starts as passed/);

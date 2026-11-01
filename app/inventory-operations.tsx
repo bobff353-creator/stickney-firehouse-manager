@@ -17,6 +17,8 @@ import { FormEvent, useCallback, useDeferredValue, useEffect, useMemo, useRef, u
 import Link from "next/link";
 import { inventoryPreviewItems } from "./inventory-preview";
 import { equipmentDueForCheck, weeklyRecurrenceLabel } from "./inventory-check-recurrence";
+import DrugCheckEditor from './inventory-drug-check';
+import {drugSchema,type DrugResponse} from './inventory-drug-model';
 import { useWorkspaceViewState } from "./workspace-view-state";
 import { confirmLeavingWork, useUnsavedWork } from "./use-unsaved-work";
 import InventoryAirSystems from "./inventory-air-systems";
@@ -38,7 +40,7 @@ type Row = Record<string, string | number | boolean | string[] | null>;
 type CheckCard = {
   apparatusId: string;
   name: string;
-  checkType: "daily" | "weekly" | "inventory" | "air_pack";
+  checkType: "daily" | "weekly" | "inventory" | "air_pack" | "drug";
   active: Row | undefined;
   pending: number;
   total: number;
@@ -90,6 +92,7 @@ const inspectionTypes = [
   ["weekly", "Weekly inspection"],
   ["inventory", "Inventory check"],
   ["air_pack", "Air pack check"],
+  ["drug", "Drug inventory"],
 ] as const;
 
 const categoryOptions = [
@@ -132,6 +135,7 @@ function formatDate(input: Row[string]) {
 }
 
 function formatStatus(input: Row[string]) {
+  if(input==='drug')return 'Drug inventory';
   return value({ status: input }, "status")
     .replaceAll("_", " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase()) || "Not recorded";
@@ -405,8 +409,8 @@ export default function InventoryOperations({
   initialApparatusId?: string;
   initialEquipmentId?: string;
   initialWorkOrderId?: string;initialReportId?:string;
-  initialCheckType?: "daily" | "weekly" | "inventory" | "air_pack" | "";
-  onOpenUnit?: (apparatusId: string, checkType: "daily" | "weekly" | "inventory" | "air_pack") => void;
+  initialCheckType?: "daily" | "weekly" | "inventory" | "air_pack" | "drug" | "";
+  onOpenUnit?: (apparatusId: string, checkType: "daily" | "weekly" | "inventory" | "air_pack" | "drug") => void;
   scanRequest?: number;
   canCheck?: boolean;
   canManageRepairs?: boolean;
@@ -885,6 +889,23 @@ export default function InventoryOperations({
     } finally {itemSavePending.current=false;setBusy('');}
   }
 
+  async function saveDrug(item:Row,response:DrugResponse,version:number,complete:boolean,photo:File|null):Promise<Row>{
+    if(itemSavePending.current||mutationPending.current)throw new Error('Wait for the current save to finish.');
+    itemSavePending.current=true;itemSaveGeneration.current+=1;setBusy(`drug-${item.id}`);
+    try{
+      const parent=data.checks.find(check=>check.id===item.check_id);
+      if(!parent)throw new Error('Refresh this check before saving.');
+      const photoId=photo?await uploadEvidence(String(parent.apparatus_id),photo,String(item.id)):undefined;
+      const result=await fetch('/api/operations/drugs',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:item.id,response,version,complete,photoId})});
+      const payload=await result.json();if(!result.ok)throw new Error(payload.error||'Drug save was not confirmed. Refresh and review before retrying.');
+      const saved=(payload.checkItems as Row[]|undefined)?.find(row=>row.id===item.id);
+      if(!saved||!saved.drug_response)throw new Error('The server did not confirm this drug entry. Refresh and review before retrying.');
+      setData(current=>({...current,checkItems:current.checkItems.map(row=>row.id===item.id?{...row,...saved}:row)}));
+      setMeterDirty(current=>({...current,[String(item.id)]:false}));
+      return {...item,...saved};
+    }finally{itemSaveGeneration.current+=1;itemSavePending.current=false;setBusy('');}
+  }
+
   async function saveMeterTemplate(item: Row,title: string,instructions: string) {
     if(mutationPending.current || itemSavePending.current) throw new Error('Wait for the current save to finish.');
     mutationPending.current=true;setBusy('meter-template');
@@ -1008,6 +1029,7 @@ export default function InventoryOperations({
   const renderActiveItem = (item: Row, preview = false) => {
     const itemCanCheck = canCheck && !preview;
     const itemId = value(item, "id");
+    if(drugSchema(item.drug_schema))return <DrugCheckEditor key={itemId} item={item} apparatus={value(selectedApparatus||{},'name')} preview={preview} busy={Boolean(busy)} canCheck={itemCanCheck} onDirty={handleMeterDirty} onSave={(response,version,complete,photo)=>saveDrug(item,response,version,complete,photo)}/>;
     if (meterTemplate(item.meter_template) && (!preview || templateType === 'weekly')) return <MeterCheckEditor key={itemId} item={item} apparatus={value(selectedApparatus || {},'name')} employees={employees} busy={Boolean(busy)} preview={preview} canCheck={itemCanCheck} onDirty={handleMeterDirty} onSave={(response,version,complete,photo) => saveMeter(item,response,version,complete,photo)}/>;
     const numericItem = isNumericReadingItem(item);
     const fluidItem = isFluidLevelItem(item);
@@ -1255,7 +1277,7 @@ export default function InventoryOperations({
 
       {view === "due" ? (
         <>
-          <div className="inventory-due-job-tools"><nav className="check-job-filter" aria-label="Choose a check job">{[["all", "All", "All due checks"], ["daily", "Daily", "Daily checks"], ["weekly", "Weekly", "Weekly checks"], ["air_pack", "Air packs", "Air packs & bottles checks"]].map(([id, label, accessibleLabel]) => <button key={id} type="button" aria-label={accessibleLabel} aria-pressed={dueType === id} onClick={() => setDueType(id)}>{label}</button>)}</nav>{unitSearch && <button type="button" className="inventory-active-unit-filter" onClick={() => setUnitSearch("")}>Clear apparatus filter: {unitSearch} ×</button>}</div>
+          <div className="inventory-due-job-tools"><nav className="check-job-filter" aria-label="Choose a check job">{[["all", "All", "All due checks"], ["daily", "Daily", "Daily checks"], ["weekly", "Weekly", "Weekly checks"], ["air_pack", "Air packs", "Air packs & bottles checks"], ["drug", "Drugs", "Drug inventory checks"]].map(([id, label, accessibleLabel]) => <button key={id} type="button" aria-label={accessibleLabel} aria-pressed={dueType === id} onClick={() => setDueType(id)}>{label}</button>)}</nav>{unitSearch && <button type="button" className="inventory-active-unit-filter" onClick={() => setUnitSearch("")}>Clear apparatus filter: {unitSearch} ×</button>}</div>
           <section className="ops-card due-now-card">
             <header><div><h2>{dueChecks.length ? `${dueChecks.length} required check${dueChecks.length === 1 ? "" : "s"}` : "No scheduled checks due now"}</h2></div></header>
             {dueChecks.filter(item => dueType === "all" || item.checkType === dueType).length ? renderCheckCards(dueChecks.filter(item => dueType === "all" || item.checkType === dueType), (checkType) => `${formatStatus(checkType)} · DUE TODAY`) : <div className="ops-empty due-clear"><strong>No checks waiting in this view.</strong><p>Completed scheduled checks fall off this list automatically. Choose All due checks to see other jobs; unscheduled templates are available in Apparatus checks.</p></div>}
@@ -1510,7 +1532,7 @@ export default function InventoryOperations({
                 {message ? <p role="status">{message}</p> : null}
               </details> : null}
               {groupedActiveItems.length ? groupedActiveItems.map(([label, items]) => {
-                const pendingStandardItems = items.filter((item) => value(item, "result") === "pending" && !isNumericReadingItem(item) && !isFluidLevelItem(item));
+                const pendingStandardItems = items.filter((item) => value(item, "result") === "pending" && !item.drug_schema && !item.meter_template && !isNumericReadingItem(item) && !isFluidLevelItem(item));
                 return (
                   <section className="check-location-group" hidden={currentSection !== "all" && currentSection !== label} key={label}>
                     <header>
@@ -1586,7 +1608,7 @@ export default function InventoryOperations({
           <header><div><span>ADMIN · CHECK PARAMETERS &amp; LOCATIONS</span><h2>Add or edit equipment, its exact location, and required checks</h2></div><b>{data.equipment.length} items</b></header>
           {!selectedCompartments.length ? <div className="ops-empty"><strong>No compartments configured for this apparatus</strong><p>Create a compartment for {selectedApparatus ? value(selectedApparatus, "name") : "the selected apparatus"} before adding equipment.</p></div> : <form key={`${selectedApparatusId}-${templateType}`} ref={equipmentFormRef} className="ops-form ops-form-wide" onSubmit={(event) => {
             const form = new FormData(event.currentTarget);
-            submit(event, "equipment", { action: "create_equipment", compartmentId: form.get("compartmentId"), name: form.get("name"), manufacturer: form.get("manufacturer"), model: form.get("model"), serialNumber: form.get("serialNumber"), barcode: form.get("barcode"), quantityRequired: form.get("quantityRequired"), equipmentCategory: form.get("equipmentCategory"), checkTypes: form.getAll("checkTypes") });
+            submit(event, "equipment", { action: "create_equipment", compartmentId: form.get("compartmentId"), name: form.get("name"), manufacturer: form.get("manufacturer"), model: form.get("model"), serialNumber: form.get("serialNumber"), barcode: form.get("barcode"), quantityRequired: form.get("quantityRequired"), equipmentCategory: form.get("equipmentCategory"), responseType: form.get("responseType"), checkTypes: form.getAll("checkTypes") });
           }}>
             <label>Required equipment location<select name="compartmentId" required>{selectedCompartments.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "label")} · {value(item, "side")}</option>)}</select></label>
             <label>Equipment or check item name<input name="name" required /></label>
@@ -1596,6 +1618,7 @@ export default function InventoryOperations({
             <label>Serial number<input name="serialNumber" /></label>
             <label>Barcode / asset tag<input name="barcode" /></label>
             <label>Required quantity<input name="quantityRequired" type="number" min="1" defaultValue="1" /></label>
+            <label>Logging method<select name="responseType" defaultValue={templateType==="drug"?"medication":"pass_fail"}><option value="pass_fail">Pass / fail</option><option value="medication">Medication count, expirations & locations</option><option value="quantity">Quantity count</option><option value="expiration_date">Expiration date</option><option value="numeric">Numeric reading</option><option value="mileage">Mileage / odometer</option><option value="text">Text entry</option></select></label>
             <fieldset className="ops-check-grid ops-span-2"><legend>Required check parameters</legend>{inspectionTypes.map(([id, label]) => <label key={id}><input type="checkbox" name="checkTypes" value={id} defaultChecked={id === templateType} /> {label}</label>)}</fieldset>
             <button className="ops-scan-button" type="button" onClick={() => { setScannerTarget("create"); setScannerOpen(true); }}>Scan barcode</button>
             <button className="ops-primary" disabled={Boolean(busy)}>Add to Inventory</button>
@@ -2069,7 +2092,7 @@ export default function InventoryOperations({
               <label className="ops-span-2">Take or attach item photo<input name="photo" type="file" accept="image/*" capture="environment" /></label>
             </div>
             <div className="ops-form ops-form-wide inventory-editor-group" data-editor-section="checks" hidden={editorSection !== "checks"}>
-              <label>Check response<select name="responseType" defaultValue={value(editingEquipment, "response_type") || "pass_fail"}><option value="pass_fail">Pass / fail</option><option value="quantity">Quantity count</option><option value="expiration_date">Expiration date</option><option value="numeric">Numeric reading</option><option value="mileage">Mileage / odometer</option><option value="text">Text entry</option></select></label>
+              <label>Check response<select name="responseType" defaultValue={value(editingEquipment, "response_type") || "pass_fail"}><option value="pass_fail">Pass / fail</option><option value="quantity">Quantity count</option><option value="expiration_date">Expiration date</option><option value="numeric">Numeric reading</option><option value="mileage">Mileage / odometer</option><option value="text">Text entry</option><option value="medication">Medication count, expirations & locations</option></select></label>
               <fieldset className="ops-check-grid ops-span-2"><legend>Required check parameters</legend>{inspectionTypes.map(([id, label]) => <label key={id}><input type="checkbox" name="checkTypes" value={id} defaultChecked={Array.isArray(editingEquipment.check_types) && editingEquipment.check_types.includes(id)} /> {label}</label>)}</fieldset>
               <p className="ops-span-2">Checked boxes include this item in those saved checklists. Existing inspection results are not erased.</p>
               <label>Weekly frequency<select name="weeklyRecurrence" defaultValue={value(editingEquipment, "weekly_recurrence") || "every_week"}><option value="every_week">Every weekly check</option><option value="first_third_saturday">First and third Saturdays of the month</option></select></label>

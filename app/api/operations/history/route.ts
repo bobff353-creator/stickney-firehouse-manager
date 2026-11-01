@@ -1,6 +1,7 @@
 import { createInventorySupabaseClient } from '../../../lib/supabase-server';
 import { verifyInventoryRequest, sessionFailureResponse } from '../../../lib/inventory-session';
 import { historyParameters, historyPage, reportId, type HistoryReport } from '../../../inventory-history';
+import {drugSchema} from '../../../inventory-drug-model';
 
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
 
@@ -20,7 +21,10 @@ export async function GET(request: Request) {
     const rpcArgs = assetId && !detail ? { p_equipment: assetId, p_before_time: args.p_before_time, p_before_id: args.p_before_id } : args;
     const result = await db.rpc(detail ? 'inventory_check_report' : assetId ? 'inventory_air_check_history' : 'inventory_check_history_page', { ...rpcArgs, p_department: session.context.department.id });
     if (result.error) throw result.error;
-    if (detail) return result.data ? json(result.data) : json({ error: 'This completed report is unavailable in your department.' }, 404);
+    if (detail) {
+      if(!result.data)return json({ error: 'This completed report is unavailable in your department.' },404);
+      return json({...result.data,items:(result.data.items||[]).map((item:Record<string,unknown>)=>{const schema=drugSchema(item.drug_schema);return schema?{...item,equipment_name:schema.title,compartment_label:schema.location}:item;})});
+    }
     return json(historyPage((result.data || []) as HistoryReport[]));
   } catch { return json({ error: 'Inspection history is temporarily unavailable. Try again.' }, 503); }
 }

@@ -24,8 +24,8 @@ export default async function Home({
   const initialApparatusId = typeof query.apparatus === "string"
     ? query.apparatus.trim().slice(0, 80)
     : "";
-  const initialCheckType = ["daily", "weekly", "inventory", "air_pack"].includes(query.check || "")
-    ? query.check as "daily" | "weekly" | "inventory" | "air_pack"
+  const initialCheckType = ["daily", "weekly", "inventory", "air_pack", "drug"].includes(query.check || "")
+    ? query.check as "daily" | "weekly" | "inventory" | "air_pack" | "drug"
     : "";
   return (
     <SessionIdleLock>

@@ -1,3 +1,4 @@
+import {drugSchema} from "../../inventory-drug-model";
 import { createInventorySupabaseClient } from "../../lib/supabase-server";
 import { privatePacketResponse } from '../../lib/private-packet-response';
 import { indexFirstBy, groupByKey } from '../../inventory-index';
@@ -29,7 +30,7 @@ function stringList(value: unknown, allowed?: Set<string>, limit = 25) {
     .slice(0, limit);
 }
 
-const checkTypes = new Set(["daily", "weekly", "inventory", "air_pack"]);
+const checkTypes = new Set(["daily", "weekly", "inventory", "air_pack", "drug"]);
 const issueCategories = new Set(["vehicle", "air_pack", "equipment"]);
 
 function privateJson(value: unknown, status = 200) {
@@ -217,8 +218,8 @@ export async function GET(request: Request) {
       const equipmentItem = equipmentById.get(item.equipment_id);
       return {
         ...item,
-        equipment_name: equipmentItem?.name || "",
-        compartment_label: equipmentItem?.compartment_label || "",
+        equipment_name: drugSchema(item.drug_schema)?.title || equipmentItem?.name || "",
+        compartment_label: drugSchema(item.drug_schema)?.location || equipmentItem?.compartment_label || "",
         quantity_required: equipmentItem?.quantity_required || 1,
         source_form: equipmentItem?.source_form || null,
         response_type: equipmentItem?.response_type || "pass_fail",
@@ -598,8 +599,8 @@ export async function POST(request: Request) {
         equipment_category: issueCategories.has(clean(body.equipmentCategory, 40))
           ? clean(body.equipmentCategory, 40)
           : "equipment",
-        check_types: stringList(body.checkTypes, checkTypes, 4).length
-          ? stringList(body.checkTypes, checkTypes, 4)
+        check_types: stringList(body.checkTypes, checkTypes, 5).length
+          ? stringList(body.checkTypes, checkTypes, 5)
           : ["inventory"],
         item_type: clean(body.itemType, 40) || "individual",
         purchase_date: clean(body.purchaseDate, 40) || null,
@@ -700,8 +701,8 @@ export async function POST(request: Request) {
         equipment_category: issueCategories.has(clean(body.equipmentCategory, 40))
           ? clean(body.equipmentCategory, 40)
           : "equipment",
-        check_types: stringList(body.checkTypes, checkTypes, 4).length
-          ? stringList(body.checkTypes, checkTypes, 4)
+        check_types: stringList(body.checkTypes, checkTypes, 5).length
+          ? stringList(body.checkTypes, checkTypes, 5)
           : ["inventory"],
         item_type: clean(body.itemType, 40) || "individual",
         parent_equipment_id: parentEquipmentId,
@@ -781,7 +782,7 @@ export async function POST(request: Request) {
       const apparatusId = clean(body.apparatusId, 80);
       const checkType = clean(body.checkType, 40);
       if (!checkTypes.has(checkType)) {
-        return privateJson({ error: "Choose Daily, Weekly, Inventory, or Air Pack check." }, 400);
+        return privateJson({ error: "Choose Daily, Weekly, Drug inventory, Inventory, or Air Pack check." }, 400);
       }
       if (checkType === "air_pack") {
         const { data, error } = await supabase.rpc("inventory_start_air_check", {
@@ -1041,7 +1042,7 @@ export async function POST(request: Request) {
       }
       const { data: requestedItems, error: requestedError } = await supabase
         .from("inventory_check_items")
-        .select("id,equipment_id,result")
+        .select("id,equipment_id,result,drug_schema")
         .eq("department_id", departmentId)
         .eq("check_id", checkId)
         .in("id", requestedIds);
@@ -1060,7 +1061,7 @@ export async function POST(request: Request) {
       const safeIds = (requestedItems || [])
         .filter((item) => {
           const equipment = equipmentByIdForBulk.get(item.equipment_id);
-          return item.result === "pending"
+          return item.result === "pending" && !item.drug_schema
             && !["numeric", "mileage", "quantity"].includes(equipment?.response_type || "")
             && !/\b(mileage|odometer)\b/i.test(equipment?.name || "")
             && !/\b(miles|milage|millage|engine oil|transmission fluid)\b/i.test(equipment?.name || "");

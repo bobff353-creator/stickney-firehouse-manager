@@ -39,7 +39,7 @@ export function historyParameters(params: URLSearchParams) {
   }
   return {
     p_apparatus: params.get('apparatus') ? reportId(params.get('apparatus')!) : null,
-    p_type: allowed('type', ['daily', 'weekly', 'inventory', 'air_pack']),
+    p_type: allowed('type', ['daily', 'weekly', 'inventory', 'air_pack', 'drug']),
     p_review: allowed('review', ['pending', 'approved', 'changes_requested']),
     p_from: from, p_to: to, p_before_time: beforeTime, p_before_id: beforeId,
   };

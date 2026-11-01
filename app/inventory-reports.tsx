@@ -1,4 +1,5 @@
 'use client';
+import {drugSchema,drugResponse,drugSummary} from "./inventory-drug-model";
 import { meterResponse, meterSummary } from './inventory-meter-model';
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -7,7 +8,7 @@ import { HISTORY_PAGE_SIZE, type CheckReport, type HistoryPage, type HistoryRepo
 import { rowValue as value, type InventoryRow } from './inventory-index';
 import './inventory/history.css';
 
-const formatStatus = (input: unknown) => String(input || '').replaceAll('_', ' ').replace(/^./, letter => letter.toUpperCase());
+const formatStatus = (input: unknown) => String(input === 'drug' ? 'Drug inventory' : input || '').replaceAll('_', ' ').replace(/^./, letter => letter.toUpperCase());
 function displayNumericReading(input: unknown) {
   if (input == null || String(input).trim() === '') return '';
   const number = Number(input);
@@ -119,7 +120,7 @@ export default function InventoryReports({initialReportId="", apparatus, canRevi
           `Started: ${formatDate(check.started_at)}`, `Completed: ${formatDate(check.completed_at)}`,
           `Completed by: ${value(check, 'started_by') || 'Not recorded'}`, `Review: ${formatStatus(check.review_status)}`,
           `Items: ${items.length} · Passed: ${items.filter(i => i.result === 'pass').length} · Issues: ${items.filter(i => ['failed','missing','damaged'].includes(value(i,'result'))).length}`, '',
-          ...items.filter(i => i.result !== 'pass' || i.meter_template).map(i => `${i.meter_template ? 'Weekly meter inspection' : value(i, 'equipment_name')}: ${formatStatus(i.result)} — ${i.meter_template ? meterSummary(meterResponse(i.meter_response)) : value(i,'notes')}`),
+          ...items.filter(i => i.result !== 'pass' || i.meter_template || i.drug_schema).map(i => `${i.meter_template ? 'Weekly meter inspection' : value(i, 'equipment_name')}: ${formatStatus(i.result)} — ${i.meter_template ? meterSummary(meterResponse(i.meter_response)) : value(i,'notes')}`),
         ].join('\n');
         window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       }
@@ -138,7 +139,7 @@ export default function InventoryReports({initialReportId="", apparatus, canRevi
   const stateMessage = (page: ReturnType<typeof useHistoryPage>) => page.error
     ? <div className="ops-error" role="alert">{page.error} <button type="button" onClick={() => setRefresh(current => current + 1)}>Retry history</button></div>
     : page.loading ? <p role="status">Loading reports…</p> : null;
-  const reading = (item: InventoryRow) => item.meter_template ? meterSummary(meterResponse(item.meter_response)) : value(item, 'section')
+  const reading = (item: InventoryRow) => drugSchema(item.drug_schema) ? drugSummary(drugSchema(item.drug_schema)!,drugResponse(item.drug_response)) : item.meter_template ? meterSummary(meterResponse(item.meter_response)) : value(item, 'section')
     ? [item.harness_number ? `Harness ${item.harness_number}` : '', item.cylinder_number ? `Cylinder ${item.cylinder_number}` : '', item.psi != null ? `${item.psi} PSI` : '', value(item, 'notes')].filter(Boolean).join(' · ') || '—'
     : displayNumericReading(item.numeric_reading) || value(item, 'notes') || '—';
   const unavailable = busy || detailLoading;
@@ -161,7 +162,7 @@ export default function InventoryReports({initialReportId="", apparatus, canRevi
       <p className="report-help">Browse {HISTORY_PAGE_SIZE} reports at a time, newest started first. Open a report for every saved result. Date filters use the completion date in department time. Email opens a prepared summary in your device&apos;s email application.</p>
       <div className="history-filters">
         <label>Apparatus<select aria-label="Apparatus" value={filters.apparatus} onChange={event => changeFilter('apparatus',event.target.value)}><option value="">All apparatus</option>{apparatus.map(row => <option key={value(row,'id')} value={value(row,'id')}>{value(row,'name')}</option>)}</select></label>
-        <label>Check type<select aria-label="Check type" value={filters.type} onChange={event => changeFilter('type',event.target.value)}><option value="">All check types</option>{['daily','weekly','inventory','air_pack'].map(type => <option key={type} value={type}>{formatStatus(type)}</option>)}</select></label>
+        <label>Check type<select aria-label="Check type" value={filters.type} onChange={event => changeFilter('type',event.target.value)}><option value="">All check types</option>{['daily','weekly','inventory','air_pack','drug'].map(type => <option key={type} value={type}>{formatStatus(type)}</option>)}</select></label>
         <label>Approval<select aria-label="Approval" value={filters.review} onChange={event => changeFilter('review',event.target.value)}><option value="">All approvals</option>{['pending','approved','changes_requested'].map(status => <option key={status} value={status}>{formatStatus(status)}</option>)}</select></label>
         <label>Completed from<input type="date" value={filters.from} onChange={event => changeFilter('from',event.target.value)}/></label>
         <label>Completed through<input type="date" value={filters.to} onChange={event => changeFilter('to',event.target.value)}/></label>

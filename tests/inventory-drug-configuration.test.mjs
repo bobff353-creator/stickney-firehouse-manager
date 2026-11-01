@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {readFile} from 'node:fs/promises';
+import {PGlite} from '@electric-sql/pglite';
+const source=await readFile(new URL('../supabase/migrations/20260805005921_seed_daily_drug_inventory_by_vehicle.sql',import.meta.url),'utf8');
+const configuration=await readFile(new URL('../scripts/sql/daily-drug-inventory-checklists.sql',import.meta.url),'utf8');
+const dept='14a76771-4c24-481b-8def-e6cce005c17b';
+test('four source-based morning drug checklists reuse 48 item IDs and 76 container slots; existing checks and other rigs stay intact',async t=>{
+ const pg=new PGlite();t.after(()=>pg.close());
+ await pg.exec(`CREATE TABLE departments(id uuid PRIMARY KEY,name text);INSERT INTO departments VALUES('${dept}','Stickney Fire Department');
+ CREATE TABLE inventory_apparatus_profiles(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),department_id uuid,name text);
+ CREATE TABLE inventory_compartments(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),department_id uuid,apparatus_id uuid,label text,side text,sort_order int,UNIQUE(apparatus_id,label));
+ CREATE TABLE inventory_equipment(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),department_id uuid,apparatus_id uuid,compartment_id uuid,name text,quantity_required int,equipment_category text,check_types text[],source_key text,source_form text,item_order int,retired_at timestamptz,response_type text DEFAULT 'pass_fail',updated_at timestamptz DEFAULT now());
+ CREATE UNIQUE INDEX source_unique ON inventory_equipment(department_id,apparatus_id,source_key) WHERE source_key IS NOT NULL;
+ CREATE TABLE inventory_inspection_schedules(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),department_id uuid,apparatus_id uuid,check_type text,day_of_week int,start_time time,end_time time,created_by text,updated_by text,UNIQUE(department_id,apparatus_id,check_type,day_of_week));
+ CREATE TABLE inventory_check_items(id int,result text,notes text);INSERT INTO inventory_check_items VALUES(1,'pass','Original saved daily result'),(2,'pending','Original unfinished daily result');
+ INSERT INTO inventory_apparatus_profiles(department_id,name) SELECT '${dept}',name FROM unnest(ARRAY['1201','1203','1204','1205','1207']) name;
+ INSERT INTO inventory_inspection_schedules(department_id,apparatus_id,check_type,day_of_week,start_time,end_time,created_by) SELECT '${dept}',id,'daily',0,'06:00','12:00','Original configuration' FROM inventory_apparatus_profiles;
+ `);
+ await pg.exec(source);const before=(await pg.query('SELECT * FROM inventory_equipment ORDER BY id')).rows;const schedules=(await pg.query('SELECT * FROM inventory_inspection_schedules ORDER BY id')).rows;
+ await pg.exec(configuration);
+ const rows=(await pg.query('SELECT * FROM inventory_equipment ORDER BY id')).rows;assert.deepEqual(rows.map(r=>r.id),before.map(r=>r.id));
+ const drug=rows.filter(r=>r.check_types.includes('drug'));assert.equal(drug.length,48);assert.equal(drug.reduce((n,r)=>n+r.quantity_required,0),76);assert.ok(drug.every(r=>!r.check_types.includes('daily')&&r.response_type==='medication'));
+ for(let i=0;i<rows.length;i++){const {check_types,response_type,updated_at,...saved}=rows[i],{check_types:oldTypes,response_type:oldResponse,updated_at:oldStamp,...original}=before[i];assert.deepEqual(saved,original);if(!drug.some(r=>r.id===rows[i].id))assert.deepEqual(rows[i],before[i]);}
+ assert.deepEqual((await pg.query("SELECT * FROM inventory_inspection_schedules WHERE check_type='daily' ORDER BY id")).rows,schedules);
+ const planned=(await pg.query("SELECT p.name,count(*)::int days,min(s.start_time) start,max(s.end_time) finish FROM inventory_inspection_schedules s JOIN inventory_apparatus_profiles p ON p.id=s.apparatus_id WHERE s.check_type='drug' GROUP BY p.name ORDER BY p.name")).rows;
+ assert.deepEqual(planned.map(r=>r.name),['1203','1204','1205','1207']);assert.ok(planned.every(r=>r.days===7&&r.start==='06:00:00'&&r.finish==='12:00:00'));
+ await pg.exec(configuration);assert.equal((await pg.query("SELECT count(*)::int n FROM inventory_inspection_schedules WHERE check_type='drug'")).rows[0].n,28);
+ await pg.query("UPDATE inventory_equipment SET response_type='text' WHERE id=$1",[drug[0].id]);await pg.exec(configuration);assert.equal((await pg.query('SELECT response_type FROM inventory_equipment WHERE id=$1',[drug[0].id])).rows[0].response_type,'text');
+ assert.deepEqual((await pg.query('SELECT result,notes FROM inventory_check_items ORDER BY id')).rows,[{result:'pass',notes:'Original saved daily result'},{result:'pending',notes:'Original unfinished daily result'}]);
+});

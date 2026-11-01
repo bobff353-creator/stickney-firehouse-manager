@@ -6,7 +6,7 @@ export type FleetDutyCheck = {
   status: "pending" | "in_progress" | "completed" | "not_needed";
   startedAt: string | null;
   completedAt: string | null;
-  checkType: "daily" | "weekly" | "inventory" | "air_pack";
+  checkType: "daily" | "weekly" | "inventory" | "air_pack" | "drug";
   startTime: string;
   endTime: string;
 };
@@ -16,13 +16,13 @@ export type FleetDailyCheck = {
   unit: string;
   status: "pending" | "in_progress";
   startedAt: string | null;
-  checkType: "daily" | "weekly" | "inventory" | "air_pack";
+  checkType: "daily" | "weekly" | "inventory" | "air_pack" | "drug";
   startTime: string;
   endTime: string;
 };
 
 export type RequiredFleetCheck = FleetDailyCheck & {
-  checkType: "daily" | "weekly" | "inventory" | "air_pack";
+  checkType: "daily" | "weekly" | "inventory" | "air_pack" | "drug";
 };
 
 export type DailyLogApparatusCheck = {

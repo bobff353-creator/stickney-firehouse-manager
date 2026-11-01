@@ -255,6 +255,7 @@ function matchingTwin(
 }
 
 function titleCase(value: string, fallback = "Not recorded") {
+  if(value==="drug")return "Drug inventory";
   if (!value) return fallback;
   return value
     .replace(/[_-]+/g, " ")
@@ -344,7 +345,7 @@ export default function Inventory360({
   departmentId: string;
   departmentName: string;
   initialApparatusId?: string;
-  initialCheckType?: "daily" | "weekly" | "inventory" | "air_pack" | "";
+  initialCheckType?: "daily" | "weekly" | "inventory" | "air_pack" | "drug" | "";
   initialAdminTask?: string;
   initialEquipmentId?: string;
   initialWorkOrderId?: string;initialReportId?:string;initialReportsView?:boolean;
@@ -824,7 +825,7 @@ export default function Inventory360({
                       </div>
                       {unit.notes ? <p className="unit-notes">{unit.notes}</p> : null}
                       <div className="fleet-direct-actions" aria-label={`Checks for ${unit.unit_name}`}>
-                        {(["daily", "weekly", "inventory", "air_pack"] as const).map((checkType) => {
+                        {(["daily", "weekly", "inventory", "air_pack", "drug"] as const).map((checkType) => {
                           const active = fleetOperations.checks.find((check) => check.apparatus_id === unit.id && check.check_type === checkType && check.status === "in_progress");
                           const items = active ? fleetOperations.checkItems.filter((item) => item.check_id === active.id) : [];
                           const remaining = items.filter((item) => item.result === "pending").length;

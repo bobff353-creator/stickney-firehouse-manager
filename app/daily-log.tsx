@@ -76,7 +76,7 @@ type ApparatusCheck = {
 type RequiredFleetCheck = {
   apparatusId: string;
   unit: string;
-  checkType: "daily" | "weekly" | "inventory" | "air_pack";
+  checkType: "daily" | "weekly" | "inventory" | "air_pack" | "drug";
   status: "pending" | "in_progress";
   startedAt: string | null;
   startTime: string;
@@ -250,7 +250,7 @@ function blankCall(): CallRow {
 }
 const displayName = formatEmployeeName;
 const fleetCheckList = (checks: RequiredFleetCheck[]) =>
-  checks.map((check) => `${check.unit} ${check.checkType.replaceAll("_", " ")} (${check.startTime}–${check.endTime})`).join(", ");
+  checks.map((check) => `${check.unit} ${(check.checkType === "drug" ? "drug inventory" : check.checkType.replaceAll("_", " ") )} (${check.startTime}–${check.endTime})`).join(", ");
 
 function CallbackPanel({ call, logDate }: { call: CallRow; logDate: string }) {
   const [open, setOpen] = useState(false);
@@ -1429,7 +1429,7 @@ export default function DailyLog({
                     <strong>Fleet checks required before sign out</strong>
                     {fleetVerificationAvailable ? <div className="fleet-check-links">
                       {shiftFleetChecks.map((check) => <a key={`${check.apparatusId}-${check.checkType}-${check.startTime}`} href={`/inventory?apparatus=${encodeURIComponent(check.apparatusId)}&check=${encodeURIComponent(check.checkType)}`} target="_blank" rel="noreferrer">
-                        {check.unit} · {check.checkType.replaceAll("_", " ")}<small>{check.startTime}–{check.endTime} · Open check ↗</small>
+                        {check.unit} · {(check.checkType === "drug" ? "drug inventory" : check.checkType.replaceAll("_", " ") )}<small>{check.startTime}–{check.endTime} · Open check ↗</small>
                       </a>)}
                       <small>Checks open in a new tab so this log stays open.</small>
                     </div> : <span>Fleet checklist status is temporarily unavailable</span>}
@@ -1634,7 +1634,7 @@ export default function DailyLog({
             </div>
             <button type="button" className="no-print" disabled={checksRefreshing} onClick={() => void refreshFleetRequirements(true)}>{checksRefreshing ? "Checking…" : "Refresh check status"}</button>
           </div>
-          {!fleetVerificationAvailable ? <p className="log-attention">Required check status is unavailable—not confirmed complete. Retry when connected.</p> : <section className="log-required-checks"><h3>{incompleteFleetChecks.length ? `${incompleteFleetChecks.length} required ${incompleteFleetChecks.length === 1 ? "check needs" : "checks need"} attention` : "No outstanding required checks reported"}</h3>{incompleteFleetChecks.map(check => <a key={`${check.apparatusId}-${check.checkType}-${check.startTime}`} href={`/inventory?apparatus=${encodeURIComponent(check.apparatusId)}&check=${encodeURIComponent(check.checkType)}`} target="_blank" rel="noreferrer"><span><strong>{check.unit} · {check.checkType.replaceAll("_", " ")}</strong><small>{check.startTime}–{check.endTime} · {check.status === "in_progress" ? "In progress" : "Pending"}</small></span><b>Open check ↗</b></a>)}{incompleteFleetChecks.length > 0 && <small>Opens in a new tab. Return here and refresh status when finished.</small>}</section>}
+          {!fleetVerificationAvailable ? <p className="log-attention">Required check status is unavailable—not confirmed complete. Retry when connected.</p> : <section className="log-required-checks"><h3>{incompleteFleetChecks.length ? `${incompleteFleetChecks.length} required ${incompleteFleetChecks.length === 1 ? "check needs" : "checks need"} attention` : "No outstanding required checks reported"}</h3>{incompleteFleetChecks.map(check => <a key={`${check.apparatusId}-${check.checkType}-${check.startTime}`} href={`/inventory?apparatus=${encodeURIComponent(check.apparatusId)}&check=${encodeURIComponent(check.checkType)}`} target="_blank" rel="noreferrer"><span><strong>{check.unit} · {(check.checkType === "drug" ? "drug inventory" : check.checkType.replaceAll("_", " ") )}</strong><small>{check.startTime}–{check.endTime} · {check.status === "in_progress" ? "In progress" : "Pending"}</small></span><b>Open check ↗</b></a>)}{incompleteFleetChecks.length > 0 && <small>Opens in a new tab. Return here and refresh status when finished.</small>}</section>}
           <h3>Completed checks{apparatusChecksAvailable ? ` · ${apparatusChecks.length}` : ""}</h3>
           {!apparatusChecksAvailable && <p className="log-attention">Completed check history could not be verified. This does not mean no checks were completed.</p>}
           {apparatusChecks.length ? (
@@ -1646,7 +1646,7 @@ export default function DailyLog({
                 >
                   <span>
                     <strong>
-                      {check.unit} · {check.checkType.replaceAll("_", " ")}{" "}
+                      {check.unit} · {(check.checkType === "drug" ? "drug inventory" : check.checkType.replaceAll("_", " ") )}{" "}
                       check
                     </strong>
                     <small>
