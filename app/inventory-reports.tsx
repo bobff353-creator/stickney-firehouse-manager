@@ -9,6 +9,7 @@ import { rowValue as value, type InventoryRow } from './inventory-index';
 import './inventory/history.css';
 
 const formatStatus = (input: unknown) => String(input === 'drug' ? 'Drug inventory' : input || '').replaceAll('_', ' ').replace(/^./, letter => letter.toUpperCase());
+const archived=(check:InventoryRow)=>check.status==='cancelled'&&Boolean(check.archived_at);
 function displayNumericReading(input: unknown) {
   if (input == null || String(input).trim() === '') return '';
   const number = Number(input);
@@ -117,8 +118,8 @@ export default function InventoryReports({initialReportId="", apparatus, canRevi
         const subject = `${value(check, 'apparatus_name')} ${formatStatus(check.check_type)} check report`;
         const body = ['Stickney Fire Department — Vehicle Checks & Inventory', `Report: ${check.id}`,
           `Apparatus: ${value(check, 'apparatus_name')}`, `Check: ${formatStatus(check.check_type)}`,
-          `Started: ${formatDate(check.started_at)}`, `Completed: ${formatDate(check.completed_at)}`,
-          `Completed by: ${value(check, 'started_by') || 'Not recorded'}`, `Review: ${formatStatus(check.review_status)}`,
+          `Started: ${formatDate(check.started_at)}`, archived(check)?`Archived unfinished: ${formatDate(check.archived_at)}\nReason: ${value(check,'archive_reason')}`:`Completed: ${formatDate(check.completed_at)}`,
+          `${archived(check)?'Started':'Completed'} by: ${value(check, 'started_by') || 'Not recorded'}`, `Review: ${archived(check)?'Not submitted':formatStatus(check.review_status)}`,
           `Items: ${items.length} · Passed: ${items.filter(i => i.result === 'pass').length} · Issues: ${items.filter(i => ['failed','missing','damaged'].includes(value(i,'result'))).length}`, '',
           ...items.filter(i => i.result !== 'pass' || i.meter_template || i.drug_schema).map(i => `${i.meter_template ? 'Weekly meter inspection' : value(i, 'equipment_name')}: ${formatStatus(i.result)} — ${i.meter_template ? meterSummary(meterResponse(i.meter_response)) : value(i,'notes')}`),
         ].join('\n');
@@ -159,21 +160,21 @@ export default function InventoryReports({initialReportId="", apparatus, canRevi
     </section>}
     <section className="ops-card inventory-report-history" aria-label="Inspection history">
       <header><div><span>REPORTS</span><h2>Vehicle checks and inventory history</h2></div><b>{history.loading || history.error ? '—' : `${history.reports.length} on this page`}</b></header>
-      <p className="report-help">Browse {HISTORY_PAGE_SIZE} reports at a time, newest started first. Open a report for every saved result. Date filters use the completion date in department time. Email opens a prepared summary in your device&apos;s email application.</p>
+      <p className="report-help">Browse {HISTORY_PAGE_SIZE} reports at a time, newest started first. Archived unfinished checks keep their original saved and pending entries. Date filters use the completion or archive date in department time. Email opens a prepared summary in your device&apos;s email application.</p>
       <div className="history-filters">
         <label>Apparatus<select aria-label="Apparatus" value={filters.apparatus} onChange={event => changeFilter('apparatus',event.target.value)}><option value="">All apparatus</option>{apparatus.map(row => <option key={value(row,'id')} value={value(row,'id')}>{value(row,'name')}</option>)}</select></label>
         <label>Check type<select aria-label="Check type" value={filters.type} onChange={event => changeFilter('type',event.target.value)}><option value="">All check types</option>{['daily','weekly','inventory','air_pack','drug'].map(type => <option key={type} value={type}>{formatStatus(type)}</option>)}</select></label>
         <label>Approval<select aria-label="Approval" value={filters.review} onChange={event => changeFilter('review',event.target.value)}><option value="">All approvals</option>{['pending','approved','changes_requested'].map(status => <option key={status} value={status}>{formatStatus(status)}</option>)}</select></label>
-        <label>Completed from<input type="date" value={filters.from} onChange={event => changeFilter('from',event.target.value)}/></label>
-        <label>Completed through<input type="date" value={filters.to} onChange={event => changeFilter('to',event.target.value)}/></label>
+        <label>Completed / archived from<input type="date" value={filters.from} onChange={event => changeFilter('from',event.target.value)}/></label>
+        <label>Completed / archived through<input type="date" value={filters.to} onChange={event => changeFilter('to',event.target.value)}/></label>
         <button type="button" onClick={() => { setFilters({apparatus:'',type:'',review:'',from:'',to:''}); setCursors(['']); }}>Clear filters</button>
         <button type="button" disabled={history.loading || busy} onClick={() => { setCursors(['']); setReviewCursors(['']); setRefresh(current => current + 1); }}>Refresh history</button>
       </div>
       {stateMessage(history)}
       <Pager label="History page controls" cursors={cursors} next={history.nextCursor} disabled={unavailable || history.loading} onChange={setCursors}/>
       {!history.loading && !history.error && <>{history.reports.length ? <div className="inventory-report-list">{history.reports.map(check => <article key={check.id}>
-        <div><span>{formatStatus(check.check_type)}</span><h3>{value(check,'apparatus_name')}</h3><small>{formatDate(check.completed_at)} · {check.item_count} items · {check.issue_count} issues</small></div>
-        <b className={`review-${value(check,'review_status')}`}>{formatStatus(check.review_status)}</b>
+        <div><span>{formatStatus(check.check_type)}</span><h3>{value(check,'apparatus_name')}</h3><small>{archived(check)?`Archived ${formatDate(check.archived_at)}`:formatDate(check.completed_at)} · {check.item_count} items · {check.issue_count} issues</small></div>
+        <b className={`review-${archived(check)?'archived':value(check,'review_status')}`}>{archived(check)?'Archived · unfinished':formatStatus(check.review_status)}</b>
         <div><button type="button" disabled={unavailable} onClick={() => void openReport(check.id)}>View</button><button type="button" disabled={unavailable} onClick={() => void openReport(check.id,'print')}>Print</button><button type="button" disabled={unavailable} onClick={() => void openReport(check.id,'email')}>Email summary</button></div>
       </article>)}</div> : <div className="ops-empty"><strong>No reports on this page.</strong><p>Adjust the filters, use Previous, or refresh to see the latest completed checks.</p></div>}</>}
       <Pager label="History pages" cursors={cursors} next={history.nextCursor} disabled={unavailable || history.loading} onChange={setCursors}/>
@@ -183,10 +184,11 @@ export default function InventoryReports({initialReportId="", apparatus, canRevi
     {detailError && <div role="alert" className="ops-error">{detailError} <button type="button" onClick={() => lastRequest && void openReport(lastRequest.id,lastRequest.output)}>Retry report</button></div>}
     {detail && <section ref={reportDetailRef} tabIndex={-1} aria-label="Selected check report" className="ops-card inventory-report-detail inventory-report-print-host">
       <header><div><span>STICKNEY FIRE DEPARTMENT · CHECK REPORT</span><h2>{value(detail.check,'apparatus_name')} · {formatStatus(detail.check.check_type)}</h2></div><button type="button" onClick={() => { request.current?.abort(); setDetail(null); setOutput('view'); }}>Close</button></header>
-      <div className="report-metadata"><span><b>Report ID</b>{detail.check.id}</span><span><b>Started</b>{formatDate(detail.check.started_at)}</span><span><b>Completed</b>{formatDate(detail.check.completed_at)}</span><span><b>Completed by</b>{value(detail.check,'started_by') || 'Not recorded'}</span><span><b>Approval</b>{formatStatus(detail.check.review_status)}</span><span><b>Reviewed by</b>{value(detail.check,'reviewed_by') || 'Pending'}</span></div>
+      <div className="report-metadata"><span><b>Report ID</b>{detail.check.id}</span><span><b>Started</b>{formatDate(detail.check.started_at)}</span><span><b>{archived(detail.check)?'Archived unfinished':'Completed'}</b>{formatDate(archived(detail.check)?detail.check.archived_at:detail.check.completed_at)}</span><span><b>{archived(detail.check)?'Started by':'Completed by'}</b>{value(detail.check,'started_by') || 'Not recorded'}</span><span><b>Approval</b>{archived(detail.check)?'Not submitted':formatStatus(detail.check.review_status)}</span><span><b>{archived(detail.check)?'Archived by':'Reviewed by'}</b>{value(detail.check,archived(detail.check)?'archived_by':'reviewed_by') || 'Pending'}</span></div>
+      {archived(detail.check)&&<div className="ops-empty" role="note"><strong>Archived unfinished check</strong><p>{value(detail.check,'archive_reason')}</p><p>All original entries are preserved below, including pending entries. This record was not completed or approved. <a href={`/inventory?apparatus=${encodeURIComponent(detail.check.apparatus_id)}&check=weekly`}>Open the current weekly check →</a></p></div>}
       {detail.check.review_notes && <blockquote>{detail.check.review_notes}</blockquote>}
       <table><thead><tr><th>Equipment</th><th>Location</th><th>Result</th><th>Reading / notes</th><th>Checked by</th></tr></thead><tbody>{detail.items.map(item => <tr key={value(item,'id')}><td data-label="Equipment">{value(item,'equipment_name')}</td><td data-label="Location">{value(item,'compartment_label')}</td><td data-label="Result">{formatStatus(item.result)}</td><td data-label="Reading / notes">{reading(item)}</td><td data-label="Checked by">{value(item,'checked_by') || '—'}</td></tr>)}</tbody></table>
-      <footer><span>{detail.items.length} items</span><span>{detail.items.filter(item => item.result === 'pass').length} passed</span><span>{detail.items.filter(item => ['failed','missing','damaged'].includes(value(item,'result'))).length} issues</span></footer>
+      <footer><span>{detail.items.length} items</span><span>{detail.items.filter(item => item.result === 'pass').length} passed</span><span>{detail.items.filter(item => ['failed','missing','damaged'].includes(value(item,'result'))).length} issues</span>{archived(detail.check)&&<span>{detail.items.filter(item=>item.result==='pending').length} pending · unfinished original</span>}</footer>
       <div className="report-detail-actions"><button type="button" onClick={() => void openReport(detail.check.id,'print')}>Print report</button><button type="button" onClick={() => void openReport(detail.check.id,'email')}>Email summary</button></div>
     </section>}
   </div>;

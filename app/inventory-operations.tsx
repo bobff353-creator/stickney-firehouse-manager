@@ -918,6 +918,18 @@ export default function InventoryOperations({
     } finally {mutationPending.current=false;setBusy('');}
   }
 
+  async function restartWeekly(check:Row,reason:string){
+    if(mutationPending.current||itemSavePending.current||unsavedCheck)return;
+    mutationPending.current=true;itemSaveGeneration.current+=1;setBusy('restart-weekly');setMessage('');
+    try{
+      const response=await fetch('/api/operations/restart-weekly',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:check.id,reason})});
+      const saved=await response.json();if(!response.ok||saved.saved!==true||!saved.checkId)throw new Error(saved.error||'The archive and replacement were not confirmed. Refresh and review before retrying.');
+      const refreshed=await load({fresh:true});setSelectedCheckId(saved.checkId);setInspectionMenuOpen(false);
+      setMessage(refreshed?'Original check archived in Reports & approvals. The new mechanical check is unanswered.':'The original was archived and its replacement created, but the refreshed checklist could not be loaded. Refresh before continuing.');
+    }catch(error){setMessage(error instanceof Error?error.message:'The archive was not confirmed. Refresh and review before retrying.');}
+    finally{itemSaveGeneration.current+=1;mutationPending.current=false;setBusy('');}
+  }
+
   async function uploadMaintenanceDocument(workOrderId: string, file: File, documentType: string, note: string) {
     const form = new FormData();
     form.set("workOrderId", workOrderId);
@@ -1486,7 +1498,7 @@ export default function InventoryOperations({
                 <small>Shared department inspection · crew updates every {inventoryRefreshInterval(view) / 1000} seconds{lastSyncedAt ? ` · synced ${formatDate(lastSyncedAt)}` : ""}</small>
                 <small>Work one location at a time. Passed items leave the Pending view immediately; issues still require notes and a photo.</small>
               </div>
-              {originalWeeklyItems > 0 && <div className="inspection-menu-note" role="note" aria-label="Earlier weekly checklist"><strong>This open check uses an earlier checklist</strong><p>{originalWeeklyItems} original {originalWeeklyItems === 1 ? "item is" : "items are"} no longer assigned to the weekly template. Saved results and pending entries have been preserved. New weekly checks use the current mechanical template.</p></div>}
+              {originalWeeklyItems > 0 && <div className="inspection-menu-note" role="note" aria-label="Earlier weekly checklist"><strong>This open check uses an earlier checklist</strong><p>{originalWeeklyItems} original {originalWeeklyItems === 1 ? "item is" : "items are"} no longer assigned to the weekly template. Saved results and pending entries have been preserved.</p>{canSetup&&canCheck&&<details><summary>Replace with the current mechanical checklist</summary><p>Archive all {activeItems.length} original entries, including {completedItems} saved results, as a read-only unfinished record in Reports &amp; approvals. Open a new check with every result unanswered. The original is kept; it is not submitted or approved.</p><form key={activeCheckId} className="ops-form" onSubmit={event=>{event.preventDefault();void restartWeekly(activeCheck,String(new FormData(event.currentTarget).get('reason')||''));}}><label>Reason for replacing this check<textarea name="reason" required maxLength={2000} rows={3} defaultValue="Weekly checklist changed to mechanical condition, functional testing and maintenance. Preserve the earlier unfinished check and its results in history; keep carried inventory in separate checks."/></label><button type="submit" className="ops-primary" disabled={Boolean(busy)||unsavedCheck}>Archive original &amp; start mechanical check</button>{unsavedCheck&&<p>Save or discard unsaved item entries before replacing this check.</p>}</form></details>}</div>}
               <section className="check-progress-summary workflow-sticky-check" aria-label="Inspection progress">
                 <strong>Apparatus {value(selectedApparatus || {}, "name")} · {formatStatus(activeCheck.check_type)}</strong>
                 <div><strong>{completedItems} of {activeChecklistRows.length} completed</strong><span>{pendingItems} remaining</span></div>

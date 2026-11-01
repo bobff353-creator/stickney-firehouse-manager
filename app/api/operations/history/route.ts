@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     const result = await db.rpc(detail ? 'inventory_check_report' : assetId ? 'inventory_air_check_history' : 'inventory_check_history_page', { ...rpcArgs, p_department: session.context.department.id });
     if (result.error) throw result.error;
     if (detail) {
-      if(!result.data)return json({ error: 'This completed report is unavailable in your department.' },404);
+      if(!result.data)return json({ error: 'This saved report is unavailable in your department.' },404);
       return json({...result.data,items:(result.data.items||[]).map((item:Record<string,unknown>)=>{const schema=drugSchema(item.drug_schema);return schema?{...item,equipment_name:schema.title,compartment_label:schema.location}:item;})});
     }
     return json(historyPage((result.data || []) as HistoryReport[]));
