@@ -47,7 +47,7 @@ test("keeps the installable advanced fleet and inventory module", async () => {
   assert.match(component, /Due Now/);
   assert.match(component, /Save Fleet status/);
   assert.match(operations, /Daily inspection/);
-  assert.match(operations, /Weekly inspection/);
+  assert.match(operations, /Weekly mechanical inspection/);
   assert.match(operations, /Air pack check/);
   assert.doesNotMatch(serviceWorker, /\/api\//);
 });

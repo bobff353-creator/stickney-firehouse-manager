@@ -89,7 +89,7 @@ const emptyData: OperationsData = {
 
 const inspectionTypes = [
   ["daily", "Daily inspection"],
-  ["weekly", "Weekly inspection"],
+  ["weekly", "Weekly mechanical inspection"],
   ["inventory", "Inventory check"],
   ["air_pack", "Air pack check"],
   ["drug", "Drug inventory"],
@@ -960,6 +960,10 @@ export default function InventoryOperations({
   const activeItems = useMemo(() => activeCheckId ? sortCheckItems(checkItemsByCheck.get(activeCheckId) || [], equipmentById, compartmentById) : [], [activeCheckId, checkItemsByCheck, equipmentById, compartmentById]);
   const activeScbaEntries = useMemo(() => activeCheck && value(activeCheck, 'check_type') === 'air_pack' ? scbaEntriesByCheck.get(activeCheckId) || [] : [], [activeCheck, activeCheckId, scbaEntriesByCheck]);
   const activeCheckType = value(activeCheck || {}, "check_type");
+  const originalWeeklyItems = activeCheckType === "weekly" ? activeItems.filter(item => {
+    const equipment = equipmentById.get(value(item, "equipment_id"));
+    return equipment && Array.isArray(equipment.check_types) && !equipment.check_types.includes("weekly");
+  }).length : 0;
   const activeAllowsRelocation = activeCheckType === "inventory";
   const activeChecklistRows = activeCheckType === "air_pack" ? activeScbaEntries : activeItems;
   const unsavedReadings = activeItems.some(item => {
@@ -1482,6 +1486,7 @@ export default function InventoryOperations({
                 <small>Shared department inspection · crew updates every {inventoryRefreshInterval(view) / 1000} seconds{lastSyncedAt ? ` · synced ${formatDate(lastSyncedAt)}` : ""}</small>
                 <small>Work one location at a time. Passed items leave the Pending view immediately; issues still require notes and a photo.</small>
               </div>
+              {originalWeeklyItems > 0 && <div className="inspection-menu-note" role="note" aria-label="Earlier weekly checklist"><strong>This open check uses an earlier checklist</strong><p>{originalWeeklyItems} original {originalWeeklyItems === 1 ? "item is" : "items are"} no longer assigned to the weekly template. Saved results and pending entries have been preserved. New weekly checks use the current mechanical template.</p></div>}
               <section className="check-progress-summary workflow-sticky-check" aria-label="Inspection progress">
                 <strong>Apparatus {value(selectedApparatus || {}, "name")} · {formatStatus(activeCheck.check_type)}</strong>
                 <div><strong>{completedItems} of {activeChecklistRows.length} completed</strong><span>{pendingItems} remaining</span></div>
@@ -1579,6 +1584,7 @@ export default function InventoryOperations({
           <div className="inventory-builder-context"><label>Apparatus<select value={selectedApparatusId} onChange={event => {if(confirmLeavingWork())setSelectedApparatusId(event.target.value);}}>{data.apparatus.map(item => <option key={value(item,"id")} value={value(item,"id")}>{value(item,"name")}</option>)}</select></label><label>Checklist<select value={templateType} onChange={event => {if(confirmLeavingWork())setTemplateType(event.target.value);}}>{inspectionTypes.map(([id,label]) => <option key={id} value={id}>{label}</option>)}</select></label></div>
           <nav className="inventory-task-nav" aria-label="Checklist administration tasks">{[["items","Edit checklist"],["add","Add an item"],["schedules","Due dates & times"],["scba","Air pack template"],["approvals",`Location requests (${pendingLocationChanges.length})`],["preview","Member preview"]].map(([id,label]) => <button type="button" key={id} aria-pressed={builderTask === id} onClick={() => changeBuilderTask(id)}>{label}</button>)}</nav>
           <p className="inventory-context-note">{selectedApparatus ? value(selectedApparatus,"name") : "Choose an apparatus"} · {inspectionTypes.find(([id]) => id === templateType)?.[1]} · {builderTask === "preview" ? "Read-only saved preview" : "Administrator editing"}</p>
+          {templateType === "weekly" && <p>Weekly checks cover mechanical condition, functional testing, and maintenance. Put carried-equipment counts in Inventory and SCBA checks in Air Packs &amp; Bottles. Saved reports and checks already in progress keep their original items.</p>}
         </section>
         {templateType === 'weekly' && builderTask === 'items' && data.equipment.filter(item => item.apparatus_id === selectedApparatusId && meterTemplate(item.meter_template)).map(item => <MeterTemplateEditor key={value(item,'id')} item={item} apparatus={value(selectedApparatus || {},'name')} onSave={saveMeterTemplate}/>)}
         {builderTask === "preview" && !refreshError ? <section className="ops-card inventory-member-preview" aria-label="Read-only member checklist preview"><header><div><span>MEMBER PREVIEW · NO RECORDS CREATED</span><h2>{selectedApparatus ? value(selectedApparatus,"name") : "Apparatus"} · {formatStatus(templateType)}</h2><p>Shows the saved template using the member checklist layout. Unsaved edits are not included. Result controls are disabled; this does not start or complete a check.</p></div><button type="button" onClick={() => changeBuilderTask(templateType === "air_pack" ? "scba" : "items")}>Back to editing</button></header>
