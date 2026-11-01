@@ -18,12 +18,12 @@ export async function GET(request:Request){
   }
   const pageText=params.get('page')||'0';if(!/^\d{1,4}$/.test(pageText)||Number(pageText)>1000)return disciplinaryJson({error:'Choose a valid history page.'},400);const page=Number(pageText);
   const employee=params.get('employee')||'';const status=params.get('status')||'';
-  if(employee.length>160||!['','draft','submitted'].includes(status))return disciplinaryJson({error:'Choose valid history filters.'},400);
-  let query=access.db.from('disciplinary_reports').select('id,status,version,updated_at,created_at,submitted_at,created_by_name,updated_by_name,content->employeeName,content->incidentDate,content->disciplineStep',{count:'exact'}).eq('department_id',access.context.department.id);
-  if(employee)query=query.eq('content->>employeeId',employee);if(status==='submitted')query=query.not('submitted_at','is',null);else if(status==='draft')query=query.eq('status','draft');
-  const [reports,people]=await Promise.all([query.order('updated_at',{ascending:false}).order('id',{ascending:false}).range(page*25,page*25+24),disciplinaryRoster()]);
-  if(reports.error)throw reports.error;
-  return disciplinaryJson({reports:reports.data||[],total:reports.count||0,page,people,canManageAccess:access.context.grants.includes('permissions.manage')});
+  if(employee.length>170||!['','draft','submitted'].includes(status))return disciplinaryJson({error:'Choose valid history filters.'},400);
+  let query=access.db.from('disciplinary_reports').select('id,status,version,updated_at,created_at,submitted_at,created_by_name,updated_by_name,source_id,source_status,source_at,content->employeeName,content->incidentDate,content->disciplineStep',{count:'exact'}).eq('department_id',access.context.department.id);
+  if(employee)query=employee.startsWith('name:')?query.eq('content->>employeeName',employee.slice(5)):query.eq('content->>employeeId',employee);if(status==='submitted')query=query.not('submitted_at','is',null);else if(status==='draft')query=query.eq('status','draft');
+  const [reports,people,historical]=await Promise.all([query.order('source_at',{ascending:false,nullsFirst:true}).order('updated_at',{ascending:false}).order('id',{ascending:false}).range(page*25,page*25+24),disciplinaryRoster(),access.db.from('disciplinary_reports').select('content->employeeName').eq('department_id',access.context.department.id).eq('content->>employeeId','')]);
+  if(reports.error||historical.error)throw reports.error||historical.error;const historicalPeople=[...new Set((historical.data||[]).map(row=>typeof row.employeeName==='string'?row.employeeName:'').filter(Boolean))].sort();
+  return disciplinaryJson({reports:reports.data||[],total:reports.count||0,page,people,historicalPeople,canManageAccess:access.context.grants.includes('permissions.manage')});
  }catch{return disciplinaryJson({error:'Disciplinary reports could not be loaded. Reconnect and retry.'},503);}
 }
 export async function POST(request:Request){
@@ -31,7 +31,7 @@ export async function POST(request:Request){
  let body;try{body=await request.json();}catch{return disciplinaryJson({error:'Enter valid report details.'},400);}
  if(!body||!disciplinaryUuid(body.id)||!disciplinaryUuid(body.operation)||!Number.isInteger(body.version)||body.version<0||!['draft','submitted'].includes(body.status)||typeof body.reason!=='string'||body.reason.length>2000||!body.content||JSON.stringify(body.content).length>900000)return disciplinaryJson({error:'Choose a report, its saved version, and valid report details.'},400);
  try{
-  const errors=disciplinaryErrors(body.content as DisciplinaryContent,body.status==='submitted');if(errors.length)return disciplinaryJson({error:errors.join(' ')},400);
+  let original; if(body.version>0){const savedSource=await access.db.from('disciplinary_reports').select('source_record').eq('department_id',access.context.department.id).eq('id',body.id).maybeSingle();if(savedSource.error)return disciplinaryJson({error:'Original source validation could not be confirmed.'},503);original=savedSource.data?.source_record?.originalContent;}const errors=disciplinaryErrors(body.content as DisciplinaryContent,body.status==='submitted',undefined,original);if(errors.length)return disciplinaryJson({error:errors.join(' ')},400);
  }catch{return disciplinaryJson({error:'Enter valid report fields.'},400);}
  try{
   const result=await access.db.rpc('disciplinary_save',{p_department:access.context.department.id,p_id:body.id,p_version:body.version,p_content:body.content,p_status:body.status,p_reason:body.reason,p_operation:body.operation});
