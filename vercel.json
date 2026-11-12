@@ -10,5 +10,8 @@
     "app/api/cron/nightly-department-exports/route.ts": {
       "maxDuration": 300
     }
+  },
+  "git": {
+    "deploymentEnabled": false
   }
 }
