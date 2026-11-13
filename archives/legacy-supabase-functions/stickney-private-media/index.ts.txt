@@ -1,0 +1,51 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+const STICKNEY_DEPARTMENT_ID = "14a76771-4c24-481b-8def-e6cce005c17b";
+const EXPECTED_SECRET_SHA256 = "145fdbac4c11e431eb3450d95e1c6d8f9212d5e55648102fd9982f153f72fc6a";
+const MEDIA_BUCKET = "stickney-inventory-media";
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+async function sha256(value: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+Deno.serve(async (request: Request) => {
+  if (request.method !== "GET") return new Response("Method not allowed", { status: 405, headers: { Allow: "GET" } });
+
+  const providedSecret = request.headers.get("x-stickney-bridge-secret") ?? "";
+  if (!providedSecret || await sha256(providedSecret) !== EXPECTED_SECRET_SHA256) return new Response("Unauthorized", { status: 401 });
+
+  const photoId = new URL(request.url).pathname.split("/").filter(Boolean).at(-1) ?? "";
+  if (!UUID_PATTERN.test(photoId)) return new Response("Not found", { status: 404 });
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !serviceRoleKey) return new Response("Storage configuration unavailable", { status: 503 });
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data: photo, error: photoError } = await supabase
+    .from("inventory_photo_views")
+    .select("object_key,mime_type,original_filename")
+    .eq("department_id", STICKNEY_DEPARTMENT_ID)
+    .eq("id", photoId)
+    .is("replaced_at", null)
+    .maybeSingle();
+  if (photoError || !photo) return new Response("Not found", { status: 404 });
+
+  const { data: blob, error: storageError } = await supabase.storage.from(MEDIA_BUCKET).download(photo.object_key);
+  if (storageError || !blob) return new Response("Photo unavailable", { status: 404 });
+
+  const safeMimeType = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"].includes(photo.mime_type)
+    ? photo.mime_type
+    : "application/octet-stream";
+  return new Response(blob, {
+    headers: {
+      "Content-Type": safeMimeType,
+      "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(photo.original_filename)}`,
+      "Cache-Control": "private, no-store, max-age=0",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
+});

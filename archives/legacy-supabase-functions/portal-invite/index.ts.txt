@@ -1,0 +1,90 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+const allowedOrigins = new Set(["https://fermilab-fd.vercel.app", "http://localhost:3000"]);
+const employeePinPattern = /^\d{4,6}$/;
+const pinCredential = (pin: string) => `FermiLab!PIN1:${pin}`;
+
+function cors(origin: string | null) {
+  return {
+    "access-control-allow-origin": origin && allowedOrigins.has(origin) ? origin : "https://fermilab-fd.vercel.app",
+    "access-control-allow-headers": "authorization, apikey, content-type, x-client-info",
+    "access-control-allow-methods": "POST, OPTIONS",
+    "content-type": "application/json",
+    vary: "Origin",
+  };
+}
+
+function namedKey(variable: string) {
+  try {
+    const keys = JSON.parse(Deno.env.get(variable) || "{}") as Record<string, string>;
+    return keys.default || "";
+  } catch {
+    return "";
+  }
+}
+
+Deno.serve(async (request) => {
+  const origin = request.headers.get("origin");
+  const headers = cors(origin);
+  if (request.method === "OPTIONS") return new Response("ok", { headers });
+  if (request.method !== "POST" || (origin && !allowedOrigins.has(origin))) {
+    return new Response(JSON.stringify({ error: "Invite requests are not allowed from this origin." }), { status: 403, headers });
+  }
+
+  const url = Deno.env.get("SUPABASE_URL") || "";
+  const publishableKey = namedKey("SUPABASE_PUBLISHABLE_KEYS") || Deno.env.get("SUPABASE_ANON_KEY") || "";
+  const secretKey = namedKey("SUPABASE_SECRET_KEYS") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  const authorization = request.headers.get("authorization") || "";
+  const token = authorization.replace(/^Bearer\s+/i, "");
+  if (!url || !publishableKey || !secretKey || !token) {
+    return new Response(JSON.stringify({ error: "Secure invitation service is not configured." }), { status: 503, headers });
+  }
+
+  const userClient = createClient(url, publishableKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data: userData, error: userError } = await userClient.auth.getUser(token);
+  const senderEmail = userData.user?.email?.trim().toLowerCase() || "";
+  if (userError || !senderEmail) {
+    return new Response(JSON.stringify({ error: "A current administrator session is required." }), { status: 401, headers });
+  }
+
+  const admin = createClient(url, secretKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data: inviteAdmin } = await admin.from("portal_invite_admins").select("email").eq("email", senderEmail).maybeSingle();
+  if (!inviteAdmin) {
+    return new Response(JSON.stringify({ error: "Only an approved portal administrator can create employee logins." }), { status: 403, headers });
+  }
+
+  const body = await request.json().catch(() => ({})) as { email?: unknown; employeeNumber?: unknown };
+  const email = String(body.email || "").trim().toLowerCase();
+  const employeeNumber = String(body.employeeNumber || "").trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return new Response(JSON.stringify({ error: "Enter a valid employee email address." }), { status: 400, headers });
+  }
+  if (!employeePinPattern.test(employeeNumber)) {
+    return new Response(JSON.stringify({ error: "The employee number must contain 4 to 6 numbers before a login can be created." }), { status: 400, headers });
+  }
+
+  const { data: listedUsers, error: listError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  if (listError) {
+    return new Response(JSON.stringify({ error: "The employee login directory could not be checked. Try again." }), { status: 500, headers });
+  }
+  const existingUser = listedUsers.users.find((user) => user.email?.trim().toLowerCase() === email);
+  const password = pinCredential(employeeNumber);
+  const userMetadata = {
+    ...(existingUser?.user_metadata || {}),
+    portal_pin_setup_required: true,
+  };
+  const accountResult = existingUser
+    ? await admin.auth.admin.updateUserById(existingUser.id, { password, email_confirm: true, user_metadata: userMetadata })
+    : await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: userMetadata });
+  if (accountResult.error) {
+    return new Response(JSON.stringify({ error: accountResult.error.message }), { status: 400, headers });
+  }
+
+  const { error: accessError } = await admin.from("portal_access_emails").upsert({ email, invited_by: senderEmail });
+  if (accessError) {
+    return new Response(JSON.stringify({ error: "The login was created, but portal access could not be approved. Try again or contact support." }), { status: 500, headers });
+  }
+
+  return new Response(JSON.stringify({ ok: true, email, delivery: existingUser ? "reset" : "created" }), { status: 200, headers });
+});
