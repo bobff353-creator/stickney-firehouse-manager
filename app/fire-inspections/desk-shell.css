@@ -13,3 +13,5 @@
  .fi-desk .fd-field-status button,.fi-desk .fd-desk-nav button,.fi-desk .fd-section-heading>button,.fi-desk .fd-surface>.fd-section-heading>button,.fi-desk .fd-row-actions button,.fi-desk .fd-empty-state button,.fi-desk .fd-pagination button,.fi-desk .fd-filter-chips button,.fi-desk .fd-case-row button,.fi-desk .fd-calendar-toolbar button,.fi-desk .fd-template-card button{min-height:44px}
  .fi-desk .fd-list-caption select,.fi-desk .fd-calendar-toolbar input{min-height:44px}
 }
+/* Keep inspection navigation above the portal's fixed phone and tablet tabs. */
+@media screen and (max-width:980px){.fi-workspace.fi-desk .fi-editor-footer{bottom:var(--portal-install-offset,calc(76px + env(safe-area-inset-bottom,0px)))}}
