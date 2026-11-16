@@ -1,192 +1,179 @@
+/* The private inspection desk owns its surfaces, controls and status colors. */
 /* Surface-specific contrast. Keep the operational canvases and printed records intact. */
 @media screen {
   /* Shared navigation and help use the same dark surface on every portal page. */
-  .app-shell:has(#portal-workspace) .workspace-guide > summary {
+  .app-shell:has(#portal-workspace) .workspace-guide > summary:where(:not(.fi-desk,.fi-desk *)) {
     background:#1b2b43;color:#f1f5f9;border:1px solid #607895;
   }
-  .app-shell:has(#portal-workspace) .portal-footer :is(strong,p) {color:#b5c4d8}
-  .app-shell:has(#portal-workspace) .portal-footer strong {color:#f1f5f9}
-  .app-shell:has(#portal-workspace) .portal-footer a {color:#93c5fd}
-  .app-shell:has(#portal-workspace) .workspace-wayfinding {color:#b5c4d8}
-  .app-shell:has(#portal-workspace) .workspace-guide :is(li,dt,dd) {color:#b5c4d8}
+  .app-shell:has(#portal-workspace) .portal-footer :is(strong,p):where(:not(.fi-desk,.fi-desk *)) {color:#b5c4d8}
+  .app-shell:has(#portal-workspace) .portal-footer strong:where(:not(.fi-desk,.fi-desk *)) {color:#f1f5f9}
+  .app-shell:has(#portal-workspace) .portal-footer a:where(:not(.fi-desk,.fi-desk *)) {color:#93c5fd}
+  .app-shell:has(#portal-workspace) .workspace-wayfinding:where(:not(.fi-desk,.fi-desk *)) {color:#b5c4d8}
+  .app-shell:has(#portal-workspace) .workspace-guide :is(li,dt,dd):where(:not(.fi-desk,.fi-desk *)) {color:#b5c4d8}
 
   /* Work-detail cards must match their inherited light text, including nested facts. */
-  .workspace.bento-rest.bento-rest .work-detail-list article {
+  .workspace.bento-rest.bento-rest .work-detail-list article:where(:not(.fi-desk,.fi-desk *)) {
     background:#141e30;color:#f1f5f9;border-color:#607895;
   }
-  .workspace.bento-rest.bento-rest .work-detail-list :is(p,dt,header span) {color:#b5c4d8}
-  .workspace.bento-rest.bento-rest .work-detail-list dl > div {background:#1b2b43}
-  .workspace.bento-rest.bento-rest .work-detail-list dd {color:#f1f5f9}
-  .workspace.bento-rest.bento-rest .work-detail-list .rejection-note {
+  .workspace.bento-rest.bento-rest .work-detail-list :is(p,dt,header span):where(:not(.fi-desk,.fi-desk *)) {color:#b5c4d8}
+  .workspace.bento-rest.bento-rest .work-detail-list dl > div:where(:not(.fi-desk,.fi-desk *)) {background:#1b2b43}
+  .workspace.bento-rest.bento-rest .work-detail-list dd:where(:not(.fi-desk,.fi-desk *)) {color:#f1f5f9}
+  .workspace.bento-rest.bento-rest .work-detail-list .rejection-note:where(:not(.fi-desk,.fi-desk *)) {
     background:#472126;color:#fecaca;
   }
 
   /* Form hints are text, not faded decorations; use explicit opaque palettes. */
-  .workspace.bento-rest.bento-rest :is(input,textarea)::placeholder {color:#b5c4d8;opacity:1}
-  .workspace.bento-rest.bento-rest :is(input:not([type=checkbox]):not([type=radio]),select,textarea) {border-color:#607895}
-  .workspace.bento-rest.bento-rest :is(.member-picker,.member-picker-trigger,.work-detail-form fieldset,.certification-check) {border-color:#607895}
+  .workspace.bento-rest.bento-rest :is(input,textarea):where(:not(.fi-desk,.fi-desk *))::placeholder {color:#b5c4d8;opacity:1}
+  .workspace.bento-rest.bento-rest :is(input:not([type=checkbox]):not([type=radio]),select,textarea):where(:not(.fi-desk,.fi-desk *)) {border-color:#607895}
+  .workspace.bento-rest.bento-rest :is(.member-picker,.member-picker-trigger,.work-detail-form fieldset,.certification-check):where(:not(.fi-desk,.fi-desk *)) {border-color:#607895}
 
   /* Paper workspaces retain native light controls, including calendar/select icons. */
-  #portal-workspace :is(.fi-workspace,.training-workspace,.nr-workspace) :is(input,select,textarea,option) {color-scheme:light}
-  .workspace.bento-rest.bento-rest :is(.fi-workspace,.training-workspace,.nr-workspace) option {background:#fff;color:#153247}
-  #portal-workspace :is(.fi-workspace,.training-workspace,.nr-workspace) :is(input:not([type=checkbox]):not([type=radio]),select,textarea,button,a.fi-button) {border-color:#698495}
-  .workspace.bento-rest.bento-rest :is(.fi-workspace,.training-workspace,.nr-workspace) :is(input,textarea)::placeholder {color:#496578;opacity:1}
-  .workspace.bento-rest.bento-rest :is(.fi-workspace,.training-workspace,.nr-workspace) :focus-visible {outline-color:#986000}
-  .workspace.bento-rest.bento-rest .training-workspace.training-workspace button :is(strong,small,span) {color:inherit}
-  .workspace.bento-rest.bento-rest .nr-workspace.nr-workspace button {background:#fff;color:#153247;border-color:#698495}
-  .workspace.bento-rest.bento-rest .nr-workspace.nr-workspace button:hover:not(:disabled) {background:#e6f0f7}
-  .workspace.bento-rest.bento-rest .nr-workspace.nr-workspace button:is(.nr-primary,[aria-current]) {background:#155a7c;color:#fff;border-color:#155a7c}
-  .workspace.bento-rest.bento-rest .nr-workspace.nr-workspace button :is(strong,span,small) {color:inherit}
-  .workspace.bento-rest.bento-rest .nr-workspace h1 {color:var(--nr-ink)}
+  #portal-workspace :is(.fi-workspace,.training-workspace,.nr-workspace) :is(input,select,textarea,option):where(:not(.fi-desk,.fi-desk *)) {color-scheme:light}
+  .workspace.bento-rest.bento-rest :is(.fi-workspace,.training-workspace,.nr-workspace) option:where(:not(.fi-desk,.fi-desk *)) {background:#fff;color:#153247}
+  #portal-workspace :is(.fi-workspace,.training-workspace,.nr-workspace) :is(input:not([type=checkbox]):not([type=radio]),select,textarea,button,a.fi-button):where(:not(.fi-desk,.fi-desk *)) {border-color:#698495}
+  .workspace.bento-rest.bento-rest :is(.fi-workspace,.training-workspace,.nr-workspace) :is(input,textarea):where(:not(.fi-desk,.fi-desk *))::placeholder {color:#496578;opacity:1}
+  .workspace.bento-rest.bento-rest :is(.fi-workspace,.training-workspace,.nr-workspace) :focus-visible:where(:not(.fi-desk,.fi-desk *)) {outline-color:#986000}
+  .workspace.bento-rest.bento-rest .training-workspace.training-workspace button :is(strong,small,span):where(:not(.fi-desk,.fi-desk *)) {color:inherit}
+  .workspace.bento-rest.bento-rest .nr-workspace.nr-workspace button:where(:not(.fi-desk,.fi-desk *)) {background:#fff;color:#153247;border-color:#698495}
+  .workspace.bento-rest.bento-rest .nr-workspace.nr-workspace button:hover:not(:disabled):where(:not(.fi-desk,.fi-desk *)) {background:#e6f0f7}
+  .workspace.bento-rest.bento-rest .nr-workspace.nr-workspace button:is(.nr-primary,[aria-current]):where(:not(.fi-desk,.fi-desk *)) {background:#155a7c;color:#fff;border-color:#155a7c}
+  .workspace.bento-rest.bento-rest .nr-workspace.nr-workspace button :is(strong,span,small):where(:not(.fi-desk,.fi-desk *)) {color:inherit}
+  .workspace.bento-rest.bento-rest .nr-workspace h1:where(:not(.fi-desk,.fi-desk *)) {color:var(--nr-ink)}
 
   /* Labels and neutral states on the shared analytics/payroll surfaces. */
-  .workspace.bento-rest.bento-rest :is(.record-identity span,.payroll-panel > header span,.trend-card > header span,.command-summary-card span,.call-breakdown-row span,.response-type-drilldown span) {color:#b5c4d8}
-  .workspace.bento-rest.bento-rest .trend-card em.flat {background:#1b2b43;color:#b5c4d8}
-  .workspace.bento-rest.bento-rest :is(.status-pill.not-started,.employment-status.ended) {background:#1b2b43;color:#b5c4d8}
-  .workspace.bento-rest.bento-rest .ao-eligibility.eligible {background:#342652;color:#e5d5ff}
-  .workspace.bento-rest.bento-rest :is(.kpi-card > div > span,.command-insight div span,.response-bars span,.response-bars small) {color:#b5c4d8}
-  .workspace.bento-rest.bento-rest :is(.detail-summary-grid > article,.call-breakdown-grid > section,.payroll-detail-list > article) {background:#141e30;color:#f1f5f9;border-color:#607895}
-  .workspace.bento-rest.bento-rest :is(.detail-summary-grid span,.breakdown-bars span,.payroll-detail-list span,.payroll-detail-list b) {color:#b5c4d8}
+  .workspace.bento-rest.bento-rest :is(.record-identity span,.payroll-panel > header span,.trend-card > header span,.command-summary-card span,.call-breakdown-row span,.response-type-drilldown span):where(:not(.fi-desk,.fi-desk *)) {color:#b5c4d8}
+  .workspace.bento-rest.bento-rest .trend-card em.flat:where(:not(.fi-desk,.fi-desk *)) {background:#1b2b43;color:#b5c4d8}
+  .workspace.bento-rest.bento-rest :is(.status-pill.not-started,.employment-status.ended):where(:not(.fi-desk,.fi-desk *)) {background:#1b2b43;color:#b5c4d8}
+  .workspace.bento-rest.bento-rest .ao-eligibility.eligible:where(:not(.fi-desk,.fi-desk *)) {background:#342652;color:#e5d5ff}
+  .workspace.bento-rest.bento-rest :is(.kpi-card > div > span,.command-insight div span,.response-bars span,.response-bars small):where(:not(.fi-desk,.fi-desk *)) {color:#b5c4d8}
+  .workspace.bento-rest.bento-rest :is(.detail-summary-grid > article,.call-breakdown-grid > section,.payroll-detail-list > article):where(:not(.fi-desk,.fi-desk *)) {background:#141e30;color:#f1f5f9;border-color:#607895}
+  .workspace.bento-rest.bento-rest :is(.detail-summary-grid span,.breakdown-bars span,.payroll-detail-list span,.payroll-detail-list b):where(:not(.fi-desk,.fi-desk *)) {color:#b5c4d8}
 
   /* Secondary boxes inherit the same palette as their containing tool. */
-  .workspace.bento-rest.bento-rest :is(.action-empty-state,.admin-edit-banner,.phone-actions a,.workflow-save-status) {background:#1b2b43;color:#e2e8f0;border-color:#607895}
-  .workspace.bento-rest.bento-rest :is(.action-empty-state,.admin-edit-banner,.phone-actions a,.workflow-save-status) :is(strong,p,small,span) {color:inherit}
-  .workspace.bento-rest.bento-rest .action-empty-state > span:first-child {background:#24344f;color:#e2e8f0}
-  .workspace.bento-rest.bento-rest .phone-actions a.emergency-call {background:#472126;color:#fecaca;border-color:#b87079}
-  .workspace.bento-rest.bento-rest .workflow-save-status.saved {background:#15382a;color:#bbf7d0;border-color:#508b6a}
-  .workspace.bento-rest.bento-rest .workflow-save-status.failed {background:#472126;color:#fecaca;border-color:#b87079}
-  .workspace.bento-rest.bento-rest :is(.workflow-save-status.unsaved,.validation-box) {background:#443219;color:#fde8b4;border-color:#a18450}
-  .workspace.bento-rest.bento-rest .board-alert {background:#472126;color:#fecaca;border-color:#b87079}
-  .workspace.bento-rest.bento-rest :is(.validation-box,.board-alert) :is(strong,span,p) {color:inherit}
-  .workspace.bento-rest.bento-rest .record-state-banner.finalized {background:#15382a;color:#bbf7d0;border-color:#508b6a}
-  .workspace.bento-rest.bento-rest .record-state-banner.finalized :is(strong,span) {color:inherit}
-  .workspace.bento-rest.bento-rest .cad-security-note {background:#472126;color:#fecaca}
-  .workspace.bento-rest.bento-rest .cad-security-note strong {color:inherit}
-  .workspace.bento-rest.bento-rest :is(.cad-needed-card li,.permission-admin-note,.department-stats span,.department-card footer span,.activity-category,.activity-card time,.activity-card footer span,.activity-toolbar span,.callback-rules-card span,.pay-rule span,.holiday-item span,.holiday-item time,.mobile-rate-label,.input-unit b,.calculated-rate b) {color:#b5c4d8}
-  .workspace.bento-rest.bento-rest .respond-device-settings :is(b,label span,.respond-device-actions span) {color:#e2e8f0}
-  .app-shell:has(#portal-workspace) .workspace :is(input,textarea)::placeholder {color:#b5c4d8;opacity:1}
-  .app-shell:has(#portal-workspace) .workspace :is(.fi-workspace,.training-workspace,.nr-workspace) :is(input,textarea)::placeholder {color:#496578;opacity:1}
-  .app-shell:has(#portal-workspace) .workspace button:disabled {opacity:1;background:#24344f;color:#b5c4d8;border-color:#607895;cursor:not-allowed}
-  .app-shell:has(#portal-workspace) .workspace :is(.fi-workspace,.training-workspace,.nr-workspace) button:disabled {background:#e7eff5;color:#496578;border-color:#698495}
-  .field-preplans-page.field-preplans-page .field-directory-tabs button.active :is(span,small) {color:#fff}
-  .road-closures-page.road-closures-page .road-closures-hero span {color:#b5c4d8}
-  .road-closures-page.road-closures-page .active-road-list > header span {color:#b5c4d8}
-  .field-preplans-page.field-preplans-page .field-map-layout aside > header > span {background:#1b2b43;color:#f1f5f9}
-  .field-preplans-page.field-preplans-page .field-map-layout aside > p {color:#b5c4d8}
-  .workspace.bento-rest.bento-rest .callback-rule-version {background:#15382a;color:#bbf7d0}
+  .workspace.bento-rest.bento-rest :is(.action-empty-state,.admin-edit-banner,.phone-actions a,.workflow-save-status):where(:not(.fi-desk,.fi-desk *)) {background:#1b2b43;color:#e2e8f0;border-color:#607895}
+  .workspace.bento-rest.bento-rest :is(.action-empty-state,.admin-edit-banner,.phone-actions a,.workflow-save-status) :is(strong,p,small,span):where(:not(.fi-desk,.fi-desk *)) {color:inherit}
+  .workspace.bento-rest.bento-rest .action-empty-state > span:first-child:where(:not(.fi-desk,.fi-desk *)) {background:#24344f;color:#e2e8f0}
+  .workspace.bento-rest.bento-rest .phone-actions a.emergency-call:where(:not(.fi-desk,.fi-desk *)) {background:#472126;color:#fecaca;border-color:#b87079}
+  .workspace.bento-rest.bento-rest .workflow-save-status.saved:where(:not(.fi-desk,.fi-desk *)) {background:#15382a;color:#bbf7d0;border-color:#508b6a}
+  .workspace.bento-rest.bento-rest .workflow-save-status.failed:where(:not(.fi-desk,.fi-desk *)) {background:#472126;color:#fecaca;border-color:#b87079}
+  .workspace.bento-rest.bento-rest :is(.workflow-save-status.unsaved,.validation-box):where(:not(.fi-desk,.fi-desk *)) {background:#443219;color:#fde8b4;border-color:#a18450}
+  .workspace.bento-rest.bento-rest .board-alert:where(:not(.fi-desk,.fi-desk *)) {background:#472126;color:#fecaca;border-color:#b87079}
+  .workspace.bento-rest.bento-rest :is(.validation-box,.board-alert) :is(strong,span,p):where(:not(.fi-desk,.fi-desk *)) {color:inherit}
+  .workspace.bento-rest.bento-rest .record-state-banner.finalized:where(:not(.fi-desk,.fi-desk *)) {background:#15382a;color:#bbf7d0;border-color:#508b6a}
+  .workspace.bento-rest.bento-rest .record-state-banner.finalized :is(strong,span):where(:not(.fi-desk,.fi-desk *)) {color:inherit}
+  .workspace.bento-rest.bento-rest .cad-security-note:where(:not(.fi-desk,.fi-desk *)) {background:#472126;color:#fecaca}
+  .workspace.bento-rest.bento-rest .cad-security-note strong:where(:not(.fi-desk,.fi-desk *)) {color:inherit}
+  .workspace.bento-rest.bento-rest :is(.cad-needed-card li,.permission-admin-note,.department-stats span,.department-card footer span,.activity-category,.activity-card time,.activity-card footer span,.activity-toolbar span,.callback-rules-card span,.pay-rule span,.holiday-item span,.holiday-item time,.mobile-rate-label,.input-unit b,.calculated-rate b):where(:not(.fi-desk,.fi-desk *)) {color:#b5c4d8}
+  .workspace.bento-rest.bento-rest .respond-device-settings :is(b,label span,.respond-device-actions span):where(:not(.fi-desk,.fi-desk *)) {color:#e2e8f0}
+  .app-shell:has(#portal-workspace) .workspace :is(input,textarea):where(:not(.fi-desk,.fi-desk *))::placeholder {color:#b5c4d8;opacity:1}
+  .app-shell:has(#portal-workspace) .workspace :is(.fi-workspace,.training-workspace,.nr-workspace) :is(input,textarea):where(:not(.fi-desk,.fi-desk *))::placeholder {color:#496578;opacity:1}
+  .app-shell:has(#portal-workspace) .workspace button:disabled:where(:not(.fi-desk,.fi-desk *)) {opacity:1;background:#24344f;color:#b5c4d8;border-color:#607895;cursor:not-allowed}
+  .app-shell:has(#portal-workspace) .workspace :is(.fi-workspace,.training-workspace,.nr-workspace) button:disabled:where(:not(.fi-desk,.fi-desk *)) {background:#e7eff5;color:#496578;border-color:#698495}
+  .field-preplans-page.field-preplans-page .field-directory-tabs button.active :is(span,small):where(:not(.fi-desk,.fi-desk *)) {color:#fff}
+  .road-closures-page.road-closures-page .road-closures-hero span:where(:not(.fi-desk,.fi-desk *)) {color:#b5c4d8}
+  .road-closures-page.road-closures-page .active-road-list > header span:where(:not(.fi-desk,.fi-desk *)) {color:#b5c4d8}
+  .field-preplans-page.field-preplans-page .field-map-layout aside > header > span:where(:not(.fi-desk,.fi-desk *)) {background:#1b2b43;color:#f1f5f9}
+  .field-preplans-page.field-preplans-page .field-map-layout aside > p:where(:not(.fi-desk,.fi-desk *)) {color:#b5c4d8}
+  .workspace.bento-rest.bento-rest .callback-rule-version:where(:not(.fi-desk,.fi-desk *)) {background:#15382a;color:#bbf7d0}
   /* Callback submissions retain light cards and semantic rule/review surfaces. */
-  .workspace.bento-rest.bento-rest .callback-review-item {color:#102a43}
-  .workspace.bento-rest.bento-rest .callback-review-item :is(strong,label) {color:#102a43}
-  .workspace.bento-rest.bento-rest .callback-review-item small {color:#526b7a}
-  .workspace.bento-rest.bento-rest .callback-hour-summary span {color:#526b7a}
-  .workspace.bento-rest.bento-rest .callback-review-item .callback-rule-results :is(strong,small) {color:inherit}
-  .workspace.bento-rest.bento-rest .callback-review-item .callback-reviewed-summary :is(strong,small) {color:inherit}
+  .workspace.bento-rest.bento-rest .callback-review-item:where(:not(.fi-desk,.fi-desk *)) {color:#102a43}
+  .workspace.bento-rest.bento-rest .callback-review-item :is(strong,label):where(:not(.fi-desk,.fi-desk *)) {color:#102a43}
+  .workspace.bento-rest.bento-rest .callback-review-item small:where(:not(.fi-desk,.fi-desk *)) {color:#526b7a}
+  .workspace.bento-rest.bento-rest .callback-hour-summary span:where(:not(.fi-desk,.fi-desk *)) {color:#526b7a}
+  .workspace.bento-rest.bento-rest .callback-review-item .callback-rule-results :is(strong,small):where(:not(.fi-desk,.fi-desk *)) {color:inherit}
+  .workspace.bento-rest.bento-rest .callback-review-item .callback-reviewed-summary :is(strong,small):where(:not(.fi-desk,.fi-desk *)) {color:inherit}
   /* Employee details use paper fieldsets; pair their text and controls with them. */
-  .workspace.bento-rest.bento-rest .employee-profile-form fieldset {color:#17324d}
-  .workspace.bento-rest.bento-rest .employee-profile-form fieldset :is(label,legend,strong) {color:#17324d}
-  .workspace.bento-rest.bento-rest .employee-profile-form fieldset :is(p,small,dt) {color:#496578}
-  .workspace.bento-rest.bento-rest .employee-profile-form :is(input:not([type=checkbox]):not([type=radio]),select,textarea,option) {background:#fff;color:#17324d;-webkit-text-fill-color:#17324d;color-scheme:light}
-  .workspace.bento-rest.bento-rest .employee-profile-form :is(input:not([type=checkbox]):not([type=radio]),select,textarea):disabled {background:#edf1f4;color:#526777;-webkit-text-fill-color:#526777;opacity:1}
-  .app-shell:has(#portal-workspace) .workspace .employee-profile-form :is(input,textarea)::placeholder {color:#496578;-webkit-text-fill-color:#496578;opacity:1}
-  .workspace.bento-rest.bento-rest .employee-roster-card td::before {color:#b5c4d8}
-  .icb-page.icb-page .icb-empty span {color:#496578}
-  .workspace.bento-rest.bento-rest :is(.policy-toc,.policy-toc-head) {background:#141e30;color:#f1f5f9;border-color:#607895}
-  .workspace.bento-rest.bento-rest .policy-toc-head > strong {background:#1b2b43;color:#f1f5f9}
-  .workspace.bento-rest.bento-rest .policy-toc button :is(span,small) {color:#b5c4d8}
-  .workspace.bento-rest.bento-rest .policy-toc button.current :is(span,small) {color:#fff}
-  .workspace.bento-rest.bento-rest .mini-summary > div {background:#1b2b43;border-color:#607895}
-  .workspace.bento-rest.bento-rest .mini-summary span {color:#b5c4d8}
-  .workspace.bento-rest.bento-rest .timesheet-phone-day {background:#1b2b43;color:#f1f5f9;border-color:#607895}
+  .workspace.bento-rest.bento-rest .employee-profile-form fieldset:where(:not(.fi-desk,.fi-desk *)) {color:#17324d}
+  .workspace.bento-rest.bento-rest .employee-profile-form fieldset :is(label,legend,strong):where(:not(.fi-desk,.fi-desk *)) {color:#17324d}
+  .workspace.bento-rest.bento-rest .employee-profile-form fieldset :is(p,small,dt):where(:not(.fi-desk,.fi-desk *)) {color:#496578}
+  .workspace.bento-rest.bento-rest .employee-profile-form :is(input:not([type=checkbox]):not([type=radio]),select,textarea,option):where(:not(.fi-desk,.fi-desk *)) {background:#fff;color:#17324d;-webkit-text-fill-color:#17324d;color-scheme:light}
+  .workspace.bento-rest.bento-rest .employee-profile-form :is(input:not([type=checkbox]):not([type=radio]),select,textarea):disabled:where(:not(.fi-desk,.fi-desk *)) {background:#edf1f4;color:#526777;-webkit-text-fill-color:#526777;opacity:1}
+  .app-shell:has(#portal-workspace) .workspace .employee-profile-form :is(input,textarea):where(:not(.fi-desk,.fi-desk *))::placeholder {color:#496578;-webkit-text-fill-color:#496578;opacity:1}
+  .workspace.bento-rest.bento-rest .employee-roster-card td:where(:not(.fi-desk,.fi-desk *))::before {color:#b5c4d8}
+  .icb-page.icb-page .icb-empty span:where(:not(.fi-desk,.fi-desk *)) {color:#496578}
+  .workspace.bento-rest.bento-rest :is(.policy-toc,.policy-toc-head):where(:not(.fi-desk,.fi-desk *)) {background:#141e30;color:#f1f5f9;border-color:#607895}
+  .workspace.bento-rest.bento-rest .policy-toc-head > strong:where(:not(.fi-desk,.fi-desk *)) {background:#1b2b43;color:#f1f5f9}
+  .workspace.bento-rest.bento-rest .policy-toc button :is(span,small):where(:not(.fi-desk,.fi-desk *)) {color:#b5c4d8}
+  .workspace.bento-rest.bento-rest .policy-toc button.current :is(span,small):where(:not(.fi-desk,.fi-desk *)) {color:#fff}
+  .workspace.bento-rest.bento-rest .mini-summary > div:where(:not(.fi-desk,.fi-desk *)) {background:#1b2b43;border-color:#607895}
+  .workspace.bento-rest.bento-rest .mini-summary span:where(:not(.fi-desk,.fi-desk *)) {color:#b5c4d8}
+  .workspace.bento-rest.bento-rest .timesheet-phone-day:where(:not(.fi-desk,.fi-desk *)) {background:#1b2b43;color:#f1f5f9;border-color:#607895}
   /* Native text fill must follow the screen palette, including saved and locked hours. */
-  #portal-workspace .timesheet-card :is(input,select,textarea,option) {background:#0e1728;color:#f1f5f9;-webkit-text-fill-color:currentColor;border-color:#607895;color-scheme:dark}
-  #portal-workspace .timesheet-card .entry-grid input {font-weight:650}
-  #portal-workspace .timesheet-card .entry-grid input:is(.timesheet-readonly,:read-only,:disabled) {background:#24344f;color:#e2e8f0;opacity:1}
-  #portal-workspace .timesheet-card .entry-grid input.saving {background:#443219;color:#fde8b4}
-  #portal-workspace .timesheet-card .entry-grid input[aria-invalid=true],
-  #portal-workspace .timesheet-card .entry-grid .row-warning {background:#472126;color:#fecaca;border-color:#d58b97}
-  #portal-workspace .timesheet-card .entry-grid [role=alert] {color:#fecaca}
-  #portal-workspace .timesheet-card :is(input,select,textarea):focus-visible {outline:3px solid #93c5fd;outline-offset:2px}
-  #portal-workspace .timesheet-card .entry-grid :is(thead th,td:first-child,tfoot td) {background:#1b2b43;color:#f1f5f9}
-  .workspace.bento-rest.bento-rest :is(.pay-calculation,.pay-calculation-line,.pay-calculation-total) {background:#141e30;color:#f1f5f9;border-color:#607895}
-  .workspace.bento-rest.bento-rest .pay-calculation-line span {color:#b5c4d8}
-  .workspace.bento-rest.bento-rest .pay-calculation-line b {color:#f1f5f9}
-  .workspace.bento-rest.bento-rest :is(.rate-row > label > b,.system-health-state) {color:#b5c4d8}
-  .workspace.bento-rest.bento-rest .system-health-card a.quiet-button {background:#1b2b43;color:#93c5fd;border-color:#607895}
+  #portal-workspace .timesheet-card :is(input,select,textarea,option):where(:not(.fi-desk,.fi-desk *)) {background:#0e1728;color:#f1f5f9;-webkit-text-fill-color:currentColor;border-color:#607895;color-scheme:dark}
+  #portal-workspace .timesheet-card .entry-grid input:where(:not(.fi-desk,.fi-desk *)) {font-weight:650}
+  #portal-workspace .timesheet-card .entry-grid input:is(.timesheet-readonly,:read-only,:disabled):where(:not(.fi-desk,.fi-desk *)) {background:#24344f;color:#e2e8f0;opacity:1}
+  #portal-workspace .timesheet-card .entry-grid input.saving:where(:not(.fi-desk,.fi-desk *)) {background:#443219;color:#fde8b4}
+  #portal-workspace .timesheet-card .entry-grid input[aria-invalid=true]:where(:not(.fi-desk,.fi-desk *)),#portal-workspace .timesheet-card .entry-grid .row-warning:where(:not(.fi-desk,.fi-desk *)) {background:#472126;color:#fecaca;border-color:#d58b97}
+  #portal-workspace .timesheet-card .entry-grid [role=alert]:where(:not(.fi-desk,.fi-desk *)) {color:#fecaca}
+  #portal-workspace .timesheet-card :is(input,select,textarea):focus-visible:where(:not(.fi-desk,.fi-desk *)) {outline:3px solid #93c5fd;outline-offset:2px}
+  #portal-workspace .timesheet-card .entry-grid :is(thead th,td:first-child,tfoot td):where(:not(.fi-desk,.fi-desk *)) {background:#1b2b43;color:#f1f5f9}
+  .workspace.bento-rest.bento-rest :is(.pay-calculation,.pay-calculation-line,.pay-calculation-total):where(:not(.fi-desk,.fi-desk *)) {background:#141e30;color:#f1f5f9;border-color:#607895}
+  .workspace.bento-rest.bento-rest .pay-calculation-line span:where(:not(.fi-desk,.fi-desk *)) {color:#b5c4d8}
+  .workspace.bento-rest.bento-rest .pay-calculation-line b:where(:not(.fi-desk,.fi-desk *)) {color:#f1f5f9}
+  .workspace.bento-rest.bento-rest :is(.rate-row > label > b,.system-health-state):where(:not(.fi-desk,.fi-desk *)) {color:#b5c4d8}
+  .workspace.bento-rest.bento-rest .system-health-card a.quiet-button:where(:not(.fi-desk,.fi-desk *)) {background:#1b2b43;color:#93c5fd;border-color:#607895}
   /* Hydrant sections use the portal palette as a complete surface, including labels and histories. */
-  #portal-workspace .hydrant-editor,
-  #portal-workspace .hydrant-editor :is(.content-card,.hydrant-summary) {background:#141e30;color:#f1f5f9;border-color:#607895}
-  #portal-workspace .hydrant-editor > header {background:#1b2b43;color:#f1f5f9;border-color:#607895}
-  #portal-workspace .hydrant-editor :is(h2,h3,label,legend,strong,b,dd) {color:#f1f5f9}
-  #portal-workspace .hydrant-editor :is(p,small,dt,li,.hydrant-history span,.flow-history span,.hydrant-quick > article span) {color:#b5c4d8;opacity:1}
-  #portal-workspace .hydrant-editor :is(.hydrant-quick > article,.hydrant-summary dl div) {background:#1b2b43;color:#f1f5f9}
-  #portal-workspace .hydrant-editor :is(.hydrant-profile > header,.hydrant-history,.flow-history > div) {border-color:#607895}
-  #portal-workspace .hydrant-editor :is(input,select,textarea) {background:#0e1728;color:#f1f5f9;border-color:#607895;color-scheme:dark}
-  #portal-workspace .hydrant-editor option {background:#0e1728;color:#f1f5f9}
-  #portal-workspace .hydrant-editor button {transition:none}
-  #portal-workspace .hydrant-editor > header nav button {background:#1b2b43;color:#e2e8f0;border-color:#607895}
-  #portal-workspace .hydrant-editor > header nav button.active {background:#0f6974;color:#fff;border-color:#70c8d0;box-shadow:inset 0 -3px #70c8d0}
-  #portal-workspace .hydrant-editor > header nav button:disabled {background:#24344f;color:#b5c4d8;opacity:1}
-  #portal-workspace .hydrant-editor .hydrant-quick > article button {background:transparent;color:#93c5fd}
-  #portal-workspace .hydrant-editor .field-message {background:#443219;color:#fde8b4;border-color:#a18450}
-  #portal-workspace .hydrant-editor .flow-result {background:#253d4c;color:#fff}
-  #portal-workspace .hydrant-editor .flow-result :is(strong,b,span,p,small) {color:#fff;opacity:1}
-  #portal-workspace .hydrant-record-focused .preplan-focus-header > div > span,
-  #portal-workspace .hydrant-editor > header > div > span {color:#9edfe4}
-  #portal-workspace .hydrant-record-focused .record-focus-status,
-  #portal-workspace .hydrant-editor .hydrant-summary > strong {background:#15382a;color:#bbf7d0}
-  #portal-workspace .hydrant-record-focused .record-focus-status.out_of_service,
-  #portal-workspace .hydrant-editor .hydrant-summary > strong.out_of_service {background:#472126;color:#fecaca}
+  #portal-workspace .hydrant-editor:where(:not(.fi-desk,.fi-desk *)),#portal-workspace .hydrant-editor :is(.content-card,.hydrant-summary):where(:not(.fi-desk,.fi-desk *)) {background:#141e30;color:#f1f5f9;border-color:#607895}
+  #portal-workspace .hydrant-editor > header:where(:not(.fi-desk,.fi-desk *)) {background:#1b2b43;color:#f1f5f9;border-color:#607895}
+  #portal-workspace .hydrant-editor :is(h2,h3,label,legend,strong,b,dd):where(:not(.fi-desk,.fi-desk *)) {color:#f1f5f9}
+  #portal-workspace .hydrant-editor :is(p,small,dt,li,.hydrant-history span,.flow-history span,.hydrant-quick > article span):where(:not(.fi-desk,.fi-desk *)) {color:#b5c4d8;opacity:1}
+  #portal-workspace .hydrant-editor :is(.hydrant-quick > article,.hydrant-summary dl div):where(:not(.fi-desk,.fi-desk *)) {background:#1b2b43;color:#f1f5f9}
+  #portal-workspace .hydrant-editor :is(.hydrant-profile > header,.hydrant-history,.flow-history > div):where(:not(.fi-desk,.fi-desk *)) {border-color:#607895}
+  #portal-workspace .hydrant-editor :is(input,select,textarea):where(:not(.fi-desk,.fi-desk *)) {background:#0e1728;color:#f1f5f9;border-color:#607895;color-scheme:dark}
+  #portal-workspace .hydrant-editor option:where(:not(.fi-desk,.fi-desk *)) {background:#0e1728;color:#f1f5f9}
+  #portal-workspace .hydrant-editor button:where(:not(.fi-desk,.fi-desk *)) {transition:none}
+  #portal-workspace .hydrant-editor > header nav button:where(:not(.fi-desk,.fi-desk *)) {background:#1b2b43;color:#e2e8f0;border-color:#607895}
+  #portal-workspace .hydrant-editor > header nav button.active:where(:not(.fi-desk,.fi-desk *)) {background:#0f6974;color:#fff;border-color:#70c8d0;box-shadow:inset 0 -3px #70c8d0}
+  #portal-workspace .hydrant-editor > header nav button:disabled:where(:not(.fi-desk,.fi-desk *)) {background:#24344f;color:#b5c4d8;opacity:1}
+  #portal-workspace .hydrant-editor .hydrant-quick > article button:where(:not(.fi-desk,.fi-desk *)) {background:transparent;color:#93c5fd}
+  #portal-workspace .hydrant-editor .field-message:where(:not(.fi-desk,.fi-desk *)) {background:#443219;color:#fde8b4;border-color:#a18450}
+  #portal-workspace .hydrant-editor .flow-result:where(:not(.fi-desk,.fi-desk *)) {background:#253d4c;color:#fff}
+  #portal-workspace .hydrant-editor .flow-result :is(strong,b,span,p,small):where(:not(.fi-desk,.fi-desk *)) {color:#fff;opacity:1}
+  #portal-workspace .hydrant-record-focused .preplan-focus-header > div > span:where(:not(.fi-desk,.fi-desk *)),#portal-workspace .hydrant-editor > header > div > span:where(:not(.fi-desk,.fi-desk *)) {color:#9edfe4}
+  #portal-workspace .hydrant-record-focused .record-focus-status:where(:not(.fi-desk,.fi-desk *)),#portal-workspace .hydrant-editor .hydrant-summary > strong:where(:not(.fi-desk,.fi-desk *)) {background:#15382a;color:#bbf7d0}
+  #portal-workspace .hydrant-record-focused .record-focus-status.out_of_service:where(:not(.fi-desk,.fi-desk *)),#portal-workspace .hydrant-editor .hydrant-summary > strong.out_of_service:where(:not(.fi-desk,.fi-desk *)) {background:#472126;color:#fecaca}
   @media (max-width:360px) {
-    .workspace.bento-rest.bento-rest .mini-summary {grid-template-columns:minmax(0,1fr)}
+    .workspace.bento-rest.bento-rest .mini-summary:where(:not(.fi-desk,.fi-desk *)) {grid-template-columns:minmax(0,1fr)}
   }
 }
 /* Empty, disconnected and expanded states need the same complete palette as active calls. */
 @media screen {
-  .respond-page.respond-page .respond-title p,
-  .respond-page.respond-page .respond-title-actions small,
-  .respond-page.respond-page .respond-monitor-status > small,
-  .respond-page.respond-page .respond-monitor-status .primary :is(span,small),
-  .respond-page.respond-page .respond-task-guide span,
-  .respond-page.respond-page .respond-map-options > summary span,
-  .respond-page.respond-page .respond-call-rail-empty > span {color:#b8c5d8}
-  .respond-page.respond-page .respond-monitor-status .primary strong,
-  .respond-page.respond-page .respond-task-guide strong,
-  .respond-page.respond-page .respond-map-options > summary,
-  .respond-page.respond-page .respond-call-rail-empty strong {color:#f8fafc}
-  .respond-page.respond-page .location-disconnected {background:#443219;color:#fde8b4;border:1px solid #a18450}
-  .respond-page.respond-page .location-message {color:#fde8b4}
-  .respond-page.respond-page .respond-call-rail > footer small {color:#496578}
-  .icb-page.icb-page .icb-preview-grid article small {color:#b8c5d8}
-  #portal-workspace .scenario-guide {background:#141e30;color:#e2e8f0;border:1px solid #607895;border-radius:12px;padding:12px 16px;line-height:1.6}
-  #portal-workspace .scenario-guide > summary {min-height:44px;display:list-item;align-content:center;color:#f1f5f9;cursor:pointer;font-weight:700}
-  #portal-workspace .scenario-guide :is(li,p) {color:#c6d2e4}
-  #portal-workspace .scenario-guide :focus-visible {outline:3px solid #93c5fd;outline-offset:3px}
+  .respond-page.respond-page .respond-title p:where(:not(.fi-desk,.fi-desk *)),.respond-page.respond-page .respond-title-actions small:where(:not(.fi-desk,.fi-desk *)),.respond-page.respond-page .respond-monitor-status > small:where(:not(.fi-desk,.fi-desk *)),.respond-page.respond-page .respond-monitor-status .primary :is(span,small):where(:not(.fi-desk,.fi-desk *)),.respond-page.respond-page .respond-task-guide span:where(:not(.fi-desk,.fi-desk *)),.respond-page.respond-page .respond-map-options > summary span:where(:not(.fi-desk,.fi-desk *)),.respond-page.respond-page .respond-call-rail-empty > span:where(:not(.fi-desk,.fi-desk *)) {color:#b8c5d8}
+  .respond-page.respond-page .respond-monitor-status .primary strong:where(:not(.fi-desk,.fi-desk *)),.respond-page.respond-page .respond-task-guide strong:where(:not(.fi-desk,.fi-desk *)),.respond-page.respond-page .respond-map-options > summary:where(:not(.fi-desk,.fi-desk *)),.respond-page.respond-page .respond-call-rail-empty strong:where(:not(.fi-desk,.fi-desk *)) {color:#f8fafc}
+  .respond-page.respond-page .location-disconnected:where(:not(.fi-desk,.fi-desk *)) {background:#443219;color:#fde8b4;border:1px solid #a18450}
+  .respond-page.respond-page .location-message:where(:not(.fi-desk,.fi-desk *)) {color:#fde8b4}
+  .respond-page.respond-page .respond-call-rail > footer small:where(:not(.fi-desk,.fi-desk *)) {color:#496578}
+  .icb-page.icb-page .icb-preview-grid article small:where(:not(.fi-desk,.fi-desk *)) {color:#b8c5d8}
+  #portal-workspace .scenario-guide:where(:not(.fi-desk,.fi-desk *)) {background:#141e30;color:#e2e8f0;border:1px solid #607895;border-radius:12px;padding:12px 16px;line-height:1.6}
+  #portal-workspace .scenario-guide > summary:where(:not(.fi-desk,.fi-desk *)) {min-height:44px;display:list-item;align-content:center;color:#f1f5f9;cursor:pointer;font-weight:700}
+  #portal-workspace .scenario-guide :is(li,p):where(:not(.fi-desk,.fi-desk *)) {color:#c6d2e4}
+  #portal-workspace .scenario-guide :focus-visible:where(:not(.fi-desk,.fi-desk *)) {outline:3px solid #93c5fd;outline-offset:3px}
 }
 /* Selected reporting tabs must remain selected when hovered or focused. */
 @media screen {
-  .workspace.bento-rest.bento-rest .nr-workspace.nr-workspace button:is(.nr-primary,[aria-current]):is(:hover,:focus-visible) {background:#155a7c;color:#fff;border-color:#155a7c}
-  #portal-workspace .nr-workspace.nr-workspace a {color:#175a7b;text-decoration:underline;text-underline-offset:3px}
-  #portal-workspace .nr-workspace.nr-workspace a:focus-visible {outline:3px solid #986000;outline-offset:3px}
+  .workspace.bento-rest.bento-rest .nr-workspace.nr-workspace button:is(.nr-primary,[aria-current]):is(:hover,:focus-visible):where(:not(.fi-desk,.fi-desk *)) {background:#155a7c;color:#fff;border-color:#155a7c}
+  #portal-workspace .nr-workspace.nr-workspace a:where(:not(.fi-desk,.fi-desk *)) {color:#175a7b;text-decoration:underline;text-underline-offset:3px}
+  #portal-workspace .nr-workspace.nr-workspace a:focus-visible:where(:not(.fi-desk,.fi-desk *)) {outline:3px solid #986000;outline-offset:3px}
 }
 /* Effective dates and full policy documents remain readable on slate cards. */
 @media screen {
-  .workspace.bento-rest.bento-rest .rate-effective-control label > span {color:#e2e8f0}
-  .workspace.bento-rest.bento-rest .policy-reader :is(.resource-copy,.resource-record-head span,.resource-record-head time) {color:#c6d2e4}
-  .workspace.bento-rest.bento-rest .policy-reader .resource-copy {font-size:16px;line-height:1.75;overflow-wrap:anywhere}
+  .workspace.bento-rest.bento-rest .rate-effective-control label > span:where(:not(.fi-desk,.fi-desk *)) {color:#e2e8f0}
+  .workspace.bento-rest.bento-rest .policy-reader :is(.resource-copy,.resource-record-head span,.resource-record-head time):where(:not(.fi-desk,.fi-desk *)) {color:#c6d2e4}
+  .workspace.bento-rest.bento-rest .policy-reader .resource-copy:where(:not(.fi-desk,.fi-desk *)) {font-size:16px;line-height:1.75;overflow-wrap:anywhere}
 }
 @media screen {
-  .workspace.bento-rest.bento-rest .ao-eligibility:not(.eligible) {background:#1b2b43;color:#c6d2e4}
-  .field-preplans-page.field-preplans-page .preplan-editor > header {background:#141e30;color:#f1f5f9;border-color:#607895}
-  .field-preplans-page.field-preplans-page :is(.preplan-focus-header,.preplan-editor > header) > div > span {color:#b5c4d8}
-  .field-preplans-page.field-preplans-page .preplan-capture-help strong {color:#173e59}
-  .field-preplans-page.field-preplans-page .preplan-workflow-footer > span {color:#c6d2e4}
-  .field-preplans-page.field-preplans-page .workflow-save-status {background:#1b2b43;color:#e2e8f0;border-color:#607895}
-  .field-preplans-page.field-preplans-page .workflow-save-status.unsaved {background:#443219;color:#fde8b4;border-color:#a18450}
-  .field-preplans-page.field-preplans-page .workflow-save-status.failed {background:#472126;color:#fecaca;border-color:#b87079}
-  .field-preplans-page.field-preplans-page .workflow-save-status.saved {background:#15382a;color:#bbf7d0;border-color:#508b6a}
-  .field-preplans-page.field-preplans-page .workflow-save-status :is(strong,span,p) {color:inherit}
+  .workspace.bento-rest.bento-rest .ao-eligibility:not(.eligible):where(:not(.fi-desk,.fi-desk *)) {background:#1b2b43;color:#c6d2e4}
+  .field-preplans-page.field-preplans-page .preplan-editor > header:where(:not(.fi-desk,.fi-desk *)) {background:#141e30;color:#f1f5f9;border-color:#607895}
+  .field-preplans-page.field-preplans-page :is(.preplan-focus-header,.preplan-editor > header) > div > span:where(:not(.fi-desk,.fi-desk *)) {color:#b5c4d8}
+  .field-preplans-page.field-preplans-page .preplan-capture-help strong:where(:not(.fi-desk,.fi-desk *)) {color:#173e59}
+  .field-preplans-page.field-preplans-page .preplan-workflow-footer > span:where(:not(.fi-desk,.fi-desk *)) {color:#c6d2e4}
+  .field-preplans-page.field-preplans-page .workflow-save-status:where(:not(.fi-desk,.fi-desk *)) {background:#1b2b43;color:#e2e8f0;border-color:#607895}
+  .field-preplans-page.field-preplans-page .workflow-save-status.unsaved:where(:not(.fi-desk,.fi-desk *)) {background:#443219;color:#fde8b4;border-color:#a18450}
+  .field-preplans-page.field-preplans-page .workflow-save-status.failed:where(:not(.fi-desk,.fi-desk *)) {background:#472126;color:#fecaca;border-color:#b87079}
+  .field-preplans-page.field-preplans-page .workflow-save-status.saved:where(:not(.fi-desk,.fi-desk *)) {background:#15382a;color:#bbf7d0;border-color:#508b6a}
+  .field-preplans-page.field-preplans-page .workflow-save-status :is(strong,span,p):where(:not(.fi-desk,.fi-desk *)) {color:inherit}
 }
 @media screen {
-  .app-shell:has(#portal-workspace) .workspace .portal-task-directory input::placeholder {color:#496578;opacity:1}
-  .mobile-nav-panel .mobile-core-nav h2 {color:#496578}
+  .app-shell:has(#portal-workspace) .workspace .portal-task-directory input:where(:not(.fi-desk,.fi-desk *))::placeholder {color:#496578;opacity:1}
+  .mobile-nav-panel .mobile-core-nav h2:where(:not(.fi-desk,.fi-desk *)) {color:#496578}
 }

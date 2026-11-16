@@ -13,21 +13,21 @@
 .fi-alternative{border-left:4px solid #397391}.fi-alternative>summary{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.fi-review-steps{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}.fi-review-steps button[aria-current]{background:#153c58;color:#fff}.fi-review-footer{border-top:1px solid var(--fi-line);padding-top:16px;margin-top:18px}#fi-alternative-title{scroll-margin-top:95px}.fi-alternative h4{margin:4px 0 12px}@media(max-width:480px){.fi-review-steps button{flex:1 0 40%}.fi-review-footer button{width:100%}}
 /* Keep the paper prevention workspace readable inside the shared dark portal shell. */
 @media screen {
- .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace :is(.fi-panel,.fi-row,.fi-saved-check){background:#fff;color:var(--fi-ink);border-color:var(--fi-line);box-shadow:none}
- .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace :is(h1,h2,h3,h4,h5,strong,label,legend){color:var(--fi-ink)}
- .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace :is(p,dt,dd,li){color:var(--fi-ink)}
- .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace small{color:#4b6476}
- .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace :is(input,textarea,select,option){background:#fff;color:var(--fi-ink)}
- .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace .fi-field :is(input,textarea,select){background:#fff;color:var(--fi-ink);border-color:#acc2d1}
- .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace :is(a,a.fi-button){color:#155e91}
- .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace a.fi-button{background:#fff;border-color:#b5cbd9}
- .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace button{background:#fff;color:var(--fi-ink);border-color:#b5cbd9}
- .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace button:hover:not(:disabled){background:#e6f0f7}
- .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace button:is(.fi-primary,[aria-current]){background:#17597e;color:#fff;border-color:#17597e}
- .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace button:is(.fi-primary,[aria-current]):hover:not(:disabled){background:#124361}
- .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace button :is(strong,span){color:inherit}
- .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace .fi-error :is(p,strong){color:inherit}
- .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace .fi-success :is(p,strong){color:inherit}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace:where(:not(.fi-desk)) :is(.fi-panel,.fi-row,.fi-saved-check){background:#fff;color:var(--fi-ink);border-color:var(--fi-line);box-shadow:none}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace:where(:not(.fi-desk)) :is(h1,h2,h3,h4,h5,strong,label,legend){color:var(--fi-ink)}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace:where(:not(.fi-desk)) :is(p,dt,dd,li){color:var(--fi-ink)}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace:where(:not(.fi-desk)) small{color:#4b6476}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace:where(:not(.fi-desk)) :is(input,textarea,select,option){background:#fff;color:var(--fi-ink)}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace:where(:not(.fi-desk)) .fi-field :is(input,textarea,select){background:#fff;color:var(--fi-ink);border-color:#acc2d1}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace:where(:not(.fi-desk)) :is(a,a.fi-button){color:#155e91}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace:where(:not(.fi-desk)) a.fi-button{background:#fff;border-color:#b5cbd9}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace:where(:not(.fi-desk)) button{background:#fff;color:var(--fi-ink);border-color:#b5cbd9}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace:where(:not(.fi-desk)) button:hover:not(:disabled){background:#e6f0f7}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace:where(:not(.fi-desk)) button:is(.fi-primary,[aria-current]){background:#17597e;color:#fff;border-color:#17597e}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace:where(:not(.fi-desk)) button:is(.fi-primary,[aria-current]):hover:not(:disabled){background:#124361}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace:where(:not(.fi-desk)) button :is(strong,span){color:inherit}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace:where(:not(.fi-desk)) .fi-error :is(p,strong){color:inherit}
+ .workspace.bento-rest.bento-rest .fi-workspace.fi-workspace:where(:not(.fi-desk)) .fi-success :is(p,strong){color:inherit}
  .fi-workspace .fi-panel{overflow-wrap:anywhere;min-width:0}
 }
 /* Field navigation fits the viewport; controls stay within each checkpoint. */
