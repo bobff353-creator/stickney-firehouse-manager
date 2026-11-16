@@ -1,5 +1,5 @@
 import {todayChicago,type InspectionRecord} from './model';
-export type InspectionReminder={id:string;recordId:string;title:string;property:string;dueDate:string;kind:'Correction'|'Reinspection'|'Routine visit';status:string};
+export type InspectionReminder={id:string;recordId:string;checkId?:string;title:string;property:string;dueDate:string;kind:'Correction'|'Reinspection'|'Routine visit';status:string};
 export function dueStatus(date:string,today=todayChicago()){
  if(!date)return 'Date needed';if(date<today)return 'Past due';if(date===today)return 'Due today';const days=Math.round((Date.parse(date)-Date.parse(today))/86400000);return days<=7?'Due within 1 week':days<=14?'Due within 2 weeks':'Upcoming';
 }
@@ -14,10 +14,10 @@ export function inspectionReminders(records:InspectionRecord[],includeTests=fals
   for(const c of r.data.checks.filter(c=>c.result==='Needs attention')){
    // The original report remains immutable; completed follow-up observations resolve its notices.
    const later=latestFollowUp.get(r.id)?.get(c.id);
-   const latest=later?.data.checks.find(x=>x.id===c.id);if(latest&&['Acceptable','Corrected on site','Not applicable'].includes(latest.result))continue;
+   const latest=later?.data.checks.find(x=>x.id===c.id);if(latest&&['Acceptable','Corrected on site','Resolved','Not applicable'].includes(latest.result))continue;
    if(ancestors(r).some(id=>byId.get(id)?.data.checks.some(x=>x.id===c.id&&x.result==='Needs attention')))continue;
    const finding=latest?.result==='Needs attention'?latest:c,source=latest?.result==='Needs attention'&&later?later:r;
-   reminders.push({id:r.id+':'+c.id,recordId:source.id,title:finding.label,property:source.data.title,dueDate:finding.dueDate,kind:'Correction',status:dueStatus(finding.dueDate,today)});
+   reminders.push({id:r.id+':'+c.id,recordId:source.id,checkId:c.id,title:finding.label,property:source.data.title,dueDate:finding.dueDate,kind:'Correction',status:dueStatus(finding.dueDate,today)});
   }
   if(r.data.status!=='Completed'&&r.data.followUpKind){const date=r.data.scheduledDate||r.data.nextDueDate;reminders.push({id:r.id+':visit',recordId:r.id,title:r.data.type,property:r.data.title,dueDate:date,kind:r.data.followUpKind==='reinspection'?'Reinspection':'Routine visit',status:dueStatus(date,today)});}
  }

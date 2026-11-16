@@ -1,3 +1,4 @@
+import {nativeOwnerAccessOverrides} from './helpers/native-inspection-owner.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -7,7 +8,7 @@ import {createRequire} from 'node:module';
 import ts from 'typescript';
 import {PGlite} from '@electric-sql/pglite';
 const require=createRequire(import.meta.url);
-function loader(overrides={}){const cache=new Map();function load(p){p=resolve(p);if(Object.hasOwn(overrides,p))return overrides[p];if(cache.has(p))return cache.get(p).exports;const target={exports:{}};cache.set(p,target);const js=ts.transpileModule(fs.readFileSync(p,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText;new Function('require','module','exports',js)(n=>n.startsWith('.')?load(resolve(dirname(p),extname(n)?n:n+'.ts')):require(n),target,target.exports);return target.exports;}return load;}
+function loader(overrides={}){overrides={...nativeOwnerAccessOverrides(overrides),...overrides};const cache=new Map();function load(p){p=resolve(p);if(Object.hasOwn(overrides,p))return overrides[p];if(cache.has(p))return cache.get(p).exports;const target={exports:{}};cache.set(p,target);const js=ts.transpileModule(fs.readFileSync(p,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText;new Function('require','module','exports',js)(n=>n.startsWith('.')?load(resolve(dirname(p),extname(n)?n:n+'.ts')):require(n),target,target.exports);return target.exports;}return load;}
 const model=loader()('app/fire-inspections/eso-model.ts');
 const id='00000000-0000-4000-8000-000000000001',attachmentId='00000000-0000-4000-8000-000000000002';
 const bytes=new TextEncoder().encode('%PDF-1.7\nFictional isolated test evidence');

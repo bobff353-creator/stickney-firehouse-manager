@@ -2,7 +2,7 @@ import {ensureDatabase} from '../../../../db/bootstrap';
 import {inspectionBoundary,inspectionJson} from '../../../fire-inspections/server';
 import {normalizeCode} from '../../../fire-inspections/codes';
 export async function POST(request:Request){
- const denied=inspectionBoundary(request,true);if(denied)return denied;
+ const denied=await inspectionBoundary(request,true);if(denied)return denied;
  let writing=false;
  try{
   const raw=await request.text();if(raw.length>65000)return inspectionJson({error:'Use a PDF attachment for longer documents.'},413);

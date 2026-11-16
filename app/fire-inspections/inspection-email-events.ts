@@ -1,0 +1,46 @@
+import {createHash} from 'node:crypto';
+import type {InspectionDb} from './server';
+type DeliveryRow={id:string;record_id:string;record_version:number;recipient:string;sender:string;subject:string;provider_id:string;status:string;error:string;updated_at:string};
+export type InspectionProviderEvent={type:string;providerId:string;eventAt:string;sender:string;recipients:string[];subject?:string;departmentTag:string;deliveryTag:string;detail:string};
+type EventReceipt={version:1;eventId:string;payloadHash:string;departmentId:string;deliveryId:string;providerId:string;eventType:string;eventAt:string;receivedAt:string;observedStatus:string|null;beforeStatus:string;afterStatus:string;recordId:string;recordVersion:number;recipient:string;sender:string;detail:string};
+const statuses:Record<string,string|null>={'email.sent':'Accepted','email.scheduled':'Accepted','email.delivered':'Delivered','email.delivery_delayed':'Delayed','email.bounced':'Bounced','email.complained':'Complained','email.failed':'Failed','email.suppressed':'Suppressed','email.opened':null,'email.clicked':null};
+const rank:Record<string,number>={Prepared:0,Unconfirmed:0,Accepted:1,Sent:1,Delayed:2,Delivered:3,Failed:4,Suppressed:5,Bounced:6,Complained:7};
+export class InspectionEmailEventError extends Error{constructor(message:string,public status=422,public code='INSPECTION_EMAIL_EVENT'){super(message);}}
+const fail=(message:string,status=422,code='INSPECTION_EMAIL_EVENT')=>new InspectionEmailEventError(message,status,code);
+const object=(value:unknown):value is Record<string,unknown>=>Boolean(value&&typeof value==='object'&&!Array.isArray(value));
+export function eventEmail(value:unknown){if(typeof value!=='string'||value.length>500||/[\r\n]/.test(value))return '';const address=value.match(/<([^<>]+)>\s*$/)?.[1]??value;return /^[^\s@<>;,]+@[^\s@<>;,]+\.[^\s@<>;,]+$/.test(address.trim())?address.trim().toLowerCase():'';}
+function tag(value:unknown,name:string){if(object(value))return typeof value[name]==='string'?String(value[name]).slice(0,200):'';if(Array.isArray(value)){const entry=value.find(item=>object(item)&&item.name===name);return object(entry)&&typeof entry.value==='string'?entry.value.slice(0,200):'';}return '';}
+export function parseInspectionProviderEvent(value:unknown):InspectionProviderEvent|null{
+ if(!object(value)||typeof value.type!=='string')throw fail('The signed webhook payload is invalid.',400);if(!Object.hasOwn(statuses,value.type))return null;
+ const data=value.data;if(!object(data)||typeof data.email_id!=='string'||!/^[A-Za-z0-9_-]{1,128}$/.test(data.email_id)||typeof value.created_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value.created_at)||!Number.isFinite(Date.parse(value.created_at))||Date.parse(value.created_at)>Date.now()+300000)throw fail('The signed email event is missing a valid provider ID or event time.',400);
+ const sender=eventEmail(data.from);if(!sender||!Array.isArray(data.to)||data.to.length<1||data.to.length>100||data.to.some(item=>!eventEmail(item)))throw fail('The signed email event has invalid sender or recipient metadata.',400);
+ if(data.subject!==undefined&&(typeof data.subject!=='string'||data.subject.length>1000))throw fail('The signed email subject metadata is invalid.',400);
+ const detailSource=object(data.bounce)?data.bounce:object(data.failed)?data.failed:object(data.suppressed)?data.suppressed:{};
+ const detail=typeof detailSource.message==='string'?detailSource.message.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g,'').slice(0,1000):'';
+ return {type:value.type,providerId:data.email_id,eventAt:new Date(value.created_at).toISOString(),sender,recipients:[...new Set(data.to.map(eventEmail))],...(typeof data.subject==='string'?{subject:data.subject}:{}),departmentTag:tag(data.tags,'firehouse_department'),deliveryTag:tag(data.tags,'inspection_delivery_id'),detail};
+}
+export function inspectionEventStatus(current:string,type:string){const observed=statuses[type];if(!observed)return current;if((rank[observed]??0)>(rank[current]??0))return observed;if(observed==='Accepted'&&current==='Sent')return 'Accepted';return current;}
+function eventError(status:string,detail:string){const descriptions:Record<string,string>={Delayed:'The provider reported a temporary delivery delay. Delivery is not confirmed.',Failed:'The provider reported that this email failed. Review the provider and recipient before another approved delivery.',Suppressed:'The provider suppressed this email. Review the recipient and provider suppression history.',Bounced:'The recipient mail server permanently rejected this email. Review its address and follow-up method.',Complained:'The recipient reported this email as spam. Review the complaint and communication preference before further email.'};return descriptions[status]?[descriptions[status],detail].filter(Boolean).join(' ').slice(0,2000):'';}
+const sha=(value:string)=>createHash('sha256').update(value).digest('hex'),hex=(value:string)=>Buffer.from(value,'utf8').toString('hex');
+export async function applyInspectionEmailEvent(db:InspectionDb,department:string,eventId:string,payloadHash:string,event:InspectionProviderEvent){
+ const receiptKey='inspection-email-event:'+department+':'+sha(eventId);
+ const replay=async()=>{const row=await db.prepare('SELECT value FROM system_meta WHERE key=?').bind(receiptKey).first<{value:string}>();if(!row)return null;const receipt=JSON.parse(row.value) as EventReceipt;if(receipt.payloadHash!==payloadHash||receipt.eventId!==eventId||receipt.providerId!==event.providerId)throw fail('A provider event identifier was reused with different signed content.',409,'INSPECTION_EMAIL_EVENT_REUSED');return {accepted:true,replayed:true,status:receipt.afterStatus};};
+ const prior=await replay();if(prior)return prior;
+ for(let attempt=0;attempt<3;attempt++){
+  const matches=(await db.prepare('SELECT id,record_id,record_version,recipient,sender,subject,provider_id,status,error,updated_at FROM fire_inspection_email_deliveries WHERE department_id=? AND provider_id=? LIMIT 2').bind(department,event.providerId).all<DeliveryRow>()).results;
+  if(matches.length>1)throw fail('A provider delivery binding is ambiguous. Review the delivery history before accepting this event.',409,'INSPECTION_EMAIL_BINDING_AMBIGUOUS');
+  const delivery=matches[0];
+  if(!delivery){
+   if(event.departmentTag===department&&/^[A-Za-z0-9_-]{1,120}$/.test(event.deliveryTag)){const pending=await db.prepare('SELECT id,record_id,record_version,recipient,sender,subject,provider_id,status,error,updated_at FROM fire_inspection_email_deliveries WHERE department_id=? AND id=?').bind(department,event.deliveryTag).first<DeliveryRow>();if(pending&&!pending.provider_id&&event.recipients.includes(eventEmail(pending.recipient))&&event.sender===eventEmail(pending.sender)&&(event.subject===undefined||event.subject===pending.subject))throw fail('The native delivery is still awaiting its provider ID. Retry this same signed event after that binding is confirmed.',503,'INSPECTION_EMAIL_BINDING_PENDING');}
+   return {accepted:true,ignored:true};
+  }
+  if(!event.recipients.includes(eventEmail(delivery.recipient))||event.sender!==eventEmail(delivery.sender)||event.subject!==undefined&&event.subject!==delivery.subject||event.departmentTag&&event.departmentTag!==department||event.deliveryTag&&event.deliveryTag!==delivery.id)return {accepted:true,ignored:true};
+  const after=inspectionEventStatus(delivery.status,event.type),receivedAt=new Date().toISOString(),receipt:EventReceipt={version:1,eventId,payloadHash,departmentId:department,deliveryId:delivery.id,providerId:event.providerId,eventType:event.type,eventAt:event.eventAt,receivedAt,observedStatus:statuses[event.type],beforeStatus:delivery.status,afterStatus:after,recordId:delivery.record_id,recordVersion:delivery.record_version,recipient:delivery.recipient,sender:delivery.sender,detail:event.detail};
+  try{await db.batch([
+   db.prepare("INSERT INTO system_meta(key,value,updated_at) SELECT ?,convert_from(decode(?,'hex'),'UTF8'),? FROM fire_inspection_email_deliveries WHERE department_id=? AND id=? AND provider_id=? AND status=? AND updated_at=? AND recipient=? AND sender=? ON CONFLICT(key) DO NOTHING").bind(receiptKey,hex(JSON.stringify(receipt)),receivedAt,department,delivery.id,event.providerId,delivery.status,delivery.updated_at,delivery.recipient,delivery.sender).expectChanges(1),
+   db.prepare('UPDATE fire_inspection_email_deliveries SET status=?,error=?,updated_at=? WHERE department_id=? AND id=? AND provider_id=? AND status=? AND updated_at=? AND recipient=? AND sender=?').bind(after,after===delivery.status?delivery.error:eventError(after,event.detail),after===delivery.status?delivery.updated_at:receivedAt,department,delivery.id,event.providerId,delivery.status,delivery.updated_at,delivery.recipient,delivery.sender).expectChanges(1),
+  ]);return {accepted:true,replayed:false,status:after};}
+  catch(error){const accepted=await replay();if(accepted)return accepted;if(/SAVE_CONFLICT|duplicate key/i.test(error instanceof Error?error.message:''))continue;throw error;}
+ }
+ throw fail('Another delivery event arrived first. Retry this exact event; no unconfirmed status was applied.',503,'INSPECTION_EMAIL_EVENT_RETRY');
+}

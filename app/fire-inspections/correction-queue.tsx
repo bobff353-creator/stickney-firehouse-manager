@@ -1,0 +1,8 @@
+'use client';
+import {useState} from 'react';
+import type {InspectionReminder} from './reminders';
+export default function CorrectionQueue({items,onOpen}:{items:InspectionReminder[];onOpen:(id:string)=>void}){
+ const [query,setQuery]=useState(''),[kind,setKind]=useState('All'),[page,setPage]=useState(1);
+ const matching=items.filter(item=>(kind==='All'||item.kind===kind)&&[item.title,item.property,item.status].join(' ').toLowerCase().includes(query.trim().toLowerCase())),pages=Math.max(1,Math.ceil(matching.length/10)),current=Math.min(page,pages);
+ return <><div className="fd-queue-tools"><label className="fi-field">Find a correction or follow-up<input value={query} onChange={event=>{setQuery(event.target.value);setPage(1);}} placeholder="Property, finding or due status"/></label><label className="fi-field">Follow-up type<select value={kind} onChange={event=>{setKind(event.target.value);setPage(1);}}>{['All','Correction','Reinspection','Routine visit'].map(value=><option key={value}>{value}</option>)}</select></label></div>{matching.slice((current-1)*10,current*10).map(item=><article className="fd-case-row" key={item.id}><div><strong>{item.title}</strong><small>{item.property} · {item.kind}</small></div><span>{item.status} · {item.dueDate||'Date needed'}</span><button onClick={()=>onOpen(item.recordId)}>Review case →</button></article>)}{!matching.length&&<p>No outstanding notices match this view.</p>}{pages>1&&<div className="fd-pagination"><span>{matching.length} notices · page {current} of {pages}</span><button disabled={current===1} onClick={()=>setPage(current-1)}>← Previous</button><button disabled={current===pages} onClick={()=>setPage(current+1)}>Next →</button></div>}</>;
+}

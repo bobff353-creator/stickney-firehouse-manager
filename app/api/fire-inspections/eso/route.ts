@@ -19,7 +19,7 @@ async function original(row:SourceRow,storage:Awaited<ReturnType<typeof getSupab
  const raw=await data.text();if(hash(raw)!==row.sha256)throw Error('The preserved ESO source failed its integrity check.');return esoObject(JSON.parse(raw));
 }
 export async function GET(request:Request){
- const denied=inspectionBoundary(request);if(denied)return denied;
+ const denied=await inspectionBoundary(request);if(denied)return denied;
  try{
  const db=await ensureDatabase(),department=request.headers.get('x-department-id')!,p=new URL(request.url).searchParams;
  if(p.has('file')){
@@ -43,7 +43,7 @@ export async function GET(request:Request){
  }catch(e){return inspectionJson({error:e instanceof Error?e.message:'ESO copies could not load. Retry.'},503);}
 }
 export async function POST(request:Request){
- const denied=inspectionBoundary(request,true);if(denied)return denied;
+ const denied=await inspectionBoundary(request,true);if(denied)return denied;
  try{
  const raw=await request.text();if(raw.length>1500000)return inspectionJson({error:'Import one ESO inspection at a time.'},413);
  const body=esoObject(JSON.parse(raw)),department=request.headers.get('x-department-id')!;

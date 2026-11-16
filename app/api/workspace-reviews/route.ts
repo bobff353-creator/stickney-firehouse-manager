@@ -1,8 +1,11 @@
 import {ensureDatabase} from '../../../db/bootstrap';
-import {inspectionBoundary,inspectionJson as json} from '../../fire-inspections/server';
+import {inspectionJson as json} from '../../fire-inspections/server';
+import {inspectionPilotAccess} from '../../fire-inspections/access';
 import {preplanReadAccess,canReadPreplanLifecycle,hasPermission} from '../../server-permissions';
 import {normalizeReview,reviewKinds,type ReviewKind} from '../../workspace-review-model';
 type Stored={id:string;kind:ReviewKind;subjectId:string;payload:string;version:number;updatedAt:string;actor:string};
+// This separate operational review pilot retains its original private access.
+function inspectionBoundary(request:Request,write=false){if(!inspectionPilotAccess(request.headers.get('oai-authenticated-user-email'))||!request.headers.get('x-department-id'))return json({error:'This review pilot remains private to its designated owner.'},403);const origin=request.headers.get('origin');if(write&&origin&&origin!==new URL(request.url).origin)return json({error:'Open this review in the department portal before saving.'},403);return null;}
 const columns='id,kind,subject_id subjectId,payload,version,updated_at updatedAt,actor';
 const decode=(r:Stored)=>({...r,data:JSON.parse(r.payload),payload:undefined});
 export async function GET(request:Request){const denied=inspectionBoundary(request);if(denied)return denied;try{const db=await ensureDatabase(),department=request.headers.get('x-department-id')!,params=new URL(request.url).searchParams,kind=params.get('kind') as ReviewKind;if(!reviewKinds.includes(kind))return json({error:'Choose a review workspace.'},400);const history=params.get('history');if(history){const rows=await db.prepare('SELECT version,kind,subject_id subjectId,payload,created_at updatedAt,actor FROM workspace_review_audit WHERE department_id=? AND record_id=? AND kind=? ORDER BY version DESC LIMIT 101').bind(department,history,kind).all<Stored>();return json({history:rows.results.slice(0,100).map(decode),more:rows.results.length>100});}const property=params.get('property')||'';

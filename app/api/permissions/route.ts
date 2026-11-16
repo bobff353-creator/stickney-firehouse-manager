@@ -1,5 +1,6 @@
 import { nerisPilotAccess } from "../../neris/access";
 import { inspectionPilotAccess } from "../../fire-inspections/access";
+import { requireNativeInspectionAccess } from '../../fire-inspections/access-context';
 import { trainingPilotAccess } from "../../training/access";
 import { ensureDatabase } from "../../../db/bootstrap";
 import { parseConfirmationStatus } from '../../required-confirmation-policy';
@@ -25,6 +26,13 @@ export async function GET(request: Request) {
     if (nerisPilotAccess(email)) viewerPermissions.push("neris.pilot");
     if (trainingPilotAccess(email)) viewerPermissions.push("training.pilot");
     if (inspectionPilotAccess(email)) viewerPermissions.push("inspections.pilot");
+    else {
+      try {
+        const rollout=await db.prepare('SELECT rollout_enabled FROM fire_inspection_staff_workspaces WHERE department_id=?').bind(request.headers.get('x-department-id')??'').first<{rollout_enabled:boolean}>();
+        if(rollout?.rollout_enabled){await requireNativeInspectionAccess(request,'records.read');viewerPermissions.push('inspections.pilot');}
+      }
+      catch { /* A missing or disabled inspection grant does not affect other portal modules. */ }
+    }
     if (!viewerPermissions.length) return json({ error: "Your login is not linked to an active employee. Ask an administrator to check your employee email.", viewerPermissions: [] }, 403);
     const canManage = viewerPermissions.includes("permissions.manage");
     const isOwner = ownerAdminEmails.includes(email);

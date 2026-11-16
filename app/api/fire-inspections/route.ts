@@ -1,14 +1,14 @@
+import {verifyManifestEvidence} from '../../fire-inspections/evidence-manifest-server';
 import {reviewBasis} from '../../fire-inspections/alternative-review';
 import {emptyTeam,ownerIdentityId,reviewBasis as teamBasis,reviewTransition} from '../../fire-inspections/team-workflow';
-import {hasPermission} from '../../server-permissions';
-import { ensureDatabase } from '../../../db/bootstrap';
+import {requireNativeInspectionAccess,nativePublicAccess,assertNativeInspectionWrite,assertNativeAssignedCase,NativeInspectionAccessError} from '../../fire-inspections/access-context';
 import { inspectionBoundary,inspectionJson,inspectionSnapshot,decodeInspection,inspectionColumns,type StoredInspection,type InspectionDb } from '../../fire-inspections/server';
 import { normalizeInspection,validateInspection,followUpRecord,followUpId,blankSignature,type InspectionRecord } from '../../fire-inspections/model';
 export async function GET(request:Request){
- const denied=inspectionBoundary(request);if(denied)return denied;
- try{const db=await ensureDatabase(),department=request.headers.get('x-department-id')!,id=new URL(request.url).searchParams.get('history');
+ const denied=await inspectionBoundary(request);if(denied)return denied;
+ try{const context=await requireNativeInspectionAccess(request),db=context.db,department=request.headers.get('x-department-id')!,id=new URL(request.url).searchParams.get('history');
  if(id)return inspectionJson({history:(await db.prepare('SELECT version,payload,archived,actor,created_at createdAt FROM fire_inspection_pilot_audit WHERE department_id=? AND record_id=? ORDER BY version DESC').bind(department,id).all()).results});
- return inspectionJson({...await inspectionSnapshot(db,department),viewerEmail:request.headers.get('oai-authenticated-user-email')!.trim().toLowerCase()});}catch{return inspectionJson({error:'Inspections could not load. Retry; saved records have not changed.'},503);}
+ return inspectionJson({...await inspectionSnapshot(db,department),viewerEmail:context.email,access:nativePublicAccess(context)});}catch{return inspectionJson({error:'Inspections could not load. Retry; saved records have not changed.'},503);}
 }
 function writes(db:InspectionDb,r:InspectionRecord,department:string,actor:string,time:string){
  const payload=JSON.stringify(r.data),archived=r.archived?1:0;
@@ -17,19 +17,26 @@ function writes(db:InspectionDb,r:InspectionRecord,department:string,actor:strin
 // Ignore server-generated signature timestamp when recognizing a safe retry.
 function comparable(r:InspectionRecord){return JSON.stringify({...r.data,team:{...r.data.team,actedBy:'',actedAt:''},representative:{...r.data.representative,signedAt:''},inspectorSignature:{...r.data.inspectorSignature,signedAt:''}});}
 export async function POST(request:Request){
- const denied=inspectionBoundary(request,true);if(denied)return denied;let writing=false;
+ const denied=await inspectionBoundary(request,true);if(denied)return denied;let writing=false;
  try{
   const raw=await request.text();if(raw.length>180000)return inspectionJson({error:'This inspection is too large. Attach photos and documents as files.'},413);
   const body=JSON.parse(raw),id=String(body.id??''),version=Number(body.version),kind=body.kind;
   if(!/^[a-zA-Z0-9_-]{8,120}$/.test(id)||!Number.isInteger(version)||version<0||!['inspection','template'].includes(kind))throw Error('The record ID, type, or version is invalid.');
-  const data=normalizeInspection(body.data),department=request.headers.get('x-department-id')!,actor=request.headers.get('oai-authenticated-user-email')!.trim().toLowerCase(),db=await ensureDatabase(),time=new Date().toISOString();
+  const context=await requireNativeInspectionAccess(request,kind==='template'?'templates.write':'inspections.write'),data=normalizeInspection(body.data),department=request.headers.get('x-department-id')!,actor=request.headers.get('oai-authenticated-user-email')!.trim().toLowerCase(),db=context.db,time=new Date().toISOString();
   const currentRow=await db.prepare(`SELECT ${inspectionColumns} FROM fire_inspection_pilot_records WHERE department_id=? AND id=?`).bind(department,id).first<StoredInspection>();
   const current=currentRow?decodeInspection(currentRow):null,r:InspectionRecord={id,version,kind,data,archived:body.archived===true,createdAt:current?.createdAt??time,updatedAt:time,updatedBy:actor};
   if(JSON.stringify(current?.data.importedSource)!==JSON.stringify(data.importedSource))throw Error('The original inspection source cannot be added, removed, or changed. Refresh this inspection before saving.');
+  if(kind==='inspection'){assertNativeAssignedCase(context,data);if(current)assertNativeAssignedCase(context,current.data);}
   if(current&&Object.keys(current.data.preplanObservations||{}).length&&!Object.hasOwn(body.data,'preplanObservations'))throw Error('Refresh this app before saving so recorded preplan observations are retained.');
   if(current&&current.kind!==kind)throw Error('A record cannot change its type.');
+  if(current?.data.evidenceManifest?.length&&!Object.hasOwn(body.data,'evidenceManifest'))throw Error('Refresh this app before saving so preserved photos and their signed checksums are retained.');
+  if(current&&Object.keys(current.data).some(key=>['occupancyGroup','additionalOccupancyGroups','systems'].includes(key)&&Boolean((current.data as unknown as Record<string,unknown>)[key])&&(!Array.isArray((current.data as unknown as Record<string,unknown>)[key])||((current.data as unknown as Record<string,unknown[]>)[key]).length>0)&&!Object.hasOwn(body.data,key)))throw Error('Refresh this app before saving so the recorded occupancy groups and protection systems are retained.');
+  if(current){const oldBasis=teamBasis(normalizeInspection(current.data)),newBasis=teamBasis(data);if(oldBasis!==newBasis){for(const key of ['representative','inspectorSignature'] as const){const old=current.data[key],next=data[key];if(old?.state==='Signed'&&next.state==='Signed'&&JSON.stringify([old.name,old.role,old.strokes])===JSON.stringify([next.name,next.role,next.strokes]))throw Error('Inspection content changed after a signature was captured. Review the changed content and capture new signatures before saving it as signed.');}}}
+
   if(current&&current.version===version+1&&comparable(current)===comparable(r)&&current.archived===r.archived){const children=await db.prepare(`SELECT ${inspectionColumns} FROM fire_inspection_pilot_records WHERE department_id=? AND (id=? OR id=?)`).bind(department,followUpId(id,'routine'),followUpId(id,'reinspection')).all<StoredInspection>();return inspectionJson({saved:true,record:current,followUps:children.results.map(decodeInspection)});}
   if((current?.version??0)!==version)return inspectionJson({error:'Another tab changed this record. Your draft remains here. Download it before opening the latest saved version.',code:'SAVE_CONFLICT'},409);
+  assertNativeInspectionWrite(context,r,current??undefined);
+  if(['Approved','Changes requested'].includes(data.team.state)&&data.team.state!==current?.data.team.state)await requireNativeInspectionAccess(request,'corrections.review');
   if(current?.data.status==='Completed'){
    if(comparable(current)!==comparable(r)){
     if(data.status!=='Draft'||!data.changeReason)throw Error('Reopen the completed report with a correction reason before changing it.');
@@ -45,7 +52,7 @@ export async function POST(request:Request){
   if(current&&JSON.stringify(current.data.alternativeReview)!==JSON.stringify(data.alternativeReview)){data.representative=blankSignature();data.inspectorSignature=blankSignature();data.inspectorAttested=false;}
   // Parent links, test classification, and the source of a follow-up cannot silently change.
   if(current&&(current.data.parentId!==data.parentId||current.data.followUpKind!==data.followUpKind||current.data.test!==data.test))throw Error('The source inspection and test designation cannot be changed.');
-  if(data.parentId){const parent=await db.prepare('SELECT payload FROM fire_inspection_pilot_records WHERE department_id=? AND id=?').bind(department,data.parentId).first<{payload:string}>();if(!parent)throw Error('The source inspection is not available in this department.');if(Boolean(JSON.parse(parent.payload).test)!==data.test)throw Error('A test inspection cannot create a live follow-up.');}
+  if(data.parentId){const parent=await db.prepare('SELECT payload FROM fire_inspection_pilot_records WHERE department_id=? AND id=?').bind(department,data.parentId).first<{payload:string}>();if(!parent)throw Error('The source inspection is not available in this department.');if(context.role==='inspector'&&!current)assertNativeAssignedCase(context,JSON.parse(parent.payload));if(Boolean(JSON.parse(parent.payload).test)!==data.test)throw Error('A test inspection cannot create a live follow-up.');}
   if(data.propertyId&&!await db.prepare('SELECT id FROM field_preplans WHERE id=?').bind(data.propertyId).first())throw Error('Select a property from this department, or enter a new property.');
   for(const key of ['representative','inspectorSignature'] as const)if(data[key].state==='Signed')data[key].signedAt=current?.data[key]&&JSON.stringify({...current.data[key],signedAt:''})===JSON.stringify({...data[key],signedAt:''})?current.data[key].signedAt:time;
   for(const reference of [...data.codeBasis,...data.checks.flatMap(c=>c.citations)]){const source=await db.prepare('SELECT payload FROM fire_inspection_code_audit WHERE department_id=? AND code_id=? AND version=?').bind(department,reference.id,reference.version).first<{payload:string}>();if(!source)throw Error('A selected code version is unavailable in this department.');const original=JSON.parse(source.payload);if(Object.keys(original).some(k=>original[k]!==reference[k as keyof typeof reference]))throw Error('The selected code differs from the saved library version. Select it again.');}
@@ -54,7 +61,7 @@ export async function POST(request:Request){
   if(kind==='template'&&(data.team.assignees.length||data.team.required||data.team.state!=='Not requested'))throw Error('Assignments belong to visits, not checklist templates.');
   let reviewerEmail='';
   if(data.team.assignees.length||data.team.reviewerId){
-   if(!await hasPermission(request,db,'employees.manage'))return inspectionJson({error:'Employee management access is required for assignments.'},403);
+   if(context.role!=='inspector')await requireNativeInspectionAccess(request,'inspections.assign');
    for(const identity of new Set([...data.team.assignees.map(a=>a.id),data.team.reviewerId].filter(Boolean))){
     let email=actor;
     if(identity!==ownerIdentityId){const person=await db.prepare("SELECT COALESCE(ep.email,'') email FROM employees e LEFT JOIN employee_profiles ep ON ep.employee_id=e.id WHERE e.id=? AND e.active=1 AND (ep.end_date IS NULL OR ep.end_date='' OR ep.end_date>=?)").bind(identity,new Intl.DateTimeFormat('en-CA',{timeZone:'America/Chicago'}).format(new Date())).first<{email:string}>();if(!person)throw Error('Choose an active employee in this department.');email=person.email.trim().toLowerCase();}
@@ -63,6 +70,7 @@ export async function POST(request:Request){
   }
   data.team=reviewTransition(current?.data.team||emptyTeam(),data.team,actor,reviewerEmail,time,Boolean(current&&teamBasis(current.data)!==teamBasis(data)));
   if(!(current?.data.status==='Completed'&&comparable(current)===comparable(r)))validateInspection(kind,data);
+  if(kind==='inspection'&&data.status==='Completed'&&current?.data.status!=='Completed')await verifyManifestEvidence(db,department,id,data);
   const batch=writes(db,r,department,actor,time),followUps:InspectionRecord[]=[];
   if(kind==='inspection'&&data.status==='Completed'&&current?.data.status!=='Completed'&&!r.archived){
    for(const [mode,date]of [['routine',data.repeatMonths?data.nextDueDate:''],['reinspection',data.reinspectionDecision==='Not needed'?'':data.followUpDate]] as const){
@@ -73,7 +81,7 @@ export async function POST(request:Request){
   writing=true;await db.batch(batch);
   const saved=await db.prepare(`SELECT ${inspectionColumns} FROM fire_inspection_pilot_records WHERE department_id=? AND id=?`).bind(department,id).first<StoredInspection>();
   return inspectionJson({saved:true,record:saved?decodeInspection(saved):null,followUps},current?200:201);
- }catch(error){const message=error instanceof Error?error.message:'';
+ }catch(error){if(error instanceof NativeInspectionAccessError)return inspectionJson({error:error.message,code:error.code},error.status);const message=error instanceof Error?error.message:'';
   if(message.includes('SAVE_CONFLICT')||message.includes('duplicate key'))return inspectionJson({error:'Another save reached the server first. Your draft is kept; load the latest version before changing it.',code:'SAVE_CONFLICT'},409);
   if(writing||/Portal database|fetch|bootstrap/.test(message))return inspectionJson({error:'Save was not confirmed. Keep this screen open and retry. Retrying will not create duplicates.'},503);
   return inspectionJson({error:message||'The record was not saved. Check the details and retry.'},400);

@@ -1,3 +1,5 @@
+import {normalizeEvidenceManifest,evidenceManifestTargetErrors,type EvidenceManifestEntry} from './evidence-manifest';
+import {getOccupancyGroup} from './reference-library/classification';
 import {emptyAlternativeReview,normalizeAlternativeReview,validateAlternativeReview,alternativeReviewLines,restartAlternativeReview,type AlternativeReview} from './alternative-review';
 import {normalizeCode, codeLabel, type CodeSelection, type CodeEntry} from './codes';
 import { inspectionChecks, starterSections, inspectionTypes } from './catalog';
@@ -9,9 +11,11 @@ export type InspectionCheck = { id: string; section: string; label: string; sour
 export type Signature = { name: string; role: string; state: 'Not requested' | 'Signed' | 'Declined' | 'Not present'; strokes: number[][][]; signedAt: string };
 export type InspectionData = {
   importedSource?: {system:'ESO';inspectionId:string;inspectionNumber:string;status:string;type:string;sha256:string;importedAt:string;propertyId:string};
+  evidenceManifest:EvidenceManifestEntry[];
   team: InspectionTeam;
   preplanObservations: FieldObservations;
   alternativeReview: AlternativeReview;
+  occupancyGroup:string;additionalOccupancyGroups:string[];systems:string[];durationMinutes:number;
   title: string; address: string; propertyId: string; occupancy: string; owner: string; contact: string; phone: string; email: string;
   type: string; status: 'Draft' | 'Needs scheduling' | 'Scheduled' | 'In progress' | 'Completed' | 'Canceled';
   scheduledDate: string; scheduledTime: string; actualDate: string; startTime: string; endTime: string; inspector: string; others: string;
@@ -22,8 +26,8 @@ export type InspectionData = {
 };
 export type InspectionRecord = { id: string; kind: 'inspection' | 'template'; data: InspectionData; version: number; archived: boolean; createdAt: string; updatedAt: string; updatedBy: string };
 export type InspectionFile = { id: string; recordId: string; filename: string; size: number; contentType: string; createdAt: string; checkId?:string; caption?:string; codeId?:string; recordVersion?:number };
-export type Property = { id: string; name: string; address: string; updatedAt?: string; latitude?: number; longitude?: number; accessInfo?: string; knoxBox?: string; fdc?: string; alarmSystem?: string; sprinklerSystem?: string };
-export type InspectionSnapshot = { records: InspectionRecord[]; properties: Property[]; attachments: InspectionFile[]; departmentId?:string; viewerEmail?:string; codes?:CodeEntry[] };
+export type Property = { id: string; name: string; address: string; updatedAt?: string; latitude?: number; longitude?: number; accessInfo?: string; knoxBox?: string; fdc?: string; alarmSystem?: string; sprinklerSystem?: string;occupancyGroup?:string;additionalOccupancyGroups?:string[];systems?:string[];inspectionProfile?:import('./property-profiles').PropertyProfile };
+export type InspectionSnapshot = { records: InspectionRecord[]; properties: Property[]; attachments: InspectionFile[]; departmentId?:string; viewerEmail?:string; codes?:CodeEntry[]; access?:{role:string;employeeId:string;permissions:string[];rolloutEnabled:boolean} };
 export const todayChicago = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(new Date());
 export function validDate(s: string) { return /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s)) && new Date(s).toISOString().slice(0,10) === s; }
 export function addMonths(date: string, months: number) {
@@ -38,13 +42,16 @@ export function checkpointFromCode(entry:CodeEntry,id:string):InspectionCheck {
  if(entry.archived)throw Error('Choose an active code reference.');
  return freshCheck({id,section:'Code library',label:entry.data.title,source:checkpointSource(entry)});
 }
-export function emptyInspection(): InspectionData { return { team:emptyTeam(),preplanObservations:{},alternativeReview:emptyAlternativeReview(),title:'',address:'',propertyId:'',occupancy:'',owner:'',contact:'',phone:'',email:'',type:inspectionTypes[0],status:'Draft',scheduledDate:'',scheduledTime:'',actualDate:'',startTime:'',endTime:'',inspector:'',others:'',reason:'',codeEdition:'',localAmendments:'',checks:inspectionChecks.filter(c=>starterSections.includes(c.section)).map(freshCheck),sections:[...starterSections],notes:'',outcome:'',repeatMonths:0,nextDueDate:'',followUpDate:'',parentId:'',followUpKind:'',codeBasis:[],reinspectionDecision:'',reinspectionReason:'',reinspectionTime:'',inspectorSignature:blankSignature(),representative:blankSignature(),inspectorAttested:false,changeReason:'',test:false }; }
+export function emptyInspection(): InspectionData { return { evidenceManifest:[],occupancyGroup:'',additionalOccupancyGroups:[],systems:[],durationMinutes:60,team:emptyTeam(),preplanObservations:{},alternativeReview:emptyAlternativeReview(),title:'',address:'',propertyId:'',occupancy:'',owner:'',contact:'',phone:'',email:'',type:inspectionTypes[0],status:'Draft',scheduledDate:'',scheduledTime:'',actualDate:'',startTime:'',endTime:'',inspector:'',others:'',reason:'',codeEdition:'',localAmendments:'',checks:inspectionChecks.filter(c=>starterSections.includes(c.section)).map(freshCheck),sections:[...starterSections],notes:'',outcome:'',repeatMonths:0,nextDueDate:'',followUpDate:'',parentId:'',followUpKind:'',codeBasis:[],reinspectionDecision:'',reinspectionReason:'',reinspectionTime:'',inspectorSignature:blankSignature(),representative:blankSignature(),inspectorAttested:false,changeReason:'',test:false }; }
 const text=(v: unknown,max=4000)=>String(v??'').trim().slice(0,max);
 export function normalizeInspection(value: unknown): InspectionData {
   if (!value || typeof value !== 'object') throw Error('Inspection details are missing.');
   const v=value as Record<string,unknown>, d=emptyInspection();
   for (const key of Object.keys(d) as (keyof InspectionData)[]) if (typeof d[key]==='string') (d as unknown as Record<string,unknown>)[key]=text(v[key]);
   if(v.importedSource!=null){const p=v.importedSource as NonNullable<InspectionData['importedSource']>;if(p.system!=='ESO'||!/^[a-f0-9-]{36}$/i.test(p.inspectionId)||!/^[a-f0-9]{64}$/.test(p.sha256)||[p.inspectionNumber,p.status,p.type,p.importedAt,p.propertyId].some(s=>typeof s!=='string'))throw Error('The inspection source is invalid.');d.importedSource={system:'ESO',inspectionId:p.inspectionId,inspectionNumber:p.inspectionNumber,status:p.status,type:p.type,sha256:p.sha256,importedAt:p.importedAt,propertyId:p.propertyId};}
+  if(v.occupancyGroup!==undefined&&typeof v.occupancyGroup!=='string')throw Error('Choose a valid occupancy group.');if(v.occupancyGroup&&!getOccupancyGroup(v.occupancyGroup))throw Error('Choose a recognized occupancy group.');if(v.additionalOccupancyGroups!==undefined&&(!Array.isArray(v.additionalOccupancyGroups)||v.additionalOccupancyGroups.length>25||v.additionalOccupancyGroups.some(x=>typeof x!=='string'||!getOccupancyGroup(x))))throw Error('Choose valid additional occupancy groups.');if(v.systems!==undefined&&(!Array.isArray(v.systems)||v.systems.length>30||v.systems.some(x=>typeof x!=='string'||x.length>100)))throw Error('Choose valid protection systems.');
+  d.occupancyGroup=text(v.occupancyGroup,10);d.additionalOccupancyGroups=Array.isArray(v.additionalOccupancyGroups)?[...new Set(v.additionalOccupancyGroups.map(x=>text(x,10)).filter(Boolean))].slice(0,26):[];d.systems=Array.isArray(v.systems)?[...new Set(v.systems.map(x=>text(x,100)))].slice(0,30):[];d.durationMinutes=Number(v.durationMinutes??60);if(!Number.isInteger(d.durationMinutes)||d.durationMinutes<1||d.durationMinutes>1440)throw Error('Choose a planned duration between 1 and 1440 minutes.');
+  d.evidenceManifest=normalizeEvidenceManifest(v.evidenceManifest);
   d.notes=text(v.notes,20000);
   d.title=text(v.title,240); d.test=v.test===true; d.inspectorAttested=v.inspectorAttested===true;
   d.repeatMonths=Number(v.repeatMonths??0); if(!Number.isInteger(d.repeatMonths)||d.repeatMonths<0||d.repeatMonths>120)throw Error('Choose a repeat interval from 0 to 120 months.');
@@ -54,6 +61,7 @@ export function normalizeInspection(value: unknown): InspectionData {
   d.sections=Array.isArray(v.sections)?[...new Set(v.sections.map(x=>text(x,100)))].slice(0,30):[];
   if(!Array.isArray(v.checks)||v.checks.length>200)throw Error('An inspection can contain up to 200 checkpoints.');
   d.checks=v.checks.map(item=>{if(!item||typeof item!=='object')throw Error('Invalid checkpoint.');const c=item as Record<string,unknown>;const next={} as InspectionCheck;for(const k of Object.keys(freshCheck({id:'',label:'',section:'',source:''})) as (keyof InspectionCheck)[]){if(k!=='citations')(next as unknown as Record<string,string>)[k]=text(c[k],k==='id'?100:4000);}next.citations=normalizeSelections(c.citations);if(!next.id||!next.label||!resultOptions.includes(next.result))throw Error('Each checkpoint needs a label and a valid result.');if(!['Routine','Urgent','Immediate action'].includes(next.priority)&&!(d.importedSource&&next.priority===''))throw Error('Choose a valid finding priority.');return next;});
+  const photoErrors=evidenceManifestTargetErrors(d.evidenceManifest,d.checks);if(photoErrors.length)throw Error(photoErrors[0]);
   if(new Set(d.checks.map(c=>c.id)).size!==d.checks.length)throw Error('Duplicate checkpoints are not allowed.');
   d.codeBasis=normalizeSelections(v.codeBasis);
   d.alternativeReview=normalizeAlternativeReview(v.alternativeReview);
@@ -85,14 +93,14 @@ export function validateInspection(kind:InspectionRecord['kind'],d:InspectionDat
   for(const signature of [d.representative,d.inspectorSignature??blankSignature()])if(signature.state==='Signed'&&(!signature.name||!signature.strokes.some(stroke=>stroke.length>1)))throw Error('Enter the signer’s name and capture their drawn signature.');
   validateAlternativeReview(d.alternativeReview??emptyAlternativeReview(),today);
   if(kind==='template'&&d.alternativeReview?.enabled)throw Error('Alternative reviews belong to a property inspection, not a reusable checklist.');
-  if(kind==='template'){if(d.status!=='Draft')throw Error('Checklists are saved as templates, not completed inspections.');return;}
+  if(kind==='template'){if(d.evidenceManifest?.length)throw Error('Preserved evidence belongs to a visit, not a reusable checklist.');if(d.status!=='Draft')throw Error('Checklists are saved as templates, not completed inspections.');return;}
   if(d.status==='Scheduled'&&!d.scheduledDate)throw Error('Choose the scheduled date, or save as Needs scheduling.');
   if(d.status!=='Completed')return;
   if(d.team.required&&d.team.state!=='Approved')throw Error('The assigned reviewer must approve this version before finishing.');
   if(!d.actualDate||!d.inspector||!d.outcome||!d.inspectorAttested)throw Error('To finish, record the actual date, inspector, outcome, and your review acknowledgment.');
   const unchecked=d.checks.filter(c=>c.result==='Not checked');
   if(unchecked.length)throw Error(`${unchecked.length} checkpoints are unanswered. Inspect them or explicitly mark Not inspected / Not applicable.`);
-  if(d.outcome==='No issues observed'&&(!d.checks.some(c=>c.result==='Acceptable'||c.result==='Corrected on site')||d.checks.some(c=>['Needs attention','Not inspected'].includes(c.result))))throw Error('This inspection cannot say No issues observed while there are open issues or uninspected items.');
+  if(d.outcome==='No issues observed'&&(!d.checks.some(c=>c.result==='Acceptable'||c.result==='Corrected on site'||c.result==='Resolved')||d.checks.some(c=>['Needs attention','Not inspected'].includes(c.result))))throw Error('This inspection cannot say No issues observed while there are open issues or uninspected items.');
   for(const c of findings(d)){
     if(!c.observation||!c.location)throw Error(`Add the observation and location for ${c.label}.`);
     if(['Corrected on site','Resolved'].includes(c.result)&&(!c.correction||!c.correctedDate))throw Error(`Document the correction and date for ${c.label}.`);
@@ -114,7 +122,7 @@ export function queueLabel(d:InspectionData,today=todayChicago()) {
 }
 export function followUpRecord(parent:InspectionRecord,mode:'routine'|'reinspection',date:string):InspectionRecord {
   const p=parent.data,d=emptyInspection();
-  for(const k of ['title','address','propertyId','occupancy','owner','contact','phone','email','inspector','codeEdition','localAmendments','test'] as const)(d as unknown as Record<string,unknown>)[k]=p[k];
+  for(const k of ['title','address','propertyId','occupancy','owner','contact','phone','email','inspector','occupancyGroup','additionalOccupancyGroups','systems','durationMinutes','codeEdition','localAmendments','test'] as const)(d as unknown as Record<string,unknown>)[k]=p[k];
   d.codeBasis=p.codeBasis||[];d.parentId=parent.id;d.followUpKind=mode;d.status='Needs scheduling';d.nextDueDate=date;d.type=mode==='reinspection'?'Reinspection':inspectionTypes.includes(p.type)?p.type:'Routine fire / life safety';d.repeatMonths=mode==='routine'?p.repeatMonths:0;
   if(mode==='reinspection'&&p.reinspectionDecision==='Schedule'){d.scheduledDate=date;d.scheduledTime=p.reinspectionTime;d.status='Scheduled';}
   d.checks=(mode==='reinspection'?p.checks.filter(c=>c.result==='Needs attention'):p.checks).map(c=>({...freshCheck(c),citations:c.citations||[],code:c.code}));d.sections=[...new Set(d.checks.map(c=>c.section))];

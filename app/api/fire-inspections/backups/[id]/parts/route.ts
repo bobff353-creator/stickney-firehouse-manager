@@ -1,0 +1,5 @@
+import {inspectionJson} from '../../../../../fire-inspections/server';
+import {nativeBackupBoundary,nativeBackupBytes,nativeBackupContext,nativeBackupError} from '../../../../../fire-inspections/backup-runtime';
+import {uploadNativeRestoreChunk,assembleNativeRestorePart,NATIVE_BACKUP_CHUNK_BYTES} from '../../../../../fire-inspections/backup-service';
+export const dynamic='force-dynamic';export const maxDuration=60;
+export async function POST(request:Request,{params}:{params:Promise<{id:string}>}){const denied=await nativeBackupBoundary(request,request.method==='GET'?'backup.export':'backup.restore');if(denied)return denied;try{const c=await nativeBackupContext(request),query=new URL(request.url).searchParams,id=(await params).id,path=query.get('path')??'',count=Number(query.get('chunks'));return inspectionJson({job:query.get('assemble')==='1'?await assembleNativeRestorePart(c,id,path,count):await uploadNativeRestoreChunk(c,id,path,Number(query.get('chunk')),count,await nativeBackupBytes(request,NATIVE_BACKUP_CHUNK_BYTES))});}catch(error){return nativeBackupError(error);}}

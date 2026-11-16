@@ -1,0 +1,1379 @@
+{
+  "checkedOn": "2026-11-13",
+  "caveat": "Original candidate inspection prompts developed from qualitative practitioner/forum discovery and official corroboration. This is not a statistical ranking of the most common violations, a reproduction of code text, or a verified Stickney enforcement checklist. Forum allegations and comments are unverified, may conflict, and must not establish a violation or a technical rule. Official non-Illinois forms provide topic coverage only; their dimensions, intervals, local amendments and classifications are not imported. Within this schema the 'official checklist' source type also includes clearly titled official corroborating guidance. Some families, especially daycare, assembly, large business and mixed use, have sparse or indirect forum evidence. Confirm the published enacted Stickney code basis, amendments, inspection purpose, legal occupancy, authority and applicability before approving citations. Core plus profile plus applicable system modules is the proposed structure; repeated topics should be consolidated by area, not asked twice. Initial outcomes should remain unanswered. Support Pass, Needs correction, Not applicable and Not inspected, with reasons for the latter two; preserve area/unit coverage and no-access follow-up. A missing system is not automatically a violation unless required provision is verified. Contractor ITM findings, design recommendations, impairment classifications and AHJ decisions must remain distinct. An uploaded report is not automatic compliance.",
+  "sources": [
+    {
+      "id": "f-core",
+      "title": "Firefighting: Fire Code Enforcement discussion",
+      "url": "https://www.reddit.com/r/Firefighting/comments/11gsrbd/",
+      "type": "forum lead"
+    },
+    {
+      "id": "f-retail-a",
+      "title": "RetailHell: recurring blocked fire exits",
+      "url": "https://www.reddit.com/r/retailhell/comments/1o3f36m/",
+      "type": "forum lead"
+    },
+    {
+      "id": "f-retail-b",
+      "title": "HomeDepot: repeated exit obstructions",
+      "url": "https://www.reddit.com/r/HomeDepot/comments/1q4u9q8/",
+      "type": "forum lead"
+    },
+    {
+      "id": "f-kitchen-a",
+      "title": "KitchenConfidential: reported suppression service and appliance-layout issues",
+      "url": "https://www.reddit.com/r/KitchenConfidential/comments/1nekw8l/",
+      "type": "forum lead"
+    },
+    {
+      "id": "f-kitchen-b",
+      "title": "KitchenConfidential: hood repairs delayed",
+      "url": "https://www.reddit.com/r/KitchenConfidential/comments/1izsg2v/",
+      "type": "forum lead"
+    },
+    {
+      "id": "f-kitchen-c",
+      "title": "KitchenConfidential: cooking while hood is reportedly inoperative",
+      "url": "https://www.reddit.com/r/KitchenConfidential/comments/1bg9elc/",
+      "type": "forum lead"
+    },
+    {
+      "id": "f-storage",
+      "title": "FireSprinklers: warehouse use and sprinkler design questions",
+      "url": "https://www.reddit.com/r/FireSprinklers/comments/1nfaugt/",
+      "type": "forum lead"
+    },
+    {
+      "id": "f-care",
+      "title": "Maintenance: firsthand assisted/care facility inspection observations",
+      "url": "https://www.reddit.com/r/maintenance/comments/1aklia7/",
+      "type": "forum lead"
+    },
+    {
+      "id": "f-care-sprinkler",
+      "title": "FireSprinklers: assisted-living corrosion, replacements and missing plans",
+      "url": "https://www.reddit.com/r/FireSprinklers/comments/19a5k36/",
+      "type": "forum lead"
+    },
+    {
+      "id": "f-school-a",
+      "title": "Teachers: conflicting decoration and electrical-use instructions",
+      "url": "https://www.reddit.com/r/Teachers/comments/1i8x0ft/",
+      "type": "forum lead"
+    },
+    {
+      "id": "f-school-b",
+      "title": "Teachers: bulletin-board material and citation uncertainty",
+      "url": "https://www.reddit.com/r/Teachers/comments/1mhqigz/",
+      "type": "forum lead"
+    },
+    {
+      "id": "f-dust",
+      "title": "SafetyProfessionals: combustible-dust housekeeping concerns",
+      "url": "https://www.reddit.com/r/SafetyProfessionals/comments/1o245l2/combustible_dust_concentrations/",
+      "type": "forum lead"
+    },
+    {
+      "id": "f-no-access",
+      "title": "FireSprinklers: apartment access and documenting uninspected areas",
+      "url": "https://www.reddit.com/r/FireSprinklers/comments/1s3qy8g/question/",
+      "type": "forum lead"
+    },
+    {
+      "id": "f-hotel-doors",
+      "title": "TalesFromTheFrontDesk: guests propping hotel doors",
+      "url": "https://www.reddit.com/r/TalesFromTheFrontDesk/comments/1hqfvw7/",
+      "type": "forum lead"
+    },
+    {
+      "id": "f-hotel-testing",
+      "title": "TalesFromTheFrontDesk: inspection coordination and guest notification discussion",
+      "url": "https://www.reddit.com/r/TalesFromTheFrontDesk/comments/1k4ziiv/",
+      "type": "forum lead"
+    },
+    {
+      "id": "f-theatre",
+      "title": "TechTheatre: haze, detection and approved system arrangements",
+      "url": "https://www.reddit.com/r/techtheatre/comments/1dht25s/",
+      "type": "forum lead"
+    },
+    {
+      "id": "f-system-review",
+      "title": "FireSprinklers: impairment and deficiency classification discussion",
+      "url": "https://www.reddit.com/r/FireSprinklers/comments/1g05ggr/",
+      "type": "forum lead"
+    },
+    {
+      "id": "o-general",
+      "title": "Eugene general fire-prevention self-inspection checklist",
+      "url": "https://www.eugene-or.gov/DocumentCenter/View/81616",
+      "type": "official checklist"
+    },
+    {
+      "id": "o-residential",
+      "title": "Eugene Group R fire-prevention self-inspection checklist",
+      "url": "https://www.eugene-or.gov/DocumentCenter/View/81617",
+      "type": "official checklist"
+    },
+    {
+      "id": "o-business",
+      "title": "Billings business inspection checklist",
+      "url": "https://www.billingsmt.gov/2867/Business-Inspection-Checklist",
+      "type": "official checklist"
+    },
+    {
+      "id": "o-arlington",
+      "title": "Arlington fire and life-safety pre-inspection checklist",
+      "url": "https://www.arlingtonva.us/files/sharedassets/public/v/1/fire/documents/new-folder/acfd_fire_life_safety_pre_inspection_checklist_layperson.pdf",
+      "type": "official checklist"
+    },
+    {
+      "id": "o-high-piled",
+      "title": "Houston high-piled storage plan-review checklist; Houston 2021 IFC context",
+      "url": "https://houstontx.gov/fire/HFMO/HP%20Plan%20Review%20Checklist%20(2021%20IFC).pdf",
+      "type": "official checklist"
+    },
+    {
+      "id": "o-intended-use",
+      "title": "Houston statement of intended use; historical form for intake categories",
+      "url": "https://houstontx.gov/fire/HFMO/Owner%27s%20Statement%20of%20Intended%20Use%20(2021%20IFC).pdf",
+      "type": "official checklist"
+    },
+    {
+      "id": "o-hazmat",
+      "title": "Houston hazardous-occupancy plan-review checklist; Houston 2021 IFC context",
+      "url": "https://houstontx.gov/fire/HFMO/H-Occupancy%20Plan%20Review%20Checklist%20-%20(2021%20IFC).pdf",
+      "type": "official checklist"
+    },
+    {
+      "id": "o-assembly",
+      "title": "New Hampshire assembly self-inspection checklist",
+      "url": "https://mm.nh.gov/files/uploads/fmo/remote-docs/assembly-occupancy-self-inspection-checklist.pdf",
+      "type": "official checklist"
+    },
+    {
+      "id": "o-care-plans",
+      "title": "Arvada assisted-living fire-safety planning checklist; Colorado context",
+      "url": "https://www.arvadafireco.gov/DocumentCenter/View/284/Fire-Safety-Checklist--Assisted-Living-Facility-PDF--",
+      "type": "official checklist"
+    },
+    {
+      "id": "o-education-care",
+      "title": "Lynchburg educational and care facility checklist",
+      "url": "https://www.lynchburgva.gov/DocumentCenter/View/877/EducationalCare-Facilities-Fire-Safety-Checklist-PDF",
+      "type": "official checklist"
+    },
+    {
+      "id": "o-restaurant-business",
+      "title": "Lynchburg restaurant and business checklist",
+      "url": "https://www.lynchburgva.gov/DocumentCenter/View/879/RestaurantBusiness-Fire-Safety-Checklist-PDF",
+      "type": "official checklist"
+    },
+    {
+      "id": "o-dust",
+      "title": "OSHA combustible-dust field guide; official corroborating guidance, not an AHJ inspection form",
+      "url": "https://www.osha.gov/sites/default/files/publications/OSHA_3644.pdf",
+      "type": "official checklist"
+    },
+    {
+      "id": "a-public-school",
+      "title": "Illinois OSFM current public-school inspection program",
+      "url": "https://sfm.illinois.gov/about/divisions/fire-prevention-and-building-safety/public-school-inspection-program.html",
+      "type": "Illinois authority"
+    },
+    {
+      "id": "a-school-faq",
+      "title": "Illinois OSFM school inspection FAQ and required approved forms",
+      "url": "https://sfm.illinois.gov/iam/schoolofficials/school-faq.html",
+      "type": "Illinois authority"
+    },
+    {
+      "id": "a-osfm-jurisdiction",
+      "title": "Illinois OSFM FAQ: school and healthcare jurisdiction",
+      "url": "https://sfm.illinois.gov/about/divisions/fire-prevention-and-building-safety/frequently-asked-questions.html",
+      "type": "Illinois authority"
+    },
+    {
+      "id": "a-idph-assisted",
+      "title": "Illinois IDPH assisted-living licensure and physical-plant surveys",
+      "url": "https://dph.illinois.gov/topics-services/health-care-regulation/assisted-living.html",
+      "type": "Illinois authority"
+    },
+    {
+      "id": "a-idph-nursing",
+      "title": "Illinois IDPH nursing-home selection and fire-safety planning guidance",
+      "url": "https://dph.illinois.gov/topics-services/health-care-regulation/nursing-homes/selection.html",
+      "type": "Illinois authority"
+    },
+    {
+      "id": "a-daycare",
+      "title": "Illinois OSFM separate daycare guides, self-inspection form and drill resources",
+      "url": "https://sfm.illinois.gov/about/divisions/fire-prevention-and-building-safety/daycare-requirements.html",
+      "type": "Illinois authority"
+    },
+    {
+      "id": "a-daycare-center",
+      "title": "Illinois OSFM new daycare-center guide, revised September 2024",
+      "url": "https://sfm.illinois.gov/content/dam/soi/en/web/sfm/sfmdocuments/documents/Day-Care-Center-Handout-September-2024.pdf",
+      "type": "Illinois authority"
+    },
+    {
+      "id": "a-dcfs407",
+      "title": "Illinois DCFS Rule 407: daycare centers, July 2025 publication",
+      "url": "https://dcfs.illinois.gov/content/dam/soi/en/web/dcfs/documents/about-us/policy-rules-and-forms/documents/rules/rules-407.pdf",
+      "type": "Illinois authority"
+    },
+    {
+      "id": "a-dcfs408",
+      "title": "Illinois DCFS Rule 408: group daycare homes, July 2025 publication",
+      "url": "https://dcfs.illinois.gov/content/dam/soi/en/web/dcfs/documents/about-us/policy-rules-and-forms/documents/rules/rules-408.pdf",
+      "type": "Illinois authority"
+    },
+    {
+      "id": "a-cila",
+      "title": "Illinois OSFM residential board-and-care / CILA licensing scope",
+      "url": "https://sfm.illinois.gov/about/divisions/fire-prevention-and-building-safety/residential-board-and-care-requirements.html",
+      "type": "Illinois authority"
+    },
+    {
+      "id": "a-lsc",
+      "title": "Illinois OSFM Life Safety Code resources and sample inspection checklist",
+      "url": "https://sfm.illinois.gov/resources/life-safety-code.html",
+      "type": "Illinois authority"
+    }
+  ],
+  "sharedCore": [
+    {
+      "id": "core-scope",
+      "title": "Confirm the visit purpose, current use and areas included.",
+      "category": "Scope",
+      "guidance": "Record routine, complaint, reinspection, licensing or preplan scope. Identify areas not entered and changes needing review.",
+      "sourceIds": [
+        "o-intended-use",
+        "a-lsc"
+      ]
+    },
+    {
+      "id": "core-site-access",
+      "title": "Review site identification and responder access.",
+      "category": "Fire department access",
+      "guidance": "Record address visibility, access routes and approved key or gate arrangements. Identify any area not examined.",
+      "sourceIds": [
+        "o-general",
+        "o-arlington"
+      ]
+    },
+    {
+      "id": "core-egress",
+      "title": "Walk the inspected exit routes and check door operation.",
+      "category": "Means of egress",
+      "guidance": "Record obstruction, hardware and discharge observations by location; verify applicability before attaching a violation citation.",
+      "sourceIds": [
+        "f-retail-a",
+        "f-retail-b",
+        "o-business",
+        "o-arlington"
+      ]
+    },
+    {
+      "id": "core-lighting",
+      "title": "Review exit identification and emergency-lighting condition.",
+      "category": "Emergency lighting",
+      "guidance": "Record observed condition and available test evidence. Distinguish a visual observation from a witnessed functional test.",
+      "sourceIds": [
+        "f-core",
+        "f-care",
+        "o-education-care"
+      ]
+    },
+    {
+      "id": "core-extinguishers",
+      "title": "Check portable extinguishers and available service evidence.",
+      "category": "Portable extinguishers",
+      "guidance": "Record access, visible condition and service evidence; verify required provision and placement under the governing code.",
+      "sourceIds": [
+        "f-core",
+        "o-restaurant-business"
+      ]
+    },
+    {
+      "id": "core-electrical",
+      "title": "Review visible electrical access, covers and cord use.",
+      "category": "Electrical safety",
+      "guidance": "Record affected equipment and observed use. Do not infer concealed installation condition from a walkthrough.",
+      "sourceIds": [
+        "f-core",
+        "f-school-a",
+        "o-arlington"
+      ]
+    },
+    {
+      "id": "core-housekeeping",
+      "title": "Review combustible storage and housekeeping in inspected spaces.",
+      "category": "Storage and housekeeping",
+      "guidance": "Identify stored materials, utility-room use and obstructions. Apply approved criteria to the actual hazard.",
+      "sourceIds": [
+        "f-retail-a",
+        "o-business"
+      ]
+    },
+    {
+      "id": "core-separations",
+      "title": "Review fire-door operation and visible separation conditions.",
+      "category": "Fire and smoke separation",
+      "guidance": "Describe defeated closers, damaged doors, openings or missing components for verified review; do not assume every ceiling is rated.",
+      "sourceIds": [
+        "f-care",
+        "f-hotel-doors",
+        "o-residential"
+      ]
+    },
+    {
+      "id": "core-records",
+      "title": "Review applicable system records and unresolved findings.",
+      "category": "System records",
+      "guidance": "Link the latest report and reviewer decision. A report upload or contractor tag alone does not establish AHJ acceptance.",
+      "sourceIds": [
+        "f-system-review",
+        "o-general"
+      ]
+    }
+  ],
+  "profiles": [
+    {
+      "occupancy": "Warehouse",
+      "overview": "Storage and sprinkler-design changes are a distinct practitioner lead. Shared checks remain essential; a warehouse label alone does not establish high-piled or hazardous occupancy.",
+      "authorityGate": "Confirm approved use, commodity and storage arrangement, permit status, and governing code basis before selecting storage-specific requirements.",
+      "questions": [
+        {
+          "id": "warehouse-inventory",
+          "title": "Compare actual commodities and operations with the approved use.",
+          "category": "Use and permits",
+          "guidance": "Record material descriptions and changes requiring plan or permit review.",
+          "sourceIds": [
+            "f-storage",
+            "o-intended-use"
+          ]
+        },
+        {
+          "id": "warehouse-layout",
+          "title": "Compare storage arrangement with available approved plans.",
+          "category": "Storage and housekeeping",
+          "guidance": "Document racks, shelving, aisle arrangement and changed stock patterns without applying borrowed dimensions.",
+          "sourceIds": [
+            "f-storage",
+            "o-high-piled"
+          ]
+        },
+        {
+          "id": "warehouse-design",
+          "title": "Review whether current storage matches the sprinkler design basis.",
+          "category": "Design review",
+          "condition": "Storage is protected by sprinklers or its required protection needs review.",
+          "guidance": "Request qualified evaluation when commodities or arrangement have changed; keep design review separate from routine ITM.",
+          "sourceIds": [
+            "f-storage",
+            "o-high-piled"
+          ]
+        },
+        {
+          "id": "warehouse-high-piled",
+          "title": "Determine whether a high-piled storage review applies.",
+          "category": "Special hazards",
+          "condition": "Storage characteristics may trigger high-piled review.",
+          "guidance": "Record the observed storage characteristics and pending applicability decision rather than assigning the classification automatically.",
+          "sourceIds": [
+            "o-high-piled"
+          ]
+        },
+        {
+          "id": "warehouse-materials",
+          "title": "Identify special materials needing additional inventory or permit review.",
+          "category": "Hazardous materials",
+          "condition": "Hazardous or unusual commodities are present or reported.",
+          "guidance": "Record containers and material information for an approved hazard assessment.",
+          "sourceIds": [
+            "o-hazmat"
+          ]
+        }
+      ]
+    },
+    {
+      "occupancy": "Small business",
+      "overview": "Forum evidence is strongest for shared operational issues. These prompts organize a small-site visit; they are not an evidence-based ranking for all small businesses.",
+      "authorityGate": "Small business is a friendly preset, not a legal occupancy group. Verify actual use and approved occupancy.",
+      "questions": [
+        {
+          "id": "small-use",
+          "title": "Confirm the business activity and any changes since the last visit.",
+          "category": "Use and permits",
+          "guidance": "Identify new services, equipment or tenant alterations that may need review.",
+          "sourceIds": [
+            "o-intended-use"
+          ]
+        },
+        {
+          "id": "small-public-route",
+          "title": "Follow the customer and employee routes through the premises.",
+          "category": "Means of egress",
+          "guidance": "Record furniture, displays or stock affecting the routes actually used.",
+          "sourceIds": [
+            "f-retail-a",
+            "o-restaurant-business"
+          ]
+        },
+        {
+          "id": "small-back-room",
+          "title": "Review back rooms and utility spaces for changed storage use.",
+          "category": "Storage and housekeeping",
+          "guidance": "Capture the location and material type; include rooms that could not be entered in the scope record.",
+          "sourceIds": [
+            "o-business"
+          ]
+        },
+        {
+          "id": "small-equipment",
+          "title": "Identify cooking, heating or other equipment needing a specialty module.",
+          "category": "Special hazards",
+          "guidance": "Select modules from actual equipment and activity rather than the size of the business.",
+          "sourceIds": [
+            "o-restaurant-business"
+          ]
+        },
+        {
+          "id": "small-contact",
+          "title": "Confirm who can arrange access and complete corrective work.",
+          "category": "Follow-through",
+          "guidance": "Record the responsible person and a practical next action for each unresolved finding.",
+          "sourceIds": [
+            "o-business"
+          ]
+        }
+      ]
+    },
+    {
+      "occupancy": "Large business",
+      "overview": "Use the shared operational core with tenant and system responsibility checks. Separate large-business prevalence was not established by the forum review.",
+      "authorityGate": "Verify each use, approved occupancy and shared-building responsibilities; employee count or floor area alone does not establish the legal group.",
+      "questions": [
+        {
+          "id": "large-tenants",
+          "title": "Identify occupied areas, tenants and shared life-safety responsibilities.",
+          "category": "Scope",
+          "guidance": "Assign each inspected area and shared feature to a responsible contact.",
+          "sourceIds": [
+            "o-intended-use",
+            "o-business"
+          ]
+        },
+        {
+          "id": "large-common-route",
+          "title": "Trace shared exit routes across tenant and controlled-access boundaries.",
+          "category": "Means of egress",
+          "guidance": "Document any route dependency needing plan or hardware review.",
+          "sourceIds": [
+            "o-arlington"
+          ]
+        },
+        {
+          "id": "large-layout-change",
+          "title": "Compare current partitions and work areas with available approved layouts.",
+          "category": "Use and permits",
+          "guidance": "Flag changes for plan review without declaring existing design noncompliant from appearance alone.",
+          "sourceIds": [
+            "o-intended-use"
+          ]
+        },
+        {
+          "id": "large-evacuation",
+          "title": "Review the emergency plan and staff responsibilities where applicable.",
+          "category": "Emergency planning",
+          "condition": "An emergency plan is required or provided for review.",
+          "guidance": "Record the plan version, staff contact and follow-up required for missing evidence.",
+          "sourceIds": [
+            "o-care-plans"
+          ]
+        },
+        {
+          "id": "large-shared-systems",
+          "title": "Identify which tenants and areas each system report covers.",
+          "category": "System records",
+          "guidance": "Track missing coverage and open findings by system and area.",
+          "sourceIds": [
+            "f-system-review",
+            "o-general"
+          ]
+        }
+      ]
+    },
+    {
+      "occupancy": "Apartments",
+      "overview": "Practitioner discussion highlights access limitations and maintenance. Inspect common areas and authorized dwelling areas separately; never infer unentered units passed.",
+      "authorityGate": "Confirm legal scope and access arrangements for dwelling units. Record building/unit coverage and the governing residential code basis.",
+      "questions": [
+        {
+          "id": "apartments-common",
+          "title": "Review stairs, corridors and shared escape routes.",
+          "category": "Means of egress",
+          "guidance": "Record obstruction and route observations by building and floor.",
+          "sourceIds": [
+            "o-residential"
+          ]
+        },
+        {
+          "id": "apartments-doors",
+          "title": "Review inspected dwelling-entry and common fire-door condition.",
+          "category": "Fire and smoke separation",
+          "guidance": "Record operation and defeated hardware where within the visit scope; verify each door's required function.",
+          "sourceIds": [
+            "f-hotel-doors",
+            "o-residential"
+          ]
+        },
+        {
+          "id": "apartments-alarms",
+          "title": "Review smoke and CO protection within the authorized scope.",
+          "category": "Detection",
+          "guidance": "Record location and evidence reviewed; identify dwelling areas not entered.",
+          "sourceIds": [
+            "o-residential"
+          ]
+        },
+        {
+          "id": "apartments-laundry",
+          "title": "Review laundry equipment and visible lint conditions.",
+          "category": "Special hazards",
+          "condition": "Laundry equipment or shared dryer exhaust is present.",
+          "guidance": "Identify maintenance concerns and equipment needing qualified attention.",
+          "sourceIds": [
+            "o-residential"
+          ]
+        },
+        {
+          "id": "apartments-activities",
+          "title": "Review cooking, fuel storage and charging in inspected shared or exterior spaces.",
+          "category": "Special hazards",
+          "condition": "These activities or materials are present in the inspection scope.",
+          "guidance": "Describe the actual activity and location; verify applicable restrictions before citing.",
+          "sourceIds": [
+            "o-residential"
+          ]
+        }
+      ]
+    },
+    {
+      "occupancy": "Assisted living",
+      "overview": "Care-facility anecdotes support door, lighting and maintenance prompts. Planning checks address resident needs; no statistical ranking was established.",
+      "authorityGate": "Confirm facility license, care/evacuation capability, inspection purpose and authority. IDPH oversees licensed assisted-living life-safety surveys. CILA licensing has separate OSFM rules; local work must identify its own scope.",
+      "questions": [
+        {
+          "id": "assisted-residents",
+          "title": "Confirm the resident-assistance assumptions used by the emergency plan.",
+          "category": "Emergency planning",
+          "guidance": "Record care and evacuation needs without storing unnecessary medical detail.",
+          "sourceIds": [
+            "o-care-plans",
+            "a-idph-assisted"
+          ]
+        },
+        {
+          "id": "assisted-staff",
+          "title": "Review staff roles and available drill or training evidence.",
+          "category": "Emergency planning",
+          "guidance": "Identify who assists residents and what evidence remains to be reviewed.",
+          "sourceIds": [
+            "o-care-plans"
+          ]
+        },
+        {
+          "id": "assisted-locking",
+          "title": "Review approved locking and staff release arrangements.",
+          "category": "Means of egress",
+          "condition": "Special locking, memory-care or controlled-egress arrangements are present.",
+          "guidance": "Document the hardware and approval basis; do not apply generic retail-door assumptions to care arrangements.",
+          "sourceIds": [
+            "o-care-plans",
+            "a-osfm-jurisdiction"
+          ]
+        },
+        {
+          "id": "assisted-compartments",
+          "title": "Review observed doors and separations along the care strategy.",
+          "category": "Fire and smoke separation",
+          "guidance": "Record damaged or defeated components and request qualified review where their function is uncertain.",
+          "sourceIds": [
+            "f-care",
+            "a-idph-nursing"
+          ]
+        },
+        {
+          "id": "assisted-design-history",
+          "title": "Review unresolved system changes or missing design information.",
+          "category": "Design review",
+          "condition": "System changes or design concerns are reported or observed.",
+          "guidance": "Refer corrosion, replacement or coverage concerns for qualified evaluation and link the outcome.",
+          "sourceIds": [
+            "f-care-sprinkler",
+            "a-idph-assisted"
+          ]
+        }
+      ]
+    },
+    {
+      "occupancy": "Assembly",
+      "overview": "Assembly-specific forum evidence is sparse and includes theatre disputes. These are candidate coverage areas supported by an official assembly form, not measured prevalence.",
+      "authorityGate": "Verify approved use, occupant load and event layout; determine whether event permits or special-effects approvals apply.",
+      "questions": [
+        {
+          "id": "assembly-load",
+          "title": "Review the approved occupant-load information for the current arrangement.",
+          "category": "Occupant load",
+          "guidance": "Record the approved basis and any mismatch needing review; do not calculate a limit from this prompt.",
+          "sourceIds": [
+            "o-assembly"
+          ]
+        },
+        {
+          "id": "assembly-layout",
+          "title": "Review seating, tables, aisles and exit availability for the event.",
+          "category": "Means of egress",
+          "guidance": "Capture changed layouts and temporary obstructions by location.",
+          "sourceIds": [
+            "o-assembly"
+          ]
+        },
+        {
+          "id": "assembly-materials",
+          "title": "Review decorations and temporary scenic materials.",
+          "category": "Decorations",
+          "condition": "Decorative, temporary or scenic materials are present.",
+          "guidance": "Record the material, location and approval evidence before applying a citation.",
+          "sourceIds": [
+            "o-general"
+          ]
+        },
+        {
+          "id": "assembly-effects",
+          "title": "Review approval and system coordination for haze or other special effects.",
+          "category": "Special hazards",
+          "condition": "Haze, theatrical effects or temporary protection arrangements are proposed or used.",
+          "guidance": "Record the approved procedure and responsible party; never treat a forum workaround as permission to disable protection.",
+          "sourceIds": [
+            "f-theatre"
+          ]
+        },
+        {
+          "id": "assembly-staff",
+          "title": "Review event-staff emergency responsibilities where applicable.",
+          "category": "Emergency planning",
+          "condition": "Staffed events or an applicable emergency plan are part of the use.",
+          "guidance": "Identify the person responsible for keeping routes available and communicating during an emergency.",
+          "sourceIds": [
+            "o-care-plans",
+            "o-assembly"
+          ]
+        }
+      ]
+    },
+    {
+      "occupancy": "Restaurant",
+      "overview": "Multiple kitchen-worker discussions independently raise hood operation and suppression upkeep. They justify prominent prompts but do not establish verified conditions at a named premises.",
+      "authorityGate": "Confirm cooking processes, appliances, hood type and approved protection. Dining occupancy and kitchen protection requirements must be verified separately.",
+      "questions": [
+        {
+          "id": "restaurant-exhaust",
+          "title": "Review the operating condition of the kitchen exhaust arrangement.",
+          "category": "Commercial cooking",
+          "guidance": "Record observed or reported faults and the action taken for qualified review.",
+          "sourceIds": [
+            "f-kitchen-b",
+            "f-kitchen-c",
+            "o-restaurant-business"
+          ]
+        },
+        {
+          "id": "restaurant-changes",
+          "title": "Compare current cooking appliances with the approved protected layout.",
+          "category": "Commercial cooking",
+          "guidance": "Document moved, added or changed appliances and refer coverage questions to the appropriate reviewer.",
+          "sourceIds": [
+            "f-kitchen-a",
+            "o-restaurant-business"
+          ]
+        },
+        {
+          "id": "restaurant-grease",
+          "title": "Review grease-cleaning evidence and visible accumulation.",
+          "category": "Commercial cooking",
+          "guidance": "Record locations and cleaning evidence; select intervals only from the governing approved basis.",
+          "sourceIds": [
+            "o-general"
+          ]
+        },
+        {
+          "id": "restaurant-fuels",
+          "title": "Review cooking-fuel storage and shutoff access.",
+          "category": "Hazardous materials",
+          "condition": "Fuel-fired cooking or stored cooking fuel is present.",
+          "guidance": "Record the fuel type, storage location and any access concern.",
+          "sourceIds": [
+            "o-business"
+          ]
+        },
+        {
+          "id": "restaurant-dining",
+          "title": "Review dining and delivery arrangements affecting exits.",
+          "category": "Means of egress",
+          "guidance": "Capture tables, queues, stock or delivery items affecting the inspected route.",
+          "sourceIds": [
+            "f-retail-a",
+            "o-restaurant-business"
+          ]
+        }
+      ]
+    },
+    {
+      "occupancy": "Retail / Mercantile",
+      "overview": "Repeated retail-worker discussions make stock and cart obstructions a strong qualitative lead. Other checks remain necessary regardless of that emphasis.",
+      "authorityGate": "Verify approved mercantile and accessory uses, customer layout and storage arrangements. A shop label does not settle mixed or hazardous uses.",
+      "questions": [
+        {
+          "id": "retail-floor",
+          "title": "Review customer aisles and exit access around current displays.",
+          "category": "Means of egress",
+          "guidance": "Record the actual display arrangement and any obstruction.",
+          "sourceIds": [
+            "f-retail-a",
+            "f-retail-b",
+            "o-business"
+          ]
+        },
+        {
+          "id": "retail-stockroom",
+          "title": "Review stockroom carts, ladders and goods along exit routes.",
+          "category": "Means of egress",
+          "guidance": "Capture repeat conditions and responsible-party follow-up.",
+          "sourceIds": [
+            "f-retail-a",
+            "f-retail-b"
+          ]
+        },
+        {
+          "id": "retail-devices",
+          "title": "Review access and visibility around protection devices and controls.",
+          "category": "Fire protection systems",
+          "guidance": "Record shelving or stock affecting a device; verify its required access and identification.",
+          "sourceIds": [
+            "o-arlington"
+          ]
+        },
+        {
+          "id": "retail-seasonal",
+          "title": "Review seasonal displays, decorations and temporary electrical use.",
+          "category": "Decorations",
+          "condition": "Seasonal or temporary displays are present.",
+          "guidance": "Describe the actual setup and supporting approval evidence.",
+          "sourceIds": [
+            "o-general"
+          ]
+        },
+        {
+          "id": "retail-storage-change",
+          "title": "Review stock and rack changes affecting approved storage protection.",
+          "category": "Storage and housekeeping",
+          "condition": "Storage changes or significant rack storage are present.",
+          "guidance": "Use a storage review when commodity or arrangement changes warrant it.",
+          "sourceIds": [
+            "f-storage",
+            "o-high-piled"
+          ]
+        }
+      ]
+    },
+    {
+      "occupancy": "Educational",
+      "overview": "Teacher discussions repeatedly describe decoration/electrical disputes. Use them as search leads; no blanket ban or numeric limit is imported.",
+      "authorityGate": "For mandated Illinois public-school inspections, use current ISBE glossary and approved Fire Service or ROE checklist, qualified inspectors and required submissions. This preset cannot replace those forms. Confirm separate rules for private schools and other uses.",
+      "questions": [
+        {
+          "id": "education-program",
+          "title": "Confirm the school type, inspection program and required current form.",
+          "category": "Authority and scope",
+          "guidance": "Record the governing program and form version before the walkthrough.",
+          "sourceIds": [
+            "a-public-school",
+            "a-school-faq"
+          ]
+        },
+        {
+          "id": "education-materials",
+          "title": "Review classroom and corridor display materials under the governing program.",
+          "category": "Decorations",
+          "guidance": "Record material, location and approval basis; do not infer a prohibition from forum anecdotes.",
+          "sourceIds": [
+            "f-school-a",
+            "f-school-b",
+            "a-public-school"
+          ]
+        },
+        {
+          "id": "education-electric",
+          "title": "Review classroom equipment, cords and electrical-use concerns.",
+          "category": "Electrical safety",
+          "guidance": "Document observed arrangements and verify the applicable criterion.",
+          "sourceIds": [
+            "f-school-a",
+            "o-education-care"
+          ]
+        },
+        {
+          "id": "education-special-rooms",
+          "title": "Identify laboratories, shops, stages and storage needing additional review.",
+          "category": "Special hazards",
+          "condition": "Special-purpose rooms or activities are present.",
+          "guidance": "Select appropriate modules for actual processes and equipment.",
+          "sourceIds": [
+            "o-education-care"
+          ]
+        },
+        {
+          "id": "education-drills",
+          "title": "Review drill records and required reporting under the school program.",
+          "category": "Emergency planning",
+          "guidance": "Identify missing evidence and the responsible submission workflow.",
+          "sourceIds": [
+            "a-school-faq",
+            "a-public-school"
+          ]
+        }
+      ]
+    },
+    {
+      "occupancy": "Daycare",
+      "overview": "Daycare-specific forum evidence was sparse. These prompts rely mainly on Illinois official resources and remain distinct from the school or ordinary-business preset.",
+      "authorityGate": "Confirm DCFS center, daycare-home or group-home classification, child ages, floor of care, license and inspection purpose. Use the applicable OSFM/DCFS guide and authorized licensing workflow; local-code inspection does not itself establish licensing clearance.",
+      "questions": [
+        {
+          "id": "daycare-program",
+          "title": "Confirm the licensed care type, ages served and areas used.",
+          "category": "Authority and scope",
+          "guidance": "Record the correct center/home/group-home path and required approvals.",
+          "sourceIds": [
+            "a-daycare",
+            "a-dcfs407",
+            "a-dcfs408"
+          ]
+        },
+        {
+          "id": "daycare-evacuation",
+          "title": "Review how staff assist children from each care and sleeping area.",
+          "category": "Emergency planning",
+          "guidance": "Record the plan and unresolved assistance or route questions.",
+          "sourceIds": [
+            "a-daycare-center"
+          ]
+        },
+        {
+          "id": "daycare-locks",
+          "title": "Review door, closet and restroom release arrangements.",
+          "category": "Means of egress",
+          "guidance": "Describe security devices and staff release capability; verify the applicable approval before citing.",
+          "sourceIds": [
+            "a-daycare-center"
+          ]
+        },
+        {
+          "id": "daycare-protection",
+          "title": "Review detection and escape features required for the approved care arrangement.",
+          "category": "Detection",
+          "condition": "The applicable care classification and areas have been identified.",
+          "guidance": "Use the relevant center or home guide; record unverified features rather than inferring compliance.",
+          "sourceIds": [
+            "a-daycare"
+          ]
+        },
+        {
+          "id": "daycare-drills",
+          "title": "Review the current fire plan and drill evidence.",
+          "category": "Emergency planning",
+          "guidance": "Record what was reviewed and any follow-up required through the appropriate agency.",
+          "sourceIds": [
+            "a-daycare",
+            "a-dcfs408"
+          ]
+        }
+      ]
+    },
+    {
+      "occupancy": "Healthcare",
+      "overview": "Care-maintenance discussion supports operational prompts; detailed healthcare prevalence was not measured. Systems and care strategy require the appropriate technical reviewer.",
+      "authorityGate": "Confirm license, care type, inspection purpose and authority. IDPH enforces life-safety requirements for licensed hospitals, nursing homes, assisted living and ambulatory-care facilities; identify the scope of any local visit.",
+      "questions": [
+        {
+          "id": "healthcare-strategy",
+          "title": "Review the documented relocation or evacuation strategy.",
+          "category": "Emergency planning",
+          "guidance": "Identify responsible staff and assistance needs without assuming full-building evacuation is the approved strategy.",
+          "sourceIds": [
+            "a-idph-nursing",
+            "o-care-plans"
+          ]
+        },
+        {
+          "id": "healthcare-doors",
+          "title": "Review observed smoke/fire doors and compartment boundaries.",
+          "category": "Fire and smoke separation",
+          "guidance": "Record damaged or defeated features for verified review.",
+          "sourceIds": [
+            "f-care",
+            "a-idph-nursing"
+          ]
+        },
+        {
+          "id": "healthcare-corridor",
+          "title": "Review equipment and storage along patient-care routes.",
+          "category": "Means of egress",
+          "guidance": "Describe equipment, location and use before applying care-specific criteria.",
+          "sourceIds": [
+            "a-idph-nursing"
+          ]
+        },
+        {
+          "id": "healthcare-oxygen",
+          "title": "Review medical-gas or oxygen storage and handling within the agreed scope.",
+          "category": "Hazardous materials",
+          "condition": "Medical gases or oxygen storage are present.",
+          "guidance": "Record material information and refer technical storage or system questions to the authorized reviewer.",
+          "sourceIds": [
+            "o-hazmat",
+            "a-osfm-jurisdiction"
+          ]
+        },
+        {
+          "id": "healthcare-continuity",
+          "title": "Review responsibility for impaired systems and emergency-power evidence.",
+          "category": "System records",
+          "condition": "Relevant life-safety systems or emergency power serve the facility.",
+          "guidance": "Link the records and escalation contact; contractor classification and AHJ decisions remain separate.",
+          "sourceIds": [
+            "f-system-review",
+            "a-osfm-jurisdiction"
+          ]
+        }
+      ]
+    },
+    {
+      "occupancy": "Industrial",
+      "overview": "Practitioner discussion raises combustible-dust and process-change concerns. Industrial is not automatically a hazardous occupancy; evidence must follow the actual operation.",
+      "authorityGate": "Confirm processes, materials and quantities, approved use and specialist review needs. Use approved hazard assessments rather than forum thresholds.",
+      "questions": [
+        {
+          "id": "industrial-process",
+          "title": "Compare current processes and equipment with the approved use.",
+          "category": "Use and permits",
+          "guidance": "Record changes, new equipment and review needs.",
+          "sourceIds": [
+            "o-intended-use",
+            "o-hazmat"
+          ]
+        },
+        {
+          "id": "industrial-dust",
+          "title": "Identify dust-generating work and visible accumulations needing assessment.",
+          "category": "Combustible dust",
+          "condition": "Dust-producing materials or processes are present.",
+          "guidance": "Record locations and request qualified hazard review; do not diagnose explosibility from appearance.",
+          "sourceIds": [
+            "f-dust",
+            "o-dust"
+          ]
+        },
+        {
+          "id": "industrial-collection",
+          "title": "Review dust or fume collection and associated maintenance evidence.",
+          "category": "Special hazards",
+          "condition": "Dust or fume collection serves the process.",
+          "guidance": "Record the reported operating condition and unresolved specialist findings.",
+          "sourceIds": [
+            "f-dust",
+            "o-dust"
+          ]
+        },
+        {
+          "id": "industrial-inventory",
+          "title": "Review hazardous-material inventory and storage arrangements.",
+          "category": "Hazardous materials",
+          "guidance": "Record material information and changes requiring approved quantity or compatibility review.",
+          "sourceIds": [
+            "o-hazmat"
+          ]
+        },
+        {
+          "id": "industrial-hot-work",
+          "title": "Review hot-work or other ignition-producing activities.",
+          "category": "Special hazards",
+          "condition": "Hot work or another controlled ignition-producing activity occurs.",
+          "guidance": "Identify the approval/procedure and responsible person for the actual work.",
+          "sourceIds": [
+            "o-hazmat"
+          ]
+        }
+      ]
+    },
+    {
+      "occupancy": "Hotel / Lodging",
+      "overview": "Hotel-worker discussion highlights propped doors and test coordination. Shared residential coverage is drawn from an official Group R form; prevalence is not quantified.",
+      "authorityGate": "Confirm lodging use and agreed guest-room/common-area access. Verify the applicable state/local inspection and code basis before issuing findings.",
+      "questions": [
+        {
+          "id": "hotel-doors",
+          "title": "Review guest-room and common door operation within the visit scope.",
+          "category": "Fire and smoke separation",
+          "guidance": "Record wedged or damaged components and verify each door's required function.",
+          "sourceIds": [
+            "f-hotel-doors",
+            "o-residential"
+          ]
+        },
+        {
+          "id": "hotel-routes",
+          "title": "Review corridors, stairs and housekeeping storage along escape routes.",
+          "category": "Means of egress",
+          "guidance": "Record route conditions by floor and identify unentered areas.",
+          "sourceIds": [
+            "o-residential"
+          ]
+        },
+        {
+          "id": "hotel-room-scope",
+          "title": "Document which guest rooms and associated protection were reviewed.",
+          "category": "Scope",
+          "guidance": "Record inaccessible rooms and a follow-up action rather than marking them passed.",
+          "sourceIds": [
+            "f-no-access",
+            "o-residential"
+          ]
+        },
+        {
+          "id": "hotel-test-coordination",
+          "title": "Review coordination for planned alarm or system testing.",
+          "category": "Emergency planning",
+          "guidance": "Identify staff, affected guests and the authorized test provider; this prompt does not authorize a live test.",
+          "sourceIds": [
+            "f-hotel-testing"
+          ]
+        },
+        {
+          "id": "hotel-ancillary",
+          "title": "Identify laundry, cooking and charging areas needing additional modules.",
+          "category": "Special hazards",
+          "guidance": "Apply modules to installed equipment and actual activities.",
+          "sourceIds": [
+            "o-residential"
+          ]
+        }
+      ]
+    },
+    {
+      "occupancy": "Mixed use",
+      "overview": "Use combinations of the relevant modules by space. Dedicated mixed-use frequency evidence was not established; the aim is avoiding gaps between tenants and shared systems.",
+      "authorityGate": "Identify each actual use, approved occupancy and any approved separation/nonseparation approach. One friendly preset must not overwrite the legal classification of each space.",
+      "questions": [
+        {
+          "id": "mixed-use-map",
+          "title": "Identify the actual use and responsible party for each inspected space.",
+          "category": "Scope",
+          "guidance": "Record tenant and common-area boundaries without inferring legal groups from business names.",
+          "sourceIds": [
+            "o-intended-use"
+          ]
+        },
+        {
+          "id": "mixed-shared-routes",
+          "title": "Trace shared routes between uses and to the exterior.",
+          "category": "Means of egress",
+          "guidance": "Document dependencies, controlled doors and any need for approved-plan review.",
+          "sourceIds": [
+            "o-arlington"
+          ]
+        },
+        {
+          "id": "mixed-separations",
+          "title": "Review visible boundaries and doors between uses.",
+          "category": "Fire and smoke separation",
+          "guidance": "Verify the approved separation strategy before interpreting observed openings.",
+          "sourceIds": [
+            "o-residential",
+            "o-intended-use"
+          ]
+        },
+        {
+          "id": "mixed-system-coverage",
+          "title": "Identify which systems and reports serve each use.",
+          "category": "System records",
+          "guidance": "Record coverage gaps and allocate open findings to a responsible party.",
+          "sourceIds": [
+            "f-system-review",
+            "o-general"
+          ]
+        },
+        {
+          "id": "mixed-module-selection",
+          "title": "Select specialty modules for the hazards present in each space.",
+          "category": "Special hazards",
+          "guidance": "Include cooking, storage, care or process modules only where applicable; record unresolved applicability questions.",
+          "sourceIds": [
+            "o-general",
+            "o-hazmat"
+          ]
+        }
+      ]
+    }
+  ],
+  "conditionalModules": [
+    {
+      "id": "system-sprinklers",
+      "label": "Water-based sprinkler protection",
+      "systemKeys": [
+        "Sprinklers"
+      ],
+      "questions": [
+        {
+          "id": "sprinklers-access",
+          "title": "Review access to sprinkler controls and related rooms.",
+          "category": "Fire protection systems",
+          "condition": "Sprinklers are present or required protection is under review.",
+          "guidance": "Record access and identification concerns by location.",
+          "sourceIds": [
+            "o-general"
+          ]
+        },
+        {
+          "id": "sprinklers-visible",
+          "title": "Review visible sprinkler and piping condition within the inspection scope.",
+          "category": "Fire protection systems",
+          "condition": "Sprinklers are within the agreed inspection scope.",
+          "guidance": "Photograph observed damage, corrosion or obstruction for qualified assessment; do not prescribe replacement from appearance alone.",
+          "sourceIds": [
+            "f-care-sprinkler",
+            "o-general"
+          ]
+        },
+        {
+          "id": "sprinklers-records",
+          "title": "Review sprinkler reports, open deficiencies and system-status decisions.",
+          "category": "System records",
+          "condition": "Sprinkler maintenance records are applicable.",
+          "guidance": "Record report coverage, qualified reviewer decisions and unresolved findings; never treat a tag as automatic acceptance.",
+          "sourceIds": [
+            "f-system-review",
+            "o-general"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "system-alarm",
+      "label": "Fire alarm and detection",
+      "systemKeys": [
+        "Fire alarm"
+      ],
+      "questions": [
+        {
+          "id": "alarm-controls",
+          "title": "Review access to and identification of alarm controls.",
+          "category": "Fire protection systems",
+          "condition": "A fire alarm system is present.",
+          "guidance": "Record observed status and access concerns without operating the panel unless authorized.",
+          "sourceIds": [
+            "o-arlington"
+          ]
+        },
+        {
+          "id": "alarm-condition",
+          "title": "Review visible alarm and detection-device condition.",
+          "category": "Detection",
+          "condition": "Devices are within the agreed inspection scope.",
+          "guidance": "Record obstructed, damaged or otherwise questionable devices for qualified review.",
+          "sourceIds": [
+            "f-care",
+            "o-education-care"
+          ]
+        },
+        {
+          "id": "alarm-records",
+          "title": "Review alarm test evidence, coverage and unresolved findings.",
+          "category": "System records",
+          "condition": "A fire alarm system is present or required protection is under review.",
+          "guidance": "Record what was inspected by the contractor and what remains unresolved; a walkthrough is not a full system test.",
+          "sourceIds": [
+            "f-system-review",
+            "o-business"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "system-fdc-standpipe",
+      "label": "FDC, riser and standpipe",
+      "systemKeys": [
+        "FDC / standpipe"
+      ],
+      "questions": [
+        {
+          "id": "fdc-location",
+          "title": "Review responder access to identified FDC and standpipe features.",
+          "category": "Fire department access",
+          "condition": "FDC or standpipe features are present.",
+          "guidance": "Record obstructions and location/identification concerns.",
+          "sourceIds": [
+            "o-business"
+          ]
+        },
+        {
+          "id": "fdc-condition",
+          "title": "Review accessible connections and visible condition.",
+          "category": "Fire protection systems",
+          "condition": "Connections are within the agreed inspection scope.",
+          "guidance": "Record missing, damaged or questionable components for qualified review; do not flow equipment as part of this prompt.",
+          "sourceIds": [
+            "o-business"
+          ]
+        },
+        {
+          "id": "fdc-records",
+          "title": "Review applicable test records and outstanding contractor findings.",
+          "category": "System records",
+          "condition": "FDC or standpipe inspection and testing records are applicable.",
+          "guidance": "Link reports to the specific feature and preserve the reviewer decision.",
+          "sourceIds": [
+            "f-system-review",
+            "o-business"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "system-fire-pump",
+      "label": "Fire pump",
+      "systemKeys": [
+        "Fire pump"
+      ],
+      "questions": [
+        {
+          "id": "pump-access",
+          "title": "Review fire-pump room access and visible housekeeping.",
+          "category": "Fire protection systems",
+          "condition": "A fire pump is present.",
+          "guidance": "Record room use and any access concern without adjusting controls.",
+          "sourceIds": [
+            "o-business"
+          ]
+        },
+        {
+          "id": "pump-status",
+          "title": "Review reported pump status and any known impairment.",
+          "category": "System records",
+          "condition": "A fire pump is present.",
+          "guidance": "Record the responsible contact and escalation already underway; do not diagnose operation from a status label alone.",
+          "sourceIds": [
+            "f-system-review"
+          ]
+        },
+        {
+          "id": "pump-reports",
+          "title": "Review available pump-test reports and unresolved findings.",
+          "category": "System records",
+          "condition": "A fire pump is present.",
+          "guidance": "Link the report, coverage and qualified review outcome; do not invent a test interval.",
+          "sourceIds": [
+            "o-business",
+            "f-system-review"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "system-kitchen",
+      "label": "Commercial cooking suppression",
+      "systemKeys": [
+        "Kitchen suppression"
+      ],
+      "questions": [
+        {
+          "id": "kitchen-service",
+          "title": "Review cooking-suppression service evidence and unresolved findings.",
+          "category": "Commercial cooking",
+          "condition": "Cooking suppression is installed or its required provision needs review.",
+          "guidance": "Record the system, service provider and pending corrective work.",
+          "sourceIds": [
+            "f-kitchen-a",
+            "o-restaurant-business"
+          ]
+        },
+        {
+          "id": "kitchen-layout",
+          "title": "Review whether cooking-equipment changes have been evaluated.",
+          "category": "Commercial cooking",
+          "condition": "Protected cooking equipment has changed or current coverage is uncertain.",
+          "guidance": "Record moved or added appliances and request qualified coverage review.",
+          "sourceIds": [
+            "f-kitchen-a"
+          ]
+        },
+        {
+          "id": "kitchen-manual",
+          "title": "Review access to identified manual controls and applicable cooking extinguishers.",
+          "category": "Commercial cooking",
+          "condition": "Relevant controls and portable protection are part of the installation.",
+          "guidance": "Record access and identification concerns; do not activate the system during a routine walkthrough.",
+          "sourceIds": [
+            "o-general"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "system-emergency-power",
+      "label": "Emergency or standby power",
+      "systemKeys": [
+        "Emergency power"
+      ],
+      "questions": [
+        {
+          "id": "power-scope",
+          "title": "Identify the emergency-power equipment and life-safety loads covered.",
+          "category": "Emergency power",
+          "condition": "Emergency or standby power is present.",
+          "guidance": "Record the approved basis or pending specialist review; do not assume every generator serves life safety.",
+          "sourceIds": [
+            "a-idph-nursing",
+            "o-care-plans"
+          ]
+        },
+        {
+          "id": "power-condition",
+          "title": "Review accessible equipment areas and reported status concerns.",
+          "category": "Emergency power",
+          "condition": "Equipment is within the inspection scope.",
+          "guidance": "Record visible conditions and the responsible service contact without operating equipment.",
+          "sourceIds": [
+            "o-arlington"
+          ]
+        },
+        {
+          "id": "power-records",
+          "title": "Review available test evidence and unresolved power-system findings.",
+          "category": "System records",
+          "condition": "Power-system records are applicable to the inspection purpose.",
+          "guidance": "Record the evidence and authorized reviewer outcome; the walkthrough does not establish load-test performance.",
+          "sourceIds": [
+            "f-system-review",
+            "a-osfm-jurisdiction"
+          ]
+        }
+      ]
+    }
+  ]
+}

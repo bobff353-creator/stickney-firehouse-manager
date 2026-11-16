@@ -52,3 +52,5 @@ next-env.d.ts
 .env*
 
 .release-source.json
+
+/.work/

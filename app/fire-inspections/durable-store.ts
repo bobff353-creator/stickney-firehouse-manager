@@ -23,13 +23,16 @@ export class InspectionVault {
   close(){this.closed=true;this.db.close();active.delete(this);}
   private assertOpen(){if(this.closed)throw Error('Inspection recovery was locked or cleared. Sign in again.');}
   private serial<T>(work:()=>Promise<T>):Promise<T>{const next=this.tail.then(()=>{this.assertOpen();return work();});this.tail=next.catch(()=>undefined);return next;}
-  async list<T>(prefix:string):Promise<{id:string;value:T}[]> {
+  async list<T>(prefix:string):Promise<{id:string;value:T;expiredForReview?:boolean}[]> {
     return this.serial(async()=>{
       const rows=await request<Stored[]>(this.db.transaction('entries').objectStore('entries').getAll());const result=[];
       for(const row of rows.filter(r=>r.id.startsWith(this.scope+':'+prefix))){
         this.assertOpen();const id=row.id.slice(this.scope.length+1);this.revisions.set(id,row.revision||0);
-        if(!row.expires||row.expires<=Date.now()){await this.deleteEntry(id);continue;}
-        try {const bytes=await crypto.subtle.decrypt({name:'AES-GCM',iv:row.iv as Uint8Array<ArrayBuffer>,additionalData:new TextEncoder().encode(row.id)},this.key,row.cipher!);result.push({id,value:JSON.parse(new TextDecoder().decode(bytes)) as T});}
+        // The encryption key has no expiry and is never a recovery payload.
+        if(id==='key')continue;
+        const expired=!row.expires||row.expires<=Date.now(),retainUnsynced=id==='queue'||id.startsWith('draft:')||id.startsWith('photo:');
+        if(expired&&!retainUnsynced){await this.deleteEntry(id);continue;}
+        try {const bytes=await crypto.subtle.decrypt({name:'AES-GCM',iv:row.iv as Uint8Array<ArrayBuffer>,additionalData:new TextEncoder().encode(row.id)},this.key,row.cipher!);result.push({id,value:JSON.parse(new TextDecoder().decode(bytes)) as T,...(expired?{expiredForReview:true}:{})});}
         catch {throw Error('A browser recovery entry could not be decrypted. Keep any open draft and clear browser recovery before retrying.');}
       }
       return result;

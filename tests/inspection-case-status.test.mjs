@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {trainingModules} from './helpers/training-modules.mjs';
+const load=trainingModules(),{emptyInspection}=load('app/fire-inspections/model.ts'),{currentCaseStatus,unresolvedInspectionReminders}=load('app/fire-inspections/case-status.ts');
+const record={id:'issued',kind:'inspection',version:3,data:{...emptyInspection(),status:'Completed'}};
+const source={inspectionId:record.id,inspectionVersion:3,payloadHash:'frozen-sha',checkId:'door'};
+const state=()=>({reports:[source],targets:[],files:[],actions:[],cases:[{id:'claim',status:'Verified',source}]});
+const reminder={id:'issued:door',recordId:'issued',checkId:'door',kind:'Correction'};
+test('only exact version and original hash verification closes the operational reminder',()=>{const ledger=state();assert.equal(currentCaseStatus(ledger,record,'door').verified,true);assert.deepEqual(unresolvedInspectionReminders([reminder],[record],ledger),[]);assert.equal(record.data.status,'Completed');assert.equal(currentCaseStatus(ledger,{...record,version:4},'door').verified,false);ledger.cases[0].source={...source,payloadHash:'another-version'};assert.equal(currentCaseStatus(ledger,record,'door').verified,false);assert.equal(unresolvedInspectionReminders([reminder],[record],ledger).length,1);});
+test('recovered decisions and unreviewed claims never close a finding',()=>{for(const patch of [{recoveryHold:true},{status:'Awaiting review'},{status:'Rejected'}]){const ledger=state();Object.assign(ledger.cases[0],patch);assert.equal(unresolvedInspectionReminders([reminder],[record],ledger).length,1);}assert.equal(unresolvedInspectionReminders([reminder],[record],null).length,1);});
+test('formal void only suppresses the exact issued version and does not alter its source',()=>{const ledger={...state(),cases:[],actions:[{type:'Void',source}]};assert.equal(currentCaseStatus(ledger,record).voided,true);assert.equal(unresolvedInspectionReminders([reminder],[record],ledger).length,0);assert.equal(currentCaseStatus(ledger,{...record,version:4}).voided,false);assert.equal(record.version,3);});

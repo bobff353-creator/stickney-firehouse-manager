@@ -1,0 +1,4 @@
+import {readPropertyContactCard,type ContactCardSlot} from '../../../../fire-inspections/contact-card-service';
+import {contactCardFailure,nativeContactCardContext} from '../../../../fire-inspections/contact-card-runtime';
+export const dynamic='force-dynamic';
+export async function GET(request:Request,{params}:{params:Promise<{id:string}>}){try{const context=await nativeContactCardContext(request,'records.read'),query=new URL(request.url).searchParams,result=await readPropertyContactCard(context,(await params).id,query.get('propertyId')??'',query.get('slot') as ContactCardSlot);return new Response(result.bytes as Uint8Array<ArrayBuffer>,{headers:{'Content-Type':result.card.contentType,'Content-Disposition':`inline; filename="${result.card.filename.replace(/["\\\r\n]/g,'_')}"`,'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}});}catch(error){return contactCardFailure(error);}}

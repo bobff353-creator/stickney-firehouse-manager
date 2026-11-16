@@ -3,7 +3,7 @@ import { inspectionBoundary, inspectionJson } from '../../../fire-inspections/se
 import { canReadPreplanLifecycle, preplanReadAccess } from '../../../server-permissions';
 import { historyCursor, parseHistoryCursor, propertyHistorySql, type PropertyHistoryEntry } from '../../../property-history-model';
 export async function GET(request:Request){
-  const denied=inspectionBoundary(request);if(denied)return denied;
+  const denied=await inspectionBoundary(request);if(denied)return denied;
   const params=new URL(request.url).searchParams,property=params.get('property')||'',department=request.headers.get('x-department-id')!;
   if(!property||property.length>100)return inspectionJson({error:'Choose a saved department property.'},400);
   let cursor;try{cursor=parseHistoryCursor(params.get('cursor'));}catch(e){return inspectionJson({error:(e as Error).message},400);}

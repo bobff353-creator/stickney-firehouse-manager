@@ -2,20 +2,27 @@ import {getSupabaseServerClient} from '../supabase-server';
 import {reportText} from './model';
 import {loadReport,buildInspectionPdf} from './report-pdf';
 import type {InspectionDb} from './server';
-export const inspectionSender=()=>process.env.INSPECTION_EMAIL_FROM?.trim()||'Stickney Fire Department <bwyant@stickneyfire.com>';
+import {reportIssuanceVoided} from './report-issuance';
+export const inspectionSender=()=>process.env.INSPECTION_EMAIL_FROM?.trim()||'';
+const sendingConfigured=()=>{const sender=inspectionSender(),address=sender.match(/<([^<>]+)>/)?.[1]||sender;return process.env.INSPECTION_EMAIL_SENDING_ENABLED==='true'&&Boolean(process.env.RESEND_API_KEY)&&sender.length<=320&&!/[\r\n]/.test(sender)&&/^[^\s@<>;,]+@[^\s@<>;,]+\.[^\s@<>;,]+$/.test(address);};
 const bucket='stickney-fire-inspections-pilot',base='https://api.resend.com';
 export type Delivery={id:string;recordId:string;recordVersion:number;recipient:string;sender:string;subject:string;reportText:string;pdfKey:string;providerId:string|null;status:string;error:string;createdAt:string;updatedAt:string};
 export const deliveryColumns='id,record_id recordId,record_version recordVersion,recipient,sender,subject,report_text reportText,pdf_key pdfKey,provider_id providerId,status,error,created_at createdAt,updated_at updatedAt';
 export const publicDelivery=(d:Delivery)=>({id:d.id,recordId:d.recordId,recordVersion:d.recordVersion,recipient:d.recipient,sender:d.sender,status:d.status,error:d.error,createdAt:d.createdAt,updatedAt:d.updatedAt});
 export async function provider(path:string,init:RequestInit={}){return fetch(base+path,{...init,headers:{Authorization:`Bearer ${process.env.RESEND_API_KEY}`,'Content-Type':'application/json',...init.headers},signal:AbortSignal.timeout(20000),cache:'no-store'});}
 export async function emailSetup(){
- const sender=inspectionSender(),configured=Boolean(process.env.RESEND_API_KEY);let domainStatus='Not checked';
+ const sender=inspectionSender(),configured=sendingConfigured();let domainStatus='Not checked';
  if(configured){try{const r=await provider('/domains');if(r.ok){const j=await r.json(),address=sender.match(/<([^>]+)>/)?.[1]||sender,domain=address.split('@')[1]?.toLowerCase();domainStatus=j.data?.find((d:{name:string})=>d.name.toLowerCase()===domain)?.status||'Domain not found';}else domainStatus='Could not verify with this API key';}catch{domainStatus='Could not check right now';}}
  return{configured,sender,domainStatus};
 }
+async function assertDeliveryNotHeld(db:InspectionDb,department:string){const held=await db.prepare("SELECT id FROM fire_inspection_backup_jobs WHERE department_id=? AND kind='restore' AND state IN ('applying','complete') AND (summary::jsonb->>'deliveryHeld')='true' LIMIT 1").bind(department).first();if(held)throw Error('Recovery delivery hold: review the recovered workspace and release its hold in Data recovery before sending notices.');}
+async function assertReportNotVoided(db:InspectionDb,department:string,id:string,version:number){if(await reportIssuanceVoided(db,department,id,version))throw Error('This report issuance was voided. Archiving and restoring it does not issue a new report. Review its notice and explicitly reopen and complete a corrected report before sending.');}
+async function assertCurrentReport(db:InspectionDb,department:string,id:string,version:number){const row=await db.prepare('SELECT version,archived FROM fire_inspection_pilot_records WHERE department_id=? AND id=?').bind(department,id).first<{version:number;archived:number}>();if(!row||row.version!==version||row.archived)throw Error('This report is no longer the current active version. Review its latest inspection before sending or retrying a cached email. Preserved older PDFs remain available for the record.');}
 async function findDelivery(db:InspectionDb,department:string,id:string){return db.prepare(`SELECT ${deliveryColumns} FROM fire_inspection_email_deliveries WHERE department_id=? AND id=?`).bind(department,id).first<Delivery>();}
 export async function prepareDelivery(db:InspectionDb,department:string,actor:string,id:string,version:number,recipient:string){
- if(!process.env.RESEND_API_KEY)throw Error('Email is not configured. The administrator must configure the report email provider first.');
+ if(!sendingConfigured())throw Error('Email is disabled until the department sender is ready. The administrator must configure the report email provider first.');
+ await assertDeliveryNotHeld(db,department);await assertReportNotVoided(db,department,id,version);
+ await assertCurrentReport(db,department,id,version);
  const existing=await db.prepare(`SELECT ${deliveryColumns} FROM fire_inspection_email_deliveries WHERE department_id=? AND record_id=? AND record_version=? AND recipient=?`).bind(department,id,version,recipient).first<Delivery>();if(existing)return existing;
  const {record,photos,source}=await loadReport(db,department,id,version);
  if(record.archived)throw Error('Restore this inspection before emailing a report.');
@@ -30,11 +37,14 @@ export async function prepareDelivery(db:InspectionDb,department:string,actor:st
  if(!saved)throw Error('The inspection changed before delivery was prepared. Refresh and review its latest version.');return saved;
 }
 export async function sendDelivery(db:InspectionDb,department:string,d:Delivery){
+ if(!sendingConfigured())throw Error('Inspection email sending is disabled until a department sender is configured. The saved delivery history is unchanged.');
+ await assertDeliveryNotHeld(db,department);await assertReportNotVoided(db,department,d.recordId,d.recordVersion);
  // Reuse one immutable request and provider idempotency key, including after an uncertain network response.
  if(d.providerId||!['Prepared','Unconfirmed','Failed'].includes(d.status))return d;
+ await assertCurrentReport(db,department,d.recordId,d.recordVersion);
  if(Date.now()-Date.parse(d.createdAt)>23*60*60*1000)throw Error('This delivery is outside the safe retry window. Check the provider history before any new send. No duplicate was sent.');
  const client=await getSupabaseServerClient(),stored=await client.storage.from(bucket).download(d.pdfKey);if(stored.error||!stored.data)throw Error('The preserved PDF is unavailable. No email was sent. Retry.');
- const payload={from:d.sender,to:[d.recipient],subject:d.subject,text:`The saved inspection report is attached as a PDF.\n\n${d.reportText}`,attachments:[{filename:`inspection-${d.recordId}-v${d.recordVersion}.pdf`,content:Buffer.from(await stored.data.arrayBuffer()).toString('base64')}]};
+ const payload={from:d.sender,to:[d.recipient],subject:d.subject,tags:[{name:'firehouse_department',value:department},{name:'inspection_delivery_id',value:d.id}],text:`The saved inspection report is attached as a PDF.\n\n${d.reportText}`,attachments:[{filename:`inspection-${d.recordId}-v${d.recordVersion}.pdf`,content:Buffer.from(await stored.data.arrayBuffer()).toString('base64')}]};
  let status='Unconfirmed',error='The provider response was not confirmed. Use Retry safely; it reuses the same report and delivery key.',providerId:string|null=null;
  try{const r=await provider('/emails',{method:'POST',headers:{'Idempotency-Key':d.id},body:JSON.stringify(payload)}),j=await r.json();if(r.ok&&typeof j.id==='string'){status='Accepted';providerId=j.id;error='';}else if(r.status>=400&&r.status<500){status='Failed';error=r.status===403?'The sender or provider permission was rejected. Verify bwyant@stickneyfire.com in the email provider.':`Email provider rejected this send (${r.status}). Check the sender and recipient before retrying.`;}}catch{/* Keep an uncertain result distinct from a confirmed rejection. */}
  // A concurrent retry must never replace a confirmed acceptance with an uncertain outcome.

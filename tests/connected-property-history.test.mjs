@@ -1,5 +1,6 @@
+import {nativeOwnerAccessOverrides} from './helpers/native-inspection-owner.mjs';
 import test from 'node:test';import assert from 'node:assert/strict';import {resolve}from'node:path';
-import {trainingHarness}from'./helpers/training-harness.mjs';import {trainingModules}from'./helpers/training-modules.mjs';
+import {trainingHarness}from'./helpers/training-harness.mjs';import {trainingModules as baseTrainingModules}from'./helpers/training-modules.mjs';
 const {parseHistoryCursor}=trainingModules()('app/property-history-model.ts');
 test('history cursor validation rejects malformed and oversized paging links',()=>{for(const value of ['garbage',Buffer.from(JSON.stringify({at:'invalid',key:'k'})).toString('base64url'),'a'.repeat(601)])assert.throws(()=>parseHistoryCursor(value));assert.equal(parseHistoryCursor(null),null);});
 test('connected history retains old/archived versions, excludes tests/other properties and pages stably after newer insertion',async()=>{
@@ -20,3 +21,5 @@ test('connected history retains old/archived versions, excludes tests/other prop
     assert.equal((await get('&cursor=garbage')).status,400);working=false;assert.equal((await get()).status,403);assert.equal(h.stats.writes,0);
   }finally{await h.close();}
 });
+
+function trainingModules(overrides={}){return baseTrainingModules({...nativeOwnerAccessOverrides(overrides),...overrides});}

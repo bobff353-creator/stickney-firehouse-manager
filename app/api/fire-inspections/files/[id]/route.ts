@@ -3,7 +3,7 @@ import { getSupabaseServerClient } from '../../../../supabase-server';
 import { inspectionBoundary,inspectionJson } from '../../../../fire-inspections/server';
 import {inspectionFileStorage} from '../../../../fire-inspections/file-storage';
 export async function GET(request:Request,context:{params:Promise<{id:string}>}) {
-  const denied=inspectionBoundary(request);if(denied)return denied;
+  const denied=await inspectionBoundary(request);if(denied)return denied;
   try {
     const {id}=await context.params,db=await ensureDatabase();
     const row=await db.prepare('SELECT object_key objectKey,filename,content_type contentType FROM fire_inspection_pilot_files WHERE department_id=? AND id=?').bind(request.headers.get('x-department-id')!,id).first<{objectKey:string;filename:string;contentType:string}>();

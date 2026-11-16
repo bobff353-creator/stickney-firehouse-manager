@@ -23,6 +23,7 @@ const signedWebhookPaths = new Set([
   "/api/resend-dispatch",
   "/api/admin/migration-export",
   "/api/auth/send-email-hook",
+  "/api/fire-inspections/email/webhook",
 ]);
 
 const publicAuthPostPaths = new Set([
@@ -50,6 +51,8 @@ function jsonError(error: string, status: number) {
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  // This exact endpoint verifies signed raw bytes before even looking up the portal host.
+  if (request.method === 'POST' && pathname === '/api/fire-inspections/email/webhook') return NextResponse.next();
   let department;
   try { department = await resolvePortalDepartment(request.nextUrl.hostname); }
   catch { return jsonError('This department portal has not been published.', 503); }
@@ -57,7 +60,7 @@ export async function proxy(request: NextRequest) {
     && (signedWebhookPaths.has(pathname) || pathname === "/api/cad/cis");
   const publicAuthRequest = request.method === "POST" && publicAuthPostPaths.has(pathname);
   // Exact cron routes authenticate themselves before database/source I/O.
-  const signedCronRequest = request.method === 'GET' && ['/api/cron/cad-push', '/api/cron/dispatch-recovery', '/api/cron/scheduler-reminders', '/api/cron/board-feeds', '/api/cron/daily-refresh'].includes(pathname);
+  const signedCronRequest = request.method === 'GET' && ['/api/cron/cad-push', '/api/cron/dispatch-recovery', '/api/cron/scheduler-reminders', '/api/cron/board-feeds', '/api/cron/daily-refresh', '/api/cron/inspection-reminders'].includes(pathname);
   if (department.isolated && (signedWebhookRequest || signedCronRequest)) return jsonError('This department integration is not configured.', 503);
   if (publicApiPaths.has(pathname) || signedWebhookRequest || publicAuthRequest || signedCronRequest) {
     return NextResponse.next();

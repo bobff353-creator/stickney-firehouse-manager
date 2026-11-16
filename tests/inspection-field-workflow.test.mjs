@@ -1,9 +1,10 @@
+import {nativeOwnerAccessOverrides} from './helpers/native-inspection-owner.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {resolve} from 'node:path';
 import {readFileSync} from 'node:fs';
 import {PGlite} from '@electric-sql/pglite';
-import {trainingModules} from './helpers/training-modules.mjs';
+import {trainingModules as baseTrainingModules} from './helpers/training-modules.mjs';
 const load=trainingModules(),model=load('app/fire-inspections/model.ts'),field=load('app/fire-inspections/field-workflow.ts');
 const record=(id='fictional-record',version=0)=>({id,kind:'inspection',version,archived:false,data:{...model.emptyInspection(),title:'Fictional property',propertyId:'fictional-property',preplanObservations:{knoxBox:'Test east door',fdc:'Test north wall'}},createdAt:'',updatedAt:'',updatedBy:''});
 test('field observations normalize only known, nonempty fields and reset signed review',()=>{
@@ -74,3 +75,5 @@ test('newer inspection or preplan is protected and a receipt failure rolls back 
  h.fail();assert.equal((await h.api.POST(h.request(h.body))).status,503);assert.equal((await h.pg.query('select knox_box from field_preplans')).rows[0].knox_box,'Old Knox');assert.equal((await h.pg.query('select * from system_meta')).rows.length,0);
  assert.equal((await h.api.POST(h.request(h.body))).status,200);
  }finally{await h.close();}});
+
+function trainingModules(overrides={}){return baseTrainingModules({...nativeOwnerAccessOverrides(overrides),...overrides});}
