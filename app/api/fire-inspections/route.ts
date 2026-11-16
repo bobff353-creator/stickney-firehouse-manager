@@ -4,6 +4,7 @@ import {emptyTeam,ownerIdentityId,reviewBasis as teamBasis,reviewTransition} fro
 import {requireNativeInspectionAccess,nativePublicAccess,assertNativeInspectionWrite,assertNativeAssignedCase,NativeInspectionAccessError} from '../../fire-inspections/access-context';
 import { inspectionBoundary,inspectionJson,inspectionSnapshot,decodeInspection,inspectionColumns,type StoredInspection,type InspectionDb } from '../../fire-inspections/server';
 import { normalizeInspection,validateInspection,followUpRecord,followUpId,blankSignature,type InspectionRecord } from '../../fire-inspections/model';
+import {followUpReview} from '../../fire-inspections/follow-up-review';
 export async function GET(request:Request){
  const denied=await inspectionBoundary(request);if(denied)return denied;
  try{const context=await requireNativeInspectionAccess(request),db=context.db,department=request.headers.get('x-department-id')!,id=new URL(request.url).searchParams.get('history');
@@ -33,7 +34,7 @@ export async function POST(request:Request){
   if(current&&Object.keys(current.data).some(key=>['occupancyGroup','additionalOccupancyGroups','systems'].includes(key)&&Boolean((current.data as unknown as Record<string,unknown>)[key])&&(!Array.isArray((current.data as unknown as Record<string,unknown>)[key])||((current.data as unknown as Record<string,unknown[]>)[key]).length>0)&&!Object.hasOwn(body.data,key)))throw Error('Refresh this app before saving so the recorded occupancy groups and protection systems are retained.');
   if(current){const oldBasis=teamBasis(normalizeInspection(current.data)),newBasis=teamBasis(data);if(oldBasis!==newBasis){for(const key of ['representative','inspectorSignature'] as const){const old=current.data[key],next=data[key];if(old?.state==='Signed'&&next.state==='Signed'&&JSON.stringify([old.name,old.role,old.strokes])===JSON.stringify([next.name,next.role,next.strokes]))throw Error('Inspection content changed after a signature was captured. Review the changed content and capture new signatures before saving it as signed.');}}}
 
-  if(current&&current.version===version+1&&comparable(current)===comparable(r)&&current.archived===r.archived){const children=await db.prepare(`SELECT ${inspectionColumns} FROM fire_inspection_pilot_records WHERE department_id=? AND (id=? OR id=?)`).bind(department,followUpId(id,'routine'),followUpId(id,'reinspection')).all<StoredInspection>();return inspectionJson({saved:true,record:current,followUps:children.results.map(decodeInspection)});}
+  if(current&&current.version===version+1&&comparable(current)===comparable(r)&&current.archived===r.archived){const children=await db.prepare(`SELECT ${inspectionColumns} FROM fire_inspection_pilot_records WHERE department_id=? AND (id=? OR id=?)`).bind(department,followUpId(id,'routine'),followUpId(id,'reinspection')).all<StoredInspection>(),followUpRecords=children.results.map(decodeInspection);return inspectionJson({saved:true,record:current,followUps:followUpRecords,followUpRecords,followUpReview:followUpReview(current,followUpRecords)});}
   if((current?.version??0)!==version)return inspectionJson({error:'Another tab changed this record. Your draft remains here. Download it before opening the latest saved version.',code:'SAVE_CONFLICT'},409);
   assertNativeInspectionWrite(context,r,current??undefined);
   if(['Approved','Changes requested'].includes(data.team.state)&&data.team.state!==current?.data.team.state)await requireNativeInspectionAccess(request,'corrections.review');
@@ -80,7 +81,8 @@ export async function POST(request:Request){
   }
   writing=true;await db.batch(batch);
   const saved=await db.prepare(`SELECT ${inspectionColumns} FROM fire_inspection_pilot_records WHERE department_id=? AND id=?`).bind(department,id).first<StoredInspection>();
-  return inspectionJson({saved:true,record:saved?decodeInspection(saved):null,followUps},current?200:201);
+  const record=saved?decodeInspection(saved):null,followUpRecords=record?.kind==='inspection'&&record.data.status==='Completed'?(await db.prepare(`SELECT ${inspectionColumns} FROM fire_inspection_pilot_records WHERE department_id=? AND (id=? OR id=?)`).bind(department,followUpId(id,'routine'),followUpId(id,'reinspection')).all<StoredInspection>()).results.map(decodeInspection):[];
+  return inspectionJson({saved:true,record,followUps,followUpRecords,followUpReview:record?followUpReview(record,followUpRecords):[]},current?200:201);
  }catch(error){if(error instanceof NativeInspectionAccessError)return inspectionJson({error:error.message,code:error.code},error.status);const message=error instanceof Error?error.message:'';
   if(message.includes('SAVE_CONFLICT')||message.includes('duplicate key'))return inspectionJson({error:'Another save reached the server first. Your draft is kept; load the latest version before changing it.',code:'SAVE_CONFLICT'},409);
   if(writing||/Portal database|fetch|bootstrap/.test(message))return inspectionJson({error:'Save was not confirmed. Keep this screen open and retry. Retrying will not create duplicates.'},503);
