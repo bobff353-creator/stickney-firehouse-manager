@@ -237,7 +237,7 @@ export default function AuthGateway({
       setMessage("Enter your invited email address first.");
       return;
     }
-    const callback = new URL("/auth/confirm", window.location.origin);
+    const callback = new URL("/auth/confirm", process.env.NEXT_PUBLIC_AUTH_ORIGIN || window.location.origin);
     const { error } = await getSupabaseBrowserClient().auth.signInWithOtp({
       email: email.trim(),
       options: { shouldCreateUser: false, emailRedirectTo: callback.toString() },

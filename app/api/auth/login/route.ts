@@ -9,6 +9,7 @@ import { rememberedCookieSeconds } from "../../../remember-device";
 import { loginServiceUnavailable } from "../../../login-response";
 import { sameOriginAuthRequest } from "../../../request-security";
 import { getPortalDepartment } from '../../../department-portal';
+import { powerAppsRequest, portalPinCookieOptions } from '../../../power-apps-request';
 
 const pinCookie = "__Secure-firehouse-pin";
 const unlockSeconds = 30 * 60;
@@ -133,16 +134,12 @@ export async function POST(request: Request) {
 
   await recordLoginAudit("success");
 
-  const response = NextResponse.json({ ok: true, email: check.email }, {
+  const response = NextResponse.json({ ok: true, email: check.email,
+    ...(powerAppsRequest(request) && signIn.session ? { session: { access_token: signIn.session.access_token, refresh_token: signIn.session.refresh_token } } : {}),
+  }, {
     headers: { "Cache-Control": "private, no-store, max-age=0" },
   });
   for (const update of pendingCookies) response.cookies.set(update.name, update.value, update.options);
-  response.cookies.set(pinCookie, result.unlock_token, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge,
-  });
+  response.cookies.set(pinCookie, result.unlock_token, portalPinCookieOptions(request, maxAge));
   return response;
 }

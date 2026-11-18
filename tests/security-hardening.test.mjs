@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import ts from 'typescript';
 import { webcrypto } from 'node:crypto';
 import { sameOriginAuthRequest, safeReturnPath } from '../app/request-security.ts';
+import { powerAppsRequest, portalPinCookieOptions } from '../app/power-apps-request.ts';
 import { trustedPushEndpoint, validPushKeys, assertTrustedPushSubscription } from '../app/push-subscription-security.ts';
 import { isSafePhoto } from '../app/upload-security.ts';
 
@@ -58,7 +59,7 @@ test('sign-in and activation require a same-origin browser request before readin
   assert.equal(sameOriginAuthRequest(new Request('http://localhost:6182/api/auth/login', { headers: { host: '127.0.0.1:6182', origin: 'http://127.0.0.1:6182' } })), true);
   assert.equal(sameOriginAuthRequest(new Request('https://fixture.test/api/auth/login', { headers: { origin: 'https://evil.test', 'x-forwarded-host': 'evil.test' } })), false);
   for (const path of ['app/api/auth/login/route.ts', 'app/api/auth/activate/route.ts']) {
-    const api = route(path, { sameOriginAuthRequest });
+    const api = route(path, { sameOriginAuthRequest, powerAppsRequest, portalPinCookieOptions });
     for (const headers of [{}, { origin: 'https://evil.test' }, { origin: 'https://fixture.test', 'sec-fetch-site': 'cross-site' }]) {
       assert.equal((await api.POST(new Request('https://fixture.test/api/auth/login', { method: 'POST', headers, body: '{}' }))).status, 403);
     }

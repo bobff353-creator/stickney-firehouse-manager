@@ -49,6 +49,7 @@ next-env.d.ts
 /outputs/
 /work/
 /supabase/.temp/
+/power-apps/supabase/.temp/
 .env*
 
 .release-source.json

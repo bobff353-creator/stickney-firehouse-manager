@@ -9,30 +9,5 @@
       "codex/stickney-power-apps-review": false
     }
   },
-  "crons": [
-    {
-      "path": "/api/cron/dispatch-recovery",
-      "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/cron/scheduler-reminders",
-      "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/cron/cad-push",
-      "schedule": "* * * * *"
-    },
-    {
-      "path": "/api/cron/board-feeds",
-      "schedule": "*/15 * * * *"
-    },
-    {
-      "path": "/api/cron/daily-refresh",
-      "schedule": "15 9 * * *"
-    },
-    {
-      "path": "/api/cron/inspection-reminders",
-      "schedule": "*/15 * * * *"
-    }
-  ]
+  "crons": []
 }

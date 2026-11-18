@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import ts from 'typescript';
 import test from 'node:test';
 import {sameOriginAuthRequest} from '../app/request-security.ts';
+import * as powerAppsRequest from '../app/power-apps-request.ts';
 const read=p=>readFileSync(new URL(p,import.meta.url),'utf8');
 const helper=ts.transpileModule(read('../app/remember-device.ts'),{compilerOptions:{module:ts.ModuleKind.ESNext}}).outputText;
 const remember=await import(`data:text/javascript;base64,${Buffer.from(helper).toString('base64')}`);
@@ -25,6 +26,7 @@ function harness({verified=true,rpcError=null,loginAllowed=true}={}) {
     '../../../remember-device':remember,
     '../../../login-response':loginResponse,
     '../../../request-security':{sameOriginAuthRequest},
+    '../../../power-apps-request': powerAppsRequest,
   };
   const exports={};vm.runInNewContext(compiled,{exports,Response,process:{env:{PAYROLL_DEPARTMENT_ID:'verified-department',FIREHOUSE_DATABASE_SECRET:'fixture-only',PORTAL_PIN_PASSWORD_PEPPER:'fixture-only'}},require:n=>{assert.ok(n in modules,n);return modules[n];}});
   return {post:exports.POST,calls,cookies};

@@ -1,0 +1,45 @@
+.review-status {
+  width: min(100% - 32px, 720px);
+  margin: clamp(24px, 6vw, 72px) auto;
+  box-sizing: border-box;
+}
+
+.review-status-name {
+  margin: 0 0 12px;
+  font-weight: 700;
+}
+
+.review-status h1 {
+  margin: 0 0 16px;
+  font-size: clamp(1.5rem, 4vw, 2rem);
+  line-height: 1.2;
+}
+
+.review-status p {
+  line-height: 1.6;
+}
+
+.review-status-details {
+  margin: 24px 0;
+}
+
+.review-status-details > div {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border, #c6cdd4);
+}
+
+.review-status-details dt {
+  font-weight: 600;
+}
+
+.review-status-details dd {
+  margin: 0;
+}
+
+.review-status-next {
+  margin-bottom: 0;
+}

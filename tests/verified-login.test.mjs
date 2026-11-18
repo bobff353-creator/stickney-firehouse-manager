@@ -153,8 +153,10 @@ test("portal PINs are hashed, attempt-limited, and enforced through a secure unl
   assert.match(pinMigration, /interval '15 minutes'/);
   assert.match(pinMigration, /interval '12 hours'/);
   assert.match(pinMigration, /ENABLE ROW LEVEL SECURITY/);
-  assert.match(pinRoute, /httpOnly: true/);
-  assert.match(pinRoute, /secure: true/);
+  assert.match(pinRoute, /portalPinCookieOptions\(request/);
+  const cookiePolicy = readFileSync(new URL('../app/power-apps-request.ts', import.meta.url), 'utf8');
+  assert.match(cookiePolicy, /httpOnly: true/);
+  assert.match(cookiePolicy, /secure: true/);
   assert.match(pinRoute, /const unlockSeconds = 30 \* 60/);
   assert.match(pinRoute, /export async function PATCH/);
   assert.match(proxy, /portal_pin_status/);

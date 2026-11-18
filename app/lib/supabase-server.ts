@@ -1,9 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { portalServerHeaders } from "../portal-server-headers";
 import { getPublicSupabaseConfig } from "../supabase-config";
+import { powerAppsRequest } from '../power-apps-request';
+import { getSupabaseServerClient } from '../supabase-server';
 
 export async function createInventorySupabaseClient() {
+  if (powerAppsRequest({ headers: await headers() })) return getSupabaseServerClient();
   const cookieStore = await cookies();
   // Inventory must use the same project as portal authentication and payroll.
   // Keep the connection in one place so a verified project migration cannot

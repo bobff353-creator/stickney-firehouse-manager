@@ -10,8 +10,42 @@ database, storage, and identities. The review entry renders the original
 Daily Log React component and calls the server routes from a separately
 configured copy of this checkout. Keep the source app's backend, database,
 identity sessions, storage, webhook credentials, and webhooks out of the
-candidate environment. The standalone branch requires explicit Supabase configuration and rejects the original project host. A historical import will need a reviewed migration
+candidate environment. The standalone branch requires explicit Supabase configuration
+and rejects both the legacy shared project host and the current operational
+Stickney project host, including case, trailing-dot, and subdomain variants.
+The current operational host was verified against the local operational
+checkout's configured URL during local continuation; no credentials or records
+were copied into this checkout. A historical import will need a reviewed migration
 that retains IDs and relationships.
+
+## Confirmed integrated scope
+
+The user confirmed one connected application, with the complete existing suites
+and their current screens, relationships, permissions, and workflows:
+
+- Operations: Command Center, Live Operations Board, Activity Timeline, Task
+  Queue, Daily Log, and Box Cards.
+- Field: Respond, Command Board, Field Preplans, Road Closures, and Safety
+  Inspections.
+- Full Payroll: Payroll, Work Details, Timesheets, Callback Reviews, Rates &
+  Rules, and the existing related holiday, correction, submission, report, and
+  export workflows. Daily Log and scheduling remain linked to payroll.
+- Personnel: Employees, Disciplinary Reports, and Employee Contacts. The
+  member's Personal tools, including My Timesheet, are included as well.
+- Daily Duties, including the existing day/shift wording, administrator edits,
+  required Fleet projections, and Live Operations Board relationships.
+- Policies, preserving current content, access, document links, and editing.
+- Permissions, Important Phone Numbers, EMS, and CAD Integration, using the
+  existing source behavior and verified provider interfaces. External CAD
+  delivery is not complete until authenticated delivery and persistence are
+  verified against the separate review backend.
+- Inventory and apparatus checks, drug checks, and air packs, as already
+  requested. All belong to this same application's shared data model.
+
+The suite names and page membership above were checked against
+`app/portal-menu-items.ts`, `app/portal-navigation.ts`, and the actual module
+sources. These are queued scope items, not claims of completed modules. Finish
+the authenticated Daily Log verification before starting the next module.
 
 ## Review build
 
@@ -23,17 +57,43 @@ database and test identity setup, then run `npm run build` and
 the separate backend to loopback and serves the review assets on the
 same origin. Sign in through that origin. The existing department access
 check, required confirmation check, and staffing roster request run before
-the Daily Log opens. The bundle has no configured hosted transport and
-shows a connection status outside the local review URL.
+the Daily Log opens. The hosted transport uses the member's own Supabase session
+and an HttpOnly, Secure, partitioned PIN-unlock cookie. The backend accepts only
+the explicitly configured Code App origin and still checks membership, PIN,
+confirmation, and route permissions. Failed access never opens an editable log.
 
 Power Apps publishing requires a signed-in Village maker, a target
 environment with Code Apps enabled, and eligible licensing for users.
-The hosted transport still needs an approved per-user identity design
-and an independently provisioned backend. A Power Apps sign-in alone
-does not establish a Firehouse department membership, PIN state,
-employee link, or permissions. Verify those checks through the hosted
-transport before publishing. No Microsoft app ID or backend secrets
-belong in the Vite source or build.
+The local continuation provisioned Dataverse without sample data and enabled
+Code Apps in the Bob Wyant developer environment in the Village tenant. The
+development review app was published as `1287262f-81b8-42ab-b9c2-f125f0f7b124`
+in environment `4bfd8134-70a2-e26e-9300-2457feb0de01`. This is a published
+development shell; authenticated acceptance is still pending. Independent
+Supabase project `qizfnynrspsydiuwkkex` now has the source's 184 tables, 9 views,
+135 functions, constraints, indexes, and policies, with fresh server proofs.
+Its two realtime receive policies were separately restored. The department,
+53 employee/profile rows, 7 pay scales, 21 duties, payroll settings, rank
+permissions, and confirmation configuration were copied with their IDs.
+Historical logs, payroll entries, fleet records, and private files are not yet
+imported. Operational credentials, PIN hashes, Auth sessions, and provider keys
+were not copied. Independent hosting project `stickney-power-apps-review`
+(`prj_0SQPavKoHnKIu10lRGdtyyMJlnm8`) has separate environment configuration.
+Review-branch cron schedules are disabled.
+The Microsoft SDK, Vite plugin, and CLI are pinned
+in the package lock. Use `npm run power-apps:dev` for Microsoft's Local Play
+URL and `npm run power-apps:cli -- app list --json` to inspect the configured
+environment. The CLI wrapper runs in the Vite project directory on Windows
+and Linux. Run `npm run power-apps:build` before any authorized
+`npm run power-apps:cli -- app push`.
+
+The first identity provisioner retains the verified maker's existing ID and
+admin role, creates fresh credentials, and issues a one-time activation link.
+The user chooses the new private PIN. The provisioner requires the server proof
+and cannot accept an arbitrary email or role; retire it after setup. Power Apps
+sign-in alone does not grant department access. Hosted sign-in, refresh,
+lock/unlock, sign-out, and persistence must pass before acceptance. No server
+proof, PIN pepper, service key, or provider credential belongs in the Vite
+source or bundle. Vite explicitly includes only public connection settings.
 
 Microsoft references are the [Code Apps overview](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/overview),
 [app initialization and publishing](https://learn.microsoft.com/en-us/power-apps/developer/code-apps/how-to/create-an-app-from-scratch),

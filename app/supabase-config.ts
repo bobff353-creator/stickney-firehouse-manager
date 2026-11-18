@@ -2,7 +2,12 @@ function clean(value: string | undefined) {
   return value?.replace(/[\uFEFF\r\n]/g, "").trim() ?? "";
 }
 
-const sourceProjectHost = "ukpdacqjmhvlhmrwxtcx.supabase.co";
+// Reject both the legacy shared project and the current operational Stickney
+// project. A separate checkout must never become a second client of either.
+const sourceProjectHosts = [
+  "ukpdacqjmhvlhmrwxtcx.supabase.co",
+  "datqzdndkrfyovhwppuq.supabase.co",
+];
 
 export function getPublicSupabaseConfig() {
   const url = clean(process.env.NEXT_PUBLIC_SUPABASE_URL);
@@ -13,7 +18,8 @@ export function getPublicSupabaseConfig() {
   if (!url || !key) {
     throw new Error("Verified account sign-in is not configured.");
   }
-  if (new URL(url).hostname === sourceProjectHost) {
+  const hostname = new URL(url).hostname.toLowerCase().replace(/\.$/, "");
+  if (sourceProjectHosts.some(host => hostname === host || hostname.endsWith(`.${host}`))) {
     throw new Error("Configure an independent Supabase project for this Firehouse Manager instance.");
   }
   return { url, key };

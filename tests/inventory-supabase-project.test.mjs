@@ -27,7 +27,9 @@ function fixture({ cookieWritesFail = false, securityError = false } = {}) {
       calls.push(client);
       return client;
     } },
-    'next/headers': { async cookies() { return {
+    '../power-apps-request': { powerAppsRequest: () => false },
+    '../supabase-server': { getSupabaseServerClient: () => { throw new Error('A native fixture cannot use the Code App session.'); } },
+    'next/headers': { headers: async () => new Headers(), async cookies() { return {
       getAll: () => existingCookies,
       set(...args) {
         if (cookieWritesFail) throw new Error('Read-only Server Component cookies');

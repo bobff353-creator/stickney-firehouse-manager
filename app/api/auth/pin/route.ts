@@ -7,6 +7,7 @@ import { derivePortalPassword } from "../../../lib/portal-pin-password";
 import { getSupabaseServerClient } from "../../../supabase-server";
 import { getSupabaseSystemClient } from "../../../supabase-system";
 import { isRememberedDeviceToken, rememberedCookieSeconds, rememberedDeviceRemainingMs } from "../../../remember-device";
+import { portalPinCookieOptions } from '../../../power-apps-request';
 
 const pinCookie = "__Secure-firehouse-pin";
 const unlockSeconds = 30 * 60;
@@ -24,17 +25,11 @@ function safeMatch(expected: string, supplied: string) {
   return expectedBytes.length === suppliedBytes.length && timingSafeEqual(expectedBytes, suppliedBytes);
 }
 
-function withUnlockCookie(payload: object, token: string, maxAge = unlockSeconds) {
+function withUnlockCookie(request: Request, payload: object, token: string, maxAge = unlockSeconds) {
   const response = NextResponse.json(payload, {
     headers: { "Cache-Control": "private, no-store, max-age=0" },
   });
-  response.cookies.set(pinCookie, token, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge,
-  });
+  response.cookies.set(pinCookie, token, portalPinCookieOptions(request, maxAge));
   return response;
 }
 
@@ -107,7 +102,7 @@ export async function POST(request: Request) {
     if (passwordError) {
       return Response.json({ error: "The PIN was saved, but repeat login could not be enabled. Try saving it again." }, { status: 503 });
     }
-    return withUnlockCookie({ ok: true, configured: true, unlocked: true }, data);
+    return withUnlockCookie(request, { ok: true, configured: true, unlocked: true }, data);
   }
 
   if (action === "activate") {
@@ -120,7 +115,7 @@ export async function POST(request: Request) {
     if (passwordError) {
       return Response.json({ error: "The private PIN was saved, but repeat login could not be enabled. Try activating it again." }, { status: 503 });
     }
-    return withUnlockCookie({ ok: true, configured: true, unlocked: true }, data);
+    return withUnlockCookie(request, { ok: true, configured: true, unlocked: true }, data);
   }
 
   if (action === "reset") {
@@ -133,7 +128,7 @@ export async function POST(request: Request) {
     if (passwordError) {
       return Response.json({ error: "The PIN was reset, but repeat login could not be enabled. Use the email link and try again." }, { status: 503 });
     }
-    return withUnlockCookie({ ok: true, configured: true, unlocked: true }, data);
+    return withUnlockCookie(request, { ok: true, configured: true, unlocked: true }, data);
   }
 
   const rememberDevice = payload.rememberDevice === true;
@@ -166,10 +161,10 @@ export async function POST(request: Request) {
     const passwordError = await syncPasswordLogin(client, userData.user.email, pin);
     loginUpgradePending = Boolean(passwordError);
   }
-  return withUnlockCookie({ ok: true, configured: true, unlocked: true, loginUpgradePending }, result.unlock_token, maxAge);
+  return withUnlockCookie(request, { ok: true, configured: true, unlocked: true, loginUpgradePending }, result.unlock_token, maxAge);
 }
 
-export async function DELETE() {
+export async function DELETE(request: Request) {
   const token = (await cookies()).get(pinCookie)?.value ?? "";
   let forgotten = true;
   if (isRememberedDeviceToken(token)) {
@@ -181,13 +176,7 @@ export async function DELETE() {
   }
   // Always clear this browser's cookie. Signing out also removes its Auth session.
   const response = NextResponse.json(forgotten ? { ok: true } : { error: "Device revocation could not be confirmed. Sign out to end this session." }, { status: forgotten ? 200 : 503 });
-  response.cookies.set(pinCookie, "", {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 0,
-  });
+  response.cookies.set(pinCookie, "", portalPinCookieOptions(request, 0));
   return response;
 }
 
@@ -213,7 +202,7 @@ export async function PATCH(request: Request) {
       const status = data && typeof data === "object" ? data as { rememberedUntil?: unknown; serverNow?: unknown } : {};
       const maxAge = Math.floor(rememberedDeviceRemainingMs(status) / 1000);
       if (!maxAge) return Response.json({ error: "Enter your portal PIN to continue." }, { status: 423 });
-      return withUnlockCookie({ ok: true, configured: true, unlocked: true, ...status }, token, maxAge);
+      return withUnlockCookie(request, { ok: true, configured: true, unlocked: true, ...status }, token, maxAge);
     } catch {
       return Response.json({ error: "Device security could not be verified." }, { status: 503 });
     }
@@ -240,6 +229,7 @@ export async function PATCH(request: Request) {
     return Response.json({ error: "Enter your portal PIN to continue." }, { status: 423 });
   }
   return withUnlockCookie(
+    request,
     { ok: true, configured: true, unlocked: true, stationDisplay },
     token,
     stationDisplay ? stationDisplaySeconds : unlockSeconds,

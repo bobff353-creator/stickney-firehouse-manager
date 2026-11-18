@@ -4,6 +4,8 @@ import { getPublicSupabaseConfig } from "./app/supabase-config";
 import { confirmationExemptRequest } from "./app/required-confirmation-policy";
 import { definitiveAuthFailure } from "./app/auth-failure-policy";
 import { resolvePortalDepartment } from './app/department-portal';
+import { powerAppsCorsHeaders, powerAppsOrigin, powerAppsRequest } from './app/power-apps-request';
+import { powerAppsSessionClient } from './app/power-apps-session';
 
 const publicApiPaths = new Set([
   "/api/health",
@@ -50,6 +52,18 @@ function jsonError(error: string, status: number) {
 }
 
 export async function proxy(request: NextRequest) {
+  if (request.method === 'OPTIONS' && powerAppsOrigin(request)) {
+    return new NextResponse(null, { status: 204, headers: powerAppsCorsHeaders(request) });
+  }
+  const response = await verifyDepartmentRequest(request);
+  for (const [name, value] of powerAppsCorsHeaders(request)) {
+    if (name === 'vary') response.headers.append(name, value);
+    else response.headers.set(name, value);
+  }
+  return response;
+}
+
+async function verifyDepartmentRequest(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   // This exact endpoint verifies signed raw bytes before even looking up the portal host.
   if (request.method === 'POST' && pathname === '/api/fire-inspections/email/webhook') return NextResponse.next();
@@ -70,7 +84,7 @@ export async function proxy(request: NextRequest) {
   const departmentId = department.id;
   if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
     const origin = request.headers.get("origin");
-    if (!origin || origin !== request.nextUrl.origin) return jsonError("Open this action from the department portal.", 403);
+    if ((!origin || origin !== request.nextUrl.origin) && !powerAppsRequest(request)) return jsonError("Open this action from the department portal.", 403);
   }
   if (!url || !key || !departmentId) {
     return jsonError("Verified department sign-in is not configured.", 503);
@@ -79,7 +93,13 @@ export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
   const requestHeaders = new Headers(request.headers);
   requestHeaders.delete('x-portal-confirmation');
-  const client = createServerClient(url, key, {
+  let member;
+  try { member = await powerAppsSessionClient(request, url, key); }
+  catch (error) {
+    return definitiveAuthFailure(error) ? jsonError('Your session has expired. Sign in again.', 401)
+      : jsonError('Secure access is temporarily unavailable. Retry when connected.', 503);
+  }
+  const client = member?.client ?? createServerClient(url, key, {
     cookies: {
       getAll() {
         return request.cookies.getAll();
@@ -183,6 +203,17 @@ export async function proxy(request: NextRequest) {
   response = NextResponse.next({ request: { headers: requestHeaders } });
   for (const cookie of refreshedCookies) response.cookies.set(cookie);
   response.headers.set("Cache-Control", "private, no-store, max-age=0");
+  if (member) {
+    // Forward the same verified session to route handlers. A renewal is returned
+    // only to this explicitly allowed origin and never includes server secrets.
+    requestHeaders.set('authorization', `Bearer ${member.session.access_token}`);
+    requestHeaders.set('x-firehouse-refresh-token', member.session.refresh_token);
+    response = NextResponse.next({ request: { headers: requestHeaders } });
+    response.headers.set('Cache-Control', 'private, no-store, max-age=0');
+    if (member.session.access_token !== request.headers.get('authorization')?.slice(7)) {
+      response.headers.set('X-Firehouse-Auth-Session', Buffer.from(JSON.stringify({ access_token: member.session.access_token, refresh_token: member.session.refresh_token })).toString('base64url'));
+    }
+  }
   return response;
 }
 

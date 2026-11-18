@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import { runInNewContext } from "node:vm";
 import test from "node:test";
 import ts from "typescript";
+import * as powerAppsRequest from '../app/power-apps-request.ts';
 
 const require = createRequire(import.meta.url);
 const routeSource = readFileSync(new URL("../app/api/auth/pin/route.ts", import.meta.url), "utf8");
@@ -23,6 +24,7 @@ function harness({ token="test-unlock-token", user={id:"verified-user"}, authErr
     "../../../supabase-server": { getSupabaseServerClient:async()=>({auth:{getUser:async()=>({data:{user},error:authError})},rpc:async(name,args)=>{calls.push({name,args});if(networkThrows)throw new Error("network");return {data,error:rpcError};}}) },
     "../../../supabase-system": { getSupabaseSystemClient:()=>{throw new Error("Public client must not renew unlocks");} },
     "../../../remember-device": remember,
+    '../../../power-apps-request': powerAppsRequest,
   };
   const exports={};
   runInNewContext(compiled,{exports,require:(name)=>{assert.ok(name in modules, name);return modules[name];},Response,Buffer,process:{env:{PAYROLL_DEPARTMENT_ID:'configured-department'}},console:{error:(...args)=>logs.push(args)}});
@@ -113,7 +115,7 @@ test('only explicit opt-in and freshly verified PIN issue a remembered cookie',a
 });
 test('forget uses only the current cookie/session; even failure clears the browser cookie',async()=>{
   for(const options of [{},{rpcError:{code:'unavailable'}},{networkThrows:true}]) {
-    const h=harness({token:deviceToken,...options}); const response=await h.remove();
+    const h=harness({token:deviceToken,...options}); const response=await h.remove(new Request('https://portal.test/api/auth/pin', { method: 'DELETE' }));
     assert.equal(response.status,Object.keys(options).length?503:200);
     assert.equal(h.calls[0].name,'forget_own_portal_device');assert.deepEqual(Object.keys(h.calls[0].args),['p_unlock_token']);
     assert.equal(h.cookieWrites[0][1],'');assert.equal(h.cookieWrites[0][2].maxAge,0);

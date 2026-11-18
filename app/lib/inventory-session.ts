@@ -4,6 +4,7 @@ import { ensureDatabase } from "../../db/bootstrap";
 import { permissionsForEmail } from "../server-permissions";
 import { definitiveAuthFailure } from "../auth-failure-policy";
 import { getPortalDepartment } from '../department-portal';
+import { powerAppsRequest } from '../power-apps-request';
 
 export const INVENTORY_MODULE_ID = "inventory";
 export const STICKNEY_DEPARTMENT_SLUG = "stickney-fire-department";
@@ -168,6 +169,7 @@ export async function verifyPushRequest(request: Request) {
 }
 
 export function sameOriginInventoryRequest(request: Request) {
+  if (powerAppsRequest(request)) return true;
   const origin = request.headers.get("origin");
   if (!origin) return false;
   try {

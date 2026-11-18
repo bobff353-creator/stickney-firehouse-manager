@@ -1,5 +1,8 @@
-/** Cookie-setting sign-in routes must not accept a cross-site form submission. */
+import { powerAppsRequest } from './power-apps-request.ts';
+
+/** Cookie-setting sign-in routes must not accept an unapproved cross-site submission. */
 export function sameOriginAuthRequest(request: Request) {
+  if (powerAppsRequest(request)) return true;
   const origin = request.headers.get("origin");
   const destination = new URL(request.url);
   // Next's internal route URL can use localhost after Proxy forwarding. The

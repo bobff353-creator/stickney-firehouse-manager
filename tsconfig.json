@@ -41,6 +41,7 @@
     ".wrangler",
     ".vinext",
     "supabase/functions",
+    "power-apps/supabase/functions",
     "drizzle.config.ts",
     "vercel",
     "vite.config.ts",

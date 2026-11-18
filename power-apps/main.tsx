@@ -1,79 +1,43 @@
-import { useEffect, useState, type ComponentProps } from "react";
-import { createRoot } from "react-dom/client";
-import "./portal-styles";
-import DailyLog from "../app/daily-log";
-import { currentPeriodStart } from "../app/payroll-period-start";
-import { usePermissions, refreshPermissions } from "../app/use-permissions";
+import { useEffect, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import AuthGateway from '../app/auth-gateway';
+import type { PortalDepartment } from '../app/department-portal';
+import DailyLogReview from './workspace';
+import { installPowerAppsTransport } from './transport';
+import './portal-styles';
+import './review-status.css';
 
-type Employees = ComponentProps<typeof DailyLog>["employees"];
+const backend = import.meta.env.VITE_POWER_APPS_BACKEND_URL;
+if (backend) installPowerAppsTransport(backend);
 
-function DailyLogWorkspace() {
-  const [employees, setEmployees] = useState<Employees | null>(null);
-  const [error, setError] = useState("");
+function ConnectedApp() {
+  const [department, setDepartment] = useState<PortalDepartment | null>(null);
+  const [error, setError] = useState('');
   const [reload, setReload] = useState(0);
-
   useEffect(() => {
     const controller = new AbortController();
-    async function load() {
-      try {
-        const response = await fetch(`/api/payroll?period=${currentPeriodStart()}`, {
-          cache: "no-store",
-          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]),
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "Unable to load the staffing roster.");
-        if (!Array.isArray(data.employees)) throw new Error("The server did not return a staffing roster.");
-        if (!controller.signal.aborted) {
-          setEmployees(data.employees);
-          setError("");
-        }
-      } catch (caught) {
-        if (!controller.signal.aborted) {
-          setError(caught instanceof Error ? caught.message : "Unable to load the staffing roster.");
-        }
-      }
-    }
-    void load();
+    void fetch('/api/health', { cache: 'no-store', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]) }).then(async response => {
+      const data = await response.json();
+      if (!response.ok || data.supabaseProjectRef !== 'qizfnynrspsydiuwkkex' || data.department?.id !== '14a76771-4c24-481b-8def-e6cce005c17b') throw new Error('The independent department backend could not be verified.');
+      if (!controller.signal.aborted) setDepartment(data.department);
+    }).catch(caught => { if (!controller.signal.aborted) setError(caught instanceof Error ? caught.message : 'The backend is unavailable.'); });
     return () => controller.abort();
   }, [reload]);
-
-  const retry = () => setReload(current => current + 1);
-  return <>
-    {error && <div role="alert">{error} <button onClick={retry}>Retry roster</button></div>}
-    {employees ? <DailyLog employees={employees} onPayrollSynced={retry} />
-      : !error && <p role="status">Loading the staffing roster…</p>}
-  </>;
-}
-
-function VerifiedWorkspace() {
-  const access = usePermissions();
-  if (access.verified && access.confirmation?.required === false && access.permissions.includes("daily_log.view")) {
-    return <DailyLogWorkspace key={access.identity} />;
-  }
-
-  let message = "Verifying department access…";
-  if (access.error) message = access.error;
-  else if (access.verified) {
-    message = access.confirmation?.required !== false
-      ? "Complete the required confirmation in the department portal."
-      : "Daily Log access is not enabled for this account.";
-  }
-  return <section className="content-card">
-    <h1>Daily Logbook</h1>
-    <p role="status">{message}</p>
-    <a href="/" target="_blank" rel="noreferrer">Open the isolated department sign-in</a>
-    <button onClick={() => void refreshPermissions()} disabled={access.checking}>Recheck access</button>
-  </section>;
-}
-
-function App() {
-  return <main className="main-content">
-    {location.hostname === "127.0.0.1" && location.pathname.startsWith("/power-apps/")
-      ? <VerifiedWorkspace />
-      : <p role="status">The Power Apps backend connection has not been configured.</p>}
+  if (department) return <AuthGateway department={department} />;
+  return <main className="review-status content-card"><h1>Stickney Firehouse Manager</h1>
+    <p role="status">{error || 'Connecting to the department backend…'}</p>
+    {error && <button onClick={() => { setError(''); setReload(value => value + 1); }}>Retry connection</button>}
   </main>;
 }
 
-const root = document.getElementById("root");
-if (!root) throw new Error("Firehouse Manager root element is missing.");
+function App() {
+  if (backend) return <ConnectedApp />;
+  if (location.hostname === '127.0.0.1' && location.pathname.startsWith('/power-apps/')) return <DailyLogReview />;
+  return <main className="review-status content-card"><h1>Daily Log is still being connected</h1>
+    <p role="status">The independent backend connection has not been configured. Daily Log cannot load or save.</p>
+  </main>;
+}
+
+const root = document.getElementById('root');
+if (!root) throw new Error('Firehouse Manager root element is missing.');
 createRoot(root).render(<App />);

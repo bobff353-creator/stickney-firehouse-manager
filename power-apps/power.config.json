@@ -1,0 +1,15 @@
+{
+  "version": "1.0",
+  "appId": "1287262f-81b8-42ab-b9c2-f125f0f7b124",
+  "appDisplayName": "Stickney Firehouse Manager Review",
+  "region": "prod",
+  "appType": "CodeApp",
+  "environmentId": "4bfd8134-70a2-e26e-9300-2457feb0de01",
+  "description": "Standalone Daily Log review from the verified Firehouse Manager source. Department backend connection and authenticated end-to-end verification pending.",
+  "buildPath": "../dist/power-apps",
+  "buildEntryPoint": "index.html",
+  "localAppUrl": "http://localhost:5173",
+  "logoPath": "Default",
+  "connectionReferences": {},
+  "databaseReferences": {}
+}

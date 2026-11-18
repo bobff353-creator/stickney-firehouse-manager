@@ -1,0 +1,19 @@
+{
+  "sourceProject": "datqzdndkrfyovhwppuq",
+  "targetProject": "qizfnynrspsydiuwkkex",
+  "capturedAt": "2026-11-18T04:18:02.023996+00:00",
+  "tables": 184,
+  "views": 9,
+  "functions": 135,
+  "constraints": 562,
+  "indexes": 198,
+  "policies": 256,
+  "sourceProofsReplaced": 2,
+  "operationalRecords": 0,
+  "sha256": "61b7c8d36e50d70d97d0c9f28755fc9332cbfcb4ee64dfde474d4c2848e28d95",
+  "pending": [
+    "Review default privileges for future migrations.",
+    "Provision department configuration and independent identities.",
+    "Configure private storage buckets without importing file records."
+  ]
+}
