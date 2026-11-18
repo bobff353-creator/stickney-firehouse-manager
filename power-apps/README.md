@@ -10,7 +10,7 @@ database, storage, and identities. The review entry renders the original
 Daily Log React component and calls the server routes from a separately
 configured copy of this checkout. Keep the source app's backend, database,
 identity sessions, storage, webhook credentials, and webhooks out of the
-candidate environment. A historical import will need a reviewed migration
+candidate environment. The standalone branch requires explicit Supabase configuration and rejects the original project host. A historical import will need a reviewed migration
 that retains IDs and relationships.
 
 ## Review build
