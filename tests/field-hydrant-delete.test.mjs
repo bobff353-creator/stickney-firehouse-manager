@@ -10,6 +10,7 @@ async function setup(){
     CREATE TABLE field_hydrant_flushes(id text PRIMARY KEY,hydrant_id text REFERENCES field_hydrants,flushed_at text,flushed_by text,water_clear int,issues text,notes text);
     CREATE TABLE field_hydrant_flow_tests(id text PRIMARY KEY,test_hydrant_id text REFERENCES field_hydrants,flow_hydrant_id text REFERENCES field_hydrants,tested_at text,static_pressure numeric,residual_pressure numeric,desired_residual numeric,outlet_diameter numeric,pitot_pressure numeric,discharge_coefficient numeric,measured_flow numeric,available_flow numeric,tested_by text,notes text);
     CREATE TABLE record_revisions(id text PRIMARY KEY,record_type text,record_id text,revision_number int,action text,summary text,actor text,UNIQUE(record_type,record_id,revision_number));
+    CREATE TABLE field_hydrant_service_events(id text PRIMARY KEY,hydrant_id text REFERENCES field_hydrants,kind text,flow_gpm double precision,performed_on text,created_at text);
     INSERT INTO field_hydrants(id,hydrant_number) VALUES('fixture-test','T'),('fixture-flow','F');
     INSERT INTO field_hydrant_flushes(id,hydrant_id) VALUES('flush','fixture-flow');
     INSERT INTO field_hydrant_flow_tests(id,test_hydrant_id,flow_hydrant_id) VALUES('shared-test','fixture-test','fixture-flow');`);

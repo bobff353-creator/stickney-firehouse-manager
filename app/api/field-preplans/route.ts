@@ -44,11 +44,12 @@ export async function GET(request:Request) {
     const auth = await access(request, db);
     if (!auth.allowed) return Response.json({ error:"Field preplan access is required." }, { status:403 });
     const readAccess = await preplanReadAccess(request, db);
-    const [plans, features, photos, imports] = await Promise.all([
+    const [plans, features, photos, imports,external] = await Promise.all([
       db.prepare("SELECT id,business_name businessName,address,latitude,longitude,a_side_latitude aSideLatitude,a_side_longitude aSideLongitude,footprint,COALESCE(footprint_square_feet,0) footprintSquareFeet,COALESCE(floor_count,1) floorCount,COALESCE(fire_flow_calculation_area,0) fireFlowCalculationArea,COALESCE(construction_type,'VB') constructionType,COALESCE(occupancy_flow_category,'other') occupancyFlowCategory,COALESCE(sprinkler_standard,'none') sprinklerStandard,COALESCE(suggested_fire_flow_gpm,0) suggestedFireFlowGpm,COALESCE(suggested_fire_flow_duration,0) suggestedFireFlowDuration,contact_info contactInfo,construction,access_info accessInfo,alarm_system alarmSystem,knox_box knoxBox,riser,fdc,sprinkler_system sprinklerSystem,status,COALESCE(publication_status,'published') publicationStatus,created_by createdBy,updated_by updatedBy,updated_at updatedAt FROM field_preplans ORDER BY updated_at DESC").all(),
       db.prepare("SELECT id,preplan_id preplanId,feature_type featureType,label,latitude,longitude,system_type systemType,service_status serviceStatus,details FROM field_preplan_features ORDER BY created_at").all(),
       db.prepare("SELECT id,preplan_id preplanId,feature_id featureId,side,filename,caption,illustrations,illustration_version illustrationVersion,created_at createdAt FROM field_preplan_photos ORDER BY created_at DESC").all(),
       db.prepare("SELECT id,business_name businessName,address,source_file sourceFile,source_row sourceRow,source_external_id sourceExternalId,source_payload sourcePayload,status,latitude,longitude,geocode_note geocodeNote,linked_preplan_id linkedPreplanId FROM field_preplan_imports ORDER BY business_name COLLATE NOCASE,address COLLATE NOCASE").all(),
+      db.prepare("SELECT preplan_id preplanId,payload,review_notes reviewNotes FROM field_preplan_external_details ORDER BY external_id").all(),
     ]);
     const visiblePlans = plans.results.filter((plan) => canReadPreplanLifecycle(plan, readAccess));
     const visiblePlanIds = new Set(visiblePlans.map((plan) => String((plan as { id: string }).id)));
@@ -56,7 +57,7 @@ export async function GET(request:Request) {
       canEdit:auth.canEdit,
       canDelete:auth.canDelete,
       canManageAttachments:auth.canManageAttachments,
-      preplans:visiblePlans.map((plan) => ({ ...plan, footprint:JSON.parse(String((plan as {footprint?:string}).footprint || "[]")), features:features.results.filter((item) => visiblePlanIds.has(String((item as {preplanId:string}).preplanId)) && (item as {preplanId:string}).preplanId === (plan as {id:string}).id), photos:photos.results.filter((item) => visiblePlanIds.has(String((item as {preplanId:string}).preplanId)) && (item as {preplanId:string}).preplanId === (plan as {id:string}).id).map((photo) => ({ ...photo, illustrations:readIllustrations((photo as {illustrations?:unknown}).illustrations), url:`/api/field-preplans/photos/${(photo as {id:string}).id}` })) })),
+      preplans:visiblePlans.map((plan) => ({ ...plan, fieldInfo:external.results.filter(x=>x.preplanId===plan.id).map(x=>({record:JSON.parse(String(x.payload)),reviewNotes:x.reviewNotes})), footprint:JSON.parse(String((plan as {footprint?:string}).footprint || "[]")), features:features.results.filter((item) => visiblePlanIds.has(String((item as {preplanId:string}).preplanId)) && (item as {preplanId:string}).preplanId === (plan as {id:string}).id), photos:photos.results.filter((item) => visiblePlanIds.has(String((item as {preplanId:string}).preplanId)) && (item as {preplanId:string}).preplanId === (plan as {id:string}).id).map((photo) => ({ ...photo, illustrations:readIllustrations((photo as {illustrations?:unknown}).illustrations), url:`/api/field-preplans/photos/${(photo as {id:string}).id}` })) })),
       imports:imports.results.map((item) => ({ ...item, sourcePayload:JSON.parse(String((item as {sourcePayload?:string}).sourcePayload || "{}")) })),
     });
   } catch (error) { return Response.json({ error:error instanceof Error ? error.message : "Unable to load preplans." }, { status:500 }); }

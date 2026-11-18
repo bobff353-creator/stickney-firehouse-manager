@@ -15,12 +15,13 @@ const validCoordinate=(lat:number,lng:number)=>Number.isFinite(lat)&&Number.isFi
 
 export async function GET(request:Request){
   try{const db=await ensureDatabase(),auth=await access(request,db);if(!auth.view)return Response.json({error:"Field hydrant access is required."},{status:403});
-    const [hydrants,flushes,tests]=await Promise.all([
+    const [hydrants,flushes,tests,reported]=await Promise.all([
       db.prepare("SELECT id,hydrant_number hydrantNumber,address,latitude,longitude,service_status serviceStatus,manufacturer,model,port_count portCount,port_sizes portSizes,notes,updated_by updatedBy,updated_at updatedAt FROM field_hydrants WHERE (?=1 OR service_status<>'archived') ORDER BY updated_at DESC").bind(new URL(request.url).searchParams.get('includeArchived')==='1'?1:0).all(),
       db.prepare("SELECT id,hydrant_id hydrantId,flushed_at flushedAt,flushed_by flushedBy,water_clear waterClear,issues,notes FROM field_hydrant_flushes ORDER BY flushed_at DESC").all(),
       db.prepare("SELECT t.id,t.test_hydrant_id testHydrantId,t.flow_hydrant_id flowHydrantId,f.hydrant_number flowHydrantNumber,t.tested_at testedAt,t.static_pressure staticPressure,t.residual_pressure residualPressure,t.desired_residual desiredResidual,t.outlet_diameter outletDiameter,t.pitot_pressure pitotPressure,t.discharge_coefficient dischargeCoefficient,t.measured_flow measuredFlow,t.available_flow availableFlow,t.tested_by testedBy,t.notes FROM field_hydrant_flow_tests t LEFT JOIN field_hydrants f ON f.id=t.flow_hydrant_id ORDER BY t.tested_at DESC").all(),
+      db.prepare("SELECT hydrant_id hydrantId,flow_gpm flowGpm,performed_on performedOn FROM field_hydrant_service_events WHERE kind='flow' AND flow_gpm IS NOT NULL ORDER BY performed_on DESC NULLS LAST,created_at DESC,id DESC").all(),
     ]);
-    return Response.json({canEdit:auth.edit,hydrants:hydrants.results.map((item)=>({...item,portSizes:JSON.parse(String((item as {portSizes:string}).portSizes||"[]")),flushes:flushes.results.filter((row)=>(row as {hydrantId:string}).hydrantId===(item as {id:string}).id),flowTests:tests.results.filter((row)=>(row as {testHydrantId:string}).testHydrantId===(item as {id:string}).id)}))},{headers:{'Cache-Control':'private, no-store',Vary:'Cookie'}});
+    return Response.json({canEdit:auth.edit,hydrants:hydrants.results.map((item)=>{const flow=reported.results.find(row=>row.hydrantId===item.id);return {...item,reportedFlow:flow?.flowGpm??null,reportedFlowDate:flow?.performedOn??null,portSizes:JSON.parse(String((item as {portSizes:string}).portSizes||"[]")),flushes:flushes.results.filter((row)=>(row as {hydrantId:string}).hydrantId===(item as {id:string}).id),flowTests:tests.results.filter((row)=>(row as {testHydrantId:string}).testHydrantId===(item as {id:string}).id)};})},{headers:{'Cache-Control':'private, no-store',Vary:'Cookie'}});
   }catch(error){return Response.json({error:error instanceof Error?error.message:"Unable to load hydrants."},{status:500});}
 }
 

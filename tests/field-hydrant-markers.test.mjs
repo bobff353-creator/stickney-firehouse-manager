@@ -3,6 +3,8 @@ import test from 'node:test';
 import {readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
 import ts from 'typescript';
+import * as fieldWorkspaceData from '../app/preplans/field-workspace-data.ts';
+import * as backupMap from '../app/preplans/backup-map.ts';
 
 const require=createRequire(import.meta.url);
 const source=readFileSync(new URL('../app/field-preplans.tsx',import.meta.url),'utf8');
@@ -14,7 +16,7 @@ function fixture(hydrants,zoom=16,width=1213,height=500){
   let state=0;const calls={selected:[],center:[],zoom:[],stopped:0};
   const compiledModule={exports:{}};
   const react={useState:initial=>[state++===0?{width,height}:initial,()=>{}],useRef:initial=>({current:initial}),useEffect(){}};
-  new Function('require','module','exports',compiled)(name=>name==='react'?react:name==='react/jsx-runtime'?require(name):{},compiledModule,compiledModule.exports);
+  new Function('require','module','exports',compiled)(name=>name==='react'?react:name==='react/jsx-runtime'?require(name):name.endsWith('field-workspace-data')?fieldWorkspaceData:name.endsWith('backup-map')?backupMap:{},compiledModule,compiledModule.exports);
   const tree=compiledModule.exports.FieldMap({apiKey:'',center,zoom,imagery:'aerial',plans:[],hydrants,selected:'',draft:null,mode:'',footprintAccepted:false,operationalOverlay:null,operationalDraft:null,onMapClick(){},onSelect(){},onHydrantSelect:id=>calls.selected.push(id),onCenter:value=>calls.center.push(value),onZoom:value=>calls.zoom.push(value),onProviderChange(){}});
   const nodes=[];function walk(node){if(Array.isArray(node)){node.forEach(walk);return;}if(!node||typeof node!=='object')return;nodes.push(node);walk(node.props?.children);}walk(tree);
   const pins=nodes.filter(node=>node.props?.className?.startsWith('hydrant-map-pin'));

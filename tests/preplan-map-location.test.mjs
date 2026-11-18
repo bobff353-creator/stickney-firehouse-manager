@@ -47,5 +47,7 @@ test('new and imported preplans and device failures use the shared fallback with
   assert.match(locate,/\},fallback,/);
   const fallback=locate.slice(locate.indexOf('const fallback='),locate.indexOf('if(!navigator.geolocation)'));
   assert.doesNotMatch(fallback,/setDraft|fetch\(|save/);
-  assert.match(source,/if\(cancelled\|\|currentUrl.searchParams.has\("preplan"\)\|\|currentUrl.searchParams.has\("hydrant"\)\)return;/);
+  assert.match(locate,/if\(window.location.search!==recordContext\)return;/);
+  const initialize=source.slice(source.indexOf("    const initialize=async()=>"),source.indexOf("  },[refreshFieldRecords,departmentLocationView]"));
+  assert.doesNotMatch(initialize,/getCurrentPosition/);
 });

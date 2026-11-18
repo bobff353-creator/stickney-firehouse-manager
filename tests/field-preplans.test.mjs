@@ -126,7 +126,7 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(page, /setLocationState\("current"\)/);
   assert.match(page, /Location unavailable\. Showing a wider view of Stickney, Illinois\./);
   assert.match(page, /At current location/);
-  assert.match(page, /Search the entire department/);
+  assert.match(page, /Find a building or hydrant/);
   assert.match(page, /aria-label="Search all preplans and hydrants"/);
   assert.match(page, /normalizedQuery\|\|recordScope===\"all\"\?true:isOnMap/);
   assert.match(page, /normalizedQuery\?"Department search results":recordScope==="all"\?"All department records":"Records in this map view"/);
@@ -170,7 +170,7 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(page, /Back to Preplan list/);
   assert.match(page, /PreplanRecordView/);
   assert.match(page, /VIEW PREPLAN/);
-  assert.match(page, /Edit Preplan/);
+  assert.match(page, /Building details/);
   assert.match(page, /Advanced details & publication/);
   assert.match(page, /tab==="operational"&&current&&<div className="preplan-operational-edit"><OperationalPreplanPanel/);
   const recordView = page.slice(page.indexOf("function PreplanRecordView"), page.indexOf("function FieldMap"));
@@ -194,8 +194,8 @@ test("Field Preplans provides map-first quick and detailed capture", async () =>
   assert.match(styles, /\.preplan-focus-map-panel>\.field-map-toolbar\{flex-wrap:wrap\}/);
   assert.match(styles, /\.preplan-record-view/);
   assert.match(styles, /\.preplan-record-feature-actions/);
-  assert.match(page, /Find & open a record/);
-  assert.match(page, /Finish imported addresses/);
+  assert.match(page, /aria-label="Preplan view"/);
+  assert.match(page, /Needs a preplan/);
   assert.match(page, /preplan-step-tabs/);
   assert.doesNotMatch(layout, /preplan-route\.js/);
   assert.doesNotMatch(page, /preplan-step-selector/);
