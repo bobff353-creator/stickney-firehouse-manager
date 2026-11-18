@@ -33,6 +33,7 @@ const PayrollHolidayManager = dynamic(() => import("./payroll-holiday-manager"),
 const HolidayPolicy = dynamic(() => import("./holiday-policy"), { loading: () => <ModuleLoading /> });
 const PhoneNumbers = dynamic(() => import("./phone-numbers"), { loading: () => <ModuleLoading /> });
 const EmployeeDirectory = dynamic(() => import("./employee-directory"), { loading: () => <ModuleLoading /> });
+import { currentPeriodStart, isoDate } from "./payroll-period-start";
 import { usePermissions, refreshPermissions, permissionsChanged } from "./use-permissions";
 const BoxCardsPage = dynamic(() => import("./resource-pages").then(module => module.BoxCardsPage), { loading: () => <ModuleLoading /> });
 const PoliciesPage = dynamic(() => import("./resource-pages").then(module => module.PoliciesPage), { loading: () => <ModuleLoading /> });
@@ -127,21 +128,6 @@ const categoryColumns: Array<{ key: Category; short: string; label: string }> = 
   { key: "holiday", short: "Holiday", label: "Holiday" },
   { key: "dpw", short: "DPW", label: "DPW Assignment" },
 ];
-
-function isoDate(year: number, month: number, day: number) {
-  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
-
-function currentPeriodStart() {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth();
-  const day = today.getDate();
-  if (day >= 26) return isoDate(year, month, 26);
-  if (day >= 11) return isoDate(year, month, 11);
-  const previous = new Date(year, month - 1, 26);
-  return isoDate(previous.getFullYear(), previous.getMonth(), 26);
-}
 
 function shiftPeriod(start: string, direction: -1 | 1) {
   const date = new Date(`${start}T12:00:00`);
