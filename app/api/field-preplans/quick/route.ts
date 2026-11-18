@@ -11,10 +11,15 @@ export async function POST(request:Request){
   if(body.action==='locate'){
    const address=txt(body.address,240),key=process.env.GOOGLE_MAPS_GEOCODING_KEY?.trim();
    if(!address)return Response.json({error:'Enter the street address.'},{status:400});
+   const addressKey=(value:string)=>norm(value.split(',')[0].replace(/\bstreet\b/gi,'st').replace(/\broad\b/gi,'rd').replace(/\bavenue\b/gi,'ave').replace(/\bsouth\b/gi,'s').replace(/\bnorth\b/gi,'n').replace(/\beast\b/gi,'e').replace(/\bwest\b/gi,'w'));
+   const known=await db.prepare('SELECT id,address,latitude,longitude FROM field_preplans').all<{id:string;address:string;latitude:number;longitude:number}>();
+   const matches=known.results.filter(p=>Number.isFinite(p.latitude)&&Number.isFinite(p.longitude)&&addressKey(p.address)===addressKey(address));
+   if(matches.length===1)return Response.json({location:{lat:matches[0].latitude,lng:matches[0].longitude},existingId:matches[0].id,address:matches[0].address});
+   if(matches.length>1)return Response.json({error:'Several saved buildings use this address. Select the correct building on the map.'},{status:409});
    if(!key)return Response.json({error:'Address lookup is unavailable. Tap the building on the map.'},{status:503});
    const url=new URL('https://maps.googleapis.com/maps/api/geocode/json');url.searchParams.set('address',address);url.searchParams.set('key',key);url.searchParams.set('region','us');
    const response=await fetch(url,{signal:AbortSignal.timeout(10000)}),result=await response.json();
-   if(!response.ok||result.status!=='OK'||!result.results?.[0])return Response.json({error:'Address not found. Check the address or tap the building on the map.'},{status:400});
+   if(!response.ok||result.status!=='OK'||!result.results?.[0])return Response.json({error:result.status==='ZERO_RESULTS'?'Address not found. Check the address or tap the building on the map.':'Address lookup is unavailable. Tap the building on the map.'},{status:400});
    const match=result.results[0];return Response.json({location:match.geometry.location,address:match.formatted_address});
   }
   const id=txt(body.id,80),businessName=txt(body.businessName,180),address=txt(body.address,240),lat=Number(body.latitude),lng=Number(body.longitude),floors=Number(body.floorCount);

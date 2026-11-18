@@ -17,8 +17,23 @@ type GoogleMapInstance = {
 type GoogleMapsApi = {
   maps: {
     Map: new (element: HTMLElement, options: Record<string, unknown>) => GoogleMapInstance;
+    Geocoder?:new()=>{geocode:(request:{address:string;region:string},callback:(results:{geometry:{location:GoogleCenter}}[]|null,status:string)=>void)=>void};
   };
 };
+
+export function geocodeOnFieldMap(address:string):Promise<Point>{
+ return new Promise((resolve,reject)=>{
+  const Geocoder=window.google?.maps.Geocoder;
+  if(!Geocoder){reject(Error('Address lookup is unavailable. Tap the building on the map.'));return;}
+  const timer=window.setTimeout(()=>reject(Error('Address lookup timed out. Try again or tap the building on the map.')),10000);
+  new Geocoder().geocode({address,region:'US'},(results,status)=>{
+   window.clearTimeout(timer);
+   const location=results?.[0]?.geometry.location;
+   if(status==='OK'&&location)resolve({lat:location.lat(),lng:location.lng()});
+   else reject(Error(status==='ZERO_RESULTS'?'Address not found. Check the address or tap the building on the map.':'Google address lookup is unavailable. Tap the building on the map.'));
+  });
+ });
+}
 
 let loader: Promise<GoogleMapsApi> | null = null;
 const authenticationFailureListeners = new Set<() => void>();

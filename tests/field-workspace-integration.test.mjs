@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {trainingHarness} from './helpers/training-harness.mjs';
 import {trainingModules} from './helpers/training-modules.mjs';
-import {serviceInput,recordedHydrantFlow,operationalNotes,hydrantBodyColor} from '../app/preplans/field-workspace-data.ts';
+import {serviceInput,recordedHydrantFlow,operationalNotes,hydrantBodyColor,captureCameraMove} from '../app/preplans/field-workspace-data.ts';
 import {prepareFieldReconciliation} from '../scripts/reconcile-field-preplans.mjs';
 
 const nativeSql=`CREATE FUNCTION firehouse.has_department_access() RETURNS boolean LANGUAGE sql AS $$SELECT true$$;
@@ -81,4 +81,20 @@ test('operational notes remove transfer prose while preserving actual access and
 });
 test('reconciliation rejects foreign or repeated source identities instead of guessing',()=>{
  const before={departmentId:'14a76771-4c24-481b-8def-e6cce005c17b',tables:{field_preplans:[],field_preplan_imports:[],field_preplan_photos:[],field_hydrants:[],field_preplan_assets:[]}};assert.throws(()=>prepareFieldReconciliation(before,{records:[]},[{customerSlug:'other'}],[]));assert.throws(()=>prepareFieldReconciliation(before,{records:[]},[{customerSlug:'stickneyfire',id:'missing'}],[]));
+});
+test('map initialization and camera movement never confirm an unconfirmed building',()=>{
+ const initial={latitude:41.8,longitude:-87.8,locationConfirmed:false};
+ assert.equal(captureCameraMove(initial,{lat:41.8,lng:-87.8}).locationConfirmed,false);
+ assert.equal(captureCameraMove(initial,{lat:41.81,lng:-87.81}).locationConfirmed,false);
+ assert.equal(captureCameraMove({...initial,locationConfirmed:true},{lat:41.8,lng:-87.8}).locationConfirmed,true);
+ assert.equal(captureCameraMove({...initial,locationConfirmed:true},{lat:41.81,lng:-87.81}).locationConfirmed,false);
+});
+test('address lookup reuses an exact saved location and does not guess between campus structures',async()=>{
+ const h=await setup();try{
+  await h.pg.exec("UPDATE field_preplans SET address='1 W Fixture Street',latitude=41.8,longitude=-87.8 WHERE id='native-building'");
+  const located=await(await h.quick.POST(h.request('/api/field-preplans/quick',{action:'locate',address:'1 West Fixture St, Stickney, IL'}))).json();
+  assert.equal(located.existingId,'native-building');assert.deepEqual(located.location,{lat:41.8,lng:-87.8});
+  await h.pg.exec("INSERT INTO field_preplans(id,business_name,address,latitude,longitude) VALUES('other-structure','Fixture other structure','1 W Fixture Street',41.81,-87.81)");
+  assert.equal((await h.quick.POST(h.request('/api/field-preplans/quick',{action:'locate',address:'1 W Fixture St, Stickney, IL'}))).status,409);
+ }finally{await h.close();}
 });
