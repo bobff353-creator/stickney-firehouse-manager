@@ -5,7 +5,8 @@
   "git": {
     "deploymentEnabled": {
       "codex/recovered-dot-20261017": false,
-      "codex/supabase-separation-20261112": false
+      "codex/supabase-separation-20261112": false,
+      "codex/stickney-power-apps-review": false
     }
   },
   "crons": [
