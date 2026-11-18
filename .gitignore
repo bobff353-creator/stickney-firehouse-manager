@@ -54,3 +54,5 @@ next-env.d.ts
 .release-source.json
 
 /.work/
+
+/public/power-apps/

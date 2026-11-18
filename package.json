@@ -19,7 +19,7 @@
     "deploy:production": "node scripts/deploy-production.mjs",
     "test:isolated": "node scripts/test-isolated.mjs",
     "power-apps:build": "vite build --config power-apps/vite.config.mts",
-    "power-apps:review": "vite --config power-apps/vite.config.mts --strictPort"
+    "power-apps:review": "vite build --config power-apps/vite.config.mts --outDir ../public/power-apps && next start -H 127.0.0.1"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "1.1.1",

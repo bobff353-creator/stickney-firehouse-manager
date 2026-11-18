@@ -16,15 +16,15 @@ that retains IDs and relationships.
 ## Review build
 
 Use Node 24 and `npm ci`. Run `npm run power-apps:build` to build the Vite
-client to `dist/power-apps`. For local review, start a separate instance of
-the repository backend with an isolated database and test identity setup.
-Set `FIREHOUSE_REVIEW_BACKEND=http://127.0.0.1:<backend-port>`, run
-`npm run power-apps:review`, and open
-`http://127.0.0.1:5173/power-apps/`. Sign in through that review origin.
-The existing department access check, required confirmation check, and
-staffing roster request run before the Daily Log opens. The proxy preserves
-the browser origin and session flow. The bundle has no configured hosted
-transport and shows a connection status outside the local review URL.
+client to `dist/power-apps`. Configure this checkout with an isolated
+database and test identity setup, then run `npm run build` and
+`npm run power-apps:review`. Open
+`http://127.0.0.1:3000/power-apps/index.html`. The review command binds
+the separate backend to loopback and serves the review assets on the
+same origin. Sign in through that origin. The existing department access
+check, required confirmation check, and staffing roster request run before
+the Daily Log opens. The bundle has no configured hosted transport and
+shows a connection status outside the local review URL.
 
 Power Apps publishing requires a signed-in Village maker, a target
 environment with Code Apps enabled, and eligible licensing for users.
