@@ -14,9 +14,9 @@ candidate environment. The standalone branch requires explicit Supabase configur
 and rejects both the legacy shared project host and the current operational
 Stickney project host, including case, trailing-dot, and subdomain variants.
 The current operational host was verified against the local operational
-checkout's configured URL during local continuation; no credentials or records
-were copied into this checkout. A historical import will need a reviewed migration
-that retains IDs and relationships.
+checkout's configured URL during local continuation. Operational credentials
+were not copied. A private, encrypted source snapshot was restored into the
+independent review database, retaining IDs and relationships as described below.
 
 ## Confirmed integrated scope
 
@@ -68,17 +68,35 @@ The local continuation provisioned Dataverse without sample data and enabled
 Code Apps in the Bob Wyant developer environment in the Village tenant. The
 development review app was published as `1287262f-81b8-42ab-b9c2-f125f0f7b124`
 in environment `4bfd8134-70a2-e26e-9300-2457feb0de01`. This is a published
-development shell; authenticated acceptance is still pending. Independent
+Daily Log review client; authenticated acceptance is still pending. Independent
 Supabase project `qizfnynrspsydiuwkkex` now has the source's 184 tables, 9 views,
 135 functions, constraints, indexes, and policies, with fresh server proofs.
 Its two realtime receive policies were separately restored. The department,
 53 employee/profile rows, 7 pay scales, 21 duties, payroll settings, rank
 permissions, and confirmation configuration were copied with their IDs.
-Historical logs, payroll entries, fleet records, and private files are not yet
-imported. Operational credentials, PIN hashes, Auth sessions, and provider keys
-were not copied. Independent hosting project `stickney-power-apps-review`
+The consistent source snapshot captured at `2026-11-18T11:40:22.167262+00:00`
+was restored: 36,765 rows across 151 selected business tables, including
+historical logs, payroll, scheduling, and fleet records. Every selected table's
+row count and canonical-row SHA-256 matched before the restore committed.
+Foreign keys remained enforced throughout; application triggers were disabled
+only inside the atomic restore and returned to their original states. The
+private import function is unavailable to application roles and refuses a new
+restore after a member PIN is configured. Live credentials, sessions, device
+tokens, provider keys, delivery queues, and caches were excluded. Private file
+metadata was restored, but file bytes have not been copied or verified.
+Independent hosting project `stickney-power-apps-review`
 (`prj_0SQPavKoHnKIu10lRGdtyyMJlnm8`) has separate environment configuration.
 Review-branch cron schedules are disabled.
+The connected backend is `https://stickney-power-apps-review.vercel.app`.
+The developer environment's Code App CSP remains enforced, allowing connections
+only to that backend and the new Supabase HTTPS and realtime WebSocket origins.
+The hosted Power Apps page now displays the original email/PIN sign-in form.
+The user completed first-time PIN setup and signed into the Code App. The
+2026-11-18 copied schedule was used as review-only save-test input, not as
+verified operational attendance. The browser received "Saved to server" and
+"Daily log and timesheets saved". Database verification found 15 saved staffing
+rows, 13 employee/category payroll rows totaling 120 hours, zero differences
+against the saved staffing, and no officer sign-offs or manual payroll changes.
 The Microsoft SDK, Vite plugin, and CLI are pinned
 in the package lock. Use `npm run power-apps:dev` for Microsoft's Local Play
 URL and `npm run power-apps:cli -- app list --json` to inspect the configured
@@ -86,10 +104,11 @@ environment. The CLI wrapper runs in the Vite project directory on Windows
 and Linux. Run `npm run power-apps:build` before any authorized
 `npm run power-apps:cli -- app push`.
 
-The first identity provisioner retains the verified maker's existing ID and
-admin role, creates fresh credentials, and issues a one-time activation link.
-The user chooses the new private PIN. The provisioner requires the server proof
-and cannot accept an arbitrary email or role; retire it after setup. Power Apps
+The first identity provisioner retained the verified maker's existing ID and
+admin role, created fresh credentials, and issued a one-time activation link.
+The user chose the new private PIN. After successful setup the provisioner was
+replaced with a credential-free HTTP 410 response and its hosted retirement
+was verified. It cannot create identities, alter access, or issue links. Power Apps
 sign-in alone does not grant department access. Hosted sign-in, refresh,
 lock/unlock, sign-out, and persistence must pass before acceptance. No server
 proof, PIN pepper, service key, or provider credential belongs in the Vite
@@ -109,7 +128,7 @@ and [data connections](https://learn.microsoft.com/en-us/power-apps/developer/co
 | Military time, explicit edit of completed calls, callbacks, dispatch closure | `app/daily-log.tsx`, `app/daily-log-workflow.ts`, `app/api/callbacks/route.ts`, `app/dispatch-closure.ts` | Existing workflow, callbacks, and dispatch closure tests passed. Independent dispatch delivery and closure verification pending. |
 | Notes, legacy free text, timestamps, statuses, prior-seven-day view | `app/daily-log-notes.tsx`, `app/daily-log-workflow.ts`, `app/api/logbook/route.ts` | Existing workflow and recovery tests passed. Authenticated historical notes verification pending. |
 | Department rights, officer qualification, notes acknowledgement, duty acknowledgement, unavailable or incomplete fleet check gates | `proxy.ts`, `app/server-permissions.ts`, `app/api/logbook/route.ts`, `app/lib/fleet-projections.ts` | Original access and server routes reused. Existing fleet gating and concurrent approval checks passed. Independent identity, role, department, and actual fleet projection verification pending. |
-| Atomic save and payroll updates, preserved employee and row IDs, finalized-period protection | `app/api/logbook/route.ts`, `app/payroll-hours.ts`, `app/staffing-payroll-server.ts`, `supabase/migrations/` | Source route verified in isolated PostgreSQL test fixtures. Independent database migration and authenticated cross-module verification pending. |
+| Atomic save and payroll updates, preserved employee and row IDs, finalized-period protection | `app/api/logbook/route.ts`, `app/payroll-hours.ts`, `app/staffing-payroll-server.ts`, `supabase/migrations/` | Isolated PostgreSQL fixtures passed. Hosted Code App save produced 15 staffing rows and 120 payroll hours from copied scheduling input, with zero per-employee/category differences. Finalized-period and concurrent-write hosted verification remain pending. |
 | Versioned saves, timeout and missing receipt, draft review, administrator correction | `app/daily-log-save-request.ts`, `app/daily-log-recovery.ts`, `app/daily-log-recovery-review.tsx`, `app/api/logbook/route.ts` | Existing reliability, load, recovery, and unlock tests passed. Hosted browser storage, permissions and recovery verification pending. |
 | Revisions, report library, full print/PDF | `app/record-credibility.tsx`, `app/report-library.tsx`, `app/daily-log.css`, `app/api/report-library/route.ts` | Original components and styles bundled. Revision data and full browser print verification pending. |
 

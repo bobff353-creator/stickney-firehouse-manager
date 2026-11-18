@@ -69,7 +69,7 @@ function VerifiedWorkspace() {
 }
 
 export default function DailyLogReview({ accountEmail, onSignOut }: { accountEmail?: string; onSignOut?: () => Promise<void> }) {
-  return <main className="main-content" style={{ padding: 'clamp(12px, 3vw, 32px)' }}>
+  return <main id="portal-workspace" data-page="Daily Log" className="workspace" style={{ padding: 'clamp(12px, 3vw, 32px)' }}>
     {onSignOut && <header className="topbar"><strong>Stickney Firehouse Manager</strong><span>{accountEmail}</span><button onClick={() => void onSignOut()}>Sign out</button></header>}
     <VerifiedWorkspace />
   </main>;
