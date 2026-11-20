@@ -53,6 +53,8 @@ export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   // This exact endpoint verifies signed raw bytes before even looking up the portal host.
   if (request.method === 'POST' && pathname === '/api/fire-inspections/email/webhook') return NextResponse.next();
+  // Silent SMS sink exposes no data or actions and never reads the incoming body.
+  if (request.method === 'POST' && pathname === '/api/twilio-sms-test/inbound') return NextResponse.next();
   let department;
   try { department = await resolvePortalDepartment(request.nextUrl.hostname); }
   catch { return jsonError('This department portal has not been published.', 503); }

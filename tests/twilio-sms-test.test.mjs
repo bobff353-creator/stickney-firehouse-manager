@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {resolve} from 'node:path';
+import {readFileSync} from 'node:fs';
 import {PGlite} from '@electric-sql/pglite';
 import {trainingModules} from './helpers/training-modules.mjs';
 const config={requestId:'4baa5de9-b29c-48ed-913c-c77ce7a885a5',account:'AC'+'a'.repeat(32),token:'b'.repeat(32),to:'+15555550123',from:'+15555550900'};
@@ -53,4 +54,10 @@ test('a delayed refresh cannot overwrite a concurrently saved Delivered receipt'
   await entered;await h.model.refreshSmsTest(h.db,config,async()=>Response.json(message('delivered')));release(Response.json(message('sent')));
   assert.equal((await late).status,'Delivered');assert.equal((await h.model.readSmsTest(h.db,config.requestId)).status,'Delivered');
  }finally{await h.pg.close();}
+});
+test('the public inbound sink has no reply, body access, storage or provider call',async()=>{
+ const route=trainingModules()('app/api/twilio-sms-test/inbound/route.ts');
+ const response=await route.POST();assert.equal(response.status,204);assert.equal(await response.text(),'');
+ const source=readFileSync('app/api/twilio-sms-test/inbound/route.ts','utf8');assert(!/fetch\(|ensureDatabase\(|request\./.test(source));
+ const proxy=readFileSync('proxy.ts','utf8');assert(proxy.includes("request.method === 'POST' && pathname === '/api/twilio-sms-test/inbound'"));assert(!proxy.includes("pathname === '/api/twilio-sms-test')"));
 });

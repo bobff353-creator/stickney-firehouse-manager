@@ -30,3 +30,8 @@ Keep `INSPECTION_EMAIL_SENDING_ENABLED=false`,
 `CHIEF_EVENT_EMAIL_SENDING_ENABLED=false`, and `OUTLOOK_EMAIL_TEST_ENABLED=false`.
 No Power Automate connection is needed or created for this integration. No
 database migration or operational-record changes are needed.
+
+Twilio's trial defaults to a standard auto-reply. Replace that with a custom
+POST webhook at `/api/twilio-sms-test/inbound` before testing. It returns 204
+without reading or storing the body and cannot send any text. This one silent
+path is public; the test send and delivery status routes retain authentication.
