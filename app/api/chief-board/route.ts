@@ -122,6 +122,7 @@ async function sendInvites(
   event: { id: string; title: string; body: string; startsAt: string; endsAt: string },
   recipients: string[],
 ) {
+  if (process.env.CHIEF_EVENT_EMAIL_SENDING_ENABLED !== 'true') return { status: 'disabled', sent: 0, failed: 0 };
   const from = emailFrom(config);
   if (!config.RESEND_API_KEY || !from) return { status: "not_configured", sent: 0, failed: recipients.length };
   let sent = 0;

@@ -5,6 +5,44 @@ import { useCallback, useEffect, useState } from "react";
 import type { HealthPayload } from "./system-health-model";
 import DepartmentHandoff from "./department-handoff";
 
+function OutlookEmailTest() {
+  const [test, setTest] = useState<{enabled: boolean; recipient: string; receipt: {status: string; requestId: string} | null} | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+  const [error, setError] = useState('');
+  const refreshTest = useCallback(async () => {
+    const response = await fetch('/api/outlook-email-test', {cache: 'no-store', signal: AbortSignal.timeout(10000)});
+    if (response.status === 403) { setTest(null); return; }
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Email test status is unavailable.');
+    setTest(result);
+  }, []);
+  useEffect(() => { const timer = window.setTimeout(() => { void refreshTest().catch(() => setError('Email test status is unavailable.')); }, 0); return () => window.clearTimeout(timer); }, [refreshTest]);
+  async function sendTest() {
+    if (!confirmed || busy || !test?.enabled || test.receipt) return;
+    setBusy(true); setError('');
+    try {
+      const response = await fetch('/api/outlook-email-test', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({confirmed: true}), signal: AbortSignal.timeout(30000)});
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'The email test could not be confirmed.');
+      await refreshTest();
+    } catch (problem) {
+      setError(problem instanceof Error ? problem.message : 'The test could not be confirmed.');
+      await refreshTest().catch(() => setTest(null));
+    } finally { setBusy(false); }
+  }
+  if (!test && !error) return null;
+  return <article className="content-card system-health-trust-note" style={{gridTemplateColumns: 'minmax(0, 1fr)', gap: 16}} aria-busy={busy}>
+    <div><p className="eyebrow">Manual test only</p><h2>Outlook email test</h2></div>
+    <p>Recipient: <strong style={{overflowWrap: 'anywhere'}}>{test?.recipient ?? 'bwyant@stickneyfire.com'}</strong>. This sends one plain test message. It does not enable automatic notifications.</p>
+    <p role="status">{test?.receipt ? test.receipt.status === 'Accepted' ? 'Outlook accepted this test. Check your inbox to verify delivery.' : 'This attempt is saved. Sending is unconfirmed; check your inbox. It will not resend.' : test?.enabled ? 'One manual attempt is available.' : 'Manual email testing is off.'}</p>
+    {test?.receipt ? <p style={{overflowWrap: 'anywhere'}}>Test reference: {test.receipt.requestId}</p> : null}
+    {test?.enabled && !test.receipt ? <><label><input type="checkbox" checked={confirmed} disabled={busy} onChange={event => setConfirmed(event.target.checked)} /> Send only to my email address above.</label><div><button type="button" className="quiet-button" disabled={!confirmed || busy} onClick={() => void sendTest()}>{busy ? 'Sending test…' : 'Send one test email'}</button></div></> : null}
+    {error ? <p role="alert">{error}</p> : null}
+    <button type="button" className="quiet-button" disabled={busy} onClick={() => {setError(''); void refreshTest().catch(() => setError('Email test status is unavailable.'));}}>Refresh email test status</button>
+  </article>;
+}
+
 function checkedTime(value: string) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "Not checked" : departmentTimestamp(value);
@@ -53,6 +91,7 @@ export default function SystemHealth({ permissions = [] }: { permissions?: reado
     </article>
 
     {section === "handoff" ? <DepartmentHandoff payload={payload} permissions={permissions} /> : <>
+    {permissions.includes('settings.manage') ? <OutlookEmailTest /> : null}
     <div className="system-health-grid" aria-live="polite" aria-busy={loading}>
       {(payload?.checks ?? []).map((check) => <article className={`system-health-card ${check.state}`} key={check.id}>
         <header><span className="system-health-checkmark" aria-hidden="true">{check.state === "healthy" ? "✓" : check.state === "warning" ? "!" : "—"}</span><span className="system-health-state">{check.statusLabel ?? (check.state === "healthy" ? "Verified" : check.state === "warning" ? "Needs attention" : "Not connected")}</span></header>
