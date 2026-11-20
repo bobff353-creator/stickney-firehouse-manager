@@ -116,7 +116,7 @@ const employeeEligibleForRole = (employee: Employee, role: string) => {
   return parseRoles(employee.roles).includes(role);
 };
 
-export default function StationScheduler({ testMember = null }: { testMember?: TestMember | null }) {
+export default function StationScheduler({ testMember = null, initialTask = "" }: { testMember?: TestMember | null; initialTask?: string }) {
   void testMember;
   const [data, setData] = useState<Data | null>(null);
   const [tab, setTabState] = useWorkspaceViewState("scheduler-tab", "myshifts");
@@ -145,14 +145,14 @@ export default function StationScheduler({ testMember = null }: { testMember?: T
     if (!data || adminDestinationApplied.current) return;
     adminDestinationApplied.current = true;
     const requestedParams = new URLSearchParams(window.location.search);
-    const requested = requestedParams.get("adminTask") || "";
+    const requested = initialTask || requestedParams.get("adminTask") || "";
     const reviewDate = requestedParams.get('scheduleDate') || '';
     if(!testMember&&data.viewer.isAdmin&&validQueueDate(reviewDate)){setSelectedDate(reviewDate);setAdminDayMode(true);}
-    if (!testMember && data.viewer.isAdmin && schedulerAdminTask(requested)) {
+    if (!testMember && data.viewer.isAdmin && (schedulerAdminTask(requested) || ["availability", "confirmation"].includes(initialTask))) {
       setSchedulerView("admin");
       setTab(requested);
     } else if (requested === "calendar") setTab("calendar");
-  }, [data, testMember, setTab, setSchedulerView, setSelectedDate, setAdminDayMode]);
+  }, [data, testMember, initialTask, setTab, setSchedulerView, setSelectedDate, setAdminDayMode]);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);

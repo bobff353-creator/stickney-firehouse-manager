@@ -1,0 +1,1156 @@
+/* Scoped Stickney styling, including native dialogs and portal contrast overrides. */
+:is(#portal-workspace .sf-schedule, .sf-schedule) {
+  --sf-navy: #17324d;
+  --sf-gold: #e8b642;
+  --sf-muted: var(--slate, #607183);
+  --sf-ink: var(--ink, #142c45);
+  --sf-surface: var(--surface, #fff);
+  --sf-paper: var(--paper, #f7f4ee);
+  --sf-line: var(--border, #d7dee4);
+  color: var(--sf-ink);
+  font-family: Arial, Helvetica, sans-serif;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 8px 4px 32px;
+  box-sizing: border-box;
+  line-height: 1.5;
+  text-align: left;
+  min-width: 0;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) * {
+  box-sizing: border-box;
+  min-width: 0;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) :is(h2, h3, p) {
+  margin: 0;
+  color: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) h2 {
+  font-size: 28px;
+  line-height: 1.2;
+  font-weight: 750;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) h3 {
+  font-size: 20px;
+  line-height: 1.3;
+  font-weight: 700;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) p {
+  font-size: 14px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) :is(button, .sf-button) {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  width: auto;
+  margin: 0;
+  border: 1px solid var(--sf-navy);
+  border-radius: 10px;
+  padding: 10px 16px;
+  background: var(--sf-navy);
+  color: #fff;
+  box-shadow: none;
+  font:
+    700 14px/1.3 Arial,
+    Helvetica,
+    sans-serif;
+  text-transform: none;
+  letter-spacing: normal;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  transform: none;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) button:hover {
+  filter: brightness(0.96);
+  transform: none;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) button:disabled {
+  opacity: 0.5;
+  cursor: default;
+  filter: none;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule)
+  :is(button, a, input, select, textarea):focus-visible {
+  outline: 3px solid var(--sf-gold);
+  outline-offset: 3px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-secondary {
+  background: var(--sf-surface);
+  color: var(--sf-ink);
+  border-color: var(--sf-line);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-danger {
+  background: #a62f36;
+  border-color: #a62f36;
+  color: #fff;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) :is(input, select, textarea) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-height: 46px;
+  margin: 6px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--sf-line);
+  border-radius: 9px;
+  background: var(--sf-surface);
+  color: var(--sf-ink);
+  box-shadow: none;
+  font:
+    400 16px/1.4 Arial,
+    Helvetica,
+    sans-serif;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) label {
+  display: block;
+  color: var(--sf-ink);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-eyebrow {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+  color: var(--sf-muted);
+  margin-bottom: 5px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-brand img {
+  display: block;
+  width: 52px;
+  height: 56px;
+  object-fit: contain;
+  filter: none;
+  flex: none;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-icon-button {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 24px;
+  flex: none;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-sync {
+  font-size: 12px;
+  color: var(--sf-muted);
+  margin: 10px 0 16px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-segment {
+  display: inline-flex;
+  padding: 4px;
+  gap: 3px;
+  border: 1px solid var(--sf-line);
+  border-radius: 12px;
+  background: var(--sf-paper);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-segment button {
+  background: transparent;
+  color: var(--sf-muted);
+  border: 0;
+  padding: 8px 12px;
+  min-height: 38px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule)
+  .sf-segment
+  button[aria-pressed="true"] {
+  background: var(--sf-surface);
+  color: var(--sf-ink);
+  box-shadow: 0 1px 4px #0001;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--sf-line);
+  margin: 10px 0 26px;
+  padding: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  background: transparent;
+  box-shadow: none;
+  width: 100%;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-tabs button {
+  flex: 1;
+  background: transparent;
+  color: var(--sf-muted);
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  padding: 14px 12px;
+  white-space: nowrap;
+  min-height: 52px;
+  font-size: 14px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule)
+  .sf-tabs
+  button[aria-current="page"] {
+  color: var(--sf-ink);
+  border-bottom-color: var(--sf-gold);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-count {
+  border-radius: 50px;
+  background: var(--sf-gold);
+  color: #10283d;
+  padding: 2px 7px;
+  font-size: 11px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 24px 0 16px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule)
+  .sf-section-heading
+  p:not(.sf-eyebrow) {
+  margin-top: 5px;
+  color: var(--sf-muted);
+  max-width: 600px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-next {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  background: var(--sf-navy);
+  color: #fff;
+  border-radius: 18px;
+  padding: 30px 32px;
+  border: 1px solid #284a69;
+  box-shadow: 0 8px 24px #10283d12;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-next .sf-eyebrow {
+  color: #e8c76c;
+  font-size: 12px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-next h3 {
+  font-size: 32px;
+  color: #fff;
+  margin: 10px 0 6px;
+  letter-spacing: -0.8px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-next p {
+  color: #dce5ed;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-next button {
+  background: var(--sf-gold);
+  border-color: var(--sf-gold);
+  color: #10283d;
+  flex: none;
+  padding: 12px 20px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-panel {
+  background: var(--sf-surface);
+  border: 1px solid var(--sf-line);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px #10283d04;
+  color: var(--sf-ink);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-slot-list > h3 {
+  padding: 18px 20px;
+  font-size: 17px;
+  border-bottom: 1px solid var(--sf-line);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-slot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 16px;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid var(--sf-line);
+  border-radius: 0;
+  background: var(--sf-surface);
+  color: var(--sf-ink);
+  padding: 18px 20px;
+  font-weight: 400;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-slot:last-child {
+  border-bottom: 0;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-slot:hover {
+  background: var(--sf-paper);
+  filter: none;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-date-box {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  flex: none;
+  width: 50px;
+  height: 56px;
+  border-radius: 10px;
+  background: var(--sf-paper);
+  color: var(--sf-ink);
+  border: 1px solid var(--sf-line);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-date-box b {
+  font-size: 23px;
+  line-height: 1.1;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-date-box span {
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-slot-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-slot-copy strong {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 15px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-slot-copy > span {
+  font-size: 12px;
+  color: var(--sf-muted);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-edit-label {
+  font-size: 12px;
+  color: var(--sf-muted);
+  font-weight: 700;
+  flex: none;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-open-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--red, #b33a3a);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-link-card {
+  display: grid;
+  grid-template-columns: 40px 1fr 20px;
+  grid-template-rows: auto auto;
+  gap: 2px 12px;
+  background: var(--sf-surface);
+  color: var(--sf-ink);
+  border: 1px solid var(--sf-line);
+  border-radius: 14px;
+  padding: 20px;
+  text-align: left;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-card-icon {
+  grid-row: 1/3;
+  background: var(--sf-paper);
+  border-radius: 10px;
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 44px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule)
+  .sf-link-card
+  > span:not(.sf-card-icon) {
+  grid-column: 2;
+  font-size: 12px;
+  color: var(--sf-muted);
+  font-weight: 400;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-link-card b {
+  grid-column: 3;
+  grid-row: 1/3;
+  align-self: center;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-empty {
+  padding: 36px 22px;
+  text-align: center;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-empty > span {
+  font-size: 30px;
+  color: var(--sf-muted);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-empty h3 {
+  margin: 6px 0;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-empty p {
+  color: var(--sf-muted);
+  max-width: 500px;
+  margin: 0 auto 12px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-empty-inline {
+  padding: 28px 20px;
+  color: var(--sf-muted);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-message {
+  padding: 14px 16px;
+  background: var(--sf-paper);
+  border: 1px solid var(--sf-line);
+  border-radius: 10px;
+  margin: 12px 0;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-error {
+  background: #fff1f1;
+  color: #8b2029;
+  border-color: #e8b9bd;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-success {
+  background: #edf8f0;
+  color: #265f43;
+  border-color: #bcdcc8;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 6px;
+  line-height: 1.3;
+  padding: 5px 7px;
+  background: var(--sf-paper);
+  border: 1px solid var(--sf-line);
+  color: var(--sf-muted);
+  text-transform: none;
+  white-space: normal;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-gold {
+  background: #fff4d7;
+  border-color: #ead699;
+  color: #765400;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-good {
+  background: #edf8f0;
+  border-color: #bcdcc8;
+  color: #265f43;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) :is(.sf-warn, .sf-bad) {
+  background: #fff1ee;
+  border-color: #eac4bb;
+  color: #8e3830;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-more {
+  display: flex;
+  margin: 16px auto 0;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-filters {
+  display: grid;
+  grid-template-columns: 1.2fr 1.2fr 1fr 1fr;
+  gap: 14px;
+  padding: 20px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule)
+  :is(.sf-coverage-grid, .sf-patterns, .sf-alerts) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-coverage-card {
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule)
+  .sf-coverage-card
+  > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--sf-muted);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-coverage-card > p {
+  color: var(--sf-muted);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-coverage-card button {
+  width: 100%;
+  margin-top: auto;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-note {
+  background: var(--sf-paper);
+  border-left: 3px solid var(--sf-gold);
+  padding: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-request {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  width: 100%;
+  background: var(--sf-surface);
+  color: var(--sf-ink);
+  border: 0;
+  border-bottom: 1px solid var(--sf-line);
+  border-radius: 0;
+  text-align: left;
+  padding: 20px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-request:last-child {
+  border-bottom: 0;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule)
+  .sf-request
+  > span:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule)
+  .sf-request
+  > span:first-child
+  > span {
+  font-size: 12px;
+  color: var(--sf-muted);
+  font-weight: 400;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-request > .sf-badge {
+  flex: none;
+  max-width: 135px;
+  text-align: center;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-tools {
+  padding: 22px;
+  margin-top: 24px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-tools > p {
+  margin: 8px 0 16px;
+  color: var(--sf-muted);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 0;
+  flex-wrap: wrap;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-date-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-date-controls input {
+  width: auto;
+  margin: 0;
+  min-width: 150px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule)
+  :is(.sf-date-controls, .sf-calendar-heading)
+  button {
+  background: var(--sf-surface);
+  color: var(--sf-ink);
+  border-color: var(--sf-line);
+  padding: 8px 12px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 18px 0;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-stats > div {
+  border: 1px solid var(--sf-line);
+  border-radius: 12px;
+  padding: 18px 20px;
+  background: var(--sf-surface);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-stats strong {
+  font-size: 27px;
+  color: var(--sf-ink);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-stats span {
+  font-size: 12px;
+  color: var(--sf-muted);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-button-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-pattern {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  background: var(--sf-surface);
+  color: var(--sf-ink);
+  padding: 22px;
+  text-align: left;
+  border-color: var(--sf-line);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-pattern strong {
+  font-size: 18px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule)
+  .sf-pattern
+  > span:not(.sf-eyebrow) {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--sf-muted);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-people {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 20px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-person {
+  display: flex;
+  gap: 14px;
+  padding: 22px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-person h3 {
+  font-size: 16px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-person p {
+  font-size: 12px;
+  color: var(--sf-muted);
+  margin: 4px 0 10px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-avatar {
+  width: 40px;
+  height: 40px;
+  background: var(--sf-paper);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex: none;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-chips {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-alert-rule {
+  display: block;
+  background: var(--sf-surface);
+  color: var(--sf-ink);
+  padding: 22px;
+  border-color: var(--sf-line);
+  text-align: left;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-alert-rule > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-alert-rule p {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--sf-muted);
+  margin: 12px 0;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-availability {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--sf-line);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-availability > span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule)
+  .sf-availability
+  > span
+  > span {
+  font-size: 12px;
+  color: var(--sf-muted);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-weight: 400;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-check input {
+  display: inline-block;
+  min-height: 20px;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  margin: 0;
+  accent-color: var(--sf-navy);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-calendar {
+  padding: 16px;
+  margin-bottom: 18px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-calendar-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-calendar-heading h3 {
+  font-size: 17px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule)
+  :is(.sf-weekdays, .sf-calendar-grid) {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-weekdays span {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--sf-muted);
+  padding: 8px 0;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-calendar-grid button {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 3px;
+  min-height: 70px;
+  border: 1px solid var(--sf-line);
+  padding: 8px 3px;
+  background: var(--sf-surface);
+  color: var(--sf-ink);
+  border-radius: 8px;
+  font-size: 14px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule)
+  .sf-calendar-grid
+  button
+  > span {
+  font-size: 9px;
+  font-weight: 400;
+  color: var(--sf-muted);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule)
+  .sf-calendar-grid
+  button[aria-pressed="true"] {
+  border-color: var(--sf-navy);
+  background: var(--sf-navy);
+  color: #fff;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule)
+  .sf-calendar-grid
+  button[aria-pressed="true"]
+  > span {
+  color: #e4ecf4;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-today b {
+  border-bottom: 3px solid var(--sf-gold);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule).sf-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  max-width: 580px;
+  width: calc(100% - 28px);
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  border: 1px solid var(--sf-line);
+  border-radius: 18px;
+  background: var(--sf-surface);
+  color: var(--sf-ink);
+  overflow-y: auto;
+  box-shadow: 0 24px 100px #0005;
+  z-index: 1000;
+  overscroll-behavior: contain;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule).sf-dialog::backdrop {
+  background: #071725a8;
+  backdrop-filter: blur(3px);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-dialog-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 24px;
+  border-bottom: 1px solid var(--sf-line);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--sf-surface);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-dialog-heading h2 {
+  font-size: 22px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-dialog-body {
+  padding: 24px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule)
+  .sf-dialog-body
+  :is(
+    form > label,
+    form > p,
+    form > fieldset,
+    form > .sf-form-grid,
+    form > .sf-segment
+  ) {
+  margin-bottom: 18px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-shift-summary {
+  border-left: 4px solid var(--sf-gold);
+  border-radius: 8px;
+  background: var(--sf-paper);
+  padding: 16px 18px;
+  margin: 0 0 20px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-shift-summary h3 {
+  margin: 4px 0;
+  font-size: 19px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-shift-summary p {
+  font-size: 12px;
+  color: var(--sf-muted);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--sf-line);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-help {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--sf-muted);
+  display: block;
+  margin-top: 8px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) fieldset {
+  border: 1px solid var(--sf-line);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 16px 0;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) legend {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 0 5px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-date-picker {
+  max-height: 220px;
+  overflow: auto;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-count-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 0;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-count-field input {
+  width: 80px;
+  margin: 0;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-full {
+  display: flex;
+  width: 100%;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-full button {
+  flex: 1;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-definition {
+  font-size: 13px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 16px;
+  margin: 18px 0;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-definition dd {
+  margin: 0;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-subform {
+  margin-top: 26px;
+  border-top: 1px solid var(--sf-line);
+  padding-top: 20px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-subform h3 {
+  margin-bottom: 16px;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+@media (max-width: 700px) {
+  :is(#portal-workspace .sf-schedule, .sf-schedule) {
+    padding: 0 0 24px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-heading {
+    align-items: flex-start;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-brand img {
+    width: 42px;
+    height: 46px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-brand {
+    gap: 9px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) h2 {
+    font-size: 25px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-brand .sf-eyebrow {
+    font-size: 8px;
+    letter-spacing: 1px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-heading-actions {
+    gap: 6px;
+    flex: 0 0 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule)
+    .sf-heading-actions
+    .sf-segment {
+    padding: 2px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule)
+    .sf-heading-actions
+    .sf-segment
+    button {
+    font-size: 11px;
+    padding: 8px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule)
+    .sf-heading-actions
+    > .sf-icon-button {
+    width: 36px;
+    min-height: 42px;
+    border: 0;
+    background: transparent;
+    color: var(--sf-ink);
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-tabs {
+    gap: 0;
+    margin-bottom: 20px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-tabs button {
+    font-size: 12px;
+    padding: 12px 8px;
+    gap: 5px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-section-heading {
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 20px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-section-heading h3 {
+    font-size: 19px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-section-heading p {
+    font-size: 13px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-next {
+    padding: 24px 20px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 20px;
+    border-radius: 14px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-next h3 {
+    font-size: 27px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-next button {
+    width: 100%;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-slot {
+    padding: 16px 14px;
+    gap: 12px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-slot-copy > strong {
+    font-size: 14px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-slot > .sf-edit-label {
+    font-size: 10px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-slot-copy > span {
+    font-size: 11px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-date-box {
+    width: 42px;
+    height: 52px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-info-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-top: 18px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-link-card {
+    padding: 16px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 16px;
+    gap: 12px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule)
+    :is(.sf-coverage-grid, .sf-patterns, .sf-people, .sf-alerts) {
+    grid-template-columns: 1fr;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-stats {
+    gap: 8px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-stats > div {
+    padding: 12px 10px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-stats strong {
+    font-size: 24px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-stats span {
+    font-size: 11px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-request {
+    padding: 16px 14px;
+    gap: 10px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-request > .sf-badge {
+    max-width: 100px;
+    font-size: 9px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule)
+    .sf-request
+    > span:first-child
+    > span {
+    font-size: 11px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-calendar {
+    padding: 12px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule)
+    :is(.sf-weekdays, .sf-calendar-grid) {
+    gap: 3px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-calendar-grid button {
+    min-height: 58px;
+    padding: 6px 1px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule)
+    .sf-calendar-grid
+    button
+    > span {
+    font-size: 8px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule).sf-dialog {
+    width: calc(100% - 16px);
+    max-height: calc(100dvh - 16px);
+    border-radius: 14px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-dialog-heading {
+    padding: 16px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-dialog-heading h2 {
+    font-size: 20px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-dialog-body {
+    padding: 18px 16px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-dialog-footer {
+    gap: 8px;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-dialog-footer button {
+    flex: 1;
+    padding: 12px 10px;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  :is(#portal-workspace .sf-schedule, .sf-schedule) {
+    --sf-paper: #081722;
+    --sf-surface: #102532;
+    --sf-line: #38505e;
+    --sf-ink: #eef4f7;
+    --sf-muted: #b1c2cb;
+    color-scheme: dark;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule)
+    .sf-segment
+    button[aria-pressed="true"] {
+    background: #213e51;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-gold {
+    background: #3e341c;
+    color: #f0d489;
+    border-color: #746137;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) :is(.sf-good, .sf-success) {
+    background: #16382c;
+    color: #b2e3c6;
+    border-color: #3c6a53;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule)
+    :is(.sf-bad, .sf-warn, .sf-error) {
+    background: #3b2529;
+    color: #ffc4bb;
+    border-color: #7b454b;
+  }
+  :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-open-label {
+    color: #ffb0a6;
+  }
+}

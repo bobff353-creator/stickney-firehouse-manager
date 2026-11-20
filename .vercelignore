@@ -19,3 +19,4 @@ tmp
 supabase/.temp
 vite.config.ts
 drizzle.config.ts
+new-schedule-app

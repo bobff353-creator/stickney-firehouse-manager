@@ -39,10 +39,14 @@ test("the legacy scheduler UI is removed while its records API remains available
   assert.equal(await missing("../app/api/scheduling/route.ts"), false);
 });
 
-test("the Scheduling nav renders the new Station Scheduler", async () => {
+test("the Scheduling nav renders the live Stickney scheduling workspace", async () => {
   const app = await read("../app/payroll-app.tsx");
-  assert.equal(app.includes('const StationScheduler = dynamic(() => import("./station-scheduler")'), true);
+  assert.equal(app.includes('const StationScheduler = dynamic(() => import("./scheduler-workspace")'), true);
   assert.equal(app.includes('activeNav === "Scheduling" && <StationScheduler'), true);
+  const workspace = await read("../app/scheduler-workspace.tsx");
+  assert.ok(workspace.includes('fetch("/api/station-scheduler"'));
+  assert.ok(workspace.includes('const ManagementTools = dynamic(() => import("./station-scheduler")'));
+  assert.ok(!workspace.includes('localStorage'));
 });
 
 test("station scheduler tables exist in schema and bootstrap", async () => {

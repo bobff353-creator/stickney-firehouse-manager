@@ -54,3 +54,6 @@ next-env.d.ts
 .release-source.json
 
 /.work/
+
+# Separate scheduling prototype and its private import snapshots
+/new-schedule-app/
