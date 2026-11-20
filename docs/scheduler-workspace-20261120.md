@@ -25,6 +25,9 @@ and prevent further writes when a saved change cannot be reloaded. Member
 previews are read-only. No notification subscription or production alert rule
 was enabled as part of verification.
 
+The workspace paints its own paper background so its headings remain readable
+inside the portal's permanently dark outer workspace as well as standalone tests.
+
 ## Validation before release
 
 - Node 24 and `npm ci` with the committed lockfile.

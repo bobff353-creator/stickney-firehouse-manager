@@ -238,9 +238,9 @@ createRoot(document.getElementById("root")!).render(
     <p style={{ padding: 12, background: "#fff2b0", color: "#111" }}>
       LOCAL TEST ONLY — fictional records. No production requests.
     </p>
-    <div className="app-shell">
+    <div className="app-shell sidebar-collapsed">
       <main
-        className="workspace bento-rest"
+        className="workspace"
         style={{ maxWidth: 1060, margin: "auto", padding: 16 }}
       >
         <div id="portal-workspace">

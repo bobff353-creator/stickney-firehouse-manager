@@ -12,7 +12,9 @@
   max-width: 1200px;
   width: 100%;
   margin: 0 auto;
-  padding: 8px 4px 32px;
+  padding: 24px;
+  background: var(--sf-paper);
+  border-radius: 16px;
   box-sizing: border-box;
   line-height: 1.5;
   text-align: left;
@@ -936,7 +938,7 @@
 }
 @media (max-width: 700px) {
   :is(#portal-workspace .sf-schedule, .sf-schedule) {
-    padding: 0 0 24px;
+    padding: 18px 14px 24px;
   }
   :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-heading {
     align-items: flex-start;
