@@ -5,6 +5,40 @@ import { useCallback, useEffect, useState } from "react";
 import type { HealthPayload } from "./system-health-model";
 import DepartmentHandoff from "./department-handoff";
 
+function TwilioSmsTest() {
+  const [test, setTest] = useState<{enabled:boolean;recipient:string;receipt:{status:string;requestId:string}|null}|null>(null);
+  const [busy,setBusy] = useState(false), [confirmed,setConfirmed] = useState(false), [error,setError] = useState('');
+  const refresh = useCallback(async () => {
+    const response = await fetch('/api/twilio-sms-test',{cache:'no-store',signal:AbortSignal.timeout(20000)});
+    if (response.status === 403) {setTest(null);return;}
+    const result = await response.json();if (!response.ok) {setTest(null);throw new Error(result.error || 'SMS test status is unavailable.');}
+    setTest(result);
+  },[]);
+  useEffect(() => {const timer = window.setTimeout(() => {void refresh().catch(() => setError('SMS test status is unavailable.'));},0);return () => window.clearTimeout(timer);},[refresh]);
+  async function send() {
+    if (busy || !confirmed || !test?.enabled || test.receipt) return;
+    setBusy(true);setError('');
+    try {
+      const response = await fetch('/api/twilio-sms-test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirmed:true}),signal:AbortSignal.timeout(40000)});
+      const result = await response.json();if (!response.ok) throw new Error(result.error || 'The SMS attempt could not be confirmed.');
+      await refresh();
+    } catch (problem) {setError(problem instanceof Error ? problem.message : 'The SMS attempt could not be confirmed.');await refresh().catch(() => setTest(null));}
+    finally {setBusy(false);}
+  }
+  if (!test && !error) return null;
+  const status = test?.receipt?.status;
+  const detail = status === 'Delivered' ? 'Twilio reports delivery to your phone. Please confirm you received it.' : status === 'Sent' ? 'Twilio sent the test; delivery is not yet confirmed.' : status === 'Accepted' ? 'Twilio accepted the test. Refresh status to check delivery.' : status === 'Failed' ? 'The test was refused or failed. It will not resend.' : status ? 'This attempt is saved but sending is unconfirmed. It will not resend.' : test?.enabled ? 'One manual attempt is available.' : 'Manual SMS testing is off or expired.';
+  return <article className="content-card system-health-trust-note" style={{gridTemplateColumns:'minmax(0, 1fr)',gap:16}} aria-busy={busy}>
+    <div><p className="eyebrow">Manual test only</p><h2>Twilio text message test</h2></div>
+    <p>Recipient: <strong>{test?.recipient ?? 'Phone ending 5300'}</strong>. Uses one free trial message with Twilio’s preset Customer Support / Chat text. Automatic texts and emails stay off.</p>
+    <p role="status">{detail}</p>
+    {test?.receipt ? <p style={{overflowWrap:'anywhere'}}>Test reference: {test.receipt.requestId}</p> : null}
+    {test?.enabled && !test.receipt ? <><label><input type="checkbox" checked={confirmed} disabled={busy} onChange={event => setConfirmed(event.target.checked)} /> Send one free trial text only to my phone above.</label><div><button type="button" className="quiet-button" disabled={!confirmed || busy} onClick={() => void send()}>{busy ? 'Sending test…' : 'Send one free test text'}</button></div></> : null}
+    {error ? <p role="alert">{error}</p> : null}
+    <button type="button" className="quiet-button" disabled={busy} onClick={() => {setBusy(true);setError('');void refresh().catch(() => setError('SMS test status is unavailable.')).finally(() => setBusy(false));}}>Refresh text delivery status</button>
+  </article>;
+}
+
 function OutlookEmailTest() {
   const [test, setTest] = useState<{enabled: boolean; recipient: string; receipt: {status: string; requestId: string} | null} | null>(null);
   const [busy, setBusy] = useState(false);
@@ -91,7 +125,7 @@ export default function SystemHealth({ permissions = [] }: { permissions?: reado
     </article>
 
     {section === "handoff" ? <DepartmentHandoff payload={payload} permissions={permissions} /> : <>
-    {permissions.includes('settings.manage') ? <OutlookEmailTest /> : null}
+    {permissions.includes('settings.manage') ? <><TwilioSmsTest /><OutlookEmailTest /></> : null}
     <div className="system-health-grid" aria-live="polite" aria-busy={loading}>
       {(payload?.checks ?? []).map((check) => <article className={`system-health-card ${check.state}`} key={check.id}>
         <header><span className="system-health-checkmark" aria-hidden="true">{check.state === "healthy" ? "✓" : check.state === "warning" ? "!" : "—"}</span><span className="system-health-state">{check.statusLabel ?? (check.state === "healthy" ? "Verified" : check.state === "warning" ? "Needs attention" : "Not connected")}</span></header>
