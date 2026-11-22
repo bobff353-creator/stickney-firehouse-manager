@@ -32,12 +32,13 @@ test("Out of Service apparatus are exempt from daily and weekly checks only", ()
 });
 
 test("the Out of Service exemption is enforced and explained across Fleet workflows", async () => {
-  const [projections, operationsRoute, inventory, operations, duties] = await Promise.all([
+  const [projections, operationsRoute, inventory, operations, duties, queue] = await Promise.all([
     read("app/lib/fleet-projections.ts"),
     read("app/api/operations/route.ts"),
     read("app/inventory-live.tsx"),
     read("app/inventory-operations.tsx"),
     read("app/daily-duties.tsx"),
+    read("app/inventory-rig-queue.ts"),
   ]);
   assert.match(projections, /department_apparatus/);
   assert.match(projections, /apparatusCheckRequired\(fleetStatuses\.get\(vehicle\.id\), checkType\)/);
@@ -46,8 +47,8 @@ test("the Out of Service exemption is enforced and explained across Fleet workfl
   assert.match(inventory, /Daily and weekly checks: Not needed/);
   assert.match(inventory, /will not appear overdue or block officer sign-out/);
   assert.match(operations, /Not needed — apparatus Out of Service/);
-  assert.match(operations, /if \(routineCheckNotNeeded\(apparatus, checkType\)\) return \[\]/);
-  assert.match(operations, /due-check-exemptions/);
+  assert.match(queue, /if \(!apparatusCheckRequired\(rig\.status, type\)\)/);
+  assert.match(operations, /Not needed while out of service/);
   assert.match(duties, /Not needed — apparatus out of service/);
 });
 

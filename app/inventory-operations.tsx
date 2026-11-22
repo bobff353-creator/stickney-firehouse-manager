@@ -1,4 +1,5 @@
 "use client";
+import { rigQueue, rigCheckLabels, type RigJob } from "./inventory-rig-queue";
 import ScenarioHelp from './scenario-help';
 import EquipmentContinuity from './equipment-continuity';
 import InventoryBulkReview from './inventory-bulk-review';
@@ -389,9 +390,14 @@ export default function InventoryOperations({
   view,
   onSetup,
   initialApparatusId = "",
+  initialDueRigId = "",
   initialEquipmentId = "",
   initialWorkOrderId = "",initialReportId="",
   initialCheckType = "",
+  initialResumeId = "",
+  initialRepairNotice = false,
+  onRigSelected,
+  onCheckSubmitted,
   onOpenUnit,
   scanRequest = 0,
   canCheck = false,
@@ -407,10 +413,15 @@ export default function InventoryOperations({
   view: OperationsView;
   onSetup: () => void;
   initialApparatusId?: string;
+  initialDueRigId?: string;
   initialEquipmentId?: string;
   initialWorkOrderId?: string;initialReportId?:string;
   initialCheckType?: "daily" | "weekly" | "inventory" | "air_pack" | "drug" | "";
-  onOpenUnit?: (apparatusId: string, checkType: "daily" | "weekly" | "inventory" | "air_pack" | "drug") => void;
+  initialResumeId?: string;
+  initialRepairNotice?: boolean;
+  onRigSelected?: (apparatusId: string) => void;
+  onCheckSubmitted?: (apparatusId: string) => void;
+  onOpenUnit?: (apparatusId: string, checkType: CheckCard["checkType"], resumeId?: string) => void;
   scanRequest?: number;
   canCheck?: boolean;
   canManageRepairs?: boolean;
@@ -437,7 +448,7 @@ export default function InventoryOperations({
   const [stockFilter, setStockFilter] = useState<StockFilter>("all");
   const [stockLocation, setStockLocation] = useState("all");
   const [selectedStockLots, setSelectedStockLots] = useState<Record<string, string>>({});
-  const [dueType, setDueType] = useState("all");
+  const [dueRigId, setDueRigId] = useState(initialDueRigId);
   const [submittedCheck, setSubmittedCheck] = useState(false);
   const [error, setError] = useState("");
   const [itemSaveError, setItemSaveError] = useState<{ name: string; message: string } | null>(null);
@@ -496,7 +507,7 @@ export default function InventoryOperations({
     });
   };
   const [duplicatesOnly, setDuplicatesOnly] = useState(false);
-  const [repairPath, setRepairPath] = useState<"notice" | "work" | null>(null);
+  const [repairPath, setRepairPath] = useState<"notice" | "work" | null>(initialRepairNotice && canManageRepairs ? "notice" : null);
   const [noticeSaveState, setNoticeSaveState] = useState<"unsaved" | "saving" | "saved" | "failed" | null>(null);
   const changeRepairPath = (next: "notice" | "work" | null) => { if (!confirmLeavingWork()) return; setRepairPath(next); setNoticeSaveState(null); setRepairNoticeAssignees([]); };
   const [maintenanceApparatusId, setMaintenanceApparatusId] = useState("all");
@@ -694,6 +705,7 @@ export default function InventoryOperations({
       if (
         loading
         || requestedCheckOpenedRef.current
+        || !canCheck
         || !initialCheckType
         || !selectedApparatusId
         || !data.configured
@@ -709,11 +721,16 @@ export default function InventoryOperations({
         value(check, "apparatus_id") === selectedApparatusId
         && value(check, "check_type") === initialCheckType
         && value(check, "status") === "in_progress"
+        && (!initialResumeId || value(check, "id") === initialResumeId)
       ));
       if (existing) {
         setSelectedCheckId(value(existing, "id"));
         setInspectionMenuOpen(false);
         setMessage(`Resumed the shared ${value(data.apparatus.find((item) => value(item, "id") === selectedApparatusId) || {}, "name")} ${initialCheckType.replace("_", " ")} inspection.`);
+        return;
+      }
+      if (initialResumeId) {
+        setMessage("That check is no longer unfinished. Return to due checks to see what is left.");
         return;
       }
       const scbaTemplate = data.scbaTemplates.find((item) => value(item, "apparatus_id") === selectedApparatusId && item.active !== false);
@@ -749,7 +766,7 @@ export default function InventoryOperations({
       }
     })(), 0);
     return () => window.clearTimeout(timer);
-  }, [data, initialCheckType, load, loading, selectedApparatusId]);
+  }, [canCheck, data, initialCheckType, initialResumeId, load, loading, selectedApparatusId]);
 
   async function action(name: string, payload: Record<string, unknown>) {
     if (mutationPending.current || itemSavePending.current) return false;
@@ -777,7 +794,10 @@ export default function InventoryOperations({
       setSaveReceipt({ at: Date.now(), reference: String(result.requestId || result.checkId || payload.checkId || payload.entryId || payload.lotId || "") });
       // Keep every form mounted while reconciling a successful mutation.
       const refreshed = await load({ background: true, fresh: true });
-      if (payload.action === "complete_check") setSubmittedCheck(true);
+      if (payload.action === "complete_check") {
+        setSubmittedCheck(true);
+        onCheckSubmitted?.(selectedApparatusId);
+      }
       if (payload.action === "start_check") setSubmittedCheck(false);
       const confirmations: Record<string, string> = {
         start_check: "Inspection opened. Progress saves item by item.",
@@ -1160,49 +1180,33 @@ export default function InventoryOperations({
     });
   }, [apparatusById, data.equipment, equipmentRigFilter, equipmentSearch, equipmentSort, equipmentAttention, dueEquipment, openEquipmentIds]);
   const today = new Date();
-  const chicagoWeekday = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", weekday: "short" }).format(today);
-  const todayDay = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(chicagoWeekday);
-  const chicagoToday = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(today);
-  const notNeededChecks = data.apparatus.flatMap((apparatus) => data.inspectionSchedules.flatMap((schedule) => {
-    const checkType = value(schedule, "check_type") as CheckCard["checkType"];
-    if (value(schedule, "apparatus_id") !== value(apparatus, "id")
-      || Number(schedule.day_of_week) !== todayDay
-      || schedule.active === false
-      || !routineCheckNotNeeded(apparatus, checkType)) return [];
-    return [{ apparatusId: value(apparatus, "id"), name: value(apparatus, "name"), checkType }];
-  }));
-  const dueChecks: CheckCard[] = data.apparatus.flatMap((apparatus) => {
-    const apparatusId = value(apparatus, "id");
-    const equipment = data.equipment.filter((item) => value(item, "apparatus_id") === apparatusId);
-    const schedules = data.inspectionSchedules.filter((schedule) => value(schedule, "apparatus_id") === apparatusId && Number(schedule.day_of_week) === todayDay && schedule.active !== false);
-    return schedules.flatMap((schedule) => {
-      const checkType = value(schedule, "check_type") as CheckCard["checkType"];
-      if (routineCheckNotNeeded(apparatus, checkType)) return [];
-      const scbaTemplate = data.scbaTemplates.find((item) => value(item, "apparatus_id") === apparatusId && item.active !== false);
-      const scbaConfigured = airCheckLines(scbaTemplate, data.equipment, apparatusId).length;
-      const configured = checkType === "air_pack"
-        ? scbaConfigured
-        : equipment.filter((item) => equipmentDueForCheck(item, checkType, today)).length;
-      if (!configured) return [];
-      const completedInWindow = data.checks.some((check) => value(check, "apparatus_id") === apparatusId
-        && value(check, "check_type") === checkType
-        && value(check, "status") === "completed"
-        && value(check, "review_status") !== "changes_requested"
-        && value(check, "completed_at")
-        && (checkType === "weekly"
-          ? (() => { const completed = new Date(value(check, "completed_at")); const todayAtNoon = new Date(`${chicagoToday}T12:00:00Z`); const mondayOffset = (todayAtNoon.getUTCDay() + 6) % 7; todayAtNoon.setUTCDate(todayAtNoon.getUTCDate() - mondayOffset); return completed >= todayAtNoon; })()
-          : new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value(check, "completed_at"))) === chicagoToday));
-      if (completedInWindow) return [];
-      const active = data.checks.find((check) => value(check, "apparatus_id") === apparatusId && value(check, "check_type") === checkType && value(check, "status") === "in_progress");
-      const checkItems = active
-        ? (checkType === "air_pack" ? data.scbaEntries : data.checkItems).filter((item) => value(item, "check_id") === value(active, "id"))
-        : [];
-      const pending = checkItems.filter((item) => value(item, "result") === "pending").length;
-      return [{ apparatusId, name: value(apparatus, "name"), checkType, active, pending, total: checkItems.length, configured, dueStart: value(schedule, "start_time"), dueEnd: value(schedule, "end_time") } as CheckCard];
-    });
-  });
-  const visibleDueChecks = dueChecks.filter(item => (dueType === "all" || item.checkType === dueType)
-    && `${item.name} ${item.checkType}`.toLowerCase().includes(unitSearch.trim().toLowerCase()));
+  const todayDay = weekDays.indexOf(new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", weekday: "long" }).format(today));
+  const dueRig = view === "due" ? data.apparatus.find(rig => value(rig, "id") === dueRigId) : undefined;
+  const rigWork = view === "due" ? rigQueue(data, dueRigId, today) : null;
+  function pickRig(id: string) {
+    setDueRigId(id);
+    onRigSelected?.(id);
+    window.requestAnimationFrame(() => document.getElementById(id ? "rig-check-heading" : "rig-picker-heading")?.focus());
+  }
+
+  function renderRigJobs(jobs: RigJob[]) {
+    return <div className="rig-check-jobs">{jobs.map((job) => {
+      const title = rigCheckLabels[job.type];
+      const nextAction = checkNextAction(Boolean(job.activeId), job.total, job.pending);
+      return <article key={job.activeId || job.type}>
+        <div>
+          <h3>{title}</h3>
+          <p>{job.activeId ? job.total ? `${job.total - job.pending} of ${job.total} saved` : "Saved check in progress"
+            : job.configured ? `${job.configured} items` : "Checklist setup needed"}</p>
+          {(job.dueTime || job.signOutRequired) && <small>{job.dueTime && `Due ${job.dueTime}`}{job.dueTime && job.signOutRequired && " · "}{job.signOutRequired && "Required for officer sign-out"}</small>}
+        </div>
+        <button type="button" aria-label={`${nextAction}: ${title}`} disabled={!canCheck || (!job.activeId && !job.configured)} onClick={() => onOpenUnit?.(dueRigId, job.type, job.activeId || undefined)}>
+          {job.activeId || job.configured ? nextAction : "Needs setup"}
+        </button>
+      </article>;
+    })}</div>;
+  }
+
   const inventoryChecks: CheckCard[] = data.apparatus.flatMap((apparatus) => {
     const apparatusId = value(apparatus, "id");
     const configured = data.equipment.filter((item) => (
@@ -1219,7 +1223,6 @@ export default function InventoryOperations({
     const pending = checkItems.filter((item) => value(item, "result") === "pending").length;
     return [{ apparatusId, name: value(apparatus, "name"), checkType: "inventory" as const, active, pending, total: checkItems.length, configured }];
   });
-  const unfinishedRoutineChecks = data.checks.filter((check) => value(check, "status") === "in_progress" && value(check, "check_type") !== "inventory" && !routineCheckNotNeeded(data.apparatus.find((apparatus) => value(apparatus, "id") === value(check, "apparatus_id")), value(check, "check_type"))).length;
   const criticalAssets = view === "due" ? data.equipment.flatMap(item => {
     if (item.retired_at || value(item, "service_status") === "retired") return [];
     const reasons = attentionForAsset(item).filter(attention => attention.severity === "critical");
@@ -1295,14 +1298,34 @@ export default function InventoryOperations({
 
       {view === "due" ? (
         <>
-          <div className="inventory-due-job-tools"><nav className="check-job-filter" aria-label="Choose a check job">{[["all", "All", "All due checks"], ["daily", "Daily", "Daily checks"], ["weekly", "Weekly", "Weekly checks"], ["air_pack", "Air packs", "Air packs & bottles checks"], ["drug", "Drugs", "Drug inventory checks"]].map(([id, label, accessibleLabel]) => <button key={id} type="button" aria-label={accessibleLabel} aria-pressed={dueType === id} onClick={() => setDueType(id)}>{label}</button>)}</nav>{unitSearch && <button type="button" className="inventory-active-unit-filter" onClick={() => setUnitSearch("")}>Clear apparatus filter: {unitSearch} ×</button>}</div>
-          <section className="ops-card due-now-card">
-            <header><div><h2>{visibleDueChecks.length ? `${visibleDueChecks.length} required check${visibleDueChecks.length === 1 ? "" : "s"}` : "No scheduled checks in this view"}</h2></div></header>
-            {visibleDueChecks.length ? renderCheckCards(visibleDueChecks, (checkType) => `${formatStatus(checkType)} · DUE TODAY`) : <div className="ops-empty due-clear"><strong>No checks waiting in this view.</strong><p>Completed scheduled checks fall off this list automatically. Choose All due checks to see other jobs; unscheduled templates are available in Apparatus checks.</p></div>}
-            {notNeededChecks.length ? <div className="due-check-exemptions" role="status"><strong>Not needed — apparatus Out of Service</strong><div>{notNeededChecks.map((check) => <span key={`${check.apparatusId}-${check.checkType}`}>{check.name} · {formatStatus(check.checkType)}</span>)}</div><small>These checks will resume automatically when Fleet returns the apparatus to service.</small></div> : null}
-            <p className="due-progress-scope">{unfinishedRoutineChecks} in progress · all dates. Inventory counts are separate.</p>
+          <section className="ops-card due-now-card rig-check-queue">
+            {dueRig && rigWork ? <>
+              <div className="rig-check-heading">
+                <div><h2 id="rig-check-heading" tabIndex={-1}>{value(dueRig, "name")}</h2><p>{formatStatus(dueRig.status)}</p></div>
+                <button type="button" onClick={() => pickRig("")}>Change rig</button>
+              </div>
+              <section aria-labelledby="rig-due-heading">
+                <h3 id="rig-due-heading">Due checks</h3>
+                {rigWork.due.length ? renderRigJobs(rigWork.due) : <p className="rig-check-empty">{refreshError ? "Due checks could not be confirmed. Refresh to check again." : "No checks due for this rig today."}</p>}
+                {rigWork.exempt.length > 0 && <p className="rig-check-empty">Not needed while out of service: {rigWork.exempt.map(type => rigCheckLabels[type]).join(", ")}.</p>}
+              </section>
+              {rigWork.unfinished.length > 0 && <section aria-labelledby="rig-unfinished-heading">
+                <h3 id="rig-unfinished-heading">Unfinished checks</h3>
+                {renderRigJobs(rigWork.unfinished)}
+              </section>}
+              {data.equipment.some(item => item.apparatus_id === dueRigId && Array.isArray(item.check_types) && item.check_types.includes("inventory")) &&
+                <details className="rig-check-extra">
+                  <summary>Other checks</summary>
+                  <button type="button" disabled={!canCheck} onClick={() => onOpenUnit?.(dueRigId, "inventory")}>Open inventory count</button>
+                </details>}
+            </> : <>
+              <h2 id="rig-picker-heading" tabIndex={-1}>Pick your rig</h2>
+              {data.apparatus.length ? <div className="rig-check-picks">{data.apparatus.map(rig =>
+                <button type="button" key={value(rig, "id")} onClick={() => pickRig(value(rig, "id"))}>
+                  <strong>{value(rig, "name")}</strong><small>{formatStatus(rig.status)}</small>
+                </button>)}</div> : <p className="rig-check-empty">No saved apparatus are available.</p>}
+            </>}
           </section>
-          <details className="inventory-apparatus-finder" open={Boolean(unitSearch)}><summary>Find apparatus{unitSearch ? ` · ${unitSearch}` : " (optional)"}</summary>{apparatusSearch}</details>
           {afterDueChecks}
           <details className="inventory-operating-summary"><summary>More status &amp; help · assets, repairs, supplies</summary><p>In progress includes unfinished apparatus and air-pack checks from all dates. Inventory counts are listed separately below. This screen checks for updates every {inventoryRefreshInterval(view) / 60_000} minutes while visible.</p>{onNavigate && <OperationsOverview data={data} onNavigate={onNavigate} delayed={Boolean(refreshError)} />}<section className="equipment-continuity"><ScenarioHelp page="Inventory"/></section></details>
           <details className="ops-card service-reminders" aria-label="Service reminders">
@@ -1316,10 +1339,6 @@ export default function InventoryOperations({
             </article>)}</div>
             {!serviceReminders(data.equipment).length ? <p>No service reminders are due. Set an item’s service schedule under Asset details or Air Packs &amp; Bottles.</p> : null}
           </details>
-          <section className="ops-card inventory-checks-card">
-            <header><div><span>SEPARATE INVENTORY CHECKS</span><h2>Inventory by apparatus</h2></div><b>{inventoryChecks.length} apparatus</b></header>
-            {inventoryChecks.length ? renderCheckCards(inventoryChecks, () => "INVENTORY CHECK") : <div className="ops-empty"><strong>No apparatus inventory checks are configured.</strong><p>An administrator can assign equipment to the Inventory check in Admin Configuration.</p></div>}
-          </section>
         </>
       ) : null}
 
@@ -1681,7 +1700,7 @@ export default function InventoryOperations({
                 const form = new FormData(event.currentTarget);
                 submit(event, "start", { action: "start_check", apparatusId: form.get("apparatusId"), shiftId: form.get("shiftId") });
               }}>
-                <label>Apparatus<select name="apparatusId" required>{data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")} · Fleet: {formatStatus(item.status)}</option>)}</select></label>
+                <label>Apparatus<select name="apparatusId" defaultValue={initialApparatusId || ""} required><option value="">Choose a rig</option>{data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")} · Fleet: {formatStatus(item.status)}</option>)}</select></label>
                 <label>Shift or assignment<input name="shiftId" placeholder="Optional shift identifier" /></label>
                 <button className="ops-primary" disabled={Boolean(busy)}>Start check</button>
               </form>

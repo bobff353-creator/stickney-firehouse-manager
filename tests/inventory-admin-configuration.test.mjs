@@ -41,10 +41,11 @@ test("administrator setup avoids a single scroll-of-death workspace", () => {
 });
 
 test("crew landing page exposes a short operational workflow", () => {
-  for (const step of ["What must I check right now?", "Check apparatus", "Find equipment", "Report or follow up a repair"]) {
-    assert.match(shell, new RegExp(step));
-  }
-  assert.match(shell, /Track failed items and work already underway/);
+  assert.match(operations, /Pick your rig/);
+  assert.match(operations, /Due checks/);
+  assert.match(operations, /Unfinished checks/);
+  assert.match(shell, /Daily Log · Officer sign-in\/out/);
+  assert.match(shell, /Live Operations Board/);
 });
 
 test("equipment directory opens a safe summary before administrator editing", () => {

@@ -10,6 +10,7 @@ import * as services from '../app/inventory-service-schedule.ts';
 import * as filters from '../app/inventory-workspace-filters.ts';
 import * as attention from '../app/inventory-asset-attention.ts';
 import * as air from '../app/inventory-air-checks.ts';
+import * as rigQueue from '../app/inventory-rig-queue.ts';
 
 const require=createRequire(import.meta.url);
 const jsx=require('react/jsx-runtime');
@@ -19,11 +20,11 @@ const compile=path=>ts.transpileModule(readFileSync(new URL(path,import.meta.url
 function walk(node,parents=[],out=[]){if(Array.isArray(node)){node.forEach(item=>walk(item,parents,out));return out;}if(node&&typeof node==='object'){out.push({node,parents});walk(node.props?.children,[...parents,node],out);}return out;}
 const text=node=>Array.isArray(node)?node.map(text).join(''):node&&typeof node==='object'?text(node.props?.children):typeof node==='boolean'?'':String(node??'');
 
-function fixture({critical=true,loading=false,unavailable=false,equipmentRows,canLeave=true}={}){
+function fixture({critical=true,loading=false,unavailable=false,equipmentRows,canLeave=true,selected=true}={}){
   let state=0,data;
   const navigations=[],opened=[];
   const react={useState(initial){const slot=state++;return[slot===0?data:slot===1?loading:slot===15&&unavailable?'Preview source unavailable':typeof initial==='function'?initial():initial,()=>{}];},useRef:initial=>({current:initial}),useEffect(){},useCallback:fn=>fn,useMemo:fn=>fn(),useDeferredValue:value=>value};
-  const mods={react,'react/jsx-runtime':jsx,'./inventory-index':indices,'./inventory-check-flow':workflow,'./workflow-status':statuses,'./inventory-service-schedule':services,'./inventory-workspace-filters':filters,'./inventory-asset-attention':attention,'./inventory-air-checks':air,
+  const mods={react,'react/jsx-runtime':jsx,'./inventory-index':indices,'./inventory-check-flow':workflow,'./workflow-status':statuses,'./inventory-service-schedule':services,'./inventory-workspace-filters':filters,'./inventory-asset-attention':attention,'./inventory-air-checks':air,'./inventory-rig-queue':rigQueue,
     './workspace-view-state':{useWorkspaceViewState:(_key,initial)=>[initial,()=>{}]},'./use-unsaved-work':{useUnsavedWork(){},confirmLeavingWork:()=>canLeave},'./inventory-save-reference':{createInventorySaveReferences:()=>({})},'./conditional-json-reader':{createConditionalJsonReader:()=>({})},
   };
   const target={exports:{}};
@@ -35,22 +36,24 @@ function fixture({critical=true,loading=false,unavailable=false,equipmentRows,ca
     workOrders:critical?[{id:'preview-urgent',status:'open',priority:'high'},{id:'preview-closed',status:'closed',priority:'critical'}]:[],
     stock:critical?[{id:'preview-supply',name:'Preview supply',lot_id:'preview-expired',expires_at:'2020-01-01',quantity_on_hand:2},{id:'preview-zero',name:'Preview empty lot',lot_id:'preview-empty',expires_at:'2020-01-01',quantity_on_hand:0}]:[],
   };
-  const tree=target.exports.default({view:'due',afterDueChecks:jsx.jsx('nav',{'aria-label':'Preview secondary tools'}),onSetup(){},canCheck:true,onNavigate:view=>navigations.push(view),onOpenUnit:(id,type)=>opened.push([id,type])});
+  const tree=target.exports.default({view:'due',initialDueRigId:selected?rig.id:'',afterDueChecks:jsx.jsx('nav',{'aria-label':'Preview secondary tools'}),onSetup(){},canCheck:true,onNavigate:view=>navigations.push(view),onOpenUnit:(id,type,resume)=>opened.push([id,type,resume])});
   return{tree,items:walk(tree),navigations,opened};
 }
 
-test('Due Now presents required checks before closed status/help and retains the exact resume action',()=>{
+test('Due Now picks a rig before showing due work and resumes the exact saved check',()=>{
+  const unselected = fixture({selected:false});
+  assert.match(text(unselected.tree), /Pick your rig/);
+  assert.ok(!unselected.items.some(({node})=>node.props?.id==='rig-due-heading'));
   const f=fixture();
-  const card=f.items.find(({node})=>node.props?.className==='ops-card due-now-card');
+  const card=f.items.find(({node})=>node.props?.className==='ops-card due-now-card rig-check-queue');
   const summary=f.items.find(({node})=>node.props?.className==='inventory-operating-summary');
   assert.ok(card);assert.ok(summary);assert.ok(f.items.indexOf(card)<f.items.indexOf(summary));
   assert.ok(!summary.node.props.open,'noncritical overview starts closed');
-  assert.match(text(card.node),/1 required check/);assert.match(text(card.node),/1 in progress · all dates/);
+  assert.match(text(card.node),/Due checks/);assert.match(text(card.node),/Unfinished checks/);
   const resume=f.items.find(({node})=>node.type==='button'&&text(node)==='Resume check');assert.ok(resume);assert.equal(resume.node.props.disabled,false);
-  resume.node.props.onClick();assert.deepEqual(f.opened,[['preview-engine','daily']]);
+  resume.node.props.onClick();assert.deepEqual(f.opened,[['preview-engine','daily','preview-daily']]);
   assert.ok(!card.parents.some(parent=>parent.type==='details'),'due work stays outside disclosures');
   const secondary=f.items.find(({node})=>node.props?.['aria-label']==='Preview secondary tools');assert.ok(f.items.indexOf(card)<f.items.indexOf(secondary),'shell totals and other tools follow required check cards');
-  const finder=f.items.find(({node})=>node.props?.className==='inventory-apparatus-finder');assert.ok(finder);assert.equal(finder.node.props.open,false,'apparatus search is optional until needed');
 });
 
 test('critical issues remain outside collapsed summaries and use department-wide, deduplicated source counts',()=>{
@@ -64,7 +67,7 @@ test('critical issues remain outside collapsed summaries and use department-wide
   assert.equal(equipmentLink.node.props.href,'/inventory?equipment=preview-radio');
   assert.match(text(equipmentLink.node),/Preview radio/);assert.match(text(equipmentLink.node),/Preview Engine · Preview shelf/);assert.match(text(equipmentLink.node),/Out of service/);
   const clear=fixture({critical:false});assert.ok(!clear.items.some(({node})=>node.props?.className==='inventory-priority-notice inventory-critical-work'),'absence of saved critical issues does not manufacture a warning');
-  assert.ok(clear.items.some(({node})=>node.props?.className==='ops-card due-now-card'));
+  assert.ok(clear.items.some(({node})=>node.props?.className==='ops-card due-now-card rig-check-queue'));
 });
 
 test('critical warnings name each item and all saved critical reasons with a distinct encoded record link',()=>{
@@ -95,7 +98,7 @@ test('opening a warning record honors cancelled unsaved-work navigation',()=>{
 test('loading and initial source failure retain the secondary inventory navigation',()=>{
   for(const state of [{loading:true},{unavailable:true}]){
     const f=fixture(state);assert.ok(f.items.some(({node})=>node.props?.['aria-label']==='Preview secondary tools'));
-    assert.ok(!f.items.some(({node})=>node.props?.className==='ops-card due-now-card'),'no empty or ready due list is shown before source verification');
+    assert.ok(!f.items.some(({node})=>node.props?.className==='ops-card due-now-card rig-check-queue'),'no empty or ready due list is shown before source verification');
     assert.match(text(f.tree),state.loading?/Loading saved Inventory records/:/Preview source unavailable/);
   }
 });
@@ -106,7 +109,7 @@ test('Due Now shell keeps out-of-service apparatus and source uncertainty visibl
   const render=sourceState=>{
     let state=0;
     const suite={configured:true,department:{id:'preview-department',name:'Preview department'},apparatus:[{id:'preview-oos',call_sign:'TEST 1',unit_name:'Preview Engine',status:'out_of_service'}],events:[]};
-    const react={useState(initial){const slot=state++;return[slot===4?sourceState:slot===5?suite:typeof initial==='function'?initial():initial,()=>{}];},useRef:initial=>({current:initial}),useEffect(){},useCallback:fn=>fn,useMemo:fn=>fn()};
+    const react={useState(initial){const slot=state++;return[slot===6?sourceState:slot===7?suite:typeof initial==='function'?initial():initial,()=>{}];},useRef:initial=>({current:initial}),useEffect(){},useCallback:fn=>fn,useMemo:fn=>fn()};
     const mods={react,'react/jsx-runtime':jsx,'./use-permissions':{usePermissions:()=>({verified:true,permissions:['inventory.view','inventory.check'],confirmation:{required:false}})},'./use-unsaved-work':{confirmLeavingWork:()=>true}};
     const target={exports:{}};new Function('require','module','exports',code)(name=>mods[name]??{},target,target.exports);
     return walk(target.exports.default({departmentId:'preview-department',departmentName:'Preview department',permissions:[]}));

@@ -6,15 +6,14 @@ const shell = await readFile(new URL("../app/inventory-live.tsx", import.meta.ur
 const operations = await readFile(new URL("../app/inventory-operations.tsx", import.meta.url), "utf8");
 
 test("inventory is a separate top-level apparatus workflow", () => {
-  assert.match(shell, /\["inventory", "Inventory"\]/);
-  assert.match(shell, /Inventory stays separate and is matched to each apparatus below/);
+  assert.match(shell, /\["inventory", "Inventory counts"\]/);
   assert.match(shell, /view === "inventory"/);
   assert.match(shell, /Inventory checks by apparatus/);
 });
 
 test("due work keeps inventory in its own apparatus-aligned section", () => {
-  assert.match(operations, /SEPARATE INVENTORY CHECKS/);
-  assert.match(operations, /Inventory by apparatus/);
+  assert.match(operations, /Other checks/);
+  assert.match(operations, /Open inventory count/);
   assert.match(operations, /item\.check_types\.includes\("inventory"\)/);
   assert.match(operations, /renderCheckCards\(inventoryChecks/);
   assert.match(operations, /key={`\$\{item\.apparatusId\}-\$\{item\.checkType\}`}/);

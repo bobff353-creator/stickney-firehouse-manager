@@ -1,0 +1,82 @@
+.inventory-app-shell .rig-check-queue {
+  display: grid;
+  gap: 18px;
+}
+
+.inventory-app-shell .rig-check-heading,
+.inventory-app-shell .rig-check-jobs article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.inventory-app-shell .rig-check-heading p,
+.inventory-app-shell .rig-check-jobs p {
+  margin: 4px 0 0;
+  line-height: 1.4;
+}
+
+.inventory-app-shell .rig-check-picks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 155px), 1fr));
+  gap: 10px;
+}
+
+.inventory-app-shell .rig-check-picks button {
+  min-height: 64px;
+  padding: 12px;
+  text-align: left;
+}
+
+.inventory-app-shell .rig-check-picks strong,
+.inventory-app-shell .rig-check-picks small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.inventory-app-shell .rig-check-picks strong { font-size: 17px; }
+.inventory-app-shell .rig-check-picks small { margin-top: 3px; }
+
+.inventory-app-shell .rig-check-jobs {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.inventory-app-shell .rig-check-jobs article {
+  border: 1px solid var(--line, #7188a1);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.inventory-app-shell .rig-check-jobs article > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.inventory-app-shell .rig-check-jobs button,
+.inventory-app-shell .rig-check-heading button { min-height: 44px; white-space: normal; }
+
+.inventory-app-shell .rig-check-queue h2,
+.inventory-app-shell .rig-check-queue h3 { margin: 0; }
+
+.inventory-app-shell .rig-check-empty { margin: 8px 0 0; }
+.inventory-app-shell .rig-check-extra summary { min-height: 44px; padding: 10px 0; cursor: pointer; }
+.inventory-app-shell .rig-check-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.inventory-app-shell .rig-check-links > button,
+.inventory-app-shell .rig-check-links > a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  padding: 8px 12px;
+  color: inherit;
+}
+.inventory-app-shell .rig-check-back {
+  min-height: 44px;
+  justify-self: start;
+  margin-bottom: 8px;
+}
+
+@media (max-width: 500px) {
+  .inventory-app-shell .rig-check-picks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .inventory-app-shell .rig-check-jobs article { padding: 10px; }
+  .inventory-app-shell .rig-check-jobs button { max-width: 46%; }
+}

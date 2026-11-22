@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ apparatus?: string; check?: string; adminTask?: string; equipment?: string; workOrder?: string; report?:string;view?:string }>;
+  searchParams: Promise<{ apparatus?: string; check?: string; resume?: string; adminTask?: string; equipment?: string; workOrder?: string; report?:string;view?:string }>;
 }) {
   const session = await verifyInventoryServerSession();
   if (!session.ok) {
@@ -38,6 +38,7 @@ export default async function Home({
         initialWorkOrderId={typeof query.workOrder==="string"?query.workOrder.trim().slice(0,100):""}
         initialApparatusId={initialApparatusId}
         initialCheckType={initialCheckType}
+        initialResumeId={typeof query.resume === "string" ? query.resume.trim().slice(0, 80) : ""}
         initialAdminTask={typeof query.adminTask === "string" ? query.adminTask : ""}
         permissions={session.context.grants}
       />

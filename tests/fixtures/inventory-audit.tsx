@@ -15,13 +15,15 @@ import '../../app/inventory/bento.css';
 import '../../app/inventory/layout-fit.css';
 import '../../app/readability.css';
 import '../../app/inventory/readability.css';
+import '../../app/inventory/rig-checks.css';
+import { chicagoCalendarDate } from '../../app/lib/fleet-projections';
 
 const rig={id:'fixture-engine',name:'Preview Engine',asset_type:'engine',status:'in_service'};
 const location={id:'fixture-cabinet',apparatus_id:rig.id,label:'Driver side · rear equipment cabinet',side:'driver',sort_order:1};
 const item={id:'fixture-radio',apparatus_id:rig.id,compartment_id:location.id,compartment_label:location.label,name:'Portable radio with spare battery and charging cable',quantity_required:2,check_types:['daily','inventory'],equipment_category:'equipment',response_type:'pass_fail',service_status:'in_service',barcode:'PREVIEW-ONLY',manufacturer:'Test',model:'Fixture',item_order:1};
 const equipment=[item,{...item,id:'fixture-mileage',name:'Current mileage / odometer',response_type:'mileage',quantity_required:1,item_order:0}];
 const checks=[{id:'fixture-check',apparatus_id:rig.id,apparatus_name:rig.name,check_type:'daily',status:'in_progress',started_at:new Date().toISOString(),started_by:'Preview crew'}];
-const data={configured:true,apparatus:[rig,{...rig,id:'fixture-ambulance',name:'Preview Ambulance',asset_type:'ambulance'}],compartments:[location],equipment,retiredEquipment:[],checks,checkItems:equipment.map(e=>({...e,id:`result-${e.id}`,equipment_id:e.id,equipment_name:e.name,check_id:checks[0].id,result:'pending'})),exceptions:[],workOrders:[],workOrderDocuments:[],inspectionSchedules:[{id:'fixture-schedule',apparatus_id:rig.id,apparatus_name:rig.name,check_type:'inventory',day_of_week:1,start_time:'06:00',end_time:'12:00',active:true}],stock:[],restockRequests:[],locationChanges:[],scbaTemplates:[{id:'fixture-scba',apparatus_id:rig.id,active:true,pack_positions:['Officer seat','Rear seat'],include_rit:true,spare_bottle_count:1}],scbaEntries:[]};
+const data={configured:true,apparatus:[rig,{...rig,id:'fixture-ambulance',name:'Preview Ambulance',asset_type:'ambulance'}],compartments:[location],equipment,retiredEquipment:[],checks,checkItems:equipment.map(e=>({...e,id:`result-${e.id}`,equipment_id:e.id,equipment_name:e.name,check_id:checks[0].id,result:'pending'})),exceptions:[],workOrders:[],workOrderDocuments:[],inspectionSchedules:[{id:'fixture-schedule',apparatus_id:rig.id,apparatus_name:rig.name,check_type:'daily',day_of_week:new Date(`${chicagoCalendarDate(Date.now())}T12:00:00Z`).getUTCDay(),start_time:'06:00',end_time:'12:00',active:true,require_officer_signoff:true}],stock:[],restockRequests:[],locationChanges:[],scbaTemplates:[{id:'fixture-scba',apparatus_id:rig.id,active:true,pack_positions:['Officer seat','Rear seat'],include_rit:true,spare_bottle_count:1}],scbaEntries:[]};
 let writes=0;
 const pendingReads:Array<()=>void>=[];
 const audit={data,permissionMode:'ok',permissionRequests:0,emptySave:false,requests:[] as string[],requestTimes:[] as {url:string;at:number}[],holdReads:false,activeReads:0,maxReads:0,releaseReads(){pendingReads.splice(0).forEach(resolve=>resolve());},errors:[] as string[],permissions:null as string[]|null};

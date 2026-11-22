@@ -11,6 +11,8 @@ import { RequiredConfirmation } from './required-confirmation';
 import InventoryVinProfile from "./inventory-vin-profile";
 import InventoryCapture from './inventory-capture';
 import { usePermissions, refreshPermissions } from "./use-permissions";
+import { portalPageUrl } from "./portal-navigation";
+import type { CheckType } from "./inventory-rig-queue";
 import {
   FormEvent,
   useCallback,
@@ -23,6 +25,15 @@ import {
 type View = "due" | "fleet" | "inventory" | "check" | "equipment" | "air" | "reports" | "readiness" | "service" | "stock" | "setup";
 type LoadState = "loading" | "ready" | "unavailable";
 type FleetFilter = "all" | "in-service" | "out-impaired" | "digital-twins";
+
+function replaceCheckAddress(apparatusId: string, type?: CheckType, resume?: string) {
+  const url = new URL(window.location.href);
+  for (const key of ["apparatus", "check", "resume", "view", "report", "equipment", "workOrder", "adminTask"]) url.searchParams.delete(key);
+  if (apparatusId) url.searchParams.set("apparatus", apparatusId);
+  if (type) url.searchParams.set("check", type);
+  if (resume) url.searchParams.set("resume", resume);
+  window.history.replaceState(window.history.state, "", url);
+}
 
 const inventorySections: Array<[View, string]> = [
   ["due", "Due Now"],
@@ -337,6 +348,7 @@ export default function Inventory360({
   departmentName,
   initialApparatusId = "",
   initialCheckType = "",
+  initialResumeId = "",
   initialAdminTask = "",
   initialEquipmentId = "",
   initialWorkOrderId = "",initialReportId="",initialReportsView=false,
@@ -346,6 +358,7 @@ export default function Inventory360({
   departmentName: string;
   initialApparatusId?: string;
   initialCheckType?: "daily" | "weekly" | "inventory" | "air_pack" | "drug" | "";
+  initialResumeId?: string;
   initialAdminTask?: string;
   initialEquipmentId?: string;
   initialWorkOrderId?: string;initialReportId?:string;initialReportsView?:boolean;
@@ -361,9 +374,31 @@ export default function Inventory360({
     if (!accessAllowed) window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [accessAllowed]);
   const [view, setViewState] = useState<View>(() => initialReportId||initialReportsView?"reports":initialWorkOrderId ? "service" : initialEquipmentId ? "equipment" : initialApparatusId && initialCheckType ? "check" : "due");
-  const setView = useCallback((next: View) => { if (confirmLeavingWork()) setViewState(next); }, []);
   const [selectedApparatusId, setSelectedApparatusId] = useState(initialApparatusId);
   const [selectedCheckType, setSelectedCheckType] = useState(initialCheckType);
+  const [selectedResumeId, setSelectedResumeId] = useState(initialResumeId);
+  const [startRepairNotice, setStartRepairNotice] = useState(false);
+  const setView = useCallback((next: View) => {
+    if (!confirmLeavingWork()) return;
+    if (next === "due") replaceCheckAddress(selectedApparatusId);
+    if (next !== "service") setStartRepairNotice(false);
+    setViewState(next);
+  }, [selectedApparatusId]);
+
+  function openRigCheck(apparatusId: string, checkType: CheckType, resumeId = "") {
+    if (!confirmLeavingWork()) return;
+    setSelectedApparatusId(apparatusId);
+    setSelectedCheckType(checkType);
+    setSelectedResumeId(resumeId);
+    replaceCheckAddress(apparatusId, checkType, resumeId);
+    setViewState("check");
+  }
+
+  function reportRigProblem() {
+    if (!confirmLeavingWork()) return;
+    setStartRepairNotice(true);
+    setViewState("service");
+  }
   const [fleetFilter, setFleetFilter] = useState<FleetFilter>("all");
   const [suiteState, setSuiteState] = useState<LoadState>("loading");
   const [suite, setSuite] = useState<SuiteContext>({
@@ -568,6 +603,7 @@ export default function Inventory360({
   async function openUnit(unit: SuiteApparatus) {
     setSelectedApparatusId(unit.id);
     setSelectedCheckType("");
+    setSelectedResumeId("");
     const twin = matchingTwin(unit, twinData.apparatus);
     if (twin && twinState === "ready") await loadTwin(twin.id);
     setView("check");
@@ -648,6 +684,7 @@ export default function Inventory360({
       <section ref={workspaceHeadingRef} className="inventory-command-header" aria-labelledby="inventory-workspace-title">
         {view === "due" && <div className="inventory-due-toolbar"><Link className="inventory-command-back" href="/?page=dashboard&display=portal" prefetch={false} onClick={event => { if (!confirmLeavingWork()) event.preventDefault(); }}>← Portal home</Link><h1 id="inventory-workspace-title">{activeWorkspace.title}</h1><button type="button" onClick={refreshWorkspace}>Refresh</button></div>}
         {view !== "due" && view !== "check" && <button className="inventory-command-back" type="button" onClick={() => setView("due")}>← Back to apparatus &amp; checks</button>}
+        {view === "check" && <button className="rig-check-back" type="button" onClick={() => setView("due")}>Back to due checks</button>}
         {view !== "due" && <div className="inventory-command-hero">
           <div>
             <span>{activeWorkspace.eyebrow}</span>
@@ -681,25 +718,26 @@ export default function Inventory360({
 
       {view === "due" ? (
         <section className="page due-now-page">
-          <div className="page-heading compact crew-heading">
-            <div>
-              <span className="eyebrow">TODAY&apos;S REQUIRED WORK</span>
-              <h1>What must I check right now?</h1>
-              <p>Daily and scheduled weekly apparatus checks appear first. Inventory stays separate and is matched to each apparatus below.</p>
-            </div>
-          </div>
-          <nav className="inventory-workflow" aria-label="Vehicle checks and inventory workflow">
-            <button type="button" className="active" onClick={() => setView("due")}>
-              <b>Check apparatus</b><small>Start or resume today’s required checks</small>
-            </button>
-            <button type="button" onClick={() => setView("equipment")}>
-              <b>Find equipment</b><small>Search or scan its exact location</small>
-            </button>
-            <button type="button" onClick={() => setView("service")}>
-              <b>Report or follow up a repair</b><small>Track failed items and work already underway</small>
-            </button>
-          </nav>
-          <InventoryOperations afterDueChecks={<div className="inventory-secondary-tools">{departmentSummary}{moreInventoryTools}</div>} onNavigate={setView} onRepairs={() => setView("service")} onRecords={receiveOperations} view="due" onAir={() => setView("air")} onSetup={() => setView("setup")} onOpenUnit={(apparatusId, checkType) => { setSelectedApparatusId(apparatusId); setSelectedCheckType(checkType); window.history.replaceState(null, "", `/inventory?apparatus=${encodeURIComponent(apparatusId)}&check=${checkType}`); setView("check"); }} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+          <InventoryOperations
+            view="due"
+            initialDueRigId={selectedApparatusId}
+            onRigSelected={id => { setSelectedApparatusId(id); replaceCheckAddress(id); }}
+            onOpenUnit={openRigCheck}
+            onNavigate={setView}
+            onRepairs={() => setView("service")}
+            onRecords={receiveOperations}
+            onAir={() => setView("air")}
+            onSetup={() => setView("setup")}
+            afterDueChecks={<>
+              <nav className="rig-check-links" aria-label="Shift and repair tools">
+                <button type="button" onClick={reportRigProblem}>{canManageRepairs ? "Report a problem" : "Report a problem or view repairs"}</button>
+                {permissions.includes("daily_log.view") && <Link prefetch={false} href={portalPageUrl("/", "", "Daily Log")}>Daily Log · Officer sign-in/out</Link>}
+                {permissions.includes("operations_board.view") && <Link prefetch={false} href={portalPageUrl("/", "", "Operations Board")}>Live Operations Board</Link>}
+              </nav>
+              <div className="inventory-secondary-tools">{departmentSummary}{moreInventoryTools}</div>
+            </>}
+            canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup}
+          />
         </section>
       ) : null}
 
@@ -712,7 +750,7 @@ export default function Inventory360({
               <p>Each apparatus has its own inventory check, progress, and completion record.</p>
             </div>
           </div>
-          <InventoryOperations onRecords={receiveOperations} view="inventory" onSetup={() => setView("setup")} onOpenUnit={(apparatusId, checkType) => { setSelectedApparatusId(apparatusId); setSelectedCheckType(checkType); window.history.replaceState(null, "", `/inventory?apparatus=${encodeURIComponent(apparatusId)}&check=${checkType}`); setView("check"); }} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+          <InventoryOperations onRecords={receiveOperations} view="inventory" onSetup={() => setView("setup")} onOpenUnit={openRigCheck} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
         </section>
       ) : null}
 
@@ -832,7 +870,7 @@ export default function Inventory360({
                           const configured = fleetOperations.equipment.filter((item) => item.apparatus_id === unit.id && Array.isArray(item.check_types) && item.check_types.includes(checkType)).length;
                           const unavailable = !active && configured === 0;
                           const notNeeded = normalize(unit.status) === "outofservice" && ["daily", "weekly"].includes(checkType);
-                          return <button key={checkType} type="button" disabled={!canCheck || unavailable || notNeeded} onClick={() => { setSelectedApparatusId(unit.id); setSelectedCheckType(checkType); window.history.replaceState(null, "", `/inventory?apparatus=${encodeURIComponent(unit.id)}&check=${checkType}`); setView("check"); }}>
+                          return <button key={checkType} type="button" disabled={!canCheck || unavailable || notNeeded} onClick={() => openRigCheck(unit.id, checkType)}>
                             <strong>{checkType === "air_pack" ? "Air Pack" : titleCase(checkType)}</strong>
                             <small>{notNeeded ? "Not needed · Out of Service" : active ? `${remaining} left · Resume` : unavailable ? "Not configured" : `${configured} items · Start`}</small>
                           </button>;
@@ -868,15 +906,14 @@ export default function Inventory360({
               <p>Record results, review issues, then submit. Saved crew progress is shared.</p>
             </div>
             <div className="heading-actions">
-              <button className="secondary" onClick={() => setView(selectedCheckType === "air_pack" ? "air" : "fleet")}>{selectedCheckType === "air_pack" ? "Back to Air Packs & Bottles" : "Back to apparatus checks"}</button>
               {canSetup ? <button className="primary" onClick={() => setView("setup")}>Admin Configuration</button> : null}
             </div>
           </div>
-          <InventoryOperations onRecords={receiveOperations} key={`${selectedApparatusId}-${selectedCheckType}`} view="check" onSetup={() => setView("setup")} onRepairs={() => setView("service")} onReports={() => setView("reports")} initialApparatusId={selectedApparatusId} initialCheckType={selectedCheckType} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+          <InventoryOperations onRecords={receiveOperations} key={`${selectedApparatusId}-${selectedCheckType}-${selectedResumeId}`} view="check" onSetup={() => setView("setup")} onRepairs={() => setView("service")} onReports={() => setView("reports")} initialApparatusId={selectedApparatusId} initialCheckType={selectedCheckType} initialResumeId={selectedResumeId} onCheckSubmitted={replaceCheckAddress} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
         </section>
       ) : null}
 
-      {view === "air" ? <section className="page air-equipment-page"><InventoryOperations onRecords={receiveOperations} view="air" onSetup={() => setView("setup")} onRepairs={() => setView("service")} onOpenUnit={(id, type) => { setSelectedApparatusId(id); setSelectedCheckType(type); setView("check"); }} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} /></section> : null}
+      {view === "air" ? <section className="page air-equipment-page"><InventoryOperations onRecords={receiveOperations} view="air" onSetup={() => setView("setup")} onRepairs={() => setView("service")} onOpenUnit={openRigCheck} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} /></section> : null}
 
       {view === "equipment" ? (
         <section className="page equipment-page">
@@ -957,7 +994,7 @@ export default function Inventory360({
               <p>Repair notices appear on assigned employee home pages and Live Ops until the repair is completed.</p>
             </div>
           </div>
-          <InventoryOperations onRecords={receiveOperations} view="service" initialWorkOrderId={initialWorkOrderId} onSetup={() => setView("setup")} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+          <InventoryOperations onRecords={receiveOperations} view="service" initialApparatusId={selectedApparatusId} initialRepairNotice={startRepairNotice} initialWorkOrderId={initialWorkOrderId} onSetup={() => setView("setup")} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
         </section>
       ) : null}
 
