@@ -399,3 +399,10 @@
   border-color: var(--crew-red);
   color: #fff;
 }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow .inventory-ops :is(.rig-check-rig-copy strong, #rig-check-heading) {
+  color: var(--crew-ink);
+  font-size: 21px;
+  font-weight: 800;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
