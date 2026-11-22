@@ -48,10 +48,14 @@ export function serviceDateLabel(date: string | null) {
   return date ? new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`)) : "Not recorded";
 }
 
-export function serviceReminders<T extends Source>(equipment: T[], today = serviceToday()) {
+export function equipmentServiceSchedules<T extends Source>(equipment: T[], today = serviceToday()) {
   return equipment.flatMap(item => {
     if (item.retired_at || item.service_status === "retired") return [];
-    try { const dates = serviceDates(item, today); return dates && dates.status !== "upcoming" ? [{ item, ...dates }] : []; }
+    try { const dates = serviceDates(item, today); return dates ? [{ item, ...dates }] : []; }
     catch { return []; } // Invalid legacy data is labelled in its record, never treated as confirmed due.
   }).sort((a, b) => a.due.localeCompare(b.due));
+}
+
+export function serviceReminders<T extends Source>(equipment: T[], today = serviceToday()) {
+  return equipmentServiceSchedules(equipment, today).filter(({ status }) => status !== "upcoming");
 }

@@ -7,6 +7,7 @@ import "./bento.css";
 import "./layout-fit.css";
 import "./readability.css";
 import "./rig-checks.css";
+import "./watchline-admin.css";
 
 export const metadata = {
   title: "Inventory & Apparatus Checks | Stickney Firehouse Manager",

@@ -1,0 +1,125 @@
+.inventory-admin-flow > .setup-page {
+  box-sizing: border-box;
+  width: min(100%, 920px);
+  margin: 0 auto;
+  padding: 0 14px 84px;
+}
+
+.inventory-admin-flow .capture-workspace { margin: 0; padding: 0; }
+.inventory-admin-flow .setup-intro { padding: 0; background: transparent; border: 0; box-shadow: none; }
+.inventory-admin-flow .setup-intro [hidden] { display: none; }
+
+.inventory-app-shell.inventory-portal-refresh.inventory-admin-flow .setup-workspace-tabs,
+.inventory-app-shell.inventory-portal-refresh.inventory-admin-flow .inventory-task-nav,
+.inventory-app-shell.inventory-portal-refresh .inventory-admin-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.inventory-app-shell.inventory-portal-refresh.inventory-admin-flow :is(.setup-workspace-tabs, .inventory-task-nav) button,
+.inventory-app-shell.inventory-portal-refresh .inventory-admin-shortcuts button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--crew-line);
+  border-radius: 9px;
+  color: var(--crew-ink);
+  background: var(--crew-card);
+  font-size: 15px;
+  font-weight: 650;
+  text-transform: none;
+  letter-spacing: normal;
+  box-shadow: none;
+}
+
+.inventory-app-shell.inventory-portal-refresh.inventory-admin-flow .setup-workspace-tabs button {
+  flex: 1 1 135px;
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  justify-content: start;
+}
+
+.inventory-app-shell.inventory-portal-refresh.inventory-admin-flow .setup-workspace-tabs button small { color: var(--crew-muted); }
+.inventory-app-shell.inventory-portal-refresh.inventory-admin-flow :is(.setup-workspace-tabs, .inventory-task-nav) button :is(b,strong) { color: inherit; }
+.inventory-app-shell.inventory-portal-refresh.inventory-admin-flow :is(.setup-workspace-tabs, .inventory-task-nav) button:is([aria-current=page],[aria-pressed=true]) {
+  border-color: var(--crew-icon);
+  background: var(--crew-soft);
+  color: var(--crew-ink);
+}
+
+.inventory-app-shell.inventory-portal-refresh.inventory-admin-flow .inventory-ops :is(.ops-card,.equipment-editor,.maintenance-timeline .maintenance-record-details, .maintenance-timeline .maintenance-record-details article) {
+  background: var(--crew-card);
+  border-color: var(--crew-line);
+  color: var(--crew-ink);
+}
+
+.inventory-app-shell.inventory-portal-refresh.inventory-admin-flow .inventory-ops :is(.ops-card,.equipment-editor) :is(h2,h3,label,legend,p,dt,dd) {
+  color: var(--crew-ink);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.inventory-app-shell.inventory-portal-refresh.inventory-admin-flow .inventory-ops :is(.ops-card,.equipment-editor) :is(input, select, textarea):not([type=hidden],[type=checkbox],[type=radio]) {
+  min-height: 44px;
+  background: var(--crew-card);
+  border-color: var(--crew-line);
+  color: var(--crew-ink);
+  color-scheme: light dark;
+  font-size: 16px;
+}
+
+.inventory-app-shell.inventory-portal-refresh.inventory-admin-flow .inventory-ops :is(.ops-card,.equipment-editor) :is(input, textarea)::placeholder {
+  color: var(--crew-muted);
+  opacity: 1;
+}
+
+.inventory-app-shell.inventory-portal-refresh.inventory-admin-flow .inventory-ops :is(.ops-card,.equipment-editor) .ops-primary {
+  background: var(--crew-red);
+  border-color: var(--crew-red);
+  color: #fff;
+  font-size: 15px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.inventory-admin-flow .inventory-admin-list > label,
+.inventory-admin-flow .maintenance-home-toolbar > label { display: grid; flex: 1; gap: 6px; }
+.inventory-admin-flow .inventory-admin-filters { margin-block: 8px; }
+.inventory-admin-flow .inventory-admin-filters label { display: flex; gap: 7px; align-items: center; margin-block: 8px; }
+
+.inventory-admin-flow :is(.inventory-admin-item-list, .maintenance-open-list) {
+  display: grid;
+  gap: 8px;
+  margin-block: 10px;
+}
+
+.inventory-admin-flow :is(.inventory-admin-item-list, .maintenance-open-list) article {
+  display: grid;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--crew-line);
+  border-radius: 9px;
+  background: var(--crew-card);
+}
+
+.inventory-admin-flow .inventory-admin-item-list article { grid-template-columns: minmax(0, 1fr) auto; }
+.inventory-admin-flow .inventory-admin-item-list button { min-width: 60px; }
+.inventory-admin-flow :is(.inventory-admin-item-list,.maintenance-open-list) :is(h3,p) { margin: 0; }
+.inventory-admin-flow .maintenance-record-details { border: 1px solid var(--crew-line); border-radius: 10px; }
+.inventory-admin-flow .maintenance-record-details > summary { padding: 10px 12px; font-weight: 700; cursor: pointer; }
+.inventory-admin-flow .maintenance-record-details > summary small { display: block; margin-inline-start: 15px; color: var(--crew-muted); }
+.inventory-admin-flow .maintenance-home-toolbar { display: flex; align-items: end; gap: 10px; margin-bottom: 10px; }
+.inventory-admin-flow .maintenance-home-toolbar select { width: 100%; }
+
+@media (max-width: 600px) {
+  .inventory-admin-flow .setup-workspace-tabs button { flex-basis: 120px; }
+  .inventory-admin-flow .maintenance-home-toolbar { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .inventory-admin-flow .maintenance-timeline .maintenance-record-details article dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

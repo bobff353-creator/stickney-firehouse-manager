@@ -10,7 +10,7 @@ import {repairsForFinding} from './equipment-continuity-model';
 import { checkNextAction } from "./workflow-status";
 import { SaveStatus } from "./save-status";
 import { ServiceScheduleFields, ServiceScheduleSummary } from "./inventory-service-fields";
-import { serviceDateLabel, serviceReminders, serviceScheduleInput } from "./inventory-service-schedule";
+import { equipmentServiceSchedules, serviceDateLabel, serviceReminders, serviceScheduleInput } from "./inventory-service-schedule";
 
 /* Authenticated inventory images must load directly so the browser sends the department session cookie. */
 /* eslint-disable @next/next/no-img-element */
@@ -397,6 +397,8 @@ export default function InventoryOperations({
   initialCheckType = "",
   initialResumeId = "",
   initialRepairNotice = false,
+  maintenanceMode = false,
+  onMaintenance,
   onRigSelected,
   onCheckSubmitted,
   onOpenUnit,
@@ -421,6 +423,8 @@ export default function InventoryOperations({
   initialCheckType?: "daily" | "weekly" | "inventory" | "air_pack" | "drug" | "";
   initialResumeId?: string;
   initialRepairNotice?: boolean;
+  maintenanceMode?: boolean;
+  onMaintenance?: () => void;
   onRigSelected?: (apparatusId: string) => void;
   onCheckSubmitted?: (apparatusId: string) => void;
   onOpenUnit?: (apparatusId: string, checkType: CheckCard["checkType"], resumeId?: string) => void;
@@ -488,7 +492,8 @@ export default function InventoryOperations({
   const [repairEquipment, setRepairEquipment] = useState<Row | null>(null);
   const [setupSearch, setSetupSearch] = useState("");
   const [builderTask, setBuilderTask] = useState("items");
-  const [showAllTemplateItems, setShowAllTemplateItems] = useState(false);
+  const [showAllTemplateItems, setShowAllTemplateItems] = useState(true);
+  const [setupLimit, setSetupLimit] = useState(24);
   const [refreshError, setRefreshError] = useState("");
   const [templateType, setTemplateType] = useState("inventory");
   const [unitSearch, setUnitSearch] = useWorkspaceViewState("check-unit-search", "");
@@ -501,7 +506,7 @@ export default function InventoryOperations({
     directorySummaryRef.current?.focus({ preventScroll: true });
     directorySummaryRef.current?.scrollIntoView({ block: "start", behavior: "instant" });
   }, [loading, selectedDirectoryEquipment, view]);
-  const openEquipmentEditor = (item: Row) => { if (item.scba_asset_kind) { onAir(); return; } setEditorSection("basics"); setEditingEquipment(item); };
+  const openEquipmentEditor = (item: Row, section = "basics") => { if (item.scba_asset_kind) { onAir(); return; } setEditorSection(section); setEditingEquipment(item); };
   const changeBuilderTask = (task: string) => {
     setBuilderTask(task);
     window.requestAnimationFrame(() => {
@@ -512,8 +517,10 @@ export default function InventoryOperations({
   const [duplicatesOnly, setDuplicatesOnly] = useState(false);
   const [repairPath, setRepairPath] = useState<"notice" | "work" | null>(initialRepairNotice && canManageRepairs ? "notice" : null);
   const [noticeSaveState, setNoticeSaveState] = useState<"unsaved" | "saving" | "saved" | "failed" | null>(null);
-  const changeRepairPath = (next: "notice" | "work" | null) => { if (!confirmLeavingWork()) return; setRepairPath(next); setNoticeSaveState(null); setRepairNoticeAssignees([]); };
-  const [maintenanceApparatusId, setMaintenanceApparatusId] = useState("all");
+  const [workOrderDirty, setWorkOrderDirty] = useState(false);
+  const changeRepairPath = (next: "notice" | "work" | null) => { if (!confirmLeavingWork()) return; setRepairPath(next); setWorkOrderDirty(false); setNoticeSaveState(null); setRepairNoticeAssignees([]); };
+  const [maintenanceApparatusId, setMaintenanceApparatusId] = useState(maintenanceMode && initialApparatusId ? initialApparatusId : "all");
+  const [maintenanceSection, setMaintenanceSection] = useState<"history" | "open" | "reminders">("history");
   const [repairSearch, setRepairSearch] = useState("");
   const [repairApparatus, setRepairApparatus] = useState("all");
   const [repairFilter, setRepairFilter] = useState("open");
@@ -1009,7 +1016,7 @@ export default function InventoryOperations({
   const unsavedScba = activeScbaEntries.some(item => scbaDirty[value(item, "id")]);
   const unsavedMeters = activeItems.some(item => meterDirty[value(item,'id')]);
   const unsavedCheck = unsavedReadings || unsavedScba || unsavedMeters;
-  useUnsavedWork(unsavedCheck || noticeSaveState === "unsaved" || noticeSaveState === "failed", Boolean(busy) || noticeSaveState === "saving");
+  useUnsavedWork(unsavedCheck || workOrderDirty || noticeSaveState === "unsaved" || noticeSaveState === "failed", Boolean(busy) || noticeSaveState === "saving");
   const pendingItems = activeChecklistRows.filter((item) => value(item, "result") === "pending").length;
   const completedItems = activeChecklistRows.length - pendingItems;
   const checkProgress = activeChecklistRows.length ? Math.round((completedItems / activeChecklistRows.length) * 100) : 0;
@@ -1129,6 +1136,12 @@ export default function InventoryOperations({
     ? data.scbaTemplates.find((item) => value(item, "apparatus_id") === value(selectedScbaApparatus, "id"))
     : undefined;
   const selectedEquipment = data.equipment.filter((item) => value(item, "apparatus_id") === selectedApparatusId);
+  const setupQuery = setupSearch.trim().toLowerCase();
+  const setupItems = view === "builder" && builderTask === "items" ? selectedEquipment.filter(item => {
+    if (!showAllTemplateItems && !(Array.isArray(item.check_types) && item.check_types.includes(templateType))) return false;
+    if (setupQuery && ![item.name, item.barcode, item.compartment_label].some(field => String(field || "").toLowerCase().includes(setupQuery))) return false;
+    return !duplicatesOnly || selectedEquipment.some(other => other.id !== item.id && other.compartment_id === item.compartment_id && value(other, "name").trim().toLowerCase() === value(item, "name").trim().toLowerCase());
+  }) : [];
   const selectedCompartments = data.compartments.filter((item) => value(item, "apparatus_id") === selectedApparatusId);
   const configuredItemsFor = (checkType: string) => {
     if (checkType === "air_pack") {
@@ -1144,6 +1157,8 @@ export default function InventoryOperations({
     && item.assigned_employee_ids.includes(viewerEmployeeId)
   ));
   const maintenanceOrders = useMemo(() => data.workOrders.filter((item) => maintenanceApparatusId === "all" || value(item, "apparatus_id") === maintenanceApparatusId), [data.workOrders, maintenanceApparatusId]);
+  const visibleMaintenanceHistory = maintenanceMode ? maintenanceOrders.filter(item => normalizedRepairStatus(item) === "closed") : maintenanceOrders;
+  const maintenanceSchedules = maintenanceMode ? equipmentServiceSchedules(data.equipment).filter(({ item }) => maintenanceApparatusId === "all" || item.apparatus_id === maintenanceApparatusId) : [];
   const filteredRepairs = filterRepairOrders(data.workOrders, { query: repairSearch, apparatus: repairApparatus, status: repairFilter, priority: repairPriority }).filter(item=>!linkedRepairId||value(item,'id')===linkedRepairId);
   const openRepairs = data.workOrders.filter(openRepair);
   const openEquipmentIds = useMemo(() => new Set([...data.exceptions, ...data.workOrders.filter(openRepair)].filter(row => !["resolved", "cancelled"].includes(value(row, "status"))).map(row => value(row, "equipment_id")).filter(Boolean)), [data.exceptions, data.workOrders]);
@@ -1281,8 +1296,8 @@ export default function InventoryOperations({
   }
 
   return (
-    <div className="inventory-ops">{view !== "due" && !checkIsOpen && !initialRepairNotice && <section className="equipment-continuity"><ScenarioHelp page="Inventory"/></section>}
-      {view !== "due" && !checkIsOpen && !initialRepairNotice && <p className="ops-refresh-status">Saved snapshot · checks for updates every {inventoryRefreshInterval(view) < 60_000 ? `${inventoryRefreshInterval(view) / 1000} seconds` : `${inventoryRefreshInterval(view) / 60_000} minutes`} while visible.{lastSyncedAt ? ` Last received ${formatDate(lastSyncedAt)}.` : " No successful receipt confirmed yet."}</p>}
+    <div className="inventory-ops">{view !== "due" && !checkIsOpen && !initialRepairNotice && !maintenanceMode && view !== "builder" && <section className="equipment-continuity"><ScenarioHelp page="Inventory"/></section>}
+      {view !== "due" && !checkIsOpen && !initialRepairNotice && !maintenanceMode && view !== "builder" && <p className="ops-refresh-status">Saved snapshot · checks for updates every {inventoryRefreshInterval(view) < 60_000 ? `${inventoryRefreshInterval(view) / 1000} seconds` : `${inventoryRefreshInterval(view) / 60_000} minutes`} while visible.{lastSyncedAt ? ` Last received ${formatDate(lastSyncedAt)}.` : " No successful receipt confirmed yet."}</p>}
       {message ? <div className="ops-message" role="status">{message}</div> : null}
       {saveReceipt && <div className="ops-save-receipt" role="status">Server confirmed {formatDate(saveReceipt.at)}{saveReceipt.reference && <small>Record: {saveReceipt.reference}</small>}<small>Saved results are not submission, approval, or confirmation that equipment is safe to use.</small></div>}
       {submittedCheck && onReports && <div className="ops-message"><strong>Submitted · awaiting administrator review</strong><p>Submission is not approval. Review the saved report and its status next.</p><button type="button" onClick={onReports}>View saved reports →</button></div>}
@@ -1352,7 +1367,7 @@ export default function InventoryOperations({
             <p>Upcoming and overdue service for saved equipment schedules. Reminders stay here until an administrator updates Last serviced after completion. Weekly checks are separate.</p>
             <div className="service-reminder-list">{serviceReminders(data.equipment).filter(({ item }) => !unitSearch || `${item.name} ${data.apparatus.find(rig => rig.id === item.apparatus_id)?.name}`.toLowerCase().includes(unitSearch.toLowerCase())).map(({ item, due, reminder, status }) => <article key={value(item, "id")} className="service-reminder" data-status={status}>
               <strong>{value(item, "name")}{item.asset_number ? ` · ID ${item.asset_number}` : ""}</strong><span>{value(data.apparatus.find(rig => rig.id === item.apparatus_id) || {}, "name")} · {value(item, "compartment_label")}</span>
-              <b>{status === "overdue" ? "Overdue" : status === "due" ? "Due today" : "Schedule service"} · {serviceDateLabel(due)}</b><span>Last serviced: {serviceDateLabel(value(item, "last_serviced_date"))}</span><small>Reminder started {serviceDateLabel(reminder)}</small>
+              <b>{status === "overdue" ? "Overdue" : status === "due" ? "Due today" : "Schedule service"} · {serviceDateLabel(due)}</b><span>Last serviced: {serviceDateLabel(value(item, "last_serviced_date"))}</span><small>Reminder {status === "upcoming" ? "starts" : "started"} {serviceDateLabel(reminder)}</small>
               {canSetup ? <button type="button" onClick={() => { openEquipmentEditor(item); if (!item.scba_asset_kind) setEditorSection("asset"); }}>{item.scba_asset_kind ? "Open Air Packs & Bottles" : "Edit service schedule"}</button> : <small>Contact an inventory administrator to update the service record.</small>}
             </article>)}</div>
             {!serviceReminders(data.equipment).length ? <p>No service reminders are due. Set an item’s service schedule under Asset details or Air Packs &amp; Bottles.</p> : null}
@@ -1626,13 +1641,11 @@ export default function InventoryOperations({
       {view === "builder" && canSetup ? (
         <>
         <section ref={builderTopRef} className="ops-card inventory-builder-toolbar">
-          <header><div><span>CHECKLIST WORKSPACE</span><h2>Choose an apparatus, then a task</h2><p>Edit saved templates here. Existing check results and historical reports stay intact.</p></div></header>
-          <div className="inventory-builder-context"><label>Apparatus<select value={selectedApparatusId} onChange={event => {if(confirmLeavingWork())setSelectedApparatusId(event.target.value);}}>{data.apparatus.map(item => <option key={value(item,"id")} value={value(item,"id")}>{value(item,"name")}</option>)}</select></label><label>Checklist<select value={templateType} onChange={event => {if(confirmLeavingWork())setTemplateType(event.target.value);}}>{inspectionTypes.map(([id,label]) => <option key={id} value={id}>{label}</option>)}</select></label></div>
-          <nav className="inventory-task-nav" aria-label="Checklist administration tasks">{[["items","Edit checklist"],["add","Add an item"],["schedules","Due dates & times"],["scba","Air pack template"],["approvals",`Location requests (${pendingLocationChanges.length})`],["preview","Member preview"]].map(([id,label]) => <button type="button" key={id} aria-pressed={builderTask === id} onClick={() => changeBuilderTask(id)}>{label}</button>)}</nav>
-          <p className="inventory-context-note">{selectedApparatus ? value(selectedApparatus,"name") : "Choose an apparatus"} · {inspectionTypes.find(([id]) => id === templateType)?.[1]} · {builderTask === "preview" ? "Read-only saved preview" : "Administrator editing"}</p>
-          {templateType === "weekly" && <p>Weekly checks cover mechanical condition, functional testing, and maintenance. Put carried-equipment counts in Inventory and SCBA checks in Air Packs &amp; Bottles. Saved reports and checks already in progress keep their original items.</p>}
+          <header><h2>Inventory &amp; checklists</h2></header>
+          <div className="inventory-builder-context"><label>Rig<select value={selectedApparatusId} onChange={event => { if(confirmLeavingWork()) { setSelectedApparatusId(event.target.value); setSetupLimit(24); } }}>{data.apparatus.map(item => <option key={value(item,"id")} value={value(item,"id")}>{value(item,"name")}</option>)}</select></label><label>Checklist<select value={templateType} onChange={event => {if(confirmLeavingWork())setTemplateType(event.target.value);}}>{inspectionTypes.map(([id,label]) => <option key={id} value={id}>{label}</option>)}</select></label></div>
+          <nav className="inventory-task-nav" aria-label="Checklist administration tasks">{[["items","Find or edit items"],["add","Add item"],["schedules","Check schedules"],["scba","Air pack setup"],["approvals",`Location requests (${pendingLocationChanges.length})`],["preview","Member preview"]].map(([id,label]) => <button type="button" key={id} aria-pressed={builderTask === id} onClick={() => changeBuilderTask(id)}>{label}</button>)}</nav>
         </section>
-        {templateType === 'weekly' && builderTask === 'items' && data.equipment.filter(item => item.apparatus_id === selectedApparatusId && meterTemplate(item.meter_template)).map(item => <MeterTemplateEditor key={value(item,'id')} item={item} apparatus={value(selectedApparatus || {},'name')} onSave={saveMeterTemplate}/>)}
+        {templateType === "weekly" && builderTask === "items" && selectedEquipment.some(item => meterTemplate(item.meter_template)) && <details className="ops-card"><summary>Gas meter checklist templates</summary>{selectedEquipment.filter(item => meterTemplate(item.meter_template)).map(item => <MeterTemplateEditor key={value(item,"id")} item={item} apparatus={value(selectedApparatus || {},"name")} onSave={saveMeterTemplate} />)}</details>}
         {builderTask === "preview" && !refreshError ? <section className="ops-card inventory-member-preview" aria-label="Read-only member checklist preview"><header><div><span>MEMBER PREVIEW · NO RECORDS CREATED</span><h2>{selectedApparatus ? value(selectedApparatus,"name") : "Apparatus"} · {formatStatus(templateType)}</h2><p>Shows the saved template using the member checklist layout. Unsaved edits are not included. Result controls are disabled; this does not start or complete a check.</p></div><button type="button" onClick={() => changeBuilderTask(templateType === "air_pack" ? "scba" : "items")}>Back to editing</button></header>
           {templateType === "air_pack" ? <div>{selectedScbaTemplate && value(selectedScbaTemplate,"apparatus_id") === selectedApparatusId && selectedScbaTemplate.active !== false ? <fieldset disabled className="inventory-preview-fieldset">{[...(Array.isArray(selectedScbaTemplate.pack_positions) ? selectedScbaTemplate.pack_positions.map((label,index) => ({id:`preview-pack-${index}`,section:"pack",label,result:"pending"})) : []), ...(selectedScbaTemplate.include_rit ? [{id:"preview-rit",section:"rit",label:"R.I.T. bag",result:"pending"}] : []), ...Array.from({length:Number(selectedScbaTemplate.spare_bottle_count || 0)},(_,index) => ({id:`preview-spare-${index}`,section:"spare",label:`Spare bottle ${index+1}`,result:"pending"}))].map(entry => <ScbaEntryEditor key={entry.id} entry={entry} busy={false} canCheck={false} onSave={async()=>false} />)}</fieldset> : <p>No saved air pack template for this apparatus.</p>}</div> : (() => { const items = inventoryPreviewItems(data.equipment,data.compartments,selectedApparatusId,templateType); return items.length ? <div className="check-location-items">{items.map(item => renderActiveItem(item,true))}</div> : <div className="ops-empty"><strong>No items on this saved checklist.</strong><p>Add an item or change its Required check parameters.</p></div>; })()}
         </section> : null}
@@ -1659,7 +1672,7 @@ export default function InventoryOperations({
           </> : <div className="ops-empty"><strong>This apparatus does not use the weekly SCBA template.</strong><p>Choose an eligible rig above. The UTV and 1211 are excluded.</p></div>}
         </section>
         <section className="ops-card" hidden={builderTask !== "add"}>
-          <header><div><span>ADMIN · CHECK PARAMETERS &amp; LOCATIONS</span><h2>Add or edit equipment, its exact location, and required checks</h2></div><b>{data.equipment.length} items</b></header>
+          <header><h2>Add an item</h2></header>
           {!selectedCompartments.length ? <div className="ops-empty"><strong>No compartments configured for this apparatus</strong><p>Create a compartment for {selectedApparatus ? value(selectedApparatus, "name") : "the selected apparatus"} before adding equipment.</p></div> : <form key={`${selectedApparatusId}-${templateType}`} ref={equipmentFormRef} className="ops-form ops-form-wide" onSubmit={(event) => {
             const form = new FormData(event.currentTarget);
             submit(event, "equipment", { action: "create_equipment", compartmentId: form.get("compartmentId"), name: form.get("name"), manufacturer: form.get("manufacturer"), model: form.get("model"), serialNumber: form.get("serialNumber"), barcode: form.get("barcode"), quantityRequired: form.get("quantityRequired"), equipmentCategory: form.get("equipmentCategory"), responseType: form.get("responseType"), checkTypes: form.getAll("checkTypes") });
@@ -1678,23 +1691,21 @@ export default function InventoryOperations({
             <button className="ops-primary" disabled={Boolean(busy)}>Add to Inventory</button>
           </form>}
         </section>
-        <section className="ops-card" hidden={builderTask !== "items"}>
-          <header><div><span>CLICKABLE APPARATUS INVENTORY</span><h2>Edit items, barcodes and photographs</h2></div><b>{selectedEquipment.length} items</b></header>
-          <p>Choose an item to edit its location, quantity, and which checklists include it. Save the item, then use Member preview to verify the saved layout.</p>
-          {!selectedEquipment.some(item => Array.isArray(item.check_types) && item.check_types.includes(templateType)) && <p className="ops-empty">No equipment items are assigned to this checklist. Use Add an item to include one, or open Air pack template for SCBA positions.</p>}
-          <label className="callback-search">Find equipment or compartment<input type="search" value={setupSearch} onChange={event => setSetupSearch(event.target.value)} placeholder="Name, barcode, or compartment…" /></label>
-          <label><input type="checkbox" checked={showAllTemplateItems} onChange={event => setShowAllTemplateItems(event.target.checked)} /> Show all equipment on this apparatus, including other checklists</label>
-          <label><input type="checkbox" checked={duplicatesOnly} onChange={event => setDuplicatesOnly(event.target.checked)} /> Review matching names in the same compartment</label>
-          <p>Matching names may be separate real items. Review quantity, barcode and history before changing anything; nothing is deleted automatically. Open a compartment below to edit its items.</p>
-          {selectedCompartments.map((section) => {
-            const compartmentItems = selectedEquipment.filter((item) => value(item, "compartment_id") === value(section, "id"));
-            const items = compartmentItems.filter(item => (showAllTemplateItems || (Array.isArray(item.check_types) && item.check_types.includes(templateType))) && `${value(item,"name")} ${value(item,"barcode")} ${value(section,"label")}`.toLowerCase().includes(setupSearch.trim().toLowerCase()) && (!duplicatesOnly || compartmentItems.filter(other => value(other,"name").trim().toLowerCase() === value(item,"name").trim().toLowerCase()).length > 1));
-            if (!items.length) return null;
-            return <details className="equipment-section" key={`${value(section, "id")}-${Boolean(setupSearch)}-${duplicatesOnly}`} open={Boolean(setupSearch) || duplicatesOnly}><summary>{value(section, "label")} · {items.length} items</summary><div className="equipment-grid">{items.map((item) => <button type="button" key={value(item, "id")} onClick={() => openEquipmentEditor(item)}>
-              {value(item, "photo_url") ? <img src={value(item, "photo_url")} alt="" /> : <span className="equipment-photo-required">Photo Required</span>}
-              <strong>{value(item, "name")}</strong><small>Qty {value(item, "quantity_required")} · {value(item, "barcode") || "Barcode not assigned"}</small>
-            </button>)}</div></details>;
-          })}
+        <section className="ops-card inventory-admin-list" hidden={builderTask !== "items"}>
+          <header><h2>Inventory items</h2></header>
+          <label>Find an item<input type="search" value={setupSearch} onChange={event => { setSetupSearch(event.target.value); setSetupLimit(24); }} placeholder="Name, location, or barcode" /></label>
+          <details className="inventory-admin-filters"><summary>Item filters</summary>
+            <label><input type="checkbox" checked={!showAllTemplateItems} onChange={event => { setShowAllTemplateItems(!event.target.checked); setSetupLimit(24); }} /> Only items on the selected checklist</label>
+            <label><input type="checkbox" checked={duplicatesOnly} onChange={event => { setDuplicatesOnly(event.target.checked); setSetupLimit(24); }} /> Matching names in the same compartment</label>
+          </details>
+          <div className="inventory-admin-item-list">
+            {setupItems.slice(0, setupLimit).map(item => <article key={value(item, "id")}>
+              <div><h3>{value(item, "name")}</h3><p>{value(item, "compartment_label") || "Location not assigned"} · Qty {value(item, "quantity_required") || "1"}</p></div>
+              <button type="button" aria-label={`Edit ${value(item, "name")}`} onClick={() => openEquipmentEditor(item)}>Edit</button>
+            </article>)}
+          </div>
+          {!setupItems.length && <p>No items match this rig and these filters.</p>}
+          {setupItems.length > setupLimit && <button type="button" onClick={() => setSetupLimit(limit => limit + 24)}>Show more items ({setupItems.length - setupLimit})</button>}
         </section>
         </>
       ) : null}
@@ -1753,8 +1764,41 @@ export default function InventoryOperations({
 
       {view === "service" ? (
         <>
+          {maintenanceMode && <section className="ops-card maintenance-home">
+            <div className="maintenance-home-toolbar">
+              <label>Choose a rig<select value={maintenanceApparatusId} onChange={event => { if (confirmLeavingWork()) { setMaintenanceApparatusId(event.target.value); setWorkOrderDirty(false); } }}>
+                <option value="all">All rigs</option>
+                {data.apparatus.map(item => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")}</option>)}
+              </select></label>
+              <button type="button" className="ops-primary" aria-pressed={repairPath === "work"} onClick={() => changeRepairPath(repairPath === "work" ? null : "work")}>Plan service</button>
+            </div>
+            <nav className="inventory-task-nav" aria-label="Maintenance sections">
+              {([["history", "History"], ["open", "Open work"], ["reminders", "Equipment reminders"]] as const).map(([id, label]) => <button type="button" key={id} aria-pressed={repairPath !== "work" && maintenanceSection === id} onClick={() => { if (confirmLeavingWork()) { setMaintenanceSection(id); setRepairPath(null); setWorkOrderDirty(false); } }}>{label}</button>)}
+            </nav>
+          </section>}
+          {maintenanceMode && repairPath !== "work" && maintenanceSection === "open" && <section className="ops-card">
+            <header><h2>Open work</h2></header>
+            <div className="maintenance-open-list">{maintenanceOrders.filter(openRepair).map(item => <article key={value(item, "id")}>
+              <h3>{value(item, "summary")}</h3><p>{value(item, "apparatus_name")} · {formatStatus(normalizedRepairStatus(item))}</p>
+              {item.details && <p>{value(item, "details")}</p>}
+              <RepairStatusControl item={item} busy={Boolean(busy)} onUpdate={action} />
+              <RepairCompletionForm item={item} busy={Boolean(busy)} onComplete={action} />
+            </article>)}</div>
+            {!maintenanceOrders.some(openRepair) && <p>No open work for this selection.</p>}
+          </section>}
+          {maintenanceMode && repairPath !== "work" && maintenanceSection === "reminders" && <section className="ops-card">
+            <header><h2>Equipment service reminders</h2>{canSetup && <button type="button" onClick={onSetup}>Inventory setup</button>}</header>
+            <p>{canSetup ? "Open an item in Inventory setup to add a reminder." : "Inventory admins can add and edit equipment reminders."}</p>
+            <div className="maintenance-open-list">{maintenanceSchedules.map(({item, due, reminder, status}) => <article key={value(item, "id")}>
+              <h3>{value(item, "name")}</h3>
+              <p>{value(data.apparatus.find(rig => rig.id === item.apparatus_id) || {}, "name")} · {status === "overdue" ? "Overdue" : status === "due" ? "Due today" : "Upcoming"} · {serviceDateLabel(due)}</p>
+              <small>Reminder started {serviceDateLabel(reminder)}</small>
+              {canSetup && <button type="button" onClick={() => openEquipmentEditor(item, "asset")}>{item.scba_asset_kind ? "Open Air Packs & Bottles" : "Edit service schedule"}</button>}
+            </article>)}</div>
+            {!maintenanceSchedules.length && <p>No equipment service schedules for this selection.</p>}
+          </section>}
           {!canManageRepairs && <section className="ops-card"><h2>Need to report a problem?</h2><p>{canCheck ? "During a check, choose Issue on the affected item, add the required note and photo, and choose the employees to assign the in-app notice to." : "You have read-only access. Contact your officer or an inventory administrator to record the problem."} Standalone repair notices and maintenance changes require repair-management access. For urgent safety problems, contact the officer directly using department procedure.</p></section>}
-          {canManageRepairs && !initialRepairNotice && <section className="ops-card"><h2>Start a repair or service request</h2><p>Report a new deficiency to assign employees and create its repair record. Use a work order for planned service or maintenance. For an issue already reported by an inspection, update its existing record below instead.</p><div className="repair-start-actions"><button type="button" className="ops-primary" aria-pressed={repairPath === "notice"} onClick={() => changeRepairPath(repairPath === "notice" ? null : "notice")}>Report a problem</button><button type="button" aria-pressed={repairPath === "work"} onClick={() => changeRepairPath(repairPath === "work" ? null : "work")}>Plan service / maintenance</button></div></section>}
+          {canManageRepairs && !initialRepairNotice && !maintenanceMode && <section className="ops-card"><h2>Start a repair or service request</h2><p>Report a new deficiency to assign employees and create its repair record. Use a work order for planned service or maintenance. For an issue already reported by an inspection, update its existing record below instead.</p><div className="repair-start-actions"><button type="button" className="ops-primary" aria-pressed={repairPath === "notice"} onClick={() => changeRepairPath(repairPath === "notice" ? null : "notice")}>Report a problem</button><button type="button" aria-pressed={repairPath === "work"} onClick={() => changeRepairPath(repairPath === "work" ? null : "work")}>Plan service / maintenance</button>{onMaintenance && <button type="button" onClick={onMaintenance}>Maintenance history &amp; reminders</button>}</div></section>}
           {canManageRepairs && repairPath === "notice" ? <section className={`ops-card${initialRepairNotice ? " crew-writeup-form" : ""}`}>
             <header><h2>Write up a problem</h2></header>
             {!data.apparatus.length ? <div className="ops-empty"><strong>No apparatus added</strong><button onClick={onSetup}>Build Fleet &amp; Inventory</button></div> : <form className="ops-form ops-form-wide" onChange={() => setNoticeSaveState("unsaved")} onSubmit={(event) => {
@@ -1796,12 +1840,19 @@ export default function InventoryOperations({
           </section> : null}
           {!initialRepairNotice && <>
           {canManageRepairs && repairPath === "work" ? <section className="ops-card maintenance-work-order-create">
-            <header><div><span>NEW APPARATUS WORK ORDER</span><h2>Record repair or preventive maintenance</h2></div></header>
-            <form className="ops-form ops-form-wide" onSubmit={(event) => {
-              const form = new FormData(event.currentTarget);
-              submit(event, "apparatus-work-order", { action: "create_work_order", apparatusId: form.get("apparatusId"), priority: form.get("priority"), serviceType: form.get("serviceType"), odometer: form.get("odometer"), summary: form.get("summary"), details: form.get("details"), assignedTo: form.get("assignedTo") });
+            <header><h2>Plan service</h2>{maintenanceMode && <button type="button" onClick={() => changeRepairPath(null)}>Cancel</button>}</header>
+            <form key={maintenanceMode ? maintenanceApparatusId : "service"} className="ops-form ops-form-wide" onChange={() => setWorkOrderDirty(true)} onSubmit={event => {
+              event.preventDefault();
+              const element = event.currentTarget;
+              const form = new FormData(element);
+              void action("apparatus-work-order", { action: "create_work_order", apparatusId: form.get("apparatusId"), priority: form.get("priority"), serviceType: form.get("serviceType"), odometer: form.get("odometer"), summary: form.get("summary"), details: form.get("details"), assignedTo: form.get("assignedTo") }).then(saved => {
+                if (!saved) return;
+                setWorkOrderDirty(false);
+                element.reset();
+                if (maintenanceMode) { setRepairPath(null); setMaintenanceSection("open"); }
+              });
             }}>
-              <label>Apparatus<select name="apparatusId" required>{data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")}</option>)}</select></label>
+              <label>Rig<select name="apparatusId" defaultValue={maintenanceMode && maintenanceApparatusId !== "all" ? maintenanceApparatusId : undefined} required>{data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")}</option>)}</select></label>
               <label>Service type<select name="serviceType" defaultValue="preventive"><option value="inspection">Inspection</option><option value="preventive">Preventive maintenance</option><option value="repair">Repair</option><option value="recall">Recall</option><option value="tires">Tires</option><option value="fluids">Fluids</option><option value="electrical">Electrical</option><option value="body">Body</option><option value="other">Other</option></select></label>
               <label>Priority<select name="priority" defaultValue="routine"><option value="routine">Routine</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select></label>
               <label>Current mileage / odometer<input name="odometer" type="number" min="0" step="1" /></label>
@@ -1811,7 +1862,7 @@ export default function InventoryOperations({
               <button className="ops-primary" disabled={Boolean(busy)}>Open work order</button>
             </form>
           </section> : null}
-          <section className="ops-card assigned-repairs">
+          {!maintenanceMode && <><section className="ops-card assigned-repairs">
             <header><div><span>MY ASSIGNED REPAIRS</span><h2>Repairs assigned to this employee</h2></div><b>{myOpenRepairs.length} open</b></header>
             {myOpenRepairs.length ? <div className="ops-list">{myOpenRepairs.map((item) => <article key={value(item, "id")}><div><strong>{value(item, "summary")}</strong><small>{value(item, "apparatus_name")} · Opened {formatDate(item.opened_at)}</small></div><span className={`priority-${value(item, "priority")}`}>{value(item, "priority")} · {formatStatus(normalizedRepairStatus(item))}</span><p>{value(item, "details")}</p>{canManageRepairs ? <><RepairStatusControl item={item} busy={Boolean(busy)} onUpdate={action} /><RepairCompletionForm item={item} busy={Boolean(busy)} onComplete={action} /></> : null}</article>)}</div> : <div className="ops-empty"><strong>No repairs assigned to you</strong><p>Open notices assigned to this employee will appear here and on the home page.</p></div>}
           </section>
@@ -1837,13 +1888,14 @@ export default function InventoryOperations({
               return <section key={stage} className={`repair-column stage-${stage}`}><header><strong>{label}</strong><span>{stageItems.length}</span></header>{stageItems.length ? stageItems.map((item) => <article key={value(item, "id")}><div><strong>{value(item, "summary")}</strong><small>{value(item, "apparatus_name")} · Opened {formatDate(item.opened_at)}</small></div><span className={`priority-${value(item, "priority")}`}>{formatStatus(item.priority)}</span>{value(item, "details") ? <p>{value(item, "details")}</p> : null}{Array.isArray(item.assigned_employee_names) && item.assigned_employee_names.length ? <small>Assigned to {item.assigned_employee_names.join(", ")}</small> : null}{stage === "closed" ? <p>Repaired {value(item, "repair_date")} · Cost {recordedRepairCost(item.repair_cost)}{value(item, "vendor") ? ` · ${value(item, "vendor")}` : ""}<br />{value(item, "resolution_notes")}</p> : canManageRepairs ? <><RepairStatusControl item={item} busy={Boolean(busy)} onUpdate={action} /><RepairCompletionForm item={item} busy={Boolean(busy)} onComplete={action} /></> : null}</article>) : <p className="repair-column-empty">No repairs</p>}</section>;
             })}</div> : <div className="ops-empty"><strong>{data.workOrders.length ? "No repairs match these filters" : "No repair records yet"}</strong><p>{data.workOrders.length ? "Change the apparatus, status, or priority, or reset to open repairs." : "Failed inspections and assigned repair notices create records automatically."}</p></div>}
           </section>
-          <section className="ops-card apparatus-maintenance-history">
-            <header><div><span>PERMANENT APPARATUS RECORD</span><h2>Maintenance history, service tickets, and receipts</h2><p>Filter by apparatus to review every repair, who performed it, costs, parts, mileage, and uploaded documents.</p></div><b>{maintenanceOrders.length} records</b></header>
-            <label className="maintenance-apparatus-filter">Apparatus<select value={maintenanceApparatusId} onChange={(event) => setMaintenanceApparatusId(event.target.value)}><option value="all">All apparatus</option>{data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")}</option>)}</select></label>
-            {maintenanceOrders.length ? <div className="maintenance-timeline">{maintenanceOrders.map((item) => {
+          </>}
+          {(!maintenanceMode || maintenanceSection === "history" && repairPath !== "work") && <section className="ops-card apparatus-maintenance-history">
+            <header><div><span>PERMANENT APPARATUS RECORD</span><h2>Maintenance history</h2><p>Filter by apparatus to review every repair, who performed it, costs, parts, mileage, and uploaded documents.</p></div><b>{visibleMaintenanceHistory.length} records</b></header>
+            {!maintenanceMode && <label className="maintenance-apparatus-filter">Apparatus<select value={maintenanceApparatusId} onChange={(event) => setMaintenanceApparatusId(event.target.value)}><option value="all">All apparatus</option>{data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")}</option>)}</select></label>}
+            {visibleMaintenanceHistory.length ? <div className="maintenance-timeline">{visibleMaintenanceHistory.map((item) => {
               const orderId = value(item, "id");
               const documents = documentsForOrder(orderId);
-              return <article key={orderId} className={value(item, "status") === "closed" ? "completed" : "open"}>
+              return <details key={orderId} className="maintenance-record-details" open={maintenanceMode ? undefined : true}><summary>{value(item, "summary")}<small>{value(item, "apparatus_name")} · {item.repair_date ? serviceDateLabel(value(item, "repair_date")) : formatDate(item.opened_at)}</small>{item.next_service_due_date && <small>Next service {serviceDateLabel(value(item, "next_service_due_date"))}</small>}</summary><article className={value(item, "status") === "closed" ? "completed" : "open"}>
                 <header><div><span>{formatStatus(item.service_type) || "Repair"}</span><h3>{value(item, "apparatus_name")} · {value(item, "summary")}</h3><small>Opened {formatDate(item.opened_at)} by {value(item, "opened_by") || "Not recorded"}</small></div><b>{formatStatus(item.status)}</b></header>
                 <p>{value(item, "details") || value(item, "resolution_notes") || "No service detail recorded."}</p>
                 <dl><div><dt>Work performed by</dt><dd>{value(item, "performed_by") || value(item, "vendor") || value(item, "assigned_to") || "Not recorded"}</dd></div><div><dt>Service date</dt><dd>{value(item, "repair_date") || "Open"}</dd></div><div><dt>Odometer</dt><dd>{value(item, "odometer") ? Number(item.odometer).toLocaleString() : "Not recorded"}</dd></div><div><dt>Labor</dt><dd>{value(item, "labor_hours") ? `${value(item, "labor_hours")} hours` : "Not recorded"}</dd></div><div><dt>Cost</dt><dd>{recordedRepairCost(item.repair_cost)}</dd></div><div><dt>Invoice / PO</dt><dd>{value(item, "invoice_number") || "Not recorded"}</dd></div><div><dt>Next service</dt><dd>{value(item, "next_service_due_date") || "Not scheduled"}{value(item, "next_service_due_mileage") ? ` · ${Number(item.next_service_due_mileage).toLocaleString()} miles` : ""}</dd></div></dl>
@@ -1858,9 +1910,9 @@ export default function InventoryOperations({
                   const formElement = event.currentTarget;
                   void uploadMaintenanceDocument(orderId, file, String(form.get("documentType") || "other"), String(form.get("note") || "")).then(() => formElement.reset()).catch((caught) => setError(caught instanceof Error ? caught.message : "The service document could not be saved.")).finally(() => setBusy(""));
                 }}><select name="documentType" aria-label="Document type"><option value="service_ticket">Service ticket</option><option value="receipt">Receipt</option><option value="invoice">Invoice</option><option value="warranty">Warranty</option><option value="inspection">Inspection</option><option value="photo">Photo</option><option value="other">Other</option></select><input name="file" type="file" accept="application/pdf,image/*" aria-label="Choose service document" required /><input name="note" placeholder="Optional document note" aria-label="Document note" /><button disabled={Boolean(busy)}>Upload document</button></form> : null}</div>
-              </article>;
+              </article></details>;
             })}</div> : <div className="ops-empty"><strong>No maintenance history for this apparatus.</strong><p>Create a repair or preventive maintenance work order to begin its permanent record.</p></div>}
-          </section>
+          </section>}
           {selectedMaintenanceOrder ? <section className="ops-card maintenance-ticket-print-host">
             <header><div><span>STICKNEY FIRE DEPARTMENT · APPARATUS SERVICE TICKET</span><h2>{value(selectedMaintenanceOrder, "apparatus_name")} · {value(selectedMaintenanceOrder, "summary")}</h2></div><button type="button" onClick={() => setSelectedMaintenanceOrder(null)}>Close</button></header>
             <div className="report-metadata"><span><b>Ticket ID</b>{value(selectedMaintenanceOrder, "id")}</span><span><b>Service type</b>{formatStatus(selectedMaintenanceOrder.service_type)}</span><span><b>Status</b>{formatStatus(selectedMaintenanceOrder.status)}</span><span><b>Opened</b>{formatDate(selectedMaintenanceOrder.opened_at)}</span><span><b>Service date</b>{value(selectedMaintenanceOrder, "repair_date") || "Pending"}</span><span><b>Performed by</b>{value(selectedMaintenanceOrder, "performed_by") || value(selectedMaintenanceOrder, "vendor") || "Not recorded"}</span><span><b>Odometer</b>{value(selectedMaintenanceOrder, "odometer") || "Not recorded"}</span><span><b>Labor</b>{value(selectedMaintenanceOrder, "labor_hours") ? `${value(selectedMaintenanceOrder, "labor_hours")} hours` : "Not recorded"}</span><span><b>Cost</b>{recordedRepairCost(selectedMaintenanceOrder.repair_cost)}</span><span><b>Invoice / PO</b>{value(selectedMaintenanceOrder, "invoice_number") || "Not recorded"}</span></div>
@@ -2110,9 +2162,8 @@ export default function InventoryOperations({
             })();
           }}>
             <header><div><span>EDIT INVENTORY ITEM</span><h3>{value(editingEquipment, "name")}</h3></div><button type="button" onClick={() => setEditingEquipment(null)}>Cancel</button></header>
-            <p className="inventory-editor-help">Change the fields you need, then save. Switching sections keeps your unsaved edits.</p>
-            <nav className="inventory-task-nav" aria-label="Equipment editing sections">{[["basics","1 · Item & location"],["checks","2 · Check requirements"],["asset","3 · Asset details"]].map(([id,label]) => <button key={id} type="button" aria-pressed={editorSection === id} onClick={() => setEditorSection(id)}>{label}</button>)}</nav>
-            {value(editingEquipment, "photo_url") ? <img className="equipment-editor-photo" src={value(editingEquipment, "photo_url")} alt={value(editingEquipment, "name")} /> : null}
+            <nav className="inventory-task-nav" aria-label="Equipment editing sections">{[["basics","Item & location"],["checks","Checklists"],["asset","Service & details"]].map(([id,label]) => <button key={id} type="button" aria-pressed={editorSection === id} onClick={() => setEditorSection(id)}>{label}</button>)}</nav>
+            {editorSection === "asset" && value(editingEquipment, "photo_url") ? <img className="equipment-editor-photo" src={value(editingEquipment, "photo_url")} alt={value(editingEquipment, "name")} /> : null}
             <div className="ops-form ops-form-wide inventory-editor-group" data-editor-section="basics" hidden={editorSection !== "basics"}>
               <label>Apparatus and compartment<select name="compartmentId" defaultValue={value(editingEquipment, "compartment_id")}>{data.apparatus.flatMap((apparatus) => data.compartments.filter((item) => value(item, "apparatus_id") === value(apparatus, "id")).map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(apparatus, "name")} · {value(item, "label")}</option>))}</select></label>
               <label>Item name<input name="name" defaultValue={value(editingEquipment, "name")} required /></label>
@@ -2158,7 +2209,7 @@ export default function InventoryOperations({
             <div className="inventory-editor-footer">
               <button className="ops-scan-button" type="button" onClick={() => { setScannerTarget("edit"); setScannerOpen(true); }}>Scan barcode</button>
               <button className="ops-primary" disabled={Boolean(busy)}>Save item</button>
-              {view === "builder" && <button className="ops-primary" data-preview="true" disabled={Boolean(busy)}>Save &amp; preview</button>}
+              {view === "builder" && <button data-preview="true" disabled={Boolean(busy)}>Save &amp; preview</button>}
               {canSetup ? <button type="button" disabled={Boolean(busy)} style={{ color: "#b42318", borderColor: "#b42318", background: "#fff" }} onClick={() => {
                 if (!window.confirm(`Delete "${value(editingEquipment, "name")}" from active inventory? Inspection and service history will be retained.`)) return;
                 void action("delete-equipment", { action: "delete_equipment", equipmentId: value(editingEquipment, "id"), confirmed: true }).then((saved) => {
@@ -2262,7 +2313,7 @@ function RepairCompletionForm({
       <label>Next service mileage<input name="nextServiceDueMileage" type="number" min="0" step="1" /></label>
       <label className="ops-span-2">Parts and materials<textarea name="partsUsed" rows={2} /></label>
       <label className="ops-span-2">Repair details<textarea name="resolutionNotes" rows={3} required /></label>
-      <button disabled={busy}>Mark repaired and clear Live Ops issue</button>
+      <button className="ops-primary" disabled={busy}>Save completed work</button>
     </form></details>
   );
 }

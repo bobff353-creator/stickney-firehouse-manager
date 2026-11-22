@@ -406,3 +406,109 @@
   line-height: 1.15;
   font-variant-numeric: tabular-nums;
 }
+/* Keep inspection and repair text paired with its actual surface. */
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow .inventory-ops :is(.crew-check-runner, .crew-writeup-form, .deficiency-panel) :is(input, select, textarea):not([type=checkbox],[type=radio],[type=hidden]) {
+  min-height: 44px;
+  border-color: var(--crew-line);
+  background: var(--crew-card);
+  color: var(--crew-ink);
+  color-scheme: light dark;
+  font-size: 16px;
+}
+
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow .inventory-ops :is(.crew-check-runner, .crew-writeup-form, .deficiency-panel) :is(input, textarea)::placeholder {
+  color: var(--crew-muted);
+  opacity: 1;
+}
+
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow .inventory-ops :is(.crew-writeup-form, .deficiency-panel) :is(label, legend, summary) {
+  color: var(--crew-ink);
+  font-size: 15px;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow .inventory-ops :is(.crew-writeup-form, .deficiency-panel) :is(.employee-notify-picker, .employee-notify-directory, .employee-notify-roster label, .ops-check-grid) {
+  border-color: var(--crew-line);
+  background: var(--crew-soft);
+  color: var(--crew-ink);
+}
+
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow .inventory-ops :is(.crew-writeup-form, .deficiency-panel) :is(.employee-notify-summary span, .employee-notify-tools label span, .employee-notify-directory small, .employee-notify-picker p) {
+  color: var(--crew-muted);
+}
+
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow .inventory-ops .deficiency-panel {
+  background: var(--crew-card);
+  border-color: var(--crew-line);
+  color: var(--crew-ink);
+}
+
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow .inventory-ops .deficiency-panel :is(h3, p) {
+  color: var(--crew-ink);
+}
+
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow .inventory-ops :is(.crew-check-runner, .crew-writeup-form, .deficiency-panel) button {
+  min-height: 44px;
+  font-size: 15px;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow .inventory-ops .crew-check-runner .check-row .check-item-copy > strong {
+  font-size: 17px;
+  line-height: 1.4;
+}
+
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow .inventory-ops .crew-check-runner :is(.scba-check-guidance, .scba-entry) {
+  color: var(--crew-ink);
+  background: var(--crew-card);
+}
+
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow .inventory-ops .crew-check-runner :is(.scba-check-guidance strong, .scba-check-section h3, .scba-entry h4, .scba-entry label, .check-completion-bar strong) {
+  color: var(--crew-ink);
+}
+
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow .inventory-ops .crew-check-runner :is(.scba-check-section header span, .scba-check-guidance span, .scba-entry header span, .scba-entry footer small, .check-completion-bar p, .check-completion-bar small) {
+  color: var(--crew-muted);
+}
+
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow .inventory-ops .crew-check-runner :is(.scba-entry label, .scba-check-guidance span, .scba-entry footer small) {
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+@media (max-width: 600px) {
+  .inventory-app-shell.inventory-portal-refresh.inventory-crew-flow .crew-writeup-form .ops-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .inventory-app-shell.inventory-portal-refresh.inventory-crew-flow .crew-writeup-form .ops-form > * {
+    grid-column: 1;
+    min-width: 0;
+  }
+  .inventory-app-shell.inventory-portal-refresh.inventory-crew-flow .crew-check-runner .check-actions {
+    justify-content: start;
+  }
+  .inventory-app-shell.inventory-portal-refresh.inventory-crew-flow .crew-check-runner .check-actions button {
+    min-width: 54px;
+  }
+}
+/* The shared employee picker has important legacy rules for its search field. */
+.inventory-crew-flow :is(.crew-writeup-form, .deficiency-panel) .employee-notify-tools {
+  background: var(--crew-soft);
+  border-color: var(--crew-line);
+}
+
+.inventory-crew-flow :is(.crew-writeup-form, .deficiency-panel) .employee-notify-tools > label {
+  color: var(--crew-ink) !important;
+  font-size: 15px !important;
+  text-transform: none !important;
+}
+
+.inventory-crew-flow :is(.crew-writeup-form, .deficiency-panel) .employee-notify-tools input {
+  min-height: 44px !important;
+  background: var(--crew-card) !important;
+  color: var(--crew-ink) !important;
+  border-color: var(--crew-line) !important;
+  font-size: 16px !important;
+}

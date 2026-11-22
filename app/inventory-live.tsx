@@ -23,7 +23,7 @@ import {
   useState,
 } from "react";
 
-type View = "due" | "fleet" | "inventory" | "check" | "equipment" | "air" | "reports" | "readiness" | "service" | "stock" | "setup";
+type View = "due" | "fleet" | "inventory" | "check" | "equipment" | "air" | "reports" | "readiness" | "service" | "maintenance" | "stock" | "setup";
 type LoadState = "loading" | "ready" | "unavailable";
 type FleetFilter = "all" | "in-service" | "out-impaired" | "digital-twins";
 
@@ -56,6 +56,7 @@ const workspaceCopy: Record<View, { eyebrow: string; title: string; description:
   air: { eyebrow: "AIR EQUIPMENT", title: "Air Packs & Bottles", description: "Individual IDs, locations, weekly checks, and maintenance history." },
   reports: { eyebrow: "COMPLETED WORK", title: "Reports & approvals", description: "Review, approve, print, or email completed checks." },
   readiness: { eyebrow: "READINESS EXCEPTIONS", title: "Items needing attention", description: "Review saved equipment problems and connected inventory updates." },
+  maintenance: { eyebrow: "ADMINISTRATION", title: "Maintenance", description: "Plan work, review history, and manage equipment service reminders by rig." },
   service: { eyebrow: "SERVICE & REPAIRS", title: "Repair records", description: "Report, assign, document, and close fleet repairs." },
   stock: { eyebrow: "MEDICATIONS & SUPPLIES", title: "Meds & stock", description: "Track quantities, lots, expiration dates, and restocking." },
   setup: { eyebrow: "ADMINISTRATION", title: "Build & templates", description: "Manage apparatus, compartments, equipment, schedules, and check templates." },
@@ -300,7 +301,7 @@ function Icon({ children }: { children: React.ReactNode }) {
   return <span className="icon" aria-hidden="true">{children}</span>;
 }
 
-function InventoryNavIcon({ view }: { view: Exclude<View, "setup" | "readiness" | "check"> }) {
+function InventoryNavIcon({ view }: { view: Exclude<View, "setup" | "readiness" | "check" | "maintenance"> }) {
   const common = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   return <svg className="inventory-nav-icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" {...common}>
     {view === "due" ? <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2M8 3l-2 2M16 3l2 2"/></> : null}
@@ -441,6 +442,7 @@ export default function Inventory360({
       setView("setup");
     } else if (canSetup && initialAdminTask === "equipment") setView("equipment");
     else if (canManageRepairs && initialAdminTask === "service") setView("service");
+    else if (canManageRepairs && initialAdminTask === "maintenance") setView("maintenance");
   }, [access.verified, canSetup, canManageRepairs, initialAdminTask, setView]);
 
   const loadTwin = useCallback(async (
@@ -613,7 +615,8 @@ export default function Inventory360({
   const activeDepartmentName = suite.department?.name || departmentName;
   const activeWorkspace = workspaceCopy[view];
   const crewWriteup = view === "service" && startRepairNotice && canManageRepairs;
-  const crewFlow = view === "due" || view === "check" || crewWriteup;
+  const adminFlow = view === "setup" && canSetup || view === "maintenance" && canManageRepairs;
+  const crewFlow = view === "due" || view === "check" || crewWriteup || adminFlow;
   const today = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "America/Chicago" }).format(new Date());
   const checksInProgress = fleetOperations.checks.filter((check) => check.status === "in_progress").length;
 
@@ -652,7 +655,7 @@ export default function Inventory360({
 
   if (!access.confirmation || access.confirmation.required) return <main className="inventory-app-shell"><RequiredConfirmation status={access.confirmation}/><Link href="/?page=respond&display=portal">Open Respond</Link></main>;
   return (
-    <WorkspaceViewMemory key={access.identity}><main className={`inventory-app-shell inventory-portal-refresh${crewFlow ? " inventory-crew-flow" : ""}${view === "check" ? " inventory-task-focused" : ""}${view === "due" ? " inventory-due-focused" : ""}`}><TaskQueueReturn/>
+    <WorkspaceViewMemory key={access.identity}><main className={`inventory-app-shell inventory-portal-refresh${crewFlow ? " inventory-crew-flow" : ""}${adminFlow ? " inventory-admin-flow" : ""}${view === "check" ? " inventory-task-focused" : ""}${view === "due" ? " inventory-due-focused" : ""}`}><TaskQueueReturn/>
       <header className="topbar">
         <PortalModuleMenu permissions={permissions} currentPage="Inventory" departmentName={activeDepartmentName}/>
         <button className="brand" onClick={() => setView("due")} aria-label="Apparatus and checks home">
@@ -695,6 +698,10 @@ export default function Inventory360({
           <h1 id="inventory-workspace-title" className="crew-visually-hidden">{crewWriteup ? "Repair notice" : "Apparatus check"}</h1>
           <button className="rig-check-back" type="button" onClick={() => setView("due")}>← Back to due checks</button>
         </>}
+        {adminFlow && <div className="inventory-due-toolbar crew-due-title">
+          <div><button type="button" className="rig-check-back" onClick={() => setView("due")}>← Back to checks</button><h1 id="inventory-workspace-title">{view === "setup" ? "Inventory setup" : "Maintenance"}</h1></div>
+          <button type="button" onClick={refreshWorkspace}><InventoryWorkIcon name="refresh" />Refresh</button>
+        </div>}
         {!crewFlow && <>
           <button className="inventory-command-back" type="button" onClick={() => setView("due")}>← Back to apparatus &amp; checks</button>
           <div className="inventory-command-hero">
@@ -752,6 +759,10 @@ export default function Inventory360({
                 {permissions.includes("operations_board.view") && <a href={portalPageUrl("/", "", "Operations Board")}>Live Operations Board</a>}
                 <a href={portalPageUrl("/", "", "Dashboard")}>Portal home</a>
               </nav>
+              {(canSetup || canManageRepairs) && <nav className="inventory-admin-shortcuts" aria-label="Inventory administration">
+                {canSetup && <button type="button" onClick={() => setView("setup")}>Inventory setup</button>}
+                {canManageRepairs && <button type="button" onClick={() => setView("maintenance")}>Maintenance</button>}
+              </nav>}
               <div className="inventory-secondary-tools">{departmentSummary}{moreInventoryTools}</div>
             </>}
             canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup}
@@ -1002,7 +1013,7 @@ export default function Inventory360({
               <p>Repair notices appear on assigned employee home pages and Live Ops until the repair is completed.</p>
             </div>
           </div>}
-          <InventoryOperations onRecords={receiveOperations} key={crewWriteup ? "writeup" : "repairs"} view="service" initialApparatusId={selectedApparatusId} initialRepairNotice={crewWriteup} onRepairs={() => setView("service")} initialWorkOrderId={initialWorkOrderId} onSetup={() => setView("setup")} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+          <InventoryOperations onRecords={receiveOperations} key={crewWriteup ? "writeup" : "repairs"} view="service" initialApparatusId={selectedApparatusId} initialRepairNotice={crewWriteup} onMaintenance={canManageRepairs ? () => setView("maintenance") : undefined} onRepairs={() => setView("service")} initialWorkOrderId={initialWorkOrderId} onSetup={() => setView("setup")} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
         </section>
       ) : null}
 
@@ -1019,30 +1030,21 @@ export default function Inventory360({
         </section>
       ) : null}
 
+      {view === "maintenance" && canManageRepairs && <section className="page inventory-check-page">
+        <InventoryOperations view="service" maintenanceMode initialApparatusId={selectedApparatusId} onAir={() => setView("air")} onSetup={() => setView("setup")} onRepairs={() => setView("service")} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+      </section>}
+
       {view === "setup" && canSetup ? (
         <section className="setup-page">
           <header className="setup-intro">
-            <div className="setup-intro-topline">
-              <button onClick={() => setView("fleet")}>← Back to fleet</button>
-              <span className="eyebrow">ADMINISTRATOR · VEHICLE CHECKS &amp; INVENTORY</span>
-            </div>
-            <div className="setup-intro-summary">
-              <div>
-                <h1>Configuration workspace</h1>
-                <p>Choose one task area at a time. Update apparatus and locations, or manage the checklists and equipment assigned to them.</p>
-              </div>
-              <div className="setup-source-summary" aria-label="Configuration source status">
-                <article><span>DEPARTMENT FLEET</span><strong>{suite.apparatus.length}</strong><small>saved units</small></article>
-                <article><span>INVENTORY RECORDS</span><strong>{twinState === "ready" ? twinData.apparatus.length : "—"}</strong><small>{twinState === "ready" ? "connected" : twinState === "loading" ? "checking" : "unavailable"}</small></article>
-              </div>
-            </div>
             <nav className="setup-workspace-tabs" aria-label="Administrator configuration workspaces">
-              <button type="button" className={setupWorkspace === "apparatus" ? "active" : ""} aria-current={setupWorkspace === "apparatus" ? "page" : undefined} onClick={() => setSetupWorkspace("apparatus")}>
-                <span>1</span><b>Apparatus &amp; locations</b><small>Identity, status, VIN, compartments, photos, and hotspots</small>
+              <button type="button" className={setupWorkspace === "apparatus" ? "active" : ""} aria-current={setupWorkspace === "apparatus" ? "page" : undefined} onClick={() => { if (confirmLeavingWork()) setSetupWorkspace("apparatus"); }}>
+                <b>Apparatus &amp; locations</b><small>Identity, status, VIN, compartments, photos, and hotspots</small>
               </button>
-              <button type="button" className={setupWorkspace === "checks" ? "active" : ""} aria-current={setupWorkspace === "checks" ? "page" : undefined} onClick={() => setSetupWorkspace("checks")}>
-                <span>2</span><b>Checks &amp; equipment</b><small>Schedules, checklist inclusion, quantities, assets, and approvals</small>
+              <button type="button" className={setupWorkspace === "checks" ? "active" : ""} aria-current={setupWorkspace === "checks" ? "page" : undefined} onClick={() => { if (confirmLeavingWork()) setSetupWorkspace("checks"); }}>
+                <b>Checks &amp; equipment</b><small>Schedules, checklist inclusion, quantities, assets, and approvals</small>
               </button>
+              {canManageRepairs && <button type="button" onClick={() => setView("maintenance")}><b>Maintenance</b><small>History, work orders, and reminders</small></button>}
             </nav>
           </header>
           <div className="capture-workspace">
@@ -1084,7 +1086,7 @@ export default function Inventory360({
           ["service", "Repairs"],
           ["reports", "Reports"],
           ["stock", "Stock"],
-        ] as [Exclude<View, "setup" | "readiness" | "check">, string][])).map(([id, label]) => (
+        ] as [Exclude<View, "setup" | "readiness" | "check" | "maintenance">, string][])).map(([id, label]) => (
           <button
             key={id}
             className={view === id || (view === "check" && id === "fleet") ? "active" : ""}

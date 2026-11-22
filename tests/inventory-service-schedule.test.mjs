@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { addServiceMonths, serviceDates, serviceScheduleInput, serviceReminders, serviceToday } from '../app/inventory-service-schedule.ts';
+import { addServiceMonths, equipmentServiceSchedules, serviceDates, serviceScheduleInput, serviceReminders, serviceToday } from '../app/inventory-service-schedule.ts';
 const scheduled = (changes={}) => ({last_serviced_date:'2025-12-31',service_interval_months:12,service_reminder_months:3,...changes});
 
 test('calendar intervals cover requested presets, month ends, and leap years',()=>{
@@ -41,4 +41,15 @@ test('API whitelists schedule, scopes save and confirms affected row',()=>{
  const source=fs.readFileSync(new URL('../app/api/operations/route.ts',import.meta.url),'utf8');
  const block=source.split('if (action === "update_equipment")')[1].split('if (action === "review_check")')[0];
  assert.match(block,/serviceScheduleInput/); assert.match(block,/expectedUpdatedAt/); assert.match(block,/\.eq\("department_id", departmentId\)/); assert.match(block,/\.select\("id"\)\.maybeSingle\(\)/); assert.match(block,/if \(!saved\)/); assert.match(block,/changed: false/);
+});
+
+test("maintenance shows future equipment schedules before their Due Now reminder starts", () => {
+  const future = { id: "future", ...scheduled() };
+  const due = { id: "due", ...scheduled({ service_interval_months: 8, service_reminder_months: 1 }) };
+  const retired = { id: "retired", ...scheduled({ retired_at: "2026-01-01" }) };
+  const equipment = [future, retired, due];
+  assert.deepEqual(equipmentServiceSchedules(equipment, "2026-08-29").map(({ item, status }) => [item.id, status]), [
+    ["due", "schedule"], ["future", "upcoming"],
+  ]);
+  assert.deepEqual(serviceReminders(equipment, "2026-08-29").map(({ item }) => item.id), ["due"]);
 });

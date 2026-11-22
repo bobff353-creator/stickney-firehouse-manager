@@ -16,12 +16,14 @@ import '../../app/inventory/layout-fit.css';
 import '../../app/readability.css';
 import '../../app/inventory/readability.css';
 import '../../app/inventory/rig-checks.css';
+import '../../app/inventory/watchline-admin.css';
 import { chicagoCalendarDate } from '../../app/lib/fleet-projections';
 
 const rig={id:'fixture-engine',name:'Preview Engine',asset_type:'engine',status:'in_service'};
 const location={id:'fixture-cabinet',apparatus_id:rig.id,label:'Driver side · rear equipment cabinet',side:'driver',sort_order:1};
 const item={id:'fixture-radio',apparatus_id:rig.id,compartment_id:location.id,compartment_label:location.label,name:'Portable radio with spare battery and charging cable',quantity_required:2,check_types:['daily','inventory'],equipment_category:'equipment',response_type:'pass_fail',service_status:'in_service',barcode:'PREVIEW-ONLY',manufacturer:'Test',model:'Fixture',item_order:1};
 const equipment=[item,{...item,id:'fixture-mileage',name:'Current mileage / odometer',response_type:'mileage',quantity_required:1,item_order:0}];
+Object.assign(equipment[0],{last_serviced_date:chicagoCalendarDate(Date.now()-40*86400000),service_interval_months:1,service_reminder_months:0});
 const checks=[{id:'fixture-check',apparatus_id:rig.id,apparatus_name:rig.name,check_type:'daily',status:'in_progress',started_at:new Date().toISOString(),started_by:'Preview crew'}];
 const data={configured:true,apparatus:[rig,{...rig,id:'fixture-ambulance',name:'Preview Ambulance',asset_type:'ambulance'}],compartments:[location],equipment,retiredEquipment:[],checks,checkItems:equipment.map(e=>({...e,id:`result-${e.id}`,equipment_id:e.id,equipment_name:e.name,check_id:checks[0].id,result:'pending'})),exceptions:[],workOrders:[],workOrderDocuments:[],inspectionSchedules:[{id:'fixture-schedule',apparatus_id:rig.id,apparatus_name:rig.name,check_type:'daily',day_of_week:new Date(`${chicagoCalendarDate(Date.now())}T12:00:00Z`).getUTCDay(),start_time:'06:00',end_time:'12:00',active:true,require_officer_signoff:true}],stock:[],restockRequests:[],locationChanges:[],scbaTemplates:[{id:'fixture-scba',apparatus_id:rig.id,active:true,pack_positions:['Officer seat','Rear seat'],include_rit:true,spare_bottle_count:1}],scbaEntries:[]};
 let writes=0;
@@ -47,6 +49,17 @@ window.fetch=async(input,init)=>{
   if(body.action==='update_equipment'){const target=data.equipment.find(e=>e.id===body.equipmentId)!;Object.assign(target,{name:body.name,quantity_required:Number(body.quantityRequired),check_types:body.checkTypes,response_type:body.responseType,barcode:body.barcode});return Response.json({ok:true});}
   if(body.action==='record_check_item'){if(audit.emptySave){audit.emptySave=false;return Response.json({checkItems:[]});}const target=data.checkItems.find(e=>e.id===body.checkItemId)!;Object.assign(target,{result:body.result,numeric_reading:body.numericReading,checked_at:new Date().toISOString(),checked_by:'Preview member'});return Response.json({checkItems:[target]});}
   if(body.action==='complete_check'){Object.assign(data.checks[0],{status:'completed',review_status:'pending',completed_at:new Date().toISOString()});return Response.json({ok:true});}
+  if(body.action==='create_work_order'){
+    if(!body.apparatusId||!body.summary)return Response.json({error:'Rig and summary required'},{status:400});
+    (data.workOrders as object[]).push({id:'fixture-work-'+writes,apparatus_id:body.apparatusId,apparatus_name:data.apparatus.find(r=>r.id===body.apparatusId)?.name,status:'new',priority:body.priority,summary:body.summary,details:body.details,opened_at:new Date().toISOString(),service_type:body.serviceType});
+    return Response.json({ok:true,workOrder:{id:'fixture-work-'+writes}});
+  }
+  if(body.action==='close_work_order'){
+    const order=(data.workOrders as Array<{id:string}>).find(r=>r.id===body.workOrderId);
+    if(!order||!body.repairDate||!body.resolutionNotes)return Response.json({error:'Work and completion details required'},{status:400});
+    Object.assign(order,{status:'closed',repair_date:body.repairDate,resolution_notes:body.resolutionNotes,next_service_due_date:body.nextServiceDueDate,repair_cost:body.repairCost});
+    return Response.json({ok:true});
+  }
   if(body.action==='create_notice'){
     if(!body.notes||!body.apparatusId)return Response.json({error:'Fixture details required'},{status:400});
     (data.workOrders as object[]).push({id:'fixture-repair-'+writes,apparatus_id:body.apparatusId,apparatus_name:rig.name,status:'open',priority:body.priority,summary:body.notes,notes:body.notes,created_at:new Date().toISOString(),assigned_employee_names:body.assignedEmployeeNames});
