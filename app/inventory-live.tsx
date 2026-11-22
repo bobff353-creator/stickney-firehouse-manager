@@ -32,7 +32,7 @@ function replaceCheckAddress(apparatusId: string, type?: CheckType, resume?: str
   if (apparatusId) url.searchParams.set("apparatus", apparatusId);
   if (type) url.searchParams.set("check", type);
   if (resume) url.searchParams.set("resume", resume);
-  window.history.replaceState(window.history.state, "", url);
+  window.history.replaceState(null, "", url);
 }
 
 const inventorySections: Array<[View, string]> = [
@@ -731,8 +731,8 @@ export default function Inventory360({
             afterDueChecks={<>
               <nav className="rig-check-links" aria-label="Shift and repair tools">
                 <button type="button" onClick={reportRigProblem}>{canManageRepairs ? "Report a problem" : "Report a problem or view repairs"}</button>
-                {permissions.includes("daily_log.view") && <Link prefetch={false} href={portalPageUrl("/", "", "Daily Log")}>Daily Log · Officer sign-in/out</Link>}
-                {permissions.includes("operations_board.view") && <Link prefetch={false} href={portalPageUrl("/", "", "Operations Board")}>Live Operations Board</Link>}
+                {permissions.includes("daily_log.view") && <a href={portalPageUrl("/", "", "Daily Log")}>Daily Log · Officer sign-in/out</a>}
+                {permissions.includes("operations_board.view") && <a href={portalPageUrl("/", "", "Operations Board")}>Live Operations Board</a>}
               </nav>
               <div className="inventory-secondary-tools">{departmentSummary}{moreInventoryTools}</div>
             </>}
