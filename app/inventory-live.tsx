@@ -13,6 +13,7 @@ import InventoryCapture from './inventory-capture';
 import { usePermissions, refreshPermissions } from "./use-permissions";
 import { portalPageUrl } from "./portal-navigation";
 import type { CheckType } from "./inventory-rig-queue";
+import { InventoryWorkIcon } from "./inventory-work-icon";
 import {
   FormEvent,
   useCallback,
@@ -381,7 +382,7 @@ export default function Inventory360({
   const setView = useCallback((next: View) => {
     if (!confirmLeavingWork()) return;
     if (next === "due") replaceCheckAddress(selectedApparatusId);
-    if (next !== "service") setStartRepairNotice(false);
+    setStartRepairNotice(false);
     setViewState(next);
   }, [selectedApparatusId]);
 
@@ -396,7 +397,7 @@ export default function Inventory360({
 
   function reportRigProblem() {
     if (!confirmLeavingWork()) return;
-    setStartRepairNotice(true);
+    setStartRepairNotice(canManageRepairs);
     setViewState("service");
   }
   const [fleetFilter, setFleetFilter] = useState<FleetFilter>("all");
@@ -611,6 +612,9 @@ export default function Inventory360({
 
   const activeDepartmentName = suite.department?.name || departmentName;
   const activeWorkspace = workspaceCopy[view];
+  const crewWriteup = view === "service" && startRepairNotice && canManageRepairs;
+  const crewFlow = view === "due" || view === "check" || crewWriteup;
+  const today = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "America/Chicago" }).format(new Date());
   const checksInProgress = fleetOperations.checks.filter((check) => check.status === "in_progress").length;
 
   function refreshWorkspace() {
@@ -629,7 +633,7 @@ export default function Inventory360({
       <button type="button" onClick={() => setView("fleet")}><strong>{fleetSummaryReady ? checksInProgress : "—"}</strong><span>All unfinished checks</span><small>All dates · includes Inventory counts</small></button>
     </div>
   </details>;
-  const moreInventoryTools = <details className="inventory-more-tools" open={['inventory','air','reports','stock','setup'].includes(view)}><summary>More tools · inventory, repairs, air packs &amp; reports</summary><nav className="inventory-section-nav" aria-label="More inventory tools">{[...inventorySections.filter(([id]) => ['inventory','air','reports','stock'].includes(id) || (view === "due" && id === "service")), ...(canSetup ? [["setup","Build & templates"]] as Array<[View,string]> : [])].map(([id,label])=><button type="button" key={id} className={view===id?'active':''} aria-current={view===id?'page':undefined} onClick={()=>setView(id)}>{label}</button>)}</nav></details>;
+  const moreInventoryTools = <details className="inventory-more-tools" open={['inventory','air','reports','stock','setup'].includes(view)}><summary>More tools</summary><nav className="inventory-section-nav" aria-label="More inventory tools">{[...inventorySections.filter(([id]) => ['inventory','air','reports','stock'].includes(id) || (view === "due" && ['fleet','equipment','service'].includes(id))), ...(canSetup ? [["setup","Admin Configuration"]] as Array<[View,string]> : [])].map(([id,label])=><button type="button" key={id} className={view===id?'active':''} aria-current={view===id?'page':undefined} onClick={()=>setView(id)}>{label}</button>)}</nav></details>;
 
   if (!accessAllowed) return (
     <main className="inventory-app-shell inventory-access-shell">
@@ -648,19 +652,20 @@ export default function Inventory360({
 
   if (!access.confirmation || access.confirmation.required) return <main className="inventory-app-shell"><RequiredConfirmation status={access.confirmation}/><Link href="/?page=respond&display=portal">Open Respond</Link></main>;
   return (
-    <WorkspaceViewMemory key={access.identity}><main className={`inventory-app-shell inventory-portal-refresh${view === "check" ? " inventory-task-focused" : ""}${view === "due" ? " inventory-due-focused" : ""}`}><TaskQueueReturn/>
+    <WorkspaceViewMemory key={access.identity}><main className={`inventory-app-shell inventory-portal-refresh${crewFlow ? " inventory-crew-flow" : ""}${view === "check" ? " inventory-task-focused" : ""}${view === "due" ? " inventory-due-focused" : ""}`}><TaskQueueReturn/>
       <header className="topbar">
         <PortalModuleMenu permissions={permissions} currentPage="Inventory" departmentName={activeDepartmentName}/>
         <button className="brand" onClick={() => setView("due")} aria-label="Apparatus and checks home">
+          {crewFlow && departmentName === "Stickney Fire Department" && <Image className="crew-patch" src="/stickney-fd-patch.png?v=3" width={42} height={42} alt="" />}
           <span>
             <small>{activeDepartmentName}</small>
             <b>Apparatus &amp; checks</b>
           </span>
         </button>
         <div className="top-actions">
-          <button className="inventory-scan-global" onClick={() => { setView("equipment"); setScanRequest((current) => current + 1); }}>
+          {!crewFlow && <button className="inventory-scan-global" onClick={() => { setView("equipment"); setScanRequest((current) => current + 1); }}>
             <Icon>▦</Icon> Scan Barcode
-          </button>
+          </button>}
           {inventoryEvents.length > 0 ? (
             <button
               className="alerts"
@@ -682,22 +687,31 @@ export default function Inventory360({
       </header>
 
       <section ref={workspaceHeadingRef} className="inventory-command-header" aria-labelledby="inventory-workspace-title">
-        {view === "due" && <div className="inventory-due-toolbar"><Link className="inventory-command-back" href="/?page=dashboard&display=portal" prefetch={false} onClick={event => { if (!confirmLeavingWork()) event.preventDefault(); }}>← Portal home</Link><h1 id="inventory-workspace-title">{activeWorkspace.title}</h1><button type="button" onClick={refreshWorkspace}>Refresh</button></div>}
-        {view !== "due" && view !== "check" && <button className="inventory-command-back" type="button" onClick={() => setView("due")}>← Back to apparatus &amp; checks</button>}
-        {view === "check" && <button className="rig-check-back" type="button" onClick={() => setView("due")}>Back to due checks</button>}
-        {view !== "due" && <div className="inventory-command-hero">
-          <div>
-            <span>{activeWorkspace.eyebrow}</span>
-            <h1 id="inventory-workspace-title">{activeWorkspace.title}</h1>
-            <p>{activeWorkspace.description}</p>
-            <small><i /> Saved department records · refresh to check for changes</small>
-          </div>
-          <button type="button" onClick={refreshWorkspace}>Refresh</button>
+        {view === "due" && <div className="inventory-due-toolbar crew-due-title">
+          <div><p>{today}</p><h1 id="inventory-workspace-title">Today’s checks</h1></div>
+          <button type="button" onClick={refreshWorkspace}><InventoryWorkIcon name="refresh" />Refresh</button>
         </div>}
+        {(view === "check" || crewWriteup) && <>
+          <h1 id="inventory-workspace-title" className="crew-visually-hidden">{crewWriteup ? "Repair notice" : "Apparatus check"}</h1>
+          <button className="rig-check-back" type="button" onClick={() => setView("due")}>← Back to due checks</button>
+        </>}
+        {!crewFlow && <>
+          <button className="inventory-command-back" type="button" onClick={() => setView("due")}>← Back to apparatus &amp; checks</button>
+          <div className="inventory-command-hero">
+            <div>
+              <span>{activeWorkspace.eyebrow}</span>
+              <h1 id="inventory-workspace-title">{activeWorkspace.title}</h1>
+              <p>{activeWorkspace.description}</p>
+              <small><i /> Saved department records · refresh to check for changes</small>
+            </div>
+            <button type="button" onClick={refreshWorkspace}>Refresh</button>
+          </div>
+        </>}
         {view === "due" && suiteState !== "ready" && <div className="inventory-priority-notice" role="status"><strong>{suiteState === "loading" ? "Apparatus service status is loading" : "Apparatus service status could not be refreshed"}</strong><span>{suite.apparatus.length ? "Last received apparatus records may be out of date." : "No apparatus service status has been verified in this view."} Required checks have their own connection status below.</span></div>}
         {view === "due" && outOfService.length > 0 && <div className="inventory-priority-notice" role="status"><div><strong>{outOfService.length} apparatus out of service or impaired{suiteState !== "ready" ? " · last received" : ""}</strong><span>{outOfService.map(unit => unit.call_sign || unit.unit_name).join(" · ")}</span></div><button type="button" onClick={() => openFleetFilter("out-impaired")}>Review apparatus status →</button></div>}
         {view === "fleet" ? departmentSummary : null}
-        <label className="inventory-mobile-destination">What do you need to do?<select aria-label="Inventory workspace" value={view === "check" ? (selectedCheckType === "air_pack" ? "air" : "fleet") : view} onChange={event => setView(event.target.value as View)}>{inventorySections.map(([id,label]) => <option key={id} value={id}>{label}</option>)}{view === "readiness" && <option value="readiness">Items needing attention</option>}{canSetup && <option value="setup">Admin: checks &amp; equipment</option>}</select></label>
+        {!crewFlow && <>
+        <label className="inventory-mobile-destination">What do you need to do?<select aria-label="Inventory workspace" value={view} onChange={event => setView(event.target.value as View)}>{inventorySections.map(([id,label]) => <option key={id} value={id}>{label}</option>)}{view === "readiness" && <option value="readiness">Items needing attention</option>}{canSetup && <option value="setup">Admin: checks &amp; equipment</option>}</select></label>
         <nav className="inventory-section-nav" aria-label="Inventory sections">
           {[
             ...inventorySections.filter(([id]) => ['due','fleet','equipment','service'].includes(id)),
@@ -705,15 +719,16 @@ export default function Inventory360({
             <button
               key={id}
               type="button"
-              className={view === id || (view === "check" && id === (selectedCheckType === "air_pack" ? "air" : "fleet")) ? "active" : ""}
-              aria-current={view === id || (view === "check" && id === (selectedCheckType === "air_pack" ? "air" : "fleet")) ? "page" : undefined}
+              className={view === id ? "active" : ""}
+              aria-current={view === id ? "page" : undefined}
               onClick={() => setView(id)}
             >
               {label}
             </button>
           ))}
         </nav>
-        {view !== "due" && moreInventoryTools}
+        {moreInventoryTools}
+        </>}
       </section>
 
       {view === "due" ? (
@@ -728,11 +743,14 @@ export default function Inventory360({
             onRecords={receiveOperations}
             onAir={() => setView("air")}
             onSetup={() => setView("setup")}
+            duePrimaryAction={<button className="rig-check-writeup" type="button" onClick={reportRigProblem}>
+              <InventoryWorkIcon name="repair" />{canManageRepairs ? "Write up a problem" : "Report a problem or view repairs"}
+            </button>}
             afterDueChecks={<>
-              <nav className="rig-check-links" aria-label="Shift and repair tools">
-                <button type="button" onClick={reportRigProblem}>{canManageRepairs ? "Report a problem" : "Report a problem or view repairs"}</button>
+              <nav className="rig-check-links" aria-label="Shift tools">
                 {permissions.includes("daily_log.view") && <a href={portalPageUrl("/", "", "Daily Log")}>Daily Log · Officer sign-in/out</a>}
                 {permissions.includes("operations_board.view") && <a href={portalPageUrl("/", "", "Operations Board")}>Live Operations Board</a>}
+                <a href={portalPageUrl("/", "", "Dashboard")}>Portal home</a>
               </nav>
               <div className="inventory-secondary-tools">{departmentSummary}{moreInventoryTools}</div>
             </>}
@@ -898,17 +916,7 @@ export default function Inventory360({
       ) : null}
 
       {view === "check" ? (
-        <section className="page apparatus-page">
-          <div className="page-heading compact">
-            <div>
-              <span className="eyebrow">APPARATUS AND EQUIPMENT CHECKS</span>
-              <h1>Check one section at a time.</h1>
-              <p>Record results, review issues, then submit. Saved crew progress is shared.</p>
-            </div>
-            <div className="heading-actions">
-              {canSetup ? <button className="primary" onClick={() => setView("setup")}>Admin Configuration</button> : null}
-            </div>
-          </div>
+        <section className="page apparatus-page inventory-check-page">
           <InventoryOperations onRecords={receiveOperations} key={`${selectedApparatusId}-${selectedCheckType}-${selectedResumeId}`} view="check" onSetup={() => setView("setup")} onRepairs={() => setView("service")} onReports={() => setView("reports")} initialApparatusId={selectedApparatusId} initialCheckType={selectedCheckType} initialResumeId={selectedResumeId} onCheckSubmitted={replaceCheckAddress} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
         </section>
       ) : null}
@@ -986,15 +994,15 @@ export default function Inventory360({
       ) : null}
 
       {view === "service" ? (
-        <section className="page service-page">
-          <div className="page-heading compact">
+        <section className={`page service-page${crewWriteup ? " inventory-check-page" : ""}`}>
+          {!crewWriteup && <div className="page-heading compact">
             <div>
               <span className="eyebrow">ASSIGNED REPAIRS</span>
               <h1>Assign, document, and close fleet repairs.</h1>
               <p>Repair notices appear on assigned employee home pages and Live Ops until the repair is completed.</p>
             </div>
-          </div>
-          <InventoryOperations onRecords={receiveOperations} view="service" initialApparatusId={selectedApparatusId} initialRepairNotice={startRepairNotice} initialWorkOrderId={initialWorkOrderId} onSetup={() => setView("setup")} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
+          </div>}
+          <InventoryOperations onRecords={receiveOperations} key={crewWriteup ? "writeup" : "repairs"} view="service" initialApparatusId={selectedApparatusId} initialRepairNotice={crewWriteup} onRepairs={() => setView("service")} initialWorkOrderId={initialWorkOrderId} onSetup={() => setView("setup")} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
         </section>
       ) : null}
 
@@ -1066,7 +1074,9 @@ export default function Inventory360({
       ) : null}
 
       <nav className="mobile-nav" aria-label="Mobile inventory sections">
-        {([
+        {(crewFlow ? [
+          ["due", "Today"], ["fleet", "Checks"], ["service", "Repairs"], ["equipment", "Equipment"],
+        ] as const : ([
           ["due", "Due"],
           ["fleet", "Checks"],
           ["inventory", "Inventory"],
@@ -1074,14 +1084,14 @@ export default function Inventory360({
           ["service", "Repairs"],
           ["reports", "Reports"],
           ["stock", "Stock"],
-        ] as [Exclude<View, "setup" | "readiness" | "check">, string][]).map(([id, label]) => (
+        ] as [Exclude<View, "setup" | "readiness" | "check">, string][])).map(([id, label]) => (
           <button
             key={id}
-            className={view === id ? "active" : ""}
-            aria-current={view === id ? "page" : undefined}
+            className={view === id || (view === "check" && id === "fleet") ? "active" : ""}
+            aria-current={view === id || (view === "check" && id === "fleet") ? "page" : undefined}
             onClick={() => setView(id)}
           >
-            <InventoryNavIcon view={id} />
+            {crewFlow ? <InventoryWorkIcon name={id === "due" ? "home" : id === "fleet" ? "check" : id === "service" ? "repair" : "equipment"} /> : <InventoryNavIcon view={id} />}
             {label}
           </button>
         ))}

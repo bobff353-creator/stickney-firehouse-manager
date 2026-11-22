@@ -1,5 +1,6 @@
 "use client";
-import { rigQueue, rigCheckLabels, type RigJob } from "./inventory-rig-queue";
+import { rigQueue, rigCheckLabels, type CheckType, type RigJob } from "./inventory-rig-queue";
+import { InventoryWorkIcon } from "./inventory-work-icon";
 import ScenarioHelp from './scenario-help';
 import EquipmentContinuity from './equipment-continuity';
 import InventoryBulkReview from './inventory-bulk-review';
@@ -408,6 +409,7 @@ export default function InventoryOperations({
   onReports,
   onRecords,
   onNavigate,
+  duePrimaryAction,
   afterDueChecks,
 }: {
   view: OperationsView;
@@ -430,6 +432,7 @@ export default function InventoryOperations({
   onAir?: () => void;
   onReports?: () => void;
   onNavigate?: (view: "equipment" | "service" | "stock") => void;
+  duePrimaryAction?: ReactNode;
   afterDueChecks?: ReactNode;
   onRecords?: (records: Pick<OperationsData, "equipment" | "checks" | "checkItems"> | null) => void;
 }) {
@@ -992,6 +995,7 @@ export default function InventoryOperations({
   const activeItems = useMemo(() => activeCheckId ? sortCheckItems(checkItemsByCheck.get(activeCheckId) || [], equipmentById, compartmentById) : [], [activeCheckId, checkItemsByCheck, equipmentById, compartmentById]);
   const activeScbaEntries = useMemo(() => activeCheck && value(activeCheck, 'check_type') === 'air_pack' ? scbaEntriesByCheck.get(activeCheckId) || [] : [], [activeCheck, activeCheckId, scbaEntriesByCheck]);
   const activeCheckType = value(activeCheck || {}, "check_type");
+  const checkIsOpen = view === "check" && Boolean(activeCheck) && !inspectionMenuOpen;
   const originalWeeklyItems = activeCheckType === "weekly" ? activeItems.filter(item => {
     const equipment = equipmentById.get(value(item, "equipment_id"));
     return equipment && Array.isArray(equipment.check_types) && !equipment.check_types.includes("weekly");
@@ -1189,19 +1193,29 @@ export default function InventoryOperations({
     window.requestAnimationFrame(() => document.getElementById(id ? "rig-check-heading" : "rig-picker-heading")?.focus());
   }
 
+  function rigSubtitle(rig: Row) {
+    const type = value(rig, "asset_type");
+    const status = formatStatus(rig.status);
+    return type ? [formatStatus(type), status === "In Service" ? "" : status].filter(Boolean).join(" · ") : status;
+  }
+
   function renderRigJobs(jobs: RigJob[]) {
     return <div className="rig-check-jobs">{jobs.map((job) => {
       const title = rigCheckLabels[job.type];
       const nextAction = checkNextAction(Boolean(job.activeId), job.total, job.pending);
+      const dueTime = job.dueTime && new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" })
+        .format(new Date(`1970-01-01T${job.dueTime}:00Z`));
       return <article key={job.activeId || job.type}>
+        <span className="rig-check-symbol"><InventoryWorkIcon name="check" /></span>
         <div>
           <h3>{title}</h3>
           <p>{job.activeId ? job.total ? `${job.total - job.pending} of ${job.total} saved` : "Saved check in progress"
-            : job.configured ? `${job.configured} items` : "Checklist setup needed"}</p>
-          {(job.dueTime || job.signOutRequired) && <small>{job.dueTime && `Due ${job.dueTime}`}{job.dueTime && job.signOutRequired && " · "}{job.signOutRequired && "Required for officer sign-out"}</small>}
+            : job.configured ? dueTime ? `Due by ${dueTime}` : `${job.configured} items` : "Checklist setup needed"}</p>
+          {job.activeId && dueTime && <small>Due by {dueTime}</small>}
+          {job.signOutRequired && <small className="rig-check-required">Required for officer sign-out</small>}
         </div>
-        <button type="button" aria-label={`${nextAction}: ${title}`} disabled={!canCheck || (!job.activeId && !job.configured)} onClick={() => onOpenUnit?.(dueRigId, job.type, job.activeId || undefined)}>
-          {job.activeId || job.configured ? nextAction : "Needs setup"}
+        <button className="rig-check-job-action" type="button" aria-label={`${job.activeId && job.pending ? "Continue" : nextAction}: ${title}`} disabled={!canCheck || (!job.activeId && !job.configured)} onClick={() => onOpenUnit?.(dueRigId, job.type, job.activeId || undefined)}>
+          {job.activeId ? job.pending ? "Continue" : nextAction : job.configured ? "Start" : "Needs setup"}
         </button>
       </article>;
     })}</div>;
@@ -1267,13 +1281,52 @@ export default function InventoryOperations({
   }
 
   return (
-    <div className="inventory-ops">{view !== "due" && <section className="equipment-continuity"><ScenarioHelp page="Inventory"/></section>}
-      <p className="ops-refresh-status">{view === "due" ? `Saved snapshot · ${lastSyncedAt ? `received ${formatDate(lastSyncedAt)}` : "no successful receipt confirmed yet"}` : <>Saved snapshot · checks for updates every {inventoryRefreshInterval(view) < 60_000 ? `${inventoryRefreshInterval(view) / 1000} seconds` : `${inventoryRefreshInterval(view) / 60_000} minutes`} while visible.{lastSyncedAt ? ` Last received ${formatDate(lastSyncedAt)}.` : " No successful receipt confirmed yet."}</>}</p>
+    <div className="inventory-ops">{view !== "due" && !checkIsOpen && !initialRepairNotice && <section className="equipment-continuity"><ScenarioHelp page="Inventory"/></section>}
+      {view !== "due" && !checkIsOpen && !initialRepairNotice && <p className="ops-refresh-status">Saved snapshot · checks for updates every {inventoryRefreshInterval(view) < 60_000 ? `${inventoryRefreshInterval(view) / 1000} seconds` : `${inventoryRefreshInterval(view) / 60_000} minutes`} while visible.{lastSyncedAt ? ` Last received ${formatDate(lastSyncedAt)}.` : " No successful receipt confirmed yet."}</p>}
       {message ? <div className="ops-message" role="status">{message}</div> : null}
       {saveReceipt && <div className="ops-save-receipt" role="status">Server confirmed {formatDate(saveReceipt.at)}{saveReceipt.reference && <small>Record: {saveReceipt.reference}</small>}<small>Saved results are not submission, approval, or confirmation that equipment is safe to use.</small></div>}
       {submittedCheck && onReports && <div className="ops-message"><strong>Submitted · awaiting administrator review</strong><p>Submission is not approval. Review the saved report and its status next.</p><button type="button" onClick={onReports}>View saved reports →</button></div>}
       {error ? <div className="ops-message ops-error" role="alert">{error}</div> : null}
       {refreshError ? <div className="ops-message ops-error" role="alert">Live refresh unavailable. Previously loaded records may be out of date. {refreshError} <button type="button" disabled={Boolean(busy)} onClick={() => void load({ background: true, fresh: true })}>Retry refresh</button></div> : null}
+      {view === "air" ? <InventoryAirSystems data={data} busy={Boolean(busy)} canSetup={canSetup} canManageRepairs={canManageRepairs} canCheck={canCheck} onSave={action} onOpenCheck={id => onOpenUnit?.(id, "air_pack")} onRepairs={onRepairs}
+        renderTemplate={apparatus => { const template = data.scbaTemplates.find(item => item.apparatus_id === apparatus.id); return <ScbaTemplateEditor key={`${apparatus.id}-${template?.updated_at}`} apparatus={apparatus} template={template} busy={Boolean(busy)} onSave={payload => action("air-template", payload)} />; }}
+        uploadDocument={uploadMaintenanceDocument} uploadPhoto={async (asset, file) => { await uploadEquipmentPhoto(asset, file); await load({ background: true, fresh: true }); }} /> : null}
+      {view === "inventory" ? apparatusSearch : null}
+
+      {view === "due" ? (
+        <>
+          <section className="ops-card due-now-card rig-check-queue">
+            {dueRig && rigWork ? <>
+              <div className="rig-check-heading">
+                <span className="rig-check-symbol"><InventoryWorkIcon name="rig" /></span>
+                <div><h2 id="rig-check-heading" tabIndex={-1}>{value(dueRig, "name")}</h2><p>{rigSubtitle(dueRig)}</p></div>
+                <button type="button" onClick={() => pickRig("")}>Change rig</button>
+              </div>
+              <section aria-labelledby="rig-due-heading">
+                <h3 id="rig-due-heading">Due checks</h3>
+                {rigWork.due.length ? renderRigJobs(rigWork.due) : <p className="rig-check-empty rig-check-caught-up"><InventoryWorkIcon name="done" />{refreshError ? "Due checks could not be confirmed. Refresh to check again." : "No checks due for this rig today."}</p>}
+                {rigWork.exempt.length > 0 && <p className="rig-check-empty">Not needed while out of service: {rigWork.exempt.map(type => rigCheckLabels[type]).join(", ")}.</p>}
+              </section>
+              {rigWork.unfinished.length > 0 && <section aria-labelledby="rig-unfinished-heading">
+                <h3 id="rig-unfinished-heading">Unfinished checks</h3>
+                {renderRigJobs(rigWork.unfinished)}
+              </section>}
+              {![...rigWork.due, ...rigWork.unfinished].some(job => job.type === "inventory") && data.equipment.some(item => item.apparatus_id === dueRigId && Array.isArray(item.check_types) && item.check_types.includes("inventory")) &&
+                <details className="rig-check-extra">
+                  <summary>Other checks</summary>
+                  <button type="button" disabled={!canCheck} onClick={() => onOpenUnit?.(dueRigId, "inventory")}>Open inventory count</button>
+                </details>}
+            </> : <>
+              <h2 id="rig-picker-heading" tabIndex={-1}>Pick your rig</h2>
+              {data.apparatus.length ? <div className="rig-check-picks">{data.apparatus.map(rig =>
+                <button type="button" key={value(rig, "id")} onClick={() => pickRig(value(rig, "id"))}>
+                  <span className="rig-check-symbol"><InventoryWorkIcon name="rig" /></span>
+                  <span className="rig-check-rig-copy"><strong>{value(rig, "name")}</strong><small>{rigSubtitle(rig)}</small></span>
+                  <InventoryWorkIcon name="next" />
+                </button>)}</div> : <p className="rig-check-empty">No saved apparatus are available.</p>}
+            </>}
+          </section>
+          {duePrimaryAction}
       {view === "due" && (criticalAssetCount > 0 || urgentRepairCount > 0 || stockStatusCounts.expired > 0) && <section className="inventory-priority-notice inventory-critical-work" aria-label="Saved critical issues">
         <strong>{refreshError ? "Last received critical issues · update unavailable" : "Saved critical issues to review"}</strong>
         {criticalAssetCount > 0 && <>
@@ -1291,41 +1344,6 @@ export default function InventoryOperations({
         {(urgentRepairCount > 0 || stockStatusCounts.expired > 0) && <div>{urgentRepairCount > 0 && <button type="button" disabled={!onNavigate} onClick={() => onNavigate?.("service")}>{urgentRepairCount} high / critical repair{urgentRepairCount === 1 ? "" : "s"} →</button>}{stockStatusCounts.expired > 0 && <button type="button" disabled={!onNavigate} onClick={() => onNavigate?.("stock")}>{stockStatusCounts.expired} suppl{stockStatusCounts.expired === 1 ? "y" : "ies"} with expired stock →</button>}</div>}
         <small>Department-wide saved records. Review the original issue and service status before use.</small>
       </section>}
-      {view === "air" ? <InventoryAirSystems data={data} busy={Boolean(busy)} canSetup={canSetup} canManageRepairs={canManageRepairs} canCheck={canCheck} onSave={action} onOpenCheck={id => onOpenUnit?.(id, "air_pack")} onRepairs={onRepairs}
-        renderTemplate={apparatus => { const template = data.scbaTemplates.find(item => item.apparatus_id === apparatus.id); return <ScbaTemplateEditor key={`${apparatus.id}-${template?.updated_at}`} apparatus={apparatus} template={template} busy={Boolean(busy)} onSave={payload => action("air-template", payload)} />; }}
-        uploadDocument={uploadMaintenanceDocument} uploadPhoto={async (asset, file) => { await uploadEquipmentPhoto(asset, file); await load({ background: true, fresh: true }); }} /> : null}
-      {view === "inventory" ? apparatusSearch : null}
-
-      {view === "due" ? (
-        <>
-          <section className="ops-card due-now-card rig-check-queue">
-            {dueRig && rigWork ? <>
-              <div className="rig-check-heading">
-                <div><h2 id="rig-check-heading" tabIndex={-1}>{value(dueRig, "name")}</h2><p>{formatStatus(dueRig.status)}</p></div>
-                <button type="button" onClick={() => pickRig("")}>Change rig</button>
-              </div>
-              <section aria-labelledby="rig-due-heading">
-                <h3 id="rig-due-heading">Due checks</h3>
-                {rigWork.due.length ? renderRigJobs(rigWork.due) : <p className="rig-check-empty">{refreshError ? "Due checks could not be confirmed. Refresh to check again." : "No checks due for this rig today."}</p>}
-                {rigWork.exempt.length > 0 && <p className="rig-check-empty">Not needed while out of service: {rigWork.exempt.map(type => rigCheckLabels[type]).join(", ")}.</p>}
-              </section>
-              {rigWork.unfinished.length > 0 && <section aria-labelledby="rig-unfinished-heading">
-                <h3 id="rig-unfinished-heading">Unfinished checks</h3>
-                {renderRigJobs(rigWork.unfinished)}
-              </section>}
-              {data.equipment.some(item => item.apparatus_id === dueRigId && Array.isArray(item.check_types) && item.check_types.includes("inventory")) &&
-                <details className="rig-check-extra">
-                  <summary>Other checks</summary>
-                  <button type="button" disabled={!canCheck} onClick={() => onOpenUnit?.(dueRigId, "inventory")}>Open inventory count</button>
-                </details>}
-            </> : <>
-              <h2 id="rig-picker-heading" tabIndex={-1}>Pick your rig</h2>
-              {data.apparatus.length ? <div className="rig-check-picks">{data.apparatus.map(rig =>
-                <button type="button" key={value(rig, "id")} onClick={() => pickRig(value(rig, "id"))}>
-                  <strong>{value(rig, "name")}</strong><small>{formatStatus(rig.status)}</small>
-                </button>)}</div> : <p className="rig-check-empty">No saved apparatus are available.</p>}
-            </>}
-          </section>
           {afterDueChecks}
           <details className="inventory-operating-summary"><summary>More status &amp; help · assets, repairs, supplies</summary><p>In progress includes unfinished apparatus and air-pack checks from all dates. Inventory counts are listed separately below. This screen checks for updates every {inventoryRefreshInterval(view) / 60_000} minutes while visible.</p>{onNavigate && <OperationsOverview data={data} onNavigate={onNavigate} delayed={Boolean(refreshError)} />}<section className="equipment-continuity"><ScenarioHelp page="Inventory"/></section></details>
           <details className="ops-card service-reminders" aria-label="Service reminders">
@@ -1439,12 +1457,11 @@ export default function InventoryOperations({
       </InventoryReports> : null}
 
       {view === "check" ? (
-        <section className="ops-card unit-inspection-hub">
-          <header>
+        <section className={`ops-card unit-inspection-hub${checkIsOpen ? " crew-check-runner" : ""}`}>
+          {!checkIsOpen && <header>
             <div><span>FLEET / APPARATUS RECORD</span><h2>{selectedApparatus ? value(selectedApparatus, "name") : "Choose an apparatus"}</h2></div>
-            {activeCheck && !inspectionMenuOpen ? <b>{pendingItems} remaining</b> : null}
-          </header>
-          {!data.apparatus.length ? (
+          </header>}
+          {!checkIsOpen && (!data.apparatus.length ? (
             <div className="ops-empty"><strong>No apparatus added</strong><p>Build the fleet before starting inspections.</p><button onClick={onSetup}>Build Fleet &amp; Inventory</button></div>
           ) : (
             <label className="unit-picker">Apparatus
@@ -1461,7 +1478,7 @@ export default function InventoryOperations({
                 {data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")} · Fleet: {formatStatus(item.status)}</option>)}
               </select>
             </label>
-          )}
+          ))}
           {selectedApparatus && (inspectionMenuOpen || !activeCheck) ? (
             <div className="inspection-menu">
               <div className="inspection-menu-note" role="status">
@@ -1508,27 +1525,25 @@ export default function InventoryOperations({
           ) : null}
           {activeCheck && !inspectionMenuOpen ? (
             <div className="check-worklist">
-              <div className="inspection-workflow-actions">
-                <button type="button" onClick={() => { if (confirmLeavingWork()) { setInspectionMenuOpen(true); setScbaDirty({}); setNumericReadings({}); } }}>Back to inspection types</button>
-                <button type="button" disabled={Boolean(busy)} onClick={() => void load({ background: true, fresh: true })}>Refresh crew progress</button>
-              </div>
-              <div className="active-inspection-title">
-                <span>{selectedApparatus ? value(selectedApparatus, "name") : "Apparatus"} · {formatStatus(activeCheck.check_type)} inspection in progress</span>
-                <small>Shared department inspection · crew updates every {inventoryRefreshInterval(view) / 1000} seconds{lastSyncedAt ? ` · synced ${formatDate(lastSyncedAt)}` : ""}</small>
-                <small>Work one location at a time. Passed items leave the Pending view immediately; issues still require notes and a photo.</small>
+              <div className="crew-check-title">
+                <div><p>{rigCheckLabels[activeCheckType as CheckType]}</p><h2>{value(selectedApparatus || {}, "name")}</h2></div>
+                <button type="button" className="crew-refresh-check" disabled={Boolean(busy)} onClick={() => void load({ background: true, fresh: true })}><InventoryWorkIcon name="refresh" />Refresh</button>
               </div>
               {originalWeeklyItems > 0 && <div className="inspection-menu-note" role="note" aria-label="Earlier weekly checklist"><strong>This open check uses an earlier checklist</strong><p>{originalWeeklyItems} original {originalWeeklyItems === 1 ? "item is" : "items are"} no longer assigned to the weekly template. Saved results and pending entries have been preserved.</p>{canSetup&&canCheck&&<details><summary>Replace with the current mechanical checklist</summary><p>Archive all {activeItems.length} original entries, including {completedItems} saved results, as a read-only unfinished record in Reports &amp; approvals. Open a new check with every result unanswered. The original is kept; it is not submitted or approved.</p><form key={activeCheckId} className="ops-form" onSubmit={event=>{event.preventDefault();void restartWeekly(activeCheck,String(new FormData(event.currentTarget).get('reason')||''));}}><label>Reason for replacing this check<textarea name="reason" required maxLength={2000} rows={3} defaultValue="Weekly checklist changed to mechanical condition, functional testing and maintenance. Preserve the earlier unfinished check and its results in history; keep carried inventory in separate checks."/></label><button type="submit" className="ops-primary" disabled={Boolean(busy)||unsavedCheck}>Archive original &amp; start mechanical check</button>{unsavedCheck&&<p>Save or discard unsaved item entries before replacing this check.</p>}</form></details>}</div>}
-              <section className="check-progress-summary workflow-sticky-check" aria-label="Inspection progress">
-                <strong>Apparatus {value(selectedApparatus || {}, "name")} · {formatStatus(activeCheck.check_type)}</strong>
-                <div><strong>{completedItems} of {activeChecklistRows.length} completed</strong><span>{pendingItems} remaining</span></div>
-                <div className="check-progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={checkProgress}><i style={{ width: `${checkProgress}%` }} /></div>
-                {!busy && !itemSaveError && !error && !unsavedCheck && !completedItems
-                  ? <div className="workflow-save-status not-started" role="status"><strong>No results recorded yet</strong><small>Enter the actual observations and save each item before submitting.</small></div>
-                  : <SaveStatus state={busy ? "saving" : itemSaveError || error ? "failed" : unsavedCheck ? "unsaved" : "saved"} detail={unsavedCheck ? "Save each changed reading, meter inspection, or air-pack entry before submitting." : pendingItems ? `${checkProgress}% recorded · continue with remaining items` : "All results recorded · submission is still required"} />}
-                <button type="button" disabled={Boolean(busy)} onClick={() => changeCheckSection("review")}>Review &amp; submit</button>
+              <section className="check-progress-summary crew-check-progress" aria-label="Inspection progress">
+                <span className="rig-check-symbol"><InventoryWorkIcon name="check" /></span>
+                <div className="crew-progress-count">
+                  <strong>{completedItems} of {activeChecklistRows.length} saved</strong>
+                  <span>{pendingItems ? `${pendingItems} remaining` : "Ready to review"}</span>
+                  <div className="check-progress-track" role="progressbar" aria-label="Items saved" aria-valuemin={0} aria-valuemax={100} aria-valuenow={checkProgress}><i style={{ width: `${checkProgress}%` }} /></div>
+                </div>
+                {(Boolean(busy) || itemSaveError || error || unsavedCheck) && <SaveStatus state={busy ? "saving" : itemSaveError || error ? "failed" : "unsaved"} detail={unsavedCheck ? "Save changed entries before submitting." : undefined} />}
+                {!pendingItems && currentSection !== "review" && <button className="ops-primary" type="button" disabled={Boolean(busy)} onClick={() => changeCheckSection("review")}>Review check</button>}
               </section>
-              <InventoryCheckJourney sections={checkSections} current={currentSection} onChange={changeCheckSection} busy={Boolean(busy)} />
-              <h3 id="check-step-heading" className="check-step-heading" tabIndex={-1}>{currentSection === "review" ? "Review this inspection" : currentSection === "all" ? "All inspection sections" : checkSections.find(section => section.id === currentSection)?.label}</h3>
+              <div className="crew-check-section-head">
+                <h3 id="check-step-heading" className="check-step-heading" tabIndex={-1}>{currentSection === "review" ? "Review this inspection" : currentSection === "all" ? "All inspection sections" : checkSections.find(section => section.id === currentSection)?.label}</h3>
+                <InventoryCheckJourney sections={checkSections} current={currentSection} onChange={changeCheckSection} busy={Boolean(busy)} />
+              </div>
               <div hidden={currentSection === "review"}>
               {value(activeCheck, "check_type") === "air_pack" ? <div className="scba-check-worklist">
                 <div className="scba-check-guidance"><strong>Weekly SCBA readiness</strong><span>Record the harness, cylinder, 4500-PSI reading, and operational result. RIT and spare-cylinder rows follow the saved rig template.</span></div>
@@ -1573,10 +1588,10 @@ export default function InventoryOperations({
                 const pendingStandardItems = items.filter((item) => value(item, "result") === "pending" && !item.drug_schema && !item.meter_template && !isNumericReadingItem(item) && !isFluidLevelItem(item));
                 return (
                   <section className="check-location-group" hidden={currentSection !== "all" && currentSection !== label} key={label}>
-                    <header>
+                    {(currentSection === "all" || (activeCheckType === "inventory" && pendingStandardItems.length > 1)) && <header>
                       <div><span>LOCATION</span><h3>{label}</h3><small>{items.length} shown</small></div>
                       {value(activeCheck, "check_type") === "inventory" && pendingStandardItems.length > 1 ? <button type="button" disabled={Boolean(busy) || !canCheck} onClick={() => setBulkPassGroup({ label, itemIds: pendingStandardItems.map((item) => value(item, "id")) })}>Review results for this location</button> : null}
-                    </header>
+                    </header>}
                     <div className="check-location-items">{items.map(item => renderActiveItem(item))}</div>
                   </section>
                 );
@@ -1602,7 +1617,7 @@ export default function InventoryOperations({
                 <button className="ops-primary" disabled={!canSubmitInspection(activeChecklistRows.length, pendingItems, unsavedCheck || Boolean(refreshError), Boolean(busy), canCheck)} onClick={() => { if (canSubmitInspection(activeChecklistRows.length, pendingItems, unsavedCheck || Boolean(refreshError), Boolean(busy), canCheck)) void action("complete", { action: "complete_check", checkId: value(activeCheck, "id") }); }}>Submit {formatStatus(activeCheck.check_type)} check</button>
               </div>
               </div>
-              <InventoryCheckJourney footer sections={checkSections} current={currentSection} onChange={changeCheckSection} busy={Boolean(busy)} />
+              {(pendingItems > 0 || currentSection === "review") && <InventoryCheckJourney footer sections={checkSections} current={currentSection} onChange={changeCheckSection} busy={Boolean(busy)} />}
             </div>
           ) : null}
         </section>
@@ -1739,9 +1754,9 @@ export default function InventoryOperations({
       {view === "service" ? (
         <>
           {!canManageRepairs && <section className="ops-card"><h2>Need to report a problem?</h2><p>{canCheck ? "During a check, choose Issue on the affected item, add the required note and photo, and choose the employees to assign the in-app notice to." : "You have read-only access. Contact your officer or an inventory administrator to record the problem."} Standalone repair notices and maintenance changes require repair-management access. For urgent safety problems, contact the officer directly using department procedure.</p></section>}
-          {canManageRepairs && <section className="ops-card"><h2>Start a repair or service request</h2><p>Report a new deficiency to assign employees and create its repair record. Use a work order for planned service or maintenance. For an issue already reported by an inspection, update its existing record below instead.</p><div className="repair-start-actions"><button type="button" className="ops-primary" aria-pressed={repairPath === "notice"} onClick={() => changeRepairPath(repairPath === "notice" ? null : "notice")}>Report a problem</button><button type="button" aria-pressed={repairPath === "work"} onClick={() => changeRepairPath(repairPath === "work" ? null : "work")}>Plan service / maintenance</button></div></section>}
-          {canManageRepairs && repairPath === "notice" ? <section className="ops-card">
-            <header><div><span>ASSIGN A REPAIR NOTICE</span><h2>Notify selected employees about a fleet deficiency</h2></div></header>
+          {canManageRepairs && !initialRepairNotice && <section className="ops-card"><h2>Start a repair or service request</h2><p>Report a new deficiency to assign employees and create its repair record. Use a work order for planned service or maintenance. For an issue already reported by an inspection, update its existing record below instead.</p><div className="repair-start-actions"><button type="button" className="ops-primary" aria-pressed={repairPath === "notice"} onClick={() => changeRepairPath(repairPath === "notice" ? null : "notice")}>Report a problem</button><button type="button" aria-pressed={repairPath === "work"} onClick={() => changeRepairPath(repairPath === "work" ? null : "work")}>Plan service / maintenance</button></div></section>}
+          {canManageRepairs && repairPath === "notice" ? <section className={`ops-card${initialRepairNotice ? " crew-writeup-form" : ""}`}>
+            <header><h2>Write up a problem</h2></header>
             {!data.apparatus.length ? <div className="ops-empty"><strong>No apparatus added</strong><button onClick={onSetup}>Build Fleet &amp; Inventory</button></div> : <form className="ops-form ops-form-wide" onChange={() => setNoticeSaveState("unsaved")} onSubmit={(event) => {
               event.preventDefault();
               const element = event.currentTarget;
@@ -1768,16 +1783,18 @@ export default function InventoryOperations({
                 }
               })();
             }}>
-              <label>Apparatus<select name="apparatusId" required>{data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")} · Fleet: {formatStatus(item.status)}</option>)}</select></label>
+              <label>Rig<select name="apparatusId" defaultValue={initialApparatusId || undefined} required>{data.apparatus.map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(item, "name")} · Fleet: {formatStatus(item.status)}</option>)}</select></label>
               <label>Priority<select name="priority"><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option><option value="routine">Routine</option></select></label>
+              <label className="ops-span-2">What’s wrong?<textarea name="notes" rows={4} required /></label>
               <fieldset className="ops-check-grid ops-span-2"><legend>Notice type</legend>{categoryOptions.map(([id, label]) => <label key={id}><input type="checkbox" name="issueCategories" value={id} /> {label}</label>)}</fieldset>
               <EmployeeNotifyPicker className="ops-span-2" employees={employees} selectedIds={repairNoticeAssignees} onChange={setRepairNoticeAssignees} emptyText="Employee selection is available to an authorized officer or administrator." />
-              <label className="ops-span-2">Notice / repair details<textarea name="notes" rows={4} required /></label>
               <label className="ops-span-2">Attach photo (optional)<input name="photo" type="file" accept="image/*" capture="environment" /></label>
               {noticeSaveState && <SaveStatus state={noticeSaveState} detail={noticeSaveState === "saved" ? "Repair notice saved. Follow it in All repair records." : noticeSaveState === "failed" ? "Details are retained. Retry when connected." : "This creates a repair record; it does not mark the repair completed."} />}
               <button className="ops-primary" disabled={Boolean(busy)}>{noticeSaveState === "failed" ? "Retry save" : noticeSaveState === "saving" ? "Saving…" : "Assign repair notice"}</button>
             </form>}
+            {initialRepairNotice && noticeSaveState === "saved" && <button type="button" onClick={onRepairs}>View repairs</button>}
           </section> : null}
+          {!initialRepairNotice && <>
           {canManageRepairs && repairPath === "work" ? <section className="ops-card maintenance-work-order-create">
             <header><div><span>NEW APPARATUS WORK ORDER</span><h2>Record repair or preventive maintenance</h2></div></header>
             <form className="ops-form ops-form-wide" onSubmit={(event) => {
@@ -1851,6 +1868,7 @@ export default function InventoryOperations({
             <footer><span>Closed by: {value(selectedMaintenanceOrder, "closed_by") || "Pending"}</span><span>Next service: {value(selectedMaintenanceOrder, "next_service_due_date") || "Not scheduled"}</span><span>Generated {formatDate(Date.now())}</span></footer>
             <button type="button" onClick={() => window.print()}>Print / Save PDF</button>
           </section> : null}
+          </>}
         </>
       ) : null}
 

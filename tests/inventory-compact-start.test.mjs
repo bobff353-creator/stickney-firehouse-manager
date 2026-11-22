@@ -50,7 +50,7 @@ test('Due Now picks a rig before showing due work and resumes the exact saved ch
   assert.ok(card);assert.ok(summary);assert.ok(f.items.indexOf(card)<f.items.indexOf(summary));
   assert.ok(!summary.node.props.open,'noncritical overview starts closed');
   assert.match(text(card.node),/Due checks/);assert.match(text(card.node),/Unfinished checks/);
-  const resume=f.items.find(({node})=>node.type==='button'&&text(node)==='Resume check');assert.ok(resume);assert.equal(resume.node.props.disabled,false);
+  const resume=f.items.find(({node})=>node.type==='button'&&text(node)==='Continue');assert.ok(resume);assert.equal(resume.node.props.disabled,false);
   resume.node.props.onClick();assert.deepEqual(f.opened,[['preview-engine','daily','preview-daily']]);
   assert.ok(!card.parents.some(parent=>parent.type==='details'),'due work stays outside disclosures');
   const secondary=f.items.find(({node})=>node.props?.['aria-label']==='Preview secondary tools');assert.ok(f.items.indexOf(card)<f.items.indexOf(secondary),'shell totals and other tools follow required check cards');
@@ -110,14 +110,14 @@ test('Due Now shell keeps out-of-service apparatus and source uncertainty visibl
     let state=0;
     const suite={configured:true,department:{id:'preview-department',name:'Preview department'},apparatus:[{id:'preview-oos',call_sign:'TEST 1',unit_name:'Preview Engine',status:'out_of_service'}],events:[]};
     const react={useState(initial){const slot=state++;return[slot===6?sourceState:slot===7?suite:typeof initial==='function'?initial():initial,()=>{}];},useRef:initial=>({current:initial}),useEffect(){},useCallback:fn=>fn,useMemo:fn=>fn()};
-    const mods={react,'react/jsx-runtime':jsx,'./use-permissions':{usePermissions:()=>({verified:true,permissions:['inventory.view','inventory.check'],confirmation:{required:false}})},'./use-unsaved-work':{confirmLeavingWork:()=>true}};
+    const mods={react,'react/jsx-runtime':jsx,'./use-permissions':{usePermissions:()=>({verified:true,permissions:['inventory.view','inventory.check'],confirmation:{required:false}})},'./use-unsaved-work':{confirmLeavingWork:()=>true},'./portal-navigation':{portalPageUrl:()=>'/fixture-portal'}};
     const target={exports:{}};new Function('require','module','exports',code)(name=>mods[name]??{},target,target.exports);
     return walk(target.exports.default({departmentId:'preview-department',departmentName:'Preview department',permissions:[]}));
   };
   const ready=render('ready'),dueChild=ready.find(({node})=>node.props?.view==='due'&&node.props?.afterDueChecks);assert.ok(dueChild,'secondary tools are passed to the position after required check cards');
   const totals=walk(dueChild.node.props.afterDueChecks).find(({node})=>node.props?.className==='inventory-status-details');assert.ok(totals);assert.equal(totals.node.props.open,false);
   const header=ready.find(({node})=>node.props?.className==='inventory-command-header');assert.ok(header);assert.ok(!walk(header.node).some(({node})=>node.props?.className==='inventory-status-details'),'totals do not push checks below the fold');
-  const mobile=ready.find(({node})=>node.props?.className==='mobile-nav');assert.equal(walk(mobile.node).find(({node})=>node.props?.['aria-current']==='page').node.props.children[1],'Due','mobile selection has an accessible current-page state');
+  const mobile=ready.find(({node})=>node.props?.className==='mobile-nav');assert.equal(walk(mobile.node).find(({node})=>node.props?.['aria-current']==='page').node.props.children[1],'Today','mobile selection has an accessible current-page state');
   assert.equal(walk(totals.node).filter(({node})=>node.type==='button').length,4,'all original summary actions remain available');
   const priority=ready.find(({node})=>node.props?.className==='inventory-priority-notice');assert.ok(priority);assert.match(text(priority.node),/1 apparatus out of service or impaired/);assert.match(text(priority.node),/TEST 1/);assert.ok(!priority.parents.some(parent=>parent.type==='details'));
   const failed=render('unavailable');assert.ok(failed.some(({node,parents})=>node.props?.className==='inventory-priority-notice'&&text(node).includes('could not be refreshed')&&!parents.some(parent=>parent.type==='details')));
