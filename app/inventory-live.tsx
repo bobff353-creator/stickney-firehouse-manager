@@ -656,7 +656,7 @@ export default function Inventory360({
       <header className="topbar">
         <PortalModuleMenu permissions={permissions} currentPage="Inventory" departmentName={activeDepartmentName}/>
         <button className="brand" onClick={() => setView("due")} aria-label="Apparatus and checks home">
-          {crewFlow && departmentName === "Stickney Fire Department" && <Image className="crew-patch" src="/stickney-fd-patch.png?v=3" width={42} height={42} alt="" />}
+          {crewFlow && departmentName === "Stickney Fire Department" && <Image className="crew-patch" unoptimized src="/stickney-fd-patch.png?v=3" width={42} height={42} alt="" />}
           <span>
             <small>{activeDepartmentName}</small>
             <b>Apparatus &amp; checks</b>
