@@ -479,6 +479,11 @@ td strong { font-size: 16px; }
 .ems-document-card small { display: block; margin-top: 8px; color: #657987; }
 .ems-document-actions { display: flex; align-items: center; gap: 8px; }
 .ems-document-actions a { white-space: nowrap; text-decoration: none; }
+.ems-document-actions button { min-height:44px; }
+.ems-upload-form h2 { overflow-wrap:anywhere; }
+.ems-deleted-document { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
+.ems-deleted-document strong { min-width:0; flex:1; overflow-wrap:anywhere; }
+@media(max-width:760px){.ems-document-card .ems-document-actions button{grid-column:1/-1}}
 @media(max-width:760px){.ems-document-card{grid-template-columns:48px minmax(0,1fr);align-items:start;padding:17px}.ems-document-mark{width:48px;height:48px;border-radius:11px;font-size:13px}.ems-document-actions{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr}.ems-document-actions a{min-height:44px;display:inline-flex;align-items:center;justify-content:center}}
 .section-header { margin-bottom: 24px; display: flex; justify-content: space-between; align-items: end; gap: 20px; }
 .section-header h2 { margin: 0; color: var(--navy-deep); font-size: 25px; }

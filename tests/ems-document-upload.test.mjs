@@ -15,13 +15,13 @@ test('only bounded PDF bytes and safe document paths are accepted',async()=>{
 });
 test('actual EMS API enforces permissions and department scope and preserves PDF bytes',async()=>{
  let department='department-a',permissions=new Set(['documents.view','policies.manage']),stored=new Map(),listed=[];
- const storage={put:async(k,stream)=>stored.set(k,await new Response(stream).text()),get:async k=>stored.has(k)?{body:new Blob([stored.get(k)]).stream()}:null};
+ const storage={put:async(k,stream)=>stored.set(k,await new Response(stream).text()),get:async k=>stored.has(k)?{body:new Blob([stored.get(k)]).stream()}:null,delete:async k=>stored.delete(k)};
  const mocks={
   '../../../db/bootstrap':{ensureDatabase:async()=>({})},
   '../../server-permissions':{hasPermission:async(_r,_db,p)=>permissions.has(p)},
   '../../department-portal':{getPortalDepartment:async()=>({id:department,isolated:true})},
   '../../portal-storage':{getPortalStorage:()=>storage},
-  '../../supabase-server':{getSupabaseServerClient:async()=>({storage:{from:()=>({list:async(prefix)=>{listed.push(prefix);return {data:[...stored.keys()].map(k=>({name:k.slice(k.lastIndexOf('/')+1)})),error:null};}})}})},
+  '../../supabase-server':{getSupabaseServerClient:async()=>({storage:{from:()=>({list:async(prefix)=>{listed.push(prefix);return {data:[...stored.keys()].filter(k=>k.startsWith(prefix.replace('departments/department-a/','')+'/')).map(k=>({name:k.slice(k.lastIndexOf('/')+1)})),error:null};}})}})},
   '../../ems-document-model':model,
  };
  const module={exports:{}};
@@ -36,7 +36,17 @@ test('actual EMS API enforces permissions and department scope and preserves PDF
  const uploaded=await api.POST(req('',{method:'POST',body:form}));assert.equal(uploaded.status,201);
  const {item}=await uploaded.json();const fetched=await api.GET(req('?file='+encodeURIComponent(item.name)));
  assert.equal(await fetched.text(),'%PDF-1.7 unchanged fillable bytes');
- const list=await api.GET(req(''));assert.equal((await list.json()).items.length,1);assert.deepEqual(listed,['departments/department-a/ems-documents']);
+ const list=await api.GET(req(''));assert.equal((await list.json()).items.length,1);assert.deepEqual(listed.sort(),['departments/department-a/ems-document-trash','departments/department-a/ems-documents'].sort());
  assert.equal((await api.GET(req('?file=../secret.pdf'))).status,404);
+ const editRequest=method=>req('',{method,headers:{...headers,'content-type':'application/json'},body:JSON.stringify({name:item.name})});
+ permissions=new Set(['documents.view']);assert.equal((await api.DELETE(editRequest('DELETE'))).status,403);assert.equal((await api.PATCH(editRequest('PATCH'))).status,403);
+ permissions.add('policies.manage');assert.equal((await api.DELETE(editRequest('DELETE'))).status,200);
+ assert.equal((await api.GET(req('?file='+encodeURIComponent(item.name)))).status,404);
+ const removed=await (await api.GET(req(''))).json();assert.equal(removed.items.length,0);assert.equal(removed.deleted[0].name,item.name);
+ assert.equal(stored.get('ems-documents/'+item.name),'%PDF-1.7 unchanged fillable bytes');
+ permissions.delete('policies.manage');assert.equal((await (await api.GET(req(''))).json()).deleted.length,0);
+ permissions.add('policies.manage');assert.equal((await api.PATCH(editRequest('PATCH'))).status,200);
+ assert.equal(await (await api.GET(req('?file='+encodeURIComponent(item.name)))).text(),'%PDF-1.7 unchanged fillable bytes');
+ assert.equal((await api.DELETE(req('',{method:'DELETE',body:JSON.stringify({name:'../foreign.pdf'})}))).status,400);
  permissions.clear();assert.equal((await api.GET(req('?file='+encodeURIComponent(item.name)))).status,403);
 });
