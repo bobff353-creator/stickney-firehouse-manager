@@ -31,6 +31,7 @@ import { Choices, Field, Pill, StepHint } from "./ui";
 import { request } from "../lib/client";
 import { downloadJson } from "../lib/device";
 import { restoreEditorDraft } from "../lib/edit-navigation";
+import {useArrivalAccess} from '../access';
 export type Draft = {
   id: string;
   revision: number | null;
@@ -43,7 +44,7 @@ type Props = {
   initial: Draft;
   storageKey: string;
   onSaved: (record: PlanRecord) => void;
-  onClose: () => void;
+  onClose: (savedRecord?:PlanRecord) => void;
   onSubmitted: (record: PlanRecord) => void;
 };
 const hints = [
@@ -61,6 +62,7 @@ export default function Editor({
   onClose,
   onSubmitted,
 }: Props) {
+  const canUpload=useArrivalAccess().has('field_preplans.manage_attachments');
   const [draft, setDraft] = useState<Draft>(() => {
     try {
       return restoreEditorDraft(initial, localStorage.getItem(storageKey));
@@ -160,10 +162,10 @@ export default function Editor({
     showError("");
     setBusy(true);
     try {
-      await persist(p);
+      const savedRecord=await persist(p);
       if (exit) {
         localStorage.removeItem(storageKey);
-        onClose();
+        onClose(savedRecord);
       }
     } catch (e) {
       showError((e as Error).message);
@@ -323,24 +325,25 @@ export default function Editor({
           }}
           disabled={busy}
         >
-          <ArrowLeft size={17} /> Keep draft & exit
+          <ArrowLeft size={17} /> Keep on this device & exit
         </button>
         <div className="save-state">
           <span className={cloudSaved ? "status-dot" : "status-dot amber"} />
           {busy
             ? "Saving…"
             : cloudSaved
-              ? "Saved to cloud"
+              ? "Saved to department"
               : localStatus || "Preparing device draft"}
         </div>
         <button className="btn" disabled={busy} onClick={() => save(true)}>
-          <Save size={16} /> Save & exit
+          <Save size={16} /> Save to department & exit
         </button>
       </div>
+      <p className="editor-save-help">A device draft stays only on this device. Save to department or Save &amp; continue shares the working copy with authorized department users. Send for review when ready; approval is separate.</p>
       <div className="editor-heading">
         <div>
           <div className="eyebrow">
-            {photosOnly ? "PHOTOS & PLANS" : "GUIDED FIELD VISIT"}{" "}
+            {photosOnly ? "PHOTOS & PLANS" : "EDIT PREPLAN"}{" "}
             <span>/</span>{" "}
             {draft.revision === null ? "NEW PREPLAN" : "WORKING COPY"}
           </div>
@@ -810,6 +813,7 @@ export default function Editor({
             )}
             {step === 4 && (
               <>
+                {!canUpload&&<p className="field-help">Your account can edit text. Ask a preplan attachment editor to upload or replace files.</p>}
                 <div className="photo-grid">
                   {(["A", "B", "C", "D"] as const).map((side, i) => {
                     const photo = p.photos.find((x) => x.side === side);
@@ -859,7 +863,7 @@ export default function Editor({
                                 e.target.value = "";
                                 void upload(side, f);
                               }}
-                              disabled={busy}
+                              disabled={busy||!canUpload}
                             />
                           </label>
                           {photo && (
@@ -883,6 +887,7 @@ export default function Editor({
                               <button
                                 type="button"
                                 className="text-button muted"
+                                disabled={busy||!canUpload}
                                 onClick={() =>
                                   update(
                                     "photos",
@@ -919,12 +924,12 @@ export default function Editor({
                       type="file"
                       accept="application/pdf,image/jpeg,image/png,image/webp"
                       aria-label="Upload floor plan"
+                      disabled={busy||!canUpload}
                       onChange={(e) => {
                         const f = e.target.files?.[0];
                         e.target.value = "";
                         void upload("Plan", f);
                       }}
-                      disabled={busy}
                     />
                   </label>
                   {p.photos
@@ -941,6 +946,7 @@ export default function Editor({
                         <button
                           className="icon-button"
                           aria-label={"Detach " + f.name}
+                          disabled={busy||!canUpload}
                           onClick={() =>
                             update(
                               "photos",
@@ -1366,8 +1372,8 @@ export default function Editor({
             <div className="tip-note">
               <b>A call can interrupt the visit.</b>
               <p>
-                Use Keep draft & exit. Your answers stay on this device. Save &
-                exit also saves them to the cloud.
+                Use Keep on this device &amp; exit to keep your answers here. Save to
+                department &amp; exit also saves the working copy for authorized department users.
               </p>
               <button
                 className="text-button"

@@ -34,6 +34,7 @@ import {ImportedSource,HydrantLibrary} from "./import-tools";
 import { BuildingDetailReadout } from "./record-deep";
 import { Pill, Field, Blueprint } from "./ui";
 import { downloadJson, saveOffline } from "../lib/device";
+import {preplanDetailDestination} from '../lib/edit-navigation';
 export default function RecordView({
   record,
   userId,
@@ -41,6 +42,7 @@ export default function RecordView({
   onBack,
   backLabel = 'Back to preplans',
   onEdit,
+  onEditDetails,
   onDetails,
   onFootprint,
   onObserve,
@@ -55,6 +57,7 @@ export default function RecordView({
   onBack: () => void;
   backLabel?: string;
   onEdit: (r: PlanRecord) => void;
+  onEditDetails?: (r:PlanRecord,label:string)=>void;
   onDetails: (r: PlanRecord) => void;
   onFootprint: () => void;
   onObserve: () => void;
@@ -89,6 +92,7 @@ export default function RecordView({
     return () => { live=false; };
   },[record.id, workspaceNotesRefreshedAt, notesTick]);
   const demo = record.id === "example";
+  const canEdit=!demo&&access.has('field_preplans.edit');
   const p = review ? record.working : record.published || record.working;
   const u = unknowns(p);
   const draftView = review || !record.published;
@@ -154,9 +158,9 @@ export default function RecordView({
           <ArrowLeft size={17} /> {backLabel}
         </button>
         <div className="action-group">
-          {!demo && (
+          {canEdit && (
             <>
-              <button className="btn primary" onClick={onObserve}>
+              <button className="btn" onClick={onObserve}>
                 Add observation
               </button>
               <button
@@ -164,7 +168,7 @@ export default function RecordView({
                 disabled={busy}
                 onClick={() => onDetails(record)}
               >
-                Building details
+                Building measurements & details
               </button>
               <button className="btn" disabled={busy} onClick={onFootprint}>Capture building outline</button>
             </>
@@ -180,18 +184,19 @@ export default function RecordView({
           >
             <Download size={16} /> Export
           </button>
-          {!demo && (
+          {canEdit && (
             <button
               className="btn primary"
               disabled={busy}
               onClick={() => onEdit(record)}
             >
-              Edit quick preplan
+              Edit preplan
               <ArrowRight size={17} />
             </button>
           )}
         </div>
       </div>
+      {!demo&&<section className="preplan-next-step" aria-label="What to do next"><strong>{canEdit?'Need to update this building?':'Reading this preplan'}</strong><p>{canEdit?'Choose Edit preplan for the address, building, access, systems and photos. Use Building measurements & details for dimensions and advanced planning. Saving keeps a working copy; a separate review and approval updates the arrival version.':'Your account can read this preplan. Ask a department preplan editor to update missing or outdated details. Printing and offline copies keep their original version.'}</p>{canEdit&&record.status==='draft'&&onEditDetails&&<button className="btn" onClick={()=>onEditDetails(record,'Review')}>Review &amp; send<ArrowRight size={16}/></button>}</section>}
       {demo && (
         <div className="demo-banner">
           <Eye size={19} />
@@ -209,7 +214,7 @@ export default function RecordView({
           <div>
             <b>
               {review
-                ? "REVIEW COPY — NOT PUBLISHED"
+                ? record.status==='review'?"REVIEW COPY — NOT PUBLISHED":"SAVED WORKING COPY — NOT APPROVED"
                 : "DRAFT PREVIEW — NOT AN APPROVED PLAN"}
             </b>
             <p>
@@ -224,7 +229,7 @@ export default function RecordView({
         <div>
           <div className="eyebrow">
             {review
-              ? "OWNER REVIEW"
+              ? record.status==='review'?"REVIEW COPY":"WORKING COPY"
               : draftView
                 ? "WORKING COPY"
                 : "ARRIVAL BRIEF"}{" "}
@@ -306,9 +311,9 @@ export default function RecordView({
             <button className="text-button" onClick={onObservationRefresh}>
               Refresh notes
             </button>
-            <button className="btn small" onClick={onObserve}>
+            {canEdit&&<button className="btn small" onClick={onObserve}>
               Add observation
-            </button>
+            </button>}
           </div>
           {notesLoading && <p role="status">Refreshing this building’s active observations…</p>}
           {notesLimited && <p role="alert">Only the first 200 active observations are shown, with crew alerts first. Review the full history separately.</p>}
@@ -641,6 +646,9 @@ export default function RecordView({
         <FootprintReadout value={p.footprint} />
       )}
       {tab === "photos" && (
+        <section className="preplan-next-step"><strong>Photos and documents</strong><p>Use the A, B, C and D sides to show crews each side of the building. Existing source files stay linked to this record.</p>{canEdit&&onEditDetails&&access.has('field_preplans.manage_attachments')&&<button className="btn" onClick={()=>onEditDetails(record,'A-side photo')}>Edit photos & plans<ArrowRight size={16}/></button>}</section>
+      )}
+      {tab === "photos" && (
         <section className="panel">
           <div className="panel-title">
             <h2>Exterior photos</h2>
@@ -756,11 +764,11 @@ export default function RecordView({
         </div>
         <p>
           Unknown does not mean absent. Missing details remain visible after
-          approval.
+          approval. {canEdit&&onEditDetails?'Select a detail to open its editor. Your changes go into the working copy.':'Ask a preplan editor to update these details when verified.'}
         </p>
         <div className="tags">
           {u.length ? (
-            u.map((v) => <span key={v}>{v}</span>)
+            u.map((v) => canEdit&&onEditDetails&&(!v.endsWith('-side photo')||access.has('field_preplans.manage_attachments'))?<button className="unknown-edit-link" key={v} onClick={()=>onEditDetails(record,v)}><span>{v}</span><small>Edit · {preplanDetailDestination(v).section}</small><ArrowRight size={14}/></button>:<span key={v}>{v}</span>)
           ) : (
             <span>No tracked unknowns. Confirm current conditions.</span>
           )}

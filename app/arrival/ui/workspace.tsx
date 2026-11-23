@@ -58,6 +58,7 @@ import ImportTools,{HydrantLibrary} from "./import-tools";
 import Overview from './overview';
 import HydrantIcon from './hydrant-icon';
 import {initialOverview,type OverviewState} from '../lib/overview';
+import {recordEditingDraft,draftProgressLabel,preplanReturn} from '../lib/usability';
 import type {PlanData} from "../lib/preplan";
 import { Brand, Blueprint, Empty, Pill, ArrowLink } from "./ui";
 import {
@@ -208,9 +209,11 @@ export default function Workspace({ user }: { user: User }) {
         : "Observation saved. The approved preplan is unchanged.",
     );
   }
-  function closeEditor() {
+  function closeEditor(savedRecord?:PlanRecord) {
     setDraft(null);
-    setCurrent(null);
+    setCurrent(savedRecord||null);
+    if(savedRecord){setPage('preplans');setReviewMode(savedRecord.status!=='published');notify('Working copy saved to the department. Review and send it when ready; approval is separate.');}
+    else {setPage('preplans');notify('Draft kept on this device. Choose Resume under Saved on this device to continue.');}
     refreshDrafts();
   }
   function submitted(r: PlanRecord) {
@@ -317,15 +320,14 @@ export default function Workspace({ user }: { user: User }) {
   function edit(r: PlanRecord) {
     if(!access.has("field_preplans.edit")){notify("Your account has read-only preplan access.");return;}
     const local = localDrafts.find((x) => x.id === r.id);
-    setDraft(
-      local || {
-        id: r.id,
-        revision: r.revision,
-        data: structuredClone(r.working),
-      },
-    );
-    setDraft((d) => (d ? { ...d, kind: "quick" } : d));
+    setDraft(recordEditingDraft(r,local));
     setCurrent(null);
+  }
+  function editDetail(r:PlanRecord,label:string){
+    if(!access.has('field_preplans.edit')){notify('Your account has read-only preplan access.');return;}
+    const local=localDrafts.find(d=>d.id===r.id);
+    setDraft(recordEditingDraft(r,local,label));setCurrent(null);
+    if(local)notify('Your saved device draft was restored. Save to department when you are ready.');
   }
   function open(r: PlanRecord, review = false) {
     void loadObservations();
@@ -473,7 +475,7 @@ export default function Workspace({ user }: { user: User }) {
             </b>
           </div>
           <div className="topbar-right">
-            {!draft && (
+            {!draft && access.has('field_preplans.edit') && (
               <button
                 className="btn small observation-trigger"
                 onClick={() => addObservation(current || undefined)}
@@ -482,7 +484,7 @@ export default function Workspace({ user }: { user: User }) {
                 <span>Add observation</span>
               </button>
             )}
-            {!draft && (page !== 'overview' || current) && (
+            {!draft && (current || !['overview','preplans','review'].includes(page)) && (
               <label className="header-search">
                 <Search size={17} />
                 <input
@@ -537,12 +539,13 @@ export default function Workspace({ user }: { user: User }) {
               record={current}
               userId={user?.id || null}
               review={reviewMode}
-              backLabel={page==='overview'?'Back to overview':undefined}
+              backLabel={preplanReturn(page).label}
               onBack={() => {
                 setCurrent(null);
-                setPage(page === 'overview' ? 'overview' : 'preplans');
+                setPage(preplanReturn(page).page);
               }}
               onEdit={edit}
+              onEditDetails={editDetail}
               onDetails={buildingDetails}
               onFootprint={() => buildingDetails(current, "outline")}
               onObserve={() => addObservation(current)}
@@ -614,13 +617,13 @@ export default function Workspace({ user }: { user: User }) {
                         repeating the quick preplan.
                       </p>
                     </div>
-                    <button
+                    {access.has('field_preplans.edit')&&<button
                       className="btn primary"
                       onClick={() => addObservation()}
                     >
                       <MessageSquarePlus size={17} />
                       Add observation
-                    </button>
+                    </button>}
                   </div>
                   {pendingObservations.length > 0 && (
                     <div className="pending-observations">
@@ -722,7 +725,7 @@ export default function Workspace({ user }: { user: User }) {
                 </section>
               )}
               {page === "overview" && <>
-                <header className="page-heading with-action"><h1>Overview</h1><button className="btn primary" onClick={start}><Plus size={18}/>Quick preplan</button></header>
+                <header className="page-heading with-action"><div><h1>Maps & preplans</h1><p>Find a building, open its preplan, then read or update its details.</p></div><div className="action-group"><button className="btn" onClick={()=>navigate('preplans')}>{access.has('field_preplans.edit')?'Find or edit a preplan':'Find a preplan'}</button>{access.has('field_preplans.edit')&&<button className="btn primary" onClick={start}><Plus size={18}/>Add preplan</button>}</div></header>
                 <Overview records={records} loading={loading} signedIn={!!user} ownerId={user?.id||""} state={overview} onChange={setOverview} onOpen={r=>open(r,r.status==='review')} onObserve={addObservation}/>
                 {localDrafts.length>0&&<div className="resume-strip"><span>{localDrafts.length} saved device {localDrafts.length===1?"draft":"drafts"}</span><button className="btn small" onClick={()=>navigate("preplans")}>Resume draft</button></div>}
               </>}
@@ -730,10 +733,9 @@ export default function Workspace({ user }: { user: User }) {
                 <>
                   <header className="page-heading with-action"><div><h1>{page === "review" ? "Review queue" : "Preplans"}</h1>
                     </div>
-                    <button className="btn primary" onClick={start}>
-                      <Plus size={18} /> Quick preplan
-                    </button>
+                    {page==='review'?<button className="btn" onClick={()=>navigate('preplans')}>Back to preplans</button>:access.has('field_preplans.edit')&&<button className="btn primary" onClick={start}><Plus size={18}/>Add preplan</button>}
                   </header>
+                  <section className="preplan-next-step" aria-label="What to do next"><strong>{page==='review'?'Review before publishing':'Find an existing building first'}</strong><p>{page==='review'?'Open a submitted working copy, review its details and unknowns, then approve it or return it for correction. Only authorized reviewers can approve.':access.has('field_preplans.edit')?'Search by name or address, open the building, then choose Edit preplan. Add preplan starts a separate building record.':'Search by name or address and open a building to read its saved preplan. Ask a preplan editor to make changes.'}</p></section>
                   {page === "preplans" && localDrafts.length > 0 && (
                     <section className="panel device-drafts">
                       <div className="panel-title">
@@ -749,17 +751,7 @@ export default function Workspace({ user }: { user: User }) {
                             <b>{d.data.name || "Untitled field visit"}</b>
                             <small>
                               {d.data.address || "Address not entered"} ·{" "}
-                              {d.kind === "details"
-                                ? "Building details"
-                                : d.kind === "photos"
-                                  ? "Photos & plans"
-                                  : "Quick preplan · step " +
-                                    (d.data.step >= 5
-                                      ? 3
-                                      : d.data.step >= 2
-                                        ? 2
-                                        : 1) +
-                                    " of 3"}{" "}
+                              {draftProgressLabel(d)}{" "}
                               {d.revision === null
                                 ? "· not saved to cloud"
                                 : ""}
@@ -767,6 +759,7 @@ export default function Workspace({ user }: { user: User }) {
                           </div>
                           <button
                             className="btn small"
+                            disabled={!access.has('field_preplans.edit')}
                             onClick={() => setDraft(d)}
                           >
                             Resume
@@ -823,6 +816,7 @@ export default function Workspace({ user }: { user: User }) {
                         <RefreshCw size={18} />
                       </button>
                     </div>
+                    {!loading&&<p className="preplan-result-count" role="status">{visible.length} {visible.length===1?'building':'buildings'} shown{query?` for “${query}”`:''}{filter!=='all'?' · status filter applied':''}</p>}
                     {loading ? (
                       <Empty title="Loading preplans…">
                         Getting your saved workspace.
@@ -840,14 +834,14 @@ export default function Workspace({ user }: { user: User }) {
                     ) : (
                       <Empty
                         title={
-                          query
+                          query || filter!=='all'
                             ? "No matching buildings"
                             : page === "review"
                               ? "Nothing waiting for review"
                               : "Your building library is ready"
                         }
                         action={
-                          page === "review" ? (
+                          query || filter!=='all' ? <button className="btn" onClick={()=>{setQuery('');setFilter('all');}}>Clear search &amp; filters</button> : page === "review" ? (
                             <button
                               className="btn"
                               onClick={() => navigate("preplans")}
@@ -855,15 +849,15 @@ export default function Workspace({ user }: { user: User }) {
                               Open preplans
                               <ArrowRight size={16} />
                             </button>
-                          ) : (
+                          ) : access.has('field_preplans.edit') ? (
                             <button className="btn primary" onClick={start}>
                               <Plus size={16} /> Start a preplan
                             </button>
-                          )
+                          ) : undefined
                         }
                       >
-                        {query
-                          ? "Try another name, street or city."
+                        {query || filter!=='all'
+                          ? "Try another name, street or city, or clear the search and status filter. Check for an existing record before adding a building."
                           : page === "review"
                             ? "Finish a guided visit and send it here. Approval is a separate action."
                             : "Start a quick preplan. Cloud records will appear here after you save."}

@@ -22,6 +22,7 @@ import { request } from "../lib/client";
 import { Choices, Field, Pill } from "./ui";
 import { downloadJson } from "../lib/device";
 import { preplanDetailDestination } from "../lib/edit-navigation";
+import {useArrivalAccess} from '../access';
 export default function QuickPreplan({
   initial,
   storageKey,
@@ -33,10 +34,11 @@ export default function QuickPreplan({
   initial: Draft;
   storageKey: string;
   onSaved: (r: PlanRecord) => void;
-  onClose: () => void;
+  onClose: (savedRecord?:PlanRecord) => void;
   onSubmitted: (r: PlanRecord) => void;
   onEditDetails?: (draft: Draft, label: string) => void;
 }) {
+  const canUpload=useArrivalAccess().has('field_preplans.manage_attachments');
   const [draft, setDraft] = useState<Draft>(() => {
     try {
       const local = JSON.parse(localStorage.getItem(storageKey) || "null");
@@ -145,9 +147,9 @@ export default function QuickPreplan({
     setBusy(true);
     setError("");
     try {
-      await persist(p);
+      const savedRecord=await persist(p);
       localStorage.removeItem(storageKey);
-      onClose();
+      onClose(savedRecord);
     } catch (e) {
       fail((e as Error).message);
     } finally {
@@ -266,22 +268,23 @@ export default function QuickPreplan({
       <div className="editor-top">
         <button className="btn ghost" disabled={busy} onClick={close}>
           <ArrowLeft size={17} />
-          Keep draft & exit
+          Keep on this device & exit
         </button>
         <span className="save-state" aria-live="polite">
           {busy
             ? "Saving…"
             : saved
-              ? "Saved to cloud"
+              ? "Saved to department"
               : localSaved
                 ? "Device draft saved"
                 : "Device save unavailable"}
         </span>
         <button className="btn" onClick={() => void saveExit()} disabled={busy}>
           <Save size={16} />
-          Save & exit
+          Save to department & exit
         </button>
       </div>
+      <p className="editor-save-help">A device draft stays only on this device. Save to department or Save &amp; continue shares the working copy with authorized department users. Send for review when ready; approval is separate.</p>
       <div className="editor-heading">
         <div>
           <span className="eyebrow">QUICK PREPLAN</span>
@@ -560,6 +563,7 @@ export default function QuickPreplan({
                   <input
                     type="file"
                     aria-label="Add front photo"
+                    disabled={busy||!canUpload}
                     accept="image/jpeg,image/png,image/webp"
                     capture="environment"
                     onChange={(e) => {

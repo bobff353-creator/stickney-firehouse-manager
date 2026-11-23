@@ -5240,3 +5240,17 @@
 #portal-workspace .arrival-app .quick-card .tags .unknown-edit-link > svg { grid-column:2; grid-row:1 / 3; }
 #portal-workspace .arrival-app .quick-card .tags .unknown-edit-link:hover { background:var(--surface); border-color:var(--ink); }
 #portal-workspace .arrival-app .quick-card .tags .unknown-edit-link:focus-visible { outline:3px solid var(--ink); outline-offset:3px; }
+#portal-workspace .arrival-app .preplan-next-step { padding:16px 18px; margin:0 0 18px; background:var(--surface-soft); color:var(--ink); border:1px solid var(--line); border-radius:10px; }
+#portal-workspace .arrival-app .preplan-next-step strong { font-size:15px; }
+#portal-workspace .arrival-app .preplan-next-step p { color:var(--muted); margin:6px 0 0; line-height:1.55; font-size:14px; }
+#portal-workspace .arrival-app .preplan-next-step .btn { margin-top:12px; }
+#portal-workspace .arrival-app .preplan-result-count { padding:0 20px; font-size:13px; color:var(--muted); }
+#portal-workspace .arrival-app .editor-save-help { margin:0 0 18px; padding:12px 14px; border-left:3px solid var(--orange); background:var(--surface-soft); color:var(--ink); line-height:1.5; font-size:13px; }
+#portal-workspace .arrival-app .editor-top .btn { white-space:normal; min-height:48px; line-height:1.3; }
+#portal-workspace .arrival-app .editor-top .save-state { font-size:13px; }
+#portal-workspace .arrival-app .record-page .tags .unknown-edit-link { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 10px; align-items:center; text-align:left; padding:10px 12px; min-height:56px; max-width:100%; background:var(--surface); color:var(--ink); border:1px solid var(--line); border-radius:8px; white-space:normal; }
+#portal-workspace .arrival-app .record-page .tags .unknown-edit-link>span { padding:0; border:0; background:transparent; color:inherit; font-size:13px; font-weight:700; }
+#portal-workspace .arrival-app .record-page .tags .unknown-edit-link small { grid-column:1; font-size:12px; color:var(--muted); }
+#portal-workspace .arrival-app .record-page .tags .unknown-edit-link>svg { grid-column:2; grid-row:1/3; }
+#portal-workspace .arrival-app .record-page .tags .unknown-edit-link:focus-visible { outline:3px solid var(--ink); outline-offset:3px; }
+@media(max-width:760px){#portal-workspace .arrival-app .editor-top{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}#portal-workspace .arrival-app .editor-top>.save-state{grid-column:1/-1;grid-row:2}#portal-workspace .arrival-app .editor-top>.btn{font-size:13px;width:100%;padding:10px}#portal-workspace .arrival-app .page-heading.with-action>.action-group{display:flex;flex-wrap:wrap;gap:8px}}

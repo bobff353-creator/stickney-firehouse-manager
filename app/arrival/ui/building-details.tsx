@@ -44,7 +44,7 @@ export default function BuildingDetailEditor({
   initial: Draft;
   storageKey: string;
   onSaved: (p: PlanRecord) => void;
-  onClose: () => void;
+  onClose: (savedRecord?:PlanRecord) => void;
   onSubmitted: (p: PlanRecord) => void;
   onPhotos: (p: PlanRecord) => void;
 }) {
@@ -125,10 +125,10 @@ export default function BuildingDetailEditor({
     setBusy(true);
     setError("");
     try {
-      await persist();
+      const savedRecord=await persist();
       if (exit) {
         localStorage.removeItem(storageKey);
-        onClose();
+        onClose(savedRecord);
       }
     } catch (e) {
       setError((e as Error).message);
@@ -191,11 +191,11 @@ export default function BuildingDetailEditor({
           }}
         >
           <ArrowLeft size={17} />
-          Keep draft & exit
+          Keep on this device & exit
         </button>
         <button className="btn" disabled={busy} onClick={() => void save(true)}>
           <Save size={16} />
-          Save & exit
+          Save to department & exit
         </button>
       </div>
       <header className="page-heading">
