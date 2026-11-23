@@ -30,7 +30,6 @@ export async function GET(request:Request){
     const file=new URL(request.url).searchParams.get('file');
     if(file!==null){
       if(!validEmsFileName(file))return json({error:'Document not found.'},404);
-      if(await getPortalStorage().get(`ems-document-trash/${file}.json`))return json({error:'This document was deleted from the library. Ask a document administrator to restore it.'},404);
       const stored=await getPortalStorage().get(`ems-documents/${file}`);
       if(!stored)return json({error:'Document not found.'},404);
       const download=new URL(request.url).searchParams.get('download')==='1';

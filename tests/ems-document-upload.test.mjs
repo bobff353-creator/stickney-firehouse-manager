@@ -15,7 +15,7 @@ test('only bounded PDF bytes and safe document paths are accepted',async()=>{
 });
 test('actual EMS API enforces permissions and department scope and preserves PDF bytes',async()=>{
  let department='department-a',permissions=new Set(['documents.view','policies.manage']),stored=new Map(),listed=[];
- const storage={put:async(k,stream)=>stored.set(k,await new Response(stream).text()),get:async k=>stored.has(k)?{body:new Blob([stored.get(k)]).stream()}:null,delete:async k=>stored.delete(k)};
+ const storage={put:async(k,stream,options)=>{assert.equal(options.httpMetadata.contentType,'application/pdf','The production bucket only accepts PDFs and approved image formats');stored.set(k,await new Response(stream).text());},get:async k=>stored.has(k)?{body:new Blob([stored.get(k)]).stream()}:null,delete:async k=>stored.delete(k)};
  const mocks={
   '../../../db/bootstrap':{ensureDatabase:async()=>({})},
   '../../server-permissions':{hasPermission:async(_r,_db,p)=>permissions.has(p)},
