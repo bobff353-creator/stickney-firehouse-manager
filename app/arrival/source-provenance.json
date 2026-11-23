@@ -1,0 +1,8 @@
+{
+  "source": "Arrival — Fire Preplans",
+  "siteProjectId": "appgprj_6afbe1cd939c8191b04d20efd199444f",
+  "sourceCommit": "2b9c7b6c9d6fb88c8fd27b7b9a41ac5c982b0dca",
+  "sourceVersion": 10,
+  "integration": "Original client screens and guided flows; Stickney theme and authenticated native APIs.",
+  "nativeIds": "Existing preplan and hydrant IDs are reused. Legacy rows and original files are retained."
+}

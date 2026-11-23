@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#142338" />
+    <title>Stickney Preplans · Offline reader</title>
+    <link rel="icon" href="/icons/pwa-192.png" />
+    <link rel="stylesheet" href="/arrival-offline/offline.css" />
+    <script src="/arrival-offline/offline.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <a href="/?display=portal&page=field-preplans">Stickney<span> Preplans</span></a
+      ><span>DEVICE LIBRARY · READ ONLY</span
+      ><a class="button" href="/?display=portal&page=field-preplans">Return to workspace</a>
+    </header>
+    <main>
+      <div class="banner">
+        <b>OFFLINE PACKETS — SAVED SNAPSHOTS</b>
+        <p>
+          These are downloaded published records, not live building, CAD or
+          hydrant status. Verify the address, publication date and current
+          conditions. Device copies remain until cleared in Preplan settings or
+          through the app’s sign-out.
+        </p>
+      </div>
+      <section id="library">
+        <h1>Offline library</h1>
+        <label
+          >Find a saved building<input
+            type="search"
+            id="search"
+            placeholder="Building or address"
+        /></label>
+        <div id="packets"></div>
+        <p id="message" role="status">Opening this device’s library…</p>
+      </section>
+      <section id="detail" hidden></section>
+    </main>
+    <footer>
+      Published text, saved outlines and downloaded exterior photos only. Aerial maps, PDFs and live
+      service status require a connection.
+    </footer>
+  </body>
+</html>

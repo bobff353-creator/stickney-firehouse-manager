@@ -334,6 +334,7 @@ export default function AuthGateway({
   }
 
   async function signOut() {
+    try{localStorage.removeItem("stickney-arrival-owner");}catch{}
     invalidateSession();
     setMode("checking");
     clearAccessCache();

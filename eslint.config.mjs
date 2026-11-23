@@ -5,6 +5,9 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  { // Arrival's existing device-draft synchronization is retained with its UI flow.
+    files:["app/arrival/ui/*.tsx"],rules:{"react-hooks/set-state-in-effect":"off"}
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

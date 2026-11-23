@@ -58,7 +58,7 @@ const WorkDetails = dynamic(() => import("./work-details"), { loading: () => <Mo
 const StationScheduler = dynamic(() => import("./scheduler-workspace"), { loading: () => <ModuleLoading /> });
 import { RequiredConfirmation } from './required-confirmation';
 const PermissionSettings = dynamic(() => import("./permission-settings"), { loading: () => <ModuleLoading /> });
-const FieldPreplans = dynamic(() => import("./field-preplans"), { loading: () => <ModuleLoading /> });
+const FieldPreplans = dynamic(() => import("./arrival/workspace"), { loading: () => <ModuleLoading /> });
 const CadIntegrationSettings = dynamic(() => import("./cad-integration-settings"), { loading: () => <ModuleLoading /> });
 import Respond from "./respond";
 const IncidentCommandBoard = dynamic(() => import("./incident-command-board"), { loading: () => <ModuleLoading /> });

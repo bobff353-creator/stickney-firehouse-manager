@@ -7,6 +7,9 @@ const SCHEDULER_RECEIPTS = "stickney-scheduler-receipts-v1";
 const OFFLINE_URL = "/offline.html";
 const SAFE_STATIC_ASSETS = [
   OFFLINE_URL,
+  "/arrival-offline/index.html",
+  "/arrival-offline/offline.css",
+  "/arrival-offline/offline.js",
   "/manifest.webmanifest",
   "/icons/pwa-96.png",
   NOTIFICATION_BADGE,
@@ -37,7 +40,7 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
 
   if (request.mode === "navigate") {
-    event.respondWith(fetch(request).catch(() => caches.match(OFFLINE_URL)));
+    event.respondWith(fetch(request).catch(() => caches.match(url.pathname.startsWith("/arrival-offline/") ? "/arrival-offline/index.html" : OFFLINE_URL)));
     return;
   }
 
