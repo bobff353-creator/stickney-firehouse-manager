@@ -86,3 +86,18 @@ export function rigQueue(data: QueueRecords, apparatusId: string, now = new Date
   due.sort((left, right) => Number(Boolean(right.activeId)) - Number(Boolean(left.activeId)) || left.dueTime.localeCompare(right.dueTime));
   return { due, unfinished, exempt };
 }
+
+export function otherRigChecks(data: QueueRecords, apparatusId: string, now = new Date()): RigJob[] {
+  const rig = data.apparatus.find(row => row.id === apparatusId);
+  if (!rig) return [];
+  const queue = rigQueue(data, apparatusId, now);
+  const shown = new Set([...queue.due, ...queue.unfinished].map(job => job.type));
+  const equipment = data.equipment.filter(row => row.apparatus_id === apparatusId && !row.retired_at);
+  const template = data.scbaTemplates.find(row => row.apparatus_id === apparatusId && row.active !== false);
+  return (Object.keys(rigCheckLabels) as CheckType[]).flatMap(type => {
+    if (shown.has(type) || !apparatusCheckRequired(rig.status, type)) return [];
+    const configured = type === "air_pack" ? airCheckLines(template, equipment, apparatusId).length
+      : equipment.filter(row => equipmentDueForCheck(row, type, now)).length;
+    return configured ? [{ type, activeId: "", pending: 0, total: 0, configured, dueTime: "", signOutRequired: false }] : [];
+  });
+}

@@ -2,6 +2,7 @@ import Inventory360 from "../inventory-live";
 import { InventoryAccessGate } from "../components/InventoryAccessGate";
 import { verifyInventoryServerSession } from "../lib/inventory-session";
 import SessionIdleLock from "../session-idle-lock";
+import { inventoryWorkspaceView } from "../inventory-workspace-model";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,7 @@ export default async function Home({
       <Inventory360
         departmentId={session.context.department.id}
         departmentName={session.context.department.name}
+        initialView={inventoryWorkspaceView(query.view)}
         initialEquipmentId={typeof query.equipment==="string"?query.equipment.trim().slice(0,100):""}
         initialReportsView={query.view==='reports'}
         initialReportId={typeof query.report==="string"?query.report.trim().slice(0,100):""}

@@ -1,0 +1,103 @@
+/* Watchline's continuous workspace, backed by the existing Stickney record flows. */
+.inventory-app-shell.inventory-portal-refresh.inventory-watchline { min-height:100dvh; padding-bottom:90px; }
+.inventory-watchline > .topbar { height:72px; min-height:72px; box-sizing:border-box; }
+.inventory-watchline > :is(.inventory-command-header,.page,.setup-page) { margin-inline:auto; width:100%; max-width:1280px; padding-inline:24px; box-sizing:border-box; }
+.inventory-watchline .inventory-command-header { padding-top:24px; margin-bottom:16px; }
+.inventory-watchline .inventory-command-hero { padding:0; border:0; background:transparent; box-shadow:none; min-height:0; }
+.inventory-watchline .inventory-command-hero :is(h1,p,span,small) { color:var(--crew-ink); }
+.inventory-watchline .inventory-command-hero h1 { font-size:30px; line-height:1.2; }
+.inventory-watchline .inventory-command-hero p { color:var(--crew-muted); font-size:15px; }
+.inventory-watchline .inventory-command-hero > div > :is(span,small),.inventory-watchline .inventory-command-back { display:none; }
+.inventory-watchline .inventory-workspace-navigation { margin:0 24px; color:var(--crew-ink); }
+.inventory-watchline .inventory-workspace-drawer { border:1px solid var(--crew-line); border-radius:12px; background:var(--crew-card); }
+.inventory-watchline .inventory-workspace-drawer > summary { padding:14px 16px; cursor:pointer; font-weight:800; min-height:48px; box-sizing:border-box; }
+.inventory-watchline .inventory-workspace-navigation-body { padding:12px; }
+.inventory-watchline .inventory-workspace-navigation-body > p { color:var(--crew-muted); font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; padding:6px 10px; }
+.inventory-watchline .inventory-workspace-navigation nav { display:grid; gap:5px; }
+.inventory-watchline .inventory-workspace-navigation button { display:flex; align-items:center; gap:12px; width:100%; min-height:48px; padding:12px; border:1px solid transparent; background:transparent; color:var(--crew-ink); text-align:left; border-radius:8px; font-size:15px; }
+.inventory-watchline .inventory-workspace-navigation button:hover { background:var(--crew-soft); }
+.inventory-watchline .inventory-workspace-navigation button[aria-current=page] { background:var(--crew-soft); color:var(--crew-ink); border-left:4px solid var(--crew-red); font-weight:850; }
+.inventory-watchline .inventory-workspace-extra { margin-top:16px; border-top:1px solid var(--crew-line); padding-top:12px; }
+.inventory-watchline .inventory-workspace-extra > summary { min-height:44px; padding:10px; cursor:pointer; }
+.inventory-watchline .inventory-workspace-admin { margin-top:16px; border-top-color:var(--crew-line) !important; }
+.inventory-watchline .inventory-workspace-navigation-body .inventory-workspace-record-note { text-transform:none; letter-spacing:0; line-height:1.5; font-weight:500; }
+.inventory-watchline .crew-heading { display:none; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline :is(.ops-card,.equipment-record-summary,.equipment-record-button,.report-preview,.maintenance-record-details,.maintenance-rig-summary,.maintenance-open-list article,.record-credibility,.equipment-editor,.camera-panel,.ops-list > article,.ops-empty,.builder-guide,.capture-card,.inventory-bulk-review) { background:var(--crew-card); color:var(--crew-ink); border-color:var(--crew-line); border-radius:12px; box-shadow:none; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline :is(.inventory-ops,.setup-page,.fleet-page,.air-equipment-page) :is(h1,h2,h3,h4,label,legend,strong,dt,dd) { color:var(--crew-ink); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline :is(.inventory-ops,.setup-page,.fleet-page,.air-equipment-page) :is(p,small,.ops-help) { color:var(--crew-muted); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline :is(.inventory-ops,.setup-page,.fleet-page) :is(input,select,textarea):not([type=checkbox],[type=radio],[type=range],[type=file]) { min-height:44px; max-width:100%; min-width:0; border:1px solid var(--crew-line); border-radius:8px; background:var(--crew-card); color:var(--crew-ink); color-scheme:light dark; font-size:16px; box-sizing:border-box; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline input::placeholder,.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline textarea::placeholder { color:var(--crew-muted); opacity:1; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline :is(.inventory-ops,.setup-page,.fleet-page) button { min-height:44px; border-color:var(--crew-line); background:var(--crew-card); color:var(--crew-ink); border-radius:8px; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline :is(.inventory-ops,.setup-page,.fleet-page) :is(button.ops-primary,button.primary,button.primary-action) { background:var(--crew-red); border-color:var(--crew-red); color:#fff; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline :is(.inventory-task-nav,.repair-path-nav,.setup-workspace-tabs) button:is([aria-pressed=true],[aria-current=page],.active) { background:var(--crew-soft); color:var(--crew-ink); border-color:var(--crew-icon); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline :is(.camera-panel,.equipment-editor) > header { background:#142238; color:#f1f5f9; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline :is(.camera-panel,.equipment-editor) > header :is(h2,h3,span,button) { color:#f1f5f9; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline :is(.camera-panel,.equipment-editor) > header button { background:#1b2b43; border-color:#607895; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-editor-footer [role=alert] { background:#472126; color:#fecaca; border-color:#b87079; }
+.inventory-watchline .ops-form > *, .inventory-watchline .equipment-search-tools > *, .inventory-watchline .equipment-record-button > * { min-width:0; }
+.inventory-watchline .equipment-directory { display:grid; grid-template-columns:minmax(0,1fr); gap:8px; }
+.inventory-watchline .equipment-record-button { padding:16px; display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:12px; text-align:left; }
+.inventory-watchline .equipment-record-button strong { display:block; font-size:16px; margin:5px 0; }
+.inventory-watchline .equipment-record-button dl { display:flex; gap:20px; margin:0; }
+.inventory-watchline .equipment-record-button .asset-attention-list { grid-column:1/-1; }
+.inventory-watchline .equipment-search-tools { background:var(--crew-soft); border-radius:10px; padding:14px; margin-bottom:16px; }
+.inventory-watchline :is(.ops-table-wrap,.table-wrap) { border-color:var(--crew-line); background:var(--crew-card); }
+.inventory-watchline :is(table,tbody,tr,td) { background:transparent; color:var(--crew-ink); border-color:var(--crew-line); }
+.inventory-watchline th { background:var(--crew-soft); color:var(--crew-ink); border-color:var(--crew-line); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .lifecycle-report-grid article { background:var(--crew-soft); color:var(--crew-ink); border-color:var(--crew-line); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .lifecycle-report-grid article :is(strong,span) { color:var(--crew-ink); }
+.inventory-watchline :focus-visible { outline:3px solid var(--crew-icon); outline-offset:3px; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops :is(.employee-notify-picker,.employee-notify-directory,.employee-notify-tools,.employee-notify-roster label) { background:var(--crew-card); color:var(--crew-ink); border-color:var(--crew-line); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops :is(.employee-notify-summary span,.employee-notify-directory small,.employee-notify-roster small) { color:var(--crew-muted); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops label { text-transform:none; letter-spacing:0; font-size:14px; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .check-actions button.pass { background:#15382a; color:#bbf7d0; border-color:#508b6a; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .check-actions button.failed { background:#472126; color:#fecaca; border-color:#b87079; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .check-actions button[aria-pressed=true] { outline:3px solid var(--crew-icon); outline-offset:2px; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-command-hero { background:transparent; border:0; border-radius:0; padding:0; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-command-hero :is(h1,p,span,small) { color:var(--crew-ink); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .ops-card > header { background:transparent; color:var(--crew-ink); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .ops-card > header :is(span,small) { color:var(--crew-muted); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops :is(.ops-refresh-status,.ops-save-receipt) { background:var(--crew-soft); color:var(--crew-ink); border-color:var(--crew-line); padding:12px; border-radius:8px; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops :is(.ops-refresh-status,.ops-save-receipt) small { color:var(--crew-muted); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops :is(.ops-error,.error-banner) { background:#472126; color:#fecaca; border:1px solid #b87079; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops :is(.ops-error,.error-banner) :is(p,strong,small,span) { color:#fecaca; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops :is(.check-draft-warning,.stock-lot-warning) { background:#443219; color:#fde8b4; border-color:#a18450; padding:10px; border-radius:8px; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .ops-message:not(.ops-error) { background:#15382a; color:#bbf7d0; border-color:#508b6a; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .ops-message:not(.ops-error) :is(p,strong,small,span) { color:#bbf7d0; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-workspace-drawer { background:#142238; border-color:#31465f; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-workspace-navigation :is(p,summary,button) { color:#e2e8f0; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-workspace-navigation button { background:transparent; border-color:transparent; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-workspace-navigation button:hover { background:#23364e; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-workspace-navigation button[aria-current=page] { background:#8f1b2e; color:#fff; border-color:#ce7787; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops :is(.inventory-priority-notice,.inventory-critical-work) { background:#fff4dc; color:#5d3e0b; border-color:#a88036; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops :is(.inventory-priority-notice,.inventory-critical-work) :is(p,strong,span,small,a,li) { color:#5d3e0b; }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .inventory-critical-work .inventory-critical-asset-link { background:#fff9eb; border-color:#a88036; }
+@media(prefers-color-scheme:dark) {
+  .inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops :is(.inventory-priority-notice,.inventory-critical-work) { background:#443219; color:#fde8b4; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops :is(.inventory-priority-notice,.inventory-critical-work) :is(p,strong,span,small,a,li) { color:#fde8b4; }
+  .inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .inventory-critical-work .inventory-critical-asset-link { background:#352819; }
+}
+@media(min-width:1100px) {
+  .inventory-watchline > :is(.inventory-command-header,.page,.setup-page) { width:calc(100% - 240px); margin-left:240px; margin-right:0; padding-inline:32px; }
+  .inventory-watchline .inventory-workspace-navigation { position:fixed; top:90px; left:16px; bottom:20px; width:216px; margin:0; overflow-y:auto; z-index:15; }
+  .inventory-watchline .inventory-workspace-drawer { min-height:100%; }
+  .inventory-watchline .inventory-workspace-drawer > summary { display:none; }
+  .inventory-watchline .inventory-workspace-drawer::details-content { content-visibility:visible; display:block; }
+  .inventory-watchline .inventory-workspace-drawer:not([open]) > .inventory-workspace-navigation-body { display:block; }
+  .inventory-watchline > .mobile-nav { display:none; }
+}
+@media(max-width:600px) {
+  .inventory-watchline > .topbar { height:64px; min-height:64px; }
+  .inventory-watchline > :is(.inventory-command-header,.page,.setup-page) { padding-inline:14px; }
+  .inventory-watchline .inventory-workspace-navigation { margin-inline:14px; }
+  .inventory-watchline .inventory-command-header { padding-top:16px; }
+  .inventory-watchline .inventory-command-hero h1 { font-size:25px; }
+  .inventory-watchline .equipment-record-button { grid-template-columns:minmax(0,1fr); }
+  .inventory-watchline .equipment-record-button dl { flex-wrap:wrap; gap:10px 20px; }
+}
+@media(max-width:1099px) {
+  .inventory-watchline .inventory-workspace-navigation { position:sticky; top:72px; z-index:35; margin-block:8px; background:var(--crew-canvas); }
+  .inventory-watchline .inventory-workspace-drawer[open] .inventory-workspace-navigation-body { max-height:calc(100dvh - 220px); overflow-y:auto; }
+}
+@media(max-width:600px) { .inventory-watchline .inventory-workspace-navigation { top:64px; } }
+@media print { .inventory-workspace-navigation { display:none!important; } .inventory-watchline > :is(.page,.setup-page) { margin:0!important;width:100%!important; } }

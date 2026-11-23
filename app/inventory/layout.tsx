@@ -8,6 +8,7 @@ import "./layout-fit.css";
 import "./readability.css";
 import "./rig-checks.css";
 import "./watchline-admin.css";
+import "./watchline-workspace.css";
 
 export const metadata = {
   title: "Inventory & Apparatus Checks | Stickney Firehouse Manager",

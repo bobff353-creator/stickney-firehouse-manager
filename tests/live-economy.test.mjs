@@ -7,6 +7,8 @@ import { privatePacketResponse } from '../app/lib/private-packet-response.ts';
 import { createConditionalJsonReader } from '../app/conditional-json-reader.ts';
 import { synchronizedSlide } from '../app/board-sync-clock.ts';
 import * as inventoryIndex from '../app/inventory-index.ts';
+import * as inventoryDrugModel from '../app/inventory-drug-model.ts';
+import * as inventoryRecurrence from '../app/inventory-check-recurrence.ts';
 
 const source = path => readFileSync(path, 'utf8');
 function compileRoute(path, mocks) {
@@ -104,6 +106,8 @@ test('Inventory confirms unchanged packets only after fresh scoped reads; change
     };return query;
   }};
   const api=compileRoute('app/api/operations/route.ts',{
+    '../../inventory-drug-model':inventoryDrugModel,
+    '../../inventory-check-recurrence':inventoryRecurrence,
     '../../lib/supabase-server':{createInventorySupabaseClient:async()=>db},'../../inventory-air-input':{},'../../inventory-service-schedule':{},
     '../../lib/private-packet-response':{privatePacketResponse},
     '../../inventory-index':inventoryIndex,

@@ -4,6 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import PortalModuleMenu from "./components/PortalModuleMenu";
 import InventoryOperations from "./inventory-operations";
+import InventoryWorkspaceNavigation from "./inventory-workspace-navigation";
+import { inventoryWorkspaceUrl, type InventoryWorkspaceView } from "./inventory-workspace-model";
 import TaskQueueReturn from './task-queue-return';
 import { WorkspaceViewMemory } from "./workspace-view-state";
 import { confirmLeavingWork } from "./use-unsaved-work";
@@ -23,7 +25,7 @@ import {
   useState,
 } from "react";
 
-type View = "due" | "fleet" | "inventory" | "check" | "equipment" | "air" | "reports" | "readiness" | "service" | "maintenance" | "stock" | "setup";
+type View = InventoryWorkspaceView;
 type LoadState = "loading" | "ready" | "unavailable";
 type FleetFilter = "all" | "in-service" | "out-impaired" | "digital-twins";
 
@@ -48,6 +50,7 @@ const inventorySections: Array<[View, string]> = [
 ];
 
 const workspaceCopy: Record<View, { eyebrow: string; title: string; description: string }> = {
+  apparatus: { eyebrow: "APPARATUS STATUS", title: "Apparatus status", description: "Saved service status, apparatus details, and check progress." },
   due: { eyebrow: "OPERATIONAL RECORDS", title: "Apparatus & checks", description: "Start or resume a required apparatus check below." },
   fleet: { eyebrow: "INVENTORY WORKSPACE", title: "Operational checks", description: "Daily, weekly, inventory, and air-pack checks by apparatus." },
   inventory: { eyebrow: "APPARATUS INVENTORY", title: "Inventory checks", description: "Start or resume the saved inventory for each apparatus." },
@@ -348,6 +351,7 @@ function OperationalState({
 export default function Inventory360({
   departmentId,
   departmentName,
+  initialView = "",
   initialApparatusId = "",
   initialCheckType = "",
   initialResumeId = "",
@@ -358,6 +362,7 @@ export default function Inventory360({
 }: {
   departmentId: string;
   departmentName: string;
+  initialView?: InventoryWorkspaceView | "";
   initialApparatusId?: string;
   initialCheckType?: "daily" | "weekly" | "inventory" | "air_pack" | "drug" | "";
   initialResumeId?: string;
@@ -375,14 +380,14 @@ export default function Inventory360({
     // explanation and recovery controls in view instead of above the viewport.
     if (!accessAllowed) window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [accessAllowed]);
-  const [view, setViewState] = useState<View>(() => initialReportId||initialReportsView?"reports":initialWorkOrderId ? "service" : initialEquipmentId ? "equipment" : initialApparatusId && initialCheckType ? "check" : "due");
+  const [view, setViewState] = useState<View>(() => initialReportId||initialReportsView?"reports":initialWorkOrderId ? "service" : initialEquipmentId ? "equipment" : initialApparatusId && initialCheckType ? "check" : initialView || "due");
   const [selectedApparatusId, setSelectedApparatusId] = useState(initialApparatusId);
   const [selectedCheckType, setSelectedCheckType] = useState(initialCheckType);
   const [selectedResumeId, setSelectedResumeId] = useState(initialResumeId);
   const [startRepairNotice, setStartRepairNotice] = useState(false);
   const setView = useCallback((next: View) => {
     if (!confirmLeavingWork()) return;
-    if (next === "due") replaceCheckAddress(selectedApparatusId);
+    window.history.replaceState(null, "", inventoryWorkspaceUrl(window.location.href, next, selectedApparatusId));
     setStartRepairNotice(false);
     setViewState(next);
   }, [selectedApparatusId]);
@@ -552,13 +557,13 @@ export default function Inventory360({
   }, [loadSuite,access.confirmation?.required]);
 
   useEffect(() => {
-    if (!accessAllowed || access.confirmation?.required !== false || !["fleet", "setup"].includes(view)) return;
+    if (!accessAllowed || access.confirmation?.required !== false || !["apparatus", "setup"].includes(view) || view === "setup" && !canSetup) return;
     const controller = new AbortController();
     void loadTwin(undefined, controller.signal);
     // All other workspaces receive the already-loaded child records below.
-    if (view === "fleet") void loadFleetOperations(controller.signal);
+    if (view === "apparatus") void loadFleetOperations(controller.signal);
     return () => controller.abort();
-  }, [view, accessAllowed, access.confirmation?.required, loadTwin, loadFleetOperations]);
+  }, [view, accessAllowed, access.confirmation?.required, canSetup, loadTwin, loadFleetOperations]);
 
   const linkedTwinCount = suite.apparatus.filter((unit) => (
     Boolean(matchingTwin(unit, twinData.apparatus))
@@ -595,7 +600,7 @@ export default function Inventory360({
 
   function openFleetFilter(filter: FleetFilter) {
     setFleetFilter(filter);
-    setView("fleet");
+    setView("apparatus");
   }
 
   function showToast(message: string) {
@@ -616,14 +621,14 @@ export default function Inventory360({
   const activeWorkspace = workspaceCopy[view];
   const crewWriteup = view === "service" && startRepairNotice && canManageRepairs;
   const adminFlow = view === "setup" && canSetup || view === "maintenance" && canManageRepairs;
-  const crewFlow = view === "due" || view === "check" || crewWriteup || adminFlow;
+  const crewFlow = true;
   const today = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "America/Chicago" }).format(new Date());
   const checksInProgress = fleetOperations.checks.filter((check) => check.status === "in_progress").length;
 
   function refreshWorkspace() {
     void loadSuite();
-    if (["fleet", "setup"].includes(view)) void loadTwin(selectedApparatusId || undefined);
-    if (view === "fleet") void loadFleetOperations();
+    if (["apparatus", "setup"].includes(view)) void loadTwin(selectedApparatusId || undefined);
+    if (view === "apparatus") void loadFleetOperations();
     window.dispatchEvent(new Event("firehouse:inventory-refresh"));
     showToast("Refresh requested. Check each section’s connection status before relying on its records.");
   }
@@ -655,7 +660,7 @@ export default function Inventory360({
 
   if (!access.confirmation || access.confirmation.required) return <main className="inventory-app-shell"><RequiredConfirmation status={access.confirmation}/><Link href="/?page=respond&display=portal">Open Respond</Link></main>;
   return (
-    <WorkspaceViewMemory key={access.identity}><main className={`inventory-app-shell inventory-portal-refresh${crewFlow ? " inventory-crew-flow" : ""}${adminFlow ? " inventory-admin-flow" : ""}${view === "check" ? " inventory-task-focused" : ""}${view === "due" ? " inventory-due-focused" : ""}`}><TaskQueueReturn/>
+    <WorkspaceViewMemory key={access.identity}><main className={`inventory-app-shell inventory-portal-refresh inventory-watchline${crewFlow ? " inventory-crew-flow" : ""}${adminFlow ? " inventory-admin-flow" : ""}${view === "check" ? " inventory-task-focused" : ""}${view === "due" ? " inventory-due-focused" : ""}`}><TaskQueueReturn/>
       <header className="topbar">
         <PortalModuleMenu permissions={permissions} currentPage="Inventory" departmentName={activeDepartmentName}/>
         <button className="brand" onClick={() => setView("due")} aria-label="Apparatus and checks home">
@@ -689,6 +694,7 @@ export default function Inventory360({
         </div>
       </header>
 
+      <InventoryWorkspaceNavigation current={view} canSetup={canSetup} canManageRepairs={canManageRepairs} onNavigate={setView} />
       <section ref={workspaceHeadingRef} className="inventory-command-header" aria-labelledby="inventory-workspace-title">
         {view === "due" && <div className="inventory-due-toolbar crew-due-title">
           <div><p>{today}</p><h1 id="inventory-workspace-title">Today’s checks</h1></div>
@@ -702,7 +708,7 @@ export default function Inventory360({
           <div><button type="button" className="rig-check-back" onClick={() => setView("due")}>← Back to checks</button><h1 id="inventory-workspace-title">{view === "setup" ? "Inventory setup" : "Maintenance"}</h1></div>
           <button type="button" onClick={refreshWorkspace}><InventoryWorkIcon name="refresh" />Refresh</button>
         </div>}
-        {!crewFlow && <>
+        {!adminFlow && !["due", "check"].includes(view) && <>
           <button className="inventory-command-back" type="button" onClick={() => setView("due")}>← Back to apparatus &amp; checks</button>
           <div className="inventory-command-hero">
             <div>
@@ -716,7 +722,7 @@ export default function Inventory360({
         </>}
         {view === "due" && suiteState !== "ready" && <div className="inventory-priority-notice" role="status"><strong>{suiteState === "loading" ? "Apparatus service status is loading" : "Apparatus service status could not be refreshed"}</strong><span>{suite.apparatus.length ? "Last received apparatus records may be out of date." : "No apparatus service status has been verified in this view."} Required checks have their own connection status below.</span></div>}
         {view === "due" && outOfService.length > 0 && <div className="inventory-priority-notice" role="status"><div><strong>{outOfService.length} apparatus out of service or impaired{suiteState !== "ready" ? " · last received" : ""}</strong><span>{outOfService.map(unit => unit.call_sign || unit.unit_name).join(" · ")}</span></div><button type="button" onClick={() => openFleetFilter("out-impaired")}>Review apparatus status →</button></div>}
-        {view === "fleet" ? departmentSummary : null}
+        {view === "apparatus" ? departmentSummary : null}
         {!crewFlow && <>
         <label className="inventory-mobile-destination">What do you need to do?<select aria-label="Inventory workspace" value={view} onChange={event => setView(event.target.value as View)}>{inventorySections.map(([id,label]) => <option key={id} value={id}>{label}</option>)}{view === "readiness" && <option value="readiness">Items needing attention</option>}{canSetup && <option value="setup">Admin: checks &amp; equipment</option>}</select></label>
         <nav className="inventory-section-nav" aria-label="Inventory sections">
@@ -783,7 +789,9 @@ export default function Inventory360({
         </section>
       ) : null}
 
-      {view === "fleet" ? (
+      {view === "fleet" && <section className="page due-now-page"><InventoryOperations view="due" showAllChecks initialDueRigId={selectedApparatusId} onRigSelected={id => { setSelectedApparatusId(id); replaceCheckAddress(id); }} onOpenUnit={openRigCheck} onRecords={receiveOperations} onSetup={() => setView("setup")} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} /></section>}
+
+      {view === "apparatus" ? (
         <section className="page fleet-page">
           <div className="page-heading compact crew-heading">
             <div>
@@ -1034,6 +1042,7 @@ export default function Inventory360({
         <InventoryOperations view="service" maintenanceMode initialApparatusId={selectedApparatusId} onAir={() => setView("air")} onSetup={() => setView("setup")} onRepairs={() => setView("service")} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} />
       </section>}
 
+      {(view === "setup" && !canSetup || view === "maintenance" && !canManageRepairs) && <section className="page"><OperationalState title="Administration access is required" kind="unavailable" action={<button type="button" onClick={() => setView("due")}>Back to Today</button>}>Your account can use the crew workspaces. Ask an authorized administrator to manage this setup.</OperationalState></section>}
       {view === "setup" && canSetup ? (
         <section className="setup-page">
           <header className="setup-intro">
@@ -1474,10 +1483,10 @@ function DigitalTwinBuilder({
     <div className="builder-live">
       <div className="capture-head">
         <div>
-          <span>REAL APPARATUS CONFIGURATION</span>
+          <span>APPARATUS ADMINISTRATION</span>
           <h2>
             {effectiveApparatusId
-              ? `${captured} of ${requiredPhotoViews.length} guided views captured`
+              ? `${selectedApparatus?.name || "Apparatus"} · details & locations`
               : "Add the first department apparatus"}
           </h2>
         </div>

@@ -1,6 +1,7 @@
 import React from 'react';
 import {createRoot} from 'react-dom/client';
 import Inventory from '../../app/inventory-live';
+import {inventoryWorkspaceView} from '../../app/inventory-workspace-model';
 import '../../app/globals.css';
 import '../../app/mobile-usability.css';
 import '../../app/portal-usability.css';
@@ -17,6 +18,7 @@ import '../../app/readability.css';
 import '../../app/inventory/readability.css';
 import '../../app/inventory/rig-checks.css';
 import '../../app/inventory/watchline-admin.css';
+import '../../app/inventory/watchline-workspace.css';
 import { chicagoCalendarDate } from '../../app/lib/fleet-projections';
 
 const rig={id:'fixture-engine',name:'Preview Engine',asset_type:'engine',status:'in_service'};
@@ -67,6 +69,11 @@ window.fetch=async(input,init)=>{
   }
   return Response.json({error:'This fixture does not save that action.'},{status:409});
  }
+ if(url.startsWith('/api/operations/history')) {
+  const checkId=new URL(url,window.location.origin).searchParams.get('check');
+  if(checkId){const check=data.checks.find(row=>row.id===checkId);return check?Response.json({check,items:data.checkItems.filter(row=>row.check_id===checkId)}):Response.json({error:'Fictional report not found'},{status:404});}
+  return Response.json({reports:data.checks.filter(row=>row.status==='completed'),nextCursor:null});
+ }
  if(url.startsWith('/api/operations')){
   audit.activeReads++;audit.maxReads=Math.max(audit.maxReads,audit.activeReads);
   try{if(audit.holdReads)await new Promise<void>((resolve,reject)=>{pendingReads.push(resolve);init?.signal?.addEventListener('abort',()=>reject(new DOMException('Cancelled','AbortError')),{once:true});});return Response.json(data);}
@@ -87,4 +94,4 @@ window.addEventListener('error',e=>{audit.errors.push(e.message);const target=do
 window.addEventListener('unhandledrejection',e=>{audit.errors.push(String(e.reason));const target=document.getElementById('audit-errors');if(target)target.textContent+=String(e.reason);});
 const admin=new URLSearchParams(window.location.search).get('role')!=='member';
 const startInCheck=new URLSearchParams(window.location.search).has('check');
-createRoot(document.getElementById('root')!).render(<><aside style={{padding:8,background:'#fff4be',font:'12px Arial'}}>Fictional audit only · <span id="audit-writes">Test writes: 0</span><label><input id="fail-save" type="checkbox"/>Fail next save</label><span id="audit-errors"/></aside><Inventory departmentId="fixture" departmentName="Preview department" initialApparatusId={startInCheck?rig.id:''} initialCheckType={startInCheck?'daily':''} permissions={admin?['inventory.check','inventory.repairs.manage','inventory.setup.manage']:['inventory.check']}/></>);
+createRoot(document.getElementById('root')!).render(<><aside style={{padding:8,background:'#fff4be',font:'12px Arial'}}>Fictional audit only · <span id="audit-writes">Test writes: 0</span><label><input id="fail-save" type="checkbox"/>Fail next save</label><span id="audit-errors"/></aside><Inventory initialView={inventoryWorkspaceView(new URLSearchParams(window.location.search).get("view"))} departmentId="fixture" departmentName="Preview department" initialApparatusId={startInCheck?rig.id:''} initialCheckType={startInCheck?'daily':''} permissions={admin?['inventory.check','inventory.repairs.manage','inventory.setup.manage']:['inventory.check']}/></>);

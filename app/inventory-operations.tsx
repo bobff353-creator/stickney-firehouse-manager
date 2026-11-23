@@ -1,5 +1,5 @@
 "use client";
-import { rigQueue, rigCheckLabels, type CheckType, type RigJob } from "./inventory-rig-queue";
+import { rigQueue, otherRigChecks, rigCheckLabels, type CheckType, type RigJob } from "./inventory-rig-queue";
 import { InventoryWorkIcon } from "./inventory-work-icon";
 import ScenarioHelp from './scenario-help';
 import EquipmentContinuity from './equipment-continuity';
@@ -398,6 +398,7 @@ export default function InventoryOperations({
   initialResumeId = "",
   initialRepairNotice = false,
   maintenanceMode = false,
+  showAllChecks = false,
   onMaintenance,
   onRigSelected,
   onCheckSubmitted,
@@ -424,6 +425,7 @@ export default function InventoryOperations({
   initialResumeId?: string;
   initialRepairNotice?: boolean;
   maintenanceMode?: boolean;
+  showAllChecks?: boolean;
   onMaintenance?: () => void;
   onRigSelected?: (apparatusId: string) => void;
   onCheckSubmitted?: (apparatusId: string) => void;
@@ -1326,7 +1328,8 @@ export default function InventoryOperations({
                 <h3 id="rig-unfinished-heading">Unfinished checks</h3>
                 {renderRigJobs(rigWork.unfinished)}
               </section>}
-              {![...rigWork.due, ...rigWork.unfinished].some(job => job.type === "inventory") && data.equipment.some(item => item.apparatus_id === dueRigId && Array.isArray(item.check_types) && item.check_types.includes("inventory")) &&
+              {showAllChecks && otherRigChecks(data, dueRigId, today).length > 0 && <section aria-label="Other configured checks"><h3>Other checks</h3>{renderRigJobs(otherRigChecks(data, dueRigId, today))}</section>}
+              {!showAllChecks && ![...rigWork.due, ...rigWork.unfinished].some(job => job.type === "inventory") && data.equipment.some(item => item.apparatus_id === dueRigId && Array.isArray(item.check_types) && item.check_types.includes("inventory")) &&
                 <details className="rig-check-extra">
                   <summary>Other checks</summary>
                   <button type="button" disabled={!canCheck} onClick={() => onOpenUnit?.(dueRigId, "inventory")}>Open inventory count</button>

@@ -1,0 +1,13 @@
+# Apparatus & Inventory workspace upgrade
+
+Reference: private Watchline Site version 6, source `4b598ffd1cdaa6de0ee0be2cdb16ef28691ab8ef`. The source was inspected read-only at `C:\Users\rbt_w\Documents\Codex\2026-11-23\browser-comments-user-comment-1-browser\work\.sites-checkout`. The Firehouse Manager starting revision was the verified live `0b7e4f48ce77` (including the Arrival integration).
+
+The continuous workspace carries Watchline's navigation and presentation through Today, Checks, Repairs, Equipment, Maintenance, Saved reports and Administration. Stickney's navy/red palette, patch, verified department session, permission checks and existing persistence remain in use. The Checks destination now uses the rig-first due/resume workflow and also offers other configured checks. Apparatus service status remains a separate destination under More tools. Officer sign-in/out and Live Operations links remain available according to their existing grants.
+
+All saved work continues through the existing Inventory APIs. No Watchline D1 workspace, trial records, credentials, role simulator, import command or notification configuration was copied. No database migration or operational record write is part of this upgrade. Existing snapshots, approval, paging, evidence, repair, stock, drug and air-system behavior remain attached to the existing records. The separate local rank-assignment editor was not included in this release.
+
+The earlier inventory-dialog contrast fix was carried forward separately. The unified palette now covers equipment search, repair entry, maintenance, report filters, administration, errors and warnings in both color schemes. Narrow checklist labels wrap without overflowing the editor. Repair and check result actions keep their semantic colors.
+
+Validation: Node 24 and `npm ci`; production build; TypeScript; ESLint for changed code; `git diff --check`; 210 focused Inventory, session, fleet-duty and refresh tests passed. Four previously failing tests were repaired by supplying the actual newer drug/check-recurrence dependencies to their isolated harnesses; no assertions were weakened. Browser fixtures covered navigation, a failed and retried inventory edit, check resume, report loading, phone/tablet/desktop layouts, both color preferences and crew/admin access. Fictional fixture transport was extended for the existing history endpoint.
+
+Read-only production record fingerprints were captured before release for equipment (1,656), checks (27), check items (1,725), work orders (0), compartments (194) and schedules (101). Post-release comparison and the exact deployment revision are recorded in the local verification output. Browser fixture checks are not live mutation or physical-device verification.

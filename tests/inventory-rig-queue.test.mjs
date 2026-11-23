@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { rigQueue } from "../app/inventory-rig-queue.ts";
+import { rigQueue, otherRigChecks } from "../app/inventory-rig-queue.ts";
 import { incompleteRequiredFleetChecks, pendingDailyFleetChecks } from "../app/lib/fleet-projections.ts";
 
 const now = new Date("2026-11-21T15:00:00Z");
@@ -23,6 +23,17 @@ const records = {
   checkItems: [{ check_id: "daily", result: "pass" }, { check_id: "daily", result: "pending" }],
   scbaTemplates: [], scbaEntries: [],
 };
+
+test("Checks offers configured optional work without duplicating due/resumable checks or inventing items", () => {
+  assert.deepEqual(otherRigChecks(records, rig.id, now).map(job => job.type), ["weekly"]);
+  const empty = { ...records, equipment: [], scbaTemplates: [] };
+  assert.deepEqual(otherRigChecks(empty, rig.id, now), []);
+  assert.deepEqual(otherRigChecks(records, "foreign-rig", now), []);
+  assert.deepEqual(otherRigChecks({ ...records, equipment: [{ id: "old", apparatus_id: rig.id, check_types: ["drug"], retired_at: "2026-01-01" }] }, rig.id, now), []);
+  const reserveData = { ...records, equipment: [{ id: "reserve-radio", apparatus_id: reserve.id, check_types: ["daily", "weekly", "inventory"] }] };
+  const optional = otherRigChecks(reserveData, reserve.id, now);
+  assert.equal(optional.some(job => job.type === "daily"), false);
+});
 
 function mockSupabase(data) {
   const tables = {

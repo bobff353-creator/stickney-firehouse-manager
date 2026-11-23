@@ -1,3 +1,4 @@
+import '../../app/inventory/watchline-workspace.css';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Browser-only fictional workflow harness. No credentials or production fetches.
 // Mock transport proves UI behavior; database guarantees are tested separately in
