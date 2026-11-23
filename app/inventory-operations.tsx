@@ -2206,6 +2206,11 @@ export default function InventoryOperations({
               <label>Weekly frequency<select name="weeklyRecurrence" defaultValue={value(editingEquipment, "weekly_recurrence") || "every_week"}><option value="every_week">Every weekly check</option><option value="first_third_saturday">First and third Saturdays of the month</option></select></label>
               <p className="ops-span-2">Weekly frequency applies to new weekly checks in America/Chicago time. Saved and in-progress checks keep their original item list.</p>
             </div>
+            {data.equipment.some(item => value(item, "parent_equipment_id") === value(editingEquipment, "id") && !value(item, "retired_at")) && <section className="inventory-container-contents" aria-label="Items inside this container">
+              <h4>Items inside this kit or container</h4>
+              <p>This container cannot be deleted while these items are assigned to it. Cancel this editor, edit each listed item, and change “Contained in kit, bag, or tool box” to another container or “Not grouped inside another item.” Then return here to delete the empty container. Saved check history stays intact.</p>
+              <ul>{data.equipment.filter(item => value(item, "parent_equipment_id") === value(editingEquipment, "id") && !value(item, "retired_at")).map(item => <li key={value(item, "id")}>{value(item, "name")}</li>)}</ul>
+            </section>}
             <div className="inventory-editor-footer">
               <button className="ops-scan-button" type="button" onClick={() => { setScannerTarget("edit"); setScannerOpen(true); }}>Scan barcode</button>
               <button className="ops-primary" disabled={Boolean(busy)}>Save item</button>
