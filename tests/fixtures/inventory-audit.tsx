@@ -46,6 +46,13 @@ if(new URL(window.location.href).searchParams.has('container')){
  Object.assign(data.equipment[0],{parent_equipment_id:box.id});
 }
 let writes=0;
+if(new URL(window.location.href).searchParams.has('filters')){
+ const rear={...location,id:'fixture-rear',label:'Rear compartment'};data.compartments.push(rear);
+ const bag={...item,id:'fixture-bag',name:'Fictional Rear Kit',compartment_id:rear.id,compartment_label:rear.label,item_type:'kit',parent_equipment_id:null,check_types:['weekly','inventory']};
+ const tool={...item,id:'fixture-rear-tool',name:'Fictional rear tool',compartment_id:rear.id,compartment_label:rear.label,parent_equipment_id:bag.id,check_types:['weekly','inventory']};
+ data.equipment.push(bag,tool);
+ data.inspectionSchedules.push({...data.inspectionSchedules[0],id:'fixture-weekly-schedule',check_type:'weekly'});
+}
 const pendingReads:Array<()=>void>=[];
 const audit={data,permissionMode:'ok',permissionRequests:0,emptySave:false,requests:[] as string[],requestTimes:[] as {url:string;at:number}[],holdReads:false,activeReads:0,maxReads:0,releaseReads(){pendingReads.splice(0).forEach(resolve=>resolve());},errors:[] as string[],permissions:null as string[]|null};
 Object.assign(window,{inventoryAudit:audit});

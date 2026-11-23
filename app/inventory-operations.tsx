@@ -4,6 +4,7 @@ import { InventoryWorkIcon } from "./inventory-work-icon";
 import ScenarioHelp from './scenario-help';
 import EquipmentContinuity from './equipment-continuity';
 import InventoryContainerContents from "./inventory-container-contents";
+import { inventoryLocationFilter } from "./inventory-location-filter";
 import InventoryBulkReview from './inventory-bulk-review';
 import MeterCheckEditor, { MeterTemplateEditor } from './inventory-meter-check';
 import { meterTemplate, type MeterResponse } from './inventory-meter-model';
@@ -494,8 +495,10 @@ export default function InventoryOperations({
   const [equipmentAttention, setEquipmentAttention] = useState("all");
   const [repairEquipment, setRepairEquipment] = useState<Row | null>(null);
   const [setupSearch, setSetupSearch] = useState("");
+  const [setupLocation, setSetupLocation] = useState({rigId:'',locationId:'',containerId:''});
   const [builderTask, setBuilderTask] = useState("items");
-  const [showAllTemplateItems, setShowAllTemplateItems] = useState(true);
+  const [showAllTemplateItems, setShowAllTemplateItems] = useState(false);
+  const [scheduleFilter, setScheduleFilter] = useState({rig:'',type:''});
   const [setupLimit, setSetupLimit] = useState(24);
   const [refreshError, setRefreshError] = useState("");
   const [templateType, setTemplateType] = useState("inventory");
@@ -1173,8 +1176,9 @@ export default function InventoryOperations({
     ? data.scbaTemplates.find((item) => value(item, "apparatus_id") === value(selectedScbaApparatus, "id"))
     : undefined;
   const selectedEquipment = data.equipment.filter((item) => value(item, "apparatus_id") === selectedApparatusId);
+  const setupLocationFilter = inventoryLocationFilter(data.equipment,data.compartments,selectedApparatusId,setupLocation);
   const setupQuery = setupSearch.trim().toLowerCase();
-  const setupItems = view === "builder" && builderTask === "items" ? selectedEquipment.filter(item => {
+  const setupItems = view === "builder" && builderTask === "items" ? setupLocationFilter.items.filter(item => {
     if (!showAllTemplateItems && !(Array.isArray(item.check_types) && item.check_types.includes(templateType))) return false;
     if (setupQuery && ![item.name, item.barcode, item.compartment_label].some(field => String(field || "").toLowerCase().includes(setupQuery))) return false;
     return !duplicatesOnly || selectedEquipment.some(other => other.id !== item.id && other.compartment_id === item.compartment_id && value(other, "name").trim().toLowerCase() === value(item, "name").trim().toLowerCase());
@@ -1432,7 +1436,9 @@ export default function InventoryOperations({
               <label>Due by<input name="endTime" type="time" defaultValue="12:00" required /></label>
               <button className="ops-primary" disabled={Boolean(busy)}>Add or replace schedule</button>
             </form>
-            <div className="inspection-schedule-list">{data.inspectionSchedules.map((schedule) => <form key={value(schedule, "id")} onSubmit={(event) => {
+            <div className="inventory-location-filters" aria-label="Saved schedule filters"><label>Filter saved schedules by rig<select value={scheduleFilter.rig} onChange={event=>setScheduleFilter(current=>({...current,rig:event.target.value}))}><option value="">All rigs</option>{data.apparatus.map(rig=><option key={value(rig,'id')} value={value(rig,'id')}>{value(rig,'name')}</option>)}</select></label><label>Filter saved schedules by check type<select value={scheduleFilter.type} onChange={event=>setScheduleFilter(current=>({...current,type:event.target.value}))}><option value="">All check types</option>{inspectionTypes.map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label></div>
+            <div className="inventory-filter-summary"><p role="status">{data.inspectionSchedules.filter(row=>(!scheduleFilter.rig||row.apparatus_id===scheduleFilter.rig)&&(!scheduleFilter.type||row.check_type===scheduleFilter.type)).length} saved schedules shown</p><button type="button" onClick={()=>setScheduleFilter({rig:'',type:''})}>Clear schedule filters</button></div>
+            <div className="inspection-schedule-list">{data.inspectionSchedules.map((schedule) => <form key={value(schedule, "id")} hidden={Boolean((scheduleFilter.rig&&schedule.apparatus_id!==scheduleFilter.rig)||(scheduleFilter.type&&schedule.check_type!==scheduleFilter.type))} style={(scheduleFilter.rig&&schedule.apparatus_id!==scheduleFilter.rig)||(scheduleFilter.type&&schedule.check_type!==scheduleFilter.type)?{display:'none'}:undefined} onSubmit={(event) => {
               event.preventDefault();
               const form = new FormData(event.currentTarget);
               void action(`schedule-${value(schedule, "id")}`, { action: "save_inspection_schedule", id: value(schedule, "id"), apparatusId: value(schedule, "apparatus_id"), checkType: value(schedule, "check_type"), dayOfWeek: value(schedule, "day_of_week"), startTime: form.get("startTime"), endTime: form.get("endTime"), active: Boolean(form.get("active")), feedsDailyDuties: Boolean(form.get("feedsDailyDuties")), feedsOperationsBoard: Boolean(form.get("feedsOperationsBoard")), requireOfficerSignoff: Boolean(form.get("requireOfficerSignoff")) });
@@ -1681,7 +1687,7 @@ export default function InventoryOperations({
         <>
         <section ref={builderTopRef} className="ops-card inventory-builder-toolbar">
           <header><h2>Inventory &amp; checklists</h2></header>
-          <div className="inventory-builder-context"><label>Rig<select value={selectedApparatusId} onChange={event => { if(confirmLeavingWork()) { setSelectedApparatusId(event.target.value); setSetupLimit(24); } }}>{data.apparatus.map(item => <option key={value(item,"id")} value={value(item,"id")}>{value(item,"name")}</option>)}</select></label><label>Checklist<select value={templateType} onChange={event => {if(confirmLeavingWork())setTemplateType(event.target.value);}}>{inspectionTypes.map(([id,label]) => <option key={id} value={id}>{label}</option>)}</select></label></div>
+          <div className="inventory-builder-context"><label>Rig<select value={selectedApparatusId} onChange={event => { if(confirmLeavingWork()) { setSelectedApparatusId(event.target.value); setSetupLocation({rigId:event.target.value,locationId:'',containerId:''}); setSetupLimit(24); } }}>{data.apparatus.map(item => <option key={value(item,"id")} value={value(item,"id")}>{value(item,"name")}</option>)}</select></label><label>Checklist<select value={templateType} onChange={event => {if(confirmLeavingWork()){setTemplateType(event.target.value);setShowAllTemplateItems(false);setSetupLimit(24);}}}>{inspectionTypes.map(([id,label]) => <option key={id} value={id}>{label}</option>)}</select></label></div>
           <nav className="inventory-task-nav" aria-label="Checklist administration tasks">{[["items","Find or edit items"],["add","Add item"],["schedules","Check schedules"],["scba","Air pack setup"],["approvals",`Location requests (${pendingLocationChanges.length})`],["preview","Member preview"]].map(([id,label]) => <button type="button" key={id} aria-pressed={builderTask === id} onClick={() => changeBuilderTask(id)}>{label}</button>)}</nav>
         </section>
         {templateType === "weekly" && builderTask === "items" && selectedEquipment.some(item => meterTemplate(item.meter_template)) && <details className="ops-card"><summary>Gas meter checklist templates</summary>{selectedEquipment.filter(item => meterTemplate(item.meter_template)).map(item => <MeterTemplateEditor key={value(item,"id")} item={item} apparatus={value(selectedApparatus || {},"name")} onSave={saveMeterTemplate} />)}</details>}
@@ -1733,10 +1739,16 @@ export default function InventoryOperations({
         <section className="ops-card inventory-admin-list" hidden={builderTask !== "items"}>
           <header><h2>Inventory items</h2></header>
           <label>Find an item<input type="search" value={setupSearch} onChange={event => { setSetupSearch(event.target.value); setSetupLimit(24); }} placeholder="Name, location, or barcode" /></label>
+          <div className="inventory-location-filters">
+            <label>Compartment / location<select value={setupLocationFilter.locationId} onChange={event=>{setSetupLocation({rigId:selectedApparatusId,locationId:event.target.value,containerId:''});setSetupLimit(24);}}><option value="">All compartments / locations</option>{setupLocationFilter.locations.map(location=><option key={location.id} value={location.id}>{location.label}</option>)}{setupLocationFilter.hasUnassigned&&<option value="unassigned">Location not assigned</option>}</select></label>
+            <label>Bag, kit or tool box<select value={setupLocationFilter.containerId} disabled={!setupLocationFilter.locationId} onChange={event=>{setSetupLocation({rigId:selectedApparatusId,locationId:setupLocationFilter.locationId,containerId:event.target.value});setSetupLimit(24);}}><option value="">{setupLocationFilter.locationId?'All items in this location':'Choose a compartment / location first'}</option><option value="loose">Not inside another item</option>{setupLocationFilter.containers.map(container=><option key={value(container,'id')} value={value(container,'id')}>{value(container,'name')} · {formatStatus(container.item_type)}</option>)}</select></label>
+          </div>
+          {setupLocationFilter.locationId&&<p className="ops-help">{setupLocationFilter.containers.length?'Choose a bag, kit or tool box to see that container and its contents.':'No bags, kits or tool boxes are saved in this location.'}</p>}
           <details className="inventory-admin-filters"><summary>Item filters</summary>
-            <label><input type="checkbox" checked={!showAllTemplateItems} onChange={event => { setShowAllTemplateItems(!event.target.checked); setSetupLimit(24); }} /> Only items on the selected checklist</label>
+            <label><input type="checkbox" checked={showAllTemplateItems} onChange={event => { setShowAllTemplateItems(event.target.checked); setSetupLimit(24); }} /> Include items from other checklists</label>
             <label><input type="checkbox" checked={duplicatesOnly} onChange={event => { setDuplicatesOnly(event.target.checked); setSetupLimit(24); }} /> Matching names in the same compartment</label>
           </details>
+          <div className="inventory-filter-summary"><p role="status">{setupItems.length} {setupItems.length===1?'item':'items'} match</p><button type="button" onClick={()=>{setSetupLocation({rigId:selectedApparatusId,locationId:'',containerId:''});setSetupSearch('');setDuplicatesOnly(false);setShowAllTemplateItems(false);setSetupLimit(24);}}>Clear item filters</button></div>
           <div className="inventory-admin-item-list">
             {setupItems.slice(0, setupLimit).map(item => <article key={value(item, "id")}>
               <div><h3>{value(item, "name")}</h3><p>{value(item, "compartment_label") || "Location not assigned"} · Qty {value(item, "quantity_required") || "1"}</p></div>
