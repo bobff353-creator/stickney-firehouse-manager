@@ -3,11 +3,13 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("EMS is a permission-gated Documents page for administrators and employees", async () => {
-  const [app, menu, pdf] = await Promise.all([
+  const [portal, menu, pdf, component] = await Promise.all([
     readFile(new URL("../app/payroll-app.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/portal-menu-items.ts", import.meta.url), "utf8"),
     readFile(new URL("../public/ems/stickney-refusal-of-medical-advice.pdf", import.meta.url)),
+    readFile(new URL("../app/ems-documents.tsx", import.meta.url), "utf8"),
   ]);
+  const app = portal + component;
   assert.match(menu, /label: "Documents"[\s\S]*label: "EMS", page: "EMS"/);
   assert.match(app, /portalNavigationForPermissions\(permissions\)/);
   assert.match(app, /visibleMoreNavGroups[\s\S]+visibleNav\.includes\(item\.page\)/);

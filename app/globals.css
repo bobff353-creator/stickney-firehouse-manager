@@ -465,6 +465,13 @@ td strong { font-size: 16px; }
 .standard-page-header p:last-child { margin: 8px 0 0; color: var(--slate); }
 .page-icon { flex: 0 0 auto; width: 52px; height: 52px; border-radius: 12px; background: #e8f1f7; color: #1c527c; display: grid; place-items: center; font-size: 24px; font-weight: 900; }
 .ems-documents-page { display: grid; gap: 20px; }
+.ems-upload-form { display:grid; gap:16px; padding:22px; }
+.ems-upload-form label { display:grid; gap:8px; font-weight:700; }
+.ems-upload-form input { width:100%; min-width:0; padding:12px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--navy-deep); }
+.ems-documents-page .standard-page-header { flex-wrap:wrap; gap:16px; }
+.ems-document-card h2 { overflow-wrap:anywhere; }
+.ems-documents-page :is(h1,h2),.ems-documents-page .ems-document-card h2,.ems-upload-form input { color:var(--ink); }
+.ems-documents-page .ems-document-card small { color:var(--slate); }
 .ems-document-card { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; align-items: center; gap: 18px; padding: 22px; }
 .ems-document-mark { width: 58px; height: 58px; border-radius: 13px; background: #9f2f2f; color: #fff; display: grid; place-items: center; font-size: 15px; font-weight: 950; letter-spacing: .06em; }
 .ems-document-card h2 { margin: 3px 0 7px; color: var(--navy-deep); }
