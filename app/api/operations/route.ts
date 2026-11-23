@@ -570,6 +570,33 @@ export async function POST(request: Request) {
       return privateJson({ locationRequest });
     }
 
+    if (action === "manage_container_item") {
+      const equipmentId=clean(body.equipmentId,80),containerId=clean(body.containerId,80),operation=clean(body.operation,20);
+      if(!['add','remove','edit'].includes(operation)||!Object.hasOwn(body,'expectedUpdatedAt'))return privateJson({error:'Choose an action and refresh the saved item before editing.'},400);
+      const [{data:item,error:itemError},{data:container,error:containerError}]=await Promise.all([
+        supabase.from('inventory_equipment').select('*').eq('department_id',departmentId).eq('id',equipmentId).is('retired_at',null).maybeSingle(),
+        supabase.from('inventory_equipment').select('id,apparatus_id,compartment_id,item_type').eq('department_id',departmentId).eq('id',containerId).is('retired_at',null).maybeSingle(),
+      ]);
+      if(itemError||containerError)throw itemError||containerError;
+      if(!item||!container)return privateJson({error:'This active item or container was not found.'},404);
+      if(item.scba_asset_kind)return privateJson({error:'Edit registered air equipment in Air Packs & Bottles.'},409);
+      if(String(item.updated_at??'')!==String(body.expectedUpdatedAt??''))return privateJson({error:'This item changed. Refresh contents and review before saving.'},409);
+      if(operation==='add'){
+        if(item.id===container.id||['kit','bag','toolbox','container'].includes(item.item_type)||!['kit','bag','toolbox','container'].includes(container.item_type)||item.apparatus_id!==container.apparatus_id||item.compartment_id!==container.compartment_id)return privateJson({error:'Choose an individual item in the same saved compartment. Kits and containers cannot be nested here.'},400);
+      }else if(item.parent_equipment_id!==container.id)return privateJson({error:'This item is no longer inside this container. Refresh contents.'},409);
+      const changes:Record<string,unknown>={updated_at:new Date().toISOString()};
+      if(operation==='edit'){
+        const name=clean(body.name),quantity=Number(body.quantityRequired);
+        if(!name||!Number.isInteger(quantity)||quantity<1)return privateJson({error:'Enter a name and whole quantity of at least 1.'},400);
+        changes.name=name;changes.quantity_required=quantity;
+      }else changes.parent_equipment_id=operation==='add'?container.id:null;
+      const update=supabase.from('inventory_equipment').update(changes).eq('department_id',departmentId).eq('id',item.id).is('retired_at',null);
+      const {data:saved,error}=await (item.updated_at?update.eq('updated_at',item.updated_at):update.is('updated_at',null)).select('*').maybeSingle();
+      if(error)throw error;
+      if(!saved)return privateJson({error:'This item changed or access changed. Refresh contents before retrying.'},409);
+      return privateJson({equipment:saved});
+    }
+
     if (action === "create_equipment") {
       const compartmentId = clean(body.compartmentId, 80);
       const name = clean(body.name);
@@ -584,6 +611,12 @@ export async function POST(request: Request) {
           { error: "A saved compartment and equipment name are required." },
           400,
         );
+      }
+      const parentEquipmentId=clean(body.parentEquipmentId,80)||null;
+      if(parentEquipmentId){
+        const {data:parent,error}=await supabase.from('inventory_equipment').select('id,apparatus_id,compartment_id,item_type').eq('department_id',departmentId).eq('id',parentEquipmentId).is('retired_at',null).maybeSingle();
+        if(error)throw error;
+        if(!parent||parent.apparatus_id!==compartment.apparatus_id||parent.compartment_id!==compartmentId||!['kit','bag','toolbox','container'].includes(parent.item_type)||['kit','bag','toolbox','container'].includes(clean(body.itemType,40)))return privateJson({error:'Choose an active container in the same compartment for this individual item.'},400);
       }
       const record = {
         id: crypto.randomUUID(),
@@ -603,6 +636,7 @@ export async function POST(request: Request) {
           ? stringList(body.checkTypes, checkTypes, 5)
           : ["inventory"],
         item_type: clean(body.itemType, 40) || "individual",
+        parent_equipment_id: parentEquipmentId,
         purchase_date: clean(body.purchaseDate, 40) || null,
         in_service_date: clean(body.inServiceDate, 40) || null,
         expiration_date: clean(body.expirationDate, 40) || null,

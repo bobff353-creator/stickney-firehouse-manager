@@ -101,3 +101,21 @@
 }
 @media(max-width:600px) { .inventory-watchline .inventory-workspace-navigation { top:64px; } }
 @media print { .inventory-workspace-navigation { display:none!important; } .inventory-watchline > :is(.page,.setup-page) { margin:0!important;width:100%!important; } }
+/* Container contents stay editable without leaving the parent item's draft. */
+.inventory-container-contents .container-item-list { list-style:none; padding:0; display:grid; gap:12px; }
+.inventory-container-contents .container-item-list li { display:grid; gap:10px; border:1px solid currentColor; border-radius:10px; padding:12px; }
+.inventory-container-contents .container-item-actions,.inventory-container-contents .container-item-edit,.inventory-container-contents .container-add-tools { display:flex; flex-wrap:wrap; align-items:end; gap:10px; }
+.inventory-container-contents .container-add-tools { margin-top:18px; }
+.inventory-container-contents label { display:grid; gap:6px; flex:1 1 180px; min-width:0; }
+.inventory-container-contents :is(input,select) { width:100%; min-width:0; }
+.inventory-container-contents button { min-height:44px; white-space:normal; }
+.inventory-watchline .equipment-editor .inventory-container-contents { padding:16px; margin:16px 0; border:1px solid var(--crew-line); border-radius:12px; color:var(--crew-ink); background:var(--crew-soft); }
+.inventory-watchline .equipment-editor .inventory-container-contents button { padding:10px 14px; border:1px solid var(--crew-line); border-radius:9px; background:var(--crew-card); color:var(--crew-ink); font-weight:700; }
+.inventory-watchline .equipment-editor .inventory-container-contents :is(input,select) { padding:10px; border:1px solid var(--crew-line); border-radius:8px; background:var(--crew-card); color:var(--crew-ink); }
+.inventory-container-contents :is(h4,p) { margin:0 0 12px; }
+.inventory-container-contents h4 { font-size:18px; font-weight:800; }
+.inventory-container-contents p { line-height:1.5; }
+.inventory-container-contents .container-item-confirmation { border:2px solid var(--crew-red); border-radius:10px; padding:14px; margin:14px 0; }
+.inventory-container-contents .container-item-confirmation button { margin:4px; }
+.inventory-container-contents strong { overflow-wrap:anywhere; }
+@media(max-width:600px){.inventory-container-contents .container-item-actions button{flex:1 1 120px}.inventory-container-contents .container-add-tools>button{width:100%}}

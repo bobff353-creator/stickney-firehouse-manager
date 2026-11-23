@@ -3,6 +3,7 @@ import { rigQueue, otherRigChecks, rigCheckLabels, type CheckType, type RigJob }
 import { InventoryWorkIcon } from "./inventory-work-icon";
 import ScenarioHelp from './scenario-help';
 import EquipmentContinuity from './equipment-continuity';
+import InventoryContainerContents from "./inventory-container-contents";
 import InventoryBulkReview from './inventory-bulk-review';
 import MeterCheckEditor, { MeterTemplateEditor } from './inventory-meter-check';
 import { meterTemplate, type MeterResponse } from './inventory-meter-model';
@@ -827,6 +828,8 @@ export default function InventoryOperations({
         complete_check: "Inspection submitted for administrator review. Find the saved report in Reports.",
         update_equipment: "Equipment changes saved. Existing inspection history is retained.",
         create_equipment: "Equipment added to the selected compartment.",
+        manage_container_item: "Container contents saved. Existing check history is unchanged.",
+        delete_equipment: "Item removed from active inventory. Saved history is retained.",
         save_air_asset: "Air equipment record saved. View its details below; location changes apply to the next check.",
         log_air_maintenance: "Completed maintenance saved to this equipment ID. Service status and hydro dates are unchanged.",
         close_work_order: "Repair completion saved to maintenance history. Equipment service status is retained; review it separately before returning equipment to use.",
@@ -2242,11 +2245,7 @@ export default function InventoryOperations({
               <label>Weekly frequency<select name="weeklyRecurrence" defaultValue={value(editingEquipment, "weekly_recurrence") || "every_week"}><option value="every_week">Every weekly check</option><option value="first_third_saturday">First and third Saturdays of the month</option></select></label>
               <p className="ops-span-2">Weekly frequency applies to new weekly checks in America/Chicago time. Saved and in-progress checks keep their original item list.</p>
             </div>
-            {data.equipment.some(item => value(item, "parent_equipment_id") === value(editingEquipment, "id") && !value(item, "retired_at")) && <section className="inventory-container-contents" aria-label="Items inside this container">
-              <h4>Items inside this kit or container</h4>
-              <p>This container cannot be deleted while these items are assigned to it. Cancel this editor, edit each listed item, and change “Contained in kit, bag, or tool box” to another container or “Not grouped inside another item.” Then return here to delete the empty container. Saved check history stays intact.</p>
-              <ul>{data.equipment.filter(item => value(item, "parent_equipment_id") === value(editingEquipment, "id") && !value(item, "retired_at")).map(item => <li key={value(item, "id")}>{value(item, "name")}</li>)}</ul>
-            </section>}
+            {canSetup && (["kit","bag","toolbox","container"].includes(value(editingEquipment,"item_type")) || data.equipment.some(item => item.parent_equipment_id === editingEquipment.id && !item.retired_at)) && <InventoryContainerContents key={value(editingEquipment,"id")} container={editingEquipment} equipment={data.equipment} busy={Boolean(busy)} onAction={action} message={message} onRefresh={() => void load({background:true,fresh:true})} />}
             <div className="inventory-editor-footer">
               <button className="ops-scan-button" type="button" onClick={() => { setScannerTarget("edit"); setScannerOpen(true); }}>Scan barcode</button>
               <button className="ops-primary" disabled={Boolean(busy)}>Save item</button>

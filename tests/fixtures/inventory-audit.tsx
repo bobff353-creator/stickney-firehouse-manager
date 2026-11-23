@@ -24,6 +24,7 @@ import { chicagoCalendarDate } from '../../app/lib/fleet-projections';
 const rig={id:'fixture-engine',name:'Preview Engine',asset_type:'engine',status:'in_service'};
 const location={id:'fixture-cabinet',apparatus_id:rig.id,label:'Driver side · rear equipment cabinet',side:'driver',sort_order:1};
 const item={id:'fixture-radio',apparatus_id:rig.id,compartment_id:location.id,compartment_label:location.label,name:'Portable radio with spare battery and charging cable',quantity_required:2,check_types:['daily','inventory'],equipment_category:'equipment',response_type:'pass_fail',service_status:'in_service',barcode:'PREVIEW-ONLY',manufacturer:'Test',model:'Fixture',item_order:1};
+Object.assign(item,{item_type:'individual',parent_equipment_id:null,updated_at:'2026-11-23T00:00:00Z'});
 const equipment=[item,{...item,id:'fixture-mileage',name:'Current mileage / odometer',response_type:'mileage',quantity_required:1,item_order:0}];
 Object.assign(equipment[0],{last_serviced_date:chicagoCalendarDate(Date.now()-40*86400000),service_interval_months:1,service_reminder_months:0});
 const checkParam=new URL(window.location.href).searchParams.get('check')||'';
@@ -40,6 +41,10 @@ if(new URL(window.location.href).searchParams.has('scale')){
  }
 }
 if(checkKind==='air_pack')data.scbaEntries.push(...['pack','rit','spare'].map((section,i)=>({id:'fixture-air-'+i,check_id:checks[0].id,section,label:['Officer seat','RIT bag','Spare bottle'][i],result:'pending',sort_order:i})));
+if(new URL(window.location.href).searchParams.has('container')){
+ const box={...item,id:'fixture-box',name:'Fictional Tool Box',quantity_required:1};Object.assign(box,{item_type:'toolbox',parent_equipment_id:null,updated_at:'2026-11-23T00:00:00Z'});data.equipment.push(box);
+ Object.assign(data.equipment[0],{parent_equipment_id:box.id});
+}
 let writes=0;
 const pendingReads:Array<()=>void>=[];
 const audit={data,permissionMode:'ok',permissionRequests:0,emptySave:false,requests:[] as string[],requestTimes:[] as {url:string;at:number}[],holdReads:false,activeReads:0,maxReads:0,releaseReads(){pendingReads.splice(0).forEach(resolve=>resolve());},errors:[] as string[],permissions:null as string[]|null};
@@ -59,6 +64,15 @@ window.fetch=async(input,init)=>{
     Object.assign(target,{updated_at:new Date().toISOString(),service_profile_verified_at:body.verifyServiceProfile===true?new Date().toISOString():null});
     Object.assign(audit,{lastServiceSave:body});
     return Response.json({apparatus:target});
+  }
+  if(body.action==='manage_container_item'){
+   const target=data.equipment.find(e=>e.id===body.equipmentId)!;Object.assign(target,body.operation==='edit'?{name:body.name,quantity_required:body.quantityRequired}:{parent_equipment_id:body.operation==='add'?body.containerId:null});Object.assign(target,{updated_at:new Date().toISOString()});return Response.json({equipment:target});
+  }
+  if(body.action==='create_equipment'){
+   const target={...item,id:'fixture-created-'+writes,name:body.name,quantity_required:body.quantityRequired||1};Object.assign(target,{parent_equipment_id:body.parentEquipmentId||null,item_type:body.itemType||'individual',updated_at:new Date().toISOString()});data.equipment.push(target);return Response.json({equipment:target});
+  }
+  if(body.action==='delete_equipment'){
+   const target=data.equipment.find(e=>e.id===body.equipmentId)!;Object.assign(target,{retired_at:new Date().toISOString(),service_status:'retired'});return Response.json({deleted:target.id});
   }
   if(body.action==='record_scba_entry'){const target=data.scbaEntries.find(e=>e.id===body.entryId)!;Object.assign(target,{harness_number:body.harnessNumber,cylinder_number:body.cylinderNumber,psi:body.psi,result:body.result,notes:body.notes,checked_at:new Date().toISOString(),checked_by:'Preview crew'});return Response.json({scbaEntry:target});}
   if(body.action==='update_equipment'){const target=data.equipment.find(e=>e.id===body.equipmentId)!;Object.assign(target,{name:body.name,quantity_required:Number(body.quantityRequired),check_types:body.checkTypes,response_type:body.responseType,barcode:body.barcode});return Response.json({ok:true});}
@@ -108,4 +122,4 @@ window.addEventListener('error',e=>{audit.errors.push(e.message);const target=do
 window.addEventListener('unhandledrejection',e=>{audit.errors.push(String(e.reason));const target=document.getElementById('audit-errors');if(target)target.textContent+=String(e.reason);});
 const admin=new URLSearchParams(window.location.search).get('role')!=='member';
 const startInCheck=new URLSearchParams(window.location.search).has('check');
-createRoot(document.getElementById('root')!).render(<><aside style={{padding:8,background:'#fff4be',font:'12px Arial'}}>Fictional audit only · <span id="audit-writes">Test writes: 0</span> · Inventory reads: <span id="audit-reads">0</span><label><input id="fail-save" type="checkbox"/>Fail next save</label><span id="audit-errors"/></aside><Inventory initialView={inventoryWorkspaceView(new URLSearchParams(window.location.search).get("view"))} departmentId="fixture" departmentName="Preview department" initialApparatusId={startInCheck?rig.id:''} initialCheckType={startInCheck?checkKind:''} permissions={admin?['inventory.check','inventory.repairs.manage','inventory.setup.manage']:['inventory.check']}/></>);
+createRoot(document.getElementById('root')!).render(<><aside style={{padding:8,background:'#fff4be',font:'12px Arial'}}>Fictional audit only · <span id="audit-writes">Test writes: 0</span> · Inventory reads: <span id="audit-reads">0</span><label><input id="fail-save" type="checkbox"/>Fail next save</label><span id="audit-errors"/></aside><Inventory initialView={inventoryWorkspaceView(new URLSearchParams(window.location.search).get("view"))} initialEquipmentId={new URL(window.location.href).searchParams.get("equipment")||""} departmentId="fixture" departmentName="Preview department" initialApparatusId={startInCheck?rig.id:''} initialCheckType={startInCheck?checkKind:''} permissions={admin?['inventory.check','inventory.repairs.manage','inventory.setup.manage']:['inventory.check']}/></>);
