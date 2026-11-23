@@ -5232,3 +5232,4 @@
 
 #portal-workspace .arrival-app .choices button.selected{background:var(--green-soft);color:var(--green);border-color:var(--green);box-shadow:inset 0 0 0 1px var(--green)}
 #portal-workspace .arrival-app .topbar{color:var(--ink);}
+#portal-workspace .arrival-app .app-shell{grid-template-rows:auto;grid-auto-rows:auto;height:auto;padding:0;}
