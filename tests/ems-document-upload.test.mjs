@@ -21,7 +21,7 @@ test('actual EMS API enforces permissions and department scope and preserves PDF
   '../../server-permissions':{hasPermission:async(_r,_db,p)=>permissions.has(p)},
   '../../department-portal':{getPortalDepartment:async()=>({id:department,isolated:true})},
   '../../portal-storage':{getPortalStorage:()=>storage},
-  '../../supabase-server':{getSupabaseServerClient:async()=>({storage:{from:()=>({list:async(prefix)=>{listed.push(prefix);return {data:[...stored.keys()].filter(k=>k.startsWith(prefix.replace('departments/department-a/','')+'/')).map(k=>({name:k.slice(k.lastIndexOf('/')+1)})),error:null};}})}})},
+  '../../supabase-server':{getSupabaseServerClient:async()=>({storage:{from:()=>({move:async(from,to)=>{from=from.replace('departments/department-a/','');to=to.replace('departments/department-a/','');if(!stored.has(from)||stored.has(to))return {error:Error('Move denied')};stored.set(to,stored.get(from));stored.delete(from);return {error:null};},list:async(prefix)=>{listed.push(prefix);return {data:[...stored.keys()].filter(k=>k.startsWith(prefix.replace('departments/department-a/','')+'/')).map(k=>({name:k.slice(k.lastIndexOf('/')+1)})),error:null};}})}})},
   '../../ems-document-model':model,
  };
  const module={exports:{}};
@@ -43,7 +43,7 @@ test('actual EMS API enforces permissions and department scope and preserves PDF
  permissions.add('policies.manage');assert.equal((await api.DELETE(editRequest('DELETE'))).status,200);
  assert.equal((await api.GET(req('?file='+encodeURIComponent(item.name)))).status,404);
  const removed=await (await api.GET(req(''))).json();assert.equal(removed.items.length,0);assert.equal(removed.deleted[0].name,item.name);
- assert.equal(stored.get('ems-documents/'+item.name),'%PDF-1.7 unchanged fillable bytes');
+ assert.equal(stored.get('ems-document-trash/'+item.name),'%PDF-1.7 unchanged fillable bytes');
  permissions.delete('policies.manage');assert.equal((await (await api.GET(req(''))).json()).deleted.length,0);
  permissions.add('policies.manage');assert.equal((await api.PATCH(editRequest('PATCH'))).status,200);
  assert.equal(await (await api.GET(req('?file='+encodeURIComponent(item.name)))).text(),'%PDF-1.7 unchanged fillable bytes');

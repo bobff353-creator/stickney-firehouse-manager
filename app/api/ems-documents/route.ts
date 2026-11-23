@@ -38,9 +38,9 @@ export async function GET(request:Request){
     }
     const prefix=access.department.isolated?`departments/${access.department.id}/`:'';
     const [names,markers]=await Promise.all([listNames(`${prefix}ems-documents`),listNames(`${prefix}ems-document-trash`)]);
-    const removed=new Set(markers.filter(name=>name.endsWith('.json')).map(name=>name.slice(0,-5)).filter(validEmsFileName));
+    const removed=markers.filter(validEmsFileName).map(emsDocument).sort((a,b)=>a.title.localeCompare(b.title));
     const all=names.filter(validEmsFileName).map(emsDocument).sort((a,b)=>a.title.localeCompare(b.title));
-    return json({items:all.filter(item=>!removed.has(item.name)),deleted:access.canAdd?all.filter(item=>removed.has(item.name)):[],canAdd:access.canAdd});
+    return json({items:all,deleted:access.canAdd?removed:[],canAdd:access.canAdd});
   }catch{return json({error:'EMS documents could not load. Please retry.'},503);}
 }
 async function changeRemoval(request:Request,restore:boolean){
@@ -48,11 +48,11 @@ async function changeRemoval(request:Request,restore:boolean){
     const access=await boundary(request,true);if(access.denied)return access.denied;
     const body=await request.json(),name=typeof body.name==='string'?body.name:'';
     if(!validEmsFileName(name))return json({error:'Choose an uploaded EMS document.'},400);
-    const storage=getPortalStorage();
-    if(!await storage.get(`ems-documents/${name}`))return json({error:'Document not found. Refresh the list.'},404);
-    const key=`ems-document-trash/${name}.json`;
-    if(restore)await storage.delete(key);
-    else await storage.put(key,new Blob([JSON.stringify({name,deletedAt:new Date().toISOString(),deletedBy:request.headers.get('oai-authenticated-user-email')})]).stream(),{httpMetadata:{contentType:'application/json'}});
+    const prefix=access.department.isolated?`departments/${access.department.id}/`:'';
+    const active=`${prefix}ems-documents/${name}`,removed=`${prefix}ems-document-trash/${name}`;
+    const client=await getSupabaseServerClient();
+    const {error}=await client.storage.from('firehouse-portal').move(restore?removed:active,restore?active:removed);
+    if(error)throw error;
     return json({item:emsDocument(name),deleted:!restore});
   }catch{return json({error:'The change could not be confirmed. Refresh the document list before retrying.'},503);}
 }
