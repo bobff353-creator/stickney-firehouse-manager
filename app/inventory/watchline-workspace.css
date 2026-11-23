@@ -112,6 +112,17 @@
 .inventory-watchline .equipment-editor .inventory-container-contents { padding:16px; margin:16px 0; border:1px solid var(--crew-line); border-radius:12px; color:var(--crew-ink); background:var(--crew-soft); }
 .inventory-watchline .equipment-editor .inventory-container-contents button { padding:10px 14px; border:1px solid var(--crew-line); border-radius:9px; background:var(--crew-card); color:var(--crew-ink); font-weight:700; }
 .inventory-watchline .equipment-editor .inventory-container-contents :is(input,select) { padding:10px; border:1px solid var(--crew-line); border-radius:8px; background:var(--crew-card); color:var(--crew-ink); }
+
+/* Keep the SCBA editor's surfaces and labels on the same theme palette. */
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .scba-template-editor { background:var(--crew-card); color:var(--crew-ink); border-color:var(--crew-line); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .scba-template-editor fieldset { background:var(--crew-card); color:var(--crew-ink); border-color:var(--crew-line); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .scba-template-editor :is(label,legend,label > span,h3) { color:var(--crew-ink); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .scba-template-editor :is(p,header span) { color:var(--crew-muted); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .scba-template-editor :is(.scba-template-options label,header > b) { background:var(--crew-soft); color:var(--crew-ink); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .scba-template-card > .scba-template-note { color:var(--crew-muted); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .inventory-member-preview :is(.check-row,.scba-entry) { background:var(--crew-card); color:var(--crew-ink); border-color:var(--crew-line); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .inventory-member-preview :is(.check-item-copy > strong,.scba-entry label,.scba-entry h4) { color:var(--crew-ink); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .inventory-member-preview :is(.check-item-copy > small,.check-item-copy summary,.scba-entry > footer small) { color:var(--crew-muted); }
 .inventory-container-contents :is(h4,p) { margin:0 0 12px; }
 .inventory-container-contents h4 { font-size:18px; font-weight:800; }
 .inventory-container-contents p { line-height:1.5; }
