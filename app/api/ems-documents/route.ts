@@ -24,7 +24,7 @@ export async function GET(request:Request){
       const stored=await getPortalStorage().get(`ems-documents/${file}`);
       if(!stored)return json({error:'Document not found.'},404);
       const download=new URL(request.url).searchParams.get('download')==='1';
-      return new Response(stored.body,{headers:{'Content-Type':'application/pdf','Content-Disposition':`${download?'attachment':'inline'}; filename="${file.slice(38)}"`,'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"sandbox; default-src 'none'",Vary:'Cookie'}});
+      return new Response(stored.body,{headers:{'Content-Type':'application/pdf','Content-Disposition':`${download?'attachment':'inline'}; filename="${file.slice(38)}"`,'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; frame-ancestors 'self'",Vary:'Cookie'}});
     }
     const client=await getSupabaseServerClient();
     const prefix=`${access.department.isolated?`departments/${access.department.id}/`:''}ems-documents`;
