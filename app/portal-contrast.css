@@ -177,3 +177,16 @@
   .app-shell:has(#portal-workspace) .workspace .portal-task-directory input:where(:not(.fi-desk,.fi-desk *))::placeholder {color:#496578;opacity:1}
   .mobile-nav-panel .mobile-core-nav h2:where(:not(.fi-desk,.fi-desk *)) {color:#496578}
 }
+/* Box Cards keep the approved response sheet dark-on-white within the slate portal. */
+@media screen {
+  .workspace.bento-rest.bento-rest .box-card-viewer .mabas-sheet,
+  .workspace.bento-rest.bento-rest .box-card-viewer .mabas-sheet :is(strong,b,span) {color:#111}
+  .workspace.bento-rest.bento-rest .box-card-viewer .resource-record-head span {color:#c6d2e4}
+  .workspace.bento-rest.bento-rest .box-browser-bar {background:#141e30;color:#f1f5f9;border-color:#607895}
+  .workspace.bento-rest.bento-rest .box-browser-bar :is(strong,span) {color:#c6d2e4}
+  .workspace.bento-rest.bento-rest .box-card-library .policy-toc-list button.current {background:#155a7c;color:#fff;border-color:#70c8d0}
+  .workspace.bento-rest.bento-rest .box-card-library .policy-toc-list button.current:is(:hover,:focus-visible) {background:#155a7c;color:#fff;border-color:#70c8d0}
+  .workspace.bento-rest.bento-rest .box-card-library .policy-toc-list button.current :is(strong,small,span) {color:#fff}
+  .workspace.bento-rest.bento-rest .box-card-source {border-color:#607895}
+  .workspace.bento-rest.bento-rest .box-card-source summary {background:#1b2b43;color:#f1f5f9}
+}
