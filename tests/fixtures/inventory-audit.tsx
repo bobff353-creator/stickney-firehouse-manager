@@ -44,9 +44,11 @@ if(checkKind==='air_pack')data.scbaEntries.push(...['pack','rit','spare'].map((s
 if(new URL(window.location.href).searchParams.has('container')){
  const box={...item,id:'fixture-box',name:'Fictional Tool Box',quantity_required:1};Object.assign(box,{item_type:'toolbox',parent_equipment_id:null,updated_at:'2026-11-23T00:00:00Z'});data.equipment.push(box);
  Object.assign(data.equipment[0],{parent_equipment_id:box.id});
+ data.checkItems.push({...box,id:'result-box',equipment_id:box.id,equipment_name:box.name,check_id:checks[0].id,result:'pending'});
+ Object.assign(data.equipment[1],{parent_equipment_id:box.id});
 }
 let writes=0;
-if(new URL(window.location.href).searchParams.has('drugpreview'))Object.assign(data.equipment[0],{check_types:['drug'],response_type:'medication',drug_schema:{version:1,title:'Fictional medication preview',mode:'medication',expectedQuantity:2,location:'Fictional medication bag'}});
+if(new URL(window.location.href).searchParams.has('drugpreview')){const schema={version:1,title:'Fictional medication preview',mode:'medication',expectedQuantity:2,location:'Fictional medication bag'};Object.assign(data.equipment[0],{check_types:['drug'],response_type:'medication',drug_schema:schema});Object.assign(data.checkItems[0],{drug_schema:JSON.stringify(schema)});}
 if(new URL(window.location.href).searchParams.has('filters')){
  const rear={...location,id:'fixture-rear',label:'Rear compartment'};data.compartments.push(rear);
  const bag={...item,id:'fixture-bag',name:'Fictional Rear Kit',compartment_id:rear.id,compartment_label:rear.label,item_type:'kit',parent_equipment_id:null,check_types:['weekly','inventory']};

@@ -118,6 +118,14 @@
 .inventory-location-filters label { display:grid; gap:6px; min-width:0; }
 .inventory-filter-summary { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin:10px 0; }
 .inventory-filter-summary p { margin:0; }
+.inventory-watchline .check-container-group { min-width:0; border:1px solid var(--crew-line); border-radius:12px; background:var(--crew-card); color:var(--crew-ink); }
+.inventory-watchline .check-container-group > summary { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:6px 12px; padding:16px; min-height:64px; cursor:pointer; background:var(--crew-soft); color:var(--crew-ink); border-radius:12px; }
+.inventory-watchline .check-container-group > summary > strong { font-size:16px; }
+.inventory-watchline .check-container-group > summary > span { color:var(--crew-muted); font-size:14px; }
+.inventory-watchline .check-container-group > summary > .check-container-open { grid-column:2; grid-row:1/3; align-self:center; color:var(--crew-icon); font-weight:700; }
+.inventory-watchline .check-container-group > summary:focus-visible { outline:3px solid var(--crew-icon); outline-offset:3px; }
+.inventory-watchline .check-container-body { padding:14px; display:grid; gap:12px; }
+.inventory-watchline .check-container-body > p { margin:0; color:var(--crew-muted); font-size:14px; line-height:1.5; }
 @media(max-width:600px){.inventory-location-filters{grid-template-columns:minmax(0,1fr)}}
 .inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .scba-template-editor { background:var(--crew-card); color:var(--crew-ink); border-color:var(--crew-line); }
 .inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .scba-template-editor fieldset { background:var(--crew-card); color:var(--crew-ink); border-color:var(--crew-line); }
@@ -128,10 +136,10 @@
 .inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .inventory-member-preview :is(.check-row,.scba-entry) { background:var(--crew-card); color:var(--crew-ink); border-color:var(--crew-line); }
 .inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .inventory-member-preview :is(.check-item-copy > strong,.scba-entry label,.scba-entry h4) { color:var(--crew-ink); }
 .inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .inventory-member-preview :is(.check-item-copy > small,.check-item-copy summary,.scba-entry > footer small) { color:var(--crew-muted); }
-.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .inventory-member-preview .meter-check { background:var(--crew-card); color:var(--crew-ink); border-color:var(--crew-line); }
-.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .inventory-member-preview .meter-check :is(header,fieldset) { background:var(--crew-card); color:var(--crew-ink); border-color:var(--crew-line); }
-.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .inventory-member-preview .meter-check :is(h3,header > strong,legend,label,summary) { color:var(--crew-ink); }
-.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .inventory-member-preview .meter-check :is(p,header span) { color:var(--crew-muted); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops :is(.inventory-member-preview,.crew-check-runner) .meter-check { background:var(--crew-card); color:var(--crew-ink); border-color:var(--crew-line); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops :is(.inventory-member-preview,.crew-check-runner) .meter-check :is(header,fieldset) { background:var(--crew-card); color:var(--crew-ink); border-color:var(--crew-line); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops :is(.inventory-member-preview,.crew-check-runner) .meter-check :is(h3,header > strong,legend,label,summary) { color:var(--crew-ink); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops :is(.inventory-member-preview,.crew-check-runner) .meter-check :is(p,header span) { color:var(--crew-muted); }
 .inventory-container-contents :is(h4,p) { margin:0 0 12px; }
 .inventory-container-contents h4 { font-size:18px; font-weight:800; }
 .inventory-container-contents p { line-height:1.5; }

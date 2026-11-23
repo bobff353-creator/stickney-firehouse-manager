@@ -11,6 +11,7 @@ import * as filters from '../app/inventory-workspace-filters.ts';
 import * as attention from '../app/inventory-asset-attention.ts';
 import * as air from '../app/inventory-air-checks.ts';
 import * as rigQueue from '../app/inventory-rig-queue.ts';
+import * as locationFilters from '../app/inventory-location-filter.ts';
 
 const require=createRequire(import.meta.url);
 const jsx=require('react/jsx-runtime');
@@ -28,6 +29,7 @@ function fixture({critical=true,loading=false,unavailable=false,equipmentRows,ca
     './workspace-view-state':{useWorkspaceViewState:(_key,initial)=>[initial,()=>{}]},'./use-unsaved-work':{useUnsavedWork(){},confirmLeavingWork:()=>canLeave},'./inventory-save-reference':{createInventorySaveReferences:()=>({})},'./conditional-json-reader':{createConditionalJsonReader:()=>({})},
   };
   const target={exports:{}};
+  mods['./inventory-location-filter']=locationFilters;
   new Function('require','module','exports','Date',compile('../app/inventory-operations.tsx'))(name=>mods[name]??{},target,target.exports,Clock);
   const rig={id:'preview-engine',name:'Preview Engine',status:'in_service'};
   data={...structuredClone(target.exports.emptyData),configured:!unavailable,apparatus:[rig],equipment:equipmentRows??[{id:'preview-radio',apparatus_id:rig.id,name:'Preview radio',compartment_label:'Preview shelf',check_types:['daily','inventory'],service_status:critical?'out_of_service':'in_service'}],
