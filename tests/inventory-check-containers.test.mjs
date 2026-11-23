@@ -29,3 +29,7 @@ test('duplicate legacy container rows retain unique rendered keys and separate s
  const rows=[row('bag'),{...row('bag'),id:'second-saved-bag'},row('child')],groups=checklistContainers(rows,[asset('bag',null,'bag'),asset('child','bag')]);
  assert.equal(new Set(groups.map(node=>node.key)).size,groups.length);assert.deepEqual(flatten(groups).map(r=>r.id).sort(),rows.map(r=>r.id).sort());
 });
+test('explicit legacy parent links work even before the bag grouping type was recorded',()=>{
+ const equipment=[asset('legacy-bag'),asset('tool','legacy-bag')],full=checklistContainers([row('legacy-bag'),row('tool')],equipment),filtered=checklistContainers([row('tool')],equipment);
+ assert.equal(full[0].container,true);assert.equal(full[0].children[0].row.equipment_id,'tool');assert.equal(full[0].key,filtered[0].key);
+});

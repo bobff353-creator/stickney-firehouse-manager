@@ -21,3 +21,7 @@ test('unassigned and orphaned saved locations stay reachable, even with no conta
  assert.deepEqual(run('gone').items.map(x=>x.id),['orphan']);assert.deepEqual(run('unassigned').items.map(x=>x.id),['unassigned']);
  assert.equal(run('gone').containers.length,0);
 });
+test('containers with explicit saved children remain selectable before their grouping type is updated',()=>{
+ const result=inventoryLocationFilter([item('legacy','cab'),item('child','cab','legacy')],locations,'engine',{rigId:'engine',locationId:'cab',containerId:'legacy'});
+ assert.equal(result.containers.length,1);assert.deepEqual(result.items.map(x=>x.id),['legacy','child']);
+});

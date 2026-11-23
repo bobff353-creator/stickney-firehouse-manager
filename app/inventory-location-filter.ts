@@ -12,7 +12,8 @@ export function inventoryLocationFilter<T extends Row>(equipment:T[], compartmen
   const requested=selection.rigId===rigId?selection.locationId:'';
   const locationId=requested==='unassigned'||locations.some(row=>row.id===requested)?requested:'';
   const inLocation=items.filter(item=>!locationId||(locationId==='unassigned'?!item.compartment_id:text(item.compartment_id)===locationId));
-  const containers=locationId?inLocation.filter(item=>containerTypes.has(text(item.item_type))).sort((a,b)=>text(a.name).localeCompare(text(b.name),undefined,{numeric:true})):[];
+  const parentIds=new Set(inLocation.map(item=>text(item.parent_equipment_id)).filter(Boolean));
+  const containers=locationId?inLocation.filter(item=>containerTypes.has(text(item.item_type))||parentIds.has(text(item.id))).sort((a,b)=>text(a.name).localeCompare(text(b.name),undefined,{numeric:true})):[];
   const containerId=locationId&&(selection.containerId==='loose'||containers.some(item=>text(item.id)===selection.containerId))?selection.containerId:'';
   return {locations,locationId,containers,containerId,hasUnassigned:items.some(item=>!item.compartment_id),items:inLocation.filter(item=>!containerId||(containerId==='loose'?!item.parent_equipment_id:text(item.id)===containerId||text(item.parent_equipment_id)===containerId))};
 }

@@ -6,13 +6,14 @@ export type ChecklistNode={key:string;label:string;row?:InventoryRow;container:b
 /** Presentation only: retain every saved row/ID, including orphaned and legacy rows. */
 export function checklistContainers(rows:InventoryRow[],equipment:InventoryRow[]):ChecklistNode[]{
  const assets=new Map(equipment.map(row=>[text(row,'id'),row]));
+ const linkedParents=new Set(equipment.filter(row=>{const parent=assets.get(text(row,'parent_equipment_id'));return parent&&text(parent,'id')!==text(row,'id')&&text(parent,'apparatus_id')===text(row,'apparatus_id')&&text(parent,'compartment_id')===text(row,'compartment_id');}).map(row=>text(row,'parent_equipment_id')));
  const containerKeys=new Set<string>();
- const nodes:ChecklistNode[]=rows.map(row=>{const assetId=text(row,'equipment_id'),container=kinds.has(text(assets.get(assetId),'item_type')),key=container&&!containerKeys.has(assetId)?'container:'+assetId:'row:'+text(row,'id');if(container)containerKeys.add(assetId);return {key,label:text(row,'equipment_name')||text(row,'name')||'Unnamed item',row,container,children:[]};});
+ const nodes:ChecklistNode[]=rows.map(row=>{const assetId=text(row,'equipment_id'),container=kinds.has(text(assets.get(assetId),'item_type'))||linkedParents.has(assetId),key=container&&!containerKeys.has(assetId)?'container:'+assetId:'row:'+text(row,'id');if(container)containerKeys.add(assetId);return {key,label:text(row,'equipment_name')||text(row,'name')||'Unnamed item',row,container,children:[]};});
  const byAsset=new Map<string,ChecklistNode>();for(const node of nodes)if(!byAsset.has(text(node.row,'equipment_id')))byAsset.set(text(node.row,'equipment_id'),node);
  const parent=new Map<ChecklistNode,ChecklistNode>();
  for(const node of [...nodes]){
   const asset=assets.get(text(node.row,'equipment_id')),parentId=text(asset,'parent_equipment_id'),container=assets.get(parentId);
-  if(!asset||!container||parentId===text(asset,'id')||!kinds.has(text(container,'item_type'))||text(asset,'apparatus_id')!==text(container,'apparatus_id')||text(asset,'compartment_id')!==text(container,'compartment_id'))continue;
+  if(!asset||!container||parentId===text(asset,'id')||text(asset,'apparatus_id')!==text(container,'apparatus_id')||text(asset,'compartment_id')!==text(container,'compartment_id'))continue;
   let target=byAsset.get(parentId);
   if(target?.row&&text(target.row,'compartment_label')!==text(node.row,'compartment_label'))continue;
   if(!target){target={key:'container:'+parentId,label:text(container,'name')||'Container',container:true,children:[]};byAsset.set(parentId,target);nodes.push(target);}
