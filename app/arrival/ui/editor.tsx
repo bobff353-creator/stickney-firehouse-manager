@@ -26,16 +26,17 @@ import {
   systemLabels,
   chicagoDate,
   answered,
-  planSchema,
 } from "../lib/preplan";
 import { Choices, Field, Pill, StepHint } from "./ui";
 import { request } from "../lib/client";
 import { downloadJson } from "../lib/device";
+import { restoreEditorDraft } from "../lib/edit-navigation";
 export type Draft = {
   id: string;
   revision: number | null;
   data: PlanData;
-  kind?: "quick" | "details" | "photos";
+  kind?: "quick" | "details" | "photos" | "full";
+  detailTarget?: string;
   section?:"outline";
 };
 type Props = {
@@ -62,13 +63,7 @@ export default function Editor({
 }: Props) {
   const [draft, setDraft] = useState<Draft>(() => {
     try {
-      const local = JSON.parse(localStorage.getItem(storageKey) || "null");
-      if (
-        initial.kind !== "photos" &&
-        local?.id === initial.id &&
-        planSchema.safeParse(local.data).success
-      )
-        return local;
+      return restoreEditorDraft(initial, localStorage.getItem(storageKey));
     } catch {}
     return initial;
   });
@@ -350,7 +345,7 @@ export default function Editor({
             {draft.revision === null ? "NEW PREPLAN" : "WORKING COPY"}
           </div>
           <h1>{p.name || "One building. One clear plan."}</h1>
-          <p>Record what you see. We’ll guide the next step.</p>
+          <p>{initial.kind === "full" ? `Edit ${initial.detailTarget || "all preplan details"}. Use the section buttons below to update building information, systems, contacts, and photos.` : "Record what you see. We’ll guide the next step."}</p>
         </div>
         {!photosOnly && <Pill tone="orange">Step {step + 1} of 6</Pill>}
       </div>

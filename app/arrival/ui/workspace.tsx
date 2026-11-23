@@ -45,6 +45,7 @@ import {
 import Editor, { type Draft } from "./editor";
 import { request } from "../lib/client";
 import QuickPreplan from "./quick-preplan";
+import { preplanDetailDraft } from "../lib/edit-navigation";
 import BuildingDetailEditor from "./building-details";
 import { ObservationCapture, ObservationList } from "./observation";
 import type { Observation, ObservationDraft } from "../lib/observations";
@@ -405,7 +406,7 @@ export default function Workspace({ user }: { user: User }) {
   const DraftEditor =
     draft?.kind === "details"
       ? BuildingDetailEditor
-      : draft?.kind === "photos"
+      : draft?.kind === "photos" || draft?.kind === "full"
         ? Editor
         : QuickPreplan;
   return (
@@ -525,6 +526,10 @@ export default function Workspace({ user }: { user: User }) {
               onClose={closeEditor}
               onSubmitted={submitted}
               onPhotos={openPhotoTools}
+              onEditDetails={(currentDraft: Draft, label: string) => {
+                if (!access.has("field_preplans.edit")) { notify("Your account has read-only preplan access."); return; }
+                setDraft(preplanDetailDraft(currentDraft, label));
+              }}
             />
           ) : current ? (
             <RecordView

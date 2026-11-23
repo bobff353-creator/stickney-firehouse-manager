@@ -789,7 +789,7 @@ export default function Inventory360({
         </section>
       ) : null}
 
-      {view === "fleet" && <section className="page due-now-page"><InventoryOperations view="due" showAllChecks initialDueRigId={selectedApparatusId} onRigSelected={id => { setSelectedApparatusId(id); replaceCheckAddress(id); }} onOpenUnit={openRigCheck} onRecords={receiveOperations} onSetup={() => setView("setup")} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} /></section>}
+      {view === "fleet" && <section className="page due-now-page"><InventoryOperations view="due" showAllChecks initialDueRigId={selectedApparatusId} onRigSelected={id => { setSelectedApparatusId(id); window.history.replaceState(null, "", inventoryWorkspaceUrl(window.location.href, "fleet", id)); }} onOpenUnit={openRigCheck} onRecords={receiveOperations} onSetup={() => setView("setup")} canCheck={canCheck} canManageRepairs={canManageRepairs} canSetup={canSetup} /></section>}
 
       {view === "apparatus" ? (
         <section className="page fleet-page">

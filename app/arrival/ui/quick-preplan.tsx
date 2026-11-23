@@ -21,18 +21,21 @@ import type { Draft } from "./editor";
 import { request } from "../lib/client";
 import { Choices, Field, Pill } from "./ui";
 import { downloadJson } from "../lib/device";
+import { preplanDetailDestination } from "../lib/edit-navigation";
 export default function QuickPreplan({
   initial,
   storageKey,
   onSaved,
   onClose,
   onSubmitted,
+  onEditDetails,
 }: {
   initial: Draft;
   storageKey: string;
   onSaved: (r: PlanRecord) => void;
   onClose: () => void;
   onSubmitted: (r: PlanRecord) => void;
+  onEditDetails?: (draft: Draft, label: string) => void;
 }) {
   const [draft, setDraft] = useState<Draft>(() => {
     try {
@@ -314,7 +317,7 @@ export default function QuickPreplan({
               ][index]
             }
           </h2>
-
+          {onEditDetails && <button type="button" className="btn" disabled={busy} onClick={() => onEditDetails(draft, "Building")}><ArrowRight size={16} />Edit all preplan details</button>}
         </header>
         <fieldset
           className="form-body"
@@ -621,15 +624,15 @@ export default function QuickPreplan({
               <details className="optional">
                 <summary>
                   <TriangleAlert size={16} />
-                  {u.length} details still unknown<span>View</span>
+                  {u.length} details still unknown<span>View & edit</span>
                 </summary>
                 <p>
                   Unknown never means absent. These details stay visible in the
-                  approved brief.
+                  approved brief. Select a detail below to open its editor. Your current draft is kept.
                 </p>
                 <div className="tags">
                   {u.map((s) => (
-                    <span key={s}>{s}</span>
+                    onEditDetails ? <button type="button" className="unknown-edit-link" key={s} disabled={busy} onClick={() => onEditDetails(draft, s)}><span>{s}</span><small>Edit · {preplanDetailDestination(s).section}</small><ArrowRight size={14} /></button> : <span key={s}>{s}</span>
                   ))}
                 </div>
               </details>

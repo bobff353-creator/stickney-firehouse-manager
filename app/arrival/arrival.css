@@ -5233,3 +5233,10 @@
 #portal-workspace .arrival-app .choices button.selected{background:var(--green-soft);color:var(--green);border-color:var(--green);box-shadow:inset 0 0 0 1px var(--green)}
 #portal-workspace .arrival-app .topbar{color:var(--ink);}
 #portal-workspace .arrival-app .app-shell{grid-template-rows:auto;grid-auto-rows:auto;height:auto;padding:0;}
+#portal-workspace .arrival-app .quick-card > header .btn { margin-top:12px; min-height:44px; }
+#portal-workspace .arrival-app .quick-card .tags .unknown-edit-link { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:4px 10px; min-height:56px; max-width:100%; padding:10px 12px; text-align:left; white-space:normal; background:var(--surface); color:var(--ink); border:1px solid var(--line); border-radius:8px; }
+#portal-workspace .arrival-app .quick-card .tags .unknown-edit-link > span { padding:0; border:0; background:transparent; color:inherit; font-size:13px; font-weight:700; }
+#portal-workspace .arrival-app .quick-card .tags .unknown-edit-link small { grid-column:1; color:var(--muted); font-size:12px; }
+#portal-workspace .arrival-app .quick-card .tags .unknown-edit-link > svg { grid-column:2; grid-row:1 / 3; }
+#portal-workspace .arrival-app .quick-card .tags .unknown-edit-link:hover { background:var(--surface); border-color:var(--ink); }
+#portal-workspace .arrival-app .quick-card .tags .unknown-edit-link:focus-visible { outline:3px solid var(--ink); outline-offset:3px; }
