@@ -537,6 +537,7 @@ export default function InventoryOperations({
   const [relocationApparatusId, setRelocationApparatusId] = useState("");
   const [relocationCompartmentId, setRelocationCompartmentId] = useState("");
   const [locationReviewNotes, setLocationReviewNotes] = useState<Record<string, string>>({});
+  const [mountedSections, setMountedSections] = useState<{checkId:string; sections:string[]}>({checkId:'',sections:[]});
   const equipmentFormRef = useRef<HTMLFormElement>(null);
   const equipmentEditorRef = useRef<HTMLFormElement>(null);
   useEffect(() => {
@@ -857,6 +858,7 @@ export default function InventoryOperations({
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(20000),
       });
       const result = await response.json().catch(() => ({})) as { checkItems?: Row[]; error?: string };
       if (!response.ok) throw new Error(result.error || "The inventory item could not be saved.");
@@ -879,7 +881,7 @@ export default function InventoryOperations({
       setMessage(savedItems.length > 1 ? `${savedItems.length} inventory items passed.` : "Inventory item saved.");
       return true;
     } catch (caught) {
-      const message = caught instanceof Error ? caught.message : "The inventory item could not be saved.";
+      const message = caught instanceof DOMException && ['TimeoutError','AbortError'].includes(caught.name) ? 'Save confirmation did not arrive. Refresh crew progress before retrying; the server may have saved this result.' : caught instanceof Error ? caught.message : "The inventory item could not be saved.";
       setError(message);
       setItemSaveError({ name, message });
       return false;
@@ -887,6 +889,34 @@ export default function InventoryOperations({
       itemSaveGeneration.current += 1;
       itemSavePending.current = false;
       setBusy("");
+    }
+  }
+
+  async function recordScbaEntry(name: string, payload: Record<string, unknown>) {
+    if (itemSavePending.current || mutationPending.current) return false;
+    const original = data.scbaEntries.find(row => value(row, 'id') === payload.entryId);
+    if (!original) return false;
+    itemSavePending.current = true;
+    itemSaveGeneration.current += 1;
+    setBusy(name); setError(''); setMessage(''); setSaveReceipt(null);
+    try {
+      const response = await fetch('/api/operations', {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(20000)});
+      const result = await response.json() as {scbaEntry?:Row;error?:string};
+      if (!response.ok) throw new Error(result.error || 'The air-pack entry could not be saved.');
+      const saved = result.scbaEntry;
+      if (!saved || value(saved,'id') !== payload.entryId || value(saved,'check_id') !== value(original,'check_id') || value(saved,'result') !== payload.result || !value(saved,'checked_at')) throw new Error('The server did not confirm this entry. Refresh crew progress before retrying.');
+      setData(current => ({...current,scbaEntries:current.scbaEntries.map(row => value(row,'id') === payload.entryId ? {...row,...saved} : row)}));
+      setLastSyncedAt(Date.now());
+      setSaveReceipt({at:Date.now(),reference:value(saved,'id')});
+      setMessage('Air-pack entry saved. Progress updated.');
+      return true;
+    } catch (caught) {
+      setError(caught instanceof DOMException && ['TimeoutError','AbortError'].includes(caught.name) ? 'Save confirmation did not arrive. Refresh crew progress before retrying; the server may have saved this entry.' : caught instanceof Error ? caught.message : 'Save confirmation was not received. Refresh crew progress before retrying.');
+      return false;
+    } finally {
+      itemSaveGeneration.current += 1;
+      itemSavePending.current = false;
+      setBusy('');
     }
   }
 
@@ -1033,6 +1063,8 @@ export default function InventoryOperations({
   // Pin the initial section once; incoming crew results never navigate for the user.
   if (activeCheck && journey?.checkId !== checkId) setJourney({ checkId, section: currentSection });
   const changeCheckSection = (section: string) => {
+    // Mount a section on first use, then retain it so unsaved meter/drug drafts survive Back/Next.
+    setMountedSections(previous => ({checkId, sections:[...new Set([...(previous.checkId === checkId ? previous.sections : []),currentSection,section])]}));
     setJourney({ checkId, section }); setCheckSearch(""); setCheckResultFilter(checkSections.find(item => item.id === section)?.pending === 0 ? "all" : "pending"); setCheckCompartmentFilter("all");
     window.requestAnimationFrame(() => { const heading = document.getElementById("check-step-heading"); heading?.focus({ preventScroll: true }); heading?.scrollIntoView({ block: "start" }); });
   };
@@ -1568,7 +1600,7 @@ export default function InventoryOperations({
                 {(["pack", "rit", "spare"] as const).map((section) => {
                   const entries = activeScbaEntries.filter((entry) => value(entry, "section") === section);
                   if (!entries.length) return null;
-                  return <section className="scba-check-section" hidden={currentSection !== "all" && currentSection !== section} key={section}><header><div><span>SCBA CHECK</span><h3>{section === "pack" ? "SCBA packs" : section === "rit" ? "R.I.T. bag" : "Spare bottles"}</h3></div><b>{entries.filter((entry) => value(entry, "result") !== "pending").length} / {entries.length}</b></header><div className="scba-entry-list">{entries.map((entry) => <ScbaEntryEditor key={value(entry, "id")} entry={entry} busy={Boolean(busy)} canCheck={canCheck} onDirty={(id, dirty) => setScbaDirty(current => ({ ...current, [id]: dirty }))} onSave={(payload) => action(`scba-${value(entry, "id")}`, payload)} />)}</div></section>;
+                  return <section className="scba-check-section" hidden={currentSection !== "all" && currentSection !== section} key={section}><header><div><span>SCBA CHECK</span><h3>{section === "pack" ? "SCBA packs" : section === "rit" ? "R.I.T. bag" : "Spare bottles"}</h3></div><b>{entries.filter((entry) => value(entry, "result") !== "pending").length} / {entries.length}</b></header><div className="scba-entry-list">{entries.map((entry) => <ScbaEntryEditor key={value(entry, "id")} entry={entry} busy={Boolean(busy)} canCheck={canCheck} onDirty={(id, dirty) => setScbaDirty(current => ({ ...current, [id]: dirty }))} onSave={(payload) => recordScbaEntry(`scba-${value(entry, "id")}`, payload)} />)}</div></section>;
                 })}
               </div> : <>
               <div className="check-worklist-tools" hidden={currentSection !== "all"}>
@@ -1603,6 +1635,7 @@ export default function InventoryOperations({
                 {message ? <p role="status">{message}</p> : null}
               </details> : null}
               {groupedActiveItems.length ? groupedActiveItems.map(([label, items]) => {
+                if (currentSection !== 'all' && currentSection !== label && !(mountedSections.checkId === checkId && (mountedSections.sections.includes(label) || mountedSections.sections.includes('all')))) return null;
                 const pendingStandardItems = items.filter((item) => value(item, "result") === "pending" && !item.drug_schema && !item.meter_template && !isNumericReadingItem(item) && !isFluidLevelItem(item));
                 return (
                   <section className="check-location-group" hidden={currentSection !== "all" && currentSection !== label} key={label}>

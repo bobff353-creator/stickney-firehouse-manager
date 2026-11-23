@@ -26,8 +26,20 @@ const location={id:'fixture-cabinet',apparatus_id:rig.id,label:'Driver side · r
 const item={id:'fixture-radio',apparatus_id:rig.id,compartment_id:location.id,compartment_label:location.label,name:'Portable radio with spare battery and charging cable',quantity_required:2,check_types:['daily','inventory'],equipment_category:'equipment',response_type:'pass_fail',service_status:'in_service',barcode:'PREVIEW-ONLY',manufacturer:'Test',model:'Fixture',item_order:1};
 const equipment=[item,{...item,id:'fixture-mileage',name:'Current mileage / odometer',response_type:'mileage',quantity_required:1,item_order:0}];
 Object.assign(equipment[0],{last_serviced_date:chicagoCalendarDate(Date.now()-40*86400000),service_interval_months:1,service_reminder_months:0});
-const checks=[{id:'fixture-check',apparatus_id:rig.id,apparatus_name:rig.name,check_type:'daily',status:'in_progress',started_at:new Date().toISOString(),started_by:'Preview crew'}];
-const data={configured:true,apparatus:[rig,{...rig,id:'fixture-ambulance',name:'Preview Ambulance',asset_type:'ambulance'}],compartments:[location],equipment,retiredEquipment:[],checks,checkItems:equipment.map(e=>({...e,id:`result-${e.id}`,equipment_id:e.id,equipment_name:e.name,check_id:checks[0].id,result:'pending'})),exceptions:[],workOrders:[],workOrderDocuments:[],inspectionSchedules:[{id:'fixture-schedule',apparatus_id:rig.id,apparatus_name:rig.name,check_type:'daily',day_of_week:new Date(`${chicagoCalendarDate(Date.now())}T12:00:00Z`).getUTCDay(),start_time:'06:00',end_time:'12:00',active:true,require_officer_signoff:true}],stock:[],restockRequests:[],locationChanges:[],scbaTemplates:[{id:'fixture-scba',apparatus_id:rig.id,active:true,pack_positions:['Officer seat','Rear seat'],include_rit:true,spare_bottle_count:1}],scbaEntries:[]};
+const checkParam=new URL(window.location.href).searchParams.get('check')||'';
+const checkKind=(['weekly','inventory','air_pack'].includes(checkParam)?checkParam:'daily') as 'daily'|'weekly'|'inventory'|'air_pack';
+const checks=[{id:'fixture-check',apparatus_id:rig.id,apparatus_name:rig.name,check_type:checkKind,status:'in_progress',started_at:new Date().toISOString(),started_by:'Preview crew'}];
+const data={configured:true,apparatus:[rig,{...rig,id:'fixture-ambulance',name:'Preview Ambulance',asset_type:'ambulance'}],compartments:[location],equipment,retiredEquipment:[],checks,checkItems:equipment.map(e=>({...e,id:`result-${e.id}`,equipment_id:e.id,equipment_name:e.name,check_id:checks[0].id,result:'pending'})),exceptions:[],workOrders:[],workOrderDocuments:[],inspectionSchedules:[{id:'fixture-schedule',apparatus_id:rig.id,apparatus_name:rig.name,check_type:'daily',day_of_week:new Date(`${chicagoCalendarDate(Date.now())}T12:00:00Z`).getUTCDay(),start_time:'06:00',end_time:'12:00',active:true,require_officer_signoff:true}],stock:[],restockRequests:[],locationChanges:[],scbaTemplates:[{id:'fixture-scba',apparatus_id:rig.id,active:true,pack_positions:['Officer seat','Rear seat'],include_rit:true,spare_bottle_count:1}],scbaEntries:[] as Array<Record<string,string|number|boolean|null>>};
+if(new URL(window.location.href).searchParams.has('scale')){
+ for(let i=0;i<12;i++){
+  const place={...location,id:'fixture-location-'+i,label:'Fixture compartment '+(i+1),sort_order:i+2};data.compartments.push(place);
+  for(let n=0;n<14;n++){
+   const e={...item,id:`fixture-item-${i}-${n}`,name:`Fixture item ${i+1}-${n+1}`,compartment_id:place.id,compartment_label:place.label,item_order:n,check_types:['daily','weekly','inventory']};data.equipment.push(e);
+   data.checkItems.push({...e,id:'result-'+e.id,equipment_id:e.id,equipment_name:e.name,check_id:checks[0].id,result:'pending'});
+  }
+ }
+}
+if(checkKind==='air_pack')data.scbaEntries.push(...['pack','rit','spare'].map((section,i)=>({id:'fixture-air-'+i,check_id:checks[0].id,section,label:['Officer seat','RIT bag','Spare bottle'][i],result:'pending',sort_order:i})));
 let writes=0;
 const pendingReads:Array<()=>void>=[];
 const audit={data,permissionMode:'ok',permissionRequests:0,emptySave:false,requests:[] as string[],requestTimes:[] as {url:string;at:number}[],holdReads:false,activeReads:0,maxReads:0,releaseReads(){pendingReads.splice(0).forEach(resolve=>resolve());},errors:[] as string[],permissions:null as string[]|null};
@@ -48,6 +60,7 @@ window.fetch=async(input,init)=>{
     Object.assign(audit,{lastServiceSave:body});
     return Response.json({apparatus:target});
   }
+  if(body.action==='record_scba_entry'){const target=data.scbaEntries.find(e=>e.id===body.entryId)!;Object.assign(target,{harness_number:body.harnessNumber,cylinder_number:body.cylinderNumber,psi:body.psi,result:body.result,notes:body.notes,checked_at:new Date().toISOString(),checked_by:'Preview crew'});return Response.json({scbaEntry:target});}
   if(body.action==='update_equipment'){const target=data.equipment.find(e=>e.id===body.equipmentId)!;Object.assign(target,{name:body.name,quantity_required:Number(body.quantityRequired),check_types:body.checkTypes,response_type:body.responseType,barcode:body.barcode});return Response.json({ok:true});}
   if(body.action==='record_check_item'){if(audit.emptySave){audit.emptySave=false;return Response.json({checkItems:[]});}const target=data.checkItems.find(e=>e.id===body.checkItemId)!;Object.assign(target,{result:body.result,numeric_reading:body.numericReading,checked_at:new Date().toISOString(),checked_by:'Preview member'});return Response.json({checkItems:[target]});}
   if(body.action==='complete_check'){Object.assign(data.checks[0],{status:'completed',review_status:'pending',completed_at:new Date().toISOString()});return Response.json({ok:true});}
@@ -75,6 +88,7 @@ window.fetch=async(input,init)=>{
   return Response.json({reports:data.checks.filter(row=>row.status==='completed'),nextCursor:null});
  }
  if(url.startsWith('/api/operations')){
+  const readCounter=document.getElementById('audit-reads');if(readCounter)readCounter.textContent=String(Number(readCounter.textContent||0)+1);
   audit.activeReads++;audit.maxReads=Math.max(audit.maxReads,audit.activeReads);
   try{if(audit.holdReads)await new Promise<void>((resolve,reject)=>{pendingReads.push(resolve);init?.signal?.addEventListener('abort',()=>reject(new DOMException('Cancelled','AbortError')),{once:true});});return Response.json(data);}
   finally{audit.activeReads--;}
@@ -94,4 +108,4 @@ window.addEventListener('error',e=>{audit.errors.push(e.message);const target=do
 window.addEventListener('unhandledrejection',e=>{audit.errors.push(String(e.reason));const target=document.getElementById('audit-errors');if(target)target.textContent+=String(e.reason);});
 const admin=new URLSearchParams(window.location.search).get('role')!=='member';
 const startInCheck=new URLSearchParams(window.location.search).has('check');
-createRoot(document.getElementById('root')!).render(<><aside style={{padding:8,background:'#fff4be',font:'12px Arial'}}>Fictional audit only · <span id="audit-writes">Test writes: 0</span><label><input id="fail-save" type="checkbox"/>Fail next save</label><span id="audit-errors"/></aside><Inventory initialView={inventoryWorkspaceView(new URLSearchParams(window.location.search).get("view"))} departmentId="fixture" departmentName="Preview department" initialApparatusId={startInCheck?rig.id:''} initialCheckType={startInCheck?'daily':''} permissions={admin?['inventory.check','inventory.repairs.manage','inventory.setup.manage']:['inventory.check']}/></>);
+createRoot(document.getElementById('root')!).render(<><aside style={{padding:8,background:'#fff4be',font:'12px Arial'}}>Fictional audit only · <span id="audit-writes">Test writes: 0</span> · Inventory reads: <span id="audit-reads">0</span><label><input id="fail-save" type="checkbox"/>Fail next save</label><span id="audit-errors"/></aside><Inventory initialView={inventoryWorkspaceView(new URLSearchParams(window.location.search).get("view"))} departmentId="fixture" departmentName="Preview department" initialApparatusId={startInCheck?rig.id:''} initialCheckType={startInCheck?checkKind:''} permissions={admin?['inventory.check','inventory.repairs.manage','inventory.setup.manage']:['inventory.check']}/></>);

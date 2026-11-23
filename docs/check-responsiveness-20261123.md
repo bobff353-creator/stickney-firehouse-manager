@@ -1,0 +1,9 @@
+# Apparatus check responsiveness
+
+Air-pack entry saves now merge the server's confirmed entry into the current checklist instead of waiting for a second full Inventory read. The entry ID, check ID, result and saved timestamp must match before showing success. Linked equipment fields are retained. The existing single-write guard and refresh generations prevent duplicate saves and stale reads from replacing the confirmation. Existing periodic crew refresh and manual refresh remain available.
+
+Vehicle and inventory checklist sections mount on first visit. Once visited, they remain mounted across Back/Next so local meter/drug forms retain drafts. All sections/search still opens every matching row. The progress summary and submission checks continue to use all saved checklist rows, including unopened sections. Item saves have a bounded timeout with an explicit unconfirmed-save recovery message.
+
+Fictional browser checks covered a 170-item checklist: initial mounted rows dropped from the former all-row rendering to the current section's two rows; Next mounted fourteen additional rows, Back retained the unsaved odometer reading, and All sections exposed all 170. Daily, weekly, inventory and air-pack workspaces were exercised. A failed air-pack save retained harness/cylinder/PSI inputs; retry showed server confirmation and advanced progress without another Inventory read. These are local fixture observations, not physical-device latency measurements or live operational saves.
+
+Actual save-helper tests verify a single POST, pending-write protection, linked-field preservation and rejection of missing, foreign-check or failed confirmations. No API/database schema, permission or notification change is part of this performance update. Production record fingerprints and release health are checked separately.
