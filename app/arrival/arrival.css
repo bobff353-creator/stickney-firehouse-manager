@@ -5231,3 +5231,4 @@
 #portal-workspace .arrival-app .app-shell{display:grid;grid-template-columns:230px minmax(0,1fr);align-items:start;}#portal-workspace .arrival-app .app-content{margin-left:0;min-height:calc(100dvh - 150px);}#portal-workspace .arrival-app .example-strip{display:none;}@media(max-width:760px){#portal-workspace .arrival-app .app-shell{grid-template-columns:minmax(0,1fr);}}
 
 #portal-workspace .arrival-app .choices button.selected{background:var(--green-soft);color:var(--green);border-color:var(--green);box-shadow:inset 0 0 0 1px var(--green)}
+#portal-workspace .arrival-app .topbar{color:var(--ink);}
