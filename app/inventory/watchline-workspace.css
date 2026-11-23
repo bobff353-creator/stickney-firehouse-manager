@@ -128,6 +128,10 @@
 .inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .inventory-member-preview :is(.check-row,.scba-entry) { background:var(--crew-card); color:var(--crew-ink); border-color:var(--crew-line); }
 .inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .inventory-member-preview :is(.check-item-copy > strong,.scba-entry label,.scba-entry h4) { color:var(--crew-ink); }
 .inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .inventory-member-preview :is(.check-item-copy > small,.check-item-copy summary,.scba-entry > footer small) { color:var(--crew-muted); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .inventory-member-preview .meter-check { background:var(--crew-card); color:var(--crew-ink); border-color:var(--crew-line); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .inventory-member-preview .meter-check :is(header,fieldset) { background:var(--crew-card); color:var(--crew-ink); border-color:var(--crew-line); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .inventory-member-preview .meter-check :is(h3,header > strong,legend,label,summary) { color:var(--crew-ink); }
+.inventory-app-shell.inventory-portal-refresh.inventory-crew-flow.inventory-watchline .inventory-ops .inventory-member-preview .meter-check :is(p,header span) { color:var(--crew-muted); }
 .inventory-container-contents :is(h4,p) { margin:0 0 12px; }
 .inventory-container-contents h4 { font-size:18px; font-weight:800; }
 .inventory-container-contents p { line-height:1.5; }

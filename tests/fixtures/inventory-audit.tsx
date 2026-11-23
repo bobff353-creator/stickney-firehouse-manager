@@ -46,6 +46,7 @@ if(new URL(window.location.href).searchParams.has('container')){
  Object.assign(data.equipment[0],{parent_equipment_id:box.id});
 }
 let writes=0;
+if(new URL(window.location.href).searchParams.has('drugpreview'))Object.assign(data.equipment[0],{check_types:['drug'],response_type:'medication',drug_schema:{version:1,title:'Fictional medication preview',mode:'medication',expectedQuantity:2,location:'Fictional medication bag'}});
 if(new URL(window.location.href).searchParams.has('filters')){
  const rear={...location,id:'fixture-rear',label:'Rear compartment'};data.compartments.push(rear);
  const bag={...item,id:'fixture-bag',name:'Fictional Rear Kit',compartment_id:rear.id,compartment_label:rear.label,item_type:'kit',parent_equipment_id:null,check_types:['weekly','inventory']};
