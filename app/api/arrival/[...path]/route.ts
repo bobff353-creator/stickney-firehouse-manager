@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { body, handle, HttpError, identity, json, validId } from "../../../arrival/lib/server";
 import { importSummary, insert, nativeData, nativeSource, savedRow, savedRows, transaction, update, type Context } from "../../../arrival/lib/native-records";
 import { blockers, planSchema, type PlanRecord, type PlanEvent, type PlanData } from "../../../arrival/lib/preplan";
-import { normalizeStreet, importEntitySchema, type ImportEntity } from "../../../arrival/lib/imports";
+import { normalizeStreet, importEntitySchema, sourceFileUrlAllowed, type ImportEntity } from "../../../arrival/lib/imports";
 import { observationSchema, type Observation } from "../../../arrival/lib/observations";
 import { hydrantActivitySchema, type HydrantActivity } from "../../../arrival/lib/hydrant-activity";
 import { getPortalStorage } from "../../../portal-storage";
@@ -154,7 +154,7 @@ async function imports(request:Request,c:Context,path:string[]):Promise<Response
   const sources=await importSources(request,c),stored=canWork(c)?await savedRows<StoredImport>(c,"import"):[];
   if(!id&&method==="GET")return json({records:[...sources.map(source=>importSummary(source)),...stored.map(item=>({...importSummary(item.source,item.complete),copiedFiles:item.copied.length,entityId:`plan-${item.source.id}`}))],limited:false});
   if(!id&&method==="POST"){
-    requirePermission(c,"field_preplans.edit");const parsed=importEntitySchema.safeParse(await body(request));if(!parsed.success)throw new HttpError(422,"Check the Arrival source package format.");const source=parsed.data,old=await savedRow<StoredImport>(c,"import",source.id);if(old)return json({record:{id:source.id,complete:old.complete},reused:true});
+    requirePermission(c,"field_preplans.edit");const parsed=importEntitySchema.safeParse(await body(request));if(!parsed.success)throw new HttpError(422,"Check the Arrival source package format.");const source=parsed.data;if(source.files.some(file=>!sourceFileUrlAllowed(file.originalUrl)))throw new HttpError(422,"Source files must come from the connected Stickney or FlowMSP records.");const old=await savedRow<StoredImport>(c,"import",source.id);if(old)return json({record:{id:source.id,complete:old.complete},reused:true});
     const nativeMatch=sources.find(item=>item.keys.some(key=>source.keys.includes(key)));if(nativeMatch)throw new HttpError(409,"This source is already connected to a Stickney record. Open the saved preplan instead of importing it again.");
     await transaction(c,[insert(c,"import",source.id,null,1,{source,complete:false,copied:[]} satisfies StoredImport)]);return json({record:{id:source.id,complete:false},reused:false},201);
   }
