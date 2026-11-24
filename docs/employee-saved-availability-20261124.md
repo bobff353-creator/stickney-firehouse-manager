@@ -22,4 +22,9 @@ No recurring-crew, assignment, eligibility, notification, API-handler, dependenc
 
 ## Release outcomes
 
-Source push, production deployment/revision, live read-only checks and record/notification fingerprint comparisons will be recorded separately after release. No database migration is needed. Automatic texts and emails remain off.
+- Source: committed and pushed `901d4f606891270879992d7e31d79aa444da4138` on `codex/watchline-complete-20261123`.
+- Production: deployment `dpl_EjNNUBAbC6EoaxGsZxygtBvJa8W8` reached READY in the verified Stickney project. Canonical and legacy production aliases are assigned. Canonical `/api/health` reports `901d4f606891`.
+- Live read-only: December filtering showed the verified viewer's 10 December entries. All dates showed 128 entries in pages of 10; Next showed 11–20. Edit opened the original December 4 date and was closed without changing or saving it. The employee list has no employee selector. Settled light/dark contrast checks passed.
+- Live verification used the administrator's own employee view; the separate non-admin interface/permission check used the isolated fixture. No production Save or Remove was exercised.
+- Assignment, standing-crew and availability fingerprints exactly matched the pre-release baseline. Both automatic email/text enabled-rule counts remain zero.
+- Database migrations: none. No messages sent or purchases made. Final screenshot is `outputs/employee-availability-20261124/live-employee-availability.jpg`.
