@@ -29,9 +29,10 @@ No operational API, schema, saved IDs, records, files, approval rule, permission
 
 ## Release
 
-- Source changes reviewed and committed for release; exact pushed SHA is recorded after deployment below.
+- Source and push: `35004d656eb13c02ae5faaba4390cdb6970a8123` on `codex/watchline-complete-20261123`; remote SHA matched.
 - Database migrations: none.
-- Production deployment and health revision: pending.
-- Live read-only verification: pending release.
+- Production deployment: `dpl_Faa31Yqw4LuTN5cipyMwr511rh5z`, READY at that exact application SHA. Both canonical and legacy production aliases assigned. Canonical `/api/health` returned `35004d656eb1`, production, Stickney Fire Department.
+- Live read-only verification: all six Today task buttons displayed. Open shift log reached the existing Daily Log with the three instructions; Check my hours reached the read-only personal timesheet and its guidance; Check a vehicle reached the existing inventory workspace, three instructions and Pick your vehicle. No check was started and no production form was edited for verification. Screenshot: `outputs/everyday-workflows-20261123/live-today.jpg`.
+- This final outcome update is documentation only; the deployed application remains at the SHA above.
 
 Local screenshots, measurements and raw logs are in ignored `outputs/everyday-workflows-20261123/`.
