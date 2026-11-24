@@ -1,5 +1,7 @@
 "use client";
 import { SaveStatus } from "./save-status";
+import { ScheduleSetup } from './schedule-setup';
+import { scheduleMonthRange } from './schedule-setup-model';
 
 import "./scheduler-member.css";
 import { schedulerAdminTask } from "./admin-tasks";
@@ -139,6 +141,7 @@ export default function StationScheduler({ testMember = null, initialTask = "" }
   }, [tab]);
   const [schedulerView, setSchedulerView] = useWorkspaceViewState<"admin" | "employee">("scheduler-view", "employee");
   const [selectedDate, setSelectedDate] = useWorkspaceViewState("scheduler-date", todayIso);
+  const [setupMonth, setSetupMonth] = useWorkspaceViewState("scheduler-setup-month", () => todayIso().slice(0, 7));
   const [adminDayMode, setAdminDayMode] = useWorkspaceViewState("scheduler-day-mode", true);
   const adminDestinationApplied = useRef(false);
   useEffect(() => {
@@ -204,6 +207,7 @@ export default function StationScheduler({ testMember = null, initialTask = "" }
   const accountIsAdmin = data?.viewer.isAdmin ?? false;
   const isAdmin = accountIsAdmin && schedulerView === "admin" && !previewMember;
   const adminTabs = [
+    ["setup", "Set up a month"],
     ["overview", "Admin home"], ["openAdmin", "Open positions"], ["safety", "Schedule review"],
     ["calendar", "Calendar"], ["shiftTypes", "Shift Builder"], ["roster", "Roster & Assignments"],
     ["trades", "Trades"], ["requests", "Requests"], ["distribution", "Auto-Distribution"],
@@ -218,7 +222,7 @@ export default function StationScheduler({ testMember = null, initialTask = "" }
   const taskGroups = [
     { label: "Daily staffing", ids: ["overview", "openAdmin", "calendar", "availability", "safety"] },
     { label: "Requests & trades", ids: ["requests", "trades"] },
-    { label: "Schedule setup", ids: ["shiftTypes", "roster", "distribution", "reminders", "confirmation"] },
+    { label: "Schedule setup", ids: ["setup", "shiftTypes", "roster", "distribution", "reminders", "confirmation"] },
   ];
   const activeGroup = taskGroups.find(group => group.ids.includes(tab)) ?? taskGroups[0];
   const visibleTabs = isAdmin ? tabs.filter(([id]) => activeGroup.ids.includes(id)) : tabs;
@@ -264,12 +268,22 @@ export default function StationScheduler({ testMember = null, initialTask = "" }
       </details>
       </div>
       {tab !== (isAdmin ? "overview" : "myshifts") && !previewMember && <div className="scheduler-task-context">{!managedReturn && <button type="button" onClick={() => setTab(returnTab)}>← Back to {returnLabel}</button>}<strong>{tabs.find(([id]) => id === tab)?.[1]}{tab === "calendar" ? ` · ${friendlyDate(selectedDate)}` : ""}</strong></div>}
+      {isAdmin && !previewMember && tab !== 'setup' && <p><button type="button" className="link" onClick={() => setTab('setup')}>Set up a month →</button></p>}
       <fieldset className="scheduler-workspace-fields" disabled={previewMember || Boolean(testMember)}>
+      {isAdmin && tab === 'setup' && <ScheduleSetup data={data} month={setupMonth} onMonth={setSetupMonth} onOpen={screen => {
+        const range = scheduleMonthRange(setupMonth);
+        if (!range || !confirmLeavingWork()) return;
+        setSelectedDate(range.from);
+        if (screen === 'calendar') setAdminDayMode(false);
+        navigationRequested.current = true;
+        setTabState(screen);
+      }} />}
 
       {isAdmin && tab === "overview" && <section className="scheduler-admin-home">
         <h3>What needs attention?</h3>
         <p className="muted">Review staffing → choose a day → save each assignment. Requests and trades change the roster only after approval.</p>
         <div className="scheduler-task-choices">
+          <button onClick={() => setTab('setup')}><strong>Set up a month</strong><span>Keep recurring crews, check availability, fill openings, then review.</span></button>
           <button onClick={() => openStaffingDay(data.today)}><strong>Staff today</strong><span>See the crew, fill a position, or adjust one day’s schedule.</span></button>
           <button onClick={() => setTab("openAdmin")}><strong>Open positions · next 7 days: {filterOpenPositions(data.slots, data.today, { from: data.today, through: scheduleDateOffset(data.today, 6), role: "", shiftTypeId: "" }).length}</strong><span>Find a position to fill. Filter by date, role, or shift; all loaded future dates remain available.</span></button>
           <button onClick={() => setTab("requests")}><strong>Review shift requests · {data.claims.filter((claim) => claim.status === "pending").length}</strong><span>Approve or deny members asking to work an open position.</span></button>
@@ -281,7 +295,7 @@ export default function StationScheduler({ testMember = null, initialTask = "" }
           <li><button type="button" className="link" onClick={() => setTab("roster")}>2. Review members & standing assignments</button><span>Check qualifications and recurring assignments.</span></li>
           <li><button type="button" className="link" onClick={() => setTab("availability")}>3. Review availability</button><span>Confirm the dates and hours members submitted.</span></li>
           <li><button type="button" className="link" onClick={() => setTab("distribution")}>4. Fill a date range</button><span>Use Auto-Distribution, then review the resulting calendar.</span></li>
-          <li><button type="button" className="link" onClick={() => setTab("reminders")}>5. Set deadlines & notifications</button><span>Choose timing and delivery channels for scheduling reminders.</span></li>
+          <li><button type="button" className="link" onClick={() => setTab("calendar")}>5. Review the saved calendar</button><span>Check saved assignments and remaining openings. Setup does not turn on automatic texts or emails.</span></li>
         </ol></details>
       </section>}
       {isAdmin && tab === "openAdmin" && <AdminOpenPositions data={data} onDay={openStaffingDay} />}
@@ -299,8 +313,8 @@ export default function StationScheduler({ testMember = null, initialTask = "" }
       {tab === "trades" && isAdmin && <RequestsScreen data={data} act={act} busy={busy} employeeName={employeeName} mode="trades" />}
       {tab === "trades" && !isAdmin && <TradeRequestScreen initialSlotId={tradeSlotId} data={data} act={act} busy={busy} />}
       {tab === "timeoff" && isAdmin && <TimeOffScreen data={data} isAdmin={isAdmin} act={act} busy={busy} />}
-      {tab === "availability" && <AvailabilityScreen data={data} isAdmin={isAdmin} act={act} busy={busy} />}
-      {tab === "distribution" && isAdmin && <DistributionScreen data={data} act={act} busy={busy} />}
+      {tab === "availability" && <AvailabilityScreen data={data} isAdmin={isAdmin} act={act} busy={busy} initialMonth={isAdmin ? setupMonth : undefined} />}
+      {tab === "distribution" && isAdmin && <DistributionScreen data={data} act={act} busy={busy} initialMonth={setupMonth} onReview={date => { setSelectedDate(date); setAdminDayMode(false); setTab('calendar'); }} />}
       {tab === "reminders" && isAdmin && <RemindersScreen data={data} act={act} busy={busy} />}
       {tab === "confirmation" && isAdmin && <RequiredConfirmationAdmin />}
       {tab === "myrequests" && !isAdmin && <MyRequestsScreen data={data} act={act} busy={busy} />}
@@ -847,7 +861,27 @@ function RosterScreen({ data, act, busy, shiftTypeName }: { data: Data; act: (b:
   return (
     <div className="scheduler-grid scheduler-roster">
       <section className="wide">
+        <h3 id="scheduler-standing" tabIndex={-1}>Standing assignments</h3>
+        <p>These are your recurring crews. Reviewing this list does not change them. You do not need to add them again each month.</p>
+        <p className="muted">Auto-fills the minimum seats and adds a staffed extra seat when more members are assigned than the minimum.</p>
+        <ul className="plain-list">
+          {data.standingAssignments.map((s) => (
+            <li key={s.id}>{s.employeeName} → {shiftTypeName(s.shiftTypeId)} · {s.role} <button className="link danger" disabled={busy} onClick={() => act({ action: "removeStandingAssignment", id: s.id })}>Remove</button></li>
+          ))}
+        </ul>
+        <details><summary>Add another recurring assignment</summary>
+        <label className="wide"><span>Member</span><select value={standEmp} onChange={(e) => { setStandEmp(e.target.value); setStandRole(""); }}><option value="">Select…</option>{data.employees.filter((e) => parseRoles(e.roles).length).map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}</select></label>
+        <label className="wide"><span>Shift type</span><select value={standType} onChange={(e) => setStandType(e.target.value)}><option value="">Select…</option>{data.shiftTypes.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+        <label className="wide"><span>Eligible position</span><select disabled={!standEmp} value={standRole} onChange={(e) => setStandRole(e.target.value)}><option value="">{standEmp ? "Select position…" : "Choose a member first"}</option>{data.roles.filter((r) => data.employees.some((e) => e.id === standEmp && employeeEligibleForRole(e,r))).map((r) => <option key={r} value={r}>{r}</option>)}</select></label>
+        <p className="muted">For storms, holidays, events, or extra-only members, open Calendar and add a one-day position.</p><p role="status">{!standEmp ? "Next: choose a member." : !standType ? "Next: choose a repeating shift type." : !standRole ? "Next: choose an eligible position." : "Ready to save this standing assignment."}</p>
+        <button disabled={busy || !standEmp || !standType || !standRole} onClick={async () => { const r = await act({ action: "saveStandingAssignment", employeeId: standEmp, shiftTypeId: standType, role: standRole }); if (r) { setStandEmp(""); setStandType(""); setStandRole(""); } }}>Add standing assignment</button>
+        </details>
+        <p><a href="#scheduler-members">Member qualifications and preferences ↓</a></p>
+
+      </section>
+      <section className="wide" id="scheduler-members">
         <h3>Members</h3>
+        <p><a href="#scheduler-standing">Go to saved recurring crews ↓</a></p>
         <p className="muted">Qualifications are managed on Employees. Notification switches save immediately; they do not confirm message delivery.</p>
         <label><span>Find a member</span><input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Name or rank" /></label>
         <div className="scheduler-roster-members">
@@ -872,20 +906,6 @@ function RosterScreen({ data, act, busy, shiftTypeName }: { data: Data; act: (b:
             })}
         </div>
         {!data.employees.some((emp) => `${emp.name} ${emp.rank}`.toLowerCase().includes(search.trim().toLowerCase())) && <p>No matching members.</p>}
-      </section>
-      <section>
-        <h3>Standing assignments</h3>
-        <p className="muted">Auto-fills the minimum seats and adds a staffed extra seat when more members are assigned than the minimum.</p>
-        <label className="wide"><span>Member</span><select value={standEmp} onChange={(e) => { setStandEmp(e.target.value); setStandRole(""); }}><option value="">Select…</option>{data.employees.filter((e) => parseRoles(e.roles).length).map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}</select></label>
-        <label className="wide"><span>Shift type</span><select value={standType} onChange={(e) => setStandType(e.target.value)}><option value="">Select…</option>{data.shiftTypes.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
-        <label className="wide"><span>Eligible position</span><select disabled={!standEmp} value={standRole} onChange={(e) => setStandRole(e.target.value)}><option value="">{standEmp ? "Select position…" : "Choose a member first"}</option>{data.roles.filter((r) => data.employees.some((e) => e.id === standEmp && employeeEligibleForRole(e,r))).map((r) => <option key={r} value={r}>{r}</option>)}</select></label>
-        <p className="muted">For storms, holidays, events, or extra-only members, open Calendar and add a one-day position.</p><p role="status">{!standEmp ? "Next: choose a member." : !standType ? "Next: choose a repeating shift type." : !standRole ? "Next: choose an eligible position." : "Ready to save this standing assignment."}</p>
-        <button disabled={busy || !standEmp || !standType || !standRole} onClick={async () => { const r = await act({ action: "saveStandingAssignment", employeeId: standEmp, shiftTypeId: standType, role: standRole }); if (r) { setStandEmp(""); setStandType(""); setStandRole(""); } }}>Add standing assignment</button>
-        <ul className="plain-list">
-          {data.standingAssignments.map((s) => (
-            <li key={s.id}>{s.employeeName} → {shiftTypeName(s.shiftTypeId)} · {s.role} <button className="link danger" disabled={busy} onClick={() => act({ action: "removeStandingAssignment", id: s.id })}>Remove</button></li>
-          ))}
-        </ul>
       </section>
     </div>
   );
@@ -937,10 +957,10 @@ function RequestsScreen({ data, act, busy, employeeName, mode }: { data: Data; a
   );
 }
 
-function AvailabilityScreen({ data, isAdmin, act, busy }: { data: Data; isAdmin: boolean; act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean }) {
+function AvailabilityScreen({ data, isAdmin, act, busy, initialMonth }: { data: Data; isAdmin: boolean; act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean; initialMonth?: string }) {
   const initialMemberId = data.viewer.employeeId ?? data.employees[0]?.id ?? "";
   const [memberId, setMemberId] = useState(initialMemberId);
-  const [monthDate, setMonthDate] = useState(`${data.today.slice(0, 7)}-01`);
+  const [monthDate, setMonthDate] = useState(`${scheduleMonthRange(initialMonth ?? '')?.from ?? data.today.slice(0, 7) + '-01'}`);
   const [picked, setPicked] = useState<string[]>([]);
   const [status, setStatus] = useState<"available" | "unavailable">("available");
   const [allDay, setAllDay] = useState(true);
@@ -1234,10 +1254,17 @@ function OvertimeScreen({ data, act, busy, employeeName }: { data: Data; act: (b
   );
 }
 
-function DistributionScreen({ data, act, busy }: { data: Data; act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean }) {
-  const [fromDate, setFromDate] = useState(data.today);
-  const [endDate, setEndDate] = useState(data.today);
-  const validRange = Boolean(fromDate && endDate && endDate >= fromDate);
+function DistributionScreen({ data, act, busy, initialMonth, onReview }: { data: Data; act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean; initialMonth: string; onReview: (date: string) => void }) {
+  const initialRange = scheduleMonthRange(initialMonth) ?? scheduleMonthRange(data.today.slice(0, 7))!;
+  const [fromDate, setFromDate] = useState(initialRange.from);
+  const [endDate, setEndDate] = useState(initialRange.through);
+  const [reviewing, setReviewing] = useState(false);
+  const [result, setResult] = useState<{ from: string; through: string; assigned: number; unfilled: number } | null>(null);
+  const validRange = validQueueDate(fromDate) && validQueueDate(endDate) && endDate >= fromDate;
+  const active = new Set(data.shiftTypes.filter(s => s.active).map(s => s.id));
+  const inRange = data.slots.filter(s => active.has(s.shiftTypeId) && s.entryDate >= fromDate && s.entryDate <= endDate);
+  const openCount = inRange.filter(s => s.status === 'open' && !s.employeeId && shiftHasNotStarted(s.entryDate, s.startTime, new Date())).length;
+  const filledCount = inRange.filter(s => s.status === 'filled' && s.employeeId).length;
   return (
     <div className="scheduler-grid">
       <section>
@@ -1251,14 +1278,30 @@ function DistributionScreen({ data, act, busy }: { data: Data; act: (b: Record<s
       </section>
       <section>
         <h3>Run auto-distribution</h3>
+        <p>Start with your selected month. You can change either date below. Review first; assignments save only when you choose Assign from saved availability.</p>
         <p><strong>Only members with saved Available times.</strong> Auto-Distribution reads Department availability / My Availability. The full shift must fit within the member’s saved Available days and times. Blank days never count as available.</p>
         <p className="muted">Shift requests and recurring Red, Black, or Gold membership do not bypass availability for a new assignment. Qualifications, time off, and assignment conflicts still apply. Saved recurring assignments stay unchanged.</p>
         <p className="muted">Conflicts are checked by actual shift times, not the whole day. Available 12:00–18:00 can be assigned before an existing 18:00–06:00 shift. Overlapping shifts are never assigned together.</p>
         <p className="muted">This saves assignments to future open positions within both dates. Filled positions stay unchanged, including earlier automatic assignments. Positions without an available, qualified member stay open. Build repeating shifts in Shift Builder first.</p>
-        <label className="row"><span>From date</span><input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} /></label>
-        <label className="row"><span>End date</span><input type="date" min={fromDate || undefined} value={endDate} onChange={(e) => setEndDate(e.target.value)} /></label>
+        <label className="row"><span>From date</span><input type="date" value={fromDate} disabled={busy} onChange={(e) => { setFromDate(e.target.value); setReviewing(false); }} /></label>
+        <label className="row"><span>End date</span><input type="date" min={fromDate || undefined} value={endDate} disabled={busy} onChange={(e) => { setEndDate(e.target.value); setReviewing(false); }} /></label>
         {!validRange && <p role="alert">Choose both dates. End date must be on or after From date.</p>}
-        <button disabled={busy || !validRange} onClick={async () => { const r = await act({ action: "runAutoDistribution", fromDate, endDate }) as { assigned?: number; unfilled?: number } | null; if (r) alert(`Saved ${r.assigned ?? 0} assignment(s) from ${fromDate} through ${endDate}. ${r.unfilled ?? 0} position(s) remain open. Only saved Available days and times were used. Existing assignments were not changed.`); }}>Assign from saved availability</button>
+        <p>{filledCount} filled positions stay unchanged. {openCount} future open positions are loaded for these dates.</p>
+        {!openCount && validRange && <p role="status">There are no future open positions loaded for these dates. Review the month calendar; nothing needs to be assigned here.</p>}
+        {!reviewing && <button type="button" disabled={busy || !validRange || !openCount} onClick={() => setReviewing(true)}>Review before filling positions</button>}
+        {reviewing && <section className="schedule-fill-review" aria-label="Review before saving assignments">
+          <h4>Ready to fill open positions?</h4><p><strong>{fromDate} through {endDate} · Central time</strong></p>
+          <p>Keep recurring crews and all filled positions. Assign other members only within their submitted Available times. All existing scheduling rules still apply. Unfillable positions stay open.</p>
+          <p>This saves real assignments. It does not turn on automatic texts or emails.</p>
+          <div className="schedule-setup-actions"><button type="button" disabled={busy || !validRange || !openCount} onClick={async () => {
+            const r = await act({ action: 'runAutoDistribution', fromDate, endDate }) as { assigned?: number; unfilled?: number } | null;
+            if (r && Number.isInteger(r.assigned) && Number.isInteger(r.unfilled) && r.assigned! >= 0 && r.unfilled! >= 0) {
+              setResult({ from: fromDate, through: endDate, assigned: r.assigned!, unfilled: r.unfilled! });
+              setReviewing(false);
+            }
+          }}>{busy ? 'Saving assignments…' : 'Assign from saved availability'}</button><button type="button" disabled={busy} onClick={() => setReviewing(false)}>Back to dates</button></div>
+        </section>}
+        {result && <section className="schedule-fill-review" role="status" aria-label="Saved assignment result"><h4>Assignments saved</h4><p>{result.assigned} new assignments saved from {result.from} through {result.through}. {result.unfilled} position(s) remain open.</p><p>Only saved Available days and times were used. Existing assignments were not changed.</p><button type="button" onClick={() => onReview(result.from)}>Next: review the month calendar</button></section>}
       </section>
     </div>
   );

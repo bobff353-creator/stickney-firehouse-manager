@@ -517,6 +517,7 @@ export default function SchedulerWorkspace({
         )}
         {view === "admin" && tab === "staffing" && (
           <>
+            <div className="sf-panel"><h3>Planning a month?</h3><p>Keep recurring crews, check submitted availability, then fill open positions.</p><button className="sf-secondary" onClick={() => setAdvanced('setup')}>Set up a month →</button></div>
             <div className="sf-section-heading">
               <div>
                 <h3>Staff the day</h3>

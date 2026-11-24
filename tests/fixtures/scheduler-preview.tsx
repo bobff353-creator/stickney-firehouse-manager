@@ -1,6 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import StationScheduler from "../../app/station-scheduler";
+import { distributionConsent } from '../../app/station-distribution';
 import { WorkspaceViewMemory } from "../../app/workspace-view-state";
 import { useWorkspaceTaskNavigation } from "../../app/workspace-task-navigation";
 import "../../app/globals.css";
@@ -23,6 +24,20 @@ const data = {
 };
 const previewOptions = new URLSearchParams(window.location.search);
 const saveDelay = Math.min(15000, Math.max(0, Number(previewOptions.get("saveDelay")) || 0));
+if (previewOptions.has('setup-flow')) {
+  const future = new Date(today + 'T12:00:00Z'); future.setUTCDate(future.getUTCDate() + 1);
+  const date = future.toISOString().slice(0, 10);
+  Object.assign(data, {
+    entries: [{ id: slot.entryId, entryDate: date, shiftTypeId: shift.id }],
+    slots: [
+      { ...slot, entryDate: date },
+      { ...slot, id: 'fixture-open-am', entryDate: date, employeeId: null, employeeName: '', status: 'open', startTime: '06:00', endTime: '12:00' },
+      { ...slot, id: 'fixture-open-pm', entryDate: date, employeeId: null, employeeName: '', status: 'open', startTime: '12:00', endTime: '18:00' },
+    ],
+    standingAssignments: [{ id: 'fixture-standing', employeeId: member.id, employeeName: member.name, shiftTypeId: shift.id, role: slot.role, active: 1 }],
+    availability: [{ id: 'fixture-availability', employeeId: other.id, employeeName: other.name, availabilityDate: date, status: 'available', allDay: 0, startTime: '06:00', endTime: '12:00', note: '', updatedAt: '' }],
+  });
+}
 if (previewOptions.has("availability-layout")) {
   Object.assign(shift, { name: "Preview day crew", startTime: "06:00", endTime: "12:00" });
   Object.assign(data, { availability: [
@@ -39,6 +54,18 @@ window.fetch = async (input, init) => {
   if (init?.method === "POST") {
     const body = JSON.parse(String(init.body));
     if (saveDelay) await new Promise(resolve => window.setTimeout(resolve, saveDelay));
+    if (body.action === 'runAutoDistribution' && previewOptions.has('setup-flow')) {
+      writes++;
+      document.getElementById('fixture-status')!.textContent = `Fictional test only · assignment attempts: ${writes}`;
+      if (failNextAssignment) { failNextAssignment = false; return Response.json({ error: 'Simulated distribution failure. Nothing saved. Retry the reviewed dates.' }, { status: 503 }); }
+      const open = data.slots.filter(s => s.status === 'open' && !s.employeeId && s.entryDate >= body.fromDate && s.entryDate <= body.endDate);
+      let assigned = 0;
+      for (const position of open) {
+        const eligible = data.employees.find(e => JSON.parse(e.roles).includes(position.role) && distributionConsent({ ...position, shiftActive: 1 }, e.id, data.availability, []));
+        if (eligible) { position.employeeId = eligible.id; position.employeeName = eligible.name; position.status = 'filled'; assigned++; }
+      }
+      return Response.json({ ok: true, assigned, unfilled: open.length - assigned });
+    }
     if (["assignSlot", "clearSlot"].includes(body.action)) {
       writes++;
       document.getElementById("fixture-status")!.textContent = `Fictional test only · assignment attempts: ${writes}`;
