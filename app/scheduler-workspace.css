@@ -15,6 +15,7 @@
 :is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded label > span { color: inherit; }
 :is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded .scheduler-roster-member { background: var(--sf-surface); color: var(--sf-ink); border-color: var(--sf-line); }
 :is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded .scheduler-weekdays { color: var(--sf-ink); }
+:is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded .scheduler-weekdays span { color: var(--sf-ink) !important; font-size: 12px; }
 :is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded .schedule-setup .section-kicker { color: var(--sf-ink) !important; font-size: 12px !important; }
 :is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded .schedule-setup .schedule-setup-note { color: #102b40; }
 :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-tabs button { flex: 0 0 auto; }
