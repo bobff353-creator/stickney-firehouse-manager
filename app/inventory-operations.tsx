@@ -4,6 +4,7 @@ import { InventoryWorkIcon } from "./inventory-work-icon";
 import ScenarioHelp from './scenario-help';
 import EquipmentContinuity from './equipment-continuity';
 import InventoryContainerContents from "./inventory-container-contents";
+import { isInventoryContainer } from './inventory-container-picker';
 import InventoryGroupedChecklist from "./inventory-grouped-checklist";
 import { inventoryLocationFilter } from "./inventory-location-filter";
 import InventoryBulkReview from './inventory-bulk-review';
@@ -484,6 +485,10 @@ export default function InventoryOperations({
   const [deficiencyItem, setDeficiencyItem] = useState<Row | null>(null);
   const [numericReadings, setNumericReadings] = useState<Record<string, string>>({});
   const [editingEquipment, setEditingEquipment] = useState<Row | null>(null);
+  const [focusContents,setFocusContents] = useState(false);
+  const [equipmentDraft,setEquipmentDraft] = useState({id:'',dirty:false});
+  const [containerDraftDirty,setContainerDraftDirty] = useState(false);
+  const reportContainerDraft = useCallback((dirty:boolean)=>setContainerDraftDirty(dirty),[]);
   const [selectedDirectoryEquipment, setSelectedDirectoryEquipment] = useState<Row | null>(null);
   const equipmentLinkApplied=useRef(false);
   const repairLinkApplied=useRef(false);
@@ -514,7 +519,8 @@ export default function InventoryOperations({
     directorySummaryRef.current?.focus({ preventScroll: true });
     directorySummaryRef.current?.scrollIntoView({ block: "start", behavior: "instant" });
   }, [loading, selectedDirectoryEquipment, view]);
-  const openEquipmentEditor = (item: Row, section = "basics") => { if (item.scba_asset_kind) { onAir(); return; } setEditorSection(section); setEditingEquipment(item); };
+  const openEquipmentEditor = (item: Row, section = "basics") => { if (item.scba_asset_kind) { onAir(); return; } setContainerDraftDirty(false); setFocusContents(section === 'contents'); setEquipmentDraft({id:value(item,'id'),dirty:false}); setEditorSection(section === 'contents' ? 'basics' : section); setEditingEquipment(item); };
+  const closeEquipmentEditor = () => { if (confirmLeavingWork()) { setEditingEquipment(null); setEquipmentDraft({id:'',dirty:false}); } };
   const changeBuilderTask = (task: string) => {
     setBuilderTask(task);
     window.requestAnimationFrame(() => {
@@ -1056,7 +1062,7 @@ export default function InventoryOperations({
   const unsavedScba = activeScbaEntries.some(item => scbaDirty[value(item, "id")]);
   const unsavedMeters = activeItems.some(item => meterDirty[value(item,'id')]);
   const unsavedCheck = unsavedReadings || unsavedScba || unsavedMeters;
-  useUnsavedWork(unsavedCheck || workOrderDirty || noticeSaveState === "unsaved" || noticeSaveState === "failed", Boolean(busy) || noticeSaveState === "saving");
+  useUnsavedWork(unsavedCheck || workOrderDirty || noticeSaveState === "unsaved" || noticeSaveState === "failed" || (equipmentDraft.dirty && equipmentDraft.id === value(editingEquipment || {},'id')), Boolean(busy) || noticeSaveState === "saving");
   const pendingItems = activeChecklistRows.filter((item) => value(item, "result") === "pending").length;
   const completedItems = activeChecklistRows.length - pendingItems;
   const checkProgress = activeChecklistRows.length ? Math.round((completedItems / activeChecklistRows.length) * 100) : 0;
@@ -1504,6 +1510,7 @@ export default function InventoryOperations({
               <EquipmentContinuity key={value(selectedDirectoryEquipment,"id")} equipmentId={value(selectedDirectoryEquipment,"id")} orders={data.workOrders} documents={data.workOrderDocuments}/>{value(selectedDirectoryEquipment, "service_notes") ? <p className="equipment-service-note">{value(selectedDirectoryEquipment, "service_notes")}</p> : null}
               <div className="equipment-record-actions">
                 {canSetup ? <button className="ops-primary" type="button" onClick={() => openEquipmentEditor(selectedDirectoryEquipment)}>Edit complete asset record</button> : null}
+                {canSetup && isInventoryContainer(selectedDirectoryEquipment,data.equipment) && <button type="button" onClick={()=>openEquipmentEditor(selectedDirectoryEquipment,'contents')}>Add / manage contents</button>}
                 {canManageRepairs ? <button type="button" onClick={() => setRepairEquipment(selectedDirectoryEquipment)}>Create repair ticket</button> : null}
                 {canManageRepairs && value(selectedDirectoryEquipment, "service_status") !== "out_of_service" ? <button type="button" onClick={() => void action(`oos-${value(selectedDirectoryEquipment, "id")}`, { action: "set_equipment_status", equipmentId: value(selectedDirectoryEquipment, "id"), serviceStatus: "out_of_service", serviceNotes: "Placed out of service from equipment directory" }).then((saved) => { if (saved) setSelectedDirectoryEquipment(null); })}>Place out of service</button> : null}
                 {canManageRepairs && value(selectedDirectoryEquipment, "service_status") === "out_of_service" ? <button type="button" onClick={() => void action(`return-${value(selectedDirectoryEquipment, "id")}`, { action: "set_equipment_status", equipmentId: value(selectedDirectoryEquipment, "id"), serviceStatus: "in_service", serviceNotes: "Returned to service from equipment directory" }).then((saved) => { if (saved) setSelectedDirectoryEquipment(null); })}>Return to service</button> : null}
@@ -1760,6 +1767,7 @@ export default function InventoryOperations({
             {setupItems.slice(0, setupLimit).map(item => <article key={value(item, "id")}>
               <div><h3>{value(item, "name")}</h3><p>{value(item, "compartment_label") || "Location not assigned"} · Qty {value(item, "quantity_required") || "1"}</p></div>
               <button type="button" aria-label={`Edit ${value(item, "name")}`} onClick={() => openEquipmentEditor(item)}>Edit</button>
+              {isInventoryContainer(item,data.equipment) && <button type="button" aria-label={`Manage contents of ${value(item,'name')}`} onClick={()=>openEquipmentEditor(item,'contents')}>Add / manage contents</button>}
             </article>)}
           </div>
           {!setupItems.length && <p>No items match this rig and these filters.</p>}
@@ -2175,15 +2183,16 @@ export default function InventoryOperations({
       {editingEquipment ? (
         <div className="camera-overlay" role="presentation">
           <form ref={equipmentEditorRef} className="camera-panel equipment-editor" role="dialog" aria-modal="true" aria-label="Edit inventory item" onKeyDown={event => {
-            if (event.key === "Escape" && !busy) { event.preventDefault(); setEditingEquipment(null); }
+            if (event.key === "Escape" && !busy) { event.preventDefault(); closeEquipmentEditor(); }
             if (event.key === "Tab") {
               const fields = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex='0']")).filter(field => field.getClientRects().length);
               const first = fields[0], last = fields[fields.length-1];
               if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
               else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
             }
-          }} noValidate onSubmit={(event) => {
+          }} onChangeCapture={event=>{if(!(event.target as HTMLElement).closest('.inventory-container-contents'))setEquipmentDraft({id:value(editingEquipment,'id'),dirty:true});}} noValidate onSubmit={(event) => {
             event.preventDefault();
+            if(containerDraftDirty){setError('Save or cancel the contents draft before saving container details.');return;}
             const invalid = Array.from(event.currentTarget.elements).find((field): field is HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement => (field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement) && !field.checkValidity());
             if (invalid) {
               setEditorSection(invalid.closest<HTMLElement>("[data-editor-section]")?.dataset.editorSection || "basics");
@@ -2203,7 +2212,7 @@ export default function InventoryOperations({
                   await load();
                 }
                 if (saved) {
-                  setEditingEquipment(null); setSelectedDirectoryEquipment(null);
+                  setEquipmentDraft({id:'',dirty:false}); setEditingEquipment(null); setSelectedDirectoryEquipment(null);
                   if (previewAfterSave) {
                     const location = data.compartments.find(item => value(item,"id") === form.get("compartmentId"));
                     if (location) setSelectedApparatusId(value(location,"apparatus_id"));
@@ -2219,8 +2228,8 @@ export default function InventoryOperations({
               }
             })();
           }}>
-            <header><div><span>EDIT INVENTORY ITEM</span><h3>{value(editingEquipment, "name")}</h3></div><button type="button" onClick={() => setEditingEquipment(null)}>Cancel</button></header>
-            <nav className="inventory-task-nav" aria-label="Equipment editing sections">{[["basics","Item & location"],["checks","Checklists"],["asset","Service & details"]].map(([id,label]) => <button key={id} type="button" aria-pressed={editorSection === id} onClick={() => setEditorSection(id)}>{label}</button>)}</nav>
+            <header><div><span>EDIT INVENTORY ITEM</span><h3>{value(editingEquipment, "name")}</h3></div><button type="button" disabled={Boolean(busy)} onClick={closeEquipmentEditor}>Cancel</button></header>
+            <nav className="inventory-task-nav" aria-label="Equipment editing sections">{[["basics","Item & location"],["checks","Checklists"],["asset","Service & details"]].map(([id,label]) => <button key={id} type="button" aria-pressed={editorSection === id} onClick={() => setEditorSection(id)}>{label}</button>)}{canSetup && isInventoryContainer(editingEquipment,data.equipment) && <button type="button" onClick={event=>{const heading=event.currentTarget.form?.querySelector<HTMLElement>('.inventory-container-contents h4');heading?.focus({preventScroll:true});heading?.scrollIntoView({block:'start'});}}>Contents · add equipment</button>}</nav>
             {editorSection === "asset" && value(editingEquipment, "photo_url") ? <img className="equipment-editor-photo" src={value(editingEquipment, "photo_url")} alt={value(editingEquipment, "name")} /> : null}
             <div className="ops-form ops-form-wide inventory-editor-group" data-editor-section="basics" hidden={editorSection !== "basics"}>
               <label>Apparatus and compartment<select name="compartmentId" defaultValue={value(editingEquipment, "compartment_id")}>{data.apparatus.flatMap((apparatus) => data.compartments.filter((item) => value(item, "apparatus_id") === value(apparatus, "id")).map((item) => <option key={value(item, "id")} value={value(item, "id")}>{value(apparatus, "name")} · {value(item, "label")}</option>))}</select></label>
@@ -2264,12 +2273,13 @@ export default function InventoryOperations({
               <label>Weekly frequency<select name="weeklyRecurrence" defaultValue={value(editingEquipment, "weekly_recurrence") || "every_week"}><option value="every_week">Every weekly check</option><option value="first_third_saturday">First and third Saturdays of the month</option></select></label>
               <p className="ops-span-2">Weekly frequency applies to new weekly checks in America/Chicago time. Saved and in-progress checks keep their original item list.</p>
             </div>
-            {canSetup && (["kit","bag","toolbox","container"].includes(value(editingEquipment,"item_type")) || data.equipment.some(item => item.parent_equipment_id === editingEquipment.id && !item.retired_at)) && <InventoryContainerContents key={value(editingEquipment,"id")} container={editingEquipment} equipment={data.equipment} busy={Boolean(busy)} onAction={action} message={message} onRefresh={() => void load({background:true,fresh:true})} />}
+            {canSetup && isInventoryContainer(editingEquipment,data.equipment) && <InventoryContainerContents key={value(editingEquipment,"id")} container={editingEquipment} equipment={data.equipment} busy={Boolean(busy)} onAction={action} message={message} focusOnOpen={focusContents} onDraftChange={reportContainerDraft} onRefresh={() => load({background:true,fresh:true})} />}
             <div className="inventory-editor-footer">
               <button className="ops-scan-button" type="button" onClick={() => { setScannerTarget("edit"); setScannerOpen(true); }}>Scan barcode</button>
               <button className="ops-primary" disabled={Boolean(busy)}>Save item</button>
               {view === "builder" && <button data-preview="true" disabled={Boolean(busy)}>Save &amp; preview</button>}
               {canSetup ? <button type="button" disabled={Boolean(busy)} style={{ color: "#b42318", borderColor: "#b42318", background: "#fff" }} onClick={() => {
+                if(containerDraftDirty){setError('Save or cancel the contents draft before deleting the container.');return;}
                 if (!window.confirm(`Delete "${value(editingEquipment, "name")}" from active inventory? Inspection and service history will be retained.`)) return;
                 void action("delete-equipment", { action: "delete_equipment", equipmentId: value(editingEquipment, "id"), confirmed: true }).then((saved) => {
                   if (saved) { setEditingEquipment(null); setSelectedDirectoryEquipment(null); setMessage("Item deleted from active inventory. History retained."); }

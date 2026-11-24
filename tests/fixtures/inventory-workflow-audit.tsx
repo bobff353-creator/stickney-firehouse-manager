@@ -1,4 +1,3 @@
-import '../../app/inventory/watchline-workspace.css';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Browser-only fictional workflow harness. No credentials or production fetches.
 // Mock transport proves UI behavior; database guarantees are tested separately in
@@ -38,10 +37,14 @@ import '../../app/inventory/./bento.css';
 import '../../app/inventory/layout-fit.css';
 import '../../app/readability.css';
 import '../../app/inventory/readability.css';
+import '../../app/inventory/rig-checks.css';
+import '../../app/inventory/watchline-admin.css';
+import '../../app/inventory/watchline-workspace.css';
 
 if (!['127.0.0.1', 'localhost'].includes(location.hostname)) throw Error('Local fixtures only');
 const performanceAudit = new URLSearchParams(location.search).has('performance');
-const key=performanceAudit ? 'fictional-inventory-performance-v1' : 'fictional-inventory-workflow-v2';
+const containerAudit = new URLSearchParams(location.search).has('containers');
+const key=containerAudit ? 'fictional-container-audit-v1' : performanceAudit ? 'fictional-inventory-performance-v1' : 'fictional-inventory-workflow-v2';
 const rig={id:'fixture-engine',name:'TEST ONLY Engine',asset_type:'engine',status:'in_service'};
 const cabinet={id:'fixture-cabinet',apparatus_id:rig.id,label:'Driver side cabinet',side:'driver',sort_order:1};
 const base={apparatus_id:rig.id,compartment_id:cabinet.id,compartment_label:cabinet.label,quantity_required:1,check_types:['daily','weekly','inventory'],equipment_category:'equipment',response_type:'pass_fail',service_status:'in_service',updated_at:'2026-09-17T12:00:00Z'};
@@ -55,6 +58,15 @@ const equipment=[
 const template={id:'fixture-template',apparatus_id:rig.id,active:true,pack_positions:['Officer seat'],include_rit:true,spare_bottle_count:1};
 const initial={configured:true,apparatus:[rig,{...rig,id:'fixture-ambulance',name:'TEST ONLY Ambulance',asset_type:'ambulance'}],compartments:[cabinet],equipment,retiredEquipment:[],checks:[],checkItems:[],exceptions:[],workOrders:[],workOrderDocuments:[],inspectionSchedules:[],stock:[{id:'fixture-stock',name:'TEST Gloves',unit:'boxes',par_level:5,reorder_point:2,lot_id:'fixture-lot',quantity_on_hand:2,lot_number:'TEST-LOT'}],restockRequests:[],locationChanges:[],scbaTemplates:[template],scbaEntries:[],photos:[],hotspots:[]};
 const data:any=JSON.parse(sessionStorage.getItem(key)||JSON.stringify(initial));
+if(containerAudit && !data.equipment.some((item:any)=>item.id==='fixture-toolbox')){
+ data.compartments.push({...cabinet,id:'fixture-rear',label:'Rear compartment'});
+ data.equipment.push({...base,id:'fixture-toolbox',name:'TEST Tool box',item_type:'toolbox'},{...base,id:'fixture-ems-bag',name:'TEST EMS bag',item_type:'bag'});
+ for(let n=0;n<35;n++)data.equipment.push({...base,id:`fixture-loose-${n}`,name:`TEST Loose tool ${String(n).padStart(2,'0')}`,item_type:'individual',barcode:`TOOL-${n}`,serial_number:`SER-${n}`,manufacturer:'Fictional tools',model:'Rescue'});
+ for(let n=0;n<14;n++)data.equipment.push({...base,id:`fixture-contained-${n}`,name:`TEST Box tool ${String(n).padStart(2,'0')}`,item_type:'individual',parent_equipment_id:'fixture-toolbox'});
+ data.equipment.push({...base,id:'fixture-scissors',name:'TEST Scissors',item_type:'individual',parent_equipment_id:'fixture-ems-bag'},{...base,id:'fixture-rear-hammer',name:'TEST Rear hammer',item_type:'individual',compartment_id:'fixture-rear',compartment_label:'Rear compartment'});
+ data.checks.push({id:'fixture-saved-history',apparatus_id:rig.id,check_type:'inventory',status:'approved'});
+ data.checkItems.push({id:'fixture-history-item',check_id:'fixture-saved-history',equipment_id:'fixture-loose-0',equipment_name:'Original saved name',result:'pass'});
+}
 if (!data.stock.some((row:any)=>row.lot_id==='fixture-lot-2')) data.stock.push({...data.stock[0],lot_id:'fixture-lot-2',lot_number:'TEST-LOT-2',quantity_on_hand:3,location_id:'TEST cabinet B',expires_at:'2020-01-01'});
 const admin=new URLSearchParams(location.search).get('role')!=='member';
 if (new URLSearchParams(location.search).has('compact-review')) {
@@ -96,6 +108,22 @@ window.fetch=async(input,init)=>{
   if(init.body instanceof FormData) return bad('Photo storage is not simulated by this workflow fixture.');
   const b=JSON.parse(String(init.body));
   document.getElementById('audit-writes')!.textContent=`Test writes: ${++writes} · ${b.action}`;
+  if(b.action==='manage_container_item'){
+   const item=data.equipment.find((row:any)=>row.id===b.equipmentId),parent=data.equipment.find((row:any)=>row.id===b.containerId);
+   if(!admin||!item||!parent)return bad('No editable item',403);
+   if(item.updated_at!==b.expectedUpdatedAt)return bad('This item changed. Refresh contents.',409);
+   if(b.operation==='edit'){item.name=b.name;item.quantity_required=b.quantityRequired;}
+   else {if(b.operation==='add'&&item.compartment_id!==parent.compartment_id)return bad('Different compartment');item.parent_equipment_id=b.operation==='add'?parent.id:null;}
+   item.updated_at=stamp();return ok({equipment:item});
+  }
+  if(b.action==='create_equipment'&&containerAudit){
+   if(!admin)return bad('Administrator only',403);
+   const previous=data.equipment.find((item:any)=>item.id===b.createAttemptId);
+   if(previous)return previous.name===b.name&&previous.quantity_required===b.quantityRequired?ok({equipment:previous,replayed:true}):bad('Create request details changed',409);
+   const item={...base,id:b.createAttemptId||crypto.randomUUID(),name:b.name,quantity_required:b.quantityRequired,item_type:b.itemType,parent_equipment_id:b.parentEquipmentId,check_types:b.checkTypes,updated_at:stamp()};data.equipment.push(item);persist();
+   const lose=document.getElementById('lose-create') as HTMLInputElement|null;if(lose?.checked){lose.checked=false;return bad('Simulated lost confirmation after saving',503);}
+   return ok({equipment:item});
+  }
   if(b.action==='start_check'){
    let check=data.checks.find((c:any)=>c.apparatus_id===b.apparatusId&&c.check_type===b.checkType&&c.status==='in_progress');
    if(check)return ok({checkId:check.id,resumed:true});
@@ -183,6 +211,7 @@ const reportError=(message:string)=>{const target=document.getElementById('audit
 window.addEventListener('error',e=>reportError(e.message));
 window.addEventListener('unhandledrejection',e=>reportError(String(e.reason)));
 createRoot(document.getElementById('root')!).render(<><aside style={{padding:8,background:'#fff4be',color:'#172b3b',font:'14px Arial'}}>FICTIONAL LOCAL TEST ONLY · no real inspections saved<br/><span id="audit-writes">Test writes: 0</span><label><input id="fail-save" type="checkbox"/>Fail next save</label><label><input id="slow-save" type="checkbox"/>Slow saves</label><button onClick={()=>{sessionStorage.removeItem(key);location.reload();}}>Reset fictional test records</button><span id="audit-errors" role="alert"/>
+{containerAudit&&<label><input id="lose-create" type="checkbox"/>Lose create confirmation after saving</label>}
 {performanceAudit&&<div><output id="audit-reads">Reads: 0</output><br/><output id="audit-applications">Applied packets: 0</output><br/>
 <button onClick={refreshFixture}>Background refresh test</button>
 <button onClick={()=>{revision++;data.equipment[1].name=`TEST Portable radio revision ${revision}`;refreshFixture();}}>Change saved fixture</button>

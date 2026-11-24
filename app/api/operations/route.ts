@@ -618,8 +618,10 @@ export async function POST(request: Request) {
         if(error)throw error;
         if(!parent||parent.apparatus_id!==compartment.apparatus_id||parent.compartment_id!==compartmentId||!['kit','bag','toolbox','container'].includes(parent.item_type)||['kit','bag','toolbox','container'].includes(clean(body.itemType,40)))return privateJson({error:'Choose an active container in the same compartment for this individual item.'},400);
       }
+      const createAttemptId = clean(body.createAttemptId, 80).toLowerCase();
+      if (createAttemptId && (!parentEquipmentId || !/^[a-f\d]{8}-[a-f\d]{4}-4[a-f\d]{3}-[89ab][a-f\d]{3}-[a-f\d]{12}$/i.test(createAttemptId))) return privateJson({ error: 'Choose a valid contained-item create request.' }, 400);
       const record = {
-        id: crypto.randomUUID(),
+        id: createAttemptId || crypto.randomUUID(),
         department_id: departmentId,
         apparatus_id: compartment.apparatus_id,
         compartment_id: compartmentId,
@@ -644,8 +646,16 @@ export async function POST(request: Request) {
         service_status: "in_service",
         service_notes: clean(body.serviceNotes, 1000) || null,
       };
+      const replay = async () => {
+        const { data: existing, error } = await supabase.from('inventory_equipment').select('*').eq('department_id', departmentId).eq('id', createAttemptId).maybeSingle();
+        if (error) throw error;
+        if (!existing) return null;
+        if (existing.retired_at || !Object.entries(record).every(([key, value]) => JSON.stringify(existing[key] ?? null) === JSON.stringify(value ?? null))) return privateJson({ error: 'This create request already has a different saved record. Refresh contents and review the original before starting another item.' }, 409);
+        return privateJson({ equipment: existing, replayed: true });
+      };
+      if (createAttemptId) { const previous = await replay(); if (previous) return previous; }
       const { error } = await supabase.from("inventory_equipment").insert(record);
-      if (error) throw error;
+      if (error) { if (createAttemptId && error.code === '23505') { const previous = await replay(); if (previous) return previous; } throw error; }
       return privateJson({ equipment: record }, 201);
     }
 
