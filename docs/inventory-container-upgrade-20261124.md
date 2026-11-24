@@ -24,4 +24,14 @@ Stickney-scoped fingerprints before release: equipment 1,674 / 9b14062960f6e930a
 
 ## Release
 
-Pending source commit, push, deployment and live read-only verification. No database migrations.
+Completed; see verified release receipt below. No database migrations.
+
+### Verified release receipt
+
+- Source commit pushed: 6408f9950e58987e89968f326a581d34a74fd1af on codex/watchline-complete-20261123.
+- Vercel production deployment dpl_DnKpewPZCsja4QFJzi7RC8SCZiA2 reached READY with that Git revision. Canonical and legacy production aliases were assigned. Canonical /api/health returned commit 6408f9950e58.
+- Live authenticated read-only review: 1201 Tool Box shortcut opened its 23 saved contents; new search and grouping filters found eligible hose equipment; Create new equipment opened with inherited context; canceled without saving. Existing contents/search pagination visible. No production add, move, edit, remove or delete was performed.
+- ESLint: zero errors/warnings; TypeScript, production build, 230 focused tests and git diff --check passed. Member fixture had no manage-contents control. A parent name draft remained intact across a separately saved contents addition in the isolated fixture.
+- No database migrations or dependencies. Physical phones/tablets and live mutation persistence remain unverified.
+
+- Post-release department-scoped equipment, checks and check-item counts and fingerprints exactly matched the baseline above. Automatic station and schedule email/text enabled-rule counts remained zero.
