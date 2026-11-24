@@ -39,4 +39,11 @@ Edit restored the original note and focused the editor; Cancel edits wrote nothi
 
 ## Release outcomes
 
-The source push, production deployment, health revision, live read-only checks and record/notification verification will be recorded separately after release. Existing recurring crews, assignment rules, authorization, automatic email/text settings and saved department records are outside the changes.
+- Source: pushed `dd53d56dd3adf0442ef86d12b2e3fe5e31fc2a90` (contrast/list), `805a752702975e921eab84b10e2aad623d2999e1` (contained calendar), and final `efa71566b514e8251cef66524d8a51abb7cccf62` (portal typography). Working tree was clean before each deployment.
+- Production: final deployment `dpl_714cxUVLEhv6j8ALTX6QoZZdThhJ` reached READY in verified Stickney project `prj_RTtTvD39FwyEGUovkPg8wxrdJCtF`. Canonical and legacy production aliases are assigned. Used the authenticated Vercel connection; the CLI account scope was already known to be inaccessible.
+- Health: canonical `/api/health` reports `efa71566b514`.
+- Live read-only: all 15 admin destinations and three employee main views passed settled light/dark contrast checks (36 combinations). This employee view used the verified administrator's own employee identity; separate non-admin permission/UI testing used the isolated fixture. Theme-transition frames are not treated as settled colors.
+- Final live availability check: 78 entries remain reachable through eight pages; page one displays 10 entries. Filters, page navigation and full-note controls remain present. The final narrow calendar has approximately 83-pixel-wide day targets and explicit 11-pixel status text with normal word breaks. No production Edit, Save or Remove was used.
+- Final local evidence: 238 checked screen/state/size/theme combinations, with no remaining measured text failures. Live and local raw audits are ignored local artifacts, not repository data.
+- Preservation: assignment, standing-crew and availability fingerprints exactly match the pre-release baseline. Both automatic email/text enabled-rule counts remain zero. No messages sent, purchases, migrations, dependencies, API handlers or authorization changes.
+- Final production build passed after the typography patch; the two palette tests were rerun and passed. Earlier focused results remain 111/111, with separate 7-test and 24-test selections noted above.
