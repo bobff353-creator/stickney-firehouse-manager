@@ -41,4 +41,10 @@ The fixture action helper is a browser contract simulator, not proof of live dat
 
 ## Release outcomes
 
-Source commit/push, production deployment/revision, live read-only checks, and database fingerprint comparison are recorded separately below after release. No migration is required.
+- Source: committed and pushed `95fd56c370e1a28404a5cca87b81e266189695d2` on `codex/watchline-complete-20261123`.
+- Deployment: `dpl_74mifBCWz74jUu4qneUe7kH5uoQm` reached READY in verified project `prj_RTtTvD39FwyEGUovkPg8wxrdJCtF`. Canonical and legacy production aliases point to the release. The repository script was attempted but its CLI account scope was inaccessible; the authenticated Vercel connector deployed the same clean committed Git revision.
+- Health: canonical `/api/health` reports `95fd56c370e1`.
+- Live read-only UI: verified authenticated My schedule, Update availability without PTO/unavailable creation, selected-weekday preview (December Mondays: 7/14/21/28), every-three-day preview (11 dates), and available-only department editor. Discarded the live form draft without saving. No production write was used for demonstration.
+- Records: assignment, standing-crew, availability, and time-off fingerprints exactly matched the pre-release baseline. Both automatic email/text enabled-rule counts remained zero.
+- Database migrations: none. Dependency changes: none.
+- Evidence: 59 recorded isolated workflow scenarios; 108 responsive combinations. Screenshots `live-repeat-controls.jpg` and `live-weekday-date-preview.jpg` are saved under the ignored review output directory.
