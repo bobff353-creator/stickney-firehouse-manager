@@ -44,7 +44,7 @@ function fixture({critical=true,loading=false,unavailable=false,equipmentRows,ca
 
 test('Due Now picks a rig before showing due work and resumes the exact saved check',()=>{
   const unselected = fixture({selected:false});
-  assert.match(text(unselected.tree), /Pick your rig/);
+  assert.match(text(unselected.tree), /Pick your vehicle/);
   assert.ok(!unselected.items.some(({node})=>node.props?.id==='rig-due-heading'));
   const f=fixture();
   const card=f.items.find(({node})=>node.props?.className==='ops-card due-now-card rig-check-queue');

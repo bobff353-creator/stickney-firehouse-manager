@@ -63,14 +63,16 @@ export default function TodayDashboard({ departmentName, allowedPages, onNavigat
   const partial = overview?.parts.some(part => part.state === "unknown") || !can("Inventory") || !can("Daily Log");
 
   return <section className="today-workspace" data-test-safe aria-labelledby="today-title">
-    <header className="today-heading"><div><p className="eyebrow">{departmentName} · Firehouse Studio</p><h1 id="today-title">Today</h1><p>{packet ? `${packet.date} · Daily Log period ${periodLabels[packet.currentShift] || packet.currentShift}` : "Your crew, current work and what needs attention."}</p></div><div className="today-received" role="status"><strong>{!online ? "Offline · last received records" : error || (packet && stale) ? "Update unavailable" : packet ? refreshing ? "Refreshing" : "Latest shift briefing" : "Loading shift"}</strong><span>{packet ? `Last received ${savedTimeLabel(packet.asOf)}` : "Status not yet verified"}</span><button type="button" disabled={refreshing || !online} onClick={() => void load(new AbortController().signal)}>{refreshing ? "Refreshing…" : "Refresh"}</button></div></header>
+    <header className="today-heading"><div><p className="eyebrow">{departmentName}</p><h1 id="today-title">Today</h1><p>{packet ? `${packet.date} · Daily Log period ${periodLabels[packet.currentShift] || packet.currentShift}` : "Your crew, current work and what needs attention."}</p></div><div className="today-received" role="status"><strong>{!online ? "Offline · last received records" : error || (packet && stale) ? "Update unavailable" : packet ? refreshing ? "Refreshing" : "Latest shift briefing" : "Loading shift"}</strong><span>{packet ? `Last received ${savedTimeLabel(packet.asOf)}` : "Status not yet verified"}</span><button type="button" disabled={refreshing || !online} onClick={() => void load(new AbortController().signal)}>{refreshing ? "Refreshing…" : "Refresh"}</button></div></header>
     {error && <div className="error-banner" role="alert">{error}{packet ? " Showing the last received briefing." : ""}</div>}
-    <nav className="today-actions" aria-label="Start shift work">{([
-      ["Daily Log", "Start shift / Daily Log", "Staffing, calls and handoff"],
-      ["Inventory", "Apparatus check", "Open due checks and saved work"],
-      ["Respond", "Response", "Current calls, maps and preplans"],
-      ["Daily Duties", "Station duties", "Read today’s duty instructions"],
-    ] as Array<[PortalPage, string, string]>).filter(([page]) => allowedPages.includes(page)).map(([page, label, detail]) => <button type="button" key={page} onClick={() => onNavigate(page)}><strong>{label} <span aria-hidden="true">→</span></strong><small>{detail}</small></button>)}</nav>
+    <section className="today-start" aria-labelledby="today-task-title"><h2 id="today-task-title">What do you need to do?</h2><p>Choose a task. Check the save message inside that tool.</p><nav className="today-actions" aria-label="Start shift work">{([
+      ["Daily Log", "Open shift log", "Check the crew, calls and handoff"],
+      ["Inventory", "Check a vehicle", "Pick your vehicle, then open its check"],
+      ["Respond", "Open a call", "See the call, maps and preplans"],
+      ["Daily Duties", "See station duties", "Read today’s jobs around the station"],
+      ["Scheduling", "See my schedule", "Find shifts, open spots and requests"],
+      ["My Timesheet", "Check my hours", "Read recorded hours or ask for a correction"],
+    ] as Array<[PortalPage, string, string]>).filter(([page]) => allowedPages.includes(page)).map(([page, label, detail]) => <button type="button" key={page} onClick={() => onNavigate(page)}><strong>{label} <span aria-hidden="true">→</span></strong><small>{detail}</small></button>)}</nav></section>
     {!packet ? <div className="today-empty" role="status">{error ? "The shift briefing is unavailable. Use the task buttons to open your permitted tools." : "Loading the saved crew, checks and issues…"} No readiness all-clear is shown until records arrive.</div> : <>
       <div className="today-main-grid">
         <article className="today-panel today-crew"><header><div><p className="eyebrow">Who is working</p><h2>Current crew <span>{packet.onDuty.length}</span></h2></div>{can("Scheduling") && <button type="button" onClick={() => onNavigate("Scheduling")}>Schedule →</button>}</header><p className="today-source">{packet.staffingSource === "department_schedule" ? "From the department schedule" : "From saved Daily Log staffing"}{stale ? " · Last received records" : ""}</p>

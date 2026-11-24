@@ -1,5 +1,6 @@
 "use client";
 import ScenarioHelp from './scenario-help';
+import EverydayGuide from './everyday-guide';
 import { useId, useRef, useState, type ReactNode } from "react";
 import { useWorkspaceViewState } from "./workspace-view-state";
 import { portalPageLabel, type PortalPage, type PortalRecord } from "./portal-navigation";
@@ -42,6 +43,7 @@ export function WorkspaceGuide({ page, backLabel, onBack, returnLabel, onReturn,
         {related.length > 0 && <div className="workspace-related"><span>Related work</span>{related.map(item => <button type="button" key={item} onClick={() => onNavigate(item)}>{portalPageLabel(item)} →</button>)}</div>}
       </div>
     </details>
+    {!taskReturn && <EverydayGuide page={page}/>}
     <dialog ref={toolsDialog} className="workspace-tools-dialog" aria-labelledby="workspace-tools-title" onClick={event => { if (event.target === toolsDialog.current) toolsDialog.current?.close(); }}><header><div><h2 id="workspace-tools-title">Where do you want to go?</h2><p>Choose a task. Your current screen stays here until you choose.</p></div><button type="button" autoFocus onClick={() => toolsDialog.current?.close()}>Close tools</button></header><TaskDirectory allowedPages={allowedPages} onNavigate={item => { toolsDialog.current?.close(); onNavigate(item); }} /></dialog>
   </div>;
 }

@@ -1361,11 +1361,11 @@ export default function InventoryOperations({
               <div className="rig-check-heading">
                 <span className="rig-check-symbol"><InventoryWorkIcon name="rig" /></span>
                 <div><h2 id="rig-check-heading" tabIndex={-1}>{value(dueRig, "name")}</h2><p>{rigSubtitle(dueRig)}</p></div>
-                <button type="button" onClick={() => pickRig("")}>Change rig</button>
+                <button type="button" onClick={() => pickRig("")}>Change vehicle</button>
               </div>
               <section aria-labelledby="rig-due-heading">
                 <h3 id="rig-due-heading">Due checks</h3>
-                {rigWork.due.length ? renderRigJobs(rigWork.due) : <p className="rig-check-empty rig-check-caught-up"><InventoryWorkIcon name="done" />{refreshError ? "Due checks could not be confirmed. Refresh to check again." : "No checks due for this rig today."}</p>}
+                {rigWork.due.length ? renderRigJobs(rigWork.due) : <p className="rig-check-empty rig-check-caught-up"><InventoryWorkIcon name="done" />{refreshError ? "Due checks could not be confirmed. Refresh to check again." : "No checks due for this vehicle today."}</p>}
                 {rigWork.exempt.length > 0 && <p className="rig-check-empty">Not needed while out of service: {rigWork.exempt.map(type => rigCheckLabels[type]).join(", ")}.</p>}
               </section>
               {rigWork.unfinished.length > 0 && <section aria-labelledby="rig-unfinished-heading">
@@ -1379,7 +1379,7 @@ export default function InventoryOperations({
                   <button type="button" disabled={!canCheck} onClick={() => onOpenUnit?.(dueRigId, "inventory")}>Open inventory count</button>
                 </details>}
             </> : <>
-              <h2 id="rig-picker-heading" tabIndex={-1}>Pick your rig</h2>
+              <h2 id="rig-picker-heading" tabIndex={-1}>Pick your vehicle</h2>
               {data.apparatus.length ? <div className="rig-check-picks">{data.apparatus.map(rig =>
                 <button type="button" key={value(rig, "id")} onClick={() => pickRig(value(rig, "id"))}>
                   <span className="rig-check-symbol"><InventoryWorkIcon name="rig" /></span>

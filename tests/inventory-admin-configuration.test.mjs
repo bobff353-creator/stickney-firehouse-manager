@@ -41,7 +41,7 @@ test("administrator setup avoids a single scroll-of-death workspace", () => {
 });
 
 test("crew landing page exposes a short operational workflow", () => {
-  assert.match(operations, /Pick your rig/);
+  assert.match(operations, /Pick your vehicle/);
   assert.match(operations, /Due checks/);
   assert.match(operations, /Unfinished checks/);
   assert.match(shell, /Daily Log · Officer sign-in\/out/);

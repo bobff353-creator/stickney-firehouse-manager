@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import EverydayGuide from "./everyday-guide";
 import Link from "next/link";
 import PortalModuleMenu from "./components/PortalModuleMenu";
 import InventoryOperations from "./inventory-operations";
@@ -743,6 +744,8 @@ export default function Inventory360({
         {moreInventoryTools}
         </>}
       </section>
+
+      <EverydayGuide inventoryView={view}/>
 
       {view === "due" ? (
         <section className="page due-now-page">

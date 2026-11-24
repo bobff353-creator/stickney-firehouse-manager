@@ -1,0 +1,12 @@
+.everyday-guide{box-sizing:border-box;width:100%;margin:12px 0 18px;padding:14px 16px;border:1px solid #c8d6e5;border-radius:12px;background:#f1f6fc;color:#122d46;overflow-wrap:anywhere}
+.workspace-wayfinding>.everyday-guide{order:6;flex-basis:100%;grid-column:1/-1;justify-self:stretch;min-width:0}
+.inventory-app-shell>.everyday-guide{width:calc(100% - 48px);max-width:1240px;margin:8px auto 14px}
+.everyday-guide ol{list-style:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;padding:0;margin:0}
+.everyday-guide li{display:flex;gap:9px;align-items:flex-start;min-width:0}
+.everyday-guide .everyday-step-number{display:grid;place-items:center;flex:0 0 25px;height:25px;border-radius:50%;background:#215b86;color:#fff;font-size:13px;font-weight:800}
+.everyday-guide strong{color:inherit;font-size:14px;line-height:1.5}
+.everyday-guide p{margin:3px 0 0;color:inherit;font-size:14px;line-height:1.55}
+@media(prefers-color-scheme:dark){.everyday-guide{background:#182b43;border-color:#54718e;color:#edf5ff}.everyday-guide .everyday-step-number{background:#b9dcff;color:#122d46}}
+@media screen{#portal-workspace .everyday-guide{background:#182b43;border-color:#54718e;color:#edf5ff}#portal-workspace .everyday-guide .everyday-step-number{background:#b9dcff;color:#122d46}}
+@media(max-width:700px){.everyday-guide{padding:12px;margin-bottom:14px}.everyday-guide ol{grid-template-columns:1fr;gap:10px}.everyday-guide p{margin:0}.everyday-guide strong{font-size:14px}.inventory-app-shell>.everyday-guide{width:calc(100% - 28px)}}
+@media print{.everyday-guide{display:none!important}}
