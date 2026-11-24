@@ -1,0 +1,9 @@
+# Command Board layout repair
+
+An optional custom-view panel was inserted before the incident header, but the active board still assigned fixed grid rows by child position. The CAD status line inherited the flexible main row (533px in the live inspection), while the tactical grid inherited the 17px footer row. This hid most of the building and pushed other controls below it.
+
+The active board now uses a scrolling column with content-sized header/status/recovery sections and a separately sized tactical grid. The optional custom view and private evidence are below the primary board. Command positions, units/assignments, building profile, Rehab/RIT, search, rehab units and utilities retain their existing controls in responsive columns. The status strip, upstream CAD uncertainty, retained levels, conflicts, offline recovery and historical evidence are preserved. Structured input labels use readable colors and controls have room to wrap. Print output keeps its existing report layout.
+
+Local real-component verification at 390/820/1388 widths and both themes: status height 54px on desktop/tablet and 96px when wrapped on phone, with a 10px gap before the board; no horizontal root overflow. The building profile is 448px tall on desktop and remains visible. Expanding custom views does not enlarge the status strip; Search Progress expand/restore, history open/close and fullscreen enter/exit work. The fixture rejects every write. No incident, PAR, assignment, hazard, RIT, Rehab or search result was modified for layout verification.
+
+36 focused command state/recovery/editor/report tests, TypeScript, changed-file ESLint and production build passed. The full repository isolated test suite is also being run for the broader requested review; separate release/live verification is recorded in outputs/command-board-layout-20261123. No database migration is required.

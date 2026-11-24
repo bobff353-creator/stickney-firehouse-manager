@@ -515,7 +515,7 @@ export default function IncidentCommandBoard() {
   ];
   const emailReportHref = `mailto:?subject=${encodeURIComponent(`Command Board report ${data.incident.reportNumber || data.incident.address}`)}&body=${encodeURIComponent(reportLines.join("\n"))}`;
 
-  return <section ref={boardRef} className={`icb-page icb-reference${state.mayday.active ? " mayday-active" : ""}${draft || !online || !readHealthy || editorConflict || radioDirty ? ` ${styles.recoveryBoard}` : ""}`}>
+  return <section ref={boardRef} className={`icb-page icb-reference ${styles.activeBoard}${state.mayday.active ? " mayday-active" : ""}${draft || !online || !readHealthy || editorConflict || radioDirty ? ` ${styles.recoveryBoard}` : ""}`}>
     <ConfirmDialog open={Boolean(confirm)} title={confirmCopy.title} description={confirmCopy.description} confirmLabel={confirmCopy.label} tone={confirmCopy.tone} busy={saving} onCancel={() => setConfirm(null)} onConfirm={() => void confirmAction()} />
 
     {assignmentDraft && <div className="icb-editor-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setAssignmentDraft(null); }}>
@@ -555,7 +555,6 @@ export default function IncidentCommandBoard() {
       <div>{data.events.length ? data.events.map((event) => <article key={event.id}><time>{new Date(event.createdAt).toLocaleString()}</time><strong>{event.summary}</strong><span>{event.actor} · revision {event.revision}</span></article>) : <p>No Command Board changes have been recorded yet.</p>}</div>
     </aside>}
 
-    <CommandReviewTools state={state} incidentId={data.incident.incidentId}/>
     {state.closeout.endedAt && <section className="icb-closeout" role="dialog" aria-modal="true" aria-labelledby="icb-closeout-title">
       <small>INCIDENT ENDED · BOARD LOCKED</small>
       <h2 id="icb-closeout-title">Command report is ready</h2>
@@ -741,6 +740,7 @@ export default function IncidentCommandBoard() {
       </aside>
     </div>
 
+    <CommandReviewTools state={state} incidentId={data.incident.incidentId}/>
     <footer className="icb-reference-footer">
       <span>{saving ? "SAVING…" : "BOARD READY"} · REV {state.revision}</span>
       <span>LAST CHANGE {formatTime(state.updatedAt)} · {state.updatedBy || "NONE"}</span>

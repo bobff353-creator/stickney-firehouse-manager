@@ -1,0 +1,13 @@
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import CommandBoard from '../../app/incident-command-board';
+import {emptyIncidentCommandState} from '../../app/incident-command-state';
+import '../../app/globals.css';
+import '../../app/mobile-usability.css';
+import '../../app/portal-usability.css';
+import '../../app/remaining-bento.css';
+const now=new Date().toISOString(),state=emptyIncidentCommandState();
+state.building={...state.building,floorCount:3,basement:'unknown'};
+const data={departmentId:'fixture',draftScope:'fixture-layout',selectedIncident:'fixture-incident',incident:{incidentId:'fixture-incident',reportNumber:'FICTIONAL',callType:'Fictional training call',address:'100 Example Street',city:'Test City',dispatchedAt:now,source:'Local fixture',receivedAt:now},preplan:null,personnel:[],cadUnits:['Fixture Engine'],state,events:[],canManage:true,connection:{status:'stale',label:'Older stored incident · Upstream CAD connection not independently verified',stale:true,lastUpdatedAt:now},generatedAt:now};
+window.fetch=async(input,options)=>{if(options?.method&&options.method!=='GET')throw Error('Layout fixture blocks all writes');if(String(input).startsWith('/api/incident-command'))return Response.json(data);if(String(input).startsWith('/api/command-snapshots'))return Response.json({records:[],reports:[],currentCommandRevision:0,generatedAt:now});throw Error('Fixture blocks external requests');};
+createRoot(document.getElementById('root')!).render(<CommandBoard/>);

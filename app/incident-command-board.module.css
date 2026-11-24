@@ -235,4 +235,50 @@
 .editorReviewRow p { flex-basis: 100%; margin: 4px 0; }
 .editorHint { margin: 4px 0; color: #ffdf92; font-size: 12px; line-height: 1.5; }
 .retainedLevels { margin: 8px 12px; padding: 10px; border: 1px solid #bda16a; color: #ffdf92; font-size: 12px; line-height: 1.5; }
-:global(.icb-page.icb-reference):has(> .statusLine) { grid-template-rows: 54px auto minmax(0,1fr) 17px; }
+.activeBoard:global(.icb-page.icb-reference) {
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  overflow:auto;
+  padding:12px;
+}
+.activeBoard > :global(.icb-reference-header),
+.activeBoard > .statusLine,
+.activeBoard > :global(.command-custom-view),
+.activeBoard > :global(.icb-reference-footer) { flex:none; }
+.activeBoard > :global(.icb-reference-header) { min-height:76px; height:auto; }
+.activeBoard > .statusLine { padding:8px 10px; margin:0; min-height:44px; box-sizing:border-box; gap:8px; background:#18263a; border:1px solid #425771; border-radius:8px; }
+.activeBoard > .statusLine button { min-height:36px; padding:6px 12px; border:1px solid #607895; border-radius:6px; background:#23364e; color:#f3f6fb; }
+.activeBoard > :global(.icb-reference-grid) { flex:1 0 auto; min-height:640px; align-items:stretch; gap:12px; }
+.activeBoard :global(.icb-reference-left) { grid-template-rows:auto auto minmax(180px,1fr); gap:12px; }
+.activeBoard :global(.icb-reference-center) { grid-template-rows:minmax(380px,1fr) auto; gap:12px; }
+.activeBoard :global(.icb-reference-right) { grid-template-rows:minmax(220px,auto) minmax(130px,auto) minmax(240px,1fr); gap:12px; }
+.activeBoard :global(.icb-lower-center) { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; min-height:180px; }
+.activeBoard :global(.icb-command-positions),.activeBoard :global(.icb-command-grid) { height:auto; }
+.activeBoard :global(.icb-command-grid) { gap:10px; padding:10px; }
+.activeBoard :global(.icb-command-grid label) { min-width:0; }
+.activeBoard :global(.icb-command-grid input) { min-height:44px; height:auto; font-size:14px; }
+.activeBoard :global(.icb-command-grid input),.activeBoard :global(.icb-rehab-fields input),.activeBoard :global(.icb-rit-fields select) { color:#f3f6fb; background:#1b2b43; border-color:#607895; }
+.activeBoard :global(input::placeholder) { color:#bacadc; opacity:1; }
+.activeBoard :global(.icb-command-grid label > span),.activeBoard :global(.icb-rehab-fields label > span),.activeBoard :global(.icb-rit-fields label > span) { color:#bacadc; font-size:11px; line-height:1.35; }
+.activeBoard :global(.icb-rehab-fields),.activeBoard :global(.icb-rit-fields) { height:auto; min-height:140px; }
+.activeBoard :global(.icb-rehab-fields input),.activeBoard :global(.icb-rit-fields select),.activeBoard :global(.icb-rehab-fields > button),.activeBoard :global(.icb-rit-fields > button) { min-height:44px; height:auto; font-size:12px; }
+.activeBoard > :global(.command-custom-view) { margin:0; padding:12px; }
+.activeBoard > :global(.icb-reference-footer) { min-height:44px; flex-wrap:wrap; gap:10px; font-size:11px; }
+.activeBoard :global(.icb-footer-actions) { flex-wrap:wrap; }
+.activeBoard :global(.icb-footer-actions button) { min-height:36px; }
+@media(max-width:1080px) {
+  .activeBoard > :global(.icb-reference-grid) { min-height:0; flex:none; }
+  .activeBoard :global(.icb-reference-header) { position:static; }
+  .activeBoard :global(.icb-lower-center) { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media(max-width:640px) {
+  .activeBoard :global(.icb-lower-center) { grid-template-columns:minmax(0,1fr); }
+  .activeBoard > .statusLine { align-items:flex-start; }
+  .activeBoard > .statusLine span { flex:1 1 220px; }
+  .activeBoard > :global(.icb-reference-footer) { align-items:flex-start; }
+}
+@media print {
+  .activeBoard:global(.icb-page.icb-reference) { position:static; height:auto; overflow:visible; display:block; }
+  .activeBoard > :global(.command-custom-view) { display:none; }
+}
