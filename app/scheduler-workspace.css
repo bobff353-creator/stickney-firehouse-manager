@@ -14,6 +14,8 @@
 .sf-schedule .availability-calendar-scroll { width: 100%; max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; padding-bottom: 8px; }
 :is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded .availability-calendar-scroll :is(.availability-weekdays, .availability-month) { min-width: 620px; }
 :is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded .availability-month > button { padding: 7px; }
+:is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded .availability-month > button > small { font: 800 11px/1.3 Arial, Helvetica, sans-serif; overflow-wrap: normal; word-break: normal; }
+:is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded .availability-month > button > small span { font: 400 10px/1.3 Arial, Helvetica, sans-serif; overflow-wrap: normal; word-break: normal; }
 @media (max-width: 600px) { .sf-schedule .availability-compact-entries .availability-entry { flex-direction: column; gap: 8px; } .sf-schedule .availability-compact-entries .row-actions { align-self: stretch; } .sf-schedule .availability-compact-entries .row-actions button { flex: 1; } }
 /* Embedded tools share the workspace palette instead of mixing legacy dark
    panels with light-mode labels. Keep status/shift colors on their own badges. */
