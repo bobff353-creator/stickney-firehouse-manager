@@ -1,4 +1,69 @@
 /* Scoped Stickney styling, including native dialogs and portal contrast overrides. */
+.sf-schedule .availability-list-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 12px; margin: 16px 0; }
+.sf-schedule .availability-list-summary, .sf-schedule .availability-list-pages { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 12px 0; }
+.sf-schedule .availability-compact-entries { display: grid; gap: 8px; }
+.sf-schedule .availability-compact-entries .availability-entry { margin: 0; align-items: start; }
+.sf-schedule .availability-compact-entries .availability-entry > div:first-child { flex: 1; }
+.sf-schedule .availability-compact-entries .row-actions { flex: 0 0 auto; flex-wrap: nowrap; align-items: center; }
+.sf-schedule .availability-compact-entries details { margin: 4px 0 0; }
+.sf-schedule .availability-compact-entries summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; text-decoration: underline; }
+.sf-schedule .availability-compact-entries details p { white-space: pre-wrap; overflow-wrap: anywhere; }
+:is(#portal-workspace .sf-schedule, .sf-schedule) .availability-compact-entries .availability-entry { background: var(--sf-surface); color: var(--sf-ink); border-top-color: var(--sf-line); border-right-color: var(--sf-line); border-bottom-color: var(--sf-line); }
+:is(#portal-workspace .sf-schedule, .sf-schedule) .availability-compact-entries .availability-entry :is(b, span, summary, p) { color: var(--sf-ink); }
+.sf-schedule :is(.availability-editor, .availability-saved-list) h3 { scroll-margin-top: 110px; }
+@media (max-width: 600px) { .sf-schedule .availability-compact-entries .availability-entry { flex-direction: column; gap: 8px; } .sf-schedule .availability-compact-entries .row-actions { align-self: stretch; } .sf-schedule .availability-compact-entries .row-actions button { flex: 1; } }
+/* Embedded tools share the workspace palette instead of mixing legacy dark
+   panels with light-mode labels. Keep status/shift colors on their own badges. */
+:is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded {
+  --sched-text: var(--sf-ink);
+  --sched-muted: var(--sf-muted);
+  --sched-panel: var(--sf-surface);
+  --sched-panel-2: var(--sf-paper);
+  --sched-line: var(--sf-line);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded :is(
+  .entry-card, .plain-list li, .slot-list li, .call-list li,
+  .chip, .role-badges span, .schedule-safety, .required-confirmation-admin,
+  .required-confirmation-card, .scheduler-day-dialog, .scheduler-day-dialog-head,
+  .scheduler-day-availability, .slot-time-button,
+  .scheduler-day-empty, .scheduler-scroll-hint, .slot-time-editor, .day-position-form
+) { background: var(--sf-surface); color: var(--sf-ink); border-color: var(--sf-line); }
+:is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded :is(
+  .scheduler-roster-member h4, .scheduler-roster-member p,
+  .scheduler-roster-notifications label, .number-with-suffix b,
+  .slot-role, .entry-head strong, .scheduler-table td, .priority-editor li
+) { color: var(--sf-ink); }
+:is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded :is(
+  .muted, .form-help, .entry-head span, .scheduler-legend span,
+  .calendar-window-status, .scheduler-table th, .standings-cols em
+) { color: var(--sf-muted); }
+:is(#portal-workspace .sf-schedule, .sf-schedule).sf-schedule.sf-schedule :is(input, textarea)::placeholder {
+  color: var(--sf-muted); opacity: 1;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded .section-kicker {
+  color: var(--sf-muted) !important;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded :is(.error, .form-error) { background: var(--sf-error-bg, #fff1f1); color: var(--sf-error-ink, #8b2029); border-color: var(--sf-line); }
+:is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded .success { background: var(--sf-success-bg, #edf8f0); color: var(--sf-success-ink, #265f43); border-color: var(--sf-line); }
+:is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded .scheduler-month > button {
+  background: var(--sf-surface); color: var(--sf-ink); border-color: var(--sf-line);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded .scheduler-month > button.calendar-has-shift {
+  border-top-color: var(--calendar-shift-color);
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded :is(
+  .calendar-day-number, .calendar-slot, .calendar-slot b, .slot-time, .slot-time-button
+) { color: var(--sf-ink); }
+:is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded :is(
+  .calendar-no-shift, .calendar-slot small, .calendar-rotation-count,
+  .slot-time-button small, .availability-weekdays span
+) { color: var(--sf-muted); }
+:is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded .availability-month > button > small span {
+  color: #d5e2ed;
+}
+:is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded .calendar-shift-summary > strong small { opacity: 1; }
+:is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded .color-picker button.selected { box-shadow: 0 0 0 3px var(--sf-ink); }
+:is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded .scheduler-month > button.today .calendar-day-number { color: var(--sf-open-ink, #9c2532); }
 .sf-dialog fieldset.sf-dialog-body { border: 0; margin: 0; min-width: 0; }
 .sf-dialog .sf-weekday-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
 :is(#portal-workspace .sf-schedule, .sf-schedule).sf-dialog .sf-weekday-options .sf-check { min-height: 44px; padding: 8px; border: 1px solid var(--sf-line); border-radius: 8px; margin: 0; }
@@ -31,7 +96,7 @@
   --sf-ink: var(--ink, #142c45);
   --sf-surface: var(--surface, #fff);
   --sf-paper: var(--paper, #f7f4ee);
-  --sf-line: var(--border, #d7dee4);
+  --sf-line: #718397;
   color: var(--sf-ink);
   font-family: Arial, Helvetica, sans-serif;
   max-width: 1200px;
@@ -98,14 +163,18 @@
   filter: brightness(0.96);
   transform: none;
 }
-:is(#portal-workspace .sf-schedule, .sf-schedule) button:disabled {
-  opacity: 0.5;
+:is(#portal-workspace .sf-schedule, .sf-schedule) button:disabled:disabled {
+  opacity: 1;
+  background: var(--sf-disabled-bg, #e5ebf1);
+  color: var(--sf-disabled-ink, #43566b);
+  border-color: var(--sf-line);
   cursor: default;
   filter: none;
 }
+:is(#portal-workspace .sf-schedule, .sf-schedule) button:disabled :is(span, strong, small) { color: inherit; }
 :is(#portal-workspace .sf-schedule, .sf-schedule)
-  :is(button, a, input, select, textarea):focus-visible {
-  outline: 3px solid var(--sf-gold);
+  :is(button, a, input, select, textarea, summary):focus-visible {
+  outline: 3px solid var(--sf-focus, #965900);
   outline-offset: 3px;
 }
 :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-secondary {
@@ -209,6 +278,8 @@
   background: var(--sf-surface);
   color: var(--sf-ink);
   box-shadow: 0 1px 4px #0001;
+  outline: 2px solid var(--sf-focus, #965900);
+  outline-offset: -2px;
 }
 :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-tabs {
   display: flex;
@@ -238,7 +309,7 @@
   .sf-tabs
   button[aria-current="page"] {
   color: var(--sf-ink);
-  border-bottom-color: var(--sf-gold);
+  border-bottom-color: var(--sf-focus, #965900);
 }
 :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-count {
   border-radius: 50px;
@@ -1151,7 +1222,15 @@
   :is(#portal-workspace .sf-schedule, .sf-schedule) {
     --sf-paper: #081722;
     --sf-surface: #102532;
-    --sf-line: #38505e;
+    --sf-line: #718b9c;
+    --sf-focus: #e8b642;
+    --sf-disabled-bg: #263b49;
+    --sf-disabled-ink: #cad7e0;
+    --sf-open-ink: #ffb0a6;
+    --sf-error-bg: #3b2529;
+    --sf-error-ink: #ffc4bb;
+    --sf-success-bg: #16382c;
+    --sf-success-ink: #b2e3c6;
     --sf-ink: #eef4f7;
     --sf-muted: #b1c2cb;
     color-scheme: dark;

@@ -3,6 +3,7 @@ import { SaveStatus } from "./save-status";
 import { ScheduleSetup } from './schedule-setup';
 import { scheduleMonthRange } from './schedule-setup-model';
 import { scheduleSaveFeedback } from './scheduler-save-feedback';
+import SavedAvailabilityList from './saved-availability-list';
 
 import "./scheduler-member.css";
 import { schedulerAdminTask } from "./admin-tasks";
@@ -996,6 +997,7 @@ function RequestsScreen({ data, act, busy, employeeName, mode }: { data: Data; a
 }
 
 function AvailabilityScreen({ data, isAdmin, act, busy, initialMonth }: { data: Data; isAdmin: boolean; act: (b: Record<string, unknown>) => Promise<unknown>; busy: boolean; initialMonth?: string }) {
+  const editorTitle = useRef<HTMLHeadingElement>(null);
   const initialMemberId = data.viewer.employeeId ?? data.employees[0]?.id ?? "";
   const [memberId, setMemberId] = useState(initialMemberId);
   const [monthDate, setMonthDate] = useState(`${scheduleMonthRange(initialMonth ?? '')?.from ?? data.today.slice(0, 7) + '-01'}`);
@@ -1033,6 +1035,7 @@ function AvailabilityScreen({ data, isAdmin, act, busy, initialMonth }: { data: 
     setCustomRepeat(false);
     setRepeatThrough("");
     setMonthDate(`${entry.availabilityDate.slice(0, 7)}-01`);
+    editorTitle.current?.focus();
   };
   let expandedDates: string[] = [];
   let repeatError = "";
@@ -1078,7 +1081,7 @@ function AvailabilityScreen({ data, isAdmin, act, busy, initialMonth }: { data: 
 
       <section className="availability-editor">
         <span className="section-kicker">Availability details</span>
-        <h3>Set selected days</h3>
+        <h3 ref={editorTitle} tabIndex={-1}>Set selected days</h3>
         <p><strong>Available to work</strong> · Only the dates and hours you select will be saved.</p>
         <label className="availability-all-day chip"><input type="checkbox" checked={allDay} onChange={(event) => setAllDay(event.target.checked)} />All day</label>
         <p className="muted">All day means midnight to midnight on each selected date. For an overnight shift, enter its From and To times (for example, 18:00–06:00), or mark both dates Available all day. Times are Central.</p>
@@ -1101,20 +1104,12 @@ function AvailabilityScreen({ data, isAdmin, act, busy, initialMonth }: { data: 
           const result = await act({ action: "saveAvailability", memberId, dates: expandedDates, status, allDay, startTime, endTime, note });
           if (result) { setPicked([]); setRepeatDays(0); setCustomRepeat(false); setRepeatThrough(""); setNote(""); }
         }}>{busy ? "Saving…" : `Save ${expandedDates.length} day${expandedDates.length === 1 ? "" : "s"}`}</button>
+        {(picked.length > 0 || note) && <button type="button" className="link" disabled={busy} onClick={() => { setPicked([]); setNote(''); setAllDay(true); setStartTime('06:00'); setEndTime('18:00'); setRepeatDays(0); setCustomRepeat(false); setRepeatThrough(''); }}>Cancel edits</button>}
         <p className="muted availability-safety-note">Existing assignments stay in place. Blank days do not count as availability. Previously saved unavailable entries remain visible until removed.</p>
       </section>
     </div>
 
-    <section className="availability-saved-list">
-      <div className="entry-head"><div><span className="section-kicker">Saved entries</span><h3>{data.employees.find((employee) => employee.id === memberId)?.name || "Employee"}</h3></div><span>{memberEntries.length} total</span></div>
-      {!memberEntries.length && <p className="muted">No availability has been submitted yet.</p>}
-      <div className="availability-entry-grid">
-        {memberEntries.slice().sort((a, b) => a.availabilityDate.localeCompare(b.availabilityDate)).map((entry) => <article key={entry.id} className={`availability-entry ${entry.status}`}>
-          <div><b>{friendlyDate(entry.availabilityDate)}</b><span>{entry.status === "available" ? "Available" : "Unavailable"} · {entry.allDay ? "All day" : `${entry.startTime}–${entry.endTime}`}</span>{entry.note && <small>{entry.note}</small>}</div>
-          <div className="row-actions">{entry.status === "available" && <button className="link" onClick={() => editEntry(entry)}>Edit</button>}<button className="link danger" disabled={busy} onClick={() => act({ action: "deleteAvailability", memberId, date: entry.availabilityDate })}>Remove</button></div>
-        </article>)}
-      </div>
-    </section>
+    <SavedAvailabilityList key={`${memberId}:${monthKey}`} entries={memberEntries} memberName={data.employees.find(employee => employee.id === memberId)?.name || 'Employee'} month={monthKey} today={data.today} busy={busy} onEdit={editEntry} onRemove={entry => { void act({ action: "deleteAvailability", memberId, date: entry.availabilityDate }); }} />
   </div>;
 }
 
