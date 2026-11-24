@@ -31,7 +31,7 @@ async function setup(t){
  INSERT INTO inventory_equipment VALUES('${equipment}','${dept}','${rig}','${place}','Fixture Albuterol',2,'pass_fail','equipment');
  INSERT INTO inventory_checks(id,department_id,apparatus_id,check_type,status) VALUES('${legacy}','${dept}','${rig}','daily','completed');
  INSERT INTO inventory_check_items(id,department_id,check_id,equipment_id,result,notes) VALUES('${legacy}','${dept}','${legacy}','${equipment}','pass','Original observation');`);
- await pg.exec(atomic);await pg.exec(migration);await pg.exec('ALTER TABLE inventory_equipment ADD COLUMN parent_equipment_id uuid');await pg.exec(await readFile(new URL('../supabase/migrations/20261124180000_inventory_per_item_readings.sql',import.meta.url),'utf8'));
+ await pg.exec(atomic);await pg.exec(migration);await pg.exec('ALTER TABLE inventory_equipment ADD COLUMN parent_equipment_id uuid');await pg.exec(await readFile(new URL('../supabase/migrations/20261124233316_inventory_per_item_readings.sql',import.meta.url),'utf8'));
  await pg.exec(`UPDATE inventory_equipment SET response_type='medication';INSERT INTO inventory_checks(id,department_id,apparatus_id,check_type,status) VALUES('${check}','${dept}','${rig}','drug','in_progress');INSERT INTO inventory_check_items(id,department_id,check_id,equipment_id,result) VALUES('${item}','${dept}','${check}','${equipment}','pending');INSERT INTO inventory_deficiency_photos VALUES('${photo}','${dept}','${rig}','${item}');`);
  return pg;
 }
