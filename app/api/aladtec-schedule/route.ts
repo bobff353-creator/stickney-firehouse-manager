@@ -1,4 +1,7 @@
 import { normalizeAladtecSchedule, type AladtecMember, type AladtecSchedule, type AladtecTimeRecord } from "../../aladtec-schedule";
+import { getPortalDepartment } from "../../department-portal";
+import { ensureDatabase } from "../../../db/bootstrap";
+import { hasAnyPermission } from "../../server-permissions";
 
 const externalUrl = "https://secure11.aladtec.com/stickneyfire/index.php?action=manage_schedule_view_schedule&schedule_view=daily_blocks";
 const defaultBaseUrl = "https://secure11.aladtec.com/stickneyfire/api/v3";
@@ -27,7 +30,11 @@ async function aladtecJson<T>(url: string, token: string) {
   return response.json() as Promise<AladtecResponse<T>>;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  try {
+    if ((await getPortalDepartment()).isolated) return Response.json({ error: "Aladtec is not configured for this department." }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
+    if (!await hasAnyPermission(request, await ensureDatabase(), ["scheduling.view", "scheduling.manage", "operations_board.view", "daily_log.view", "dashboard.view"])) return Response.json({ error: "Schedule viewing access is required." }, { status: 403, headers: { "Cache-Control": "private, no-store" } });
+  } catch { return Response.json({ error: "Schedule access could not be verified." }, { status: 503, headers: { "Cache-Control": "private, no-store" } }); }
   const now = new Date();
   const rangeStop = new Date(now.getTime() + 24 * 60 * 60 * 1000);
   try {

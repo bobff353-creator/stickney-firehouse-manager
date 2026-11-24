@@ -8,9 +8,9 @@ import * as symbols from '../app/preplans/photo-illustrations.ts';
 
 const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 function moduleAt(path,dependencies){
-  const module={exports:{}};
-  vm.runInNewContext(ts.transpileModule(read(path),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{module,exports:module.exports,require:name=>{if(!(name in dependencies))throw Error('Unexpected import '+name);return dependencies[name];},Response,Request,JSON,Set,Number,Error});
-  return module.exports;
+  const compiledModule={exports:{}};
+  vm.runInNewContext(ts.transpileModule(read(path),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{module:compiledModule,exports:compiledModule.exports,require:name=>{if(!(name in dependencies))throw Error('Unexpected import '+name);return dependencies[name];},Response,Request,JSON,Set,Number,Error});
+  return compiledModule.exports;
 }
 const store=moduleAt('app/preplans/photo-illustration-store.ts',{'./photo-illustrations':symbols});
 const mark={id:'mark-one',symbol:'fdc',x:43,y:55,size:9,rotation:90,label:'Fictional'};

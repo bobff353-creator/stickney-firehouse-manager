@@ -155,7 +155,7 @@ export default function FootprintCapture({
         if (!abort.signal.aborted) setLookupBusy(false);
       });
     return () => abort.abort();
-  }, [view?.lng, view?.lat, view?.span]);
+  }, [view]);
   useEffect(() => {
     onPendingChange(
       JSON.stringify(rings) !== JSON.stringify(value?.rings || []),

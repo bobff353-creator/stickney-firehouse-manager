@@ -968,7 +968,8 @@ export default function Inventory360({
           <div className="truth-columns">
             <section className="truth-panel">
               <span className="eyebrow">OUT OF SERVICE / IMPAIRED</span>
-              <h2>{outOfService.length} apparatus record{outOfService.length === 1 ? "" : "s"}</h2>
+              <h2>{suiteState === "ready" ? `${outOfService.length} apparatus record${outOfService.length === 1 ? "" : "s"}` : "Apparatus status unverified"}</h2>
+              {suiteState !== "ready" && <p role="status">{suiteState === "loading" ? "Loading apparatus service records…" : "Apparatus service records could not refresh."} Any records below are last received; refresh before relying on their current status.</p>}
               {outOfService.length ? (
                 <div className="truth-list">
                   {outOfService.map((unit) => (
@@ -983,14 +984,14 @@ export default function Inventory360({
                 </div>
               ) : (
                 <p>
-                  No connected apparatus is marked out of service or impaired.
+                  {suiteState === "ready" ? "No connected apparatus is marked out of service or impaired." : "No current apparatus service status has been verified."}
                   This does not assert that a shift check was completed.
                 </p>
               )}
             </section>
             <section className="truth-panel">
               <span className="eyebrow">CONNECTED INVENTORY EVENTS</span>
-              <h2>{inventoryEvents.length} recent update{inventoryEvents.length === 1 ? "" : "s"}</h2>
+              <h2>{suiteState === "ready" ? `${inventoryEvents.length} recent update${inventoryEvents.length === 1 ? "" : "s"}` : "Integration updates unverified"}</h2>
               {inventoryEvents.length ? (
                 <div className="truth-list">
                   {inventoryEvents.map((event) => (
@@ -1004,7 +1005,7 @@ export default function Inventory360({
                   ))}
                 </div>
               ) : (
-                <p>No inventory-targeted integration events are available.</p>
+                <p>{suiteState === "ready" ? "No inventory-targeted integration events are available." : "Wait for a successful refresh to verify integration events."}</p>
               )}
             </section>
           </div>

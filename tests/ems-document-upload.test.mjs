@@ -24,9 +24,9 @@ test('actual EMS API enforces permissions and department scope and preserves PDF
   '../../supabase-server':{getSupabaseServerClient:async()=>({storage:{from:()=>({move:async(from,to)=>{from=from.replace('departments/department-a/','');to=to.replace('departments/department-a/','');if(!stored.has(from)||stored.has(to))return {error:Error('Move denied')};stored.set(to,stored.get(from));stored.delete(from);return {error:null};},list:async(prefix)=>{listed.push(prefix);return {data:[...stored.keys()].filter(k=>k.startsWith(prefix.replace('departments/department-a/','')+'/')).map(k=>({name:k.slice(k.lastIndexOf('/')+1)})),error:null};}})}})},
   '../../ems-document-model':model,
  };
- const module={exports:{}};
- vm.runInNewContext(ts.transpileModule(readFileSync('app/api/ems-documents/route.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{module,exports:module.exports,require:n=>{if(!(n in mocks))throw Error(n);return mocks[n];},Response,Request,File,Blob,FormData,URL,TextDecoder,crypto,console});
- const api=module.exports,headers={'oai-authenticated-user-email':'fixture@example.test','x-department-id':'department-a'};
+ const compiledModule={exports:{}};
+ vm.runInNewContext(ts.transpileModule(readFileSync('app/api/ems-documents/route.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{module:compiledModule,exports:compiledModule.exports,require:n=>{if(!(n in mocks))throw Error(n);return mocks[n];},Response,Request,File,Blob,FormData,URL,TextDecoder,crypto,console});
+ const api=compiledModule.exports,headers={'oai-authenticated-user-email':'fixture@example.test','x-department-id':'department-a'};
  const req=(url,options={})=>new Request('https://example.test/api/ems-documents'+url,{headers,...options});
  assert.equal((await api.GET(new Request('https://example.test/api/ems-documents'))).status,401);
  department='other';assert.equal((await api.GET(req(''))).status,401);department='department-a';

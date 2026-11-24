@@ -24,7 +24,8 @@ test('board offers all department calls; TV rotates all calls without edit contr
   assert.match(desktop, /Select department call/); assert.match(desktop, /report=FIXTURE-1/);
   for (let index = 0; index < 3; index++) {
     const tv = renderToStaticMarkup(React.createElement(BoardCalls, { calls, tvMode: true, now: index * 12000 }));
-    assert.match(tv, new RegExp(`Active call ${index + 1} of 3`));
+    assert.match(tv, new RegExp(`Saved open call ${index + 1} of 3`));
+    assert.match(tv, /Upstream CAD delivery not independently verified/);
     assert.match(tv, new RegExp(`Fixture type ${index + 1}`));
     assert.doesNotMatch(tv, /<select|<a /);
   }

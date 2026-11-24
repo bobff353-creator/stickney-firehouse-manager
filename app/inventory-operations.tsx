@@ -491,6 +491,7 @@ export default function InventoryOperations({
 
   const [scannerTarget, setScannerTarget] = useState<"create" | "edit" | "search">("create");
   const [equipmentSearch, setEquipmentSearch] = useWorkspaceViewState("equipment-search", "");
+  const [equipmentWindow, setEquipmentWindow] = useState({ key: "", limit: 50 });
   const [equipmentRigFilter, setEquipmentRigFilter] = useWorkspaceViewState("equipment-rig", "all");
   const [equipmentSort, setEquipmentSort] = useWorkspaceViewState<"rig" | "name" | "compartment" | "status">("equipment-sort", "rig");
   const [equipmentAttention, setEquipmentAttention] = useState("all");
@@ -1240,6 +1241,9 @@ export default function InventoryOperations({
       return equipmentNameOrder.compare(leftKey, rightKey);
     });
   }, [apparatusById, data.equipment, equipmentRigFilter, equipmentSearch, equipmentSort, equipmentAttention, dueEquipment, openEquipmentIds]);
+  const equipmentWindowKey = JSON.stringify([equipmentSearch, equipmentRigFilter, equipmentSort, equipmentAttention]);
+  const equipmentVisibleCount = equipmentWindow.key === equipmentWindowKey ? equipmentWindow.limit : 50;
+  const visibleEquipment = equipmentMatches.slice(0, equipmentVisibleCount);
   const today = new Date();
   const todayDay = weekDays.indexOf(new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", weekday: "long" }).format(today));
   const dueRig = view === "due" ? data.apparatus.find(rig => value(rig, "id") === dueRigId) : undefined;
@@ -1468,10 +1472,12 @@ export default function InventoryOperations({
             <button type="button" onClick={() => { setScannerTarget("search"); setScannerOpen(true); }}>Scan Barcode</button>
             <button type="button" onClick={() => { setEquipmentSearch(""); setEquipmentRigFilter("all"); setEquipmentAttention("all"); }}>Clear filters</button>
           </div>
-          {equipmentMatches.length ? <div className="equipment-directory">{equipmentMatches.map((item) => {
-            const apparatus = data.apparatus.find((row) => value(row, "id") === value(item, "apparatus_id"));
+          <p role="status">Showing {visibleEquipment.length} of {equipmentMatches.length} matching items. Search and filters include the entire equipment directory.</p>
+          {equipmentMatches.length ? <div className="equipment-directory">{visibleEquipment.map((item) => {
+            const apparatus = apparatusById.get(value(item, "apparatus_id"));
             return <button className="equipment-record-button" type="button" key={value(item, "id")} onClick={() => setSelectedDirectoryEquipment(item)} aria-label={`View ${value(item, "name")} equipment record`}><div><span className={`equipment-status status-${value(item, "service_status") || "in_service"}`}>{formatStatus(item.service_status) || "In Service"}</span><strong>{value(item, "name")}</strong><small>{apparatus ? value(apparatus, "name") : "Unknown apparatus"} · {value(item, "compartment_label") || "Location not recorded"}</small></div><dl><div><dt>Type</dt><dd>{formatStatus(item.item_type) || "Individual"}</dd></div><div><dt>Serial</dt><dd>{value(item, "serial_number") || "Not recorded"}</dd></div><div><dt>Required</dt><dd>{value(item, "quantity_required") || "1"}</dd></div></dl>{attentionForAsset(item).length > 0 && <ul className="asset-attention-list" aria-label="Asset attention">{attentionForAsset(item).map(entry => <li key={entry.kind} data-severity={entry.severity}>{entry.label}</li>)}</ul>}</button>;
           })}</div> : <div className="ops-empty"><strong>No equipment matches this search.</strong><p>Try a unit name, compartment, asset tag, barcode, or serial number.</p></div>}
+          {visibleEquipment.length < equipmentMatches.length && <button type="button" onClick={() => setEquipmentWindow({ key: equipmentWindowKey, limit: equipmentVisibleCount + 50 })}>Show next {Math.min(50, equipmentMatches.length - visibleEquipment.length)} items</button>}
           {selectedDirectoryEquipment ? (() => {
             const apparatus = data.apparatus.find((row) => value(row, "id") === value(selectedDirectoryEquipment, "apparatus_id"));
             const parent = data.equipment.find((item) => value(item, "id") === value(selectedDirectoryEquipment, "parent_equipment_id"));

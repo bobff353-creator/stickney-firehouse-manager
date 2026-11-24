@@ -28,14 +28,14 @@ export default function PortalModuleMenu({ permissions, currentPage, departmentN
 
   useEffect(() => {
     if (!open || !dialog.current) return;
-    const panel = dialog.current;
+    const panel = dialog.current; const returnFocus = trigger.current;
     const previousOverflow = document.body.style.overflow;
     panel.showModal();
     document.body.style.overflow = "hidden";
     return () => {
       panel.close();
       document.body.style.overflow = previousOverflow;
-      if (trigger.current?.isConnected) trigger.current.focus({ preventScroll: true });
+      if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
     };
   }, [open]);
 

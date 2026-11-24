@@ -11,11 +11,11 @@ async function measure(source){
  globalThis.document=Object.assign(new EventTarget(),{visibilityState:'visible'});
  globalThis.BroadcastChannel=class{constructor(){channels++;}close(){channels--;}};
  globalThis.fetch=async()=>{requests++;return Response.json({viewerPermissions:['inventory.view'],identity:'fixture'});};
- const module={exports:{}};
- new Function('require','module','exports',ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(()=>({useEffect(fn){effects.push(fn);},useSyncExternalStore(sub,snapshot){subs.push(sub);return snapshot();}}),module,module.exports);
+ const compiledModule={exports:{}};
+ new Function('require','module','exports',ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(()=>({useEffect(fn){effects.push(fn);},useSyncExternalStore(sub,snapshot){subs.push(sub);return snapshot();}}),compiledModule,compiledModule.exports);
  const cleanup=[];
  try{
-  for(let i=0;i<6;i++){module.exports.usePermissions();const off=subs.at(-1)(()=>{}),stop=effects.at(-1)();cleanup.push(()=>{stop();off();});await new Promise(r=>setImmediate(r));}
+  for(let i=0;i<6;i++){compiledModule.exports.usePermissions();const off=subs.at(-1)(()=>{}),stop=effects.at(-1)();cleanup.push(()=>{stop();off();});await new Promise(r=>setImmediate(r));}
   const result={consumers:6,timers:timers.size,channels,staggeredMountRequests:requests};
   requests=0;for(const tick of timers.values()){tick();await new Promise(r=>setImmediate(r));}result.staggeredTimerRequests=requests;
   return result;

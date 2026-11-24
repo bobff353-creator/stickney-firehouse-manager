@@ -86,7 +86,7 @@ test('typed readings cannot be presented as saved or submitted before explicit c
   const source=fs.readFileSync('app/inventory-operations.tsx','utf8');
   assert.match(source,/reading !== undefined && numericReadingInputValue\(reading\) !== numericReadingInputValue\(item.numeric_reading\)/);
   assert.match(source,/const unsavedCheck = unsavedReadings \|\| unsavedScba/);
-  assert.match(source,/unsavedCheck \|\| !completedItems \? "unsaved" : "saved"/);
+  assert.match(source,/\(Boolean\(busy\) \|\| itemSaveError \|\| error \|\| unsavedCheck\) && <SaveStatus state=\{busy \? "saving" : itemSaveError \|\| error \? "failed" : "unsaved"\}/);
   assert.match(source,/disabled=\{!canSubmitInspection\(activeChecklistRows.length, pendingItems, unsavedCheck \|\| Boolean\(refreshError\), Boolean\(busy\), canCheck\)\}/);
   assert.match(source,/setNoticeSaveState\(saved \? "saved" : "failed"\)/);
 });

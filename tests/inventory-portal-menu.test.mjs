@@ -42,7 +42,8 @@ test('menu does not fetch, poll, prefetch or remount the inventory workspace',()
 test('navigation is a focus-managed modal with explicit trigger, close and print hiding',()=>{
   const source=read('app/components/PortalModuleMenu.tsx'),css=read('app/components/portal-module-menu.css');
   assert.match(source,/useState\(false\)/);assert.match(source,/showModal\(\)/);assert.match(source,/panel\.close\(\)/);
-  assert.match(source,/trigger\.current\.focus\(\{ preventScroll: true \}\)/);assert.match(source,/previousOverflow/);
+  assert.match(source,/const returnFocus = trigger\.current/);
+  assert.match(source,/returnFocus\?\.isConnected\) returnFocus\.focus\(\{ preventScroll: true \}\)/);assert.match(source,/previousOverflow/);
   assert.match(source,/aria-expanded=\{open\}/);assert.match(source,/onCancel=/);assert.match(source,/Close navigation/);
   assert.match(css,/min-height:44px/);assert.match(css,/@media print/);assert.match(css,/max-width:820px/);
 });

@@ -32,6 +32,9 @@ export async function POST(request: Request) {
       const existing = await db.prepare("SELECT id FROM record_revisions WHERE record_type='payrollCorrection' AND record_id=? AND revision_number=1").bind(id).first();
       if (!existing) return json({error:"Request not found."},404);
       await db.prepare("INSERT OR IGNORE INTO record_revisions(id,record_type,record_id,revision_number,action,summary,actor) VALUES(?,'payrollCorrection',?,2,'Resolved',?,?)").bind(`${id}:resolved`,id,note,email).run();
+      const saved = await db.prepare("SELECT summary,actor FROM record_revisions WHERE record_type='payrollCorrection' AND record_id=? AND revision_number=2").bind(id).first<{summary:string;actor:string}>();
+      if (!saved) throw Error('Resolution not confirmed');
+      if (saved.summary !== note || saved.actor !== email) return json({error:"This request already has a different saved resolution. Refresh correction requests to review it; your note was not substituted."},409);
       return json({ok:true});
     }
     if (body.action !== "submit" || !canRequest || !employee) return json({error:"Only a linked member can request their own correction."},403);
@@ -42,7 +45,11 @@ export async function POST(request: Request) {
     if (period.endsWith("-11")) end.setUTCDate(25); else end.setUTCMonth(end.getUTCMonth()+1,10);
     if (!Number.isFinite(end.getTime()) || date < period || date > end.toISOString().slice(0,10)) return json({error:"The work date must fall in this period."},400);
     const id = `${period}:${employee.id}:${token}`;
-    await db.prepare("INSERT OR IGNORE INTO record_revisions(id,record_type,record_id,revision_number,action,summary,actor) VALUES(?,'payrollCorrection',?,1,'Requested',?,?)").bind(id,id,`${employee.name} · ${date}\n${note}`,email).run();
+    const summary = `${employee.name} · ${date}\n${note}`;
+    await db.prepare("INSERT OR IGNORE INTO record_revisions(id,record_type,record_id,revision_number,action,summary,actor) VALUES(?,'payrollCorrection',?,1,'Requested',?,?)").bind(id,id,summary,email).run();
+    const saved = await db.prepare("SELECT summary,actor FROM record_revisions WHERE record_type='payrollCorrection' AND record_id=? AND revision_number=1").bind(id).first<{summary:string;actor:string}>();
+    if (!saved) throw Error('Request not confirmed');
+    if (saved.summary !== summary || saved.actor !== email) return json({error:"An earlier attempt already saved different details. Refresh correction requests to review it. Cancel this form and start a new request if another correction is needed; the original is preserved."},409);
     return json({ok:true});
   } catch { return json({error:"Save could not be confirmed. Retry with the same form; retries do not create another request."},500); }
 }

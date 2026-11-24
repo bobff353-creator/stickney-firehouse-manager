@@ -7,7 +7,7 @@ const source=fs.readFileSync(new URL('../app/api/payroll-corrections/route.ts',i
 function setup({manager=false,linked=true}={}) {
  const rows=new Map(); const queries=[];
  const db={prepare(sql){return {bind(...args){queries.push({sql,args});return {
-  async first(){if(sql.includes('FROM employees'))return linked?{id:'member',name:'Test Member',isAdmin:manager?1:0}:null;return rows.has(args[0])?{id:args[0]}:null;},
+  async first(){if(sql.includes('FROM employees'))return linked?{id:'member',name:'Test Member',isAdmin:manager?1:0}:null;const saved=rows.get(sql.includes('revision_number=2')?`${args[0]}:resolved`:args[0]);return saved?{id:args[0],summary:saved[2],actor:saved[3]}:null;},
   async all(){return {results:[]};},
   async run(){if(!rows.has(args[0]))rows.set(args[0],args);return {success:true};}
  };}};}};
@@ -20,6 +20,20 @@ const request=(body,origin='https://portal.test')=>new Request('https://portal.t
 test('correction retries reuse one saved request and never write hours',async()=>{
  const api=setup(); assert.equal((await api.POST(request(payload))).status,200);assert.equal((await api.POST(request(payload))).status,200);
  assert.equal(api.rows.size,1);assert.ok(api.queries.every(q=>!q.sql.includes('time_entries')));
+});
+
+test('changed correction retry cannot claim that different details were saved',async()=>{
+ const api=setup();assert.equal((await api.POST(request(payload))).status,200);
+ assert.equal((await api.POST(request({...payload,note:'Changed after uncertain response'}))).status,409);
+ assert.equal(api.rows.size,1);assert.match([...api.rows.values()][0][2],/Please verify shift hours/);
+});
+
+test('resolution retries confirm matching saved notes and reject competing resolutions',async()=>{
+ const api=setup({manager:true});await api.POST(request(payload));const id=[...api.rows.keys()][0];
+ const body={action:'resolve',id,note:'Verified original correction'};
+ assert.equal((await api.POST(request(body))).status,200);assert.equal((await api.POST(request(body))).status,200);
+ assert.equal((await api.POST(request({...body,note:'Competing replacement'}))).status,409);
+ assert.equal(api.rows.get(`${id}:resolved`)[2],body.note);
 });
 test('member cannot resolve a correction',async()=>assert.equal((await setup().POST(request({action:'resolve',id:'x',note:'done'}))).status,403));
 test('unlinked requester and foreign origin are rejected',async()=>{

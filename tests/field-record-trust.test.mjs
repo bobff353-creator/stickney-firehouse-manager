@@ -7,6 +7,7 @@ import * as contacts from '../app/preplan-contacts.ts';
 import * as location from '../app/preplan-map-location.ts';
 import * as fireFlow from '../app/preplan-fire-flow.ts';
 import * as hydrantFlow from '../app/hydrant-flow.ts';
+import * as fieldWorkspaceData from '../app/preplans/field-workspace-data.ts';
 
 const require=createRequire(import.meta.url);
 const code=ts.transpileModule(readFileSync(new URL('../app/field-preplans.tsx',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
@@ -28,6 +29,7 @@ function fixture(){
   };
   const win={location:{href:'https://example.invalid/?display=portal&page=field-preplans'},navigator:{onLine:true},scrollY:0,scrollTo(){},history:{pushState(_state,_title,url){win.location.href=new URL(url,win.location.href).href;},replaceState(_state,_title,url){win.location.href=new URL(url,win.location.href).href;}},addEventListener(name,fn){listeners.set(name,fn);},removeEventListener(name,fn){if(listeners.get(name)===fn)listeners.delete(name);},confirm:()=>true};
   const mods={react,'react/jsx-runtime':require('react/jsx-runtime'),'./preplan-contacts':contacts,'./preplan-map-location':location,'./preplan-fire-flow':fireFlow,'./hydrant-flow':hydrantFlow,
+    './preplans/field-workspace-data':fieldWorkspaceData,
     './workspace-view-state':{useWorkspaceViewState:(_key,initial)=>react.useState(initial),restoreWorkspaceScroll:()=>()=>{}},
     './workspace-task-navigation':{useWorkspaceTaskReturn:()=>false},
     './use-unsaved-work':{useUnsavedWork:(dirty,saving)=>{guard={dirty,saving};},confirmLeavingWork:()=>true},
@@ -70,7 +72,7 @@ test('failed refresh retains successful records, retry replaces them, and offlin
 });
 
 test('building edits participate in portal navigation protection and map centering never changes their coordinates',async()=>{
-  const f=fixture();await f.flush();f.button('+ New Preplan').props.onClick();f.render();await f.flush();
+  const f=fixture();await f.flush();f.button('Detailed preplan / trace outline').props.onClick();f.render();await f.flush();
   for(const corner of [point,{lat:point.lat+.001,lng:point.lng},{lat:point.lat,lng:point.lng+.001}]){
     f.nodes().find(node=>node.props?.draft&&node.props?.onMapClick).props.onMapClick(corner);f.render();
   }

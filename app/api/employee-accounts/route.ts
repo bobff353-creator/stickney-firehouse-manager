@@ -2,9 +2,11 @@ import { ensureDatabase } from '../../../db/bootstrap';
 import { hasPermission } from '../../server-permissions';
 import { backgroundDatabase } from '../../background-database';
 import { sameOriginAuthRequest } from '../../request-security';
+import { getPortalDepartment } from '../../department-portal';
 const json = (data: unknown, status = 200) => Response.json(data, { status, headers: { 'Cache-Control': 'private, no-store' } });
 export async function GET(request: Request) {
   try {
+    if ((await getPortalDepartment()).isolated) return json({ error: 'Account linking is not configured for this department.' }, 503);
     const db = await ensureDatabase();
     if (!await hasPermission(request, db, 'employees.manage')) return json({ error: 'Employee management access is required.' }, 403);
     const row = await backgroundDatabase().prepare('SELECT employee_account_setup() AS setup').first<{ setup: unknown }>();
@@ -13,6 +15,9 @@ export async function GET(request: Request) {
 }
 export async function POST(request: Request) {
   if (!sameOriginAuthRequest(request)) return json({ error: 'Open account setup from this portal.' }, 403);
+  try {
+    if ((await getPortalDepartment()).isolated) return json({ error: 'Account linking is not configured for this department.' }, 503);
+  } catch { return json({ error: 'Department access could not be verified. No account link was changed.' }, 503); }
   try {
     const db = await ensureDatabase();
     if (!await hasPermission(request, db, 'permissions.manage')) return json({ error: 'Manage permissions access is required to link accounts.' }, 403);
