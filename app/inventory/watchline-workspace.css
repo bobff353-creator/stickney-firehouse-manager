@@ -158,3 +158,8 @@
 .inventory-container-contents .container-item-confirmation button { margin:4px; }
 .inventory-container-contents strong { overflow-wrap:anywhere; }
 @media(max-width:600px){.inventory-container-contents .container-item-actions button{flex:1 1 120px}.inventory-container-contents .container-add-tools>button{width:100%}}
+
+.inventory-watchline .equipment-editor .container-required-fields { flex:1 1 100%; min-width:0; padding:14px; border:1px solid var(--crew-line); border-radius:10px; background:var(--crew-card); color:var(--crew-ink); }
+.inventory-watchline .equipment-editor .container-required-fields label { display:flex; flex-direction:row; align-items:center; gap:10px; min-height:44px; color:var(--crew-ink); background:var(--crew-card); }
+.inventory-watchline .equipment-editor .container-required-fields input[type=checkbox] { width:22px; min-width:22px; height:22px; accent-color:var(--crew-red); }
+.inventory-container-contents .container-item-edit > p { flex-basis:100%; }

@@ -31,7 +31,7 @@ async function setup(t){
  INSERT INTO inventory_equipment VALUES('${equipment}','${dept}','${rig}','${place}','Fixture Albuterol',2,'pass_fail','equipment');
  INSERT INTO inventory_checks(id,department_id,apparatus_id,check_type,status) VALUES('${legacy}','${dept}','${rig}','daily','completed');
  INSERT INTO inventory_check_items(id,department_id,check_id,equipment_id,result,notes) VALUES('${legacy}','${dept}','${legacy}','${equipment}','pass','Original observation');`);
- await pg.exec(atomic);await pg.exec(migration);
+ await pg.exec(atomic);await pg.exec(migration);await pg.exec('ALTER TABLE inventory_equipment ADD COLUMN parent_equipment_id uuid');await pg.exec(await readFile(new URL('../supabase/migrations/20261124180000_inventory_per_item_readings.sql',import.meta.url),'utf8'));
  await pg.exec(`UPDATE inventory_equipment SET response_type='medication';INSERT INTO inventory_checks(id,department_id,apparatus_id,check_type,status) VALUES('${check}','${dept}','${rig}','drug','in_progress');INSERT INTO inventory_check_items(id,department_id,check_id,equipment_id,result) VALUES('${item}','${dept}','${check}','${equipment}','pending');INSERT INTO inventory_deficiency_photos VALUES('${photo}','${dept}','${rig}','${item}');`);
  return pg;
 }
@@ -49,7 +49,7 @@ test('source-based medication logging starts blank and retains each container da
 });
 test('migration preserves original observations; new items snapshot logging format and resist template changes',async t=>{
  const pg=await setup(t);assert.equal((await pg.query('SELECT notes FROM inventory_check_items WHERE id=$1',[legacy])).rows[0].notes,'Original observation');
- const before=await savedRow(pg);assert.deepEqual(JSON.parse(before.drug_schema),schema);
+ const before=await savedRow(pg);assert.deepEqual(JSON.parse(before.drug_schema),{...schema,requiredFields:[]});
  await pg.exec("UPDATE inventory_equipment SET response_type='text',quantity_required=5,name='Edited future template'");
  assert.equal((await savedRow(pg)).drug_schema,before.drug_schema);
  await assert.rejects(pg.query('UPDATE inventory_check_items SET drug_schema=$1 WHERE id=$2',[JSON.stringify({...schema,mode:'text'}),item]),/cannot change/);
@@ -90,4 +90,29 @@ test('the actual invoker save runs under the authenticated role with department 
  const row=(await save(pg,valid())).checkItems[0];assert.equal(row.result,'pass');assert.equal(row.checked_by,'fixture@example.test');
  await assert.rejects(save(pg,valid(),{department:other}),/permission/);await pg.exec('RESET ROLE');
  assert.equal((await pg.query("SELECT relrowsecurity FROM pg_class WHERE oid='inventory_check_items'::regclass")).rows[0].relrowsecurity,true);
+});
+
+test('quantity two requires two separate dates, PSI and fill readings; snapshots and retries retain both units',async t=>{
+ const pg=await setup(t),newCheck=id(201),newItem=id(202);
+ await pg.query("UPDATE inventory_equipment SET parent_equipment_id=$1,response_type='equipment_readings',check_fields=ARRAY['expiration_date','psi','fill_level'],quantity_required=2 WHERE id=$2",[id(203),equipment]);
+ await pg.query("INSERT INTO inventory_checks(id,department_id,apparatus_id,check_type,status) VALUES($1,$2,$3,'inventory','in_progress')",[newCheck,dept,rig]);
+ await pg.query("INSERT INTO inventory_check_items(id,department_id,check_id,equipment_id,result) VALUES($1,$2,$3,$4,'pending')",[newItem,dept,newCheck,equipment]);
+ const initial=(await pg.query('SELECT * FROM inventory_check_items WHERE id=$1',[newItem])).rows[0],s=JSON.parse(initial.drug_schema);
+ assert.deepEqual(s.requiredFields,['expiration_date','psi','fill_level']);assert.equal(s.expectedQuantity,2);
+ const response={...emptyDrugResponse(),condition:'satisfactory',count:'2',expirations:['2030-01-01','2031-02-02'],pressures:['500','800'],fillLevels:['full','half']};
+ const persist=async(r,version=0)=>(await pg.query('SELECT inventory_save_drug_atomic($1,$2,$3,$4,true,NULL) saved',[dept,newItem,JSON.stringify(r),version])).rows[0].saved;
+ for(const [field,values] of [['expirations',['2030-01-01']],['pressures',['500']],['fillLevels',['full']]]){
+  const partial={...response,[field]:values};assert.ok(drugErrors(s,partial,'2026-11-24').length);await assert.rejects(persist(partial),/every item/);
+ }
+ for(const value of ['-1','6001','bogus'])await assert.rejects(persist({...response,pressures:[value,'800']}));
+ await assert.rejects(persist({...response,fillLevels:['invented','full']}));
+ await assert.rejects(pg.query("SELECT inventory_record_item_atomic($1,$2,'pass')",[dept,newItem]),/Choose the observed result/);
+ assert.deepEqual(drugErrors(s,response,'2026-11-24'),[]);
+ const saved=(await persist(response)).checkItems[0];assert.equal(saved.result,'pass');assert.match(saved.notes,/Item 1 expiration date: 2030-01-01/);assert.match(saved.notes,/Item 2 expiration date: 2031-02-02/);assert.match(saved.notes,/Item 2 Pressure \(PSI\): 800/);assert.match(saved.notes,/Item 2 fill level: half/);
+ assert.match(drugSummary(s,response),/Item 2 Pressure \(PSI\): 800/);
+ await assert.rejects(persist(response),/Another crew member/);
+ await pg.query("UPDATE inventory_equipment SET check_fields=ARRAY['text'],quantity_required=3 WHERE id=$1",[equipment]);
+ assert.equal((await pg.query('SELECT drug_schema FROM inventory_check_items WHERE id=$1',[newItem])).rows[0].drug_schema,initial.drug_schema);
+ const unknown={...response,pressures:['unknown','800'],notes:'Unable to read first label'};await assert.rejects(persist(unknown,saved.drug_response_version),/Attach a photo/);
+ const legacyRow=(await pg.query('SELECT * FROM inventory_check_items WHERE id=$1',[legacy])).rows[0];assert.equal(legacyRow.drug_schema,null);assert.equal(legacyRow.notes,'Original observation');
 });

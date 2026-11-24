@@ -48,3 +48,23 @@ test('contained-item create retries reuse the saved ID without duplicates or ove
  const foreign=fixture();foreign.rows.push({...f.rows.at(-1),department_id:'other'});assert.equal((await foreign.post(body)).status,503);assert.equal(foreign.rows.length,3);
  assert.equal((await fixture().post({...body,createAttemptId:'bad'})).status,400);
 });
+
+test('container edits save required per-unit fields with scope/CAS and reject invalid configurations',async()=>{
+ const f=fixture();await f.post(request('add'));
+ const tool=f.rows[1];const before=structuredClone(f.history);
+ assert.equal((await f.post(request('edit',tool.updated_at,{name:'Cylinder',quantityRequired:2,responseType:'equipment_readings',requiredFields:['expiration_date','psi','fill_level']}))).status,200);
+ assert.deepEqual(tool.check_fields,['expiration_date','psi','fill_level']);assert.equal(tool.response_type,'equipment_readings');assert.equal(tool.quantity_required,2);assert.deepEqual(f.history,before);
+ const version=tool.updated_at;
+ for(const invalid of [{requiredFields:['forged']},{responseType:'forged'},{quantityRequired:101}])assert.equal((await f.post(request('edit',version,{name:'Cylinder',quantityRequired:2,responseType:'equipment_readings',requiredFields:['psi'],...invalid}))).status,400);
+ assert.deepEqual(tool.check_fields,['expiration_date','psi','fill_level']);
+});
+
+test('full equipment editor and new contained equipment retain validated per-unit requirements',async()=>{
+ const f=fixture();f.rows[1].parent_equipment_id='box';
+ const body={action:'update_equipment',equipmentId:'tool',compartmentId:'place',parentEquipmentId:'box',name:'Two cylinders',quantityRequired:2,responseType:'equipment_readings',requiredFields:['expiration_date','psi'],checkTypes:['inventory'],itemType:'individual',expectedUpdatedAt:'v1'};
+ assert.equal((await f.post(body)).status,200);assert.deepEqual(f.rows[1].check_fields,['expiration_date','psi']);
+ assert.equal((await f.post({...body,expectedUpdatedAt:f.rows[1].updated_at,requiredFields:['forged']})).status,400);
+ const create={action:'create_equipment',compartmentId:'place',parentEquipmentId:'box',name:'New two units',quantityRequired:2,responseType:'equipment_readings',requiredFields:['expiration_date','fill_level'],itemType:'individual',createAttemptId:'f5b18662-1852-470a-b220-c2035070f995'};
+ assert.equal((await f.post(create)).status,201);assert.equal((await f.post(create)).status,200);assert.deepEqual(f.rows.at(-1).check_fields,['expiration_date','fill_level']);
+ assert.equal((await f.post({...create,requiredFields:['psi']})).status,409);
+});

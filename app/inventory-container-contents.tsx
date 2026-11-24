@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from 'react';
+import ItemCheckFields from './inventory-item-check-fields';
+import { checkEntryOptions, type ItemCheckField } from './inventory-drug-model';
 import { useUnsavedWork } from './use-unsaved-work';
 import { containerEquipmentPage, containerText as text, type ContainerRow as Row } from './inventory-container-picker';
 
@@ -11,13 +13,15 @@ export default function InventoryContainerContents({ container, equipment, busy,
   const [contentsQuery,setContentsQuery] = useState(''), [contentsPage,setContentsPage] = useState(1);
   const [confirmation,setConfirmation] = useState<{item:Row; operation:'add'|'remove'|'delete'}|null>(null);
   const [newName,setNewName] = useState(''), [newQuantity,setNewQuantity] = useState('1'), [editing,setEditing] = useState(''), [name,setName] = useState(''), [quantity,setQuantity] = useState('1'), [error,setError] = useState(''), [receipt,setReceipt] = useState('');
+  const [responseType,setResponseType] = useState('pass_fail'), [newResponseType,setNewResponseType] = useState('pass_fail');
+  const [requiredFields,setRequiredFields] = useState<ItemCheckField[]>([]),[newRequiredFields,setNewRequiredFields] = useState<ItemCheckField[]>([]);
   const createAttempt = useRef<string|null>(null);
   const [createLocked,setCreateLocked] = useState(false);
   const children = equipment.filter(item => item.parent_equipment_id === container.id && !item.retired_at);
   const editingItem = children.find(item => item.id === editing);
-  const editDirty = Boolean(editingItem && (name !== text(editingItem,'name') || quantity !== (text(editingItem,'quantity_required') || '1')));
-  useUnsavedWork(Boolean(newName || editDirty), busy);
-  useEffect(()=>{onDraftChange?.(Boolean(newName || editDirty));},[newName,editDirty,onDraftChange]);
+  const editDirty = Boolean(editingItem && (name !== text(editingItem,'name') || quantity !== (text(editingItem,'quantity_required') || '1') || responseType !== (text(editingItem,'response_type') || 'pass_fail') || JSON.stringify(requiredFields)!==JSON.stringify(editingItem.check_fields||[])));
+  useUnsavedWork(Boolean(newName || newQuantity!=='1' || newResponseType!=='pass_fail' || newRequiredFields.length || editDirty), busy);
+  useEffect(()=>{onDraftChange?.(Boolean(newName || newQuantity!=='1' || newResponseType!=='pass_fail' || newRequiredFields.length || editDirty));},[newName,newQuantity,newResponseType,newRequiredFields,editDirty,onDraftChange]);
   useEffect(() => { if(focusOnOpen) { heading.current?.focus({preventScroll:true}); heading.current?.scrollIntoView({block:'start'}); } }, [focusOnOpen]);
   const picker = containerEquipmentPage(equipment,container,{query,scope,grouping,page});
   const matches = children.filter(item => `${text(item,'name')} ${text(item,'barcode')} ${text(item,'serial_number')}`.toLowerCase().includes(contentsQuery.trim().toLowerCase())).sort((a,b) => text(a,'name').localeCompare(text(b,'name')) || text(a,'id').localeCompare(text(b,'id')));
@@ -26,7 +30,7 @@ export default function InventoryContainerContents({ container, equipment, busy,
   async function manage(item:Row, operation:'add'|'remove'|'edit') {
     setError(''); setReceipt('');
     if(operation==='edit' && (!name.trim() || !Number.isInteger(Number(quantity)) || Number(quantity)<1)) { setError('Enter an item name and a whole quantity of at least 1.'); return; }
-    const saved = await onAction('container-item',{action:'manage_container_item',containerId:container.id,equipmentId:item.id,operation,expectedUpdatedAt:item.updated_at??null,...(operation==='edit'?{name,quantityRequired:Number(quantity)}:{})});
+    const saved = await onAction('container-item',{action:'manage_container_item',containerId:container.id,equipmentId:item.id,operation,expectedUpdatedAt:item.updated_at??null,...(operation==='edit'?{name,quantityRequired:Number(quantity),responseType,requiredFields}:{})});
     if(saved) { setEditing(''); setConfirmation(null); setReceipt(`Change saved for ${text(item,'name')}. Review the refreshed contents below.`); if(operation==='add')searchInput.current?.focus(); }
     else setError('The change was not confirmed. Your selections are kept. Refresh contents to review the saved record before retrying.');
   }
@@ -35,8 +39,8 @@ export default function InventoryContainerContents({ container, equipment, busy,
     setError(''); setReceipt('');
     if(!newName.trim() || !Number.isInteger(Number(newQuantity)) || Number(newQuantity)<1) { setError('Enter a name and whole quantity of at least 1.'); return; }
     createAttempt.current ??= crypto.randomUUID(); setCreateLocked(true);
-    const saved = await onAction('create-container-item',{action:'create_equipment',createAttemptId:createAttempt.current,name:newName,quantityRequired:Number(newQuantity),compartmentId:container.compartment_id,parentEquipmentId:container.id,itemType:'individual',equipmentCategory:'equipment',checkTypes:container.check_types||['inventory']});
-    if(saved) { setReceipt(`Create saved for ${newName}. Review the refreshed contents below.`); setNewName(''); setNewQuantity('1'); createAttempt.current=null; setCreateLocked(false); }
+    const saved = await onAction('create-container-item',{action:'create_equipment',createAttemptId:createAttempt.current,name:newName,quantityRequired:Number(newQuantity),compartmentId:container.compartment_id,parentEquipmentId:container.id,responseType:newResponseType,requiredFields:newRequiredFields,itemType:'individual',equipmentCategory:'equipment',checkTypes:container.check_types||['inventory']});
+    if(saved) { setReceipt(`Create saved for ${newName}. Review the refreshed contents below.`); setNewName(''); setNewQuantity('1'); setNewResponseType('pass_fail'); setNewRequiredFields([]); createAttempt.current=null; setCreateLocked(false); }
     else setError('Create was not confirmed. Retry the same details to confirm the original request without creating a duplicate. Refresh contents to review what is saved.');
   }
   async function cancelNew() {
@@ -79,14 +83,14 @@ export default function InventoryContainerContents({ container, equipment, busy,
       <button type="button" disabled={busy||editDirty} onClick={createNew}>Not already in inventory? Create a new item</button>
     </div>:<div className="container-new-equipment">
       <h4>Create new equipment in {text(container,'name')}</h4><p>Use this only for equipment that does not already have an inventory record. It will use this container’s saved location and checklist types.</p>
-      <div className="container-add-tools"><label>New item name<input ref={newInput} value={newName} disabled={busy||createLocked} onChange={event=>setNewName(event.target.value)}/></label><label>New item quantity<input type="number" min="1" step="1" value={newQuantity} disabled={busy||createLocked} onChange={event=>setNewQuantity(event.target.value)}/></label><button type="button" disabled={busy||!newName.trim()} onClick={()=>void create()}>Create item in container</button><button type="button" disabled={busy} onClick={()=>void cancelNew()}>Cancel new item</button></div>
+      <div className="container-add-tools"><label>New item name<input ref={newInput} value={newName} disabled={busy||createLocked} onChange={event=>setNewName(event.target.value)}/></label><label>New item quantity<input type="number" min="1" step="1" value={newQuantity} disabled={busy||createLocked} onChange={event=>setNewQuantity(event.target.value)}/></label><label>Required check entry<select aria-label="Required check entry for new item" value={newResponseType} disabled={busy||createLocked} onChange={event=>{setNewResponseType(event.target.value);if(event.target.value!=='equipment_readings')setNewRequiredFields([]);}}>{checkEntryOptions.filter(([key])=>['pass_fail','quantity','medication','equipment_readings',newResponseType].includes(key)).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label><ItemCheckFields fields={newRequiredFields} disabled={busy||createLocked} onChange={fields=>{setNewRequiredFields(fields);setNewResponseType('equipment_readings');}}/><button type="button" disabled={busy||!newName.trim()} onClick={()=>void create()}>Create item in container</button><button type="button" disabled={busy} onClick={()=>void cancelNew()}>Cancel new item</button></div>
     </div>}
     <h4>Saved items inside ({children.length})</h4>
     <label>Find an item inside<input type="search" value={contentsQuery} disabled={busy||editDirty} onChange={event=>{setContentsQuery(event.target.value);setContentsPage(1);}} placeholder="Name, barcode or serial number"/></label>
     {matches.length?<ul className="container-item-list">{matches.slice((childPage-1)*10,childPage*10).map(item=><li key={text(item,'id')}>
-      {editing===item.id?<div className="container-item-edit"><label>Item name<input aria-label={'Item name for '+text(item,'name')} value={name} disabled={busy} onChange={event=>setName(event.target.value)}/></label><label>Required quantity<input aria-label={'Quantity for '+text(item,'name')} type="number" min="1" step="1" value={quantity} disabled={busy} onChange={event=>setQuantity(event.target.value)}/></label><button type="button" disabled={busy} onClick={()=>void manage(item,'edit')}>Save changes</button><button type="button" disabled={busy} onClick={()=>setEditing('')}>Cancel edit</button></div>:<>
-        <strong>{text(item,'name')} · Qty {text(item,'quantity_required')||'1'}</strong><div className="container-item-actions">
-          <button type="button" disabled={busy||editDirty||Boolean(confirmation)||Boolean(item.scba_asset_kind)} aria-label={'Edit '+text(item,'name')} onClick={()=>{if(editDirty&&!window.confirm('Discard the unsaved item edit?'))return;setEditing(text(item,'id'));setName(text(item,'name'));setQuantity(text(item,'quantity_required')||'1');}}>Edit item</button>
+      {editing===item.id?<div className="container-item-edit"><label>Item name<input aria-label={'Item name for '+text(item,'name')} value={name} disabled={busy} onChange={event=>setName(event.target.value)}/></label><label>Required quantity<input aria-label={'Quantity for '+text(item,'name')} type="number" min="1" step="1" value={quantity} disabled={busy} onChange={event=>setQuantity(event.target.value)}/></label><label>Required check entry<select aria-label={'Required check entry for '+text(item,'name')} value={responseType} disabled={busy} onChange={event=>{setResponseType(event.target.value);if(event.target.value!=='equipment_readings')setRequiredFields([]);}}>{checkEntryOptions.filter(([key])=>['pass_fail','quantity','medication','equipment_readings',responseType].includes(key)).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label><ItemCheckFields fields={requiredFields} disabled={busy} onChange={fields=>{setRequiredFields(fields);setResponseType('equipment_readings');}}/><p>Applies to new checks after saving. Existing checks and reports keep their original fields. The crew records the actual reading and observed result.</p><button type="button" disabled={busy} onClick={()=>void manage(item,'edit')}>Save changes</button><button type="button" disabled={busy} onClick={()=>setEditing('')}>Cancel edit</button></div>:<>
+        <strong>{text(item,'name')} · Qty {text(item,'quantity_required')||'1'}</strong><small>Check entry: {checkEntryOptions.find(([key])=>key===item.response_type)?.[1]||'Pass / fail'}{item.response_type==='equipment_readings'&&Array.isArray(item.check_fields)?' · '+item.check_fields.join(', ').replaceAll('_',' '):''}</small><div className="container-item-actions">
+          <button type="button" disabled={busy||editDirty||Boolean(confirmation)||Boolean(item.scba_asset_kind)} aria-label={'Edit '+text(item,'name')} onClick={()=>{if(editDirty&&!window.confirm('Discard the unsaved item edit?'))return;setEditing(text(item,'id'));setName(text(item,'name'));setQuantity(text(item,'quantity_required')||'1');setResponseType(text(item,'response_type')||'pass_fail');setRequiredFields(Array.isArray(item.check_fields)?item.check_fields as ItemCheckField[]:[]);}}>Edit item</button>
           <button type="button" disabled={busy||editDirty||Boolean(confirmation)||Boolean(item.scba_asset_kind)} aria-label={'Remove '+text(item,'name')+' from container'} onClick={()=>setConfirmation({item,operation:'remove'})}>Remove</button>
           <button type="button" disabled={busy||editDirty||Boolean(confirmation)||Boolean(item.scba_asset_kind)} aria-label={'Delete '+text(item,'name')} onClick={()=>setConfirmation({item,operation:'delete'})}>Delete item</button>
         </div></>}

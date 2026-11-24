@@ -6,6 +6,7 @@ import React from 'react';
 import {createRoot} from 'react-dom/client';
 import Inventory from '../../app/inventory-live';
 import InventoryOperations from '../../app/inventory-operations';
+import {drugErrors,drugIssues,drugSchema,drugSummary} from '../../app/inventory-drug-model';
 import {airCheckLines} from '../../app/inventory-air-checks';
 
 import '../../app/globals.css';
@@ -86,6 +87,7 @@ if (new URLSearchParams(location.search).has('workspace-review')) {
  Object.assign(data.stock[0], {location_id:'TEST Engine',expires_at:'2099-01-01'});
  if (!data.stock.some((row:any)=>row.id==='fixture-tape')) data.stock.push({id:'fixture-tape',name:'TEST Tape',unit:'rolls',par_level:10,reorder_point:2,lot_id:'fixture-tape-lot',quantity_on_hand:1,lot_number:'TEST-TAPE',location_id:'TEST Engine'});
 }
+if(containerAudit&&new URLSearchParams(location.search).has('readings')){const row=data.equipment.find((row:any)=>row.id==='fixture-box-tool-0')||data.equipment.find((row:any)=>row.name==='TEST Box tool 00');if(row){row.quantity_required=2;row.response_type='equipment_readings';row.check_fields=['expiration_date','psi','fill_level'];}}
 let writes=0;
 let reads=0, confirmations=0, applications=0, revision=1, nextReadStatus=200;
 const refreshFixture=()=>window.dispatchEvent(new Event('firehouse:inventory-refresh'));
@@ -108,11 +110,22 @@ window.fetch=async(input,init)=>{
   if(init.body instanceof FormData) return bad('Photo storage is not simulated by this workflow fixture.');
   const b=JSON.parse(String(init.body));
   document.getElementById('audit-writes')!.textContent=`Test writes: ${++writes} · ${b.action}`;
+  if(url.startsWith('/api/operations/drugs')){
+   const item=data.checkItems.find((row:any)=>row.id===b.id),schema=drugSchema(item?.drug_schema);
+   if(!item||!schema)return bad('No saved reading format');
+   if(Number(item.drug_response_version||0)!==b.version)return bad('Another crew member saved',409);
+   const today='2026-11-24',errors=drugErrors(schema,b.response,today,b.complete);
+   if(errors.length)return bad(errors.join(' '));
+   if(drugIssues(schema,b.response,today).length)return bad('Evidence is not simulated by this fixture');
+   Object.assign(item,{drug_response:JSON.stringify(b.response),drug_response_version:b.version+1,result:b.complete?'pass':'pending',notes:drugSummary(schema,b.response),checked_at:b.complete?stamp():null,checked_by:b.complete?'Fictional crew':null});
+   return ok({saved:true,checkItems:[item]});
+  }
   if(b.action==='manage_container_item'){
+
    const item=data.equipment.find((row:any)=>row.id===b.equipmentId),parent=data.equipment.find((row:any)=>row.id===b.containerId);
    if(!admin||!item||!parent)return bad('No editable item',403);
    if(item.updated_at!==b.expectedUpdatedAt)return bad('This item changed. Refresh contents.',409);
-   if(b.operation==='edit'){item.name=b.name;item.quantity_required=b.quantityRequired;}
+   if(b.operation==='edit'){item.name=b.name;item.quantity_required=b.quantityRequired;if(b.responseType)item.response_type=b.responseType;if(b.requiredFields)item.check_fields=b.requiredFields;}
    else {if(b.operation==='add'&&item.compartment_id!==parent.compartment_id)return bad('Different compartment');item.parent_equipment_id=b.operation==='add'?parent.id:null;}
    item.updated_at=stamp();return ok({equipment:item});
   }
@@ -120,7 +133,7 @@ window.fetch=async(input,init)=>{
    if(!admin)return bad('Administrator only',403);
    const previous=data.equipment.find((item:any)=>item.id===b.createAttemptId);
    if(previous)return previous.name===b.name&&previous.quantity_required===b.quantityRequired?ok({equipment:previous,replayed:true}):bad('Create request details changed',409);
-   const item={...base,id:b.createAttemptId||crypto.randomUUID(),name:b.name,quantity_required:b.quantityRequired,item_type:b.itemType,parent_equipment_id:b.parentEquipmentId,check_types:b.checkTypes,updated_at:stamp()};data.equipment.push(item);persist();
+   const item={...base,id:b.createAttemptId||crypto.randomUUID(),name:b.name,quantity_required:b.quantityRequired,item_type:b.itemType,parent_equipment_id:b.parentEquipmentId,check_types:b.checkTypes,response_type:b.responseType||'pass_fail',check_fields:b.requiredFields||[],updated_at:stamp()};data.equipment.push(item);persist();
    const lose=document.getElementById('lose-create') as HTMLInputElement|null;if(lose?.checked){lose.checked=false;return bad('Simulated lost confirmation after saving',503);}
    return ok({equipment:item});
   }
@@ -132,7 +145,7 @@ window.fetch=async(input,init)=>{
    check={id:crypto.randomUUID(),apparatus_id:b.apparatusId,apparatus_name:rig.name,check_type:b.checkType,status:'in_progress',started_at:stamp(),started_by:'Fictional crew'};
    data.checks.unshift(check);
    if(b.checkType==='air_pack') data.scbaEntries.push(...airCheckLines(template,data.equipment,b.apparatusId).map(line=>({...line,id:crypto.randomUUID(),check_id:check.id,result:'pending'})));
-   else data.checkItems.push(...items.map((e:any)=>({...e,id:crypto.randomUUID(),equipment_id:e.id,equipment_name:e.name,check_id:check.id,result:'pending'})));
+   else data.checkItems.push(...items.map((e:any)=>({...e,id:crypto.randomUUID(),equipment_id:e.id,equipment_name:e.name,check_id:check.id,result:'pending',drug_schema:e.response_type==='equipment_readings'?JSON.stringify({version:1,title:e.name,mode:e.response_type,expectedQuantity:e.quantity_required,location:e.compartment_label,requiredFields:e.check_fields}):null})));
    return ok({checkId:check.id,resumed:false});
   }
   if(b.action==='record_check_item'||b.action==='bulk_record_check_items'){

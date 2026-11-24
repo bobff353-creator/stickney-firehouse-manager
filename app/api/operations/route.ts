@@ -1,4 +1,4 @@
-import {drugSchema} from "../../inventory-drug-model";
+import {drugSchema,drugModes,itemCheckFields} from "../../inventory-drug-model";
 import { createInventorySupabaseClient } from "../../lib/supabase-server";
 import { privatePacketResponse } from '../../lib/private-packet-response';
 import { indexFirstBy, groupByKey } from '../../inventory-index';
@@ -102,7 +102,7 @@ export async function GET(request: Request) {
         .order("sort_order"),
       collectPages((from, to) => supabase
         .from("inventory_equipment")
-        .select("id,apparatus_id,compartment_id,name,manufacturer,model,serial_number,barcode,quantity_required,equipment_category,check_types,source_form,item_order,retired_at,item_type,parent_equipment_id,purchase_date,in_service_date,expiration_date,response_type,service_status,service_notes,retirement_reason,retired_by,updated_at,scba_asset_kind,asset_number,sku,hydro_test_date,hydro_due_date,scba_notes,scba_check_slot,last_serviced_date,service_interval_months,service_reminder_months,meter_template,meter_template_version,weekly_recurrence")
+        .select("id,apparatus_id,compartment_id,name,manufacturer,model,serial_number,barcode,quantity_required,equipment_category,check_types,source_form,item_order,retired_at,item_type,parent_equipment_id,purchase_date,in_service_date,expiration_date,response_type,check_fields,service_status,service_notes,retirement_reason,retired_by,updated_at,scba_asset_kind,asset_number,sku,hydro_test_date,hydro_due_date,scba_notes,scba_check_slot,last_serviced_date,service_interval_months,service_reminder_months,meter_template,meter_template_version,weekly_recurrence")
         .eq("department_id", departmentId)
         .order("item_order")
         .order("name")
@@ -589,6 +589,11 @@ export async function POST(request: Request) {
         const name=clean(body.name),quantity=Number(body.quantityRequired);
         if(!name||!Number.isInteger(quantity)||quantity<1)return privateJson({error:'Enter a name and whole quantity of at least 1.'},400);
         changes.name=name;changes.quantity_required=quantity;
+        if(body.responseType!==undefined){
+          if(!(drugModes as readonly unknown[]).includes(body.responseType)|| (body.responseType!=='pass_fail'&&quantity>100))return privateJson({error:'Choose a valid check entry. Reading-based items support quantities from 1 to 100.'},400);
+          changes.response_type=body.responseType;
+          if(body.requiredFields!==undefined){if(!Array.isArray(body.requiredFields)||body.requiredFields.length>4||body.requiredFields.some((field:unknown)=>!itemCheckFields.some(([key])=>key===field)))return privateJson({error:'Choose valid required item fields.'},400);changes.check_fields=[...new Set(body.requiredFields)];}
+        }
       }else changes.parent_equipment_id=operation==='add'?container.id:null;
       const update=supabase.from('inventory_equipment').update(changes).eq('department_id',departmentId).eq('id',item.id).is('retired_at',null);
       const {data:saved,error}=await (item.updated_at?update.eq('updated_at',item.updated_at):update.is('updated_at',null)).select('*').maybeSingle();
@@ -618,6 +623,8 @@ export async function POST(request: Request) {
         if(error)throw error;
         if(!parent||parent.apparatus_id!==compartment.apparatus_id||parent.compartment_id!==compartmentId||!['kit','bag','toolbox','container'].includes(parent.item_type)||['kit','bag','toolbox','container'].includes(clean(body.itemType,40)))return privateJson({error:'Choose an active container in the same compartment for this individual item.'},400);
       }
+      if(!(drugModes as readonly unknown[]).includes(body.responseType||'pass_fail') || (body.parentEquipmentId&&body.responseType&&body.responseType!=='pass_fail'&&Number(body.quantityRequired)>100))return privateJson({error:'Choose a valid check entry and a quantity from 1 to 100 for reading-based items.'},400);
+      if(body.requiredFields!==undefined&&(!Array.isArray(body.requiredFields)||body.requiredFields.length>4||body.requiredFields.some((field:unknown)=>!itemCheckFields.some(([key])=>key===field))))return privateJson({error:'Choose valid required item fields.'},400);
       const createAttemptId = clean(body.createAttemptId, 80).toLowerCase();
       if (createAttemptId && (!parentEquipmentId || !/^[a-f\d]{8}-[a-f\d]{4}-4[a-f\d]{3}-[89ab][a-f\d]{3}-[a-f\d]{12}$/i.test(createAttemptId))) return privateJson({ error: 'Choose a valid contained-item create request.' }, 400);
       const record = {
@@ -643,6 +650,7 @@ export async function POST(request: Request) {
         in_service_date: clean(body.inServiceDate, 40) || null,
         expiration_date: clean(body.expirationDate, 40) || null,
         response_type: clean(body.responseType, 40) || "pass_fail",
+        ...(body.requiredFields!==undefined?{check_fields:[...new Set(body.requiredFields)]}:{}),
         service_status: "in_service",
         service_notes: clean(body.serviceNotes, 1000) || null,
       };
@@ -731,6 +739,8 @@ export async function POST(request: Request) {
       let weeklyRecurrence = equipment.weekly_recurrence || "every_week";
       try { if (body.weeklyRecurrence !== undefined) weeklyRecurrence = weeklyRecurrenceInput(body.weeklyRecurrence); }
       catch (caught) { return privateJson({ error: caught instanceof Error ? caught.message : "Review the weekly frequency." }, 400); }
+      if(!(drugModes as readonly unknown[]).includes(body.responseType||'pass_fail') || (body.responseType==='equipment_readings'&&(!Number.isInteger(Number(body.quantityRequired))||Number(body.quantityRequired)>100||Number(body.quantityRequired)<1)))return privateJson({error:'Choose a valid check entry and a whole quantity from 1 to 100.'},400);
+      if(body.requiredFields!==undefined&&(!Array.isArray(body.requiredFields)||body.requiredFields.length>4||body.requiredFields.some((field:unknown)=>!itemCheckFields.some(([key])=>key===field))))return privateJson({error:'Choose valid required item fields.'},400);
       const changes = {
         ...serviceSchedule,
         weekly_recurrence: weeklyRecurrence,
@@ -754,6 +764,7 @@ export async function POST(request: Request) {
         in_service_date: clean(body.inServiceDate, 40) || null,
         expiration_date: clean(body.expirationDate, 40) || null,
         response_type: clean(body.responseType, 40) || "pass_fail",
+        ...(body.requiredFields!==undefined?{check_fields:[...new Set(body.requiredFields)]}:{}),
         service_status: serviceStatus,
         service_notes: clean(body.serviceNotes, 1000) || null,
         retired_at: retiring ? new Date().toISOString() : null,
