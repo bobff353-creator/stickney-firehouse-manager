@@ -19,6 +19,8 @@ test('saved availability defaults to the calendar month and pages without hiding
 });
 
 test('status, note search and custom dates combine; upcoming includes today', () => {
+  const december = savedAvailabilityPage(rows, filters, '2026-12', '2026-11-24', 1);
+  assert.equal(december.matching, 31); assert.equal(december.rows[0].availabilityDate, '2026-12-01');
   const result = view({ period: 'custom', from: '2026-11-01', through: '2026-12-01', status: 'unavailable', query: '  FIXTURE NOTE  ' });
   assert.ok(result.rows.length > 0);
   assert.ok(result.rows.every(row => row.status === 'unavailable' && row.availabilityDate <= '2026-12-01'));

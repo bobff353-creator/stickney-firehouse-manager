@@ -4,7 +4,8 @@
 .sf-schedule .availability-compact-entries { display: grid; gap: 8px; }
 .sf-schedule .availability-compact-entries .availability-entry { margin: 0; align-items: start; }
 .sf-schedule .availability-compact-entries .availability-entry > div:first-child { flex: 1; }
-.sf-schedule .availability-compact-entries .row-actions { flex: 0 0 auto; flex-wrap: nowrap; align-items: center; }
+.sf-schedule .availability-compact-entries .row-actions { display: flex; gap: 8px; flex: 0 0 auto; flex-wrap: nowrap; align-items: center; }
+.sf-schedule .availability-saved-list .entry-head { display: flex; justify-content: space-between; flex-wrap: wrap; align-items: center; gap: 12px; }
 .sf-schedule .availability-compact-entries details { margin: 4px 0 0; }
 .sf-schedule .availability-compact-entries summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; text-decoration: underline; }
 .sf-schedule .availability-compact-entries details p { white-space: pre-wrap; overflow-wrap: anywhere; }

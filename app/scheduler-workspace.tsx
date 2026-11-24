@@ -3,6 +3,7 @@
 
 import dynamic from "next/dynamic";
 import { scheduleSaveFeedback } from "./scheduler-save-feedback";
+import SavedAvailabilityList from './saved-availability-list';
 import { scheduleDestination, isScheduleWorkspaceScreen } from "./scheduler-navigation";
 import { confirmLeavingWork } from "./use-unsaved-work";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -68,6 +69,7 @@ export default function SchedulerWorkspace({
   const [dialog, setDialog] = useState<ScheduleDialogState | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [availabilityReview, setAvailabilityReview] = useState<{ month: string; query: string; version: number } | null>(null);
   const [savedNext, setSavedNext] = useState({ next: "", label: "" });
   const [loading, setLoading] = useState(true);
   const [stale, setStale] = useState(false);
@@ -168,6 +170,10 @@ export default function SchedulerWorkspace({
       const feedback = scheduleSaveFeedback(body);
       setNotice(feedback.message + (result.note ? " " + result.note : ""));
       setSavedNext({ next: feedback.next, label: feedback.label });
+      if (body.action === 'saveAvailability' && Array.isArray(body.dates)) {
+        const dates = body.dates.filter((value): value is string => typeof value === 'string' && validScheduleDate(value)).sort();
+        if (dates.length) setAvailabilityReview(previous => ({ month: dates[0].slice(0, 7), query: dates.length === 1 ? dates[0] : '', version: (previous?.version || 0) + 1 }));
+      }
       const affectedSlot = data?.slots.find(s => s.id === (body.slotId || data.claims.find(c => c.id === body.id)?.slotId || data.trades.find(t => t.id === body.id)?.slotId));
       const affectedDate = typeof body.date === 'string' ? body.date : affectedSlot?.entryDate;
       if (affectedDate && validScheduleDate(affectedDate)) { setDate(affectedDate); setMonth(affectedDate.slice(0, 7)); }
@@ -535,6 +541,7 @@ export default function SchedulerWorkspace({
               disabled={readOnly}
               act={act}
               open={setDialog}
+              review={availabilityReview}
             />
           </>
         )}
@@ -1337,63 +1344,22 @@ function AvailabilityList({
   disabled,
   act,
   open,
+  review,
 }: {
   data: LiveSchedule;
   employeeId: string;
   disabled: boolean;
   act: Action;
   open: (state: ScheduleDialogState) => void;
+  review: { month: string; query: string; version: number } | null;
 }) {
-  const [limit, setLimit] = useState(10);
   const rows = data.availability
-    .filter(
-      (a) => a.employeeId === employeeId && a.availabilityDate >= data.today,
-    )
-    .sort((a, b) => a.availabilityDate.localeCompare(b.availabilityDate));
+    .filter(a => a.employeeId === employeeId);
   return (
     <div className="sf-panel sf-tools">
-      <h3>Your saved availability</h3>
-      {rows.slice(0, limit).map((a) => (
-        <div className="sf-availability" key={a.id}>
-          <span>
-            <strong>
-              {scheduleDayLabel(a.availabilityDate)} · {a.status}
-            </strong>
-            <span>
-              {a.allDay
-                ? "All day"
-                : scheduleClock(a.startTime) + "–" + scheduleClock(a.endTime)}
-              {a.note ? " · " + a.note : ""}
-            </span>
-          </span>
-          {a.status === "available" && <button className="sf-secondary" disabled={disabled} aria-label={"Edit availability for " + a.availabilityDate} onClick={() => open({kind:"request",availability:a})}>Edit</button>}
-          <button
-            className="sf-secondary"
-            disabled={disabled}
-            onClick={() => {
-              void act({
-                action: "deleteAvailability",
-                date: a.availabilityDate,
-              });
-            }}
-          >
-            Remove
-            <span className="sf-sr">
-              {" "}
-              availability for {a.availabilityDate}
-            </span>
-          </button>
-        </div>
-      ))}
-      {!rows.length && <p>No upcoming availability saved.</p>}
-      {rows.length > limit && (
-        <button
-          className="sf-secondary"
-          onClick={() => setLimit((n) => n + 20)}
-        >
-          Show more dates ({rows.length - limit})
-        </button>
-      )}
+      <SavedAvailabilityList key={`${employeeId}:${review?.version || 0}`} entries={rows} memberName="Your saved availability" month={review?.month || data.today.slice(0, 7)} initialQuery={review?.query || ''} today={data.today} busy={disabled}
+        onEdit={availability => open({ kind: 'request', availability })}
+        onRemove={availability => { void act({ action: "deleteAvailability", date: availability.availabilityDate }); }} />
     </div>
   );
 }
