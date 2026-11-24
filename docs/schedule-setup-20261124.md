@@ -17,7 +17,7 @@ The administrator can start at Schedule → Manage → Set up a month, choose a 
 
 **Evidence:** the isolated fictional browser workflow made zero assignment requests during review; its first save failed and showed no saved-result card; retry returned one saved assignment and one open position. The calendar retained its recurring crew, added only the member whose entered hours covered the morning, and left the afternoon open. Switching to an empty December selected December availability and fill boundaries without making a write. A member-only fixture did not expose the new administrator shortcut.
 
-**Next:** production verification is read-only; no real assignments need to be changed to demonstrate this UI release.
+Production verification was read-only; no real assignments were changed to demonstrate this UI release.
 
 - 54 unique browser layout combinations across nine contexts at 390, 820 and 1388 widths with light/dark preferences: no root overflow or caught rendering errors. The final reordered roster was rechecked at all six settings.
 - New guidance contrast: minimum 6.22:1 in both themes after fixing the dark-mode note. New guidance/review buttons measured at least 48 px high.
@@ -28,6 +28,13 @@ The administrator can start at Schedule → Manage → Set up a month, choose a 
 
 ## Release outcomes
 
-Source changes: the UI/model files and isolated verification fixture/tests listed in the commit. Push, production revision, deployment and live checks will be recorded after release. Database migrations: none. Production operational-record writes for this UI release: none.
+- Source/application revision: `2ab5d353ed34380ce812baa5cfa5635af065bbaa`.
+- Push: application revision pushed to `codex/watchline-complete-20261123`.
+- Database migrations: none. Production operational-record writes for this UI release: none.
+- Production deployment: `dpl_EPWCRKzhBCQf7syFLihKxeKBYmM9`, READY, confirmed project `prj_RTtTvD39FwyEGUovkPg8wxrdJCtF` (Stickney Firehouse Manager).
+- Canonical production `/api/health` returned application `stickney-firehouse-manager`, revision `2ab5d353ed34`, environment `production`. The legacy hostname's unauthenticated health request returned HTML rather than JSON; its authenticated application UI was verified separately.
+- Live authenticated browser: Manage shortcut opened the guide; December showed 346 filled positions, 35 open positions and 33 members with availability. Recurring crews, December availability, review dates and December calendar opened correctly. The review screen explicitly required a separate assignment action; that action was not run in production.
+- Read-only database fingerprints after UI verification matched the pre-release December assignments and all standing-assignment definitions. Both station reminder and schedule notification tables had zero enabled automatic email/text rules.
+- Live screenshot: `outputs/schedule-setup-20261124/live-december-setup.jpg`.
 
 Ignored local evidence: `outputs/schedule-setup-20261124/`.
