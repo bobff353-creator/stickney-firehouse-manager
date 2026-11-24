@@ -118,7 +118,7 @@ const employeeEligibleForRole = (employee: Employee, role: string) => {
   return parseRoles(employee.roles).includes(role);
 };
 
-export default function StationScheduler({ testMember = null, initialTask = "" }: { testMember?: TestMember | null; initialTask?: string }) {
+export default function StationScheduler({ testMember = null, initialTask = "", embedded = false, initialMonth, initialDate, onNavigate, onMonthChange, refreshToken = 0, onSaved, onDateChange }: { testMember?: TestMember | null; initialTask?: string; embedded?: boolean; initialMonth?: string; initialDate?: string; onNavigate?: (task: string, date?: string) => void; onMonthChange?: (month: string) => void; refreshToken?: number; onSaved?: () => void; onDateChange?: (date: string) => void }) {
   void testMember;
   const [data, setData] = useState<Data | null>(null);
   const [tab, setTabState] = useWorkspaceViewState("scheduler-tab", "myshifts");
@@ -128,10 +128,11 @@ export default function StationScheduler({ testMember = null, initialTask = "" }
   const [jobChooserOpen, setJobChooserOpen] = useState(true);
   const navigationRequested = useRef(false);
   const setTab = useCallback((next: string) => {
+    if (embedded && onNavigate) { onNavigate(next); return; }
     if (!confirmLeavingWork()) return;
     navigationRequested.current = true;
     setTabState(next);
-  }, [setTabState]);
+  }, [setTabState, embedded, onNavigate]);
   useEffect(() => {
     if (!navigationRequested.current) return;
     navigationRequested.current = false;
@@ -141,11 +142,24 @@ export default function StationScheduler({ testMember = null, initialTask = "" }
   }, [tab]);
   const [schedulerView, setSchedulerView] = useWorkspaceViewState<"admin" | "employee">("scheduler-view", "employee");
   const [selectedDate, setSelectedDate] = useWorkspaceViewState("scheduler-date", todayIso);
-  const [setupMonth, setSetupMonth] = useWorkspaceViewState("scheduler-setup-month", () => todayIso().slice(0, 7));
+  const [savedSetupMonth, setSetupMonth] = useWorkspaceViewState("scheduler-setup-month", () => todayIso().slice(0, 7));
   const [adminDayMode, setAdminDayMode] = useWorkspaceViewState("scheduler-day-mode", true);
+  const setupMonth = initialMonth || savedSetupMonth;
+  const embeddedTask = useRef("");
+  useEffect(() => {
+    if (!embedded || !data?.viewer.isAdmin || !initialTask || embeddedTask.current === initialTask) return;
+    embeddedTask.current = initialTask;
+    setPreviewMember(false);
+    setSchedulerView("admin");
+    setTabState(initialTask);
+    if (initialTask === "calendar") {
+      setAdminDayMode(false);
+      if (initialDate && validQueueDate(initialDate)) setSelectedDate(initialDate);
+    }
+  }, [embedded, initialTask, initialDate, data?.viewer.isAdmin, setSchedulerView, setTabState, setSelectedDate, setAdminDayMode]);
   const adminDestinationApplied = useRef(false);
   useEffect(() => {
-    if (!data || adminDestinationApplied.current) return;
+    if (!data || embedded || adminDestinationApplied.current) return;
     adminDestinationApplied.current = true;
     const requestedParams = new URLSearchParams(window.location.search);
     const requested = initialTask || requestedParams.get("adminTask") || "";
@@ -155,15 +169,17 @@ export default function StationScheduler({ testMember = null, initialTask = "" }
       setSchedulerView("admin");
       setTab(requested);
     } else if (requested === "calendar") setTab("calendar");
-  }, [data, testMember, initialTask, setTab, setSchedulerView, setSelectedDate, setAdminDayMode]);
+  }, [data, testMember, initialTask, embedded, setTab, setSchedulerView, setSelectedDate, setAdminDayMode]);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [dayReturn, setDayReturn] = useState("overview");
-  const openStaffingDay = (date: string) => { setDayReturn(tab === "openAdmin" ? "openAdmin" : "overview"); setSelectedDate(date); setAdminDayMode(true); setTab("calendar"); };
+  const openStaffingDay = (date: string) => { if (embedded && onNavigate) { onNavigate('day', date); return; } setDayReturn(tab === "openAdmin" ? "openAdmin" : "overview"); setSelectedDate(date); setAdminDayMode(true); setTab("calendar"); };
   const [tradeSlotId, setTradeSlotId] = useState("");
   const [loadedAt, setLoadedAt] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [stale, setStale] = useState(false);
+  const writing = useRef(false);
 
   const load = useCallback(async () => {
     setRefreshing(true);
@@ -173,18 +189,23 @@ export default function StationScheduler({ testMember = null, initialTask = "" }
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? "Unable to load the scheduler.");
       setData(payload);
+      setStale(false);
       setLoadedAt(new Date().toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit" }));
     } catch (loadError) {
+      setStale(true);
       setError(loadError instanceof Error ? loadError.message : "Unable to load the scheduler.");
     } finally {
       setRefreshing(false);
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(); }, [load, refreshToken]);
 
   const act = useCallback(async (body: Record<string, unknown>) => {
     if (previewMember || testMember) { setError("Read-only preview. Return to editing before making changes."); return null; }
+    if (writing.current) return null;
+    if (stale) { setError("Refresh the saved schedule before making another change."); return null; }
+    writing.current = true;
     setBusy(true); setError(""); setNotice("");
     try {
       const response = await fetch("/api/station-scheduler", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -192,20 +213,22 @@ export default function StationScheduler({ testMember = null, initialTask = "" }
       if (!response.ok) throw new Error(payload.error ?? "Unable to save.");
       setNotice(payload.note ? String(payload.note) : ["submitClaim", "submitTrade", "respondTrade", "createTrade", "acceptTrade"].includes(String(body.action)) ? "Saved. Check My Requests for request status; requests are not assignments until approved." : "Saved successfully.");
       await load();
+      onSaved?.();
       return payload;
     } catch (actError) {
       setError(actError instanceof Error ? actError.message : "Unable to save.");
       return null;
     } finally {
+      writing.current = false;
       setBusy(false);
     }
-  }, [load, previewMember, testMember]);
+  }, [load, previewMember, testMember, onSaved, stale]);
 
   const employeeName = useCallback((id: string | null | undefined) => data?.employees.find((e) => e.id === id)?.name ?? "", [data]);
   const shiftTypeName = useCallback((id: string) => data?.shiftTypes.find((s) => s.id === id)?.name ?? "", [data]);
 
   const accountIsAdmin = data?.viewer.isAdmin ?? false;
-  const isAdmin = accountIsAdmin && schedulerView === "admin" && !previewMember;
+  const isAdmin = accountIsAdmin && (embedded || schedulerView === "admin") && !previewMember;
   const adminTabs = [
     ["setup", "Set up a month"],
     ["overview", "Admin home"], ["openAdmin", "Open positions"], ["safety", "Schedule review"],
@@ -228,13 +251,14 @@ export default function StationScheduler({ testMember = null, initialTask = "" }
   const visibleTabs = isAdmin ? tabs.filter(([id]) => activeGroup.ids.includes(id)) : tabs;
   const returnTab = isAdmin ? (tab === "calendar" ? dayReturn : "overview") : "myshifts";
   const returnLabel = isAdmin ? (returnTab === "openAdmin" ? "open positions" : "schedule tasks") : "my shifts";
-  const managedReturn = useWorkspaceTaskReturn("Scheduling", data && !previewMember && tab !== (isAdmin ? "overview" : "myshifts") ? returnLabel : null, () => setTab(returnTab), { task: tabs.find(([id]) => id === tab)?.[1], record: tab === "calendar" ? friendlyDate(selectedDate) : undefined, disabled: busy });
+  const managedReturn = useWorkspaceTaskReturn("Scheduling", data && !embedded && !previewMember && tab !== (isAdmin ? "overview" : "myshifts") ? returnLabel : null, () => setTab(returnTab), { task: tabs.find(([id]) => id === tab)?.[1], record: tab === "calendar" ? friendlyDate(selectedDate) : undefined, disabled: busy });
 
   if (error && !data) return <div className="scheduler"><p className="error" role="alert">{error}</p><button type="button" disabled={refreshing} onClick={() => void load()}>{refreshing ? "Retrying…" : "Retry schedule"}</button></div>;
   if (!data) return <div key="loading" className="scheduler scheduler-loading" aria-busy="true" aria-label="Loading station schedule"><p role="status">Loading the scheduler…</p><div className="scheduler-loading-panels" aria-hidden="true"><span /><span /><span /><span /></div></div>;
 
   return (
-    <div key={`${isAdmin ? "admin" : "member"}:${tab}`} className="scheduler">
+    <div key={`${isAdmin ? "admin" : "member"}:${tab}`} className={`scheduler${embedded ? " scheduler-embedded" : ""}`}>
+      {!embedded && <>
       <header className="scheduler-brand">
         <div className="scheduler-brand-mark" aria-hidden="true">S</div>
         <div>
@@ -249,11 +273,13 @@ export default function StationScheduler({ testMember = null, initialTask = "" }
         <strong>{data.viewer.name || "Department member"}</strong>
         {isAdmin && <button type="button" className="scheduler-preview-button" disabled={busy || refreshing || Boolean(error)} title={error ? "Reload the saved schedule before previewing." : "Preview the last successfully loaded schedule without changing it."} onClick={() => { if (!confirmLeavingWork()) return; previewReturn.current = tab; setPreviewMember(true); setTabState("calendar"); }}>Preview member layout</button>}
       </div>
+      </>}
       {previewMember && <div className="workspace-preview-banner" role="status"><div><strong>Member layout preview · read only</strong><p>Saved schedule for {friendlyDate(selectedDate)}. This does not sign in as another member or test their permissions. No requests or assignments can be saved here.</p></div><button type="button" onClick={() => { setPreviewMember(false); setSchedulerView("admin"); setTabState(previewReturn.current); }}>← Back to editing</button></div>}
-      <p className="muted">{error ? "Schedule could not be confirmed. Refresh before relying on these assignments." : `Last loaded ${loadedAt} Central time. Refresh to check for changes.`}</p>
+      <p className="muted">{stale ? "Schedule could not be confirmed. Refresh before relying on these assignments." : `Last loaded ${loadedAt} Central time. Refresh to check for changes.`}</p>
+      {embedded && isAdmin && <button type="button" disabled={busy || refreshing || stale} onClick={() => { if (!confirmLeavingWork()) return; previewReturn.current = tab; setPreviewMember(true); setTabState('calendar'); }}>Preview member layout</button>}
       {error && <div className="error" role="alert"><p>{error}</p><p>Your unsaved inputs stay on this screen. Review the message, then retry the action.</p><button type="button" disabled={refreshing || busy} onClick={() => void load()}>Retry loading saved schedule</button></div>}
       {notice && <div className="success" role="status"><p>{notice}</p>{!isAdmin && !previewMember && <button type="button" onClick={() => setTab("myrequests")}>View my request status →</button>}</div>}
-      <div ref={navigationRef} className="scheduler-navigation-anchor">
+      {!embedded && <div ref={navigationRef} className="scheduler-navigation-anchor">
       <details className="scheduler-job-chooser" open={jobChooserOpen} onToggle={event => setJobChooserOpen(event.currentTarget.open)}>
       <summary>Schedule sections · {tabs.find(([id]) => id === tab)?.[1] || "Choose a task"}</summary>
       {isAdmin && <nav className="scheduler-task-groups" aria-label="Scheduling task groups">{taskGroups.map(group => <button type="button" key={group.label} aria-pressed={group === activeGroup} onClick={() => { if (!confirmLeavingWork()) return; setTabState(group.ids[0]); }}>{group.label}</button>)}</nav>}
@@ -266,13 +292,15 @@ export default function StationScheduler({ testMember = null, initialTask = "" }
         ))}
       </nav>
       </details>
-      </div>
-      {tab !== (isAdmin ? "overview" : "myshifts") && !previewMember && <div className="scheduler-task-context">{!managedReturn && <button type="button" onClick={() => setTab(returnTab)}>← Back to {returnLabel}</button>}<strong>{tabs.find(([id]) => id === tab)?.[1]}{tab === "calendar" ? ` · ${friendlyDate(selectedDate)}` : ""}</strong></div>}
-      {isAdmin && !previewMember && tab !== 'setup' && <p><button type="button" className="link" onClick={() => setTab('setup')}>Set up a month →</button></p>}
-      <fieldset className="scheduler-workspace-fields" disabled={previewMember || Boolean(testMember)}>
-      {isAdmin && tab === 'setup' && <ScheduleSetup data={data} month={setupMonth} onMonth={setSetupMonth} onOpen={screen => {
+      </div>}
+      {!embedded && tab !== (isAdmin ? "overview" : "myshifts") && !previewMember && <div className="scheduler-task-context">{!managedReturn && <button type="button" onClick={() => setTab(returnTab)}>← Back to {returnLabel}</button>}<strong>{tabs.find(([id]) => id === tab)?.[1]}{tab === "calendar" ? ` · ${friendlyDate(selectedDate)}` : ""}</strong></div>}
+      {!embedded && isAdmin && !previewMember && tab !== 'setup' && <p><button type="button" className="link" onClick={() => setTab('setup')}>Set up a month →</button></p>}
+      <fieldset className="scheduler-workspace-fields" disabled={previewMember || Boolean(testMember) || refreshing || stale || busy}>
+      {isAdmin && tab === 'setup' && <ScheduleSetup data={data} month={setupMonth} onMonth={value => { setSetupMonth(value); onMonthChange?.(value); }} onOpen={screen => {
         const range = scheduleMonthRange(setupMonth);
-        if (!range || !confirmLeavingWork()) return;
+        if (!range) return;
+        if (embedded && onNavigate) { onNavigate(screen, range.from); return; }
+        if (!confirmLeavingWork()) return;
         setSelectedDate(range.from);
         if (screen === 'calendar') setAdminDayMode(false);
         navigationRequested.current = true;
@@ -306,7 +334,7 @@ export default function StationScheduler({ testMember = null, initialTask = "" }
       {tab === "open" && !isAdmin && <MemberOpenShifts data={data} act={act} busy={busy || refreshing || Boolean(error)} />}
       {tab === "accepttrades" && !isAdmin && <MyRequestsScreen data={data} act={act} busy={busy} incomingOnly />}
 
-      {tab === "calendar" && <CalendarScreen data={data} isAdmin={isAdmin} adminDayMode={adminDayMode} setAdminDayMode={setAdminDayMode} selectedDate={selectedDate} setSelectedDate={setSelectedDate} act={act} busy={busy} employeeName={employeeName} shiftTypeName={shiftTypeName} onTrade={(id) => { setTradeSlotId(id); setTab("trades"); }} />}
+      {tab === "calendar" && <CalendarScreen data={data} isAdmin={isAdmin} adminDayMode={adminDayMode} setAdminDayMode={setAdminDayMode} selectedDate={selectedDate} setSelectedDate={value => { setSelectedDate(value); onDateChange?.(value); onMonthChange?.(value.slice(0, 7)); }} act={act} busy={busy} employeeName={employeeName} shiftTypeName={shiftTypeName} onTrade={(id) => { setTradeSlotId(id); setTab("trades"); }} />}
       {tab === "shiftTypes" && isAdmin && <ShiftBuilder data={data} act={act} busy={busy} />}
       {tab === "roster" && isAdmin && <RosterScreen data={data} act={act} busy={busy} shiftTypeName={shiftTypeName} />}
       {tab === "requests" && isAdmin && <RequestsScreen data={data} act={act} busy={busy} employeeName={employeeName} mode="claims" />}
@@ -314,7 +342,7 @@ export default function StationScheduler({ testMember = null, initialTask = "" }
       {tab === "trades" && !isAdmin && <TradeRequestScreen initialSlotId={tradeSlotId} data={data} act={act} busy={busy} />}
       {tab === "timeoff" && isAdmin && <TimeOffScreen data={data} isAdmin={isAdmin} act={act} busy={busy} />}
       {tab === "availability" && <AvailabilityScreen data={data} isAdmin={isAdmin} act={act} busy={busy} initialMonth={isAdmin ? setupMonth : undefined} />}
-      {tab === "distribution" && isAdmin && <DistributionScreen data={data} act={act} busy={busy} initialMonth={setupMonth} onReview={date => { setSelectedDate(date); setAdminDayMode(false); setTab('calendar'); }} />}
+      {tab === "distribution" && isAdmin && <DistributionScreen data={data} act={act} busy={busy} initialMonth={setupMonth} onReview={date => { if (embedded && onNavigate) { onNavigate('calendar', date); return; } setSelectedDate(date); setAdminDayMode(false); setTab('calendar'); }} />}
       {tab === "reminders" && isAdmin && <RemindersScreen data={data} act={act} busy={busy} />}
       {tab === "confirmation" && isAdmin && <RequiredConfirmationAdmin />}
       {tab === "myrequests" && !isAdmin && <MyRequestsScreen data={data} act={act} busy={busy} />}
@@ -789,6 +817,7 @@ function ShiftBuilder({ data, act, busy }: { data: Data; act: (b: Record<string,
   const [roleCounts, setRoleCounts] = useState<Record<string, number>>(() => staffingDefaults());
   const [formError, setFormError] = useState("");
 
+  useUnsavedWork(Boolean(name || startTime !== "0600" || endTime !== "0600" || anchorDate !== todayIso() || repeatEveryDays !== 1 || color !== "red" || JSON.stringify(roleCounts) !== JSON.stringify(staffingDefaults())), busy);
   const roleReqs = Object.entries(roleCounts).filter(([, count]) => count > 0).map(([role, count]) => ({ role, count }));
   const save = async () => {
     setFormError("");
@@ -799,7 +828,7 @@ function ShiftBuilder({ data, act, busy }: { data: Data; act: (b: Record<string,
     if (!Number.isInteger(repeatEveryDays) || repeatEveryDays < 1 || repeatEveryDays > 365) { setFormError("Repeat every must be a whole number from 1 to 365 days."); return; }
     if (!roleReqs.length) { setFormError("Set at least one required role before saving."); return; }
     const result = await act({ action: "saveShiftType", name: name.trim(), startTime: normStart, endTime: normEnd, anchorDate, repeatEveryDays, color, roleRequirements: roleReqs });
-    if (result) { setName(""); setStartTime("0600"); setEndTime("0600"); setAnchorDate(todayIso()); setRepeatEveryDays(1); setRoleCounts(staffingDefaults()); }
+    if (result) { setName(""); setStartTime("0600"); setEndTime("0600"); setAnchorDate(todayIso()); setRepeatEveryDays(1); setColor("red"); setRoleCounts(staffingDefaults()); }
   };
 
   return (
@@ -857,6 +886,7 @@ function RosterScreen({ data, act, busy, shiftTypeName }: { data: Data; act: (b:
   const [standEmp, setStandEmp] = useState("");
   const [standType, setStandType] = useState("");
   const [standRole, setStandRole] = useState("");
+  useUnsavedWork(Boolean(standEmp || standType || standRole), busy);
 
   return (
     <div className="scheduler-grid scheduler-roster">

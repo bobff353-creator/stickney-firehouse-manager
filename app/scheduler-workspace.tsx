@@ -2,6 +2,7 @@
 /* eslint-disable @next/next/no-img-element -- Fixed-size local department patch. */
 
 import dynamic from "next/dynamic";
+import { scheduleDestination, isScheduleWorkspaceScreen } from "./scheduler-navigation";
 import { confirmLeavingWork } from "./use-unsaved-work";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { shiftHasNotStarted } from "./scheduler-member-view";
@@ -38,9 +39,13 @@ const memberTabs = [
   ["requests", "Requests"],
 ];
 const adminTabs = [
+  ["setup", "Set up a month"],
+  ["availability", "Availability"],
   ["staffing", "Staffing"],
+  ["calendarDetail", "Calendar"],
   ["approvals", "Approvals"],
-  ["patterns", "Recurring"],
+  ["patterns", "Shift patterns"],
+  ["roster", "Recurring crews"],
   ["people", "People"],
   ["alerts", "Alerts"],
 ];
@@ -58,6 +63,7 @@ export default function SchedulerWorkspace({
   const [wholeCrew, setWholeCrew] = useState(false);
   const [month, setMonth] = useState("");
   const [advanced, setAdvanced] = useState("");
+  const [toolsRefresh, setToolsRefresh] = useState(0);
   const [dialog, setDialog] = useState<ScheduleDialogState | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -101,12 +107,12 @@ export default function SchedulerWorkspace({
         }
         if (result.viewer.isAdmin && !testMember && requested) {
           setMode("admin");
-          if (["calendar", "overview", "openAdmin"].includes(requested))
-            setTab("staffing");
+          if (requested === "calendar") setAdvanced("calendarDetail");
+          else if (["overview", "openAdmin"].includes(requested)) setTab("staffing");
           else if (["trades", "requests"].includes(requested))
             setTab("approvals");
           else if (requested === "shiftTypes") setTab("patterns");
-          else if (requested === "roster") setTab("people");
+          else if (requested === "roster") setAdvanced("roster");
           else if (requested === "reminders") setTab("alerts");
           else setAdvanced(requested);
         }
@@ -173,12 +179,28 @@ export default function SchedulerWorkspace({
       setBusy(false);
     }
   };
-  const navigate = (next: string) => {
-    setTab(next);
+  const navigate = (next: string, nextDate?: string) => {
+    if (!confirmLeavingWork()) return false;
+    const destination = scheduleDestination(next, Boolean(advanced) && mode === "admin");
+    const native = isScheduleWorkspaceScreen(destination);
+    if (native) {
+      if (advanced) void load();
+      setAdvanced("");
+      setTab(destination);
+      if (next === "calendar" || next === "day") {
+        const selected = nextDate || month + "-01";
+        if (validScheduleDate(selected)) { setDate(selected); setMonth(selected.slice(0, 7)); }
+        setCalendar(next === "calendar");
+      }
+    } else {
+      if (next === "calendar" && nextDate && validScheduleDate(nextDate)) { setDate(nextDate); setMonth(nextDate.slice(0, 7)); }
+      setAdvanced(destination);
+    }
     setError("");
     setNotice("");
     if (window.matchMedia("(max-width: 700px)").matches)
       heading.current?.scrollIntoView({ block: "start", behavior: "instant" });
+    return true;
   };
   if (!data)
     return (
@@ -222,24 +244,6 @@ export default function SchedulerWorkspace({
     else if (slot.status === "open") setDialog({ kind: "claim", slot });
     else setDialog({ kind: "details", slot });
   };
-  if (advanced && isAdmin)
-    return (
-      <>
-        <section className="sf-schedule">
-          <button
-            className="sf-back"
-            onClick={() => {
-              if (!confirmLeavingWork()) return;
-              setAdvanced("");
-              void load();
-            }}
-          >
-            ← Back to schedule
-          </button>
-        </section>
-        <ManagementTools key={advanced} initialTask={advanced} />
-      </>
-    );
   return (
     <section
       className="sf-schedule"
@@ -265,6 +269,7 @@ export default function SchedulerWorkspace({
             onClick={() => {
               setError("");
               void load();
+              setToolsRefresh(value => value + 1);
             }}
             aria-label="Refresh schedule"
           >
@@ -275,8 +280,7 @@ export default function SchedulerWorkspace({
               <button
                 aria-pressed={mode === "member"}
                 onClick={() => {
-                  setMode("member");
-                  navigate("shifts");
+                  if (navigate("shifts")) setMode("member");
                 }}
               >
                 My schedule
@@ -284,8 +288,7 @@ export default function SchedulerWorkspace({
               <button
                 aria-pressed={mode === "admin"}
                 onClick={() => {
-                  setMode("admin");
-                  navigate("staffing");
+                  if (navigate("staffing")) setMode("admin");
                 }}
               >
                 Manage
@@ -294,10 +297,10 @@ export default function SchedulerWorkspace({
           )}
         </div>
       </div>
-      <p className="sf-sync">
+      {!advanced && <p className="sf-sync">
         {loading ? "Refreshing…" : `Firehouse Manager · updated ${loadedAt} CT`}{" "}
         {testMember ? "· Read-only member preview" : ""}
-      </p>
+      </p>}
       {error && (
         <div className="sf-message sf-error" role="alert">
           {error}
@@ -316,7 +319,7 @@ export default function SchedulerWorkspace({
           {(view === "admin" ? adminTabs : memberTabs).map(([id, label]) => (
             <button
               key={id}
-              aria-current={tab === id ? "page" : undefined}
+              aria-current={(advanced || tab) === id ? "page" : undefined}
               onClick={() => navigate(id)}
             >
               {label}
@@ -329,6 +332,16 @@ export default function SchedulerWorkspace({
             </button>
           ))}
         </nav>
+        {view === "admin" && <div className="sf-tools-navigation">
+          <label>All scheduling tools<select aria-label="All scheduling tools" value={advanced || tab} onChange={event => navigate(event.target.value)}>
+            {[...adminTabs, ["shiftTypes", "Add shift patterns"], ["distribution", "Fill open positions"], ["openAdmin", "Find open positions"], ["safety", "Conflicts & rules"], ["reminders", "All reminders & deadlines"], ["confirmation", "Required confirmation"]].map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+          </select></label>
+          <p>One saved department schedule. Review changes before saving. Automatic texts and emails remain off.</p>
+        </div>}
+        {view === "admin" && advanced ? <div className="sf-integrated-tools">
+          <div className="sf-section-heading"><button className="sf-secondary" onClick={() => navigate("staffing")}>Back to staffing</button></div>
+          <ManagementTools embedded initialTask={advanced === "calendarDetail" ? "calendar" : advanced} initialDate={date.slice(0, 7) === month ? date : month + "-01"} initialMonth={month} onDateChange={setDate} onMonthChange={setMonth} onNavigate={navigate} refreshToken={toolsRefresh} onSaved={() => { void load(); }} />
+        </div> : <>
         {view === "member" &&
           (tab === "shifts" || !memberTabs.some(([id]) => id === tab)) && (
             <>
@@ -557,21 +570,11 @@ export default function SchedulerWorkspace({
               </div>
               <button
                 className="sf-secondary"
-                onClick={() => setCalendar((c) => !c)}
+                onClick={() => navigate("calendarDetail")}
               >
-                {calendar ? "Hide calendar" : "Month calendar"}
+                Month calendar
               </button>
             </div>
-            {calendar && (
-              <ScheduleCalendar
-                data={data}
-                date={date}
-                month={month}
-                setMonth={setMonth}
-                setDate={changeDate}
-                employeeId=""
-              />
-            )}
             <div className="sf-stats">
               <div>
                 <strong>
@@ -766,6 +769,7 @@ export default function SchedulerWorkspace({
             </button>
           </>
         )}
+        </>}
       </>
       {dialog && (
         <ScheduleDialog

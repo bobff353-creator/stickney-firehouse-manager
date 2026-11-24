@@ -1,6 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import SchedulerWorkspace from "../../app/scheduler-workspace";
+import { distributionConsent } from "../../app/station-distribution";
 import { WorkspaceViewMemory } from "../../app/workspace-view-state";
 import "../../app/globals.css";
 import "../../app/portal-contrast.css";
@@ -111,7 +112,7 @@ const data = {
     shiftTypeId: shift.id,
   })),
   slots,
-  standingAssignments: [],
+  standingAssignments: [] as object[],
   trades: [
     {
       id: "broadcast",
@@ -161,7 +162,13 @@ const data = {
   ],
   requestDeadlines: [] as object[],
   pushConfigured: false,
+  awardBySlot: {}, otTiming: { awardDaysOut: 7, completeByDaysOut: 2 }, otInterest: [], otOffers: [], otStandings: {},
+  notice: { openShifts: 60, overdueShifts: 0, pendingTrades: 1, pendingClaims: 0, pendingTimeOff: 0 },
 };
+if (params.has("unified-flow")) {
+  data.standingAssignments.push({ id: "fixture-standing", employeeId: employees[0].id, employeeName: employees[0].name, shiftTypeId: shift.id, role: "FF/Attendant", active: 1 });
+  data.availability.push({ id: "fixture-available", employeeId: employees[2].id, availabilityDate: date(4), status: "available", allDay: 0, startTime: "06:00", endTime: "18:00", note: "" });
+}
 const writes: object[] = [];
 let failNext = params.has("failure");
 window.fetch = async (input, init) => {
@@ -181,6 +188,15 @@ window.fetch = async (input, init) => {
         { error: "Simulated connection failure. Your selections are kept." },
         { status: 503 },
       );
+    }
+    if (body.action === "runAutoDistribution" && params.has("unified-flow")) {
+      const open = slots.filter(s => s.status === "open" && s.entryDate >= body.fromDate && s.entryDate <= body.endDate);
+      let assigned = 0;
+      for (const position of open) {
+        const eligible = employees.find(e => distributionConsent({ ...position, shiftActive: 1 }, e.id, data.availability as Parameters<typeof distributionConsent>[2], []));
+        if (eligible) { Object.assign(position, { employeeId: eligible.id, employeeName: eligible.name, status: "filled" }); assigned++; }
+      }
+      return Response.json({ ok: true, assigned, unfilled: open.length - assigned });
     }
     if (body.action === "respondTrade") {
       const trade = data.trades.find((t) => t.id === body.id)!;

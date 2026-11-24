@@ -1,4 +1,21 @@
 /* Scoped Stickney styling, including native dialogs and portal contrast overrides. */
+.sf-schedule .sf-tools-navigation { display: flex; gap: 16px; align-items: end; flex-wrap: wrap; margin: 16px 0 24px; }
+.sf-schedule .sf-tools-navigation label { flex: 1 1 260px; }
+.sf-schedule .sf-tools-navigation p { flex: 2 1 260px; padding-bottom: 8px; }
+.sf-schedule .sf-integrated-tools > .sf-section-heading { margin-bottom: 16px; }
+:is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded { padding: 0; margin: 0; max-width: none; width: 100%; background: transparent; color: var(--sf-ink); font-family: inherit; }
+.sf-schedule .scheduler-embedded .scheduler-workspace-fields { padding: 0; margin: 0; border: 0; min-width: 0; }
+.sf-schedule .scheduler-embedded :is(.scheduler-grid > section, .scheduler-admin-home, .scheduler-roster, .schedule-setup) { background: var(--sf-surface); color: var(--sf-ink); border: 1px solid var(--sf-line); border-radius: 12px; }
+.sf-schedule .scheduler-embedded .scheduler-grid { gap: 16px; }
+.sf-schedule .scheduler-embedded :is(p, h3, h4, label, legend, strong) { color: inherit; }
+.sf-schedule .scheduler-embedded :is(button, input, select, textarea) { font-family: inherit; }
+.sf-schedule .scheduler-embedded input:is([type=checkbox], [type=radio]) { width: auto; min-height: 0; margin: 0; }
+.sf-schedule .scheduler-embedded .row { gap: 12px; }
+.sf-schedule .scheduler-embedded .chip { display: inline-flex; align-items: center; gap: 8px; }
+:is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded .schedule-setup .schedule-setup-note { color: #102b40; }
+:is(#portal-workspace .sf-schedule, .sf-schedule) .sf-tabs button { flex: 0 0 auto; }
+@media (max-width: 700px) { :is(#portal-workspace .sf-schedule, .sf-schedule) .sf-tabs[aria-label="Schedule management"] { display: none; } }
+@media (max-width: 600px) { .sf-schedule .sf-tools-navigation { display: block; } .sf-schedule .sf-tools-navigation p { margin-top: 10px; } }
 :is(#portal-workspace .sf-schedule, .sf-schedule) {
   --sf-navy: #17324d;
   --sf-gold: #e8b642;
