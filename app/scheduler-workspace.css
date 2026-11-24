@@ -1,4 +1,7 @@
 /* Scoped Stickney styling, including native dialogs and portal contrast overrides. */
+.sf-dialog fieldset.sf-dialog-body { border: 0; margin: 0; min-width: 0; }
+.sf-dialog .sf-weekday-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+:is(#portal-workspace .sf-schedule, .sf-schedule).sf-dialog .sf-weekday-options .sf-check { min-height: 44px; padding: 8px; border: 1px solid var(--sf-line); border-radius: 8px; margin: 0; }
 .sf-schedule .sf-tools-navigation { display: flex; gap: 16px; align-items: end; flex-wrap: wrap; margin: 16px 0 24px; }
 .sf-schedule .sf-tools-navigation label { flex: 1 1 260px; }
 .sf-schedule .sf-tools-navigation p { flex: 2 1 260px; padding-bottom: 8px; }

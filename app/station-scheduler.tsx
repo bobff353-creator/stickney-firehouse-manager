@@ -2,6 +2,7 @@
 import { SaveStatus } from "./save-status";
 import { ScheduleSetup } from './schedule-setup';
 import { scheduleMonthRange } from './schedule-setup-model';
+import { scheduleSaveFeedback } from './scheduler-save-feedback';
 
 import "./scheduler-member.css";
 import { schedulerAdminTask } from "./admin-tasks";
@@ -145,10 +146,12 @@ export default function StationScheduler({ testMember = null, initialTask = "", 
   const [savedSetupMonth, setSetupMonth] = useWorkspaceViewState("scheduler-setup-month", () => todayIso().slice(0, 7));
   const [adminDayMode, setAdminDayMode] = useWorkspaceViewState("scheduler-day-mode", true);
   const setupMonth = initialMonth || savedSetupMonth;
+  const [notice, setNotice] = useState("");
   const embeddedTask = useRef("");
   useEffect(() => {
     if (!embedded || !data?.viewer.isAdmin || !initialTask || embeddedTask.current === initialTask) return;
     embeddedTask.current = initialTask;
+    setNotice("");
     setPreviewMember(false);
     setSchedulerView("admin");
     setTabState(initialTask);
@@ -171,7 +174,6 @@ export default function StationScheduler({ testMember = null, initialTask = "", 
     } else if (requested === "calendar") setTab("calendar");
   }, [data, testMember, initialTask, embedded, setTab, setSchedulerView, setSelectedDate, setAdminDayMode]);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [dayReturn, setDayReturn] = useState("overview");
   const openStaffingDay = (date: string) => { if (embedded && onNavigate) { onNavigate('day', date); return; } setDayReturn(tab === "openAdmin" ? "openAdmin" : "overview"); setSelectedDate(date); setAdminDayMode(true); setTab("calendar"); };
@@ -211,7 +213,10 @@ export default function StationScheduler({ testMember = null, initialTask = "", 
       const response = await fetch("/api/station-scheduler", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? "Unable to save.");
-      setNotice(payload.note ? String(payload.note) : ["submitClaim", "submitTrade", "respondTrade", "createTrade", "acceptTrade"].includes(String(body.action)) ? "Saved. Check My Requests for request status; requests are not assignments until approved." : "Saved successfully.");
+      if (payload.ok !== true) { setStale(true); throw new Error("The server did not confirm the save. Refresh the saved schedule before trying again."); }
+      const action = String(body.action);
+      const message = action === 'saveAvailability' ? 'Available days and hours saved. Next: review Saved entries below. Existing assignments are unchanged.' : action === 'saveStandingAssignment' || action === 'removeStandingAssignment' ? 'Recurring crew change saved. Review the saved Standing assignments list.' : ['updateDaySlot','updateDaySlotTime','createEntry','deleteEntry','deleteDaySlot'].includes(action) ? 'Day staffing change saved. Review the saved positions and times below.' : scheduleSaveFeedback(body).message;
+      setNotice(message + (payload.note ? ' ' + String(payload.note) : ''));
       await load();
       onSaved?.();
       return payload;
@@ -741,6 +746,7 @@ function DaySlotTimeEditor({ slot, scheduledStart, scheduledEnd, act, busy }: {
   const [editing, setEditing] = useState(false);
   const [startTime, setStartTime] = useState(fourDigitTime(slot.startTime));
   const [endTime, setEndTime] = useState(fourDigitTime(slot.endTime));
+  useUnsavedWork(editing && (startTime !== fourDigitTime(slot.startTime) || endTime !== fourDigitTime(slot.endTime)), busy && editing);
   if (!editing) return <button type="button" className="slot-time slot-time-button" aria-label={`Adjust time for ${slot.role}`} onClick={() => setEditing(true)}>
     <span>{slot.startTime}–{slot.endTime}</span>
     <small>{slot.hasTimeOverride ? "One-day time" : "Adjust time"}</small>
@@ -748,7 +754,7 @@ function DaySlotTimeEditor({ slot, scheduledStart, scheduledEnd, act, busy }: {
   return <div className="slot-time-editor">
     <label><span>Start (24-hour)</span><input value={startTime} inputMode="numeric" maxLength={4} placeholder="0600" onChange={(event) => setStartTime(event.target.value.replace(/\D/g, "").slice(0, 4))} /></label>
     <label><span>End (24-hour)</span><input value={endTime} inputMode="numeric" maxLength={4} placeholder="1800" onChange={(event) => setEndTime(event.target.value.replace(/\D/g, "").slice(0, 4))} /></label>
-    <div className="slot-time-editor-actions"><button type="button" className="link" onClick={() => setEditing(false)}>Cancel</button>{Boolean(slot.hasTimeOverride) && <button type="button" className="link" disabled={busy} onClick={async () => { const result = await act({ action: "updateDaySlotTime", slotId: slot.id, reset: true }); if (result) setEditing(false); }}>Use scheduled time</button>}<button type="button" disabled={busy} onClick={async () => { const result = await act({ action: "updateDaySlotTime", slotId: slot.id, startTime, endTime }); if (result) setEditing(false); }}>Save position time</button></div>
+    <div className="slot-time-editor-actions"><button type="button" className="link" onClick={() => { setStartTime(fourDigitTime(slot.startTime)); setEndTime(fourDigitTime(slot.endTime)); setEditing(false); }}>Cancel</button>{Boolean(slot.hasTimeOverride) && <button type="button" className="link" disabled={busy} onClick={async () => { const result = await act({ action: "updateDaySlotTime", slotId: slot.id, reset: true }); if (result) setEditing(false); }}>Use scheduled time</button>}<button type="button" disabled={busy} onClick={async () => { const result = await act({ action: "updateDaySlotTime", slotId: slot.id, startTime, endTime }); if (result) setEditing(false); }}>Save position time</button></div>
     <p>Scheduled fallback: {scheduledStart}–{scheduledEnd}. This change applies only to this position on this day.</p>
   </div>;
 }
@@ -763,6 +769,7 @@ function DayPositionForm({ entryId, date, shiftTypeId, defaultStart, defaultEnd,
   const [startTime, setStartTime] = useState(fourDigitTime(defaultStart));
   const [endTime, setEndTime] = useState(fourDigitTime(defaultEnd));
   const [employeeId, setEmployeeId] = useState("");
+  useUnsavedWork(open && Boolean(staffingReason || employeeId || startTime !== fourDigitTime(defaultStart) || endTime !== fourDigitTime(defaultEnd)), busy && open);
   const eligibleEmployees = employees.filter((employee) => employeeEligibleForRole(employee, role));
   const save = async () => {
     const result = await act({ action: "addDaySlot", entryId, date, shiftTypeId, role, startTime, endTime, employeeId, staffingReason });
@@ -779,7 +786,7 @@ function DayPositionForm({ entryId, date, shiftTypeId, defaultStart, defaultEnd,
       <label><span>Employee (optional)</span><select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)}><option value="">Post as open position</option>{eligibleEmployees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name} · {employee.rank}</option>)}</select></label>
     </div>
     <p className="form-help">This adds one position to this date only. It does not change the repeating shift or its minimum staffing.</p>
-    <div className="day-position-actions"><button type="button" className="link" onClick={() => setOpen(false)}>Cancel</button><button type="button" disabled={busy} onClick={save}>Post position</button></div>
+    <div className="day-position-actions"><button type="button" className="link" onClick={() => { setStaffingReason(""); setEmployeeId(""); setStartTime(fourDigitTime(defaultStart)); setEndTime(fourDigitTime(defaultEnd)); setOpen(false); }}>Cancel</button><button type="button" disabled={busy} onClick={save}>Post position</button></div>
   </div>;
 }
 
@@ -791,6 +798,7 @@ function ExtraDaySlotEditor({ slot, roles, employees, act, busy }: {
   const [startTime, setStartTime] = useState(fourDigitTime(slot.startTime));
   const [endTime, setEndTime] = useState(fourDigitTime(slot.endTime));
   const [employeeId, setEmployeeId] = useState(slot.employeeId ?? "");
+  useUnsavedWork(editing && (role !== slot.role || employeeId !== (slot.employeeId ?? "") || startTime !== fourDigitTime(slot.startTime) || endTime !== fourDigitTime(slot.endTime)), busy && editing);
   const eligibleEmployees = employees.filter((employee) => employeeEligibleForRole(employee, role));
   const currentEmployee = employees.find((employee) => employee.id === employeeId);
   const assignableEmployees = currentEmployee && !eligibleEmployees.some((employee) => employee.id === currentEmployee.id) ? [currentEmployee, ...eligibleEmployees] : eligibleEmployees;
@@ -802,7 +810,7 @@ function ExtraDaySlotEditor({ slot, roles, employees, act, busy }: {
       <label><span>End</span><input value={endTime} inputMode="numeric" maxLength={4} onChange={(e) => setEndTime(e.target.value.replace(/\D/g, "").slice(0, 4))} /></label>
       <label><span>Employee</span><select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)}><option value="">Open position</option>{assignableEmployees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name} · {employee.rank}</option>)}</select></label>
     </div>
-    <div className="day-position-actions"><button type="button" className="link" onClick={() => setEditing(false)}>Cancel</button><button type="button" disabled={busy} onClick={async () => { const result = await act({ action: "updateDaySlot", slotId: slot.id, role, startTime, endTime, employeeId }); if (result) setEditing(false); }}>Save changes</button></div>
+    <div className="day-position-actions"><button type="button" className="link" onClick={() => { setRole(slot.role); setEmployeeId(slot.employeeId ?? ""); setStartTime(fourDigitTime(slot.startTime)); setEndTime(fourDigitTime(slot.endTime)); setEditing(false); }}>Cancel</button><button type="button" disabled={busy} onClick={async () => { const result = await act({ action: "updateDaySlot", slotId: slot.id, role, startTime, endTime, employeeId }); if (result) setEditing(false); }}>Save changes</button></div>
   </div>;
 }
 
@@ -992,7 +1000,7 @@ function AvailabilityScreen({ data, isAdmin, act, busy, initialMonth }: { data: 
   const [memberId, setMemberId] = useState(initialMemberId);
   const [monthDate, setMonthDate] = useState(`${scheduleMonthRange(initialMonth ?? '')?.from ?? data.today.slice(0, 7) + '-01'}`);
   const [picked, setPicked] = useState<string[]>([]);
-  const [status, setStatus] = useState<"available" | "unavailable">("available");
+  const status = "available";
   const [allDay, setAllDay] = useState(true);
   const [startTime, setStartTime] = useState("06:00");
   const [endTime, setEndTime] = useState("18:00");
@@ -1000,6 +1008,7 @@ function AvailabilityScreen({ data, isAdmin, act, busy, initialMonth }: { data: 
   const [customRepeat, setCustomRepeat] = useState(false);
   const [repeatThrough, setRepeatThrough] = useState("");
   const [note, setNote] = useState("");
+  useUnsavedWork(Boolean(picked.length || note), busy && Boolean(picked.length || note));
   const monthKey = monthDate.slice(0, 7);
   const firstDay = new Date(`${monthKey}-01T12:00:00`);
   const daysInMonth = new Date(firstDay.getFullYear(), firstDay.getMonth() + 1, 0).getDate();
@@ -1007,13 +1016,15 @@ function AvailabilityScreen({ data, isAdmin, act, busy, initialMonth }: { data: 
   const memberEntries = data.availability.filter((row) => row.employeeId === memberId);
   const entryByDate = new Map(memberEntries.map((row) => [row.availabilityDate, row]));
   const changeMonth = (delta: number) => {
+    if (!confirmLeavingWork()) return;
     const next = new Date(firstDay.getFullYear(), firstDay.getMonth() + delta, 1, 12);
     setMonthDate(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-01`);
     setPicked([]);
   };
   const editEntry = (entry: Availability) => {
+    if (!confirmLeavingWork()) return;
     setPicked([entry.availabilityDate]);
-    setStatus(entry.status);
+    if (entry.status !== "available") return;
     setAllDay(Boolean(entry.allDay));
     setStartTime(entry.startTime);
     setEndTime(entry.endTime);
@@ -1036,9 +1047,9 @@ function AvailabilityScreen({ data, isAdmin, act, busy, initialMonth }: { data: 
       <div>
         <span className="section-kicker">Employee scheduling</span>
         <h3>{isAdmin ? "Department availability" : "My availability"}</h3>
-        <p className="muted">Mark the days and times you can or cannot work. Auto-Distribution can assign you only within your saved Available times. Blank days are not available for auto-distribution. Saving availability does not assign a shift or remove an existing assignment. To change a shift you already work, offer a trade.</p>
+        <p className="muted">Enter only the days and hours the member wants to work. Auto-Distribution can assign you only within your saved Available times. Blank days are not available for auto-distribution. Saving availability does not assign a shift or remove an existing assignment. To change a shift you already work, offer a trade.</p>
       </div>
-      {isAdmin && <label><span>Employee</span><select value={memberId} onChange={(event) => { setMemberId(event.target.value); setPicked([]); }}>
+      {isAdmin && <label><span>Employee</span><select value={memberId} onChange={(event) => { if (!confirmLeavingWork()) return; setMemberId(event.target.value); setPicked([]); setNote(""); setRepeatDays(0); setCustomRepeat(false); setRepeatThrough(""); }}>
         {data.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name} — {employee.rank}</option>)}
       </select></label>}
     </section>
@@ -1068,10 +1079,7 @@ function AvailabilityScreen({ data, isAdmin, act, busy, initialMonth }: { data: 
       <section className="availability-editor">
         <span className="section-kicker">Availability details</span>
         <h3>Set selected days</h3>
-        <div className="availability-status-options" role="radiogroup" aria-label="Availability status">
-          <button type="button" className={status === "available" ? "current available" : ""} aria-pressed={status === "available"} onClick={() => setStatus("available")}><b>Available</b><small>I can work these times</small></button>
-          <button type="button" className={status === "unavailable" ? "current unavailable" : ""} aria-pressed={status === "unavailable"} onClick={() => setStatus("unavailable")}><b>Unavailable</b><small>Do not schedule me</small></button>
-        </div>
+        <p><strong>Available to work</strong> · Only the dates and hours you select will be saved.</p>
         <label className="availability-all-day chip"><input type="checkbox" checked={allDay} onChange={(event) => setAllDay(event.target.checked)} />All day</label>
         <p className="muted">All day means midnight to midnight on each selected date. For an overnight shift, enter its From and To times (for example, 18:00–06:00), or mark both dates Available all day. Times are Central.</p>
         {!allDay && <div className="availability-times">
@@ -1093,7 +1101,7 @@ function AvailabilityScreen({ data, isAdmin, act, busy, initialMonth }: { data: 
           const result = await act({ action: "saveAvailability", memberId, dates: expandedDates, status, allDay, startTime, endTime, note });
           if (result) { setPicked([]); setRepeatDays(0); setCustomRepeat(false); setRepeatThrough(""); setNote(""); }
         }}>{busy ? "Saving…" : `Save ${expandedDates.length} day${expandedDates.length === 1 ? "" : "s"}`}</button>
-        <p className="muted availability-safety-note">Existing assignments stay in place. If you mark an already scheduled day unavailable, the scheduler will flag the conflict for review.</p>
+        <p className="muted availability-safety-note">Existing assignments stay in place. Blank days do not count as availability. Previously saved unavailable entries remain visible until removed.</p>
       </section>
     </div>
 
@@ -1103,7 +1111,7 @@ function AvailabilityScreen({ data, isAdmin, act, busy, initialMonth }: { data: 
       <div className="availability-entry-grid">
         {memberEntries.slice().sort((a, b) => a.availabilityDate.localeCompare(b.availabilityDate)).map((entry) => <article key={entry.id} className={`availability-entry ${entry.status}`}>
           <div><b>{friendlyDate(entry.availabilityDate)}</b><span>{entry.status === "available" ? "Available" : "Unavailable"} · {entry.allDay ? "All day" : `${entry.startTime}–${entry.endTime}`}</span>{entry.note && <small>{entry.note}</small>}</div>
-          <div className="row-actions"><button className="link" onClick={() => editEntry(entry)}>Edit</button><button className="link danger" disabled={busy} onClick={() => act({ action: "deleteAvailability", memberId, date: entry.availabilityDate })}>Remove</button></div>
+          <div className="row-actions">{entry.status === "available" && <button className="link" onClick={() => editEntry(entry)}>Edit</button>}<button className="link danger" disabled={busy} onClick={() => act({ action: "deleteAvailability", memberId, date: entry.availabilityDate })}>Remove</button></div>
         </article>)}
       </div>
     </section>

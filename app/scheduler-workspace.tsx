@@ -2,6 +2,7 @@
 /* eslint-disable @next/next/no-img-element -- Fixed-size local department patch. */
 
 import dynamic from "next/dynamic";
+import { scheduleSaveFeedback } from "./scheduler-save-feedback";
 import { scheduleDestination, isScheduleWorkspaceScreen } from "./scheduler-navigation";
 import { confirmLeavingWork } from "./use-unsaved-work";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -67,6 +68,7 @@ export default function SchedulerWorkspace({
   const [dialog, setDialog] = useState<ScheduleDialogState | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [savedNext, setSavedNext] = useState({ next: "", label: "" });
   const [loading, setLoading] = useState(true);
   const [stale, setStale] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -86,6 +88,7 @@ export default function SchedulerWorkspace({
         throw new Error(result.error || "Unable to load the schedule.");
       setData(result);
       setStale(false);
+      setError("");
       setDate((current) => current || result.today);
       setMonth((current) => current || result.today.slice(0, 7));
       setLoadedAt(
@@ -161,7 +164,13 @@ export default function SchedulerWorkspace({
         throw new Error(
           result.error || "Unable to save. Your selections have been kept.",
         );
-      setNotice(result.note || "Saved to Firehouse Manager.");
+      if (result.ok !== true) { setStale(true); throw new Error("The server did not confirm the save. Refresh the saved schedule before trying again."); }
+      const feedback = scheduleSaveFeedback(body);
+      setNotice(feedback.message + (result.note ? " " + result.note : ""));
+      setSavedNext({ next: feedback.next, label: feedback.label });
+      const affectedSlot = data?.slots.find(s => s.id === (body.slotId || data.claims.find(c => c.id === body.id)?.slotId || data.trades.find(t => t.id === body.id)?.slotId));
+      const affectedDate = typeof body.date === 'string' ? body.date : affectedSlot?.entryDate;
+      if (affectedDate && validScheduleDate(affectedDate)) { setDate(affectedDate); setMonth(affectedDate.slice(0, 7)); }
       if (!(await load()))
         setError(
           "Your change was saved, but the updated schedule could not load. Refresh before making another change.",
@@ -196,7 +205,7 @@ export default function SchedulerWorkspace({
       if (next === "calendar" && nextDate && validScheduleDate(nextDate)) { setDate(nextDate); setMonth(nextDate.slice(0, 7)); }
       setAdvanced(destination);
     }
-    setError("");
+    if (!stale) setError("");
     setNotice("");
     if (window.matchMedia("(max-width: 700px)").matches)
       heading.current?.scrollIntoView({ block: "start", behavior: "instant" });
@@ -301,14 +310,15 @@ export default function SchedulerWorkspace({
         {loading ? "Refreshing…" : `Firehouse Manager · updated ${loadedAt} CT`}{" "}
         {testMember ? "· Read-only member preview" : ""}
       </p>}
-      {error && (
+      {error && !dialog && (
         <div className="sf-message sf-error" role="alert">
           {error}
         </div>
       )}
       {notice && (
         <div className="sf-message sf-success" role="status">
-          {notice}
+          <p>{notice}</p>
+          {savedNext.next && <button className="sf-secondary" disabled={busy || loading} onClick={() => { if (stale) { void load(); return; } navigate(savedNext.next); }}>{stale ? 'Refresh saved schedule' : savedNext.label} →</button>}
         </div>
       )}
       <>
@@ -355,7 +365,7 @@ export default function SchedulerWorkspace({
                   disabled={readOnly || !employeeId}
                   onClick={() => setDialog({ kind: "request" })}
                 >
-                  New request <span aria-hidden>＋</span>
+                  Update availability <span aria-hidden>＋</span>
                 </button>
               </div>
               {shifts[0] ? (
@@ -508,15 +518,14 @@ export default function SchedulerWorkspace({
               <div>
                 <h3>Requests & availability</h3>
                 <p>
-                  Track a trade, ask for time off, or let us know when you can
-                  work.
+                  Track shift requests and trades, or update the days and hours you can work.
                 </p>
               </div>
               <button
                 disabled={readOnly || !employeeId}
                 onClick={() => setDialog({ kind: "request" })}
               >
-                New request ＋
+                Update availability ＋
               </button>
             </div>
             <RequestList data={data} requests={myRequests} open={setDialog} />
@@ -525,6 +534,7 @@ export default function SchedulerWorkspace({
               employeeId={employeeId}
               disabled={readOnly}
               act={act}
+              open={setDialog}
             />
           </>
         )}
@@ -676,6 +686,7 @@ export default function SchedulerWorkspace({
                     {shift.repeatEveryDays === 1 ? "DAY" : "DAYS"}
                   </span>
                   <strong>{shift.name}</strong>
+                  <span className="sf-badge">{shift.active ? 'Active pattern' : 'Retired · saved history'}</span>
                   <span>
                     {scheduleClock(shift.startTime)}–
                     {scheduleClock(shift.endTime)}
@@ -780,6 +791,8 @@ export default function SchedulerWorkspace({
           busy={busy}
           disabled={readOnly}
           error={error}
+          reload={load}
+          refreshing={loading}
           act={act}
           close={() => {
             if (!busy) setDialog(null);
@@ -1323,11 +1336,13 @@ function AvailabilityList({
   employeeId,
   disabled,
   act,
+  open,
 }: {
   data: LiveSchedule;
   employeeId: string;
   disabled: boolean;
   act: Action;
+  open: (state: ScheduleDialogState) => void;
 }) {
   const [limit, setLimit] = useState(10);
   const rows = data.availability
@@ -1351,6 +1366,7 @@ function AvailabilityList({
               {a.note ? " · " + a.note : ""}
             </span>
           </span>
+          {a.status === "available" && <button className="sf-secondary" disabled={disabled} aria-label={"Edit availability for " + a.availabilityDate} onClick={() => open({kind:"request",availability:a})}>Edit</button>}
           <button
             className="sf-secondary"
             disabled={disabled}

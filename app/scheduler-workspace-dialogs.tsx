@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
+import { availabilityRequestDates, type AvailabilityPattern } from "./availability-request";
+import { useUnsavedWork } from "./use-unsaved-work";
 import { shiftHasNotStarted } from "./scheduler-member-view";
 import {
   reminderAudience,
@@ -12,7 +14,6 @@ import {
   clearedForPosition,
   incomingTradeOffers,
   scheduleClock,
-  scheduleDates,
   scheduleDayLabel,
   scheduleEligibility,
   scheduleSpan,
@@ -21,6 +22,7 @@ import {
 } from "./scheduler-workspace-model";
 import type {
   LiveSchedule,
+  ScheduleAvailability,
   ScheduleReminder,
   ScheduleShift,
   ScheduleSlot,
@@ -31,7 +33,7 @@ import type {
 export type ScheduleDialogState =
   | { kind: "trade" | "claim" | "staff" | "details"; slot: ScheduleSlot }
   | { kind: "accept"; slot: ScheduleSlot; trade: ScheduleTrade }
-  | { kind: "request" }
+  | { kind: "request"; availability?: ScheduleAvailability }
   | { kind: "review"; request: WorkspaceRequest }
   | { kind: "pattern"; shift?: ScheduleShift }
   | { kind: "detail"; date: string }
@@ -43,17 +45,19 @@ type Props = {
   busy: boolean;
   disabled: boolean;
   error: string;
+  reload?: () => Promise<boolean>;
+  refreshing?: boolean;
   act: (body: Record<string, unknown>) => Promise<boolean>;
   close: () => void;
 };
-type FormProps = Omit<Props, "state" | "busy" | "error">;
+type FormProps = Omit<Props, "state" | "busy" | "error" | "reload" | "refreshing">;
 const titles = {
   trade: "Offer a trade",
   claim: "Request this shift",
   staff: "Manage position",
   details: "Shift details",
   accept: "Review trade",
-  request: "New schedule request",
+  request: "Update availability",
   review: "Request details",
   pattern: "Recurring schedule",
   detail: "Add special detail",
@@ -61,7 +65,23 @@ const titles = {
 };
 export function ScheduleDialog(props: Props) {
   const ref = useRef<HTMLDialogElement>(null);
-  const { state, close, busy, error, ...form } = props;
+  const { state, close: finish, busy, error, reload, refreshing, ...form } = props;
+  const dirty = useRef(false);
+  const [edited, setEdited] = useState(false);
+  const [closeRequested, setCloseRequested] = useState(false);
+  const keepEditing = useRef<HTMLButtonElement>(null);
+  useEffect(() => { if (closeRequested) keepEditing.current?.focus(); }, [closeRequested]);
+  useUnsavedWork(edited, busy);
+  const close = () => {
+    if (busy) return;
+    if (dirty.current) { setCloseRequested(true); return; }
+    finish();
+  };
+  const formProps = { ...form, act: async (body: Record<string, unknown>) => {
+    const saved = await form.act(body);
+    if (saved) { dirty.current = false; setEdited(false); }
+    return saved;
+  } };
   useEffect(() => {
     const dialog = ref.current;
     dialog?.showModal();
@@ -73,6 +93,8 @@ export function ScheduleDialog(props: Props) {
     <dialog
       ref={ref}
       className="sf-schedule sf-dialog"
+      onInputCapture={() => { dirty.current = true; setEdited(true); }}
+      onChangeCapture={() => { dirty.current = true; setEdited(true); }}
       aria-labelledby="sf-dialog-title"
       onCancel={(e) => {
         e.preventDefault();
@@ -94,35 +116,38 @@ export function ScheduleDialog(props: Props) {
           ×
         </button>
       </div>
-      <div className="sf-dialog-body">
+      <fieldset className="sf-dialog-body" disabled={busy}>
+        {busy && <p role="status">Saving… Keep this form open until the server confirms the result.</p>}
+        {closeRequested && <div className="sf-message" role="alert"><p>This form has edits. Keep editing, or discard the form draft and close. If a save was interrupted, check the saved screen before submitting again.</p><div className="sf-button-row"><button type="button" ref={keepEditing} onClick={() => setCloseRequested(false)}>Keep editing</button><button type="button" className="sf-danger" onClick={() => { dirty.current = false; setEdited(false); finish(); }}>Discard draft and close</button></div></div>}
         {error && (
           <div className="sf-message sf-error" role="alert">
-            {error}
+            <p>{error}</p>
+            {reload && <button type="button" disabled={busy || refreshing} onClick={() => { void reload(); }}>{refreshing ? 'Refreshing…' : 'Refresh saved schedule'}</button>}
           </div>
         )}
         {state.kind === "trade" ? (
-          <TradeForm {...form} close={close} slot={state.slot} />
+          <TradeForm {...formProps} close={close} slot={state.slot} />
         ) : state.kind === "claim" ? (
-          <ClaimForm {...form} close={close} slot={state.slot} />
+          <ClaimForm {...formProps} close={close} slot={state.slot} />
         ) : state.kind === "accept" ? (
           <AcceptForm
-            {...form}
+            {...formProps}
             close={close}
             slot={state.slot}
             trade={state.trade}
           />
         ) : state.kind === "request" ? (
-          <RequestForm {...form} close={close} />
+          <RequestForm {...formProps} close={close} initial={state.availability} />
         ) : state.kind === "review" ? (
-          <ReviewForm {...form} close={close} request={state.request} />
+          <ReviewForm {...formProps} close={close} request={state.request} />
         ) : state.kind === "staff" ? (
-          <StaffForm {...form} close={close} slot={state.slot} />
+          <StaffForm {...formProps} close={close} slot={state.slot} />
         ) : state.kind === "pattern" ? (
-          <PatternForm {...form} close={close} shift={state.shift} />
+          <PatternForm {...formProps} close={close} shift={state.shift} />
         ) : state.kind === "detail" ? (
-          <DetailForm {...form} close={close} date={state.date} />
+          <DetailForm {...formProps} close={close} date={state.date} />
         ) : state.kind === "reminder" ? (
-          <ReminderForm {...form} close={close} rule={state.rule} />
+          <ReminderForm {...formProps} close={close} rule={state.rule} />
         ) : (
           <>
             <ShiftSummary slot={state.slot} />
@@ -130,7 +155,7 @@ export function ScheduleDialog(props: Props) {
             <Footer close={close} />
           </>
         )}
-      </div>
+      </fieldset>
     </dialog>
   );
 }
@@ -205,6 +230,7 @@ function TradeForm({
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
   const now = new Date();
+  const pending = data.trades.some(t => t.slotId === slot.id && ['pending', 'awaiting_acceptance'].includes(t.status));
   const targets = data.employees.filter(
     (e) => e.id !== employeeId && clearedForPosition(e, slot.role),
   );
@@ -299,7 +325,8 @@ function TradeForm({
           {error}
         </p>
       )}
-      <Footer close={close} disabled={disabled} label="Post trade offer" />
+      {pending && <p className="sf-message" role="status">This shift already has an open trade offer. Close this form and open Requests to check its status.</p>}
+      <Footer close={close} disabled={disabled || pending} label="Post trade offer" />
     </form>
   );
 }
@@ -419,208 +446,44 @@ function AcceptForm({
     </form>
   );
 }
-function RequestForm({ data, employeeId, disabled, act, close }: FormProps) {
-  const [kind, setKind] = useState("availability"),
-    [from, setFrom] = useState(data.today),
-    [through, setThrough] = useState(data.today),
-    [status, setStatus] = useState("available"),
-    [allDay, setAllDay] = useState(true),
-    [start, setStart] = useState("06:00"),
-    [end, setEnd] = useState("18:00"),
-    [note, setNote] = useState(""),
-    [type, setType] = useState("vacation"),
-    [approver, setApprover] = useState(""),
-    [dates, setDates] = useState<string[]>([]),
-    [error, setError] = useState("");
-  const days = [
-    ...new Set(
-      upcomingAssignments(data, employeeId, new Date()).map((s) => s.entryDate),
-    ),
-  ];
-  const approvers = data.employees.filter(
-    (e) => clearedForPosition(e, "Officer/AO") && e.id !== employeeId,
-  );
+function RequestForm({ data, disabled, act, close, initial }: FormProps & { initial?: ScheduleAvailability }) {
+  const [from, setFrom] = useState(initial?.availabilityDate || data.today),
+    [through, setThrough] = useState(initial?.availabilityDate || data.today),
+    [allDay, setAllDay] = useState(initial ? Boolean(initial.allDay) : false),
+    [start, setStart] = useState(initial?.startTime || "06:00"),
+    [end, setEnd] = useState(initial?.endTime || "18:00"),
+    [note, setNote] = useState(initial?.note || ""),
+    [pattern, setPattern] = useState<AvailabilityPattern>('range'),
+    [interval, setInterval] = useState(3),
+    [weekdays, setWeekdays] = useState<number[]>([]);
+  let dates: string[] = [], patternError = '';
+  try { dates = availabilityRequestDates(from, through, pattern, interval, weekdays); }
+  catch(error) { patternError = error instanceof Error ? error.message : 'Check your dates.'; }
   async function submit(e: FormEvent) {
     e.preventDefault();
-    setError("");
-    try {
-      const body =
-        kind === "availability"
-          ? {
-              action: "saveAvailability",
-              dates: scheduleDates(from, through),
-              status,
-              allDay,
-              startTime: start,
-              endTime: end,
-              note,
-            }
-          : {
-              action: "submitTimeOff",
-              type,
-              approverEmployeeId: approver,
-              dates,
-              note,
-            };
-      if (kind === "timeoff" && !dates.length)
-        throw new Error("Select at least one of your scheduled dates.");
-      if (await act(body)) close();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Check your dates.");
-    }
+    if (patternError || !dates.length) return;
+    if (await act({ action: "saveAvailability", dates, status: 'available', allDay, startTime: start, endTime: end, note })) close();
   }
-  return (
-    <form onSubmit={submit}>
-      <div className="sf-segment sf-full">
-        <button
-          type="button"
-          aria-pressed={kind === "availability"}
-          onClick={() => setKind("availability")}
-        >
-          Availability
-        </button>
-        <button
-          type="button"
-          aria-pressed={kind === "timeoff"}
-          onClick={() => setKind("timeoff")}
-        >
-          Time off
-        </button>
-      </div>
-      {kind === "availability" ? (
-        <>
-          <p>
-            Save when you can or cannot work. Availability is saved immediately;
-            it does not assign you to a shift.
-          </p>
-          <label>
-            I am
-            <select value={status} onChange={(e) => setStatus(e.target.value)}>
-              <option value="available">Available to work</option>
-              <option value="unavailable">Unavailable</option>
-            </select>
-          </label>
-          <div className="sf-form-grid">
-            <label>
-              First date
-              <input
-                type="date"
-                required
-                value={from}
-                onChange={(e) => {
-                  setFrom(e.target.value);
-                  if (e.target.value > through) setThrough(e.target.value);
-                }}
-              />
-            </label>
-            <label>
-              Last date
-              <input
-                type="date"
-                min={from}
-                required
-                value={through}
-                onChange={(e) => setThrough(e.target.value)}
-              />
-            </label>
-          </div>
-          <label className="sf-check">
-            <input
-              type="checkbox"
-              checked={allDay}
-              onChange={(e) => setAllDay(e.target.checked)}
-            />{" "}
-            All day
-          </label>
-          {!allDay && (
-            <TimeFields
-              start={start}
-              end={end}
-              setStart={setStart}
-              setEnd={setEnd}
-            />
-          )}
-          <p className="sf-help">
-            This replaces your availability on the selected dates (up to 93
-            days).
-          </p>
-        </>
-      ) : (
-        <>
-          <p>
-            Choose your scheduled dates. An approved request records your time
-            off; the administrator manages any resulting coverage.
-          </p>
-          <label>
-            Time-off type
-            <select value={type} onChange={(e) => setType(e.target.value)}>
-              {[
-                ["vacation", "Vacation"],
-                ["recovery", "Recovery"],
-                ["floating", "Floating holiday"],
-                ["sick", "Sick"],
-                ["official_business", "Official business"],
-              ].map(([id, label]) => (
-                <option value={id} key={id}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Approving officer
-            <select
-              value={approver}
-              onChange={(e) => setApprover(e.target.value)}
-              required
-            >
-              <option value="">Choose an officer</option>
-              {approvers.map((e) => (
-                <option value={e.id} key={e.id}>
-                  {e.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <fieldset className="sf-date-picker">
-            <legend>Scheduled dates</legend>
-            {days.map((day) => (
-              <label className="sf-check" key={day}>
-                <input
-                  type="checkbox"
-                  checked={dates.includes(day)}
-                  onChange={(e) =>
-                    setDates((current) =>
-                      e.target.checked
-                        ? [...current, day]
-                        : current.filter((d) => d !== day),
-                    )
-                  }
-                />
-                {scheduleDayLabel(day, true)}
-              </label>
-            ))}
-            {!days.length && <p>No upcoming scheduled dates.</p>}
-          </fieldset>
-        </>
-      )}
-      <Note value={note} set={setNote} max={240} />
-      {error && (
-        <p role="alert" className="sf-message sf-error">
-          {error}
-        </p>
-      )}
-      <Footer
-        close={close}
-        disabled={disabled}
-        label={
-          kind === "availability"
-            ? "Save availability"
-            : "Send time-off request"
-        }
-      />
-    </form>
-  );
+  return <form onSubmit={submit}>
+    <p>Enter only the days and hours you want to work. Blank time is not available for automatic scheduling. Saving does not assign a shift.</p>
+    <label>Repeat<select value={pattern} onChange={e => setPattern(e.target.value as AvailabilityPattern)}>
+      <option value="range">Every day in the date range</option><option value="interval">Every X days</option><option value="weekdays">Selected weekdays</option>
+    </select></label>
+    <div className="sf-form-grid">
+      <label>First date<input type="date" required value={from} onChange={e => { setFrom(e.target.value); if (e.target.value > through) setThrough(e.target.value); }} /></label>
+      <label>Through date<input type="date" required min={from} value={through} onChange={e => setThrough(e.target.value)} /></label>
+    </div>
+    {pattern==='interval' && <label>Repeat every (days)<input type="number" min={1} max={365} required value={interval} onChange={e=>setInterval(Number(e.target.value))} /></label>}
+    {pattern==='weekdays' && <fieldset><legend>Days you want to work</legend><div className="sf-weekday-options">{['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((day,index)=><label className="sf-check" key={day}><input type="checkbox" checked={weekdays.includes(index)} onChange={e=>setWeekdays(current=>e.target.checked?[...current,index]:current.filter(d=>d!==index))} />{day}</label>)}</div></fieldset>}
+    <label className="sf-check"><input type="checkbox" checked={allDay} onChange={e => setAllDay(e.target.checked)} /> All day</label>
+    {!allDay && <TimeFields start={start} end={end} setStart={setStart} setEnd={setEnd} />}
+    <p className="sf-help">The same hours apply to every date shown below. Repeats stop on Through date. Save another pattern if different days need different hours.</p>
+    {patternError ? <p role="alert" className="sf-message sf-error">{patternError}</p> : <section className="sf-message" aria-label="Availability date preview"><strong>{dates.length} available day{dates.length===1?'':'s'} · {allDay?'All day':scheduleClock(start)+'–'+scheduleClock(end)}</strong><details><summary>Review all dates before saving</summary><ul>{dates.map(date=><li key={date}>{scheduleDayLabel(date,true)} · {date}</li>)}</ul></details></section>}
+    <p className="sf-help">This replaces availability only on the previewed dates, up to 93 dates within one year. Existing assignments stay unchanged. To leave an assigned shift, offer a trade.</p>
+    <Note value={note} set={setNote} max={240} />
+    <p className="sf-help">Next: save, then check Your saved availability under Requests.</p>
+    <Footer close={close} disabled={disabled || !!patternError || !dates.length} label={'Save '+dates.length+' available day'+(dates.length===1?'':'s')} />
+  </form>;
 }
 function ReviewForm({
   data,
@@ -1051,6 +914,12 @@ function PatternForm({
     ),
   );
   const positions = Object.entries(counts).filter(([, count]) => count > 0);
+  if (shift && !shift.active) return <>
+    <p className="sf-message">Retired pattern · saved history. To build future staffing, add a new active pattern. Existing records stay intact.</p>
+    <h3>{shift.name}</h3><p>{scheduleClock(shift.startTime)}–{scheduleClock(shift.endTime)} · starts {shift.anchorDate} · repeats every {shift.repeatEveryDays} days · {shift.color}</p>
+    <ul>{positions.map(([role,count])=><li key={role}>{count} × {role}</li>)}</ul>
+    <Footer close={close} />
+  </>;
   return (
     <form
       onSubmit={async (e) => {

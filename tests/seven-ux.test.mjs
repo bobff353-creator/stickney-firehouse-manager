@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {portalParentPage,portalPages} from '../app/portal-navigation.ts';
+import {scheduleSaveFeedback} from '../app/scheduler-save-feedback.ts';
 const source=file=>readFileSync(new URL('../app/'+file,import.meta.url),'utf8');
 test('parent destinations are predictable and never grant access',()=>{
   assert.equal(portalParentPage('Timesheets','Dashboard',portalPages),'Payroll');
@@ -18,8 +19,12 @@ test('view memory is bounded, identity-scoped and contains no persisted operatio
 });
 test('save and preview guidance preserves workflow distinctions',()=>{
   assert.match(source('station-scheduler.tsx'),/if \(previewMember \|\| testMember\)/);
-  assert.match(source('station-scheduler.tsx'),/disabled=\{previewMember \|\| Boolean\(testMember\)\}/);
-  assert.match(source('station-scheduler.tsx'),/"submitTrade", "respondTrade"/);
+  assert.match(source('station-scheduler.tsx'),/disabled=\{previewMember \|\| Boolean\(testMember\)(?: \|\| [^}]+)?\}/);
+  for (const action of ['submitTrade','respondTrade']) {
+    const feedback=scheduleSaveFeedback({action,decision:'accept'});
+    assert.match(feedback.message,/administrator approv/);
+    assert.equal(feedback.next,'requests');
+  }
   assert.match(source('inventory-operations.tsx'),/Show remaining items/);
   assert.match(source('field-preplans.tsx'),/Advanced publication is a separate review step/);
 });
