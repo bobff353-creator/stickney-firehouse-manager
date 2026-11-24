@@ -1,6 +1,6 @@
 # Firehouse Manager whole-build review — November 23, 2026
 
-The review covers the registered portal, the separate apparatus workspace, owning UI/server paths, and isolated record-changing workflows. Final regression passed. Push, deployment and live release checks are recorded separately below.
+The review covers the registered portal, the separate apparatus workspace, owning UI/server paths, and isolated record-changing workflows. The review fixes are published and verified. Source, tests, push, deployment and live checks are recorded separately below.
 
 ## Findings and fixes
 
@@ -68,10 +68,10 @@ TypeScript/build and repository-wide ESLint cover the included source. The route
 - TypeScript / production build: final production build passed; standalone type-check result recorded separately in verification outputs.
 - Tests: **1,772 passed; 0 failed**, no skipped/cancelled/todo tests. `npm test` includes the successful production build and stripped-credential/network-denied isolated run.
 - ESLint / whitespace: repository-wide app/scripts/tests ESLint has **0 errors and 51 warnings**. Remaining warnings include image optimization, unused declarations and the intentional camera generation-ref cleanup pattern; they are not being represented as a warning-free run. `git diff --check` passed; no blanket suppression introduced.
-- Pushed commit: pending final checks.
+- Pushed application commit: `d2145032331abbbb32e78ebccff48741b8333e1e` on `codex/watchline-complete-20261123`; remote branch SHA matched.
 - Database migrations: none.
-- Production deployment and canonical health revision: pending final checks and committed release.
-- Live release verification: pending deployment; earlier read-only observations describe the previous production release.
+- Production deployment: `dpl_6xno53wvKXc4wsTsmSaceqMUjMmE`, READY at that exact application SHA in the existing Stickney project. Canonical and legacy production aliases are assigned. Canonical `/api/health` returned `d2145032331a`, production, Stickney Fire Department.
+- Live release verification: equipment shows 50 of 1,654 matches; Show next produced 100 and Bottle jack search found both matching records. All seven pay scales have assignment sections; an assignment link opened the filtered roster and enabled the existing pay-scale editor, then canceled without changes. Personal correction form opened and canceled, with the successful Refresh control. Today and Live Operations show saved-call/upstream-CAD warnings. Command Board status remains 54px tall with its warning intact. No operational save was performed. A final screenshot is in `outputs/full-build-review-20261123/live-equipment-directory.jpg`.\n- This final report update is documentation only; the deployed application revision remains the SHA above.
 
 Private screenshots/control catalogs and raw logs stay in ignored `outputs/full-build-review-20261123/`. Public review documentation contains no credentials or private operational/HR contents.
 
