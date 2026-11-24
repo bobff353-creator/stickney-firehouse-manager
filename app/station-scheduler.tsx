@@ -1063,6 +1063,7 @@ function AvailabilityScreen({ data, isAdmin, act, busy, initialMonth }: { data: 
           <div><span className="section-kicker">Select one or more days</span><h3>{monthTitle(monthDate)}</h3></div>
           <div><button type="button" aria-label="Previous month" onClick={() => changeMonth(-1)}>‹</button><button type="button" aria-label="Next month" onClick={() => changeMonth(1)}>›</button></div>
         </div>
+        <div className="availability-calendar-scroll" tabIndex={0} role="region" aria-label="Availability calendar; scroll sideways to see all seven days">
         <div className="availability-weekdays" aria-hidden="true">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <span key={day}>{day}</span>)}</div>
         <div className="availability-month" role="grid" aria-label={`Availability for ${monthTitle(monthDate)}`}>
           {cells.map((day, index) => {
@@ -1076,7 +1077,8 @@ function AvailabilityScreen({ data, isAdmin, act, busy, initialMonth }: { data: 
             </button>;
           })}
         </div>
-        <p className="muted availability-selection-help">{picked.length ? `${picked.length} day${picked.length === 1 ? "" : "s"} selected` : "Tap any day to select it. Select multiple days before saving."}</p>
+        </div>
+        <p className="muted availability-selection-help">{picked.length ? `${picked.length} day${picked.length === 1 ? "" : "s"} selected` : "Tap any day to select it. Select multiple days before saving."} Swipe sideways if all seven days do not fit.</p>
       </section>
 
       <section className="availability-editor">

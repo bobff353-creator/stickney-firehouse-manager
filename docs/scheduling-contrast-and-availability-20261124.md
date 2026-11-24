@@ -6,6 +6,7 @@
 - Increased field and secondary-button boundary contrast. Disabled buttons use opaque readable colors, not opacity fading. Keyboard focus and selected-state outlines have contrasting light/dark colors. Shift badges retain their colors and readable labels; small shift text no longer fades.
 - Saved availability defaults to the calendar month and shows **10 entries per page**. Filters support the current month, today onward, all dates in the list, a custom inclusive range, entry type, and date/note search. Counts distinguish the list total from matching and displayed rows.
 - Long notes expand individually. Edit/Remove remain available for the same records under existing permissions. Edit focuses the populated editor, Cancel edits clears only the draft, and page navigation focuses the list heading.
+- Narrow availability calendars keep readable day buttons in a contained, keyboard-focusable sideways scrolling region. Measured targets are about 83 by 64 CSS pixels, replacing narrow cells that stacked letters vertically. A visible instruction explains swiping; month navigation remains outside the scrolling region.
 - The API's existing 45-day lookback is unchanged. The UI states the earliest date included; earlier records remain saved. “All dates in this list” does not claim to fetch archival records outside that existing response.
 
 ## Contrast coverage
@@ -14,7 +15,7 @@ Reviewed all 15 supported admin destinations: month setup, availability, staffin
 
 Employee coverage includes list/calendar/whole-crew selections, coverage, requests/history, availability repeat forms, trade offer/review, shift details, and claim dialogs. Additional checks cover shared admin dialogs, expanded calendar-day/time/extra-position editors, confirmation preview, draft discard, failed saves, custom-range validation, and expanded notes.
 
-- Final evidence contains 232 distinct screen/state/size/theme combinations, including normal, hover, keyboard-focus and disabled controls. All final measured text meets 4.5:1 (3:1 for large text); no document horizontal overflow was found in those combinations.
+- Final evidence covers more than 230 distinct screen/state/size/theme combinations, including normal, hover, keyboard-focus and disabled controls. All final measured text meets 4.5:1 (3:1 for large text); no document horizontal overflow was found in those combinations. The narrow availability calendar intentionally scrolls inside its own region.
 - All admin destinations and employee main screens/repeat forms were measured at 390, 820 and 1388 CSS pixels in light and dark mode. Hover/focus states were forced only in the isolated browser fixture and cleared afterward. These are viewport simulations, not physical-device certification.
 - The read-only DOM audit records text and button styles; numeric source tests cover primary/disabled/status palettes, field/focus boundaries, and all seven shift-color labels. Visual inspection supplements the measurements. Browser-native popup rendering, arbitrary custom colors, OS contrast modes and physical displays are not exhaustively certified.
 - Intermediate failures are retained separately from the final verified evidence. Browser access interrupted the first review; the review resumed after access recovered.
@@ -31,6 +32,7 @@ Edit restored the original note and focused the editor; Cancel edits wrote nothi
 
 - Focused scheduling/availability/navigation/contrast tests: **111 passed, zero failed**. An existing source assertion initially rejected quote formatting of the unchanged delete action; the source was restored to the expected format and the full focused selection passed.
 - Final additional contrast/list/portal-palette checks: **7 passed**.
+- Final phone-calendar/source regression selection: **24 passed**.
 - TypeScript and final production build passed.
 - ESLint on changed TypeScript/JavaScript: zero errors, one existing unused `OvertimeScreen` warning.
 - `git diff --check` passed. No dependency or database migration changes.

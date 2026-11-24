@@ -11,6 +11,9 @@
 :is(#portal-workspace .sf-schedule, .sf-schedule) .availability-compact-entries .availability-entry { background: var(--sf-surface); color: var(--sf-ink); border-top-color: var(--sf-line); border-right-color: var(--sf-line); border-bottom-color: var(--sf-line); }
 :is(#portal-workspace .sf-schedule, .sf-schedule) .availability-compact-entries .availability-entry :is(b, span, summary, p) { color: var(--sf-ink); }
 .sf-schedule :is(.availability-editor, .availability-saved-list) h3 { scroll-margin-top: 110px; }
+.sf-schedule .availability-calendar-scroll { width: 100%; max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; padding-bottom: 8px; }
+:is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded .availability-calendar-scroll :is(.availability-weekdays, .availability-month) { min-width: 620px; }
+:is(#portal-workspace .sf-schedule, .sf-schedule) .scheduler-embedded .availability-month > button { padding: 7px; }
 @media (max-width: 600px) { .sf-schedule .availability-compact-entries .availability-entry { flex-direction: column; gap: 8px; } .sf-schedule .availability-compact-entries .row-actions { align-self: stretch; } .sf-schedule .availability-compact-entries .row-actions button { flex: 1; } }
 /* Embedded tools share the workspace palette instead of mixing legacy dark
    panels with light-mode labels. Keep status/shift colors on their own badges. */
@@ -173,7 +176,7 @@
 }
 :is(#portal-workspace .sf-schedule, .sf-schedule) button:disabled :is(span, strong, small) { color: inherit; }
 :is(#portal-workspace .sf-schedule, .sf-schedule)
-  :is(button, a, input, select, textarea, summary):focus-visible {
+  :is(button, a, input, select, textarea, summary, .availability-calendar-scroll):focus-visible {
   outline: 3px solid var(--sf-focus, #965900);
   outline-offset: 3px;
 }
