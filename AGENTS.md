@@ -20,6 +20,39 @@ uses `?display=portal&page=...` routes.
 - Report source changes, test results, pushed commit, database migrations,
   production deployment, and live verification as separate outcomes.
 
+## End-user review and queued work
+
+- Keep every requested task in scope when another message adds work. Track
+  completed, active, blocked, and remaining items; do not silently drop earlier requests.
+- For a whole-build review, inventory every supported screen and distinct control
+  and review the owning client/server code. Track live read-only checks, isolated
+  save/failure/recovery tests, source review, and unverified paths separately.
+- Exercise realistic find/open/edit/back/save/retry workflows. Use clear labels,
+  obvious next steps, accessible contrast, and responsive layouts. Do not remove
+  validation, approval, history, permission checks, or recovery to simplify a flow.
+- Test changes to operational records, payroll, incident command, account access,
+  notifications, or destructive actions with isolated data. Do not create real
+  department test records or send messages merely to demonstrate a control.
+- Keep automatic email/text delivery off and make no purchases unless the user
+  explicitly authorizes a change to those settings. Catnap is outside this project.
+- Record exact coverage and limitations. Passing fixtures or static checks does
+  not establish live delivery, physical-device behavior, or a verified integration.
+
+## Code Review Rules
+
+- Flag client-provided department scope, missing server permission/origin checks,
+  or unscoped record/storage access. Derive scope from the verified session.
+- Flag overwrites of newer saved work, lost unsaved drafts, non-atomic multi-record
+  saves, or retries that duplicate records. Preserve IDs, originals, audit history,
+  and independently checked child items.
+- Flag controls that imply successful saving, operational readiness, publication,
+  or delivery before the corresponding confirmation. Unknown must remain distinct
+  from verified absent, unavailable, failed, or stale.
+- Flag layout changes that hide warnings, saved items, recovery controls, or
+  required next steps. Keep print/export content complete and private.
+- Flag notification-enabling changes, new production dependencies, migrations,
+  or unrelated service/project changes outside the requested scope.
+
 ## Development and verification
 
 Use Node.js 24 and the committed package lock. Install with `npm ci`.

@@ -1,0 +1,7 @@
+# Project instruction setup
+
+The user's AGENTS.md guide was applied to this repository's existing root AGENTS.md. The original department-data, permissions, credentials, Node/npm, verification, dated handoff and publishing rules remain. Added sections define queued-work handling, whole-build review coverage, read-only live review versus isolated writes, readable next steps, notification/purchase constraints and Code Review Rules for access, data preservation, retry/conflict handling, status truthfulness and hidden controls.
+
+The root AGENTS.md is the repository instruction source. No repository AGENTS.override.md or nested instruction file was found. The default Codex-home global instruction paths checked were absent; project guidance therefore remains self-contained here. No example payment-service override, package-manager change or unrelated service configuration was introduced. The file remains comfortably below the guide's documented default 32 KiB limit. New sessions opened in this checkout can discover these rules through the standard AGENTS.md path; the current review also follows them.
+
+The requested full-build review continues separately. Source inventory identifies 37 portal pages, 155 API routes, 941 tracked source/style/SQL files and 3,279 control definitions (including fields, forms, links and repeated component templates). These are an inventory, not a claim that every flow has passed manual testing. Coverage and unresolved limitations are tracked in the review report.
